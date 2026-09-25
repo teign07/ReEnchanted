@@ -80,7 +80,19 @@ enum BraidProofHarness {
         func save(done: Bool) {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            // Rabbit's speed swung from 3.9 to 0.65 tokens a second between two
+            // runs an hour apart; heat and Low Power Mode are the usual reasons.
+            let thermal: String
+            switch ProcessInfo.processInfo.thermalState {
+            case .nominal: thermal = "nominal"
+            case .fair: thermal = "fair"
+            case .serious: thermal = "serious"
+            case .critical: thermal = "critical"
+            @unknown default: thermal = "unknown"
+            }
             let payload: [String: AnyEncodable] = [
+                "thermalState": AnyEncodable(thermal),
+                "lowPowerMode": AnyEncodable(ProcessInfo.processInfo.isLowPowerModeEnabled),
                 "iPhone15Class": AnyEncodable(LocalModelManager.isIPhone15ClassHardware),
                 "done": AnyEncodable(done),
                 "results": AnyEncodable(results)
@@ -116,11 +128,14 @@ enum BraidProofHarness {
                     name: item.name,
                     ceiling: ceiling,
                     text: text,
-                    finished: BraidNarrativeOutput.finished(
-                        text,
-                        reachedCeiling: reachedCeiling,
-                        keeperColophon: "The Book kept the page: [keeper line]."
-                    ),
+                    finished: BraidPointOfView.returningTheReadersActions(
+                        in: BraidNarrativeOutput.finished(
+                            text,
+                            reachedCeiling: reachedCeiling,
+                            keeperColophon: "The Book kept the page: [keeper line]."
+                        ),
+                        readerDay: readerDay(in: item.brief)
+                    ).text,
                     promptTokens: info?.promptTokenCount,
                     generatedTokens: info?.generationTokenCount,
                     tokensPerSecond: info.map { Double($0.generationTokenCount) / max($0.generateTime, 0.001) },
@@ -133,6 +148,17 @@ enum BraidProofHarness {
             }
         }
         save(done: true)
+    }
+
+    /// The reader-day sentences the brief handed over, as the pipeline gets
+    /// them from `BraidScenePlan.readerDayNarration`.
+    private static func readerDay(in brief: String) -> [String] {
+        guard let line = brief.components(separatedBy: "\n")
+            .first(where: { $0.hasPrefix(BraidScenePlan.readerDayLabel) }) else { return [] }
+        return line.dropFirst(BraidScenePlan.readerDayLabel.count)
+            .components(separatedBy: ". ")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 
     private struct AnyEncodable: Encodable {

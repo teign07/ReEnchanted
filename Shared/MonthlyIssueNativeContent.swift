@@ -1579,8 +1579,11 @@ enum MonthlyIssueBraidMatter {
 
     /// Context only: these are neither Reader evidence nor permission to write
     /// new canon. Bound publication uses the complete original strings below.
+    /// Passages one braid carries; the rest stay pending for the nights after.
+    static let passagesPerNight = BraidScenePlanBuilder.worldItemLimit
+
     static func promptSection(_ receipts: [AuthoredContentReceipt]) -> String {
-        let selected = Array(ordered(receipts).prefix(6))
+        let selected = Array(ordered(receipts).prefix(passagesPerNight))
         guard !selected.isEmpty else { return "" }
         let passages = selected.enumerated().map { index, receipt in
             let authority = receipt.state == .reported
@@ -1616,7 +1619,7 @@ enum MonthlyIssueBraidMatter {
                 && (replacing != nil ? originalIDs.contains($0.id) : !covered.contains($0.id))
         }
         // Bound prompt and publication work. Remaining receipts stay pending.
-        return Array(ordered(eligible).prefix(6))
+        return Array(ordered(eligible).prefix(passagesPerNight))
     }
 
     static func passage(_ receipts: [AuthoredContentReceipt]) -> String {

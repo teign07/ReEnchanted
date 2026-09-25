@@ -1072,8 +1072,7 @@ struct MLXBookBraider: Braider {
         if LocalModelManager.isIPhone15ClassHardware {
             scenePlan.earnedWords = BraidScenePlan.deviceHonestBand(scenePlan.earnedWords)
         }
-        var judgedContext = context
-        judgedContext.earnedWordBand = scenePlan.earnedWords
+        let judgedContext = scenePlan.judging(context)
         guard !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty
                 || scenePlan.authoredStoryReceipts?.isEmpty == false else {
             throw BraidScenePlanRefusalError(refusals: [.missingRequiredEvidence])
@@ -1096,14 +1095,24 @@ struct MLXBookBraider: Braider {
         if told.reachedCeiling {
             appLog.error("Braid telling reached the output ceiling; cut back to its last finished sentence")
         }
-        let prose = BraidNarrativeOutput.finished(
+        let finishedProse = BraidNarrativeOutput.finished(
             told.text,
             reachedCeiling: told.reachedCeiling,
             keeperColophon: BraidSceneWriter.keeperColophon(for: scenePlan)
         )
-        guard !prose.isEmpty else {
+        guard !finishedProse.isEmpty else {
             throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
         }
+        // "I found the missing library card": the reader's actions, handed
+        // back to them before anything is judged or kept.
+        let pointOfView = BraidPointOfView.returningTheReadersActions(
+            in: finishedProse,
+            readerDay: scenePlan.readerDayNarration
+        )
+        if pointOfView.repaired > 0 {
+            appLog.info("Braid returned \(pointOfView.repaired, privacy: .public) of the reader's actions to them")
+        }
+        let prose = pointOfView.text
         let tellingText = "\(scenePlan.title())\n\n\(prose)"
         let issues = BraidOutputAudit.issues(
             in: tellingText, for: day, context: judgedContext
@@ -1139,6 +1148,7 @@ struct MLXBookBraider: Braider {
         finalTags += scenePlan.contributionTags
         finalTags += scenePlan.residueTags(surviving: claims)
         if !issues.isEmpty { finalTags.append("braid-audit-best-effort") }
+        if pointOfView.repaired > 0 { finalTags.append("braid-pov-returned") }
         var seenFinalTags = Set<String>()
         finalTags = finalTags.filter { seenFinalTags.insert($0).inserted }
 

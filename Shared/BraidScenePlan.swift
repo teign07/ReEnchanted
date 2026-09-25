@@ -764,6 +764,17 @@ struct BraidScenePlan: Equatable, Codable {
 /// land. Leaving them out until then would mean redesigning the plan three
 /// times.
 enum BraidScenePlanBuilder {
+    /// How many pieces of the shared world one braid carries.
+    ///
+    /// bj, 2026-09-24: "we only need one or two world events for the braid,
+    /// not all of them. Like, monthly content world stuff first and foremost
+    /// of them, then whatever from the day." The richest bench night handed
+    /// Gemma six world sentences beside six of the reader's, and it recited
+    /// them in a row. Monthly passages and monthly world events claim these
+    /// slots first; the day's kept fiction and the house's own business share
+    /// whatever is left.
+    static let worldItemLimit = 2
+
     static func plan(
         for day: BookDay,
         context: BraidPromptBuilder.Context = .empty,
@@ -823,6 +834,32 @@ enum BraidScenePlanBuilder {
             selected = keeping.filter { allowed.contains($0.pageID) }
         }
 
+        // Monthly story passages the reader completed own the world strand
+        // first. Whatever they leave is shared by the world beat and the day's
+        // kept fiction, lead fiction first.
+        let authored = Array(
+            MonthlyIssueBraidMatter.ordered(prepared.authoredStoryReceipts).prefix(worldItemLimit)
+        )
+        let worldSlotsTaken = authored.isEmpty ? 1 : authored.count
+        let fictionRoom = max(0, worldItemLimit - worldSlotsTaken)
+        // A kept fiction that shares a thing with the reader's day ("the air
+        // in the long room would not give the diner a vote", on a night with
+        // lunch at Moody's Diner) is the crossing worth keeping, so it goes
+        // first; then the score's lead fiction and the rest in its order.
+        let crossingFiction = crossing(among: selected, anchor: nil)
+            .flatMap { $0.pivot == nil ? nil : $0.fictionID }
+            .flatMap { id in selected.first { $0.id == id }?.pageID }
+        let fictionOrder = [crossingFiction].compactMap { $0 }
+            + ([score?.fictionBeat].compactMap { $0 } + (score?.additionalFictionBeats ?? [])).map(\.pageID)
+        var keptFictionPages: [String] = []
+        for pageID in fictionOrder + selected.filter({ $0.kind == .keptFiction }).map(\.pageID)
+            where !keptFictionPages.contains(pageID)
+                && selected.contains(where: { $0.pageID == pageID && $0.kind == .keptFiction }) {
+            keptFictionPages.append(pageID)
+        }
+        let fictionCarried = Set(keptFictionPages.prefix(fictionRoom))
+        selected = selected.filter { $0.kind != .keptFiction || fictionCarried.contains($0.pageID) }
+
         let anchorID = anchorEvidenceID(from: selected, score: score, pages: byID)
         let placements = placements(for: selected, anchorID: anchorID, reading: reading)
         let transformationChoice = transformation(for: reading, score: score)
@@ -876,7 +913,6 @@ enum BraidScenePlanBuilder {
         // and never about it.
         // A closed day is not an empty one.
         plan.isQuietDay = selected.isEmpty
-        let authored = Array(MonthlyIssueBraidMatter.ordered(prepared.authoredStoryReceipts).prefix(6))
         if !authored.isEmpty {
             plan.authoredStoryReceipts = authored
             // The encountered monthly story owns tonight's world strand. Do
@@ -1758,6 +1794,142 @@ extension BraidDraftRejection {
 /// This cleaner therefore makes no literary decisions. It preserves ordinary
 /// prose and paragraph breaks, while removing only known transport debris from
 /// the retired marked format so an in-flight/older generation cannot expose it.
+/// Rabbit's Gemma sometimes tells the reader's day as the Book's own: "I
+/// found the missing library card", "I rang my brother back for once". Saying
+/// whose day it is in the brief's label helped, but about 7 in 100 tellings
+/// still took one of the reader's actions (2026-09-24, Mac lab rendering the
+/// phone's template).
+///
+/// The repair is deliberately narrow. A sentence is touched only when it gives
+/// the Book ("I", optionally with an -ly adverb) a verb the reader-day material
+/// gives the reader, and the words after that verb name the same thing. Then
+/// that clause, and only from the slip onwards, is handed back to "you" by the
+/// converter that already faces the reader's own words toward them. A Book
+/// that watches, remembers, or finds something funny is minding its own
+/// business and is left alone.
+enum BraidPointOfView {
+    struct Action: Equatable {
+        var verb: String
+        var objectWords: Set<String>
+    }
+
+    /// Past-tense actions only. Interior verbs are the reader's to report and
+    /// the audit's to police; "kept" belongs to the Book as much as the reader.
+    private static let irregularActions: Set<String> = [
+        "found", "put", "rang", "went", "made", "took", "saw", "ate", "wrote", "read",
+        "left", "got", "bought", "brought", "sat", "stood", "ran", "told", "sent", "gave",
+        "swam", "forgot", "met", "heard", "sang", "drank", "drove", "rode", "flew", "fell",
+        "won", "lost", "paid", "sold", "spent", "threw", "woke", "wore", "built", "caught",
+        "cut", "dug", "fed", "hid", "held", "hung", "hit", "led", "lit", "shut", "slept",
+        "spoke", "stole", "swept", "tore", "began", "came", "did", "drew", "grew", "knit"
+    ]
+    private static let notActions: Set<String> = [
+        "kept", "felt", "thought", "knew", "wanted", "needed", "seemed", "liked", "loved",
+        "hated", "wished", "hoped", "remembered", "forgotten", "used", "supposed", "tired"
+    ]
+    private static let emptyObjectWords: Set<String> = [
+        "your", "with", "that", "this", "from", "into", "about", "instead", "once", "back",
+        "again", "today", "than", "them", "they", "have", "when", "then", "there", "their",
+        "were", "just", "some", "what", "over", "after", "before", "still", "while"
+    ]
+
+    static func readerActions(in readerDay: [String]) -> [Action] {
+        guard let pattern = try? NSRegularExpression(
+            pattern: #"(?:\b[Yy]ou (?:[a-z]+ly )?|\band )([a-z]+)\b(?=([^.,;!?]*))"#
+        ) else { return [] }
+        var actions: [Action] = []
+        for line in readerDay {
+            let text = line as NSString
+            for match in pattern.matches(in: line, range: NSRange(location: 0, length: text.length)) {
+                let verb = text.substring(with: match.range(at: 1))
+                guard !notActions.contains(verb),
+                      verb.hasSuffix("ed") || irregularActions.contains(verb) else { continue }
+                let rest = text.substring(with: match.range(at: 2)).lowercased()
+                let objects = Set(
+                    rest.split { !$0.isLetter }
+                        .map(String.init)
+                        .filter { $0.count >= 4 && !emptyObjectWords.contains($0) }
+                )
+                guard !objects.isEmpty else { continue }
+                actions.append(Action(verb: verb, objectWords: objects))
+            }
+        }
+        return actions
+    }
+
+    static func returningTheReadersActions(
+        in prose: String,
+        readerDay: [String]
+    ) -> (text: String, repaired: Int) {
+        let actions = readerActions(in: readerDay)
+        guard !actions.isEmpty,
+              let sentencePattern = try? NSRegularExpression(
+                pattern: #"[^.!?\n]+(?:[.!?]+["”’)]*|$)"#
+              ) else { return (prose, 0) }
+        var repaired = 0
+        let paragraphs = prose.components(separatedBy: "\n\n").map { paragraph -> String in
+            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            var result = paragraph
+            let ns = paragraph as NSString
+            let sentences = sentencePattern.matches(
+                in: paragraph, range: NSRange(location: 0, length: ns.length)
+            )
+            for match in sentences.reversed() {
+                let sentence = ns.substring(with: match.range)
+                guard let fixed = returned(sentence, actions: actions),
+                      let range = Range(match.range, in: result) else { continue }
+                result.replaceSubrange(range, with: fixed)
+                repaired += 1
+            }
+            return result
+        }
+        return (paragraphs.joined(separator: "\n\n"), repaired)
+    }
+
+    /// The next "I" that is the Book speaking again, skipping any inside
+    /// quotation marks, where someone else is talking.
+    private static func nextBookSubject(in sentence: String, after start: String.Index) -> String.Index? {
+        var searchStart = start
+        while let found = sentence[searchStart...].range(
+            of: #"\bI(?:'m|’m|'ve|’ve|'d|’d|'ll|’ll)?\b"#,
+            options: .regularExpression
+        ) {
+            let before = sentence[start..<found.lowerBound]
+            let straight = before.filter { $0 == "\"" }.count
+            let opened = before.filter { $0 == "“" }.count
+            let closed = before.filter { $0 == "”" }.count
+            if straight % 2 == 0 && opened == closed { return found.lowerBound }
+            searchStart = found.upperBound
+        }
+        return nil
+    }
+
+    private static func returned(_ sentence: String, actions: [Action]) -> String? {
+        for action in actions {
+            guard let slip = sentence.range(
+                of: #"\bI (?:[a-z]+ly )?"# + action.verb + #"\b"#,
+                options: .regularExpression
+            ) else { continue }
+            let after = sentence[slip.upperBound...].lowercased()
+            let namesTheSameThing = action.objectWords.contains { word in
+                after.range(of: #"\b"# + word, options: .regularExpression) != nil
+            }
+            guard namesTheSameThing else { continue }
+            // The clause ends where the Book speaks for itself again. "I found
+            // the card, and I felt pleased": the finding was the reader's, the
+            // pleasure is the Book's, and moving it would invent a feeling.
+            let clauseEnd = nextBookSubject(in: sentence, after: slip.upperBound) ?? sentence.endIndex
+            var clause = BraidSceneWriter.secondPerson(String(sentence[slip.lowerBound..<clauseEnd]))
+            let opening = sentence[..<slip.lowerBound]
+            if opening.contains(where: { !$0.isWhitespace }), let first = clause.first {
+                clause = first.lowercased() + clause.dropFirst()
+            }
+            return String(opening) + clause + sentence[clauseEnd...]
+        }
+        return nil
+    }
+}
+
 enum BraidNarrativeOutput {
     private static let paragraphControl = "PARAGRAPH"
 
@@ -2626,6 +2798,51 @@ extension BraidScenePlan {
         }
     }
 
+    /// The context a telling of this plan is judged by. The story score can
+    /// choose more kept fiction than the plan's world slots carry
+    /// (`BraidScenePlanBuilder.worldItemLimit`), and the audit must not fault
+    /// Gemma for leaving out what the brief never handed it.
+    func judging(_ context: BraidPromptBuilder.Context) -> BraidPromptBuilder.Context {
+        var narrowed = context
+        narrowed.earnedWordBand = earnedWords
+        guard var score = context.storyScore else { return narrowed }
+        let carried = Set(
+            placements
+                .compactMap { evidence(for: $0.evidenceID) }
+                .filter { $0.kind == .keptFiction }
+                .map(\.pageID)
+        )
+        if let lead = score.fictionBeat, !carried.contains(lead.pageID) {
+            score.fictionBeat = nil
+        }
+        score.additionalFictionBeats = score.additionalFictionBeats.filter { carried.contains($0.pageID) }
+        narrowed.storyScore = score
+        return narrowed
+    }
+
+    /// The reader's own day exactly as the brief hands it to Gemma: narration
+    /// copies already facing the reader ("You found the missing library
+    /// card."). What `BraidPointOfView` checks the telling against.
+    var readerDayNarration: [String] {
+        var lines: [String] = []
+        for placement in placements {
+            guard let atom = evidence(for: placement.evidenceID) else { continue }
+            switch atom.kind {
+            case .writtenLine, .fictionChoice, .photograph, .voiceRecording:
+                lines.append(BraidSceneWriter.secondPerson(atom.text))
+            case .keptFiction, .keptThing:
+                continue
+            }
+        }
+        if let rememberedEvidenceID, let remembered = evidence(for: rememberedEvidenceID) {
+            lines.append(BraidSceneWriter.secondPerson(remembered.text))
+        }
+        if let carriedReturn {
+            lines.append(BraidSceneWriter.secondPerson(carriedReturn.priorText))
+        }
+        return lines
+    }
+
     func brief() -> String {
         var livedMaterial: [String] = []
         var keptMaterial: [String] = []
@@ -3253,10 +3470,12 @@ enum SceneWorldCanon {
         on date: Date,
         recentDays: [BookDay],
         live: [Fact],
-        count: Int = 3
+        count: Int = BraidScenePlanBuilder.worldItemLimit
     ) -> [SceneWorldBeat] {
         let spent = spentWorldFactIDs(in: recentDays)
-        let freshLive = live.filter { !spent.contains($0.id) }
+        let lastNight = spentWorldFactIDs(in: recentDays, limit: 1)
+        let freshEvents = live.filter { $0.source == .worldEvent && !lastNight.contains($0.id) }
+        let freshLive = freshEvents + live.filter { $0.source != .worldEvent && !spent.contains($0.id) }
         let freshCanon = facts.filter { !spent.contains($0.id) }
         // Stepping by one meant consecutive closed days shared two of their
         // three facts. A week off should read as a week, not as one day with
@@ -3267,7 +3486,9 @@ enum SceneWorldCanon {
             let start = ((seed % candidates.count) + candidates.count) % candidates.count
             return Array(candidates[start...]) + Array(candidates[..<start])
         }
-        var pool = rotated(freshLive, by: dayNumber)
+        // Monthly world events lead, as they do on a day with material.
+        var pool = rotated(freshEvents, by: dayNumber)
+            + rotated(freshLive.filter { $0.source != .worldEvent }, by: dayNumber)
             + rotated(freshCanon, by: dayNumber)
         if pool.isEmpty {
             pool = rotated(live, by: dayNumber) + rotated(facts, by: dayNumber)
@@ -3406,8 +3627,19 @@ enum SceneWorldCanon {
         let freshCanon = facts.filter {
             !spent.contains($0.id) && $0.id != continuedElsewhere
         }
+        // Monthly content comes first and foremost (see
+        // `BraidScenePlanBuilder.worldItemLimit`). A live monthly event rests
+        // only the night after it appeared, rather than for the whole window,
+        // so it carries every other night while it runs and the day's own
+        // business has the nights between.
+        let lastNight = spentWorldFactIDs(in: recentDays, limit: 1)
+        let freshEvents = live.filter {
+            $0.source == .worldEvent && !lastNight.contains($0.id) && $0.id != continuedElsewhere
+        }
         let pool: [Fact]
-        if !freshLive.isEmpty {
+        if !freshEvents.isEmpty {
+            pool = freshEvents
+        } else if !freshLive.isEmpty {
             pool = freshLive
         } else if !freshCanon.isEmpty {
             pool = freshCanon
@@ -3440,11 +3672,11 @@ enum SceneWorldCanon {
         )
     }
 
-    private static func spentWorldFactIDs(in recentDays: [BookDay]) -> Set<String> {
+    private static func spentWorldFactIDs(in recentDays: [BookDay], limit: Int = 8) -> Set<String> {
         Set(
             recentDays
                 .sorted { $0.date > $1.date }
-                .prefix(8)
+                .prefix(limit)
                 .flatMap(\.pages)
                 .filter { $0.type == .bookOfYou }
                 .flatMap(\.tags)

@@ -1071,6 +1071,70 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertFalse(brief.lowercased().contains("funeral"), brief)
     }
 
+    // MARK: - One or two pieces of the world
+
+    /// bj: "we only need one or two world events for the braid, not all of
+    /// them." Counted across monthly passages, the world beat, quiet-day
+    /// beats and the day's kept fiction.
+    func testNoNightCarriesMoreThanTwoPiecesOfTheWorld() {
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+            let fiction = Set(
+                plan.placements
+                    .compactMap { plan.evidence(for: $0.evidenceID) }
+                    .filter { $0.kind == .keptFiction }
+                    .map(\.pageID)
+            )
+            let world = fiction.count
+                + (plan.worldBeat == nil ? 0 : 1)
+                + plan.quietDayBeats.count
+                + (plan.authoredStoryReceipts?.count ?? 0)
+            XCTAssertLessThanOrEqual(world, BraidScenePlanBuilder.worldItemLimit, "\(night.name)\n\(plan.summary)")
+        }
+    }
+
+    /// "Monthly content world stuff first and foremost": a live monthly event
+    /// outranks the Cast's errands and the house canon, rests only the night
+    /// after it appears, and is back the night after that.
+    func testAMonthlyWorldEventLeadsAndRestsOnlyOneNight() {
+        let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
+        let monthly = SceneWorldCanon.Fact(
+            id: "world-event:count-unbound", threadID: "world-event:count-unbound",
+            text: "The Count's ledger has started counting doors that are not there.", source: .worldEvent)
+        let errand = SceneWorldCanon.Fact(
+            id: "undertaking:pippa:1", threadID: "undertaking:pippa",
+            text: "Pippa is halfway through mending the east stair.", source: .undertaking)
+        for offset in 0..<5 {
+            let night = date("2026-10-02T21:30:00Z").addingTimeInterval(Double(offset) * 86_400)
+            XCTAssertEqual(
+                SceneWorldCanon.beat(for: plan, recentDays: [], on: night, live: [errand, monthly])?.id,
+                monthly.id
+            )
+        }
+
+        func braid(_ day: String, carrying id: String) -> BookDay {
+            BookDay(id: day, date: date("\(day)T21:30:00Z"), pages: [
+                BookPage(type: .bookOfYou, createdAt: date("\(day)T21:30:00Z"), promptText: "",
+                         userInput: "", tags: ["braid-claim:world:\(id)"])
+            ])
+        }
+        let lastNight = [braid("2026-10-01", carrying: monthly.id)]
+        XCTAssertEqual(
+            SceneWorldCanon.beat(for: plan, recentDays: lastNight, on: date("2026-10-02T21:30:00Z"),
+                                 live: [errand, monthly])?.id,
+            errand.id
+        )
+        let twoNightsAgo = [braid("2026-09-30", carrying: monthly.id), braid("2026-10-01", carrying: errand.id)]
+        XCTAssertEqual(
+            SceneWorldCanon.beat(for: plan, recentDays: twoNightsAgo, on: date("2026-10-02T21:30:00Z"),
+                                 live: [errand, monthly])?.id,
+            monthly.id
+        )
+        let quiet = SceneWorldCanon.quietDay(on: date("2026-10-02T21:30:00Z"), recentDays: [], live: [errand, monthly])
+        XCTAssertEqual(quiet.first?.id, monthly.id)
+        XCTAssertEqual(quiet.count, BraidScenePlanBuilder.worldItemLimit)
+    }
+
     // MARK: - Helpers
 
     private func diary() -> BookPage {

@@ -220,12 +220,15 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         let offered = AuthoredContentReceipt(contentID: "scene", occurrenceID: "offered", channel: .storyScene,
             state: .accepted, recordedAt: now, storyText: "INVITATION")
         let ledger = (Array(committed.reversed()) + [future, offered]).reduce(AuthoredContentReceiptLedger.empty) { $0.recording($1) }
+        // One or two pieces of the world per braid; the rest wait their turn.
+        let perNight = MonthlyIssueBraidMatter.passagesPerNight
+        XCTAssertEqual(perNight, 2)
         let first = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [], replacing: nil, now: now)
-        XCTAssertEqual(first.map(\.id), Array(committed.prefix(6)).map(\.id))
+        XCTAssertEqual(first.map(\.id), Array(committed.prefix(perNight)).map(\.id))
         let bound = MonthlyIssueBraidMatter.binding(first, into: BookPage(type: .bookOfYou, promptText: "Tonight", userInput: ""))
         let days = [BookDay(id: "2027-09-02", date: now, pages: [bound])]
         XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: days, replacing: nil, now: now).map(\.id),
-            Array(committed.suffix(2)).map(\.id))
+            Array(committed.dropFirst(perNight).prefix(perNight)).map(\.id))
     }
 
     func testSupervisedJumpPreservesExistingJumpAndReturnsWithoutBorrowedRule() throws {

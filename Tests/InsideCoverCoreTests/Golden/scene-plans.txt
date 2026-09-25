@@ -141,7 +141,7 @@ day 2026-08-22
 form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
 earned 90-150 words
-world quiet · lying-doors + thinking-lamps + corridor-door
+world quiet · thinking-lamps + corridor-door
 
 ===== reader-answer =====
 day 2026-08-23
@@ -238,18 +238,15 @@ world independent · moved-ribbon
 day 2026-09-01
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 334-567 words
+earned 247-419 words
 anchor mug#0.0
   disturbance air#0.0  [keptFiction]
   witness     call#0.0  [writtenLine]
   witness     card#0.0  [writtenLine]
-  disturbance crow-toll#0.0  [keptFiction]
   witness     fuel#0.0  [writtenLine]
-  disturbance ledger-keeper#0.0  [keptFiction]
   witness     moody#0.0  [writtenLine]
   anchor      mug#0.0  [writtenLine]
   witness     rain#0.0  [writtenLine]
-  disturbance sprite#0.0  [keptFiction]
   line        mug#0.0+call#0.0  [acrossTheDay]
   cross       moody#0.0+air#0.0  [diner]
 world intersecting · roof-birds

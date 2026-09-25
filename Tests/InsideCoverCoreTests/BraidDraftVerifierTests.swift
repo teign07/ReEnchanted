@@ -344,6 +344,72 @@ final class BraidDraftVerifierTests: XCTestCase {
         )
     }
 
+    // MARK: - Whose day it is
+
+    /// Lifted from device-faithful tellings: the Book took the reader's
+    /// actions as its own. Only the slipped clause goes back to "you".
+    func testTheReadersOwnActionsGoBackToThem() {
+        let readerDay = [
+            "The mug is sulking about being empty.",
+            "You found the missing library card inside the atlas.",
+            "You rang your brother back for once instead of texting.",
+            "You cleared the whole desk and found the missing library card."
+        ]
+        let prose = """
+        Then, I found the missing library card tucked inside the atlas. I rang my brother back for once instead of texting him with my cold thumbs.
+
+        While I was sorting the clutter, I watched the rain. I found it funny that the mug sulked.
+
+        The Book kept the page: the mug went on sulking.
+        """
+        let result = BraidPointOfView.returningTheReadersActions(in: prose, readerDay: readerDay)
+        XCTAssertEqual(result.repaired, 2)
+        XCTAssertEqual(result.text, """
+        Then, you found the missing library card tucked inside the atlas. You rang your brother back for once instead of texting him with your cold thumbs.
+
+        While I was sorting the clutter, I watched the rain. I found it funny that the mug sulked.
+
+        The Book kept the page: the mug went on sulking.
+        """)
+    }
+
+    func testTheBooksOwnBusinessIsLeftAlone() {
+        let readerDay = ["You ran the canal path again and it hurt less than Tuesday."]
+        for prose in [
+            "I remembered you ran the canal path again.",
+            "I ran my finger along the spine.",
+            "You ran the canal path, and I kept count."
+        ] {
+            let result = BraidPointOfView.returningTheReadersActions(in: prose, readerDay: readerDay)
+            XCTAssertEqual(result.text, prose)
+            XCTAssertEqual(result.repaired, 0)
+        }
+    }
+
+    func testTheBooksOwnFeelingStaysTheBooks() {
+        let readerDay = ["You cleared the whole desk and found the missing library card."]
+        XCTAssertEqual(
+            BraidPointOfView.returningTheReadersActions(
+                in: "I found the card, and I felt a little pleased that it was found.",
+                readerDay: readerDay
+            ).text,
+            "You found the card, and I felt a little pleased that it was found."
+        )
+    }
+
+    func testAgreementAndQuotesSurviveTheReturn() {
+        let readerDay = ["You were sorting the desk and found the missing library card."]
+        let prose = "I found the missing library card and said \"I was right,\" to myself."
+        XCTAssertEqual(
+            BraidPointOfView.returningTheReadersActions(in: prose, readerDay: readerDay).text,
+            "You found the missing library card and said \"I was right,\" to yourself."
+        )
+        XCTAssertEqual(
+            BraidPointOfView.readerActions(in: readerDay).map(\.verb),
+            ["found"]
+        )
+    }
+
     func testEveryFinishedBraidEndsOnTheRitualLine() {
         let keeper = "The Book kept the page: it happened, and I wrote it down."
         XCTAssertEqual(
