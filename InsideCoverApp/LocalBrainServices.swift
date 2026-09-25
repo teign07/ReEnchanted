@@ -510,10 +510,11 @@ actor LocalBrainInferenceGate {
     static let shared = LocalBrainInferenceGate()
 
     private let cacheLimit = 8 * 1024 * 1024
-    /// The ceiling MLX is allowed to work under when the device has room to
-    /// spare. It is an upper bound, not a target: the effective limit is
-    /// derived from what iOS says this process may still allocate.
-    private let maximumMemoryLimit = 1_850 * 1024 * 1024
+    /// What MLX may hold when iOS will not say how much room the process has
+    /// (a zero reading). Like every limit here it covers the weights as well
+    /// as a turn's working memory, so it sits above any checkpoint we ship;
+    /// see `budget(forAvailable:)` for why that matters.
+    private let fallbackMemoryLimit = 4_096 * 1024 * 1024
     /// Headroom left to the rest of the app (UI, images, audio, the archive)
     /// so a generation never spends the last of the process's allowance.
     private let reservedHeadroom: UInt64 = 320 * 1024 * 1024
@@ -687,7 +688,7 @@ actor LocalBrainInferenceGate {
         var available = AppMemoryLedger.availableBytes()
         // A zero reading means the platform would not tell us. Fall back to the
         // fixed ceiling rather than refusing all work.
-        guard available > 0 else { return maximumMemoryLimit }
+        guard available > 0 else { return fallbackMemoryLimit }
 
         let activeModelPath = LocalModelManager.activeModelDirectory?.path
         let isE2B = activeModelPath?.contains("gemma-4-e2b") == true
@@ -786,9 +787,26 @@ actor LocalBrainInferenceGate {
         return max(after, current)
     }
 
+    /// The limit MLX works under for this run.
+    ///
+    /// MLX's limit covers everything it holds, weights included, not just a
+    /// turn's scratch space. And it is not a guard against jetsam: going over
+    /// it never refuses an allocation. What it does is make the scheduler
+    /// commit and wait on the GPU before each further operation for as long as
+    /// active memory stays above it (`eval_impl` in mlx/transforms.cpp). The old
+    /// fixed 1.85 GB ceiling sat below E2B's own 2.6 GB of weights, so every
+    /// Gemma page on every device ran fully serialised, at about 5 tokens a
+    /// second on Rabbit, however fast the build.
+    ///
+    /// So the limit is what MLX already holds plus what the process may still
+    /// spend, less the headroom the rest of the app needs. Crossing it now
+    /// means the device really is short, and slowing down so buffers can free
+    /// is the right response. Protection from jetsam stays where it always
+    /// was: `requireMemoryBudget` declining runs that do not fit.
     private func budget(forAvailable available: UInt64) -> Int {
         let spendable = available > reservedHeadroom ? available - reservedHeadroom : 0
-        return min(maximumMemoryLimit, Int(clamping: spendable))
+        let held = UInt64(max(Memory.snapshot().activeMemory, 0))
+        return Int(clamping: held + spendable)
     }
 
     /// Gemma runs on the GPU, and iOS lends the GPU only to an app on screen.
