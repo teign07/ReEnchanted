@@ -259,11 +259,14 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         future["kind"] = "hologramPack"
         future["fileName"] = "future.hologram.json"
         future["remoteURL"] = "https://rehearsal.invalid/monthly-issues/assets/future-kind"
+        future["isRequired"] = false
         var elsewhere = assets[0]
         elsewhere["id"] = "future-scope"
         elsewhere["scope"] = "attic"
         elsewhere["fileName"] = "future-scope.reenchantedevents.json"
         elsewhere["remoteURL"] = "https://rehearsal.invalid/monthly-issues/assets/future-scope"
+        elsewhere["isRequired"] = false
+        elsewhere["retiresAt"] = "2026-10-31T00:00:00Z"
         assets += [future, elsewhere]
         issues[0]["assets"] = assets
         json["issues"] = issues
@@ -278,6 +281,30 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         XCTAssertFalse(planned.contains("future-kind"))
         XCTAssertFalse(planned.contains("future-scope"))
         XCTAssertFalse(planned.isEmpty, "the rest of the shelf still installs")
+    }
+
+    func testRequiredUnknownAssetDoesNotPublishAPartialIssue() throws {
+        let original = try Data(contentsOf: fixtureRoot.appendingPathComponent("delivery-manifest.json"))
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: original) as? [String: Any])
+        var issues = try XCTUnwrap(json["issues"] as? [[String: Any]])
+        var assets = try XCTUnwrap(issues[0]["assets"] as? [[String: Any]])
+        var requiredFuture = assets[0]
+        requiredFuture["id"] = "future-required-kind"
+        requiredFuture["kind"] = "hologramPack"
+        assets.append(requiredFuture)
+        issues[0]["assets"] = assets
+        json["issues"] = issues
+        let payload = try JSONSerialization.data(withJSONObject: json)
+        let key = Curve25519.Signing.PrivateKey()
+        let envelope = MonthlyIssueSignedManifestEnvelope(keyID: "test-only", payload: payload.base64EncodedString(),
+            signature: try key.signature(for: payload).base64EncodedString())
+        let delivery = try MonthlyIssueManifestVerifier.verify(envelopeData: JSONEncoder().encode(envelope),
+            publicKeyRawRepresentation: key.publicKey.rawRepresentation)
+        XCTAssertTrue(MonthlyIssueDeliveryPlanner.requiresNewerRuntime(delivery.issues[0]))
+        let planned = MonthlyIssueDeliveryPlanner.plan(manifest: delivery, now: date(1), hasMonthlyAccess: true,
+                                                       manifestHost: "rehearsal.invalid")
+        let blockedIssueID = try XCTUnwrap(issues[0]["id"] as? String)
+        XCTAssertFalse(planned.assets.contains(where: { $0.issueID == blockedIssueID }))
     }
 
     func testSignedFixtureInstallsAndRetiresOffline() async throws {

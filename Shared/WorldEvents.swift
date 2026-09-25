@@ -2019,6 +2019,10 @@ enum MonthlyIssueManifestVerifier {
                 guard !asset.id.isEmpty, assetIDs.insert(asset.id).inserted else {
                     throw MonthlyIssueDeliveryError.invalidManifest("duplicate-or-empty-asset")
                 }
+                // These fields belong to the schema of kinds/scopes we know.
+                // A future optional scope may define retirement differently;
+                // it is never planned or installed by this runtime.
+                guard asset.kind != .unsupported, asset.scope != .unsupported else { continue }
                 if let retiresAt = asset.retiresAt,
                    asset.scope != .runtime || retiresAt <= issue.foreshadowStartsAt || retiresAt > issue.residueEndsAt {
                     throw MonthlyIssueDeliveryError.invalidManifest("invalid-retirement:\(asset.id)")
@@ -2156,6 +2160,12 @@ enum ContentPackFileLocator {
 }
 
 enum MonthlyIssueDeliveryPlanner {
+    static func requiresNewerRuntime(_ issue: MonthlyIssueDeliveryIssue) -> Bool {
+        issue.assets.contains {
+            $0.isRequired && ($0.kind == .unsupported || $0.scope == .unsupported)
+        }
+    }
+
     /// Installs the issue whose six-week envelope contains now, plus the next
     /// issue. Published casebooks remain tiny read-only assets and may all be
     /// present; old runtime/media packs are excluded from the plan and pruned.
@@ -2181,8 +2191,13 @@ enum MonthlyIssueDeliveryPlanner {
         ).union(manifestHost.map { [$0.lowercased()] } ?? [])
         var planned: [MonthlyIssuePlannedAsset] = []
         for issue in ordered {
+            // A newer publisher may add optional decoration without breaking
+            // an older Book. A required unknown asset is different: showing the
+            // known half would present an incomplete story as the whole issue.
+            guard !requiresNewerRuntime(issue) else { continue }
             for asset in issue.assets {
-                // A kind or scope from a newer publisher is left on the shelf.
+                // Optional kinds and scopes this Book does not know stay out of
+                // the installation plan; other issues remain available.
                 guard asset.kind != .unsupported, asset.scope != .unsupported else { continue }
                 let wantsRuntime = asset.scope == .runtime && runtimeIssueIDs.contains(issue.id)
                     && now < (asset.retiresAt ?? issue.residueEndsAt)

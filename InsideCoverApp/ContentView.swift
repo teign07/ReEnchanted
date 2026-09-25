@@ -15708,6 +15708,12 @@ struct ContentView: View {
                 now: now,
                 hasMonthlyAccess: hasAccess
             )
+            if case .updateRequired(let title) = result {
+                await MainActor.run {
+                    statusMessage = "A newer Book is needed to read \(title). Update the app to open this issue."
+                }
+                return
+            }
             guard case .changed = result else { return }
             await MainActor.run {
                 SentenceBuilderPackRegistry.reload()

@@ -6852,6 +6852,7 @@ enum MonthlyIssueDeliveryRefreshResult: Equatable {
     case notConfigured
     case unchanged
     case changed(installed: Int, removed: Int)
+    case updateRequired(String)
     case failed(String)
 }
 
@@ -6964,6 +6965,10 @@ actor MonthlyIssueDeliveryCoordinator {
                 envelopeData: envelopeData,
                 publicKeyRawRepresentation: configuration.publicKeyRawRepresentation
             )
+            let blockedCurrentIssue = manifest.issues.first {
+                $0.foreshadowStartsAt <= now && now < $0.residueEndsAt
+                    && MonthlyIssueDeliveryPlanner.requiresNewerRuntime($0)
+            }?.title
             let plan = MonthlyIssueDeliveryPlanner.plan(
                 manifest: manifest,
                 now: now,
@@ -6990,11 +6995,13 @@ actor MonthlyIssueDeliveryCoordinator {
             )
             if result.changed || !retired.isEmpty {
                 NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
+                if let blockedCurrentIssue { return .updateRequired(blockedCurrentIssue) }
                 return .changed(
                     installed: result.installedAssetIDs.count,
                     removed: result.removedAssetIDs.count + retired.count
                 )
             }
+            if let blockedCurrentIssue { return .updateRequired(blockedCurrentIssue) }
             return .unchanged
         } catch {
             if MonthlyIssueAccessError.denied(error) {
