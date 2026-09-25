@@ -51,6 +51,8 @@ if ! xcodebuild \
   -derivedDataPath "$DERIVED_DATA" \
   COMPILER_INDEX_STORE_ENABLE=NO \
   -allowProvisioningUpdates \
+  -skipPackagePluginValidation \
+  -skipMacroValidation \
   build >"$BUILD_LOG" 2>&1; then
   fail "xcodebuild did not complete"
 fi
