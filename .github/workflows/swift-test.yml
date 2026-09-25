@@ -64,4 +64,8 @@ jobs:
         env:
           CLANG_MODULE_CACHE_PATH: /tmp/insidecover-module-cache
           SWIFTPM_MODULECACHE_OVERRIDE: /tmp/insidecover-spm-module-cache
+          # Several curation, weather and calendar tests read the machine's time
+          # zone and were written on Eastern time; runners default to UTC, where
+          # ten of them fail. Match the suite until those tests pin a calendar.
+          TZ: America/New_York
         run: swift test
