@@ -2827,22 +2827,26 @@ struct LivedQuestReceipt: Codable, Equatable {
             ?? (resolved.kind == .livedEncounter ? surface.payload.headline.nonEmpty : nil)
             ?? surface.payload.headline.nonEmpty
             ?? resolved.kind.title
-        let invitation = metadata["missionPrompt"]?.nonEmpty
+        // The lived-encounter branches are hoisted and the results typed so the
+        // `??` chains stay cheap to type-check; CI's compiler timed out on them.
+        let livedInvitation: String? = resolved.kind == .livedEncounter ? contract.invitation.nonEmpty : nil
+        let invitation: String = metadata["missionPrompt"]?.nonEmpty
             ?? metadata["mission"]?.nonEmpty
             ?? metadata["wickerDarePrompt"]?.nonEmpty
             ?? metadata["electiveAsk"]?.nonEmpty
             ?? metadata["academyActivityInvitation"]?.nonEmpty
             ?? metadata["terms"]?.nonEmpty
             ?? metadata["bookCampaignIntendedEffect"]?.nonEmpty
-            ?? (resolved.kind == .livedEncounter ? contract.invitation.nonEmpty : nil)
+            ?? livedInvitation
             ?? surface.payload.body.nonEmpty
             ?? surface.prompt
-        let proofPrompt = metadata["souvenirPrompt"]?.nonEmpty
+        let livedReturnPrompt: String? = resolved.kind == .livedEncounter ? contract.returnPrompt.nonEmpty : nil
+        let proofPrompt: String = metadata["souvenirPrompt"]?.nonEmpty
             ?? metadata["placeholder"]?.nonEmpty
             ?? metadata["electivePractice"]?.nonEmpty
             ?? metadata["proofPrompt"]?.nonEmpty
             ?? metadata["terms"]?.nonEmpty
-            ?? (resolved.kind == .livedEncounter ? contract.returnPrompt.nonEmpty : nil)
+            ?? livedReturnPrompt
             ?? "Bring back one exact thing."
         let facetSignals = normalizedTags(
             nil,
