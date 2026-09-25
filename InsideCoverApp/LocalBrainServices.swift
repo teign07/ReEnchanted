@@ -363,7 +363,7 @@ enum LocalModelInstallValidator {
                     maxTokens: 1,
                     maxKVSize: 128,
                     temperature: 0,
-                    prefillStepSize: 64
+                    prefill: PrefillParameters(stepSize: 64)
                 )
             )
             _ = try await LocalBrainGenerationLifecycle.saving(
@@ -1287,7 +1287,7 @@ enum MLXLocalTextGenerator {
                         maxKVSize: maxKVSize,
                         temperature: temperature,
                         topP: topP,
-                        prefillStepSize: responsivePrefillStep
+                        prefill: PrefillParameters(stepSize: responsivePrefillStep)
                     )
                 )
 
@@ -2881,7 +2881,7 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                         maxKVSize: 1_024,
                         temperature: 0.28,
                         topP: 0.82,
-                        prefillStepSize: 128
+                        prefill: PrefillParameters(stepSize: 128)
                     )
                     // No `processing:` override on purpose. Gemma4Processor
                     // overwrites `resize` with its own configured size, so a

@@ -438,6 +438,10 @@ enum LocalModelManager {
             "mlx-community/gemma-4-e4b-it-OptiQ-4bit"
         ]
     )
+    // Gemma 4's MTP drafters (speculative decoding) were measured on Rabbit
+    // in September 2026 and made pages slower, not faster: at the Book's
+    // temperatures only 17-34% of drafted tokens survive, so plain decoding
+    // won by about 2x at equal heat. Re-measure before adding one.
     static let allModelChoices = [compactModel, balancedModel, expansiveModel]
     static let modelsDirectoryName = "LocalModels"
     static let activeModelMarkerName = "active-model.json"
