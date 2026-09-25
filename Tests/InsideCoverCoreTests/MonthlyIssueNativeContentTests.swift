@@ -206,7 +206,7 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         XCTAssertTrue(plan.placements.isEmpty)
         XCTAssertNil(plan.worldBeat)
         XCTAssertTrue(plan.quietDayBeats.isEmpty)
-        XCTAssertFalse(plan.brief().contains("Reader-day material:"))
+        XCTAssertFalse(plan.brief().contains(BraidScenePlan.readerDayLabel))
     }
 
     func testMonthlyPendingUsesOnlyCommittedPastReceiptsAndLeavesOverflowForAnotherNight() {

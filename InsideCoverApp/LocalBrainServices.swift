@@ -320,7 +320,16 @@ enum LocalBrainGenerationLifecycle {
 
     private static func refresh(session: ChatSession, label: String) async {
         await session.clear()
+        // Synchronizing commits a command buffer of its own, and one committed
+        // after the app leaves the screen is the abort `LocalBrainForeground`
+        // exists to prevent. Work already committed finishes without us.
+        #if canImport(UIKit)
+        if !LocalBrainForeground.shared.isLeaving {
+            await session.synchronize()
+        }
+        #else
         await session.synchronize()
+        #endif
         Memory.clearCache()
         AppMemoryLedger.record("\(label)-generation-cache-refreshed")
     }
@@ -420,6 +429,81 @@ private final class LocalBrainBackgroundTask {
         AppMemoryLedger.record(checkpoint)
     }
 }
+
+/// iOS runs no GPU work for an app that has left the screen. A Metal command
+/// buffer committed from the background fails, and MLX answers that failure
+/// with an abort from a completion handler (`mlx::core::gpu::check_error`),
+/// which nothing in Swift can catch. Every InsideCoverApp crash Rabbit logged
+/// from 19 to 24 September 2026 was that abort: three from the overnight
+/// scribe writing from a BGProcessingTask (`procRole: Non UI`), and one from a
+/// braid still writing when the phone auto-locked.
+///
+/// Background time from iOS buys CPU, never GPU. So Gemma does not start while
+/// the app is away, a telling in flight stops at the next token once the app
+/// starts to leave (the signal comes before the GPU is withdrawn), and the
+/// screen is kept from auto-locking while Gemma writes, since an auto-lock is
+/// how a page left on the desk to dry would otherwise be lost.
+final class LocalBrainForeground: @unchecked Sendable {
+    static let shared = LocalBrainForeground()
+
+    private let lock = NSLock()
+    private var leaving = false
+    private var observers: [NSObjectProtocol] = []
+    @MainActor private var screenAwakeHolds = 0
+    @MainActor private var idleTimerWasDisabled = false
+
+    private init() {
+        let center = NotificationCenter.default
+        func observe(_ name: Notification.Name, leaving value: Bool) -> NSObjectProtocol {
+            // No queue: the flag must flip on the posting (main) thread before
+            // the notification returns, not whenever a queue next runs.
+            center.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                self?.setLeaving(value)
+            }
+        }
+        observers = [
+            observe(UIApplication.willResignActiveNotification, leaving: true),
+            observe(UIApplication.didEnterBackgroundNotification, leaving: true),
+            observe(UIApplication.didBecomeActiveNotification, leaving: false)
+        ]
+    }
+
+    /// True from the moment the app starts to leave the screen until it is
+    /// active again. Read on every generated chunk, so it takes a lock rather
+    /// than hopping to the main actor.
+    var isLeaving: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return leaving
+    }
+
+    private func setLeaving(_ value: Bool) {
+        lock.lock()
+        leaving = value
+        lock.unlock()
+    }
+
+    /// Keep the phone awake while any admitted generation is running. A second
+    /// request can overlap an earlier run's asynchronous cleanup, so restoring
+    /// each request's snapshot independently can leave auto-lock off forever.
+    @MainActor
+    func holdScreenAwake() {
+        if screenAwakeHolds == 0 {
+            idleTimerWasDisabled = UIApplication.shared.isIdleTimerDisabled
+            UIApplication.shared.isIdleTimerDisabled = true
+        }
+        screenAwakeHolds += 1
+    }
+
+    @MainActor
+    func releaseScreen() {
+        guard screenAwakeHolds > 0 else { return }
+        screenAwakeHolds -= 1
+        if screenAwakeHolds == 0 {
+            UIApplication.shared.isIdleTimerDisabled = idleTimerWasDisabled
+        }
+    }
+}
 #endif
 
 actor LocalBrainInferenceGate {
@@ -456,7 +540,6 @@ actor LocalBrainInferenceGate {
     /// too small, and `<label>-floor` in the log says by how much.
     private let coldE2BMinimumAvailable: UInt64 = 2_847_486_040
     private var isRunning = false
-    private var allowsBackgroundWork = false
 
     /// How long a finished generation waits to see whether another follows it.
     ///
@@ -478,13 +561,6 @@ actor LocalBrainInferenceGate {
     /// rather than `admitted-warm`, this is the number that is too small.
     static let flowGapSeconds: TimeInterval = 8
 
-    /// The overnight scribe runs under BGProcessing; live Gemma calls request
-    /// finite iOS background time so a user-started generation can dry after
-    /// the reader swipes home.
-    func setBackgroundAllowance(_ allowed: Bool) {
-        allowsBackgroundWork = allowed
-    }
-
     /// What a vision prefill costs on top of a text turn: the tower's
     /// activations plus the image tokens, which for Gemma 4 at 800x800 is the
     /// largest single transient the Book ever allocates.
@@ -504,16 +580,16 @@ actor LocalBrainInferenceGate {
         operation: () async throws -> T
     ) async throws -> T {
         #if canImport(UIKit)
+        // CPU time to finish saving and releasing after a reader swipes away;
+        // the GPU itself is gone the moment the app leaves (see
+        // `LocalBrainForeground`).
         let backgroundTask = await LocalBrainBackgroundTask(label: label)
-        let hasBackgroundRuntime = await backgroundTask.isValid
         defer {
             Task { await backgroundTask.finish() }
         }
-        #else
-        let hasBackgroundRuntime = false
         #endif
 
-        try await requireRunnableApplicationState(hasBackgroundRuntime: hasBackgroundRuntime)
+        try await requireForegroundGPU()
         await LocalBrainModelCache.shared.cancelScheduledEviction()
         // Cancelling above happens before we know this run will be allowed to
         // start, and the defer that reschedules sits below both throw points.
@@ -546,6 +622,12 @@ actor LocalBrainInferenceGate {
             waitsForPaperArrival: waitsForPaperArrival
         )
         didEnterGate = true
+        #if canImport(UIKit)
+        await LocalBrainForeground.shared.holdScreenAwake()
+        defer {
+            Task { @MainActor in LocalBrainForeground.shared.releaseScreen() }
+        }
+        #endif
 
         // Sample the floor for as long as this run owns the gate. The task is
         // cancelled by the defer below, so it cannot outlive the generation.
@@ -709,15 +791,16 @@ actor LocalBrainInferenceGate {
         return min(maximumMemoryLimit, Int(clamping: spendable))
     }
 
-    private func requireRunnableApplicationState(hasBackgroundRuntime: Bool) async throws {
-        if allowsBackgroundWork {
-            return
-        }
+    /// Gemma runs on the GPU, and iOS lends the GPU only to an app on screen.
+    /// This used to wave work through whenever iOS granted background time
+    /// (or the overnight scribe asked for an allowance), which is exactly how
+    /// the MLX aborts in `LocalBrainForeground` happened.
+    private func requireForegroundGPU() async throws {
         #if canImport(UIKit)
         let applicationState = await MainActor.run {
             UIApplication.shared.applicationState
         }
-        guard applicationState == .active || hasBackgroundRuntime else {
+        guard applicationState == .active, !LocalBrainForeground.shared.isLeaving else {
             throw LocalBrainGateError.inactive
         }
         #endif
@@ -742,11 +825,19 @@ actor LocalBrainInferenceGate {
             promptCharacters: promptCharacters,
             queuedCount: 0
         )
-        if waitsForPaperArrival {
-            // The start signal puts the blank writing scrap into the view tree.
-            // Let it come free of the right-hand page block before Gemma claims
-            // the GPU and begins laying wet ink onto it.
-            try? await Task.sleep(for: .milliseconds(560))
+        do {
+            if waitsForPaperArrival {
+                // Let the writing scrap enter the view tree before Gemma
+                // claims the GPU. A cancelled entrance must stay cancelled.
+                try await Task.sleep(for: .milliseconds(560))
+            }
+            try Task.checkCancellation()
+            // The reader may have locked the phone during the paper's entrance.
+            // Do not hand a backgrounded app a fresh model load or prefill.
+            try await requireForegroundGPU()
+        } catch {
+            leave()
+            throw error
         }
     }
 
@@ -808,6 +899,14 @@ private struct BraidReaderTrustError: LocalizedError {
 
     var errorDescription: String? {
         "Gemma's telling crossed a reader-trust boundary (\(issues.map(\.rawValue).joined(separator: ", "))). The receipts are still loose."
+    }
+}
+
+private struct BraidIncompleteTellingError: LocalizedError {
+    let issues: [BraidOutputAudit.Issue]
+
+    var errorDescription: String? {
+        "Gemma stopped before the braid carried the Reader's truth anchor (\(issues.map(\.rawValue).joined(separator: ", "))). The receipts are still loose."
     }
 }
 
@@ -929,7 +1028,7 @@ struct MLXBookBraider: Braider {
             label: String,
             temperature: Float,
             topP: Float
-        ) async throws -> String {
+        ) async throws -> (text: String, reachedCeiling: Bool) {
             let budget = LocalBrainPromptBudget.fit(
                 prompt: prompt,
                 instructions: instructions,
@@ -941,6 +1040,7 @@ struct MLXBookBraider: Braider {
                     "Braid prompt compacted for \(label, privacy: .public); estimated input tokens: \(budget.estimatedInputTokens, privacy: .public); budget: \(budget.inputBudgetTokens, privacy: .public)"
                 )
             }
+            var stoppedAtCeiling = false
             let response = try await MLXLocalTextGenerator.run(
                 prompt: budget.prompt,
                 instructions: instructions,
@@ -954,12 +1054,15 @@ struct MLXBookBraider: Braider {
                 // It still matters for any model that honours it, so it stays
                 // sized to the braid's window rather than to a stale 4k guess.
                 maxKVSize: 4_096,
-                readerFacingBraidPreview: true
+                readerFacingBraidPreview: true,
+                completion: { info in
+                    if case .length = info?.stopReason { stoppedAtCeiling = true }
+                }
             )
             // Deliberately raw at the mechanical cleanup boundary. Gemma now
             // writes prose only; provenance is recovered from the scene plan
             // after the telling instead of being performed inside every line.
-            return response
+            return (response, stoppedAtCeiling)
         }
 
         // The deterministic system edits the night. It does not publish it.
@@ -967,15 +1070,7 @@ struct MLXBookBraider: Braider {
         // is the scale the finished telling is judged against.
         var scenePlan = BraidScenePlanBuilder.plan(for: day, context: context)
         if LocalModelManager.isIPhone15ClassHardware {
-            // Rabbit's live turn stops at 420 output tokens. The plan's earned
-            // band can legitimately rise above 450 words on a very rich day,
-            // but asking for that here guarantees a cut-off before the chosen
-            // form or its ending can land. Compress the telling to a
-            // device-honest band so the prose can land before the live turn's
-            // hard output ceiling.
-            let lower = min(scenePlan.earnedWords.lowerBound, 210)
-            let upper = max(lower, min(scenePlan.earnedWords.upperBound, 260))
-            scenePlan.earnedWords = lower...upper
+            scenePlan.earnedWords = BraidScenePlan.deviceHonestBand(scenePlan.earnedWords)
         }
         var judgedContext = context
         judgedContext.earnedWordBand = scenePlan.earnedWords
@@ -984,7 +1079,7 @@ struct MLXBookBraider: Braider {
             throw BraidScenePlanRefusalError(refusals: [.missingRequiredEvidence])
         }
 
-        func tell() async throws -> String {
+        func tell() async throws -> (text: String, reachedCeiling: Bool) {
             return try await generate(
                 prompt: scenePlan.brief(),
                 label: "braid-scene-plan",
@@ -997,8 +1092,15 @@ struct MLXBookBraider: Braider {
         // plan and the source-Page stamps retain provenance; the narrow audit
         // below keeps the reader-trust boundary without turning literary taste
         // into another generation attempt.
-        let raw = try await tell()
-        let prose = BraidNarrativeOutput.cleaned(raw)
+        let told = try await tell()
+        if told.reachedCeiling {
+            appLog.error("Braid telling reached the output ceiling; cut back to its last finished sentence")
+        }
+        let prose = BraidNarrativeOutput.finished(
+            told.text,
+            reachedCeiling: told.reachedCeiling,
+            keeperColophon: BraidSceneWriter.keeperColophon(for: scenePlan)
+        )
         guard !prose.isEmpty else {
             throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
         }
@@ -1009,6 +1111,12 @@ struct MLXBookBraider: Braider {
         let trustFailures = issues.filter(\.isReaderTrustFailure)
         guard trustFailures.isEmpty else {
             throw BraidReaderTrustError(issues: trustFailures)
+        }
+        if told.reachedCeiling {
+            let missingMaterial = issues.filter(\.isCutoffAnchorFailure)
+            guard missingMaterial.isEmpty else {
+                throw BraidIncompleteTellingError(issues: missingMaterial)
+            }
         }
         if !issues.isEmpty {
             appLog.error(
@@ -1121,7 +1229,9 @@ enum MLXLocalTextGenerator {
         maxKVSize: Int = 2_048,
         presentation: LocalBrainPresentation = .live,
         publishesProgress: Bool = true,
-        readerFacingBraidPreview: Bool = false
+        readerFacingBraidPreview: Bool = false,
+        iPhone15OutputCeiling: Int = 420,
+        completion: ((GenerateCompletionInfo?) -> Void)? = nil
     ) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
@@ -1130,7 +1240,7 @@ enum MLXLocalTextGenerator {
         // of live turns so a single page cannot monopolize CPU/GPU for the
         // multi-minute intervals recorded in the device resource reports.
         let effectiveMaxTokens = LocalModelManager.isIPhone15ClassHardware
-            ? min(maxTokens, 420)
+            ? min(maxTokens, iPhone15OutputCeiling)
             : maxTokens
         let responsivePrefillStep = LocalModelManager.isIPhone15ClassHardware ? 128 : 256
 
@@ -1177,6 +1287,13 @@ enum MLXLocalTextGenerator {
                             images: [],
                             videos: []
                         ) {
+                            #if canImport(UIKit)
+                            // Leaving the loop ends the stream, which cancels the
+                            // generation before its next GPU submission.
+                            if LocalBrainForeground.shared.isLeaving {
+                                throw LocalBrainGateError.inactive
+                            }
+                            #endif
                             switch generation {
                             case .chunk(let chunk):
                                 output += chunk
@@ -1214,6 +1331,7 @@ enum MLXLocalTextGenerator {
                             }
                         }
 
+                        completion?(completionInfo)
                         if publishesProgress, completionInfo == nil {
                             postProgress(
                                 label: label,
@@ -4823,14 +4941,22 @@ private extension String {
 enum BraidInstructions {
     /// The nightly braid's plain-prose commission. Unlike bound-edition work,
     /// this path no longer asks the model to emit provenance syntax.
+    ///
+    /// Everything here is also material to a 2B model: a phrase it can copy, it
+    /// will. Describing the Curse as "the grey sameness that makes days blur
+    /// together" put "grey sameness" in 7 of 24 device-faithful tellings
+    /// (2026-09-24), so the Curse is now a want with no description attached,
+    /// and "plain words a child would use" replaced a register the model read
+    /// as permission to be literary (the Book's voice is simple and childlike;
+    /// see docs/the-book-is-a-character.md).
     static let nightlyBookOfYou = """
     You are a magical Book inside ReEnchanted. Write one continuous story vignette entirely in the past tense. If the supplied material uses another tense, retell it in the past tense.
     Address the reader as "you". Use "I", "me", and "my" only for yourself, the Book.
     Before the first paragraph ends, make at least one concrete detail from the supplied shared world happen inside the story. It may mingle with the reader's day or run as its own strand, but it may not be omitted or merely listed.
     Keep the supplied real details true. Do not invent actions or feelings for the reader. Magic may belong to you, an ordinary thing, or the shared world.
     Write only connected prose: no notes, labels, outline, explanation, summary, or one comment per fact. Do not explain what the day meant or force an ending.
-    Be curious, blunt, mischievous, and good-hearted. Use plain, intimate language, never cute, childish, therapeutic, or assistant-like. Let one ordinary thing want or do one small impossible thing, stated as fact.
-    You have your own business and your own opinions. Underneath everything you want one thing: to break the reader out of the Curse, the grey sameness that makes days blur together. Let that show in what you notice and what delights you, not in a speech. Name the Curse at most once, and only if the day earned it.
+    Be curious, blunt, mischievous, and good-hearted. Use plain words a child would use, in clear sentences. Never cute, therapeutic, or assistant-like. Let one ordinary thing want or do one small impossible thing, stated as fact.
+    You have your own business and your own opinions. Underneath everything you want one thing: to break the reader out of the Curse. Never name the Curse or describe it. Let it show only in what you notice and what delights you.
     Sound like a contemporary domestic faerie tale: exact, physical, restrained, sometimes cozy, sometimes terrible, sometimes both.
     """
 

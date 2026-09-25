@@ -15606,6 +15606,35 @@ enum BraidPromptBuilder {
                 return "COMEDY: let timing, mismatch, embarrassment, or an ordinary thing's petty agenda make the shape. Do not turn the reader into the joke."
             }
         }
+
+        /// The same shape told to the phone's small model. `promptLine` is a
+        /// critic's vocabulary, and Rabbit's Gemma wrote it back as story:
+        /// "I stayed, the architecture of my existence being the slow,
+        /// deliberate turning of the page" came from VIGIL's "is the
+        /// architecture". These say what to do in words a child would use,
+        /// so nothing in them is worth copying onto the page.
+        var braidLine: String {
+            switch self {
+            case .sliceOfLife:
+                return "Tell it in the order it happened. Nothing big has to happen."
+            case .mosaic:
+                return "Set a few true moments side by side. Do not force them into one plot."
+            case .portrait:
+                return "Let one person, place, or thing from tonight hold the whole page."
+            case .drama:
+                return "Show the push, the choice, or the price as a scene. Do not invent an enemy or a win."
+            case .crossing:
+                return "Show what was different after. Do not make it bigger than it was."
+            case .vigil:
+                return "I stay with something and watch. Nothing has to be fixed."
+            case .returnForm:
+                return "Put then and now side by side. Keep them two different times."
+            case .romance:
+                return "Stay with the wanting or the distance that was supplied. Do not invent feelings coming back, a relationship, or an ending."
+            case .comedy:
+                return "Let timing or an ordinary thing's small, petty plan make it funny. Never make the reader the joke."
+            }
+        }
     }
 
     enum RutInfluence: String, Codable, Equatable, Hashable, CaseIterable {
@@ -18764,6 +18793,11 @@ enum BraidOutputAudit {
                 return false
             }
         }
+
+        /// A ceiling cut that loses the Reader's truth anchor cannot be made
+        /// whole by a stock closing line. Other coverage findings remain soft:
+        /// paraphrase and small-model compression can fool word-overlap audits.
+        var isCutoffAnchorFailure: Bool { self == .missingTruthAnchor }
 
         /// Craft findings lower a draft's chance; they do not turn the audit
         /// into a lexicographic veto over literary quality. Register failures

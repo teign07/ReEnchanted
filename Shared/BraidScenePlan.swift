@@ -488,6 +488,17 @@ struct BraidScenePlan: Equatable, Codable {
     /// Atoms that must not be given an ending. The shadow laws in one field.
     var mustRemainUnresolved: [String]
     var earnedWords: ClosedRange<Int>
+
+    /// The band an iPhone 15-class telling is asked for. Rabbit's live turn
+    /// stops at 420 output tokens, and a very rich day can earn more than 450
+    /// words; asking for that there guarantees a cut-off before the form or
+    /// its ending can land. The telling is compressed to a band the device can
+    /// finish, without dropping any selected fact.
+    static func deviceHonestBand(_ band: ClosedRange<Int>) -> ClosedRange<Int> {
+        let lower = min(band.lowerBound, 210)
+        let upper = max(lower, min(band.upperBound, 260))
+        return lower...upper
+    }
     var shape: SceneShapeMemory
     var intendedResidue: SceneResidueIntent
     /// What last night actually left behind, read from the page that won rather
@@ -1755,7 +1766,7 @@ enum BraidNarrativeOutput {
         var sawLegacyMarker = false
         var sawLegacyNarrativeVoice = false
 
-        for rawLine in raw
+        for rawLine in colophonOnItsOwnLine(withoutReasoningChannel(raw))
             .replacingOccurrences(of: "\r\n", with: "\n")
             .components(separatedBy: .newlines) {
             var line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -1789,7 +1800,8 @@ enum BraidNarrativeOutput {
             guard !line.isEmpty,
                   !isCompactAliasList(line),
                   !isPromptInstructionLeak(line),
-                  !isIncompleteColophon(line) else { continue }
+                  !isIncompleteColophon(line),
+                  !isEchoedColophon(line) else { continue }
             display.append(line)
         }
 
@@ -1814,9 +1826,144 @@ enum BraidNarrativeOutput {
             }
         }
 
-        return arranged.joined(separator: "\n")
-            .replacingOccurrences(of: "\n\n\n", with: "\n\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return settledColophon(
+            arranged.joined(separator: "\n")
+                .replacingOccurrences(of: "\n\n\n", with: "\n\n")
+        )
+    }
+
+    /// The telling a reader may keep, from everything Gemma returned.
+    ///
+    /// A generation stopped by the output ceiling ends mid-sentence, and half
+    /// a sentence on paper is worse than a shorter page, so it is cut back to
+    /// the last sentence that finished. Every braid then closes on the ritual
+    /// line: when Gemma's own colophon never landed, the plan's keeper line
+    /// stands in, because a page that simply stops reads as a page that broke.
+    static func finished(
+        _ raw: String,
+        reachedCeiling: Bool,
+        keeperColophon: String
+    ) -> String {
+        let prose = cleaned(reachedCeiling ? throughLastFinishedSentence(raw) : raw)
+        guard !prose.isEmpty else { return "" }
+        guard !hasLandedColophon(prose) else { return prose }
+        return prose + "\n\n" + keeperColophon
+    }
+
+    static func hasLandedColophon(_ text: String) -> Bool {
+        guard let stem = text.range(of: colophonStem, options: [.backwards, .caseInsensitive]) else {
+            return false
+        }
+        return text[stem.upperBound...].contains(where: \.isLetter)
+    }
+
+    /// Everything up to the last sentence that finished; empty when none did.
+    static func throughLastFinishedSentence(_ text: String) -> String {
+        let closers: Set<Character> = ["\"", "'", "”", "’", ")", "]"]
+        var end = text.endIndex
+        while end > text.startIndex {
+            let previous = text.index(before: end)
+            if ".!?…".contains(text[previous]) {
+                var cut = end
+                while cut < text.endIndex, closers.contains(text[cut]) {
+                    cut = text.index(after: cut)
+                }
+                return String(text[..<cut])
+            }
+            end = previous
+        }
+        return ""
+    }
+
+    private static let colophonStem = "The Book kept the page:"
+
+    /// Gemma 4 thinks aloud in a `<|channel>thought … <channel|>` block when its
+    /// chat template is asked to. The phone never asks (Rabbit, 2026-09-24:
+    /// every telling began straight in the story), but a template or library
+    /// update that switched it on would stream the model's planning onto the
+    /// page. Only what follows the channel's close is the telling, and an
+    /// unclosed channel means the story never started.
+    static func withoutReasoningChannel(_ raw: String) -> String {
+        if let close = raw.range(of: "<channel|>", options: .backwards) {
+            return String(raw[close.upperBound...])
+        }
+        if let open = raw.range(of: "<|channel>") {
+            return String(raw[..<open.lowerBound])
+        }
+        return raw
+    }
+
+    /// The ritual line, gathered onto a line of its own before anything is
+    /// filtered. Gemma sometimes quotes the stem the way the commission does,
+    /// puts what the Book kept on the line after it, or runs the colophon on
+    /// from the last sentence; and once (1 in 50) it wrote "I found the page:".
+    /// On its own line a bad landing costs only the colophon, which the keeper
+    /// line replaces, instead of taking the paragraph it was glued to.
+    private static func colophonOnItsOwnLine(_ raw: String) -> String {
+        var text = raw.replacingOccurrences(
+            of: #"["“]The Book kept the page:["”]"#,
+            with: colophonStem,
+            options: .regularExpression
+        )
+        if !text.contains(colophonStem) {
+            text = text.replacingOccurrences(
+                of: #"(^|[.!?]["”’]?\s+)I (?:found|kept|keep) the page:"#,
+                with: "$1" + colophonStem,
+                options: .regularExpression
+            )
+        }
+        return text
+            .replacingOccurrences(
+                of: #"The Book kept the page:[ \t]*(?:\r?\n[ \t]*)+(?=[^\s])"#,
+                with: colophonStem + " ",
+                options: .regularExpression
+            )
+            .replacingOccurrences(
+                of: #"(?<!COLOPHON)(?<=\S)[ \t]+The Book kept the page:"#,
+                with: "\n" + colophonStem,
+                options: .regularExpression
+            )
+    }
+
+    /// "The Book kept the page: then tells what one object from tonight did."
+    /// The commission's own words after the colon, copied (2 in 50).
+    static func isEchoedColophon(_ line: String) -> Bool {
+        guard line.hasPrefix(colophonStem) else { return false }
+        let landing = line.dropFirst(colophonStem.count)
+            .trimmingCharacters(in: .whitespaces)
+            .lowercased()
+        return landing.hasPrefix("then ") || landing.hasPrefix("[")
+    }
+
+    /// Asked for a sentence *beginning* "The Book kept the page:", Rabbit's
+    /// Gemma writes exactly those words and stops: 13 of 13 device-faithful
+    /// tellings ended "…a silent, continuous vigil. The Book kept the page:"
+    /// (2026-09-24). The line-by-line clean only caught the stem on a line of
+    /// its own, so the dangling colon reached the Page and its share card. A
+    /// stem with nothing after it is not an ending and leaves; a colophon that
+    /// landed gets its own paragraph, where the Book's closings live.
+    private static func settledColophon(_ text: String) -> String {
+        var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let bare = text.range(
+            of: #"\s*["“”']?The Book kept the page[:.]?["“”']?$"#,
+            options: [.regularExpression, .caseInsensitive]
+        ) {
+            text.removeSubrange(bare)
+        }
+        if let stem = text.range(of: colophonStem, options: .backwards),
+           stem.lowerBound > text.startIndex {
+            let lineStart = text[..<stem.lowerBound].lastIndex(of: "\n")
+                .map { text.index(after: $0) } ?? text.startIndex
+            let sameLine = text[lineStart..<stem.lowerBound]
+            let breakBefore = text[..<lineStart].hasSuffix("\n\n")
+            if !sameLine.allSatisfy(\.isWhitespace) || !breakBefore {
+                let prose = text[..<stem.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !prose.isEmpty {
+                    text = prose + "\n\n" + text[stem.lowerBound...]
+                }
+            }
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func appendParagraphBreak(to display: inout [String]) {
@@ -1896,7 +2043,15 @@ enum BraidNarrativeOutput {
             "before the first paragraph ends, make at least one concrete detail",
             "part of the narration itself",
             "do not invent actions or feelings for the reader",
-            "one comment per fact"
+            "one comment per fact",
+            "story shape:",
+            "reader-day material",
+            "the reader did these, not me",
+            "write them with \"you\"",
+            "return only the finished story",
+            "a child would use",
+            "its last sentence begins",
+            "what one object from tonight did"
         ]
         return leakedPhrases.contains(where: lower.contains)
     }
@@ -2418,7 +2573,7 @@ extension BraidScenePlan {
     /// prose bug the Book keeps being caught in.
     static func formLine(_ raw: String) -> String {
         guard let form = BraidPromptBuilder.StoryForm(rawValue: raw) else { return raw + "." }
-        return form.promptLine
+        return form.braidLine
     }
 
     /// One compact piece of world material. Field headings taught the small
@@ -2526,7 +2681,7 @@ extension BraidScenePlan {
             "Write tonight's page as one continuous story vignette in flowing prose, entirely in the past tense.",
             "Retell material written in any other tense in the past.",
             "Address the reader as \"you\". Use \"I\", \"me\", and \"my\" only for me, the Book.",
-            "Follow this story form: \(Self.formLine(form))"
+            "Story shape: \(Self.formLine(form))"
         ]
         let authoredSection = MonthlyIssueBraidMatter.promptSection(authoredStoryReceipts ?? [])
         if !authoredSection.isEmpty { lines.append(authoredSection) }
@@ -2539,7 +2694,13 @@ extension BraidScenePlan {
             lines.append("Before the first paragraph ends, make at least one concrete detail from that event part of the narration itself. Do not omit it, list it, or leave it as background information.")
         }
         if !livedMaterial.isEmpty {
-            lines.append("Reader-day material: \(joined(livedMaterial))")
+            // The commission calls the model "you" and the material calls the
+            // reader "you", so Rabbit's Gemma took the reader's day as its own:
+            // "I found the missing library card", "I rang my brother back".
+            // Saying whose day it is, inside the label where there is no
+            // sentence to copy, took that from 3 in 30 tellings to 0 in 30;
+            // the same rule as a sentence of its own was copied into the story.
+            lines.append("\(Self.readerDayLabel) \(joined(livedMaterial))")
         }
         if !keptMaterial.isEmpty {
             lines.append("Kept-page material. These words belong to the source page, not the reader. Paraphrase them: \(joined(keptMaterial))")
@@ -2554,9 +2715,18 @@ extension BraidScenePlan {
         }
         lines.append("Use these as ingredients, not as an outline or a list. Let sentences lead into each other instead of repeating each item and commenting on it.")
         lines.append("Write \(earnedWords.lowerBound)-\(earnedWords.upperBound) words in 2-4 natural paragraphs.")
-        lines.append("Return only the finished body, with no title. End with one concrete sentence beginning \"The Book kept the page:\".")
+        // Asked for "one concrete sentence beginning "The Book kept the
+        // page:"", Rabbit's Gemma wrote the quoted words and stopped, 23 of 24
+        // times. Naming a thing and a verb ("what one object from tonight
+        // did") gave 16 of 16 landed endings in the house shape ("the dust
+        // bit back"); an example was copied verbatim half the time, and
+        // "and a short sentence" began 11 of 16 landings with "and".
+        lines.append(Self.closingInstruction)
         return lines.joined(separator: "\n")
     }
+    static let readerDayLabel = "Reader-day material (the reader did these, not me; write them with \"you\"):"
+    static let closingInstruction = "Return only the finished story, with no title. Its last sentence begins The Book kept the page: then tells what one object from tonight did, in a few plain words."
+
     private func worldModeInstruction(_ mode: WorldBeatMode) -> String {
         switch mode {
         case .independent:
@@ -2731,7 +2901,7 @@ enum BraidSceneWriter {
             )
         }
 
-        claims.append(BraidClaim(realm: .colophon, sourceIDs: [], text: colophon(for: plan)))
+        claims.append(BraidClaim(realm: .colophon, sourceIDs: [], text: keeperColophon(for: plan)))
         return claims
     }
 
@@ -2993,16 +3163,19 @@ enum BraidSceneWriter {
         return words.prefix(limit).joined(separator: " ") + "..."
     }
 
-    private static func colophon(for plan: BraidScenePlan) -> String {
+    /// The plan's own closing line. The house writer ends on it, and a Gemma
+    /// telling whose colophon never landed borrows it, so these reach readers:
+    /// they speak in the Book's plain voice, not a critic's.
+    static func keeperColophon(for plan: BraidScenePlan) -> String {
         if !plan.mustRemainUnresolved.isEmpty {
             return "The Book kept the page: the words stayed in the order they came."
         }
         switch plan.transformation {
-        case .juxtaposition: return "The Book kept the page: two things, side by side, unexplained."
-        case .recognition: return "The Book kept the page: something was recognised and not named."
-        case .complication: return "The Book kept the page: nothing here was resolved."
-        case .ret: return "The Book kept the page: what came back came back changed."
-        case .refusal: return "The Book kept the page: the refusal is the part that held."
+        case .juxtaposition: return "The Book kept the page: two things, side by side, and I am not explaining them."
+        case .recognition: return "The Book kept the page: I knew it when I saw it."
+        case .complication: return "The Book kept the page: nothing got fixed, and I kept it anyway."
+        case .ret: return "The Book kept the page: it came back, but not the same."
+        case .refusal: return "The Book kept the page: the no held."
         case .none: return "The Book kept the page: it happened, and I wrote it down."
         }
     }

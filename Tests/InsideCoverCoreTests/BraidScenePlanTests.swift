@@ -429,8 +429,8 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(brief.contains("Retell material written in any other tense in the past"), brief)
         XCTAssertTrue(brief.contains("Address the reader as \"you\""), brief)
         XCTAssertTrue(brief.contains("only for me, the Book"), brief)
-        XCTAssertTrue(brief.contains("Follow this story form:"), brief)
-        XCTAssertTrue(brief.contains("Reader-day material:"), brief)
+        XCTAssertTrue(brief.contains("Story shape:"), brief)
+        XCTAssertTrue(brief.contains(BraidScenePlan.readerDayLabel), brief)
         XCTAssertTrue(brief.contains("Shared-world event that must happen inside the vignette:"), brief)
         XCTAssertTrue(brief.contains("Before the first paragraph ends"), brief)
         XCTAssertTrue(brief.contains("part of the narration itself"), brief)
@@ -474,7 +474,7 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(
             brief.contains("You walked past the bakery that shut last winter."), brief)
         XCTAssertFalse(
-            brief.contains("Reader-day material: I walked past the bakery"), brief)
+            brief.contains("\(BraidScenePlan.readerDayLabel) I walked past the bakery"), brief)
         if let worldBeat = plan.worldBeat {
             XCTAssertTrue(brief.contains(BraidScenePlan.worldMaterial(worldBeat)), brief)
         }

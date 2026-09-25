@@ -59,10 +59,15 @@ struct InsideCoverApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Keep the handler for jobs queued by an older app version. The local
+        // model cannot run in BGProcessing, so no new scribe job is scheduled.
         OvernightScribe.register()
         WeatherBell.register()
         BookWhispers.configureForegroundPresentation()
         Self.warmReferenceLibrary()
+        #if (DEBUG || BRAID_PROOF) && NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+        BraidProofHarness.runIfRequested()
+        #endif
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--smoke-observation-pair-pdf") {
             Self.exportObservationPairProof()
@@ -172,7 +177,6 @@ struct InsideCoverApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
-                OvernightScribe.scheduleNext()
                 WeatherBell.scheduleNext()
             }
         }

@@ -5375,9 +5375,10 @@ extension BookWhispers {
 import BackgroundTasks
 #endif
 
-/// The overnight interpretation forge: while the phone charges, the Book may
-/// ask its local model to risk a correctable opinion or rare reframe from a
-/// small packet of newly proven connections and exact shared-history lines.
+/// Foreground-only draft forge. Older releases scheduled it under
+/// BGProcessing, but iOS withdraws the GPU there. The registered handler only
+/// retires already-queued jobs; new model writing must be offered in a reader-
+/// initiated foreground flow. Existing drafts remain adoptable until stale.
 enum OvernightScribe {
     static let taskIdentifier = "com.openclaw.enchantify.insidecover.overnight-scribe"
     static let freshnessWindow: TimeInterval = 18 * 3600
@@ -5424,43 +5425,25 @@ enum OvernightScribe {
         #endif
     }
 
-    static func scheduleNext(now: Date = Date()) {
-        #if canImport(BackgroundTasks)
-        let request = BGProcessingTaskRequest(identifier: taskIdentifier)
-        request.requiresExternalPower = true
-        request.requiresNetworkConnectivity = false
-        request.earliestBeginDate = Calendar.current.nextDate(
-            after: now,
-            matching: DateComponents(hour: 2),
-            matchingPolicy: .nextTime
-        )
-        do {
-            try BGTaskScheduler.shared.submit(request)
-        } catch {
-            appLog.info("Overnight scribe could not be scheduled: \(error.localizedDescription, privacy: .private)")
-        }
-        #endif
-    }
-
     #if canImport(BackgroundTasks)
     private static func handle(_ task: BGProcessingTask) {
-        scheduleNext()
-        let work = Task {
-            let wrote = await writeDraft()
-            AppMemoryLedger.record(wrote ? "overnight-scribe-wrote" : "overnight-scribe-skipped")
-            task.setTaskCompleted(success: wrote)
-        }
-        task.expirationHandler = {
-            work.cancel()
-            AppMemoryLedger.record("overnight-scribe-expired")
-            task.setTaskCompleted(success: false)
-        }
+        AppMemoryLedger.record("overnight-scribe-retired-background-job")
+        task.setTaskCompleted(success: true)
     }
     #endif
 
     static func writeDraft(now: Date = Date()) async -> Bool {
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
         guard LocalModelManager.report().state == .ready else { return false }
+        // This method is for a future reader-initiated foreground opportunity;
+        // never prepare the archive for a run that the GPU cannot finish.
+        let appIsActive = await MainActor.run {
+            UIApplication.shared.applicationState == .active
+        }
+        guard appIsActive, !LocalBrainForeground.shared.isLeaving else {
+            AppMemoryLedger.record("overnight-scribe-no-gpu-in-background")
+            return false
+        }
 
         let prepared: (
             story: SurfacePage,
@@ -5513,10 +5496,6 @@ enum OvernightScribe {
             )
         }
 
-        await LocalBrainInferenceGate.shared.setBackgroundAllowance(true)
-        defer {
-            Task { await LocalBrainInferenceGate.shared.setBackgroundAllowance(false) }
-        }
         var wroteSomething = false
         do {
             let prose = try await MLXStoryPageWriter().write(surface: prepared.story)

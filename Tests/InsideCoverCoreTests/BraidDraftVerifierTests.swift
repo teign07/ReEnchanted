@@ -243,10 +243,127 @@ final class BraidDraftVerifierTests: XCTestCase {
         I watch the screen.
 
         frost cut across the long window and halted.
+
         The Book kept the page: the heat pump.
         """
         XCTAssertEqual(BraidDraftVerifier.readerPreview(raw), expected)
         XCTAssertEqual(BraidNarrativeOutput.cleaned(raw), expected)
+    }
+
+    // MARK: - What Rabbit's Gemma actually returns (2026-09-24)
+
+    /// Asked for a sentence beginning "The Book kept the page:", the phone's
+    /// Gemma wrote exactly those words and stopped, on the same line as the
+    /// last sentence. Only a stem on its own line used to be caught.
+    func testADanglingColophonAtTheEndOfTheLastSentenceIsRemoved() {
+        let raw = "I watched the light shift across the dust, a silent vigil. The Book kept the page:"
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "I watched the light shift across the dust, a silent vigil."
+        )
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned("The bell rang under the floor.\n\n\"The Book kept the page:\""),
+            "The bell rang under the floor."
+        )
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned("The bell rang under the floor. The Book kept the page."),
+            "The bell rang under the floor."
+        )
+    }
+
+    func testALandedColophonGetsItsOwnParagraph() {
+        let raw = "You put the bowl back. I objected to the pocket. The Book kept the page: the pocket kept growing."
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "You put the bowl back. I objected to the pocket.\n\nThe Book kept the page: the pocket kept growing."
+        )
+    }
+
+    func testAColophonWhoseLandingFellToTheNextLineIsOneLine() {
+        let raw = """
+        You put the bowl back.
+
+        "The Book kept the page:"
+        the bowl went back where it lives.
+        """
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "You put the bowl back.\n\nThe Book kept the page: the bowl went back where it lives."
+        )
+    }
+
+    func testThinkingAloudNeverReachesThePage() {
+        let thought = "<|channel>thought\nThinking Process:\n1. Analyze the request.<channel|>"
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(thought + "You put the bowl back on the shelf."),
+            "You put the bowl back on the shelf."
+        )
+        // The story never started: nothing to show, nothing to keep.
+        XCTAssertEqual(BraidNarrativeOutput.cleaned("<|channel>thought\nThinking Process:\n1. Analyze"), "")
+    }
+
+    func testATellingCutOffByTheCeilingEndsOnItsLastFinishedSentence() {
+        let raw = "You put the bowl back. The pocket grew under my cover. The Book kept the page: the pocket kept gro"
+        let keeper = "The Book kept the page: it happened, and I wrote it down."
+        XCTAssertEqual(
+            BraidNarrativeOutput.finished(raw, reachedCeiling: true, keeperColophon: keeper),
+            "You put the bowl back. The pocket grew under my cover.\n\n\(keeper)"
+        )
+        XCTAssertEqual(BraidNarrativeOutput.throughLastFinishedSentence("He said \"stop.\" Then the"), "He said \"stop.\"")
+        XCTAssertEqual(BraidNarrativeOutput.throughLastFinishedSentence("no sentence ever finished"), "")
+    }
+
+    func testCeilingCutCannotHideMissingReaderAnchorWithoutHardGatingCraft() {
+        XCTAssertTrue(BraidOutputAudit.Issue.missingTruthAnchor.isCutoffAnchorFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.storyScoreDrift.isCutoffAnchorFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.missingContinuityBeat.isCutoffAnchorFailure)
+        XCTAssertFalse(BraidOutputAudit.Issue.tooShort.isCutoffAnchorFailure)
+    }
+
+    func testACopiedCommissionAfterTheColonCostsOnlyTheColophon() {
+        let keeper = "The Book kept the page: it happened, and I wrote it down."
+        let raw = "You made cold tea again. A pocket grew under my cover. The Book kept the page: then tells what one object from tonight did."
+        XCTAssertEqual(
+            BraidNarrativeOutput.finished(raw, reachedCeiling: false, keeperColophon: keeper),
+            "You made cold tea again. A pocket grew under my cover.\n\n\(keeper)"
+        )
+        XCTAssertEqual(
+            BraidNarrativeOutput.finished(
+                "The locket hummed. The Book kept the page: then showed the silver locket did.",
+                reachedCeiling: false,
+                keeperColophon: keeper
+            ),
+            "The locket hummed.\n\n\(keeper)"
+        )
+    }
+
+    func testTheBooksColophonInTheWrongMouthIsStillTheColophon() {
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned("The moth ate the third shelf. I found the page: the moth left its secret."),
+            "The moth ate the third shelf.\n\nThe Book kept the page: the moth left its secret."
+        )
+    }
+
+    func testEveryFinishedBraidEndsOnTheRitualLine() {
+        let keeper = "The Book kept the page: it happened, and I wrote it down."
+        XCTAssertEqual(
+            BraidNarrativeOutput.finished(
+                "The bell rang under the floor. The Book kept the page:",
+                reachedCeiling: false,
+                keeperColophon: keeper
+            ),
+            "The bell rang under the floor.\n\n\(keeper)"
+        )
+        // Gemma's own landing is kept when it has one.
+        XCTAssertEqual(
+            BraidNarrativeOutput.finished(
+                "The bell rang under the floor. The Book kept the page: the bell rang for nobody.",
+                reachedCeiling: false,
+                keeperColophon: keeper
+            ),
+            "The bell rang under the floor.\n\nThe Book kept the page: the bell rang for nobody."
+        )
+        XCTAssertEqual(BraidNarrativeOutput.finished("", reachedCeiling: false, keeperColophon: keeper), "")
     }
 
     func testPlainPromptEchoCannotBecomePartOfThePage() {

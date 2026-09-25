@@ -173,3 +173,29 @@ final class BraidBenchTests: XCTestCase {
     }
   }
 }
+
+// MARK: - The phone's commissions, for the braid lab
+
+extension BraidBenchTests {
+  /// Writes the brief each bench night would hand Rabbit's Gemma, exactly as
+  /// the device builds it (prepared context, iPhone 15-class band), so prompt
+  /// changes can be measured against the real model before they ship:
+  ///
+  ///     BRAID_BRIEFS_OUT=/tmp/briefs.json swift test --filter testWriteTheDeviceBriefs
+  ///
+  /// The output feeds `BraidProofHarness` on the phone and the Mac lab that
+  /// renders the same chat template. Without the variable it does nothing.
+  func testWriteTheDeviceBriefsWhenAsked() throws {
+    guard let path = ProcessInfo.processInfo.environment["BRAID_BRIEFS_OUT"] else { return }
+    let briefs = BraidBench.corpus().map { night -> [String: String] in
+      let context = DeterministicBraidwright.preparedContext(for: night.day, context: night.context)
+      var plan = BraidScenePlanBuilder.plan(for: night.day, context: context)
+      plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)
+      return ["name": night.name, "brief": plan.brief()]
+    }
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    try encoder.encode(briefs).write(to: URL(fileURLWithPath: path))
+    print("Wrote \(briefs.count) device briefs to \(path)")
+  }
+}
