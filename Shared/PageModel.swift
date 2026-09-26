@@ -720,7 +720,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .pactErrand:
             return ("The Pact wants you outside.", "Do it or don't. If you do, bring proof.")
         case .spell:
-            return ("Somebody worked this out a long time ago.", "Go and do it. I'll hold the page open.")
+            return ("I've got a spell for you.", "It's old, and it comes with a rule. Keep the rule.")
         case .festival:
             return ("The world is having a feast.", "I found whose. I found a way in.")
         case .twoReadings:
@@ -1463,6 +1463,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "almanac",
             note: "A sabbat, a full moon, or a falling-star night: the world is keeping a feast."
+        ),
+        BookPageSource(
+            id: "spells",
+            type: .spell,
+            title: "A Spell to Work",
+            shortTitle: "Spell",
+            symbolName: "sparkles",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "daily",
+            note: "Something old to go and do, with its rule still attached."
         ),
         BookPageSource(
             id: "two-readings",

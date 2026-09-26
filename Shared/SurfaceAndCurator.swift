@@ -956,7 +956,7 @@ struct PageCapabilityContract: Codable, Equatable {
         let reach: PageCapabilityReach
         if [.bookJump, .festival, .calendar].contains(page.type) {
             reach = .plannedWorld
-        } else if [.wonderCompass, .anchor, .location, .pactErrand, .wickerDare, .elective].contains(page.type)
+        } else if [.wonderCompass, .anchor, .location, .pactErrand, .wickerDare, .spell, .elective].contains(page.type)
                     || !tags.isDisjoint(with: ["outward", "walking", "outing"]) {
             reach = .nearbyWorld
         } else {
@@ -969,7 +969,7 @@ struct PageCapabilityContract: Codable, Equatable {
             emotionalFunctions = [.soothe, .notice]
         case .wonderCompass, .todaysSky, .location, .enchantment, .illuminatedPhoto:
             emotionalFunctions = [.notice, .wonder]
-        case .quip, .gamePage, .wickerDare, .bookFae:
+        case .quip, .gamePage, .wickerDare, .bookFae, .spell:
             emotionalFunctions = [.play, .wonder]
         case .letter, .castBond, .supportGuild, .bookConnections:
             emotionalFunctions = [.connect]
@@ -4626,6 +4626,59 @@ enum BookCurator {
             pickedSourceIDs.insert(seat.sourceID)
         }
 
+        /// Spells come to the reader. A spell waiting only in the Glow menu is
+        /// a spell nobody meets, and a fairy tale does not wait to be looked
+        /// up: it happens to you on the way somewhere.
+        ///
+        /// So one spell is always somewhere in the block. An ordinary one
+        /// takes a chair past the visible trio, where a reader turning leaves
+        /// will find it; one the world has laid out today — fog, dusk, the
+        /// shore — takes a chair on the visible desk, the way a feast does.
+        /// The ration caps are looked past for the same reason the feast floor
+        /// looks past them: they stop a family crowding the desk, and this is
+        /// one Page. A hard day never gets one; the adapter already refused.
+        func placeSpellFloor() {
+            guard !mood.distressActive,
+                  !picked.contains(where: { $0.type == .spell }),
+                  let seat = selectionOrder.first(where: { $0.type == .spell })
+            else { return }
+            if picked.count < limit {
+                add(seat)
+                return
+            }
+            let worldLaidItOut = seat.payload.metadata["spellConditional"] == "true"
+            let chairs = worldLaidItOut
+                ? Array(picked.indices.prefix(visibleLimit))
+                : Array(picked.indices.dropFirst(visibleLimit))
+            func victimIndex(_ job: DeskJob) -> Int? {
+                chairs.last { index in
+                    let page = picked[index]
+                    return page.deskJob == job
+                        && page.type != .bookOfYou
+                        && page.type != .festival
+                        && !page.isDeskMilestone
+                        && !page.isReaderActionCommission
+                        && page.payload.metadata["curatorPreparedArtifact"] != "true"
+                }
+            }
+            guard let victim = victimIndex(.play)
+                ?? victimIndex(.instrument)
+                ?? victimIndex(.quiet)
+            else { return }
+            let capable = seat.withResolvedPageCapabilities()
+            picked[victim] = intention == nil
+                ? capable
+                : BookSessionIntention.inheriting(
+                    capable,
+                    from: picked[victim],
+                    role: BookSessionRole(
+                        rawValue: picked[victim].payload.metadata[BookSessionIntention.metadataRole] ?? ""
+                    ) ?? .horizon
+                )
+            pickedTypes.insert(seat.type)
+            pickedSourceIDs.insert(seat.sourceID)
+        }
+
         func placeLoopFloors() {
             // The published block is three turns of the loop, not one. A reader
             // turning nine leaves should meet a way out in each trio rather than
@@ -4791,6 +4844,8 @@ enum BookCurator {
         // Last, and after the loop floors, so a feast takes its chair from the
         // finished desk rather than from a desk still being reasoned about.
         placeFestivalFloor()
+        // After the feast, so a feast day's chair is never the one it takes.
+        placeSpellFloor()
 
         if let intention, let selectionSeed {
             // The deep bench is not a heap of leftovers. Compose it as further
@@ -7666,7 +7721,7 @@ enum EnchantedSnackFirstBeat: Equatable {
 enum MomentaryAttentionEngine {
     static let pagesWithNativeFirstMove: Set<BookPageType> = [
         .askTheBook, .radio, .gamePage, .bookJump, .faeBargain, .bookFae,
-        .pactVerdict, .pactErrand, .narrativeOS, .academyClass, .tarot,
+        .pactVerdict, .pactErrand, .spell, .narrativeOS, .academyClass, .tarot,
         .enchantment, .inkrestOfficeHours, .twoReadings, .wordNegotiation,
         .plainPage, .bookOfYou, .mood, .aboutYou, .affirmations, .inventory,
         .marginsAtlas, .calendar, .location, .anchor, .wonderCompass, .elective
@@ -7965,6 +8020,7 @@ extension SurfacePage {
         if payload.metadata["curatorActionCommission"] == "true"
             || payload.metadata["playfulMissionID"]?.nonEmpty != nil
             || type == .wickerDare
+            || type == .spell
             || payload.metadata["calendarDoorPreview"] == "true" {
             return true
         }
@@ -8369,7 +8425,7 @@ extension BookPageType {
         // sentence. The souvenir, the compass, and the dares all carry their
         // own writing step, which is why they are not filed as instruments.
         case .wonderCompass, .souvenir, .enchantment, .anchor, .pactErrand,
-             .wickerDare, .calendar, .location:
+             .wickerDare, .spell, .calendar, .location:
             return .errand
         // Instrument: reached for, not read. These are the only Pages allowed
         // to recur several times in one day. `.weather` belongs here with the
@@ -8397,7 +8453,7 @@ extension BookPageType {
         switch self {
         // Outward: the reader attends to the actual world / their own day.
         case .wonderCompass, .diary, .mood, .souvenir, .body, .fuel,
-             .weather, .todaysSky, .location, .anchor, .pactErrand,
+             .weather, .todaysSky, .location, .anchor, .pactErrand, .spell,
              .rest, .enchantment, .plainPage:
             return .outward
         // Fiction: the Academy world performs, corresponds, or contends.
@@ -8964,7 +9020,7 @@ enum InscriptionCurationAffinity {
         case "letters":
             return [.letter, .gossip, .illustration, .castBond, .supportGuild].contains(type) ? 6 : 0
         case "errands":
-            return [.wonderCompass, .enchantment, .pactErrand, .bookJump].contains(type) ? 6 : 0
+            return [.wonderCompass, .enchantment, .pactErrand, .spell, .bookJump].contains(type) ? 6 : 0
         case "cozy":
             return [.mood, .souvenir, .rest, .weather].contains(type) ? 6 : 0
         case "weather-place":
@@ -9829,7 +9885,8 @@ struct CuratorMood {
         .pactDispatch,
         .pactVerdict,
         .pactErrand,
-        .wickerDare
+        .wickerDare,
+        .spell
     ]
 
     private static let firstHoursOrientationBoosts: [BookPageType: Int] = [

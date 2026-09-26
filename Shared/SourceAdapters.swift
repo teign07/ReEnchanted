@@ -13445,6 +13445,63 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+// A Spell, handed over on the desk rather than waiting to be found in the
+// Glow menu. Fairy tales happen to people; the reader should not have to go
+// looking for the one the world laid out for today.
+//
+// One candidate per half day, from the same deterministic shelf the Magic
+// submenu shows, so the two never disagree. A spell whose condition just came
+// true (fog, the shore, dusk) outranks the rest, but an ordinary day still
+// gets one: the unconditional spells are the everyday meal, not a fallback.
+struct SpellPageSourceAdapter: BookPageSourceAdapter {
+    let source = BookPageSourceRegistry.source(for: .spell)
+
+    func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
+        guard source.isActive, !context.distress.isActive,
+              let spell = spell(for: day, inputs: inputs, now: now) else { return [] }
+        return [surface(for: spell, day: day, inputs: inputs, now: now)]
+    }
+
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let spell = spell(for: day, inputs: inputs, now: now)
+            ?? SpellRegistry.all.first { !inputs.restedSpellIDs.contains($0.id) }
+            ?? SpellRegistry.all[0]
+        return surface(for: spell, day: day, inputs: inputs, now: now)
+    }
+
+    func spell(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SpellDef? {
+        // No spell here triggers on a world event, so there is no reason to
+        // pay for resolving them.
+        let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now, resolveMissingWorldEvents: false)
+        let offered = SpellOffering.offered(
+            on: day.id,
+            context: triggerContext,
+            rested: inputs.restedSpellIDs,
+            lastCast: inputs.spellCastLog,
+            now: now,
+            limit: 2
+        )
+        guard !offered.isEmpty else { return nil }
+        // Morning and afternoon get different spells, unless the world has
+        // laid out one spell so plainly that it should hold the whole day.
+        let afternoon = Calendar.current.component(.hour, from: now) >= 12
+        let index = afternoon && offered.count > 1 && offered[0].trigger == nil ? 1 : 0
+        return offered[index]
+    }
+
+    private func surface(for spell: SpellDef, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        SpellOffering.surface(
+            for: spell,
+            dayID: day.id,
+            now: now,
+            recall: SpellCastMemory.recall(of: spell.id, in: inputs.days + [day], now: now),
+            sourceID: source.id,
+            // A spell the world laid out today is worth more than one it didn't.
+            score: spell.trigger == nil ? 66 : 78
+        )
+    }
+}
+
 // Hands over a finished fairy tale. This is the rarest page in the app and the
 // only one that asks for nothing: the reader reads it and closes the cover.
 //
@@ -15947,6 +16004,7 @@ enum BookPageSourceAdapters {
         PactVerdictPageSourceAdapter(),
         PactErrandPageSourceAdapter(),
         FestivalPageSourceAdapter(),
+        SpellPageSourceAdapter(),
         TodaysSkyPageSourceAdapter(),
         RadioPageSourceAdapter(),
         BookJumpPageSourceAdapter(),

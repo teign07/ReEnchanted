@@ -99,7 +99,7 @@ final class SpellTests: XCTestCase {
                          "wait until", "next week", "next month", "tomorrow",
                          "in the spring", "in the autumn"]
         for spell in all {
-            let text = spell.invitation.lowercased()
+            let text = (spell.invitation + " " + (spell.rule ?? "")).lowercased()
             for phrase in forbidden {
                 XCTAssertFalse(text.contains(phrase),
                                "\(spell.id) asks the reader to \(phrase.trimmingCharacters(in: .whitespaces))")
@@ -117,13 +117,15 @@ final class SpellTests: XCTestCase {
         }
     }
 
-    /// The Book offers; it never promises. A spell that claims an effect is the
-    /// one thing this feature must not do.
+    /// The Book plays the fey rules straight ("Rooms remember who brings them
+    /// things") but never promises the reader a result in their real life. No
+    /// luck, no cure, no guarantee.
     func testNoSpellClaimsItWorks() {
         let claims = ["will make you", "guarantees", "you will feel", "this works",
                       "proven", "cures", "will bring you luck"]
         for spell in all {
-            let text = (spell.blurb + " " + spell.invitation).lowercased()
+            let text = [spell.blurb, spell.invitation, spell.rule ?? "", spell.answer]
+                .joined(separator: " ").lowercased()
             for claim in claims {
                 XCTAssertFalse(text.contains(claim), "\(spell.id) promises an effect")
             }
@@ -141,7 +143,7 @@ final class SpellTests: XCTestCase {
     /// its size ends up fighting the good stuff.
     func testSpellsAvoidTheTellsThatTurnTheBookIntoANarrator() {
         for spell in all {
-            for text in [spell.blurb, spell.invitation] {
+            for text in [spell.blurb, spell.invitation, spell.rule ?? "", spell.ask, spell.answer] {
                 XCTAssertFalse(text.contains(";"), "\(spell.id) balances a clause instead of stopping")
                 XCTAssertFalse(text.contains(", which "), "\(spell.id) remarks on its own observation")
             }
@@ -500,5 +502,204 @@ final class SpellCastMemoryTests: XCTestCase {
         let fresh = SpellOffering.surface(for: spell, dayID: "d")
         XCTAssertNil(fresh.payload.metadata["spellRecall"])
         XCTAssertFalse(fresh.payload.body.hasSuffix("\n\n"), "an absent recall left a hole in the page")
+    }
+}
+
+
+/// The spell has to be the thing on the page, all the way through: its own
+/// ask, its own rule, its own reply. These guard the ways it went wrong.
+final class SpellPageTests: XCTestCase {
+
+    private var all: [SpellDef] { SpellRegistry.all }
+
+    /// The feast prompt for `findOneLine` says "Any book within reach", and it
+    /// was showing under spells about rain, cafes and strangers.
+    func testEverySpellAsksForItsOwnThing() {
+        let feastPrompts = Set(CelebrationMechanic.allCases.map(\.prompt))
+        for spell in all {
+            let metadata = SpellOffering.metadata(for: spell, dayID: "d")
+            XCTAssertEqual(metadata["festivalMechanicPrompt"], spell.ask, "\(spell.id) shows someone else's ask")
+            XCTAssertFalse(feastPrompts.contains(spell.ask), "\(spell.id) borrowed a feast prompt")
+            XCTAssertFalse(spell.ask.trimmingCharacters(in: .whitespaces).isEmpty)
+            XCTAssertFalse(spell.answer.trimmingCharacters(in: .whitespaces).isEmpty,
+                           "\(spell.id) has nothing to say when the reader comes back")
+        }
+    }
+
+    /// Fairy tales run on rules. A spell without one is an exercise.
+    func testNearlyEverySpellComesWithARule() {
+        let ruled = all.filter { !($0.rule ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
+        XCTAssertGreaterThanOrEqual(Double(ruled.count) / Double(all.count), 0.9,
+                                    "only \(ruled.count) of \(all.count) spells carry a rule")
+        let page = SpellOffering.surface(for: SpellRegistry.spell(id: "dont-look-back")!, dayID: "d")
+        XCTAssertEqual(page.payload.metadata["spellRule"], SpellRegistry.spell(id: "dont-look-back")!.rule)
+    }
+
+    /// `morning` and `evening` were written here once, and the context only
+    /// ever says dawn, day, dusk or night, so those spells could never appear.
+    func testEveryHourSpellUsesAnHourTheContextCanSay() {
+        let bands: Set<String> = ["dawn", "day", "dusk", "night"]
+        for spell in all {
+            for band in spell.trigger?.timeBands ?? [] {
+                XCTAssertTrue(bands.contains(band), "\(spell.id) waits for \(band), which never comes")
+            }
+        }
+        let dusk = Calendar.current.date(bySettingHour: 19, minute: 0, second: 0, of: Date())!
+        let day = BookDay(id: BookDay.id(for: dusk), date: dusk, pages: [])
+        let context = PageTriggerContext(day: day, inputs: .empty, now: dusk, resolveMissingWorldEvents: false)
+        XCTAssertTrue(SpellRegistry.spell(id: "watch-it-go")!.trigger!.allows(context: context, archetypeID: "watch-it-go"))
+    }
+
+    /// A signed spell stamps its own words, not the feast's "I will."
+    func testSignedSpellsCarryTheirOwnStamps() {
+        let metadata = SpellOffering.metadata(for: SpellRegistry.spell(id: "first-star")!, dayID: "d")
+        XCTAssertEqual(metadata["countersigns"], "Wished.||Wished. A big one.||Wished. It was a planet.")
+        let plain = SpellOffering.metadata(for: SpellRegistry.spell(id: "one-new-question")!, dayID: "d")
+        XCTAssertTrue((plain["countersigns"] ?? "").hasPrefix("Asked."))
+    }
+
+    /// The bones answer the question the reader asked, not the feast question
+    /// of how big the day is.
+    func testTheBonesAnswerYesOrNo() {
+        let metadata = SpellOffering.metadata(for: SpellRegistry.spell(id: "throw-the-bones")!, dayID: "2026-09-25")
+        let band = FeastBonesThrow.Band(rawValue: metadata["festivalBonesBand"] ?? "")!
+        XCTAssertEqual(metadata["festivalBonesLine"], SpellBones.answer(for: band))
+        XCTAssertTrue(SpellBones.answer(for: .open).hasPrefix("Yes"))
+        XCTAssertTrue(SpellBones.answer(for: .shut).hasPrefix("No"))
+    }
+
+    /// The Book answers when the reader comes back, and only then.
+    func testTheBookAnswersWhenTheReaderComesBack() {
+        let spell = SpellRegistry.spell(id: "name-a-tree")!
+        let page = SpellOffering.surface(for: spell, dayID: "d")
+        XCTAssertEqual(SpellOffering.keepNote(for: page, hasReaderContribution: true)?.line, spell.answer)
+        XCTAssertNil(SpellOffering.keepNote(for: page, hasReaderContribution: false))
+    }
+
+    /// The Book remembers what the reader brought back, in their words.
+    func testTheRecallSaysWhatTheReaderBroughtBack() {
+        let now = Date()
+        let page = BookPage(
+            id: "tree", type: .spell, createdAt: now, promptText: "", userInput: "Old Grumble",
+            tags: ["spell:name-a-tree"], origin: .userAuthored, context: nil
+        )
+        let line = SpellCastMemory.recall(of: "name-a-tree", in: [BookDay(id: "d", date: now, pages: [page])], now: now)
+        XCTAssertEqual(line, "You did this one before, earlier this month. You came back with \u{201C}Old Grumble.\u{201D}")
+    }
+
+    /// A signed spell's answer is a stamp, or a secret. Never say it back.
+    func testTheRecallNeverRepeatsASignedSpell() {
+        let now = Date()
+        let page = BookPage(
+            id: "wish", type: .spell, createdAt: now, promptText: "", userInput: "Wished. A big one.",
+            tags: ["spell:first-star"], origin: .userAuthored, context: nil
+        )
+        let line = SpellCastMemory.recall(of: "first-star", in: [BookDay(id: "d", date: now, pages: [page])], now: now)
+        XCTAssertEqual(line, "You did this one before, earlier this month.")
+    }
+}
+
+/// Spells come to the reader. They are not only in the Glow menu, and not only
+/// on days when the world lines up.
+final class SpellDeskTests: XCTestCase {
+
+    private func date(hour: Int, dayOffset: Int = 0) -> Date {
+        let base = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 6, hour: hour))!
+        return Calendar.current.date(byAdding: .day, value: dayOffset, to: base)!
+    }
+
+    private func candidate(at when: Date, inputs: BookSourceInputs = .empty) -> SurfacePage? {
+        let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
+        return SpellPageSourceAdapter().candidates(for: day, context: .make(for: day), inputs: inputs, now: when).first
+    }
+
+    func testAnOrdinaryDayStillHasASpell() {
+        for offset in 0..<14 {
+            let page = candidate(at: date(hour: 10, dayOffset: offset))
+            XCTAssertEqual(page?.type, .spell, "day \(offset) had no spell to offer")
+            XCTAssertNotNil(page?.payload.metadata["festivalMechanic"])
+            XCTAssertEqual(page?.sourceID, "spells")
+        }
+    }
+
+    func testMorningAndAfternoonCanDiffer() {
+        var differed = 0
+        for offset in 0..<14 {
+            let morning = candidate(at: date(hour: 10, dayOffset: offset))?.payload.metadata["spellID"]
+            let afternoon = candidate(at: date(hour: 15, dayOffset: offset))?.payload.metadata["spellID"]
+            if morning != afternoon { differed += 1 }
+        }
+        XCTAssertGreaterThan(differed, 7, "the desk hands over the same spell all day")
+    }
+
+    func testTheWorldPicksTheSpellWhenItLinesUp() {
+        var inputs = BookSourceInputs.empty
+        inputs.weather = WeatherSourceSignal(phrase: "Current: Fog, 48F", source: "test")
+        let foggy = (0..<7).compactMap { candidate(at: date(hour: 10, dayOffset: $0), inputs: inputs) }
+        XCTAssertTrue(foggy.allSatisfy { $0.payload.metadata["spellID"] == "fog-walking" },
+                      "fog came and the fog spell didn't: \(foggy.map { $0.payload.metadata["spellID"] ?? "" })")
+    }
+
+    func testARestedSpellNeverReachesTheDesk() {
+        var inputs = BookSourceInputs.empty
+        let first = candidate(at: date(hour: 10))!.payload.metadata["spellID"]!
+        inputs.restedSpellIDs = [first]
+        XCTAssertNotEqual(candidate(at: date(hour: 10), inputs: inputs)?.payload.metadata["spellID"], first)
+    }
+
+    func testAHardDayGetsNoSpell() {
+        let when = date(hour: 10)
+        let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
+        var context = CuratorContext.make(for: day)
+        context.distress = DistressSignals(isActive: true, reasons: ["test"])
+        XCTAssertTrue(SpellPageSourceAdapter().candidates(for: day, context: context, inputs: .empty, now: when).isEmpty)
+    }
+
+    func testASpellIsAnErrandThatPointsOutward() {
+        XCTAssertEqual(BookPageType.spell.deskJob, .errand)
+        XCTAssertEqual(BookPageType.spell.deskLane, .outward)
+    }
+
+    /// A reader a few weeks in, so the first-hours orientation (which hides
+    /// every errand on purpose) is long over.
+    private func establishedInputs(before when: Date) -> BookSourceInputs {
+        var inputs = BookSourceInputs.empty
+        inputs.days = (1...12).map { back in
+            let then = Calendar.current.date(byAdding: .day, value: -back * 2, to: when)!
+            let page = BookPage(
+                id: "kept-\(back)", type: .diary, createdAt: then, promptText: "",
+                userInput: "Walked to the river and back.", tags: ["diary"], origin: .userAuthored
+            )
+            return BookDay(id: BookDay.id(for: then), date: then, pages: [page])
+        }
+        return inputs
+    }
+
+    /// The whole promise: across a fortnight of ordinary days, spells reach the
+    /// visible desk on their own.
+    func testSpellsReachTheDesk() {
+        var days = 0
+        for offset in 0..<14 {
+            let when = date(hour: 10, dayOffset: offset)
+            let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
+            let desk = BookCurator.surfacedPages(for: day, context: .make(for: day), inputs: establishedInputs(before: when), now: when, limit: 9)
+            if desk.contains(where: { $0.type == .spell }) { days += 1 }
+        }
+        XCTAssertGreaterThanOrEqual(days, 4, "spells reached the desk on only \(days) of 14 days")
+    }
+
+    /// When the world lays a spell out, it is on the desk the reader sees,
+    /// not three leaves in.
+    func testAFoggyDayPutsTheFogSpellOnTheVisibleDesk() {
+        var seen = 0
+        for offset in 0..<7 {
+            let when = date(hour: 10, dayOffset: offset)
+            let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
+            var inputs = establishedInputs(before: when)
+            inputs.weather = WeatherSourceSignal(phrase: "Current: Fog, 48F", source: "test")
+            let desk = BookCurator.surfacedPages(for: day, context: .make(for: day), inputs: inputs, now: when, limit: 9)
+            if desk.prefix(3).contains(where: { $0.payload.metadata["spellID"] == "fog-walking" }) { seen += 1 }
+        }
+        XCTAssertGreaterThanOrEqual(seen, 6, "the fog spell reached the visible desk on only \(seen) of 7 foggy days")
     }
 }

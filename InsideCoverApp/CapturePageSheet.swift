@@ -4664,6 +4664,10 @@ struct CapturePageSheet: View {
                 AnyView(affirmationCountersignOptions)
             }
 
+            if surface.type == .spell {
+                AnyView(spellView)
+            }
+
             if festivalMechanic != nil {
                 AnyView(festivalMechanicCard)
             }
@@ -6224,6 +6228,37 @@ struct CapturePageSheet: View {
             if !festivalMessage.isEmpty {
                 Text(festivalMessage)
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(openPageSecondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Where a Spell comes from, the rule it carries, and what the Book
+    /// remembers of the last time. The instruction is already the page's
+    /// detail line, so it is not said twice.
+    private var spellView: some View {
+        let metadata = surface.payload.metadata
+        return VStack(alignment: .leading, spacing: 14) {
+            if let blurb = metadata["blurb"]?.nonEmpty {
+                hourPageCallout(
+                    title: metadata["spellPractice"]?.nonEmpty ?? "Where this comes from",
+                    symbol: surface.type.symbolName,
+                    body: blurb,
+                    tint: LeafInk.gold
+                )
+            }
+            if let rule = metadata["spellRule"]?.nonEmpty {
+                hourPageCallout(
+                    title: "The rule",
+                    symbol: "seal.fill",
+                    body: rule,
+                    tint: BookPalette.teal
+                )
+            }
+            if let recall = metadata["spellRecall"]?.nonEmpty {
+                Text(recall)
+                    .font(.system(.callout, design: .serif).italic())
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }

@@ -13360,6 +13360,11 @@ struct ContentView: View {
             livingReactionReceipt = nil
             semanticUpgradeEligible = false
         }
+        if let spellAnswer = SpellOffering.keepNote(for: surface, hasReaderContribution: page.hasReaderContribution) {
+            keepNote = spellAnswer
+            livingReactionReceipt = nil
+            semanticUpgradeEligible = false
+        }
         if var note = keepNote {
             note.rippleLine = rippleLine
             note.carryOutLine = afterglowLine
@@ -16914,13 +16919,16 @@ struct ContentView: View {
         case .pressAKeepsake:
             // The feast is the earning, so this bypasses the attention
             // governor: the Book said it would press the object, and does.
+            let pressedReason = surface.type == .spell
+                ? "Brought back from a spell: \(surface.prompt)."
+                : "Pressed on \(surface.payload.metadata["commonName"] ?? "a feast day")."
             pressKeepsakeIntoPocket(
                 PartingWhisper.Keepsake(
                     object: surface.payload.metadata["festivalKeepsakeObject"] ?? surface.prompt,
                     glyph: surface.payload.metadata["festivalKeepsakeGlyph"] ?? "bag.fill",
                     title: surface.payload.metadata["commonName"] ?? surface.prompt,
                     excerpt: trimmed,
-                    reason: "Pressed on \(surface.payload.metadata["commonName"] ?? "a feast day").",
+                    reason: pressedReason,
                     mediaAssets: []
                 ),
                 from: surface,
@@ -16969,16 +16977,19 @@ struct ContentView: View {
         let metadata = surface.payload.metadata
         let factID = metadata["festivalNameFactID"]?.nonEmpty ?? "feast-name:\(surface.id)"
         let feast = metadata["commonName"] ?? surface.prompt
+        let isSpell = surface.type == .spell
         let existing = selfFacts.first { $0.id == factID }
         let fact = SelfFact(
             id: factID,
             questionID: factID,
-            question: "What you named something on \(feast)",
+            question: isSpell ? "What you named when you worked a spell: \(feast)" : "What you named something on \(feast)",
             answer: name,
-            bookTranslation: "They named this “\(name)” on \(feast). Use their word for it, not mine.",
+            bookTranslation: isSpell
+                ? "They named this “\(name)” when they worked the spell “\(feast)”. Use their word for it, not mine."
+                : "They named this “\(name)” on \(feast). Use their word for it, not mine.",
             sensitivity: .delight,
             usePermission: .quoteAllowed,
-            tags: ["festival", "naming", "reader-words"],
+            tags: [isSpell ? "spell" : "festival", "naming", "reader-words"],
             createdAt: existing?.createdAt ?? now,
             updatedAt: now
         )
@@ -19788,6 +19799,18 @@ struct ContentView: View {
                 appLog.info("Smoke: book section surface presented: \(self.selectedSurface?.id ?? "nil", privacy: .public)")
             }
         }
+
+        #if DEBUG
+        // `--smoke-open-spell=<id>` opens one spell's Page exactly as the Magic
+        // menu would, so its layout can be checked without tapping through.
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--smoke-open-spell=") }),
+           let spell = SpellRegistry.spell(id: String(argument.dropFirst("--smoke-open-spell=".count))) {
+            handleGlowMenuAction(.openSpell(GlowSpellMenuItem(
+                id: spell.id, title: spell.title, detail: spell.invitation, attribution: spell.attributionLine
+            )))
+            appLog.info("Smoke: spell surface requested: \(spell.id, privacy: .public)")
+        }
+        #endif
 
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--smoke-e2b-smoothness") {

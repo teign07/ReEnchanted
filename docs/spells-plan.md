@@ -240,6 +240,53 @@ and may not see again.
   can say "you've done this one before, in the rain" rather than offering it
   blind.
 
+## Phase 6 — Fey, and on the desk (DONE, 2026-09-25)
+
+bj: *"make them awesome, and fun, and fey"*, and *"they should appear on the desk
+as pages too, not just in the glow menu, and not just when circumstances
+align."* Voice: *"direct, simple, clear, like an independent child who
+anthropomorphizes stuff."*
+
+**The house law changed.** "The Book never claims the spell works" had flattened
+the shelf into attention exercises with a history label. Fairy tales run on
+rules, so now every spell carries one (`rule`: don't look back, tell no one,
+three times, sunwise only), and the Book plays the fey side straight ("Rooms
+remember who brings them things."). It still never promises the reader a
+result in their real life: no luck, no cure, no guarantee.
+`testNoSpellClaimsItWorks` guards that line across blurb, invitation, rule and
+answer.
+
+**The shelf was recut** around what fairy tales are made of: doors, names,
+gifts to the unseen, kindness nobody can trace, vows and taboos, oracles,
+strangers by the road, leaving the path. 49 spells. Dropped as not-fey: N+7,
+your songs as a diary, read the label, the bottom shelf. Wicker's dares are
+about being *seen*; spells are about the unseen.
+
+**Bugs fixed on the way:**
+- Every `findOneLine` spell showed the feast prompt "Any book within reach…"
+  (19 of 39, including the rain and cafe spells). Each spell now has its own
+  `ask`, heading and placeholder.
+- Counting spells rolled the Book's own feast dice over the reader's count.
+  Counting spells now take the reader's number; the one bones spell
+  (`throw-the-bones`) answers a yes-or-no question (`SpellBones`).
+- `morning`/`evening` time bands never matched: the context says dawn, day,
+  dusk, night. Guarded by `testEveryHourSpellUsesAnHourTheContextCanSay`.
+- The blurb and the recall were written but never rendered on the opened page.
+  `spellView` in the capture sheet now shows the practice, the rule, and the
+  recall.
+- A pressed spell keepsake said "Pressed on a feast day."
+
+**New:** the Book's `answer` takes the keep moment (`SpellOffering.keepNote`);
+the recall quotes what the reader brought back last time, never for a signed
+spell; `new-moon-silver` and `first-star` add the moon and the first star.
+
+**The desk.** `SpellPageSourceAdapter` offers one spell per half day from the
+same deterministic shelf as the Magic menu. Spells are `.errand` /
+`.outward`, hidden in a reader's first six hours like every errand. The
+Curator's `placeSpellFloor` keeps one spell in every ordinary block, past the
+visible trio; a spell the world laid out today (`spellConditional`) takes a
+visible chair, the way a feast does. Never on a hard day.
+
 ---
 
 ## Deliberately not in this plan

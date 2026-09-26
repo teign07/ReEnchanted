@@ -4467,44 +4467,58 @@ enum CorrespondenceShelf {
 
 // MARK: - Spells
 
-/// An instruction that changes how the next ten minutes look.
+/// A thing to go and do that makes the reader's day into a fairy tale for a
+/// few minutes.
 ///
 /// An Enchantment decorates a photograph and a Compass Run sends the reader out
 /// on a route. A Spell is smaller and stranger than either: something people
-/// really did, handed over as a thing to go and do now, with a way of bringing
+/// really did, handed over with its rule still attached, and a way of bringing
 /// back what happened.
 ///
 /// This is the Book's one feature that *acts on* the reader rather than
 /// observing them, and it is the direct move against the Rut: the Curse is
-/// autopilot, and a Spell exists to break a route. The Book never says the
-/// spell works. It says people have done this for a long time and tonight the
-/// reader is one of them.
+/// autopilot, and a Spell exists to break a route. Fairy tales run on rules —
+/// don't look back, tell no one, three times, before you speak — so every
+/// spell carries one, and the Book keeps it as if it matters. It never promises
+/// the reader a result in their real life: no luck, no cure, no guarantee. The
+/// fey side of the bargain is the Book's to play straight.
 ///
 /// Deliberately shaped like `FeastDef` — practice, the Book's account of it, an
 /// instruction, and a `CelebrationMechanic` to resolve it — because a feast day
 /// already *is* this, chained to a date. A Spell is the same thing chained to a
-/// condition instead. See `docs/spells-plan.md`.
+/// condition, or to nothing at all. See `docs/spells-plan.md`.
 struct SpellDef: Identifiable, Codable, Equatable {
     var id: String
     /// What the Book calls it on the shelf.
     var title: String
     /// The practice itself, named so it can be looked up: "The dérive",
-    /// "Bibliomancy", "N+7".
+    /// "Bibliomancy", "Kledon, ancient Greece".
     var practice: String
     var source: LoreSource
-    /// Who did this, and when, and why anybody bothered. The Book's own account.
+    /// Who did this, and why anybody bothered. The Book's own account, told
+    /// the way it would tell it: astonished, and a little on the fey side.
     var blurb: String
-    /// The instruction. Doable in the next ten minutes with what is to hand.
+    /// The instruction. Doable today with what is to hand.
     var invitation: String
+    /// The fairy-tale condition the spell comes with. The taboo, the count,
+    /// the price. This is what turns an attention exercise into a spell.
+    var rule: String?
+    /// What the Book wants brought back, shown over the answer. Every spell
+    /// says its own: the mechanic's generic prompt was written for feast days
+    /// and told a reader standing in the rain to go and open a book.
+    var ask: String
+    /// What the Book says when the reader comes back. The world answering.
+    var answer: String
+    /// Stamps for a `.countersign` spell, when the defaults don't fit.
+    var countersigns: [String]?
     /// How the cast resolves and lands back in the Book. Must be one the
     /// resolver actually handles; a spell that needs a sixth is the wrong spell.
     var mechanic: CelebrationMechanic
-    /// When this spell exists at all.
+    /// When this spell exists at all. Nil means any day.
     ///
-    /// This is the difference between a menu and magic. A spell for fog has no
-    /// business existing on a clear day, and one for the shore should turn up
-    /// when the reader is at one. Nil means always available, which most of the
-    /// old ones are: bibliomancy works anywhere there is a book.
+    /// A spell for fog has no business existing on a clear day, and one for the
+    /// shore should turn up when the reader is at one. Vocabulary is the
+    /// context's own: time bands are dawn, day, dusk and night.
     var trigger: PageTrigger?
     var tags: [String]
     var packID: String
@@ -4516,6 +4530,30 @@ struct SpellDef: Identifiable, Codable, Equatable {
     var attributionLine: String {
         source == .academy ? "The Academy · no evidence" : practice
     }
+
+    /// The heading over the answer. The feast headings are about feasts ("Go
+    /// and get me a line"), so a spell names what it is asking for plainly.
+    var askTitle: String {
+        switch mechanic {
+        case .findOneLine: return "Bring it back"
+        case .nameSomething: return "Name it"
+        case .throwTheBones: return "Throw the bones"
+        case .pressAKeepsake: return "For the Pocket"
+        case .countersign: return "Sign it"
+        }
+    }
+
+    var placeholder: String {
+        switch mechanic {
+        case .findOneLine: return "What you came back with..."
+        case .nameSomething: return "Its name is..."
+        case .throwTheBones: return "What you asked..."
+        case .pressAKeepsake: return "The thing, in as few words as it deserves..."
+        case .countersign: return "Your hand on it..."
+        }
+    }
+
+    static let defaultCountersigns = ["Done.", "Done. It was strange.", "Done. Don't ask."]
 }
 
 struct SpellPack: Identifiable, Codable, Equatable {
@@ -4529,10 +4567,16 @@ struct SpellPack: Identifiable, Codable, Equatable {
 
 /// What the Book knows how to ask the reader to go and do.
 ///
-/// Half of these are old and half are not. An entirely antiquarian shelf reads
-/// as a museum, and the point is the reader's life now — but modern does not
-/// mean invented. Most of the modern ones have *better* provenance than the folk
-/// ones, because somebody wrote down who started it and when.
+/// The shelf is organised by what fairy tales are made of: doors, names,
+/// gifts to the unseen, kindness nobody can trace, vows and taboos, oracles,
+/// strangers by the road, and leaving the path. Old and new sit together. An
+/// entirely antiquarian shelf reads as a museum, and the point is the reader's
+/// life now — but modern does not mean invented. Most of the modern ones have
+/// *better* provenance than the folk ones, because somebody wrote down who
+/// started it and when.
+///
+/// Wicker Eddies' dares are about being *seen*. Spells are about the unseen.
+/// A spell that is really a dare belongs to him.
 enum SpellRegistry {
     static let corePackID = "core-spells"
 
@@ -4540,7 +4584,7 @@ enum SpellRegistry {
         SpellPack(
             id: corePackID,
             displayName: "Things To Go And Do",
-            version: "1.0",
+            version: "2.0",
             author: "The Book",
             availability: .bundledFree,
             spells: coreSpells
@@ -4561,176 +4605,525 @@ enum SpellRegistry {
 
     static let coreSpells: [SpellDef] = [
 
-        // MARK: Old
+        // MARK: Doors and thresholds
+
+        SpellDef(
+            id: "first-footing-small",
+            title: "Carry something in through a door",
+            practice: "First-footing",
+            source: .folk,
+            blurb: "In Scotland the first person over the doorstep after midnight on New Year decides what kind of year the house gets. They must never come empty-handed. Coal, salt, bread, something to drink. People plan who goes first for days.",
+            invitation: "Before you go through the next door, pick up something small to carry in with you. Decide what you're bringing into the room before you touch the handle.",
+            rule: "Don't go through empty-handed. Not this time.",
+            ask: "Which door was it, and what did you carry over?",
+            answer: "The room got a present. Rooms remember who brings them things.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["threshold", "house"],
+            packID: corePackID, weight: 3,
+            symbolName: "door.left.hand.open", accent: "gold"
+        ),
+        SpellDef(
+            id: "saining",
+            title: "Tell a room what it's for",
+            practice: "Saining",
+            source: .folk,
+            blurb: "At New Year, people in Scotland filled the house with juniper smoke. They sprinkled river water in every room. Then somebody said out loud what the house was for. Rooms forget what they're for. Somebody has to tell them.",
+            invitation: "Pick one room. Open a window to let the old air out. Stand in the middle and say out loud what this room is for now.",
+            rule: "Out loud. Thinking it doesn't count. Rooms can't read minds.",
+            ask: "Which room, and what's it for now? One word is plenty.",
+            answer: "It knows now. Watch it try.",
+            mechanic: .nameSomething,
+            trigger: nil,
+            tags: ["house", "indoors", "naming"],
+            packID: corePackID, weight: 3,
+            symbolName: "wind", accent: "green"
+        ),
+        SpellDef(
+            id: "witch-marks",
+            title: "Find a mark somebody cut to keep things out",
+            practice: "Apotropaic marks",
+            source: .folk,
+            blurb: "People cut daisy wheels and tangled knots into doorframes, beams and fireplaces so bad things couldn't get in. Anything that came in the night was supposed to follow the line round and round forever. Loads of them are still there, still on duty. Nobody told you to look.",
+            invitation: "Go and look properly at an old doorway, a beam, a gate or a windowsill. Find one mark somebody made there on purpose. A circle, a scratch, a date, some initials.",
+            rule: "Touch it once, gently. Then leave it to its work.",
+            ask: "Where was it, and what did it look like?",
+            answer: "Somebody's hand made that to keep something out, and it's still keeping it out. I'd like to know what.",
+            mechanic: .pressAKeepsake,
+            trigger: nil,
+            tags: ["threshold", "outdoors", "old"],
+            packID: corePackID, weight: 3,
+            symbolName: "seal", accent: "amber"
+        ),
+        SpellDef(
+            id: "dont-look-back",
+            title: "Leave without looking back",
+            practice: "Don't look back (Orpheus, Lot's wife)",
+            source: .folk,
+            blurb: "Orpheus walked the whole way up out of the underworld and looked back on the very last step. Lot's wife looked back at the burning city and turned into salt. Every story says the same thing. Leaving is a spell, and looking back breaks it.",
+            invitation: "Leave the next place you're in without looking back. Not once. Not until you've turned a corner.",
+            rule: "If you look back, you have to go back in and leave again.",
+            ask: "What did you want to turn round for?",
+            answer: "You didn't turn round. It's behind you now. It can stay there.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["threshold", "walk", "taboo"],
+            packID: corePackID, weight: 5,
+            symbolName: "eye.slash", accent: "violet"
+        ),
+
+        // MARK: Names
+
+        SpellDef(
+            id: "name-a-tree",
+            title: "Tell a tree its name",
+            practice: "Naming trees",
+            source: .folk,
+            blurb: "Trees used to have names. The Hanging Oak. The Crying Tree. The Major Oak, where Robin Hood is supposed to have hidden. Once a tree has a name you can't walk past it like it's furniture. It's somebody.",
+            invitation: "Find a tree you walk past a lot. Stand close enough that it can hear you. Tell it its name, out loud.",
+            rule: "From now on you say hello when you pass it. That's the deal.",
+            ask: "What's the tree called?",
+            answer: "I've written it down. Don't forget your side of it.",
+            mechanic: .nameSomething,
+            trigger: nil,
+            tags: ["tree", "outdoors", "naming"],
+            packID: corePackID, weight: 4,
+            symbolName: "tree", accent: "green"
+        ),
+        SpellDef(
+            id: "secret-name",
+            title: "Give yourself a secret name",
+            practice: "True names (Rumpelstiltskin, the Brothers Grimm)",
+            source: .folk,
+            blurb: "In the old stories, whoever knows your true name has power over you. Rumpelstiltskin lost everything the second the queen said his. So people kept their real names hidden and went about with everyday ones. Everybody you know only knows your everyday one.",
+            invitation: "Choose a name for yourself that nobody else knows. Not a nickname. A secret one. The name you'd answer to in a forest.",
+            rule: "Never tell anyone. Not even me.",
+            ask: "Don't write the name here. Just sign that you've got one.",
+            answer: "I'm not going to ask. Don't you dare tell me.",
+            countersigns: ["I've got one.", "I've got one. It's good.", "I've got one. It's a bit much."],
+            mechanic: .countersign,
+            trigger: nil,
+            tags: ["naming", "secret", "taboo"],
+            packID: corePackID, weight: 4,
+            symbolName: "key", accent: "violet"
+        ),
+
+        // MARK: Gifts to the unseen
+
+        SpellDef(
+            id: "leave-a-gift",
+            title: "Leave a gift for whoever finds it",
+            practice: "Gifts for the fair folk, and BookCrossing, Ron Hornbaker, 2001",
+            source: .folk,
+            blurb: "People used to leave milk and bread on the step for the fair folk, and never watched to see who took it. In 2001 Ron Hornbaker started leaving books in public places for strangers to find. Now there are millions of them out there, drifting about on their own.",
+            invitation: "Write one true, kind sentence on a scrap of paper. Leave it where a stranger will find it. Inside a library book, on a bus seat, under a stone on a wall.",
+            rule: "Walk away. Don't stay to see who finds it.",
+            ask: "What did you write, and where did you leave it?",
+            answer: "Now there's a bit of you out there on its own. Somebody's going to have a strange minute because of you.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["gift", "people", "outdoors"],
+            packID: corePackID, weight: 5,
+            symbolName: "gift", accent: "rose"
+        ),
+        SpellDef(
+            id: "brownie-kindness",
+            title: "Do a kindness nobody can trace",
+            practice: "The brownie, and random kindness, Anne Herbert, 1982",
+            source: .folk,
+            blurb: "A brownie lived in the house and did the jobs at night. Swept, mended, churned the butter. The one rule was that nobody could thank it. Thank a brownie and it leaves forever. In 1982 Anne Herbert wrote about random kindness on a placemat, and it went round the world.",
+            invitation: "Do one good thing for somebody today and make sure they never find out it was you. Put a thing back. Fix a thing. Leave a thing.",
+            rule: "If they thank you, it didn't count. Start again.",
+            ask: "What did you do? I won't tell anyone.",
+            answer: "Nobody saw. That's the whole trick, and you did it.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["gift", "people", "secret"],
+            packID: corePackID, weight: 5,
+            symbolName: "sparkles", accent: "rose"
+        ),
+        SpellDef(
+            id: "thank-a-thing",
+            title: "Thank something that's been working hard",
+            practice: "Hari-Kuyō, the needle memorial (Japan)",
+            source: .folk,
+            blurb: "In Japan, people hold a funeral for broken sewing needles. They push them into soft tofu so they can rest after a hard life of poking through cloth. The things in your house work for you for years and nobody ever says anything.",
+            invitation: "Pick something you use every day without noticing. A mug, a coat, a door handle, the kettle. Thank it out loud. Properly. Say what it's done for you.",
+            rule: "Say it where somebody could hear you. Whispering to kettles is cheating.",
+            ask: "What was it?",
+            answer: "It's been waiting years for that.",
+            mechanic: .pressAKeepsake,
+            trigger: nil,
+            tags: ["house", "object", "gratitude"],
+            packID: corePackID, weight: 5,
+            symbolName: "hands.sparkles", accent: "gold"
+        ),
+        SpellDef(
+            id: "warn-the-good-people",
+            title: "Warn them before you pour",
+            practice: "Warning the Good People (Irish custom)",
+            source: .folk,
+            blurb: "In Ireland people used to call out a warning before they threw water out of the door at night. In case one of the Good People was passing on the path. Nobody wanted to soak a fairy. Fairies don't forget that sort of thing.",
+            invitation: "Every time you pour something away today, water, tea, the washing-up, call out \u{201C}Mind yourselves!\u{201D} first. Out loud. Even indoors.",
+            rule: "Every time. They'll remember if you're rude once.",
+            ask: "Sign it when you've done it. Tell me if anybody heard you.",
+            answer: "Very polite. They like polite.",
+            countersigns: ["Done.", "Done. Somebody heard.", "Done. Felt watched."],
+            mechanic: .countersign,
+            trigger: nil,
+            tags: ["house", "water", "fair-folk"],
+            packID: corePackID, weight: 4,
+            symbolName: "drop", accent: "slate"
+        ),
+        SpellDef(
+            id: "carry-a-stone",
+            title: "Carry a stone all day, then give it away",
+            practice: "Carrying a luck piece",
+            source: .folk,
+            blurb: "People have always carried small things in their pockets. A stone with a hole in it. A conker. A rabbit's foot. That one was bad luck for the rabbit. A thing gets heavier the longer you carry it. Not heavier to lift. The other kind.",
+            invitation: "Pick up one small stone, leaf or button. Carry it in your pocket all day. Every time your hand finds it, notice where you are.",
+            rule: "Before bed, give it away. Leave it somewhere new. You don't get to keep it.",
+            ask: "What was it, and where did you leave it?",
+            answer: "It's somebody else's now. It's been further than most stones get to go.",
+            mechanic: .pressAKeepsake,
+            trigger: nil,
+            tags: ["gift", "object", "outdoors"],
+            packID: corePackID, weight: 4,
+            symbolName: "leaf", accent: "green"
+        ),
+        SpellDef(
+            id: "ugliest-thing",
+            title: "Be kind to the ugliest thing here",
+            practice: "The Loathly Lady (Arthurian tales)",
+            source: .folk,
+            blurb: "Sir Gawain married the ugliest woman at King Arthur's court, and was kind to her, and she turned out to be under a spell. The stories are full of this. The ugly one is always the one with the secret. So you'd better be nice to it.",
+            invitation: "Find the ugliest thing where you are. Photograph it properly, like it's beautiful. Then say one nice thing to it.",
+            rule: "Mean it. It'll know if you don't.",
+            ask: "What is it, and what did you say to it?",
+            answer: "Nobody's been nice to that in years. Keep an eye on it.",
+            mechanic: .pressAKeepsake,
+            trigger: nil,
+            tags: ["photo", "indoors", "attention"],
+            packID: corePackID, weight: 4,
+            symbolName: "camera", accent: "ink"
+        ),
+
+        // MARK: Vows and taboos
+
+        SpellDef(
+            id: "hold-your-tongue",
+            title: "Say nothing until you see a bird",
+            practice: "The dumb supper (Hallowe'en custom)",
+            source: .folk,
+            blurb: "On Hallowe'en in Britain and America, people used to lay a supper for the dead and eat it in total silence. One word and it was spoiled. Silence is a door. Most people never keep it long enough to find out where it goes.",
+            invitation: "From now, say nothing at all until you see a bird. No talking, no humming, not even hm. Messages count as talking.",
+            rule: "If you speak first, it doesn't count. Start again.",
+            ask: "What bird was it? And what was the first thing you said after?",
+            answer: "First words after a silence are heavy ones. I'm keeping yours.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["speech", "silence", "creature", "taboo"],
+            packID: corePackID, weight: 3,
+            symbolName: "speaker.slash", accent: "slate"
+        ),
+        SpellDef(
+            id: "three-times-sunwise",
+            title: "Go round it three times",
+            practice: "Going deiseal, sunwise (Ireland and Scotland)",
+            source: .folk,
+            blurb: "In Ireland and Scotland people walked three times round a holy well, a cairn, even a sick person's bed. Always the way the sun goes. Going the other way round was called widdershins, and that was for curses. Everybody knew which way was which.",
+            invitation: "Before you decide anything today, walk round something three times the way the sun goes. A tree, a lamp post, the kitchen table. Then decide.",
+            rule: "Sunwise only. Widdershins is for curses and I'm not helping with those.",
+            ask: "What did you walk round, and what did you decide?",
+            answer: "Three times, sunwise. Whatever you decided has been walked round properly now.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["circle", "decision", "folk"],
+            packID: corePackID, weight: 4,
+            symbolName: "arrow.clockwise", accent: "gold"
+        ),
+        SpellDef(
+            id: "one-new-question",
+            title: "Ask the question you've never asked",
+            practice: "Asking properly",
+            source: .folk,
+            blurb: "You can know somebody for thirty years and never ask them anything new. The questions run out and you just talk about the weather. In the stories the hero gets three questions and has to spend them well. You get as many as you want and you're wasting them.",
+            invitation: "Ask somebody you know well one question you've really never asked them.",
+            rule: "Then be quiet and listen to all of the answer.",
+            ask: "Sign it once you've asked. Not before.",
+            answer: "Now you know one more thing about them than you did this morning. That's not a small thing.",
+            countersigns: ["Asked.", "Asked. They were surprised.", "Asked. I was surprised."],
+            mechanic: .countersign,
+            trigger: nil,
+            tags: ["people", "speech", "attention"],
+            packID: corePackID, weight: 5,
+            symbolName: "bubble.left.and.bubble.right", accent: "rose"
+        ),
+
+        // MARK: Oracles
 
         SpellDef(
             id: "bibliomancy",
             title: "Ask a book",
             practice: "Bibliomancy",
             source: .folk,
-            blurb: "You ask a question, open a book anywhere, and read the first line your eye lands on. People did it with Virgil and with the Bible. In Iran they still do it all night at the winter solstice, with Hafez, on purpose.",
-            invitation: "Any book within reach. Open it anywhere and take the first line you see. Don't pick a better one.",
+            blurb: "You ask a question, open a book anywhere, and the first line your eye lands on is the answer. People did it with Virgil for a thousand years. In Iran they still do it with Hafez, all night, on the longest night of the year. Books know more than they let on.",
+            invitation: "Hold a question in your head. Take any book within reach. Open it anywhere and read the first line you see.",
+            rule: "The first line. Don't pick a better one. Books can tell.",
+            ask: "Write the line down, and the book it fell out of. Then tell me what it said to your question.",
+            answer: "That's your answer. What it means is your job. I only open the doors.",
             mechanic: .findOneLine,
             trigger: nil,
-            tags: ["book", "chance", "indoors"],
-            packID: corePackID, weight: 3,
+            tags: ["book", "chance", "indoors", "oracle"],
+            packID: corePackID, weight: 4,
             symbolName: "text.quote", accent: "violet"
         ),
         SpellDef(
-            id: "witch-marks",
-            title: "Find a mark somebody cut",
-            practice: "Apotropaic marks",
+            id: "throw-the-bones",
+            title: "Let me throw the bones for you",
+            practice: "Astragalomancy, ancient Greece",
             source: .folk,
-            blurb: "People used to cut marks into doorframes and beams to keep things out. Daisy wheels. Tangled lines nothing could follow. They're still there in old buildings, and most people walk past them every day.",
-            invitation: "Go and look at an old doorway, a beam, a windowsill. Find one mark somebody made on purpose. Tell me where it was.",
-            mechanic: .pressAKeepsake,
+            blurb: "Before anybody made dice, people threw knucklebones to get answers. Sheep's ankle bones, four sides each. The Greeks threw them in temples and asked the gods to steer them. I've got a pair. I keep them in my spine.",
+            invitation: "Ask a question that has a yes or a no in it. Ask it properly, in your head, like you mean it. Then let me throw.",
+            rule: "One throw. If you don't like it you still don't get another.",
+            ask: "Throw them. Then write down what you asked, so we both know what they were answering.",
+            answer: "The bones don't explain themselves. Neither do I.",
+            mechanic: .throwTheBones,
             trigger: nil,
-            tags: ["threshold", "outdoors", "old"],
-            packID: corePackID, weight: 2,
-            symbolName: "seal", accent: "amber"
-        ),
-        SpellDef(
-            id: "first-footing-small",
-            title: "Go through a door on purpose",
-            practice: "First-footing",
-            source: .folk,
-            blurb: "In Scotland the first person through the door after midnight sets the shape of the whole year. Dark-haired, and carrying something. Never empty-handed. People arrange it days in advance.",
-            invitation: "The next door you go through, go through it on purpose. Carry something in. Decide what you're bringing before you touch the handle.",
-            mechanic: .countersign,
-            trigger: nil,
-            tags: ["threshold", "house"],
-            packID: corePackID, weight: 2,
-            symbolName: "door.left.hand.open", accent: "gold"
-        ),
-        SpellDef(
-            id: "saining",
-            title: "Say what a room is for",
-            practice: "Saining",
-            source: .folk,
-            blurb: "You clear a room with smoke, or water, or only your own breath, and you say out loud what you want the room to be. Scottish houses did it at the new year. It's much older than that.",
-            invitation: "Pick one room. Open a window. Say out loud what that room is for. Then tell me the room and the word.",
-            mechanic: .nameSomething,
-            trigger: nil,
-            tags: ["house", "indoors", "naming"],
-            packID: corePackID, weight: 2,
-            symbolName: "wind", accent: "green"
-        ),
-        SpellDef(
-            id: "name-a-tree",
-            title: "Name a tree",
-            practice: "Naming",
-            source: .folk,
-            blurb: "Trees got names when people lived near the same ones all their lives. The Hanging Oak. The Crying Tree. Once a tree has a name you can't walk past it the same way again. That's the whole trick.",
-            invitation: "Find a tree you pass often. Give it a name. I'll use the name after this, so pick one you don't mind hearing.",
-            mechanic: .nameSomething,
-            trigger: nil,
-            tags: ["tree", "outdoors", "naming"],
+            tags: ["chance", "oracle"],
             packID: corePackID, weight: 3,
-            symbolName: "tree", accent: "green"
+            symbolName: "dice", accent: "violet"
         ),
         SpellDef(
             id: "counting-magpies",
-            title: "Count the first birds you see",
+            title: "Count the magpies",
             practice: "Counting magpies",
             source: .folk,
-            blurb: "One for sorrow, two for joy. It's a real prediction system, still running, and people who believe none of it still count. Some of them salute the single one to cancel it out.",
-            invitation: "Go outside. Count the first birds of one kind you see. Tell me the number, and what you decided it meant.",
-            mechanic: .throwTheBones,
+            blurb: "One for sorrow, two for joy, three for a girl, four for a boy, five for silver, six for gold, seven for a secret never to be told. That's the magpie rhyme, and people in Britain still count. If they see one on its own they say good morning to it, so it isn't cross.",
+            invitation: "Go outside and count the first magpies you see together. If there aren't magpies where you live, crows will do. Find your number in the rhyme.",
+            rule: "The first ones only. No waiting about for a better number. If there's one alone, say good morning to it.",
+            ask: "How many, and which line of the rhyme did you get?",
+            answer: "That's your line for today. Carry it carefully.",
+            mechanic: .findOneLine,
             trigger: nil,
-            tags: ["creature", "outdoors", "chance"],
-            packID: corePackID, weight: 2,
+            tags: ["creature", "outdoors", "chance", "oracle"],
+            packID: corePackID, weight: 3,
             symbolName: "bird", accent: "slate"
         ),
-
-        // MARK: Modern, and just as real
-
         SpellDef(
-            id: "derive",
-            title: "Take the turn you never take",
-            practice: "The dérive, Guy Debord, 1956",
+            id: "exact-overheard",
+            title: "Take a stranger's words as your answer",
+            practice: "Kledon, ancient Greece",
             source: .folk,
-            blurb: "Debord wrote this down in 1956. You walk with no destination and let the streets pull you. The whole method is refusing the route you always take. He thought a city had currents in it, like water.",
-            invitation: "Go out and take the turn you never take. Keep taking the wrong one. Stop when something stops you, and name where you fetched up.",
-            mechanic: .nameSomething,
+            blurb: "In ancient Greece, if you had a question you went to the market and listened. The first words a stranger said, about anything at all, were your answer. They called it a kledon. The stranger never knew they'd answered anything.",
+            invitation: "Hold a question in your head. Go somewhere with people in it. The first thing you overhear is your answer. Write it exactly as it was said.",
+            rule: "Don't tidy it. The broken bit is part of the answer.",
+            ask: "What did they say? Exactly. And what was your question?",
+            answer: "People are very wise when they don't know you're listening.",
+            mechanic: .findOneLine,
             trigger: nil,
-            tags: ["walk", "outdoors", "place"],
+            tags: ["people", "sound", "words", "oracle"],
             packID: corePackID, weight: 4,
-            symbolName: "arrow.triangle.turn.up.right.diamond", accent: "violet"
+            symbolName: "ear", accent: "rose"
         ),
         SpellDef(
             id: "shufflemancy",
             title: "Let the shuffle answer",
             practice: "Shufflemancy",
             source: .folk,
-            blurb: "You ask a question, hit shuffle, and the first line you hear is the answer. Nobody organised this one. People worked it out on their own, everywhere at once, as soon as the music went into their pockets.",
-            invitation: "Don't ask me. Ask it in your head, shuffle anything, and write down the first line you hear. The first. Not the best.",
+            blurb: "You ask a question, press shuffle, and the first line you hear is the answer. Nobody invented this one. People everywhere started doing it on their own, as soon as music went into their pockets. Old magic always finds the new doors.",
+            invitation: "Ask your question in your head. Shuffle everything. Listen for the first whole line of words.",
+            rule: "The first line, not the best one. Skipping is cheating and the shuffle knows.",
+            ask: "Write the line down, and the question it was answering.",
+            answer: "Funny how it knew. I'm not saying anything.",
             mechanic: .findOneLine,
             trigger: nil,
-            tags: ["music", "chance", "indoors"],
+            tags: ["music", "chance", "indoors", "oracle"],
             packID: corePackID, weight: 3,
             symbolName: "shuffle", accent: "rose"
         ),
         SpellDef(
-            id: "blackout-poem",
-            title: "Cross out until a sentence is left",
-            practice: "Blackout poetry, Tom Phillips, 1966",
-            source: .folk,
-            blurb: "Tom Phillips bought a junk novel in 1966 and spent fifty years crossing most of it out. What's left on each page is a poem that was already in there. He never added a word.",
-            invitation: "Take any printed page you don't need. Cross out everything except the sentence that was hiding in it. Tell me what was left.",
-            mechanic: .findOneLine,
-            trigger: nil,
-            tags: ["word", "paper", "indoors"],
-            packID: corePackID, weight: 3,
-            symbolName: "rectangle.and.pencil.and.ellipsis", accent: "ink"
-        ),
-        SpellDef(
             id: "camera-roll-bibliomancy",
-            title: "Take the photograph you land on",
+            title: "Let your photos answer",
             practice: "Bibliomancy, done to a phone",
             source: .folk,
-            blurb: "This is the old book trick done to a device. Nobody wrote it down and nobody invented it. You already do it by accident every time you scroll back too far and stop.",
-            invitation: "Go to a date you didn't choose. Take the first photograph you land on. Don't scroll to a better one.",
+            blurb: "This is the old book trick, done to the thing in your pocket. You already do it by accident, every time you scroll back too far and stop on a face you'd forgotten. Doing it on purpose is different.",
+            invitation: "Ask a question in your head. Scroll your photos fast with your eyes half shut, and stop without choosing. That photo is your answer.",
+            rule: "No scrolling on to a better one.",
+            ask: "What's in the photo, and what did you ask?",
+            answer: "You took that for yourself ages ago. You didn't know what it was for yet.",
             mechanic: .pressAKeepsake,
             trigger: nil,
-            tags: ["photo", "chance", "memory"],
+            tags: ["photo", "chance", "memory", "oracle"],
             packID: corePackID, weight: 3,
             symbolName: "photo.stack", accent: "gold"
         ),
         SpellDef(
+            id: "blackout-poem",
+            title: "Find the secret sentence in a page",
+            practice: "Blackout poetry, Tom Phillips, 1966",
+            source: .folk,
+            blurb: "Tom Phillips bought an old novel in 1966 and spent fifty years crossing most of it out. What was left on each page was a poem that had been hiding in there all along. He never added a word. Every page you've ever read has one.",
+            invitation: "Take any printed page you don't need. A leaflet, a receipt, an old letter. Cross out everything except the sentence that was hiding in it.",
+            rule: "Only cross out. Never add a word.",
+            ask: "What was hiding in there?",
+            answer: "It was in there the whole time. Somebody had to let it out.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["word", "paper", "indoors", "secret"],
+            packID: corePackID, weight: 3,
+            symbolName: "rectangle.and.pencil.and.ellipsis", accent: "ink"
+        ),
+        SpellDef(
+            id: "network-omens",
+            title: "Read the network names",
+            practice: "Router divination",
+            source: .academy,
+            blurb: "The Academy says the names people give their routers are omens. It's the only naming most people ever do where strangers can read it. There's no evidence for this at all. Wispwood has a chart anyway.",
+            invitation: "Hold a question in your head. Open the list of networks near you. The strangest name on it is your answer.",
+            rule: "Only the strangest one. Not the funniest. Those are different.",
+            ask: "What was the name, and what was your question?",
+            answer: "Somebody chose that name. Somebody's been answering your question for months and didn't know.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["chance", "indoors", "academy", "oracle"],
+            packID: corePackID, weight: 2,
+            symbolName: "wifi", accent: "slate"
+        ),
+
+        // MARK: Strangers and the road
+
+        SpellDef(
+            id: "ask-the-way",
+            title: "Ask a stranger the way",
+            practice: "The helper by the road (nearly every fairy tale)",
+            source: .folk,
+            blurb: "In the old stories the hero always meets somebody by the road. An old woman, a fox, a man with one shoe. The one who stops and asks gets where they're going. The one who walks past gets eaten. Nobody asks strangers the way any more. Phones do it.",
+            invitation: "Ask somebody the way to a place you already know how to get to. Say thank you properly. Then go their way, not yours.",
+            rule: "Follow their way exactly, even if it's longer.",
+            ask: "What did their way have in it that yours doesn't?",
+            answer: "You were the one who stopped and asked. In the stories, that one does fine.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["people", "walk", "outdoors"],
+            packID: corePackID, weight: 5,
+            symbolName: "signpost.right", accent: "rose"
+        ),
+        SpellDef(
             id: "sonder",
-            title: "Give a stranger a whole life",
+            title: "Give a stranger a secret life",
             practice: "Sonder, John Koenig, 2012",
             source: .folk,
-            blurb: "Koenig made this word in 2012, for the moment you realise a stranger has a life as complicated as your own. It needed a word because it keeps happening to everybody and nobody could say it.",
-            invitation: "Pick one stranger. Give them a job, a worry, and somewhere they're going. Make it dull and specific. Then let them go.",
+            blurb: "John Koenig made up this word in 2012. It's for the moment you realise a stranger has a life as big and messy as yours. In the old stories any stranger could be a king in disguise, or a fox, or somebody's lost brother. You never knew. You still don't.",
+            invitation: "Pick one stranger. Give them a job, a worry, a secret, and somewhere they're going. Make it dull and exact. Then let them go.",
+            rule: "Don't stare. Look the way cats look.",
+            ask: "Who were they, really?",
+            answer: "They'll never know you did that. Now they've got two lives.",
             mechanic: .findOneLine,
             trigger: nil,
             tags: ["people", "outdoors", "attention"],
             packID: corePackID, weight: 4,
             symbolName: "person.2", accent: "rose"
         ),
+
+        // MARK: Leaving the path
+
         SpellDef(
-            id: "n-plus-seven",
-            title: "Move every noun seven along",
-            practice: "N+7, the Oulipo, 1961",
+            id: "derive",
+            title: "Take the turn you never take",
+            practice: "The dérive, Guy Debord, 1956",
             source: .folk,
-            blurb: "The Oulipo made this in 1961. You take a sentence and swap every noun for the seventh noun after it in a dictionary. The sentence survives. It just stops being about what it was about.",
-            invitation: "Take any sentence in front of you. Move every noun seven along in a dictionary. Write down what you get.",
+            blurb: "Guy Debord wrote this down in 1956. You walk with nowhere to go and let the streets pull you. He thought cities had currents in them, like rivers, and most people only ever swim the same bit. The whole trick is refusing your usual way.",
+            invitation: "Go out and take the turn you never take. Then take the wrong one again. Keep going until something stops you.",
+            rule: "No map. If you see somewhere you know, turn away from it.",
+            ask: "Where did you end up? Give the place a name.",
+            answer: "You got lost on purpose. Hardly anybody does that any more.",
+            mechanic: .nameSomething,
+            trigger: nil,
+            tags: ["walk", "outdoors", "place"],
+            packID: corePackID, weight: 5,
+            symbolName: "arrow.triangle.turn.up.right.diamond", accent: "violet"
+        ),
+        SpellDef(
+            id: "crossroads",
+            title: "Let the crossroads choose",
+            practice: "Crossroads lore",
+            source: .folk,
+            blurb: "Crossroads are where things happen in stories. Hecate waited at them. Musicians went to them at midnight to make deals. People buried things there that they wanted to stay buried. A crossroads is a place that hasn't made up its mind.",
+            invitation: "Walk to the nearest place where two roads or paths cross. Stand in the middle of your choices. Take the way you've been down least.",
+            rule: "No phone. The crossroads is choosing, not you.",
+            ask: "Where did it take you? Give the place a name.",
+            answer: "The crossroads picked. Now you owe it a visit back one day.",
+            mechanic: .nameSomething,
+            trigger: nil,
+            tags: ["walk", "outdoors", "place"],
+            packID: corePackID, weight: 4,
+            symbolName: "arrow.triangle.branch", accent: "slate"
+        ),
+        SpellDef(
+            id: "leaving-route",
+            title: "Go home the way you'd leave",
+            practice: "Reversing the route",
+            source: .folk,
+            blurb: "You've got one way home and you stopped choosing it years ago. Your feet do it now. Go the way you'd go if you were setting off instead of coming back, and the street puts different things in front of you.",
+            invitation: "Go home by the way you'd take if you were leaving. Different turns, same door at the end.",
+            rule: "Your feet will try to take the old way. Don't let them.",
+            ask: "What did you pass that you'd forgotten was there? Name it.",
+            answer: "Your feet are sulking. Good.",
+            mechanic: .nameSomething,
+            trigger: nil,
+            tags: ["walk", "outdoors", "routine"],
+            packID: corePackID, weight: 4,
+            symbolName: "arrow.uturn.left", accent: "green"
+        ),
+
+        // MARK: In the house
+
+        SpellDef(
+            id: "wrong-chair",
+            title: "Sit in somebody else's chair",
+            practice: "Goldilocks, Robert Southey, 1837",
+            source: .folk,
+            blurb: "Robert Southey wrote down the story of the three bears in 1837. In his version the one sitting in their chairs wasn't a little girl. She was a rude old woman. Everybody's got a chair nobody else sits in, and nobody agreed to it out loud.",
+            invitation: "Sit in a chair that belongs to somebody else. Stay till it gets comfortable. Look at the room from there.",
+            rule: "Get up before they come back.",
+            ask: "What can you see from there that you can't see from yours?",
+            answer: "Now you know what the room looks like to somebody else. Don't tell them you were there.",
             mechanic: .findOneLine,
             trigger: nil,
-            tags: ["word", "indoors", "lexicon"],
-            packID: corePackID, weight: 2,
-            symbolName: "textformat.abc", accent: "ink"
+            tags: ["house", "indoors", "attention"],
+            packID: corePackID, weight: 4,
+            symbolName: "chair", accent: "amber"
         ),
+        SpellDef(
+            id: "count-your-mugs",
+            title: "Count what the Borrowers took",
+            practice: "The Borrowers, Mary Norton, 1952",
+            source: .folk,
+            blurb: "Mary Norton wrote about the Borrowers in 1952. Tiny people under the floor who take safety pins and odd socks and pencil ends, and build whole houses out of them. Everybody's lost a sock to somebody. Nobody's ever counted properly.",
+            invitation: "Guess how many you own of one small thing. Socks, pens, hair ties, teaspoons. Then go and count them all.",
+            rule: "Write the guess down before you count. No changing it.",
+            ask: "Both numbers. If they don't match, somebody's borrowing.",
+            answer: "I'd check under the floorboards. I'm only saying.",
+            mechanic: .findOneLine,
+            trigger: nil,
+            tags: ["house", "indoors", "counting"],
+            packID: corePackID, weight: 3,
+            symbolName: "cup.and.saucer", accent: "slate"
+        ),
+
         // MARK: Weather — these do not exist when the sky is wrong
 
         SpellDef(
             id: "rain-listening",
             title: "Listen to what the rain is landing on",
-            practice: "Attentive listening",
+            practice: "Listening to rain",
             source: .folk,
-            blurb: "Rain sounds different on a car roof, a leaf, a puddle, a bin lid. It's one of the few times the world hands you a free map of itself made entirely of sound, and most people are inside with the window shut.",
-            invitation: "Stand where you can hear it. Don't look. Pick out three different things it is falling on, and write down the one you had to work hardest for.",
+            blurb: "Rain sounds different on a car roof, a leaf, a puddle, a bin lid. The world is drawing you a map of itself out of sound. And most people are indoors with the window shut.",
+            invitation: "Stand where you can hear it. Pick out three different things it's landing on.",
+            rule: "Eyes shut the whole time.",
+            ask: "What was the one you had to work hardest to hear?",
+            answer: "The rain was telling you where everything is. Not many people bother listening.",
             mechanic: .findOneLine,
             trigger: PageTrigger(weatherTags: ["rain"]),
             tags: ["weather", "sound", "rain"],
@@ -4742,8 +5135,11 @@ enum SpellRegistry {
             title: "Walk into the fog on purpose",
             practice: "The dérive, in bad visibility",
             source: .folk,
-            blurb: "Fog eats distance. It takes a street you've walked a thousand times and hands back only the next twenty feet of it. That's the closest most of us ever get to seeing somewhere for the first time twice.",
-            invitation: "Go out and walk toward something you can't see yet. Keep going until it appears. Name the moment it did.",
+            blurb: "Fog eats distance. It takes a street you've walked a thousand times and only gives you back the next few steps of it. In the old stories, fog is where people wander off into the other world. They usually came back. Usually.",
+            invitation: "Go out and walk toward something you can't see yet. Keep going until it shows up.",
+            rule: "Don't use your phone to find it. Let the fog give it back.",
+            ask: "What came out of the fog? Name the moment it did.",
+            answer: "The fog gave it back. It doesn't always.",
             mechanic: .nameSomething,
             trigger: PageTrigger(weatherTags: ["fog"]),
             tags: ["weather", "walk", "fog"],
@@ -4755,8 +5151,11 @@ enum SpellRegistry {
             title: "Be the first to walk on it",
             practice: "First tracks",
             source: .folk,
-            blurb: "Snow puts a blank page over everything you own and it doesn't last. Skiers have a word for getting to it first, and they set alarms to do it. They're right to.",
-            invitation: "Go out before anyone else has walked on it. Look back at your own tracks. Keep something from where you stopped.",
+            blurb: "Snow puts a clean page over everything you own, and it doesn't last. Skiers have a word for getting to it first, and they set alarms for it. They're right to.",
+            invitation: "Go out before anyone else has walked on it. Walk somewhere. Then turn and look at your own tracks.",
+            rule: "Walk it once. No going back over your own steps.",
+            ask: "What did you pick up where you stopped?",
+            answer: "For a little while you were the only person who'd ever been there.",
             mechanic: .pressAKeepsake,
             trigger: PageTrigger(weatherTags: ["snow"]),
             tags: ["weather", "snow", "outdoors"],
@@ -4765,12 +5164,15 @@ enum SpellRegistry {
         ),
         SpellDef(
             id: "counting-the-storm",
-            title: "Count the gap",
+            title: "Count how far away Thor is",
             practice: "Flash-to-bang counting",
             source: .folk,
-            blurb: "Light arrives at once and sound takes about three seconds a kilometre, so counting the gap tells you how far off the storm is. Sailors and farmers did this long before anyone could explain why it worked.",
-            invitation: "Count out loud from the flash to the thunder. Divide by three. That is how many kilometres away it is. Tell me the number and whether it is coming closer.",
-            mechanic: .throwTheBones,
+            blurb: "The Norse said thunder was Thor's chariot rolling across the sky, pulled by two goats. Sailors and farmers counted the gap between the flash and the bang to see how far off he was. About three seconds for every kilometre. Counting works on gods too.",
+            invitation: "Count out loud from the flash to the thunder. Divide by three. That's how many kilometres away he is.",
+            rule: "Out loud. Thunder likes to be counted.",
+            ask: "How far away was he? Coming closer, or going?",
+            answer: "You counted a god. Most people just jump.",
+            mechanic: .findOneLine,
             trigger: PageTrigger(weatherTags: ["storm"]),
             tags: ["weather", "storm", "counting"],
             packID: corePackID, weight: 4,
@@ -4778,11 +5180,14 @@ enum SpellRegistry {
         ),
         SpellDef(
             id: "sharpest-shadow",
-            title: "Find the sharpest shadow",
-            practice: "Shadow-reading",
+            title: "Check your shadow's still attached",
+            practice: "Shadow lore, and Peter Pan, J. M. Barrie, 1904",
             source: .folk,
-            blurb: "A hard sun draws better than most people can. Every edge in the street is being copied onto the ground at an angle that won't be the same again this year.",
-            invitation: "Go and find the sharpest-edged shadow you can. Stand in it. Write down what is making it, and what the shadow does not look like at all.",
+            blurb: "In old German stories a man who sold his shadow was the scariest person in the village. Peter Pan lost his in 1904, in a nursery drawer, and Wendy had to sew it back on. People used to check. On a bright day, you can.",
+            invitation: "Go out in the sun and find your shadow. Wave at it. Jump. Try to make it do something you didn't.",
+            rule: "Don't step on its head. It's rude.",
+            ask: "What did your shadow do?",
+            answer: "Still attached. Good. Keep an eye on it.",
             mechanic: .findOneLine,
             trigger: PageTrigger(weatherTags: ["bright"]),
             tags: ["weather", "light", "outdoors"],
@@ -4794,8 +5199,12 @@ enum SpellRegistry {
             title: "Say it where you can see your breath",
             practice: "Breath-saining",
             source: .academy,
-            blurb: "The Academy holds that a thing said where your breath is visible has been let out properly, because you can watch it go. There's no evidence for this. It's a good excuse to say a thing out loud.",
-            invitation: "Go outside where the cold makes your breath show. Say the thing you have not said. Watch it leave. Then sign that you did it.",
+            blurb: "The Academy holds that a thing said where you can see your breath has been let out properly, because you can watch it go. There's no evidence for this. Duskthorn says the cold carries words further. There's no evidence for that either.",
+            invitation: "Go outside where the cold makes your breath show. Say the thing you haven't said. Watch it go.",
+            rule: "Say all of it. Half a thing in the cold just freezes.",
+            ask: "Sign when you've let it go. You don't have to tell me what it was.",
+            answer: "Gone. The cold's got it now.",
+            countersigns: ["Said it.", "Said it. Watched it go."],
             mechanic: .countersign,
             trigger: PageTrigger(weatherTags: ["cold", "frost"]),
             tags: ["weather", "cold", "academy"],
@@ -4807,24 +5216,63 @@ enum SpellRegistry {
 
         SpellDef(
             id: "wrong-stone",
-            title: "Turn over ten stones",
-            practice: "Beachcombing",
+            title: "Look for a stone with a hole in it",
+            practice: "Hag stones",
             source: .folk,
-            blurb: "Every stone on a beach was somewhere else first and is on its way to being sand. People have picked the odd one out of the pile for as long as there have been people and beaches, and nobody's ever needed a reason.",
-            invitation: "Turn over ten stones. Keep the one that is wrong — the wrong colour, the wrong shape, the one that does not belong with the others.",
+            blurb: "A stone with a hole worn right through it is a hag stone. People hung them over doors and on bedposts. Look through the hole and you're supposed to see the fair folk as they really are. They're rare. That's the point.",
+            invitation: "Turn over stones until you find one with a hole in it. If there isn't one, keep the stone that's most wrong. Wrong colour, wrong shape, wrong everything.",
+            rule: "Keep only one. The beach needs the rest.",
+            ask: "What did you find? If it had a hole, what did you see through it?",
+            answer: "In my Pocket it goes. I'll look through it when you're not watching.",
             mechanic: .pressAKeepsake,
             trigger: PageTrigger(placeKinds: ["beach", "marina"]),
-            tags: ["place", "beach", "outdoors"],
+            tags: ["place", "beach", "outdoors", "fair-folk"],
             packID: corePackID, weight: 5,
             symbolName: "water.waves", accent: "green"
         ),
         SpellDef(
-            id: "unwalked-aisle",
-            title: "Walk the aisle you have no reason to",
-            practice: "The dérive, indoors",
+            id: "give-the-water",
+            title: "Give the water something",
+            practice: "Offerings to water (wells, lakes, fountains)",
             source: .folk,
-            blurb: "A supermarket is built so you never make a decision you weren't steered into. There are aisles in the one you use every week that you've never once turned down, and that's not an accident.",
-            invitation: "Walk one aisle you have never had any reason to walk down. Read the labels properly. Bring me back the strangest thing that somebody, somewhere, needs.",
+            blurb: "People have thrown things into water for thousands of years. Swords into lakes. Bent pins into wells. Coins into every fountain you've ever seen. Nobody throws something into water and asks for it back. That's what makes it a gift.",
+            invitation: "Find water. A fountain, a pond, the sea. Give it something small you won't miss. A coin, a pebble, a petal. Make the wish before it lands.",
+            rule: "Don't say the wish out loud. Water keeps secrets. People don't.",
+            ask: "Sign it once the water has it.",
+            answer: "The water has it now. Don't go looking for it.",
+            countersigns: ["It sank.", "It sank. I wished.", "It floated. Hm."],
+            mechanic: .countersign,
+            trigger: PageTrigger(placeKinds: ["park", "beach", "marina"]),
+            tags: ["place", "water", "gift"],
+            packID: corePackID, weight: 4,
+            symbolName: "drop.circle", accent: "slate"
+        ),
+        SpellDef(
+            id: "follow-a-bird",
+            title: "Follow a bird until you lose it",
+            practice: "Augury",
+            source: .folk,
+            blurb: "The Romans watched birds to read what the gods wanted, and got it wrong all the time. The watching part still works, though. A bird takes your eyes somewhere you'd never have pointed them. In the stories, that's how you find the door.",
+            invitation: "Pick a bird and follow it with your eyes until it goes somewhere you can't.",
+            rule: "Don't look away first. Let it be the one to go.",
+            ask: "Where did you end up looking?",
+            answer: "That's where it wanted you to look. Probably. Birds don't say.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(placeKinds: ["park", "beach", "marina"]),
+            tags: ["creature", "outdoors", "attention"],
+            packID: corePackID, weight: 4,
+            symbolName: "bird", accent: "green"
+        ),
+        SpellDef(
+            id: "unwalked-aisle",
+            title: "Walk the aisle you never go down",
+            practice: "Goblin Market, Christina Rossetti, 1862",
+            source: .folk,
+            blurb: "Christina Rossetti wrote about goblins selling fruit in 1862. Strange fruit, and the girls were told never to taste it. Every shop has an aisle like that. The one you've walked past every week for years without once turning down it.",
+            invitation: "Walk one aisle you've never had any reason to go down. Read the labels properly.",
+            rule: "Look, but take nothing home. That's the goblin rule.",
+            ask: "What's the strangest thing down there that somebody, somewhere, needs?",
+            answer: "Somebody needs that. Somebody's whole week depends on it.",
             mechanic: .findOneLine,
             trigger: PageTrigger(placeKinds: ["store", "foodMarket", "bakery", "pharmacy"]),
             tags: ["place", "indoors", "walk"],
@@ -4836,11 +5284,14 @@ enum SpellRegistry {
             title: "Take the book beside the one you came for",
             practice: "Shelf divination",
             source: .folk,
-            blurb: "Libraries shelve by subject, so the book next to the one you wanted is about the same thing by somebody who disagreed. Whole arguments sit side by side on a shelf, quietly, for decades.",
-            invitation: "Find the book you would have come for. Take the one immediately to its right instead. Open it anywhere and give me a line.",
+            blurb: "Libraries put books about the same thing next to each other. So the book beside the one you wanted is by somebody who thinks something different. They've been sitting side by side for years, not talking.",
+            invitation: "Find the book you'd have come for. Take the one right next to it instead. Open it anywhere.",
+            rule: "The one on the right. Not the one you like the look of.",
+            ask: "Give me a line from it, and the title.",
+            answer: "That book's been waiting on that shelf for somebody. It got you.",
             mechanic: .findOneLine,
             trigger: PageTrigger(placeKinds: ["library", "bookstore"]),
-            tags: ["place", "book", "indoors"],
+            tags: ["place", "book", "indoors", "oracle"],
             packID: corePackID, weight: 4,
             symbolName: "books.vertical", accent: "ink"
         ),
@@ -4849,8 +5300,11 @@ enum SpellRegistry {
             title: "Read the names of the boats",
             practice: "Boat-naming",
             source: .folk,
-            blurb: "Every boat in a harbour was named by somebody who had to write it on the hull where everyone would see. Some of them are jokes. Some of them are wives. One of them was named in a mood.",
-            invitation: "Read the names along the water until you find the one that was named in a mood. Tell me which, and what you think the mood was.",
+            blurb: "Every boat in a harbour was named by somebody who had to paint it on the side where everyone could see. Sailors say it's bad luck to change a boat's name once it has one. Some of them are jokes. Some of them are wives. One of them was named in a mood.",
+            invitation: "Read the names along the water until you find the one that was named in a mood.",
+            rule: "Read every one before you choose. Boats notice.",
+            ask: "Which one, and what was the mood?",
+            answer: "They'll be stuck with that name forever now. So will you.",
             mechanic: .findOneLine,
             trigger: PageTrigger(placeKinds: ["marina", "beach"]),
             tags: ["place", "water", "naming"],
@@ -4862,8 +5316,11 @@ enum SpellRegistry {
             title: "Order the thing you never order",
             practice: "Breaking a standing order",
             source: .academy,
-            blurb: "The Academy holds that anywhere you've had the same thing more than four times has stopped being a place you visit and become a route you run. Duskthorn calls this the smallest curse there is. The Academy can't prove any of it.",
-            invitation: "Order the thing you never order. Not the one you would like — the one you have never once considered. Sit with it and tell me whether you were right to avoid it.",
+            blurb: "The Academy holds that anywhere you've had the same thing more than four times has stopped being a place you visit. It's a route you run. Duskthorn calls that the smallest curse there is. The Academy can't prove any of it.",
+            invitation: "Order the thing you never order. Not the one you'd like. The one you've never once thought about.",
+            rule: "Finish it. That's the price.",
+            ask: "What was it, and were you right to avoid it all this time?",
+            answer: "The place has seen a different you now. It won't forget.",
             mechanic: .findOneLine,
             trigger: PageTrigger(placeKinds: ["cafe", "restaurant", "bakery", "brewery"]),
             tags: ["place", "indoors", "routine", "academy"],
@@ -4871,15 +5328,68 @@ enum SpellRegistry {
             symbolName: "cup.and.saucer", accent: "amber"
         ),
 
-        // MARK: Hours
+        // MARK: Hours — time bands are dawn, day, dusk and night
 
+        SpellDef(
+            id: "before-you-speak",
+            title: "Say what you want before you say anything else",
+            practice: "First words",
+            source: .folk,
+            blurb: "The first words out of your mouth used to count. Children in Britain still say rabbit, rabbit on the first of the month before they say anything else. Most mornings now the first thing anybody says is to a phone, or a complaint about the time.",
+            invitation: "Before you say one word to anybody, say out loud what you want out of today. One sentence. To the window, if you like.",
+            rule: "Before anything else. If you've already spoken, it's too late for today.",
+            ask: "Sign it, so you can't pretend later you didn't say it.",
+            answer: "Said. Out loud. Now today knows what you want. That's more than most days get told.",
+            countersigns: ["Said it.", "Said it. Meant it.", "Said it to the window."],
+            mechanic: .countersign,
+            trigger: PageTrigger(timeBands: ["dawn"]),
+            tags: ["hour", "morning", "speech"],
+            packID: corePackID, weight: 4,
+            symbolName: "sunrise", accent: "gold"
+        ),
+        SpellDef(
+            id: "watch-it-go",
+            title: "Stay out for the in-between",
+            practice: "The gloaming",
+            source: .folk,
+            blurb: "The old word for the end of the day is the gloaming. It's not day and it's not night. In the stories that's exactly when the strange things come out, because nobody's quite sure what they're seeing. Everyone says they like a sunset. Almost nobody stays for the part after.",
+            invitation: "Go and watch the light go. Stay ten minutes past the point it stops being pretty.",
+            rule: "Stay out after everybody else goes in.",
+            ask: "What colour did it end on? And what did you see in the in-between?",
+            answer: "You stayed for the gloaming. That's when the good bits happen.",
+            mechanic: .findOneLine,
+            trigger: PageTrigger(timeBands: ["dusk"]),
+            tags: ["hour", "evening", "light"],
+            packID: corePackID, weight: 5,
+            symbolName: "sunset", accent: "rose"
+        ),
+        SpellDef(
+            id: "first-star",
+            title: "Wish on the first star",
+            practice: "Star light, star bright (American rhyme, 1800s)",
+            source: .folk,
+            blurb: "Star light, star bright, first star I see tonight. Children in America have said that for nearly two hundred years. It has to be the first one. After that they're just stars.",
+            invitation: "Go out and look for the first star. Say the whole rhyme to it. Star light, star bright, first star I see tonight, I wish I may, I wish I might, have the wish I wish tonight. Then wish.",
+            rule: "Don't tell anyone the wish. Not even me.",
+            ask: "Sign it once you've wished.",
+            answer: "It heard you. Don't tell me. I mean it.",
+            countersigns: ["Wished.", "Wished. A big one.", "Wished. It was a planet."],
+            mechanic: .countersign,
+            trigger: PageTrigger(timeBands: ["dusk"]),
+            tags: ["hour", "sky", "wish"],
+            packID: corePackID, weight: 4,
+            symbolName: "star", accent: "gold"
+        ),
         SpellDef(
             id: "find-something-moving",
             title: "Find one thing moving up there",
             practice: "Night-watching",
             source: .folk,
-            blurb: "There's always something moving in a night sky. Satellites, planes, bats, the moon if you're patient enough to catch it against a roofline. People used to know the sky the way you know a street.",
-            invitation: "Go out and look up until you find one thing that is moving. Stay with it until you lose it. Say what you decided it was.",
+            blurb: "There's always something moving in a night sky. Satellites, planes, bats, the moon sliding past a roof if you're patient. People used to know the sky the way you know your own street. They could tell you what was up there and who put it there.",
+            invitation: "Go out and look up until you find one thing that's moving. Stay with it until you lose it.",
+            rule: "Don't look it up afterwards. What you decided it was is what it was.",
+            ask: "What did you decide it was? Give it a name.",
+            answer: "That's what it was, then. I'll take your word over the internet's.",
             mechanic: .nameSomething,
             trigger: PageTrigger(timeBands: ["night"]),
             tags: ["hour", "sky", "night"],
@@ -4887,203 +5397,37 @@ enum SpellRegistry {
             symbolName: "moon.stars", accent: "violet"
         ),
         SpellDef(
-            id: "before-you-speak",
-            title: "Say it before you speak to anyone",
-            practice: "First words",
-            source: .folk,
-            blurb: "The first thing you say out loud in a day used to matter enough that people arranged it. Most mornings now the first thing anybody says is to a phone, or is a complaint about the time.",
-            invitation: "Before you speak to anyone at all, say out loud what you want out of today. One sentence. Then sign it, so you can't pretend later you didn't.",
-            mechanic: .countersign,
-            trigger: PageTrigger(timeBands: ["morning"]),
-            tags: ["hour", "morning", "speech"],
-            packID: corePackID, weight: 4,
-            symbolName: "sunrise", accent: "gold"
-        ),
-        SpellDef(
-            id: "watch-it-go",
-            title: "Watch the light actually go",
-            practice: "Keeping the hour",
-            source: .folk,
-            blurb: "Everybody says they like a sunset and almost nobody watches one all the way to the end. The good part is after: the ten minutes where the colour is still going and everyone's already gone inside.",
-            invitation: "Go and watch the light go, and stay ten minutes past the point it stops being impressive. Bring me the colour it ended on.",
-            mechanic: .findOneLine,
-            trigger: PageTrigger(timeBands: ["evening"]),
-            tags: ["hour", "evening", "light"],
-            packID: corePackID, weight: 5,
-            symbolName: "sunset", accent: "rose"
-        ),
-
-        // MARK: Small, strange, and available in the next ten minutes
-
-        SpellDef(
-            id: "wrong-chair",
-            title: "Sit where you never sit",
-            practice: "Changing the seat",
-            source: .academy,
-            blurb: "You've got a chair. Everyone in the house has a chair, and nobody agreed to it out loud. Sit somewhere else and the room you know best turns out to have a side you've never looked at.",
-            invitation: "Sit in the chair that isn't yours. Stay long enough to get comfortable. Tell me one thing you can see from there that you couldn't before.",
-            mechanic: .findOneLine,
-            trigger: nil,
-            tags: ["house", "indoors", "attention"],
-            packID: corePackID, weight: 5,
-            symbolName: "chair", accent: "amber"
-        ),
-        SpellDef(
-            id: "the-bottom-shelf",
-            title: "Look only at the bottom shelf",
-            practice: "Eye level is buy level",
-            source: .folk,
-            blurb: "Shops put what they want you to buy at eye level. It's a real rule with a real name, and it means there's a whole floor-level layer of the world you've been trained not to see.",
-            invitation: "Whatever shop you're in, look only at the bottom shelf for one minute. Bring me back the thing down there that somebody clearly loves.",
-            mechanic: .findOneLine,
-            trigger: PageTrigger(placeKinds: ["store", "foodMarket", "bakery", "pharmacy"]),
-            tags: ["place", "indoors", "attention"],
-            packID: corePackID, weight: 4,
-            symbolName: "shippingbox", accent: "amber"
-        ),
-        SpellDef(
-            id: "exact-overheard",
-            title: "Write down what you actually heard",
-            practice: "Found text",
-            source: .folk,
-            blurb: "Writers have kept overheard lines for centuries and the rule has always been the same. You don't tidy it. The half-sentence you catch on a bus is better than anything you'd have written, and it stops being better the second you improve it.",
-            invitation: "Catch one line somebody says near you today. Write it exactly, including the bit that doesn't make sense. Don't fix it.",
-            mechanic: .findOneLine,
-            trigger: nil,
-            tags: ["people", "sound", "words"],
-            packID: corePackID, weight: 4,
-            symbolName: "ear", accent: "rose"
-        ),
-        SpellDef(
-            id: "thank-a-thing",
-            title: "Thank something that's been working",
-            practice: "Thanking objects",
-            source: .folk,
-            blurb: "Shinto households thank objects before letting them go, and the tidying people borrowed it wholesale. It sounds daft until you try it on a pan you've had for eleven years. Then it doesn't.",
-            invitation: "Pick something you use without noticing. A mug, a coat, a door handle. Say thank you to it out loud, properly, and tell me what it was.",
-            mechanic: .nameSomething,
-            trigger: nil,
-            tags: ["house", "object", "gratitude"],
-            packID: corePackID, weight: 5,
-            symbolName: "hands.sparkles", accent: "gold"
-        ),
-        SpellDef(
-            id: "count-your-mugs",
-            title: "Count how many you actually own",
-            practice: "Taking stock",
-            source: .academy,
-            blurb: "Nobody knows how many mugs they own. Or forks, or black socks, or half-used notebooks. The number is always wrong, and always wrong in the same direction. The Academy finds that suspicious and can't explain it.",
-            invitation: "Guess how many you own of one ordinary thing. Then go and count them. Tell me both numbers.",
-            mechanic: .throwTheBones,
-            trigger: nil,
-            tags: ["house", "indoors", "counting"],
-            packID: corePackID, weight: 4,
-            symbolName: "cup.and.saucer", accent: "slate"
-        ),
-        SpellDef(
-            id: "someone-elses-diary",
-            title: "Read your last songs as somebody else's diary",
-            practice: "Reading the record",
-            source: .academy,
-            blurb: "Your recently played is a diary you didn't know you were keeping, and you're a terrible judge of it because you were there. Read it as a stranger's and it says things about that stranger immediately.",
-            invitation: "Open your last ten songs. Read them as if somebody else played them. Tell me what kind of week that person was having.",
-            mechanic: .findOneLine,
-            trigger: nil,
-            tags: ["music", "indoors", "memory"],
-            packID: corePackID, weight: 4,
-            symbolName: "music.note.list", accent: "violet"
-        ),
-        SpellDef(
-            id: "ugliest-thing",
-            title: "Photograph the ugliest thing here",
-            practice: "Against the picturesque",
-            source: .academy,
-            blurb: "Everybody photographs the same six things. The Academy holds that a room's ugliest object is doing more work than anything pretty in it. There's no evidence for that. It's usually the thing you'd actually miss, though.",
-            invitation: "Find the ugliest thing where you are. Photograph it properly, as if it were worth it. Tell me what it is and what it's for.",
-            mechanic: .pressAKeepsake,
-            trigger: nil,
-            tags: ["photo", "indoors", "attention"],
-            packID: corePackID, weight: 4,
-            symbolName: "camera", accent: "ink"
-        ),
-        SpellDef(
-            id: "leaving-route",
-            title: "Go home the way you'd leave",
-            practice: "Reversing the route",
-            source: .folk,
-            blurb: "You've got one way home and you stopped choosing it years ago. Walk it backwards — the way you'd go if you were setting out instead of returning — and the street puts different things in front of you.",
-            invitation: "Go home by the route you'd take if you were leaving. Different turns, same destination. Name the thing you passed that you'd forgotten was there.",
-            mechanic: .nameSomething,
-            trigger: nil,
-            tags: ["walk", "outdoors", "routine"],
-            packID: corePackID, weight: 5,
-            symbolName: "arrow.uturn.left", accent: "green"
-        ),
-        SpellDef(
-            id: "read-the-label",
-            title: "Read the whole label out loud",
-            practice: "Reading what it says",
-            source: .academy,
-            blurb: "Somebody wrote every word on that packet and a committee argued about it. You've never read one all the way through, and there's nearly always something on there nobody meant you to notice.",
-            invitation: "Pick any packet in the house. Read the whole label out loud, including the small print. Bring me the strangest line on it.",
-            mechanic: .findOneLine,
-            trigger: nil,
-            tags: ["house", "indoors", "words"],
-            packID: corePackID, weight: 3,
-            symbolName: "text.magnifyingglass", accent: "ink"
-        ),
-        SpellDef(
-            id: "follow-a-bird",
-            title: "Follow a bird until you lose it",
-            practice: "Following",
-            source: .folk,
-            blurb: "Augurs watched birds to read the future and got it wrong constantly. The watching part still works. A bird takes your eyes somewhere you'd never have pointed them. That's the whole service.",
-            invitation: "Pick a bird and follow it with your eyes until it goes somewhere you can't. Tell me where you ended up looking.",
-            mechanic: .findOneLine,
-            trigger: PageTrigger(placeKinds: ["park", "beach", "marina"]),
-            tags: ["creature", "outdoors", "attention"],
-            packID: corePackID, weight: 4,
-            symbolName: "bird", accent: "green"
-        ),
-        SpellDef(
-            id: "one-new-question",
-            title: "Ask one question you've never asked",
-            practice: "Asking properly",
-            source: .folk,
-            blurb: "You know some people for thirty years and never ask them anything new. The questions run out and get replaced by weather. One real question undoes a surprising amount of that.",
-            invitation: "Ask somebody you know well one question you have genuinely never asked them. Sign this when you've done it, not before.",
-            mechanic: .countersign,
-            trigger: nil,
-            tags: ["people", "speech", "attention"],
-            packID: corePackID, weight: 5,
-            symbolName: "bubble.left.and.bubble.right", accent: "rose"
-        ),
-        SpellDef(
             id: "lights-off",
-            title: "Sit in a familiar room with the lights off",
+            title: "Sit in a room you know with the lights off",
             practice: "Sitting in the dark",
             source: .academy,
-            blurb: "A room you know perfectly stops being that room when you take the light out of it. Everything's still where you left it and none of it is where you thought. It takes about four minutes.",
-            invitation: "Turn the lights off in a room you know by heart. Stay until your eyes catch up. Tell me the first thing you could make out.",
+            blurb: "A room you know perfectly stops being that room when you take the light out. Everything's still where you left it, and none of it is where you thought. It takes about four minutes. The Academy calls it the room showing you its other face.",
+            invitation: "Turn the lights off in a room you know by heart. Sit down. Stay until your eyes catch up.",
+            rule: "No phone light. Not even a peek.",
+            ask: "What was the first thing you could make out?",
+            answer: "Now you've met the room's other face. Say hello to it next time.",
             mechanic: .findOneLine,
-            trigger: PageTrigger(timeBands: ["night", "evening"]),
+            trigger: PageTrigger(timeBands: ["dusk", "night"]),
             tags: ["house", "dark", "attention"],
             packID: corePackID, weight: 4,
             symbolName: "moon.zzz", accent: "violet"
         ),
-
         SpellDef(
-            id: "network-omens",
-            title: "Read the network names",
-            practice: "Router divination",
-            source: .academy,
-            blurb: "The Academy says the names people give their routers are omens. It's the only naming most people ever do where strangers can read it. There's no evidence for this at all. Wispwood has a chart.",
-            invitation: "Open the list of networks near you. Take the strangest name in it as an answer to whatever you were just thinking about.",
-            mechanic: .throwTheBones,
-            trigger: nil,
-            tags: ["chance", "indoors", "academy"],
-            packID: corePackID, weight: 1,
-            symbolName: "wifi", accent: "slate"
+            id: "new-moon-silver",
+            title: "Turn your coins over for the new moon",
+            practice: "Greeting the new moon (British custom)",
+            source: .folk,
+            blurb: "When people in Britain saw the new moon for the first time each month, they turned over the coins in their pocket and bowed to it. They were careful never to see it first through glass. Catching it through a window was supposed to spoil the whole month.",
+            invitation: "Go outside and find the new moon. Look at it with nothing in between. Turn over whatever coins you've got and bow.",
+            rule: "Not through a window. Outside, or it doesn't count.",
+            ask: "Sign it once you've bowed.",
+            answer: "The moon sees a lot of people. It doesn't see many of them bowing.",
+            countersigns: ["Turned them.", "Turned them. Bowed too.", "No coins. Bowed anyway."],
+            mechanic: .countersign,
+            trigger: PageTrigger(timeBands: ["dusk", "night"], moonPhases: ["Waxing Crescent"]),
+            tags: ["hour", "moon", "night"],
+            packID: corePackID, weight: 5,
+            symbolName: "moonphase.waxing.crescent", accent: "ice"
         ),
     ]
 }
@@ -5163,22 +5507,35 @@ enum SpellOffering {
             "spellID": spell.id,
             "spellPractice": spell.practice,
             "spellSource": spell.source.rawValue,
+            "spellAnswer": spell.answer,
             "accent": spell.accent,
             "blurb": spell.blurb,
             "invitation": spell.invitation,
             "attribution": spell.attributionLine,
             "festivalMechanic": spell.mechanic.rawValue,
-            "festivalMechanicTitle": spell.mechanic.title,
-            "festivalMechanicPrompt": spell.mechanic.prompt,
+            // The spell's own words, never the feast's. The feast prompt for
+            // `findOneLine` sends the reader to a book, and was showing under
+            // spells about rain and cafes.
+            "festivalMechanicTitle": spell.askTitle,
+            "festivalMechanicPrompt": spell.ask,
             "festivalMechanicSymbol": spell.mechanic.symbolName,
-            "placeholder": spell.mechanic.placeholder,
+            "placeholder": spell.placeholder,
             "tags": "spell,magic,\(spell.source.rawValue),spell:\(spell.id)",
             // The same door the feast days carry. One tap, honoured forever.
             "festivalCanRest": "true",
             "festivalRestLabel": "Don't offer me this one again"
         ]
-        if !spell.mechanic.countersigns.isEmpty {
-            metadata["countersigns"] = spell.mechanic.countersigns.joined(separator: "||")
+        if let rule = spell.rule?.nonEmpty {
+            metadata["spellRule"] = rule
+        }
+        if spell.trigger != nil {
+            // Read by the Curator's spell floor: a spell the world laid out
+            // today is worth a chair on the visible desk.
+            metadata["spellConditional"] = "true"
+        }
+        if spell.mechanic == .countersign {
+            metadata["countersigns"] = (spell.countersigns ?? SpellDef.defaultCountersigns)
+                .joined(separator: "||")
         }
         if spell.mechanic == .pressAKeepsake {
             metadata["festivalKeepsakeGlyph"] = spell.symbolName
@@ -5188,12 +5545,13 @@ enum SpellOffering {
             metadata["festivalNameFactID"] = "spell-name:\(spell.id)"
         }
         if spell.mechanic == .throwTheBones {
+            // A spell's bones answer the question the reader asked. The feast
+            // readings are about the size of the day and would ignore it.
             let bones = FeastBones.throwBones(celebrationID: spell.id, dayID: dayID)
             metadata["festivalBonesRoll"] = "\(bones.roll)"
             metadata["festivalBonesBand"] = bones.band.rawValue
             metadata["festivalBonesHeadline"] = bones.headline
-            metadata["festivalBonesLine"] = bones.line
-            metadata["festivalBonesBelief"] = "\(bones.band.beliefBonus)"
+            metadata["festivalBonesLine"] = SpellBones.answer(for: bones.band)
         }
         return metadata
     }
@@ -5203,20 +5561,23 @@ enum SpellOffering {
         for spell: SpellDef,
         dayID: String,
         now: Date = Date(),
-        recall: String? = nil
+        recall: String? = nil,
+        sourceID: String = "spells",
+        score: Int = 60
     ) -> SurfacePage {
         var metadata = metadata(for: spell, dayID: dayID)
+        metadata["source"] = sourceID
         if let recall = recall?.nonEmpty { metadata["spellRecall"] = recall }
-        let body = [spell.blurb, spell.invitation, recall?.nonEmpty]
+        let body = [spell.blurb, spell.invitation, spell.rule, recall?.nonEmpty]
             .compactMap { $0 }
             .joined(separator: "\n\n")
         return SurfacePage(
             id: "spell-\(spell.id)-\(dayID)",
             type: .spell,
-            sourceID: "spells",
+            sourceID: sourceID,
             intent: .capture,
             renderStyle: .loreLetter,
-            score: 60,
+            score: score,
             reason: spell.attributionLine,
             prompt: spell.title,
             detail: spell.invitation,
@@ -5226,6 +5587,39 @@ enum SpellOffering {
                 metadata: metadata
             )
         )
+    }
+
+    /// What the Book says when the reader comes back from a spell. It takes
+    /// the keep moment over from the cast, the way an authored mission's reply
+    /// does: the spell has its own ending, and a generic cheer would step on it.
+    static func keepNote(for surface: SurfacePage, hasReaderContribution: Bool) -> KeepMarginalia.Note? {
+        guard hasReaderContribution,
+              surface.type == .spell,
+              let line = surface.payload.metadata["spellAnswer"]?.nonEmpty else { return nil }
+        return KeepMarginalia.Note(
+            castSlug: "book-sprite",
+            castName: "The Book",
+            assetName: "LabyrinthFaeBookSprite",
+            line: line
+        )
+    }
+}
+
+/// The Book's bones, thrown for a yes-or-no question.
+enum SpellBones {
+    static func answer(for band: FeastBonesThrow.Band) -> String {
+        switch band {
+        case .wide:
+            return "Yes. Yes so loud I nearly fell off the desk. Go on, then."
+        case .open:
+            return "Yes. Don't hang about."
+        case .level:
+            return "They won't say. That means it's still yours to decide. Annoying, I know."
+        case .narrow:
+            return "Probably not. Or not like that. Ask it smaller."
+        case .shut:
+            return "No. The bones don't say sorry, so I'm saying it for them."
+        }
     }
 }
 
@@ -5243,6 +5637,8 @@ enum SpellCastMemory {
         var weather: String?
         var placeKind: String?
         var dayPart: String?
+        /// What the reader wrote when they came back, word for word.
+        var broughtBack: String? = nil
     }
 
     static func workings(of spellID: String, in days: [BookDay]) -> [Working] {
@@ -5254,7 +5650,8 @@ enum SpellCastMemory {
                     at: page.createdAt,
                     weather: page.context?.weatherTags.first,
                     placeKind: page.context?.placeKind,
-                    dayPart: page.context?.dayPart
+                    dayPart: page.context?.dayPart,
+                    broughtBack: page.userInput.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ))
             }
         }
@@ -5322,10 +5719,27 @@ enum SpellCastMemory {
         guard let last = worked.first else { return nil }
         let moment = when(last.at, now: now, calendar: calendar)
         let where_ = circumstance(of: last).map { ", \($0)," } ?? ","
+        let when_: String
         if worked.count == 1 {
-            return "You did this one before\(where_) \(moment)."
+            when_ = "You did this one before\(where_) \(moment)."
+        } else {
+            when_ = "You've done this one \(worked.count) times. The last was\(where_) \(moment)."
         }
-        return "You've done this one \(worked.count) times. The last was\(where_) \(moment)."
+        guard let brought = quotable(last.broughtBack, for: spellID) else { return when_ }
+        return "\(when_) You came back with \u{201C}\(brought)\u{201D}"
+    }
+
+    /// The reader's own words from last time, when they are short enough to
+    /// say back in one breath. Never for a signed spell: those answers are a
+    /// stamp ("Said it."), and the ones that matter there were secrets.
+    static func quotable(_ text: String?, for spellID: String) -> String? {
+        guard let text = text?.nonEmpty,
+              SpellRegistry.spell(id: spellID)?.mechanic != .countersign else { return nil }
+        let line = text.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !line.isEmpty, line.count <= 80 else { return nil }
+        let ends = line.last.map { ".!?".contains($0) } ?? false
+        return ends ? line : line + "."
     }
 }
 
