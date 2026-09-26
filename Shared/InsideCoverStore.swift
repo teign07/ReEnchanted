@@ -406,10 +406,6 @@ enum LocalModelManager {
         var reason: String
         var revision: String = "main"
         var supersedes: [String] = []
-        /// Where a checkpoint we host ourselves is listed: a manifest of every
-        /// file with its size and SHA-256. Nil means the model is fetched from
-        /// Hugging Face by `modelID` and `revision`.
-        var manifestURL: String? = nil
     }
 
     static let compactModel = ModelChoice(
@@ -420,25 +416,16 @@ enum LocalModelManager {
         reason: "smallest local brain, best for standard iPhones",
         revision: "2d44e83dc9e80843d22fb941d3d699a0b1351aa6"
     )
-    /// Google's mobile quantization-aware checkpoint for Gemma 4 E2B, converted
-    /// to MLX without re-quantizing: Google's packed 2/4/8-bit weights and row
-    /// scales are MLX affine quantization already, so the conversion only moves
-    /// bytes (scripts/convert_gemma4_mobile_qat.py). It tracks full precision far
-    /// more closely than the plain 4-bit conversion it replaces (Unsloth measured
-    /// mean KL 0.004 against 0.051) while being about 1 GB smaller to download.
-    /// No MLX runtime loads Google's own format, so we host the conversion.
     static let balancedModel = ModelChoice(
-        modelID: "reenchanted/gemma-4-e2b-it-qat-mobile-mlx",
-        label: "Gemma 4 E2B",
+        modelID: "mlx-community/gemma-4-e2b-it-4bit",
+        label: "Gemma 4 E2B 4-bit",
         minimumMemoryGB: 6,
-        sourceURL: "https://huggingface.co/google/gemma-4-E2B-it-qat-mobile-transformers",
-        reason: "recommended local brain for iPhone 15-class devices; Google's mobile-trained Gemma 4 E2B, converted for MLX",
-        revision: "2026-09-25",
+        sourceURL: "https://huggingface.co/mlx-community/gemma-4-e2b-it-4bit",
+        reason: "recommended local brain for iPhone 15-class devices; this is the Gemma 4 E2B checkpoint shipped in the current MLX Swift model catalog",
+        revision: "238767527555cb75a05732a84dff5d6ba0dd6809",
         supersedes: [
-            "mlx-community/gemma-4-e2b-it-4bit",
             "mlx-community/gemma-4-e2b-it-OptiQ-4bit"
-        ],
-        manifestURL: "https://models.reenchanted.app/gemma-4-e2b-it-qat-mobile-mlx/2026-09-25/manifest.json"
+        ]
     )
     static let expansiveModel = ModelChoice(
         modelID: "mlx-community/gemma-4-e4b-it-4bit",
