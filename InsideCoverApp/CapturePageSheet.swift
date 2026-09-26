@@ -8249,7 +8249,7 @@ struct CapturePageSheet: View {
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
                     AuthoredSceneProseView(text: surface.payload.body)
                 } else {
-                    Text(taleToldBody ?? surface.payload.body)
+                    Text(taleToldBody ?? surface.payload.metadata["taleFallbackBody"] ?? surface.payload.body)
                         .font(.system(.body, design: .serif))
                         .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
@@ -10024,44 +10024,18 @@ struct CapturePageSheet: View {
         .padding(.top, 4)
     }
 
-    /// Layer two of the Tales: while the reader is looking at a finished
-    /// tale, Gemma may write the three lines that join their quotes. It runs
-    /// here, with the page open and the screen on, never in the background.
-    /// Lines that fail the honesty checks are dropped and the plain telling
-    /// stays. Once told, the lines live on the tale, so it reads the same
-    /// on the desk and in the monthly edition.
+    /// A tale reached without "Let me write" (the Glow door, an old link):
+    /// the plain telling shows at once, and Gemma may tell it while the reader
+    /// is looking, with the page open and the screen on. A tale that was
+    /// already written, plainly or by Gemma, is left alone.
     private func tellTaleWithGemmaIfPossible() async {
         guard surface.type == .taleBound,
               taleToldBody == nil,
+              surface.payload.metadata["taleTelling"] == nil,
               let taleID = surface.payload.metadata["taleID"]?.nonEmpty,
-              let tale = (PlayerVault.shared.data.boundTales ?? []).first(where: { $0.id == taleID }),
-              tale.thread != nil,
-              tale.telling == nil,
-              let prompt = TaleGemmaTelling.prompt(for: tale),
-              let response = await LocalBrainProse.write(
-                prompt: prompt,
-                instructions: TaleGemmaTelling.instructions,
-                maxTokens: 220,
-                sourceID: "tale-telling",
-                tags: ["tale-bound", "tale:\(taleID)"],
-                temperature: 0.6
-              ),
-              let lines = {
-                  let verdict = TaleGemmaTelling.judge(response, for: tale)
-                  if let reason = verdict.reason {
-                      appLog.info("Tale telling dropped for \(taleID, privacy: .public): \(reason, privacy: .private)")
-                  }
-                  return verdict.lines
-              }()
+              let told = await LocalBrainTaleTeller.tell(taleID: taleID),
+              told.telling != nil
         else { return }
-        var told = tale
-        told.telling = lines
-        PlayerVault.shared.mutate {
-            if let index = $0.boundTales?.firstIndex(where: { $0.id == taleID }) {
-                $0.boundTales?[index].telling = lines
-            }
-        }
-        PlayerVault.shared.save()
         withAnimation(BookMotion.reveal(reduceMotion)) {
             taleToldBody = TaleBinding.body(for: told)
         }

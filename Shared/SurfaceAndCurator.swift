@@ -358,6 +358,10 @@ struct SurfaceReadinessState: Codable, Equatable {
         switch type {
         case .bookOfYou:
             return true
+        case .taleBound:
+            // A teaser waiting for "Let me write". The plain telling rides
+            // along, so a failed telling still opens the tale.
+            return metadata["taleGemmaOffered"] == "true" && !hasNonEmptyMetadata("taleTelling")
         case .illuminatedPhoto:
             return !hasNonEmptyMetadata("renderedPreviewPath")
         case .narrativeOS:

@@ -525,6 +525,19 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
         }
     }
 
+    /// One line for the teaser: the shape of it, without the tale.
+    var teaserLine: String {
+        switch self {
+        case .threeTimes: return "It kept coming back."
+        case .goingAway: return "It was there, and then it wasn't."
+        case .search: return "You went looking for it."
+        case .changing: return "It started as one thing and ended as the opposite."
+        case .allWeathers: return "You met it in all sorts of weather."
+        case .nightOnly: return "It only ever came out at night."
+        case .goingBack: return "You kept going back."
+        }
+    }
+
     /// One plain line for Gemma, so its telling bends the right way.
     var gemmaHint: String {
         switch self {
@@ -1694,6 +1707,76 @@ enum TaleBinding {
             (told?.end ?? frame.end) + "\n" + quote(moments.end),
             frame.closing
         ].joined(separator: "\n\n")
+    }
+
+    /// What the desk leaf says before the tale is written: that there is one,
+    /// what it's about, and when. Enough to want it, not the tale itself.
+    static func teaser(for tale: LivingTale) -> String {
+        guard let thread = tale.thread, let moments = threadMoments(tale) else {
+            return reason(for: tale)
+        }
+        let span = day(of: moments.beginning) == day(of: moments.end)
+            ? "on \(day(of: moments.beginning))"
+            : "from \(day(of: moments.beginning)) to \(day(of: moments.end))"
+        return """
+        A tale came out of your pages. It's about \(thread.spoken), and it happened \(span).
+
+        \((tale.kind ?? .threeTimes).teaserLine)
+
+        I can write it down for you properly. Or you can let it go.
+        """
+    }
+
+    /// The bound tale's Page. When Gemma is ready and hasn't told this tale
+    /// yet, the Page is a teaser with "Let me write" (the generation path
+    /// every written Page uses) and carries the plain telling as a fallback.
+    /// Otherwise it is the tale itself.
+    static func surface(for tale: LivingTale, scar: TaleScar?, sourceID: String, offerGemma: Bool) -> SurfacePage {
+        var metadata = Self.metadata(for: tale, scar: scar, sourceID: sourceID)
+        let offering = offerGemma && tale.thread != nil && tale.telling == nil
+        let text: String
+        if offering {
+            metadata["taleGemmaOffered"] = "true"
+            metadata["taleFallbackBody"] = Self.body(for: tale)
+            text = teaser(for: tale)
+        } else {
+            metadata["taleTelling"] = tale.telling == nil ? "plain" : "gemma"
+            text = Self.body(for: tale)
+        }
+        return SurfacePage(
+            id: "\(sourceID)-\(tale.id)",
+            type: .taleBound,
+            sourceID: sourceID,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            // Above almost everything. A finished tale outranks the day.
+            score: 97,
+            reason: reason(for: tale),
+            prompt: headline(for: tale),
+            detail: (tale.kind ?? .threeTimes).teaserLine,
+            payload: BookPagePayload(headline: headline(for: tale), body: text, metadata: metadata)
+        )
+    }
+
+    /// The same Page, now written: by Gemma when its lines passed, otherwise
+    /// the plain telling. Never an error Page. The tale is already true.
+    static func written(_ surface: SurfacePage, tale: LivingTale) -> SurfacePage {
+        var metadata = surface.payload.metadata
+        metadata["taleGemmaOffered"] = nil
+        metadata["taleFallbackBody"] = nil
+        metadata["taleTelling"] = tale.telling == nil ? "plain" : "gemma"
+        return SurfacePage(
+            id: surface.id,
+            type: surface.type,
+            sourceID: surface.sourceID,
+            intent: surface.intent,
+            renderStyle: surface.renderStyle,
+            score: surface.score,
+            reason: surface.reason,
+            prompt: surface.prompt,
+            detail: surface.detail,
+            payload: BookPagePayload(headline: surface.payload.headline, body: body(for: tale), metadata: metadata)
+        )
     }
 
     /// Kept for the metadata and editions: the beats the telling rests on.

@@ -17903,6 +17903,14 @@ struct ContentView: View {
         }
 
         switch surface.type {
+        case .taleBound:
+            // The tale is already true; Gemma only tells it. No Belief is
+            // spent, and a telling that fails its checks opens the plain one.
+            guard let taleID = surface.payload.metadata["taleID"]?.nonEmpty else { return }
+            statusMessage = "I'm writing the tale down..."
+            let tale = await LocalBrainTaleTeller.tell(taleID: taleID)
+            statusMessage = ""
+            showGenerated(tale.map { TaleBinding.written(surface, tale: $0) } ?? surface)
         case .narrativeOS:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
             statusMessage = "The Story Page is calling the local Book brain..."

@@ -5042,6 +5042,42 @@ enum LocalBrainProse {
     }
 }
 
+/// Asks Gemma for a tale's three joining lines and keeps them only if they
+/// pass `TaleGemmaTelling`'s checks. Kept lines are written onto the bound
+/// tale in the vault, so the desk, the Page and the edition all agree.
+/// Returns the tale as it now stands, told or not.
+enum LocalBrainTaleTeller {
+    @MainActor
+    static func tell(taleID: String) async -> LivingTale? {
+        guard let tale = (PlayerVault.shared.data.boundTales ?? []).first(where: { $0.id == taleID }) else { return nil }
+        guard tale.thread != nil, tale.telling == nil,
+              let prompt = TaleGemmaTelling.prompt(for: tale),
+              let response = await LocalBrainProse.write(
+                prompt: prompt,
+                instructions: TaleGemmaTelling.instructions,
+                maxTokens: 220,
+                sourceID: "tale-telling",
+                tags: ["tale-bound", "tale:\(taleID)"],
+                temperature: 0.6
+              )
+        else { return tale }
+        let verdict = TaleGemmaTelling.judge(response, for: tale)
+        guard let lines = verdict.lines else {
+            appLog.info("Tale telling dropped for \(taleID, privacy: .public): \(verdict.reason ?? "unknown", privacy: .private)")
+            return tale
+        }
+        var told = tale
+        told.telling = lines
+        PlayerVault.shared.mutate {
+            if let index = $0.boundTales?.firstIndex(where: { $0.id == taleID }) {
+                $0.boundTales?[index].telling = lines
+            }
+        }
+        PlayerVault.shared.save()
+        return told
+    }
+}
+
 struct CharacterFidelityAudit: Equatable {
     enum Verdict: String, Codable, Equatable {
         case pass

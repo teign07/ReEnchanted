@@ -377,6 +377,48 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertEqual(recognized?.thread?.id, "word:heron")
     }
 
+    // MARK: The teaser
+
+    /// With Gemma ready, a new tale arrives as a teaser with "Let me write",
+    /// the same door every written Page uses. The tale itself isn't given away.
+    func testWithGemmaReadyATaleArrivesAsATeaser() {
+        let tale = closedKettleTale()
+        let page = TaleBinding.surface(for: tale, scar: nil, sourceID: "tale-bound", offerGemma: true)
+        XCTAssertTrue(SurfaceReadinessState(surface: page).needsLocalBrainToOpen)
+        XCTAssertTrue(page.payload.body.hasPrefix("A tale came out of your pages. It's about the kettle"))
+        XCTAssertFalse(page.payload.body.contains("still warm when I got back"), "the teaser gave the tale away")
+        XCTAssertEqual(page.detail, TaleKind.threeTimes.teaserLine)
+        XCTAssertTrue(page.payload.metadata["taleFallbackBody"]?.contains("still warm when I got back") == true)
+    }
+
+    /// Without Gemma the tale is simply there, whole.
+    func testWithoutGemmaTheTaleIsSimplyThere() {
+        let page = TaleBinding.surface(for: closedKettleTale(), scar: nil, sourceID: "tale-bound", offerGemma: false)
+        XCTAssertFalse(SurfaceReadinessState(surface: page).needsLocalBrainToOpen)
+        XCTAssertTrue(page.payload.body.contains("still warm when I got back"))
+        XCTAssertEqual(page.payload.metadata["taleTelling"], "plain")
+    }
+
+    /// Whatever Gemma managed, the written Page is the tale, never an error.
+    func testAWrittenTaleOpensWholeEvenIfGemmaFailed() {
+        let tale = closedKettleTale()
+        let teaser = TaleBinding.surface(for: tale, scar: nil, sourceID: "tale-bound", offerGemma: true)
+        let plain = TaleBinding.written(teaser, tale: tale)
+        XCTAssertFalse(SurfaceReadinessState(surface: plain).needsLocalBrainToOpen)
+        XCTAssertTrue(plain.payload.body.contains("still warm when I got back"))
+        XCTAssertEqual(plain.payload.metadata["taleTelling"], "plain")
+        XCTAssertEqual(plain.id, teaser.id)
+
+        var told = tale
+        told.telling = TaleGemmaTelling.lines(from: goodTelling, for: tale)
+        let gemma = TaleBinding.written(teaser, tale: told)
+        XCTAssertEqual(gemma.payload.metadata["taleTelling"], "gemma")
+        XCTAssertTrue(gemma.payload.body.contains("Then the kettle bit back, and you laughed."))
+        // Once told, the desk never offers it again.
+        let again = TaleBinding.surface(for: told, scar: nil, sourceID: "tale-bound", offerGemma: true)
+        XCTAssertFalse(SurfaceReadinessState(surface: again).needsLocalBrainToOpen)
+    }
+
     // MARK: Gemma's telling
 
     private let goodTelling = """

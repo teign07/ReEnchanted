@@ -13547,26 +13547,11 @@ struct TaleBoundPageSourceAdapter: BookPageSourceAdapter {
         ) else { return [] }
 
         return [
-            SurfacePage(
-                id: "\(source.id)-\(tale.id)",
-                type: .taleBound,
+            TaleBinding.surface(
+                for: tale,
+                scar: inputs.unboundTaleScar,
                 sourceID: source.id,
-                intent: .reflect,
-                renderStyle: .loreLetter,
-                // Above almost everything. A finished tale outranks the day.
-                score: 97,
-                reason: TaleBinding.reason(for: tale),
-                prompt: TaleBinding.headline(for: tale),
-                detail: tale.shape.commonName,
-                payload: BookPagePayload(
-                    headline: TaleBinding.headline(for: tale),
-                    body: TaleBinding.body(for: tale),
-                    metadata: TaleBinding.metadata(
-                        for: tale,
-                        scar: inputs.unboundTaleScar,
-                        sourceID: source.id
-                    )
-                )
+                offerGemma: inputs.localBrainIsReady
             )
         ]
     }
