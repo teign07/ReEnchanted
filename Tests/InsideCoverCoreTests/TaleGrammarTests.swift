@@ -267,15 +267,21 @@ final class TaleGrammarTests: XCTestCase {
     }
 
     func testTheBoundTaleIsOneThingInThreeMoments() {
-        let body = TaleBinding.body(for: closedKettleTale())
+        let tale = closedKettleTale()
+        let body = TaleBinding.body(for: tale)
+        let frame = TaleFrame.lines(for: tale, thread: tale.thread!, moments: TaleBinding.threadMoments(tale)!)
+        XCTAssertEqual(tale.kind, .threeTimes)
         let beats = [
-            "Once upon a time, there was a kettle.",
+            frame.once,
             "The kettle was still warm when I got back.",
-            "Then the kettle came back.",
+            frame.then,
             "Burnt my thumb on the kettle",
-            "In the end, the kettle was still there.",
+            frame.end,
             "Made tea in the kettle nobody else likes."
         ]
+        XCTAssertTrue(frame.once.hasPrefix("Once upon a time, "))
+        XCTAssertTrue(frame.once.contains("a kettle"))
+        XCTAssertTrue(frame.end.hasPrefix("In the end, the kettle"))
         let positions = beats.map { body.range(of: $0)?.lowerBound }
         XCTAssertFalse(positions.contains(where: { $0 == nil }), "missing a moment: \(body)")
         XCTAssertEqual(positions.compactMap { $0 }, positions.compactMap { $0 }.sorted(), "told out of order")
@@ -295,17 +301,93 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertTrue(TaleBinding.body(for: tale).contains("Then the kettle kept coming back."))
     }
 
+    // MARK: Kinds of tale
+    //
+    // Read off the pages, never picked for variety's sake.
+
+    private func thread(_ name: String) -> TaleThread { TaleThread(id: "word:\(name)", name: name, kind: .thing) }
+
+    private func own(_ lines: [String], hour: Int = 14, weather: [String?] = []) -> [TaleWitness] {
+        lines.enumerated().map { index, line in
+            let when = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day(index * 3))!
+            let tags = index < weather.count ? weather[index].map { ["weather:\($0)"] } ?? [] : []
+            return TaleWitness(id: "k\(index)", beat: .test, receiptID: "k\(index)", receiptKind: "reader-page",
+                               evidence: line, witnessedAt: when, tags: tags, subjects: [])
+        }
+    }
+
+    func testSomethingThatKeepsComingBackIsThreeTimes() {
+        let witnesses = own(["Tea on the step.", "Tea again, the good mug.", "Tea for two."])
+        XCTAssertEqual(TaleKind.detect(thread: thread("tea"), witnesses: witnesses, calendar: calendar), .threeTimes)
+    }
+
+    func testSomethingThatWentAwayIsGoingAway() {
+        let witnesses = own(["The heron was on its post.", "The heron again.", "No heron today. Just ducks."])
+        let kind = TaleKind.detect(thread: thread("heron"), witnesses: witnesses, calendar: calendar)
+        XCTAssertEqual(kind, .goingAway)
+        XCTAssertEqual(kind.title(for: thread("heron")), "The Tale of the Heron That Went Away")
+    }
+
+    func testLookingAndFindingIsASearch() {
+        let witnesses = own(["Looking for bread that isn't sliced cardboard.", "More bread, still wrong.", "Found the bread. A tiny shop by the canal."])
+        let kind = TaleKind.detect(thread: thread("bread"), witnesses: witnesses, calendar: calendar)
+        XCTAssertEqual(kind, .search)
+        XCTAssertEqual(kind.title(for: thread("bread")), "The Search for the Bread")
+    }
+
+    func testOppositesAtEitherEndAreAChange() {
+        let witnesses = own(["The garden is bare and brown.", "Dug the garden again.", "The garden is blooming, somehow."])
+        XCTAssertEqual(TaleKind.detect(thread: thread("garden"), witnesses: witnesses, calendar: calendar), .changing)
+        var tale = LivingTale(id: "g", shape: .threeEncounters, title: "t", witnesses: witnesses,
+                              openedAt: day(0), lastWitnessedAt: day(6), closedAt: day(7), ending: .stillHere,
+                              boundAt: nil, thread: thread("garden"), kind: .changing)
+        tale.telling = nil
+        let body = TaleBinding.body(for: tale)
+        XCTAssertTrue(body.contains("the word you had for it was \u{201C}bare\u{201D}"), body)
+        XCTAssertTrue(body.contains("In the end, the word was \u{201C}blooming\u{201D}."), body)
+    }
+
+    func testDifferentWeatherEachTimeIsAllWeathers() {
+        let witnesses = own(["The heron.", "The heron, drenched.", "The heron again."], weather: ["bright", "rain", "fog"])
+        XCTAssertEqual(TaleKind.detect(thread: thread("heron"), witnesses: witnesses, calendar: calendar), .allWeathers)
+        let tale = LivingTale(id: "w", shape: .threeEncounters, title: "t", witnesses: witnesses,
+                              openedAt: day(0), lastWitnessedAt: day(6), closedAt: day(7), ending: .stillHere,
+                              boundAt: nil, thread: thread("heron"), kind: .allWeathers)
+        let body = TaleBinding.body(for: tale)
+        XCTAssertTrue(body.contains("Once upon a time, in the sun, there was a heron."), body)
+        XCTAssertTrue(body.contains("Then, in the rain, the heron came back."), body)
+    }
+
+    func testOnlyAfterDarkIsANightTale() {
+        let witnesses = own(["Coffee at midnight, again.", "Coffee, can't sleep.", "Coffee and the fridge hum."], hour: 23)
+        let kind = TaleKind.detect(thread: thread("coffee"), witnesses: witnesses, calendar: calendar)
+        XCTAssertEqual(kind, .nightOnly)
+        XCTAssertEqual(kind.title(for: thread("coffee")), "The Coffee After Dark")
+    }
+
+    /// When the reader has two threads going, the rarer kind of tale wins.
+    func testTheRarerTaleIsToldFirst() {
+        let pages = [
+            page(0, type: .diary, tags: [], text: "Tea on the step. The heron was on its post."),
+            page(3, type: .diary, tags: [], text: "Tea again. The heron again."),
+            page(6, type: .diary, tags: [], text: "Tea for two. No heron today.")
+        ]
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(7))
+        let recognized = TaleGrammar.recognize(witnesses: witnesses, now: day(7), calendar: calendar)
+        XCTAssertEqual(recognized?.thread?.id, "word:heron")
+    }
+
     // MARK: Gemma's telling
 
     private let goodTelling = """
-    ONCE: Once upon a time, there was a kettle that stayed warm for you.
-    THEN: Then the kettle bit back, and you laughed.
-    END: In the end, the kettle was still there, making tea.
+    Once upon a time, there was a kettle that stayed warm for you.
+    Then the kettle bit back, and you laughed.
+    In the end, the kettle was still there, making tea.
     """
 
     func testGemmaGetsTheThreadAndTheThreeQuotes() {
         let prompt = TaleGemmaTelling.prompt(for: closedKettleTale()) ?? ""
-        XCTAssertTrue(prompt.contains("The tale is about: the kettle."))
+        XCTAssertTrue(prompt.contains("a tiny fairy tale about the kettle"))
         XCTAssertTrue(prompt.contains("The kettle was still warm when I got back."))
         XCTAssertTrue(prompt.contains("Made tea in the kettle nobody else likes."))
         XCTAssertFalse(prompt.contains("bus was late"))
@@ -348,10 +430,38 @@ final class TaleGrammarTests: XCTestCase {
 
     func testATellingInTheWrongShapeIsDropped() {
         XCTAssertNil(TaleGemmaTelling.lines(from: "Here is your tale about a kettle!", for: closedKettleTale()))
-        let noOpener = goodTelling.replacingOccurrences(of: "END: In the end,", with: "END: Finally,")
+        let noOpener = goodTelling.replacingOccurrences(of: "In the end,", with: "Finally,")
         XCTAssertNil(TaleGemmaTelling.lines(from: noOpener, for: closedKettleTale()))
         let dated = goodTelling.replacingOccurrences(of: "bit back", with: "bit back at 7")
         XCTAssertNil(TaleGemmaTelling.lines(from: dated, for: closedKettleTale()))
+    }
+
+    /// What the phone's model really does: echoes the reader's lines first,
+    /// then writes its own. The echo is skipped, the telling is kept.
+    func testAnEchoBeforeTheTellingIsSkipped() {
+        let echoed = """
+        The kettle was still warm when I got back.
+
+        Made tea in the kettle nobody else likes.
+
+        \(goodTelling)
+        """
+        XCTAssertNotNil(TaleGemmaTelling.lines(from: echoed, for: closedKettleTale()))
+    }
+
+    /// Sometimes an opener sits on its own line with the sentence under it.
+    func testAnOpenerOnItsOwnLineIsJoined() {
+        let split = """
+        Once upon a time,
+        There was a kettle that stayed warm for you.
+        Then
+        The kettle bit back, and you laughed.
+        In the end,
+        The kettle was still there, making tea.
+        """
+        let lines = TaleGemmaTelling.lines(from: split, for: closedKettleTale())
+        XCTAssertEqual(lines?.once, "Once upon a time, there was a kettle that stayed warm for you.")
+        XCTAssertEqual(lines?.then, "Then the kettle bit back, and you laughed.")
     }
 
     func testMarkdownAroundTheLinesIsForgiven() {

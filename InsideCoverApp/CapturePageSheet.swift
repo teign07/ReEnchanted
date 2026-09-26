@@ -10046,7 +10046,13 @@ struct CapturePageSheet: View {
                 tags: ["tale-bound", "tale:\(taleID)"],
                 temperature: 0.6
               ),
-              let lines = TaleGemmaTelling.lines(from: response, for: tale)
+              let lines = {
+                  let verdict = TaleGemmaTelling.judge(response, for: tale)
+                  if let reason = verdict.reason {
+                      appLog.info("Tale telling dropped for \(taleID, privacy: .public): \(reason, privacy: .private)")
+                  }
+                  return verdict.lines
+              }()
         else { return }
         var told = tale
         told.telling = lines
