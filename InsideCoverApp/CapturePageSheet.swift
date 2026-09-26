@@ -10032,9 +10032,13 @@ struct CapturePageSheet: View {
                     // reader's own "no" back to them as a finished story.
                     $0.livingTale = nil
                     $0.lastTaleClosedAt = Date()
+                    // A tale about one thing is refused as that thing, not as
+                    // its shape: nearly every thread tale is Three Times, and
+                    // barring the shape would bar them all.
+                    let refusal = tale.thread.map { "thread:\($0.id)" } ?? tale.shape.rawValue
                     var refused = $0.refusedTaleShapes ?? []
-                    if !refused.contains(tale.shape.rawValue) {
-                        refused.append(tale.shape.rawValue)
+                    if !refused.contains(refusal) {
+                        refused.append(refusal)
                     }
                     $0.refusedTaleShapes = refused
                 }

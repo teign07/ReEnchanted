@@ -15183,13 +15183,24 @@ struct ContentView: View {
             signals: taleSignals(now: now),
             now: now
         )
+        // One list holds both kinds of "no": an old refused shape, and a
+        // refused thread ("thread:<subject>"). A thread already told is not
+        // told again.
+        let refusals = vault.data.refusedTaleShapes ?? []
+        let barredThreads = Set(refusals.compactMap { entry -> String? in
+            entry.hasPrefix("thread:") ? String(entry.dropFirst("thread:".count)) : nil
+        }).union((vault.data.boundTales ?? []).compactMap { $0.thread?.id })
+        var threadNames: [String: String] = [:]
+        for anchor in anchorLedger where !anchor.name.isEmpty {
+            threadNames["anchor:\(anchor.id)"] = anchor.name
+        }
         let verdict = TaleGrammar.tend(
             current: vault.data.livingTale,
             witnesses: witnesses,
             lastClosedAt: vault.data.lastTaleClosedAt,
-            refusedShapes: Set(
-                (vault.data.refusedTaleShapes ?? []).compactMap(TaleShape.init(rawValue:))
-            ),
+            refusedShapes: Set(refusals.compactMap(TaleShape.init(rawValue:))),
+            names: threadNames,
+            barredThreadIDs: barredThreads,
             now: now
         )
         guard !verdict.isQuiet else { return }
@@ -15197,6 +15208,9 @@ struct ContentView: View {
         // One batched write: PlayerVault.data is a single observable property
         // and every field assignment rebuilds the desk.
         vault.mutate {
+            if verdict.dropped {
+                $0.livingTale = nil
+            }
             if let opened = verdict.opened {
                 $0.livingTale = opened
             }

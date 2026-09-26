@@ -96,121 +96,229 @@ final class TaleGrammarTests: XCTestCase {
         )
     }
 
-    func testBeatsWithoutASignatureAreACoincidenceNotAShape() {
-        // Spread over days, but carrying no shape's signature tags at all.
-        let pages = (0..<5).map { offset in
-            page(offset * 2, type: .mood, tags: ["hard"], text: "Another flat one, number \(offset).")
-        }
-        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(12))
-        let recognized = TaleGrammar.recognize(witnesses: witnesses, now: day(12), calendar: calendar)
-        XCTAssertNil(recognized, "Got \(recognized?.shape.rawValue ?? "nil") from undifferentiated pages")
-    }
-
-    // MARK: Recognition
-
-    private func unpaidGiftWitnesses() -> [TaleWitness] {
+    /// Pages spread over days that share no thing are not a tale, however
+    /// they might be framed.
+    func testUnrelatedPagesAreNotATale() {
         let pages = [
-            page(0, type: .mood, tags: ["hard"], text: "Nothing has felt like anything for a fortnight."),
-            page(2, type: .faeBargain, tags: ["fae", "bargain", "gift"], text: "It gave me the thing before I paid."),
-            page(5, type: .wonderCompass, tags: ["fae"], text: "I went to look for what it asked for.")
+            page(0, type: .diary, tags: [], text: "Rain all afternoon on the roof."),
+            page(2, type: .diary, tags: [], text: "The bus was late again."),
+            page(4, type: .diary, tags: [], text: "Found a feather on the step."),
+            page(6, type: .diary, tags: [], text: "Soup for dinner, too much salt."),
+            page(8, type: .diary, tags: [], text: "A dog barked at the postman.")
         ]
-        var signals = TaleSignals.none
-        signals.faeMarks = [
-            mark(1, id: "fae-offer-1", kind: "fae-offered", line: "A gift was set down in front of you.", tags: ["fae", "gift"]),
-            mark(3, id: "fae-accept-1", kind: "fae-accepted", line: "You took it under the old law.", tags: ["fae", "bargain"]),
-            mark(8, id: "fae-lapse-1", kind: "fae-lapsed", line: "The gift went cold.", tags: ["fae", "lapsed"])
-        ]
-        return TaleGrammar.witnesses(events: [], days: days(pages), signals: signals, now: day(10))
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(9))
+        XCTAssertNil(TaleGrammar.recognize(witnesses: witnesses, now: day(9), calendar: calendar))
     }
 
-    func testAnUnpaidGiftIsRecognisedFromRealBargainReceipts() {
-        let recognized = TaleGrammar.recognize(
-            witnesses: unpaidGiftWitnesses(), now: day(10), calendar: calendar
-        )
-        XCTAssertEqual(recognized?.shape, .unpaidGift)
+    // MARK: Threads
+    //
+    // A tale is one thing followed through the reader's own pages: a
+    // beginning, a middle and an end that are about the same kettle.
+
+    private func kettlePages() -> [BookPage] {
+        [
+            page(0, type: .diary, tags: [], text: "The kettle was still warm when I got back."),
+            page(1, type: .diary, tags: [], text: "Rain all afternoon on the roof."),
+            page(3, type: .souvenir, tags: [], text: "Burnt my thumb on the kettle, like an idiot, and laughed about it all the way to the bus."),
+            page(5, type: .diary, tags: [], text: "The bus was late again."),
+            page(7, type: .diary, tags: [], text: "Made tea in the kettle nobody else likes.")
+        ]
+    }
+
+    private func kettleWitnesses(extra: [BookPage] = [], now offset: Int = 8) -> [TaleWitness] {
+        TaleGrammar.witnesses(events: [], days: days(kettlePages() + extra), now: day(offset))
+    }
+
+    func testThreePagesAboutTheSameThingAreATale() {
+        let recognized = TaleGrammar.recognize(witnesses: kettleWitnesses(), now: day(8), calendar: calendar)
+        XCTAssertEqual(recognized?.thread?.id, "word:kettle")
+        XCTAssertEqual(recognized?.thread?.title, "The Tale of the Kettle")
+        XCTAssertEqual(recognized?.witnesses.count, 3, "only the pages about the kettle are in its tale")
     }
 
     func testRecognitionIsStableForTheSameEvidence() {
-        let witnesses = unpaidGiftWitnesses()
-        let first = TaleGrammar.recognize(witnesses: witnesses, now: day(10), calendar: calendar)
-        let second = TaleGrammar.recognize(witnesses: witnesses, now: day(10), calendar: calendar)
+        let first = TaleGrammar.recognize(witnesses: kettleWitnesses(), now: day(8), calendar: calendar)
+        let second = TaleGrammar.recognize(witnesses: kettleWitnesses(), now: day(8), calendar: calendar)
         XCTAssertEqual(first, second, "The same evidence named two different tales")
     }
 
-    func testATaleIsNamedFromTheReadersOwnWords() {
-        let witnesses = unpaidGiftWitnesses()
-        let title = TaleGrammar.title(for: .unpaidGift, witnesses: witnesses)
-        XCTAssertTrue(title.hasPrefix("The Unpaid Gift"))
-        XCTAssertNotEqual(title, "The Unpaid Gift", "The reader wrote lines; the title ignored them")
-    }
-
-    func testATaleWithNoReaderWordsKeepsThePlainName() {
-        var signals = TaleSignals.none
-        signals.faeMarks = [
-            mark(0, id: "m1", kind: "fae-offered", line: "A gift.", tags: ["fae"]),
-            mark(2, id: "m2", kind: "fae-accepted", line: "Taken.", tags: ["fae"]),
-            mark(4, id: "m3", kind: "fae-lapsed", line: "Cold.", tags: ["fae"]),
-            mark(6, id: "m4", kind: "fae-repaired", line: "Mended.", tags: ["fae"])
-        ]
-        let witnesses = TaleGrammar.witnesses(events: [], days: [], signals: signals, now: day(7))
-        XCTAssertEqual(TaleGrammar.title(for: .unpaidGift, witnesses: witnesses), "The Unpaid Gift")
-    }
-
-    // MARK: Opening, tending, closing
-
-    func testATaleOpensAndThenAcceptsNewWitnesses() {
-        let witnesses = unpaidGiftWitnesses()
-        let opening = TaleGrammar.tend(current: nil, witnesses: witnesses, now: day(10), calendar: calendar)
-        guard let tale = opening.opened else { return XCTFail("No tale opened") }
-        XCTAssertEqual(tale.shape, .unpaidGift)
-        XCTAssertTrue(tale.isOpen)
-
-        var grown = witnesses
-        grown.append(TaleWitness(
-            id: "w-extra", beat: .test, receiptID: "extra-1", receiptKind: "page",
-            evidence: "I went back to look again.", witnessedAt: day(11), tags: ["fae"]
-        ))
-        let tended = TaleGrammar.tend(current: tale, witnesses: grown, now: day(12), calendar: calendar)
-        XCTAssertEqual(tended.updated?.witnesses.count, tale.witnesses.count + 1)
-        XCTAssertNil(tended.closed)
-    }
-
-    func testATaleClosesWhenItsClosingBeatsAreWitnessed() {
-        let witnesses = unpaidGiftWitnesses()
-        guard let tale = TaleGrammar.tend(current: nil, witnesses: witnesses, now: day(10), calendar: calendar).opened else {
-            return XCTFail("No tale opened")
+    /// A place the reader anchored is a thread, called by the reader's own name.
+    func testAPlaceTheReaderAnchoredIsAThread() {
+        let texts = ["Sat and watched the ducks.", "Cold, but I stayed an hour.", "A heron, finally."]
+        let pages = texts.enumerated().map { index, text in
+            BookPage(
+                id: "bench-\(index)", type: .diary, createdAt: day(index * 3), promptText: "p",
+                userInput: text, tags: [], origin: .userAuthored,
+                context: BookPageContextSnapshot(at: day(index * 3), calendar: calendar, nearbyAnchorID: "a1")
+            )
         }
-        // The Unpaid Gift closes on transgression + consequence.
-        var grown = tale.witnesses
-        grown.append(TaleWitness(
-            id: "w-consequence", beat: .consequence, receiptID: "place-1",
-            receiptKind: "place-refused", evidence: "The market shut its stall to you.",
-            witnessedAt: day(11), tags: ["fae"]
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(8))
+        let named = TaleGrammar.recognize(
+            witnesses: witnesses, names: ["anchor:a1": "Riverside Bench"], now: day(8), calendar: calendar
+        )
+        XCTAssertEqual(named?.thread?.kind, .place)
+        XCTAssertEqual(named?.thread?.title, "The Tale of Riverside Bench")
+        // A place the reader never named is not something the Book can call it.
+        XCTAssertNil(TaleGrammar.recognize(witnesses: witnesses, now: day(8), calendar: calendar))
+    }
+
+    /// Real people are the reader's to speak of. A name is never a thread.
+    func testANameIsNotAThing() {
+        let pages = [
+            page(0, type: .diary, tags: [], text: "Saw Margaret at the station."),
+            page(3, type: .diary, tags: [], text: "Rang Margaret back."),
+            page(6, type: .diary, tags: [], text: "Margaret laughed at my coat.")
+        ]
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(7))
+        let recognized = TaleGrammar.recognize(witnesses: witnesses, now: day(7), calendar: calendar)
+        XCTAssertFalse(recognized?.thread?.id.contains("margaret") ?? false)
+    }
+
+    /// A word in nearly every page is the furniture of the reader's life.
+    func testAWordInEveryPageIsFurnitureNotATale() {
+        let pages = (0..<12).map { page($0 * 2, type: .diary, tags: [], text: "Coffee again, number \($0).") }
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(30))
+        XCTAssertNil(TaleGrammar.recognize(witnesses: witnesses, now: day(30), calendar: calendar))
+    }
+
+    func testARefusedThreadIsNotToldAgain() {
+        XCTAssertNil(TaleGrammar.recognize(
+            witnesses: kettleWitnesses(), barredThreadIDs: ["word:kettle"], now: day(8), calendar: calendar
         ))
-        let verdict = TaleGrammar.tend(current: tale, witnesses: grown, now: day(12), calendar: calendar)
-        XCTAssertNotNil(verdict.closed)
-        XCTAssertNotNil(verdict.closed?.ending)
+    }
+
+    // MARK: Opening, growing, ending
+
+    private func openKettleTale() -> LivingTale {
+        TaleGrammar.tend(current: nil, witnesses: kettleWitnesses(), now: day(8), calendar: calendar).opened!
+    }
+
+    func testATaleGrowsOnlyWithItsOwnThread() {
+        let tale = openKettleTale()
+        let more = kettleWitnesses(extra: [
+            page(9, type: .diary, tags: [], text: "Descaled the kettle at last."),
+            page(9, type: .mood, tags: [], text: "The bus was late, again, obviously.")
+        ], now: 10)
+        let grown = TaleGrammar.tend(current: tale, witnesses: more, now: day(10), calendar: calendar)
+        XCTAssertEqual(grown.updated?.witnesses.count, tale.witnesses.count + 1)
+        XCTAssertNil(grown.closed)
+    }
+
+    func testATaleEndsWhenItsThreadGoesQuiet() {
+        let tale = openKettleTale()
+        let verdict = TaleGrammar.tend(current: tale, witnesses: kettleWitnesses(), now: day(13), calendar: calendar)
+        XCTAssertEqual(verdict.closed?.ending, .stillHere)
         XCTAssertFalse(verdict.closed?.isOpen ?? true)
     }
 
-    func testWalkingAwayIsARealEnding() {
-        guard let tale = TaleGrammar.tend(
-            current: nil, witnesses: unpaidGiftWitnesses(), now: day(10), calendar: calendar
-        ).opened else { return XCTFail("No tale opened") }
+    func testATaleEndsOnceItHasPlenty() {
+        let tale = openKettleTale()
+        let more = kettleWitnesses(extra: [
+            page(8, type: .diary, tags: [], text: "The kettle whistled like a train."),
+            page(9, type: .diary, tags: [], text: "Descaled the kettle at last.")
+        ], now: 9)
+        XCTAssertNotNil(TaleGrammar.tend(current: tale, witnesses: more, now: day(9), calendar: calendar).closed)
+    }
 
-        let muchLater = day(10 + 25)
-        let verdict = TaleGrammar.tend(
-            current: tale, witnesses: tale.witnesses, now: muchLater, calendar: calendar
-        )
-        XCTAssertEqual(verdict.closed?.ending, .abandoned)
+    func testAThingThatWentMissingEndsThatWay() {
+        let tale = openKettleTale()
+        let more = kettleWitnesses(extra: [
+            page(9, type: .diary, tags: [], text: "The kettle broke. Boiling water in a pan like a pioneer.")
+        ], now: 9)
+        let grown = TaleGrammar.tend(current: tale, witnesses: more, now: day(9), calendar: calendar).updated!
+        let closed = TaleGrammar.tend(current: grown, witnesses: more, now: day(15), calendar: calendar).closed
+        XCTAssertEqual(closed?.ending, .returnedEmpty)
+        XCTAssertTrue(TaleBinding.body(for: closed!).contains("In the end, the kettle wasn't there any more."))
+    }
+
+    /// "No heron today" is the heron not being there, not the heron still there.
+    func testTheThingNotBeingThereIsHowItEnds() {
+        let tale = openKettleTale()
+        let more = kettleWitnesses(extra: [
+            page(9, type: .diary, tags: [], text: "No kettle this morning. Somebody borrowed it.")
+        ], now: 9)
+        let grown = TaleGrammar.tend(current: tale, witnesses: more, now: day(9), calendar: calendar).updated!
+        XCTAssertEqual(TaleGrammar.ending(for: grown), .returnedEmpty)
     }
 
     func testOnlyOneTaleIsOpenAtATime() {
-        guard let tale = TaleGrammar.tend(
-            current: nil, witnesses: unpaidGiftWitnesses(), now: day(10), calendar: calendar
-        ).opened else { return XCTFail("No tale opened") }
-        let verdict = TaleGrammar.tend(current: tale, witnesses: unpaidGiftWitnesses(), now: day(10), calendar: calendar)
+        let tale = openKettleTale()
+        let verdict = TaleGrammar.tend(current: tale, witnesses: kettleWitnesses(), now: day(8), calendar: calendar)
         XCTAssertNil(verdict.opened, "A second tale opened while one was already running")
+    }
+
+    /// A tale from the old grammar has no thread. It is put down, not bound.
+    func testAnOldTaleWithNoThreadIsPutDownQuietly() {
+        let old = LivingTale(
+            id: "old", shape: .forbiddenDoor, title: "The Forbidden Door",
+            witnesses: [], openedAt: day(0), lastWitnessedAt: day(1),
+            closedAt: nil, ending: nil, boundAt: nil
+        )
+        let verdict = TaleGrammar.tend(current: old, witnesses: kettleWitnesses(), now: day(8), calendar: calendar)
+        XCTAssertTrue(verdict.dropped)
+        XCTAssertNil(verdict.closed)
+        XCTAssertNil(verdict.scar)
+    }
+
+    // MARK: The telling
+
+    private func closedKettleTale() -> LivingTale {
+        TaleGrammar.tend(current: openKettleTale(), witnesses: kettleWitnesses(), now: day(13), calendar: calendar).closed!
+    }
+
+    func testTheBoundTaleIsOneThingInThreeMoments() {
+        let body = TaleBinding.body(for: closedKettleTale())
+        let beats = [
+            "Once upon a time, there was a kettle.",
+            "The kettle was still warm when I got back.",
+            "Then the kettle came back.",
+            "Burnt my thumb on the kettle",
+            "In the end, the kettle was still there.",
+            "Made tea in the kettle nobody else likes."
+        ]
+        let positions = beats.map { body.range(of: $0)?.lowerBound }
+        XCTAssertFalse(positions.contains(where: { $0 == nil }), "missing a moment: \(body)")
+        XCTAssertEqual(positions.compactMap { $0 }, positions.compactMap { $0 }.sorted(), "told out of order")
+        XCTAssertFalse(body.contains("bus was late"), "a page about something else got into the tale")
+        XCTAssertEqual(TaleBinding.headline(for: closedKettleTale()), "The Tale of the Kettle")
+    }
+
+    /// With more than three, the middle is the fullest page in between.
+    func testTheMiddleIsTheFullestPageInBetween() {
+        var tale = closedKettleTale()
+        tale.witnesses.append(TaleWitness(
+            id: "w-short", beat: .test, receiptID: "short", receiptKind: "reader-page",
+            evidence: "Kettle.", witnessedAt: day(4), tags: [], subjects: ["word:kettle"]
+        ))
+        let moments = TaleBinding.threadMoments(tale)
+        XCTAssertTrue(moments?.middle.evidence.hasPrefix("Burnt my thumb") == true)
+        XCTAssertTrue(TaleBinding.body(for: tale).contains("Then the kettle kept coming back."))
+    }
+
+    /// A tale without a thread is never handed over: it was a row of pages.
+    func testATaleWithoutAThreadIsNeverBound() {
+        var tale = closedKettleTale()
+        tale.thread = nil
+        var inputs = BookSourceInputs()
+        inputs.boundTales = [tale]
+        let archiveDay = BookDay(id: "today", date: day(14), pages: [])
+        XCTAssertTrue(TaleBoundPageSourceAdapter().candidates(
+            for: archiveDay, context: .make(for: archiveDay), inputs: inputs, now: day(14)
+        ).isEmpty)
+    }
+
+    /// Every line the old telling uses reads after its opener without a
+    /// capital in the middle of a sentence.
+    func testEveryActLineFollowsItsOpener() {
+        for shape in TaleShape.allCases {
+            for line in [shape.once, shape.then, shape.climax] {
+                XCTAssertFalse(line.isEmpty)
+                XCTAssertTrue(line.first!.isLowercase || line.hasPrefix("I "), "\(shape): \(line)")
+            }
+        }
+        for ending in TaleEnding.allCases {
+            XCTAssertTrue(ending.closingLine.first!.isLowercase, "\(ending): \(ending.closingLine)")
+        }
     }
 
     // MARK: Bound Page handoff
@@ -233,47 +341,29 @@ final class TaleGrammarTests: XCTestCase {
     }
 
     func testManualBoundTaleHandsOverTheFinishedTaleWhole() {
-        let witness = TaleWitness(
-            id: "witness-1",
-            beat: .crossing,
-            receiptID: "page-1",
-            receiptKind: "page",
-            evidence: "I went through the little green door.",
-            witnessedAt: day(2),
-            tags: ["boundary"]
-        )
-        let tale = LivingTale(
-            id: "finished-tale",
-            shape: .forbiddenDoor,
-            title: "The Little Green Door",
-            witnesses: [witness],
-            openedAt: day(0),
-            lastWitnessedAt: day(2),
-            closedAt: day(5),
-            ending: .imperfect,
-            boundAt: nil
-        )
+        let tale = closedKettleTale()
         var inputs = BookSourceInputs()
         // `boundTales` is what the adapter reads; `unboundTale` is derived from
         // it at the app layer and only carries the scar lookup.
         inputs.boundTales = [tale]
         inputs.unboundTale = tale
-        let archiveDay = BookDay(id: "today", date: day(6), pages: [])
+        let archiveDay = BookDay(id: "today", date: day(14), pages: [])
 
         let surface = TaleBoundPageSourceAdapter().manualSurface(
             for: archiveDay,
             context: .make(for: archiveDay),
             inputs: inputs,
-            now: day(6)
+            now: day(14)
         )
 
-        XCTAssertEqual(surface.id, "tale-bound-finished-tale")
+        XCTAssertEqual(surface.id, "tale-bound-\(tale.id)")
         XCTAssertEqual(surface.renderStyle, .loreLetter)
         XCTAssertEqual(surface.payload.metadata["taleID"], tale.id)
+        XCTAssertEqual(surface.payload.metadata["taleThreadID"], "word:kettle")
         XCTAssertNil(surface.payload.metadata["taleUnavailable"])
         XCTAssertNil(surface.payload.metadata["placeholder"])
-        XCTAssertTrue(surface.payload.body.contains(witness.evidence))
-        XCTAssertTrue(surface.payload.body.contains("I'm not going to ask you anything about it."))
+        XCTAssertTrue(surface.payload.body.contains("The kettle was still warm when I got back."))
+        XCTAssertEqual(surface.payload.headline, "The Tale of the Kettle")
     }
 
     func testAlreadyHandedOverTaleCannotSurfaceAgain() {
@@ -305,7 +395,7 @@ final class TaleGrammarTests: XCTestCase {
     func testTheReaderIsAllowedToBeOutOfAStory() {
         let verdict = TaleGrammar.tend(
             current: nil,
-            witnesses: unpaidGiftWitnesses(),
+            witnesses: kettleWitnesses(now: 10),
             lastClosedAt: day(9),
             now: day(10),
             calendar: calendar

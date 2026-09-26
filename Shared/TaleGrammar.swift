@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 
 // MARK: - The Tale Grammar
 //
@@ -64,6 +67,31 @@ enum TaleBeat: String, Codable, Equatable, CaseIterable {
     }
 }
 
+/// The three parts every fairy tale has. The nine beats are how the grammar
+/// *sees*; the acts are how a tale is *told*. A tale needs a beginning and a
+/// climax that comes after it, or it is a list of things that happened.
+enum TaleAct: String, Codable, Equatable, CaseIterable {
+    /// Something was missing, or a way was taken.
+    case beginning
+    /// Somebody turned up, a test was set, a price was named.
+    case middle
+    /// The part that can't be taken back: the cost, or what followed.
+    case climax
+    /// How it came out: a change, or a way home.
+    case end
+}
+
+extension TaleBeat {
+    var act: TaleAct {
+        switch self {
+        case .lack, .crossing: return .beginning
+        case .donor, .test, .price: return .middle
+        case .transgression, .consequence: return .climax
+        case .transformation, .ret: return .end
+        }
+    }
+}
+
 extension TaleBeat {
     /// The braid thread that dramatises this beat on a nightly page.
     ///
@@ -114,6 +142,10 @@ struct TaleWitness: Codable, Equatable, Identifiable {
     var witnessedAt: Date
     /// Tags carried from the receipt, used for shape recognition.
     var tags: [String]
+    /// What this receipt is *about*: `anchor:<id>` for a place the reader
+    /// anchored, `word:<noun>` for a thing the reader wrote about. A tale is
+    /// one of these followed through time. Optional so older vaults decode.
+    var subjects: [String]? = nil
 
     var isReaderAuthored: Bool {
         receiptKind == "reader-page" || receiptKind == "keep"
@@ -191,18 +223,68 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
         }
     }
 
+    /// Plain enough for a child to say, the way the old tales are named.
     var commonName: String {
         switch self {
-        case .forbiddenDoor: return "The Forbidden Door"
-        case .unpaidGift: return "The Unpaid Gift"
-        case .threeEncounters: return "The Three Encounters"
-        case .falseName: return "The False Name"
-        case .helpfulStranger: return "The Helpful Stranger"
-        case .objectRefused: return "The Object That Refused Its Use"
-        case .promiseMadeTooEasily: return "The Promise Made Too Easily"
-        case .roadReturnsDifferently: return "The Road That Returns Differently"
-        case .houseUnderObligation: return "The House Under an Obligation"
-        case .lostThingNotWantingFound: return "The Lost Thing That Does Not Want Finding"
+        case .forbiddenDoor: return "The Door You Weren't to Open"
+        case .unpaidGift: return "The Gift Nobody Paid For"
+        case .threeEncounters: return "Three Times"
+        case .falseName: return "The Wrong Name"
+        case .helpfulStranger: return "The Stranger Who Helped"
+        case .objectRefused: return "The Thing That Wouldn't Work"
+        case .promiseMadeTooEasily: return "The Promise Made Too Fast"
+        case .roadReturnsDifferently: return "The Road That Came Back Different"
+        case .houseUnderObligation: return "The House That Was Owed"
+        case .lostThingNotWantingFound: return "The Lost Thing That Didn't Want Finding"
+        }
+    }
+
+    /// How this tale begins, after "Once upon a time, ".
+    var once: String {
+        switch self {
+        case .forbiddenDoor: return "there was a door you'd decided not to open."
+        case .unpaidGift: return "somebody gave you something before you'd paid for it."
+        case .threeEncounters: return "something turned up."
+        case .falseName: return "I called you by a name."
+        case .helpfulStranger: return "you were going along, needing something you didn't have a word for."
+        case .objectRefused: return "there was a thing you meant to use."
+        case .promiseMadeTooEasily: return "you said yes really fast."
+        case .roadReturnsDifferently: return "you set off."
+        case .houseUnderObligation: return "you went into a place."
+        case .lostThingNotWantingFound: return "you put something down on purpose, and left it."
+        }
+    }
+
+    /// The middle, after "Then ". Only said when the middle was witnessed.
+    var then: String {
+        switch self {
+        case .forbiddenDoor: return "you kept ending up in front of it."
+        case .unpaidGift: return "the gift sat there, and so did the price."
+        case .threeEncounters: return "it turned up again."
+        case .falseName: return "the name didn't fit. You knew before I did."
+        case .helpfulStranger: return "somebody turned up who had no reason to."
+        case .objectRefused: return "it wouldn't do what it was for."
+        case .promiseMadeTooEasily: return "the yes sat there, waiting."
+        case .roadReturnsDifferently: return "you went back the same way."
+        case .houseUnderObligation: return "the place started keeping an account in your name."
+        case .lostThingNotWantingFound: return "it came back anyway."
+        }
+    }
+
+    /// The climax, after "And then ". Always said: a tale has one or it isn't
+    /// a tale.
+    var climax: String {
+        switch self {
+        case .forbiddenDoor: return "something happened at that door that can't be taken back."
+        case .unpaidGift: return "the price came due."
+        case .threeEncounters: return "it turned up a third time, and three is when it counts."
+        case .falseName: return "the name broke."
+        case .helpfulStranger: return "the help turned out to have a price. Help always does."
+        case .objectRefused: return "it refused properly, and that changed things."
+        case .promiseMadeTooEasily: return "the promise came to collect."
+        case .roadReturnsDifferently: return "it wasn't the same road any more."
+        case .houseUnderObligation: return "the account came due."
+        case .lostThingNotWantingFound: return "it wouldn't be put down again."
         }
     }
 
@@ -211,25 +293,25 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     var recognitionLine: String {
         switch self {
         case .forbiddenDoor:
-            return "There was a door you had agreed not to open. I watched you stand in front of it for a while, and then I watched you not stand in front of it."
+            return "There was a door. I watched you stand in front of it, and I didn't say a word."
         case .unpaidGift:
-            return "You were given something before you had paid for it. I've read that opening a thousand times and it has never once meant generosity, and I said nothing, because saying something isn't what I am for at that stage."
+            return "You got given something before you'd paid. In the old tales that's never just being kind. I kept quiet."
         case .threeEncounters:
-            return "Three times. I let the first one go, I made a note of the second, and by the third I had stopped pretending I hadn't been counting."
+            return "Three times. I let the first one go. I wrote down the second. By the third I'd stopped pretending I wasn't counting."
         case .falseName:
-            return "I named you wrong. You knew before I did, and you were polite about it for longer than you needed to be."
+            return "I called you the wrong name. You knew before I did, and you were polite about it for ages."
         case .helpfulStranger:
-            return "Somebody turned up who had no reason to. In my experience that's never free, and it isn't always a trick either."
+            return "Somebody turned up who didn't have to. I've never known that to be free. It isn't always a trick, either."
         case .objectRefused:
-            return "A thing declined to be used the way it was meant to be used. I'd like it on record that I didn't put it up to this."
+            return "A thing wouldn't do what it was for. I want it written down that I didn't put it up to that."
         case .promiseMadeTooEasily:
-            return "You said yes very fast. I let you, because saying so at the time would have made me a different sort of book."
+            return "You said yes really fast. I let you. Stopping you would've made me a different book."
         case .roadReturnsDifferently:
-            return "You went back. It wasn't the same, and I don't think it was the place that changed."
+            return "You went back. It wasn't the same. I don't think the place was the thing that changed."
         case .houseUnderObligation:
-            return "A place has been quietly running up an account in your name. Houses do that, and I only spotted it late, which I mention so you know I am not always ahead of this."
+            return "A place was keeping an account in your name. Places do that. I only spotted it late."
         case .lostThingNotWantingFound:
-            return "Something came back that you had put down on purpose. I didn't send it. It didn't want finding and it turned up anyway, and I think that's the answer rather than the interruption."
+            return "Something came back that you'd put down on purpose. I didn't send it. It came anyway."
         }
     }
 }
@@ -250,6 +332,9 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
     case returnedEmpty
     /// The reader said no, deliberately, and the no held.
     case refused
+    /// The thing was still there at the end. Most tales about a bench end
+    /// this way, and it is a good ending.
+    case stillHere
 
     var label: String {
         switch self {
@@ -259,31 +344,34 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
         case .imperfect: return "Finished badly"
         case .returnedEmpty: return "Came back empty"
         case .refused: return "Refused"
+        case .stillHere: return "Still there"
         }
     }
 
     /// The Book's own last word on the tale. Never congratulatory, never
-    /// disappointed: a tale is not a score.
+    /// disappointed: a tale is not a score. Each reads after "In the end, ".
     var closingLine: String {
         switch self {
         case .paid:
-            return "It was paid. Not gracefully, but paid, and I've read enough of these to tell you that's the only part the old law actually checks."
+            return "it got paid. Not neatly, but paid. That's the only part the old law checks."
         case .abandoned:
-            return "You put it down and didn't pick it back up. That is an ending. Most of the tales I know end this way and the tellers leave that part out."
+            return "you put it down and walked away. That's an ending too. Lots of the old tales end that way, and the tellers leave it out."
         case .transformed:
-            return "It turned into something else on the way through, and I can't find a version of this where it turns back. I did look."
+            return "something turned into something else, and it can't turn back. I looked."
         case .imperfect:
-            return "It finished badly and it finished. I'd rather have that than a thing left open forever out of tidiness."
+            return "it finished badly. It still finished. I'll take that over a door left open forever."
         case .returnedEmpty:
-            return "You went, and you came back with nothing, and I am writing the nothing down. Empty-handed is a real result. The tales that pretend otherwise are lying."
+            return "you went, and you came back with nothing. I'm writing the nothing down. Empty hands are a real ending."
         case .refused:
-            return "You said no and meant it. I've read a great many stories about people who couldn't do that."
+            return "you said no, and you meant it, and the no held."
+        case .stillHere:
+            return "it was still there. Lots of tales end with everybody going home. This one ended with it still in your days."
         }
     }
 
     var isSettled: Bool {
         switch self {
-        case .paid, .transformed, .imperfect, .refused: return true
+        case .paid, .transformed, .imperfect, .refused, .stillHere: return true
         case .abandoned, .returnedEmpty: return false
         }
     }
@@ -325,6 +413,36 @@ enum TaleScarSubject: String, Codable, Equatable {
     case theReader
 }
 
+/// What a tale is about: one thing that kept turning up in the reader's own
+/// pages, across real days. This is what makes three pages one story instead
+/// of three pages: they are about the same bench, or the same kettle.
+struct TaleThread: Codable, Equatable {
+    enum Kind: String, Codable, Equatable {
+        /// A place the reader anchored, called by the reader's own name for it.
+        case place
+        /// A thing the reader kept writing about, in their own word for it.
+        case thing
+    }
+
+    /// `anchor:<id>` or `word:<noun>`.
+    var id: String
+    /// "Riverside Bench" (the reader's own name) or "kettle".
+    var name: String
+    var kind: Kind
+
+    /// How the tale says it: "the kettle", or the place's own name.
+    var spoken: String {
+        kind == .thing ? "the \(name)" : name
+    }
+
+    var title: String {
+        switch kind {
+        case .thing: return "The Tale of the \(name.prefix(1).uppercased() + name.dropFirst())"
+        case .place: return "The Tale of \(name)"
+        }
+    }
+}
+
 /// A tale the reader is currently inside, or has finished. Only one is ever
 /// open: fairy tales are singular, and a reader inside three at once is inside
 /// none of them.
@@ -342,6 +460,10 @@ struct LivingTale: Codable, Equatable, Identifiable {
     /// Set when the tale has been shown to the reader as a bound page, so it
     /// is never bound twice.
     var boundAt: Date?
+    /// The one thing the tale is about. Tales without one were recognised by
+    /// the old beat grammar and read as unrelated pages in a row; they are
+    /// never bound.
+    var thread: TaleThread? = nil
 
     var isOpen: Bool { closedAt == nil }
 
@@ -411,6 +533,8 @@ struct TaleSignals: Equatable {
     var objectMarks: [Mark] = []
     /// Anything else the world wrote down: pact dispatches, faults, loyalties.
     var worldMarks: [Mark] = []
+    /// What to call a subject: `anchor:<id>` to the reader's name for it.
+    var subjectNames: [String: String] = [:]
 
     var all: [Mark] {
         faeMarks + workingMarks + placeMarks + roleMarks + objectMarks + worldMarks
@@ -430,6 +554,15 @@ enum TaleGrammar {
     static let minimumDistinctDays = 3
     /// And at least this many witnessed beats.
     static let minimumWitnesses = 4
+    /// And at least this many in the reader's own hand.
+    static let minimumReaderBeats = 2
+    /// A thread needs this many of the reader's own pages: a beginning, a
+    /// middle and an end.
+    static let minimumAppearances = 3
+    /// A running tale ends when its thread has gone quiet this long, or when it
+    /// has this many appearances. Three is a tale. Five is plenty.
+    static let quietInterval: TimeInterval = 5 * 86_400
+    static let maximumAppearances = 5
     /// A tale with nothing added for this long has been walked away from.
     static let staleInterval: TimeInterval = 21 * 86_400
     /// How far back the witnessing looks. Older receipts belong to older tales.
@@ -479,8 +612,11 @@ enum TaleGrammar {
     /// so these are the witnesses a bound tale leads with.
     static func witness(from page: BookPage) -> TaleWitness? {
         let tags = Set(page.tags.map { $0.lowercased() })
-        guard let beat = beat(forPageType: page.type, tags: tags) else { return nil }
         let readerText = page.readerAuthoredTextForAnalysis
+        // Any page in the reader's own words can carry a thread, whatever kind
+        // of page it was. The beat only flavours the tale; the thread makes it.
+        guard let beat = beat(forPageType: page.type, tags: tags)
+            ?? (readerText == nil ? nil : .test) else { return nil }
         let fictionChoice = page.readerFictionChoices.first
         let text = readerText
             ?? fictionChoice
@@ -502,7 +638,8 @@ enum TaleGrammar {
             receiptKind: receiptKind,
             evidence: text,
             witnessedAt: page.createdAt,
-            tags: Array(tags)
+            tags: Array(tags),
+            subjects: TaleSubjects.subjects(of: page, readerText: readerText)
         )
     }
 
@@ -611,6 +748,109 @@ enum TaleGrammar {
     }
 }
 
+// MARK: - Threads
+//
+// What a page is about, in the only two ways the Book can know without
+// guessing: the place the reader anchored it near, and the things they named
+// in their own words. Nouns only. "I went back" and "I went out" share a verb,
+// not a thing; "the kettle" and "the kettle again" share a kettle.
+
+enum TaleSubjects {
+    static func subjects(of page: BookPage, readerText: String?) -> [String] {
+        var found: [String] = []
+        if let anchor = page.context?.nearbyAnchorID?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            found.append("anchor:\(anchor)")
+        }
+        if let readerText {
+            found += things(in: readerText, cacheKey: page.id).map { "word:\($0)" }
+        }
+        return found
+    }
+
+    /// The things in a line of the reader's: common nouns, in their base form,
+    /// never a name. Real people are the reader's to speak of, and a tale is
+    /// no place to make them a character.
+    ///
+    /// Cached by page, because tending runs after every keep and the archive
+    /// does not change underneath a page that is already kept.
+    static func things(in text: String, cacheKey: String? = nil) -> [String] {
+        let key = cacheKey.map { "\($0)|\(text.count)|\(text.hashValue)" }
+        if let key {
+            lock.lock()
+            let hit = cache[key]
+            lock.unlock()
+            if let hit { return hit }
+        }
+        let result = extract(from: text)
+        if let key {
+            lock.lock()
+            if cache.count > 4_000 { cache.removeAll(keepingCapacity: true) }
+            cache[key] = result
+            lock.unlock()
+        }
+        return result
+    }
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: [String]] = [:]
+
+    private static func extract(from text: String) -> [String] {
+        var found = Set<String>()
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass, .nameType, .lemma])
+        tagger.string = text
+        tagger.enumerateTags(
+            in: text.startIndex..<text.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitWhitespace, .omitPunctuation, .joinNames]
+        ) { tag, range in
+            guard tag == .noun else { return true }
+            let token = String(text[range])
+            // Names are not things.
+            let (nameTag, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .nameType)
+            if let nameTag, [.personalName, .placeName, .organizationName].contains(nameTag) { return true }
+            // A capital in the middle of a sentence is a name the tagger missed.
+            if let first = token.first, first.isUppercase, !startsSentence(range.lowerBound, in: text) { return true }
+            let (lemmaTag, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma)
+            let word = (lemmaTag?.rawValue ?? token).lowercased()
+                .trimmingCharacters(in: .punctuationCharacters)
+            if word.count >= 3, word.allSatisfy(\.isLetter), !stopwords.contains(word) {
+                found.insert(word)
+            }
+            return true
+        }
+        #endif
+        return found.sorted()
+    }
+
+    private static func startsSentence(_ index: String.Index, in text: String) -> Bool {
+        var cursor = index
+        while cursor > text.startIndex {
+            cursor = text.index(before: cursor)
+            let character = text[cursor]
+            if character.isWhitespace || character == "\"" || character == "\u{201C}" { continue }
+            return ".!?\n".contains(character)
+        }
+        return true
+    }
+
+    /// Nouns that are the weather of anybody's days, not a thing in them.
+    static let stopwords: Set<String> = [
+        "day", "days", "today", "tonight", "tomorrow", "yesterday", "morning", "afternoon",
+        "evening", "night", "week", "weekend", "month", "year", "hour", "minute", "time",
+        "moment", "while", "lot", "bit", "thing", "stuff", "way", "kind", "sort", "part",
+        "life", "world", "people", "person", "everyone", "someone", "anyone", "nobody",
+        "somebody", "anything", "something", "nothing", "everything", "one", "number",
+        "work", "home", "place", "feeling", "mood", "idea", "thought", "fact", "reason",
+        "point", "end", "start", "side", "lot", "need", "want", "fine", "okay", "yes",
+        "page", "book", "word", "line", "sentence", "note", "story", "tale", "question",
+        "answer", "list", "plan", "problem", "job", "task", "use", "try", "sense",
+        "self", "mind", "head", "body", "energy", "stress", "tired", "sleep",
+        "week", "hand", "eye", "face", "voice", "name", "course", "case", "question"
+    ]
+}
+
 // MARK: - Recognition
 //
 // Which shape, if any, these witnesses have. The Book prefers the shape whose
@@ -623,74 +863,101 @@ extension TaleGrammar {
         var shape: TaleShape
         var confidence: Int
         var witnesses: [TaleWitness]
+        var thread: TaleThread? = nil
     }
 
-    /// Scores every shape against the witnesses and returns the best, if any
-    /// clears the floor. Score is deliberately simple and auditable: opening
-    /// beats present, signature tags carried, spread across real days.
+    /// Finds the one thing that has been turning up in the reader's own pages
+    /// across real days, and follows it. No thread, no tale: three unrelated
+    /// pages in a row are not a story however well they are framed.
+    ///
+    /// The shape is the flavour, read off what the thread's pages carry. When
+    /// nothing more particular shows, a thing that came back three times is the
+    /// oldest shape there is.
     static func recognize(
         witnesses: [TaleWitness],
+        names: [String: String] = [:],
+        barredThreadIDs: Set<String> = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Recognition? {
-        guard witnesses.count >= minimumWitnesses else { return nil }
-        let days = Set(witnesses.map { calendar.startOfDay(for: $0.witnessedAt) })
-        guard days.count >= minimumDistinctDays else { return nil }
+        let own = witnesses.filter(\.isReaderAuthored)
+        guard own.count >= minimumAppearances else { return nil }
 
-        let beats = Set(witnesses.map(\.beat))
-        let tags = Set(witnesses.flatMap(\.tags).map { $0.lowercased() })
-
-        let scored: [Recognition] = TaleShape.allCases.compactMap { shape in
-            guard shape.openingBeats.isSubset(of: beats) else { return nil }
-            let signatureHits = shape.signatureTags.intersection(tags).count
-            // A shape with no signature evidence is a coincidence of beats, not
-            // a tale. The Helpful Stranger is the one shape thin enough to
-            // stand on its beats alone, and it still needs the donor receipt.
-            guard signatureHits > 0 || shape == .helpfulStranger else { return nil }
-
-            let relevant = witnesses.filter { witness in
-                shape.openingBeats.contains(witness.beat)
-                    || !shape.signatureTags.isDisjoint(with: Set(witness.tags.map { $0.lowercased() }))
+        var bySubject: [String: [TaleWitness]] = [:]
+        for witness in own {
+            for subject in Set(witness.subjects ?? []) where !barredThreadIDs.contains(subject) {
+                bySubject[subject, default: []].append(witness)
             }
-            let confidence = signatureHits * 20
-                + shape.openingBeats.count * 10
-                + min(20, days.count * 4)
-                + min(15, relevant.filter(\.isReaderAuthored).count * 5)
-            return Recognition(shape: shape, confidence: confidence, witnesses: witnesses)
         }
 
-        return scored
-            .sorted { left, right in
-                if left.confidence != right.confidence { return left.confidence > right.confidence }
-                // Stable tie-break, so the same evidence always names the same
-                // tale rather than flickering between two readings of it.
-                return left.shape.rawValue < right.shape.rawValue
+        var best: (thread: TaleThread, witnesses: [TaleWitness], score: Int)?
+        for (key, found) in bySubject {
+            let days = Set(found.map { calendar.startOfDay(for: $0.witnessedAt) })
+            guard days.count >= minimumDistinctDays, found.count >= minimumAppearances else { continue }
+            // A word in nearly every page is the furniture of the reader's
+            // life, not a thing that happened in it.
+            if key.hasPrefix("word:"), own.count >= 10,
+               Double(found.count) / Double(own.count) > 0.4 { continue }
+            guard let thread = thread(for: key, names: names) else { continue }
+            let span = (found.map(\.witnessedAt).max() ?? now).timeIntervalSince(found.map(\.witnessedAt).min() ?? now)
+            let score = days.count * 10
+                + min(found.count, maximumAppearances) * 3
+                + (thread.kind == .place ? 12 : 0)
+                + min(30, Int(span / 86_400))
+            if let current = best {
+                if score > current.score || (score == current.score && key < current.thread.id) {
+                    best = (thread, found, score)
+                }
+            } else {
+                best = (thread, found, score)
             }
-            .first
+        }
+        guard let chosen = best else { return nil }
+        let sorted = chosen.witnesses.sorted { $0.witnessedAt < $1.witnessedAt }
+        return Recognition(
+            shape: shape(for: sorted),
+            confidence: chosen.score,
+            witnesses: sorted,
+            thread: chosen.thread
+        )
     }
 
-    /// Names the tale out of the reader's own material. The Book will not name
-    /// a tale until the reader has written something inside it: a title
-    /// invented from nothing would be the Book writing their life for them.
+    static func thread(for key: String, names: [String: String]) -> TaleThread? {
+        if key.hasPrefix("anchor:") {
+            guard let name = names[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else { return nil }
+            return TaleThread(id: key, name: name, kind: .place)
+        }
+        if key.hasPrefix("word:") {
+            let word = String(key.dropFirst("word:".count))
+            guard !word.isEmpty else { return nil }
+            return TaleThread(id: key, name: word, kind: .thing)
+        }
+        return nil
+    }
+
+    /// The shape whose signature the thread's own pages carry most, or Three
+    /// Times when none does.
+    static func shape(for witnesses: [TaleWitness]) -> TaleShape {
+        let tags: Set<String> = Set(witnesses.flatMap(\.tags).map { $0.lowercased() })
+        // Written out rather than chained: the fluent version is too much for
+        // CI's type-checker budget.
+        var best: TaleShape = .threeEncounters
+        var bestHits = 0
+        for shape in TaleShape.allCases {
+            let hits: Int = shape.signatureTags.intersection(tags).count
+            if hits > bestHits || (hits == bestHits && hits > 0 && shape.rawValue < best.rawValue) {
+                best = shape
+                bestHits = hits
+            }
+        }
+        return best
+    }
+
+    /// A tale is called by its shape, the way the old ones are: "The Wrong
+    /// Name", not the first clause of whatever the reader wrote last. The
+    /// reader's own words are inside the tale, where they make sense.
     static func title(for shape: TaleShape, witnesses: [TaleWitness]) -> String {
-        let readerWords = witnesses
-            .filter(\.isReaderAuthored)
-            .map(\.evidence)
-            .filter { $0.count >= 12 }
-        guard let source = readerWords.last else { return shape.commonName }
-
-        // The most concrete noun phrase available: the reader's own opening
-        // clause, trimmed to something that fits on a spine.
-        let clause = source
-            .components(separatedBy: CharacterSet(charactersIn: ".,;:—-\n"))
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .first { $0.count >= 8 } ?? source
-
-        let words = clause.split(separator: " ")
-        let spine = words.count > 8 ? words.prefix(8).joined(separator: " ") : clause
-        let cleaned = spine.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else { return shape.commonName }
-        return "\(shape.commonName): \(cleaned)"
+        shape.commonName
     }
 }
 
@@ -704,11 +971,13 @@ extension TaleGrammar {
         var updated: LivingTale?
         var closed: LivingTale?
         var scar: TaleScar?
+        /// An open tale put down without being told: it had no thread.
+        var dropped: Bool = false
 
         static let quiet = Verdict(opened: nil, updated: nil, closed: nil, scar: nil)
 
         var isQuiet: Bool {
-            opened == nil && updated == nil && closed == nil && scar == nil
+            opened == nil && updated == nil && closed == nil && scar == nil && !dropped
         }
     }
 
@@ -719,10 +988,17 @@ extension TaleGrammar {
         witnesses: [TaleWitness],
         lastClosedAt: Date? = nil,
         refusedShapes: Set<TaleShape> = [],
+        names: [String: String] = [:],
+        barredThreadIDs: Set<String> = [],
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Verdict {
         if let current, current.isOpen {
+            // A tale from the old grammar has no thread and would bind as a row
+            // of unrelated pages. Put it down quietly: no page, no scar.
+            guard current.thread != nil else {
+                return Verdict(opened: nil, updated: nil, closed: nil, scar: nil, dropped: true)
+            }
             return tendOpen(current, witnesses: witnesses, now: now, calendar: calendar)
         }
 
@@ -730,7 +1006,13 @@ extension TaleGrammar {
         if let lastClosedAt, now.timeIntervalSince(lastClosedAt) < restBetweenTales {
             return .quiet
         }
-        guard let recognition = recognize(witnesses: witnesses, now: now, calendar: calendar) else {
+        guard let recognition = recognize(
+            witnesses: witnesses,
+            names: names,
+            barredThreadIDs: barredThreadIDs,
+            now: now,
+            calendar: calendar
+        ) else {
             return .quiet
         }
         // A shape the reader has denied does not come back under a new id.
@@ -745,13 +1027,14 @@ extension TaleGrammar {
         let opened = LivingTale(
             id: "tale-\(recognition.shape.rawValue)-\(Int(now.timeIntervalSince1970))",
             shape: recognition.shape,
-            title: title(for: recognition.shape, witnesses: relevant),
+            title: recognition.thread?.title ?? title(for: recognition.shape, witnesses: relevant),
             witnesses: relevant,
             openedAt: relevant.map(\.witnessedAt).min() ?? now,
             lastWitnessedAt: relevant.map(\.witnessedAt).max() ?? now,
             closedAt: nil,
             ending: nil,
-            boundAt: nil
+            boundAt: nil,
+            thread: recognition.thread
         )
         return Verdict(opened: opened, updated: nil, closed: nil, scar: nil)
     }
@@ -763,19 +1046,27 @@ extension TaleGrammar {
         calendar: Calendar
     ) -> Verdict {
         var tale = tale
+        guard let thread = tale.thread else {
+            return Verdict(opened: nil, updated: nil, closed: nil, scar: nil, dropped: true)
+        }
         let known = Set(tale.witnesses.map(\.receiptID))
-        let fresh = witnesses.filter { !known.contains($0.receiptID) && $0.witnessedAt >= tale.openedAt }
+        // Only the reader's own pages about this same thing join the tale.
+        let fresh = witnesses.filter {
+            !known.contains($0.receiptID)
+                && $0.isReaderAuthored
+                && ($0.subjects ?? []).contains(thread.id)
+        }
 
         if !fresh.isEmpty {
             tale.witnesses.append(contentsOf: fresh)
+            tale.witnesses.sort { $0.witnessedAt < $1.witnessedAt }
             tale.lastWitnessedAt = fresh.map(\.witnessedAt).max() ?? tale.lastWitnessedAt
-            if tale.title == tale.shape.commonName {
-                tale.title = title(for: tale.shape, witnesses: tale.witnesses)
-            }
         }
 
-        // Finished?
-        if tale.shape.closingBeats.isSubset(of: tale.witnessedBeats) {
+        // Finished when the thread has gone quiet, or when it has plenty.
+        let appearances = tale.witnesses.filter(\.isReaderAuthored).count
+        if appearances >= maximumAppearances
+            || now.timeIntervalSince(tale.lastWitnessedAt) >= quietInterval {
             let ending = ending(for: tale, now: now)
             tale.closedAt = now
             tale.ending = ending
@@ -785,17 +1076,15 @@ extension TaleGrammar {
             )
         }
 
-        // Walked away from? That is an ending too, and a common one.
-        if now.timeIntervalSince(tale.lastWitnessedAt) >= staleInterval {
-            tale.closedAt = now
-            tale.ending = .abandoned
-            return Verdict(
-                opened: nil, updated: nil, closed: tale,
-                scar: scar(for: tale, ending: .abandoned, now: now)
-            )
-        }
-
         return fresh.isEmpty ? .quiet : Verdict(opened: nil, updated: tale, closed: nil, scar: nil)
+    }
+
+    /// A beginning, and a climax that happened after it.
+    static func hasAnArc(_ tale: LivingTale) -> Bool {
+        guard let start = tale.witnesses.filter({ $0.beat.act == .beginning }).map(\.witnessedAt).min(),
+              let peak = tale.witnesses.filter({ $0.beat.act == .climax }).map(\.witnessedAt).max()
+        else { return false }
+        return peak >= start
     }
 
     /// Reads the ending off what actually happened. Nothing here is a judgement
@@ -803,6 +1092,22 @@ extension TaleGrammar {
     static func ending(for tale: LivingTale, now: Date = Date()) -> TaleEnding {
         let kinds = Set(tale.witnesses.map(\.receiptKind))
         let tags = Set(tale.witnesses.flatMap(\.tags).map { $0.lowercased() })
+
+        if let thread = tale.thread {
+            // Read off the last thing the reader wrote about it.
+            let last = tale.witnesses.filter(\.isReaderAuthored)
+                .max { $0.witnessedAt < $1.witnessedAt }?.evidence.lowercased() ?? ""
+            var absent = ["gone", "couldn't find", "could not find", "lost it", "broke", "threw it", "thrown out", "missing"]
+            if thread.kind == .thing {
+                let word = thread.name.lowercased()
+                absent += ["no \(word)", "not a \(word)", "\(word) wasn't", "\(word) was not", "without the \(word)", "didn't see the \(word)"]
+            }
+            if absent.contains(where: last.contains) {
+                return .returnedEmpty
+            }
+            if tags.contains("refused") || tags.contains("refusal") { return .refused }
+            return .stillHere
+        }
 
         if kinds.contains("fae-repaired") || tags.contains("paid") { return .paid }
         if kinds.contains("role-outgrown") || tale.has(.transformation) && tale.has(.consequence)
@@ -1189,52 +1494,158 @@ enum RoleTransformationKeeper {
 // to read it and close the cover.
 
 enum TaleBinding {
-    /// The section headings the bound page uses. Beats without a witness are
-    /// simply absent: the Book does not pad a tale out to nine parts.
+    /// One receipt per act, the best one: the reader's own words first, then
+    /// a choice they made, then the world's short record, and the Book's own
+    /// prose last. The beginning is the earliest, the climax the latest.
+    static func acts(_ tale: LivingTale) -> [TaleAct: TaleWitness] {
+        func rank(_ witness: TaleWitness) -> Int {
+            if witness.isReaderAuthored { return 0 }
+            if witness.isReaderFictionChoice { return 1 }
+            if witness.receiptKind != "page" && witness.receiptKind != "event" { return 2 }
+            if witness.receiptKind == "event" { return 3 }
+            return 4
+        }
+        var chosen: [TaleAct: TaleWitness] = [:]
+        for act in TaleAct.allCases {
+            let pool = tale.witnesses.filter {
+                $0.beat.act == act && !$0.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+            chosen[act] = pool.min { left, right in
+                if rank(left) != rank(right) { return rank(left) < rank(right) }
+                switch act {
+                case .beginning, .middle: return left.witnessedAt < right.witnessedAt
+                case .climax, .end: return left.witnessedAt > right.witnessedAt
+                }
+            }
+        }
+        return chosen
+    }
+
+    /// Beginning, middle and end of a thread tale: the reader's own first page
+    /// about it, their last, and the fullest one in between.
+    static func threadMoments(_ tale: LivingTale) -> (beginning: TaleWitness, middle: TaleWitness, end: TaleWitness)? {
+        let own = tale.witnesses
+            .filter { $0.isReaderAuthored && !$0.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .sorted { $0.witnessedAt < $1.witnessedAt }
+        guard own.count >= 3, let first = own.first, let last = own.last else { return nil }
+        let inner = own.dropFirst().dropLast()
+        let middle = inner.max { left, right in
+            left.evidence.count != right.evidence.count
+                ? left.evidence.count < right.evidence.count
+                : left.witnessedAt > right.witnessedAt
+        } ?? own[own.count / 2]
+        return (first, middle, last)
+    }
+
+    static func day(of witness: TaleWitness) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("MMMMd")
+        return formatter.string(from: witness.witnessedAt)
+    }
+
+    /// One thing, three times, in the reader's own words. The Book says only
+    /// what the receipts prove: the thing was there, it came back, and how it
+    /// stood at the end.
+    static func threadBody(for tale: LivingTale, thread: TaleThread) -> String {
+        guard let moments = threadMoments(tale) else { return tale.shape.recognitionLine }
+        let appearances = tale.witnesses.filter(\.isReaderAuthored).count
+        let name = thread.spoken
+        let Name = name.prefix(1).uppercased() + name.dropFirst()
+
+        func quote(_ witness: TaleWitness) -> String {
+            "On \(day(of: witness)) you wrote: \u{201C}\(witness.evidence.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}"
+        }
+
+        let opening: String
+        let once: String
+        let then: String
+        let stillHere: String
+        let gone: String
+        switch thread.kind {
+        case .place:
+            opening = "You kept going back to \(name). I kept count. I didn't say anything until I could see how it came out."
+            once = "Once upon a time, there was a place you called \(name)."
+            then = appearances > 3 ? "Then you kept going back." : "Then you went back."
+            stillHere = "you were still going back."
+            gone = "you went back, and it wasn't the same place any more."
+        case .thing:
+            opening = "\(Name) kept turning up in your pages. I kept count. I didn't say anything until I could see how it came out."
+            let article = "aeiou".contains(thread.name.prefix(1).lowercased()) ? "an" : "a"
+            once = "Once upon a time, there was \(article) \(thread.name)."
+            then = appearances > 3 ? "Then \(name) kept coming back." : "Then \(name) came back."
+            stillHere = "\(name) was still there."
+            gone = "\(name) wasn't there any more. Things in tales do that. It was there, and you wrote it down, and that part stays."
+        }
+        let ending: String
+        switch tale.ending {
+        case .stillHere?, nil: ending = "In the end, " + stillHere
+        case .returnedEmpty?: ending = "In the end, " + gone
+        case let other?: ending = "In the end, " + other.closingLine
+        }
+
+        return [
+            opening,
+            once + "\n" + quote(moments.beginning),
+            then + "\n" + quote(moments.middle),
+            ending + "\n" + quote(moments.end),
+            "Things in tales come in threes. You were inside this one the whole time."
+        ].joined(separator: "\n\n")
+    }
+
+    /// Kept for the metadata and editions: the beats the telling rests on.
     static func told(_ tale: LivingTale) -> [(beat: TaleBeat, witness: TaleWitness)] {
-        var seen: Set<TaleBeat> = []
-        return tale.told.compactMap { witness in
-            guard seen.insert(witness.beat).inserted else { return nil }
-            return (witness.beat, witness)
+        let chosen = acts(tale)
+        return TaleAct.allCases.compactMap { act in
+            chosen[act].map { ($0.beat, $0) }
         }
     }
 
-    /// The Book's opening: what it is about to do, and the admission that it
-    /// only worked this out afterwards.
-    static func opening(for tale: LivingTale) -> String {
-        """
-        I've been keeping something from you, though not on purpose. I didn't know what it was until it finished.
-
-        \(tale.shape.recognitionLine)
-        """
+    /// How the receipt is said inside the tale. The reader's words are quoted
+    /// exactly. Anything else is cut to its first sentence, so a kept letter
+    /// is one line of the tale and not the whole letter pasted in.
+    static func said(_ witness: TaleWitness) -> String {
+        let evidence = witness.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+        if witness.isReaderAuthored { return "You wrote: \u{201C}\(evidence)\u{201D}" }
+        if witness.isReaderFictionChoice { return "You chose: \u{201C}\(evidence)\u{201D}" }
+        return firstSentence(of: evidence)
     }
 
-    /// The body: the tale in its own order, quoting the reader wherever the
-    /// reader is the one who wrote it.
+    static func firstSentence(of text: String) -> String {
+        let flat = text.replacingOccurrences(of: "\n", with: " ")
+        if let end = flat.firstIndex(where: { ".!?".contains($0) }) {
+            return String(flat[...end])
+        }
+        return flat.count > 140 ? String(flat.prefix(140)) + "\u{2026}" : flat
+    }
+
+    /// The tale, told the way tales are told. Once upon a time, then, and then,
+    /// in the end. An act with no receipt is left out rather than made up,
+    /// except the ending, which is always true because the tale is over.
     static func body(for tale: LivingTale) -> String {
-        var parts: [String] = [opening(for: tale)]
+        if let thread = tale.thread {
+            return threadBody(for: tale, thread: thread)
+        }
+        let chosen = acts(tale)
+        var parts: [String] = [tale.shape.recognitionLine]
 
-        let sections = told(tale).map { entry -> String in
-            let evidence = entry.witness.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !evidence.isEmpty else { return "" }
-            if entry.witness.isReaderAuthored {
-                return "\(entry.beat.label.capitalized): you wrote: \u{201C}\(evidence)\u{201D}"
-            }
-            if entry.witness.isReaderFictionChoice {
-                return "\(entry.beat.label.capitalized): you chose: \u{201C}\(evidence)\u{201D}"
-            }
-            return "\(entry.beat.label.capitalized): \(evidence)"
-        }.filter { !$0.isEmpty }
-
-        if !sections.isEmpty {
-            parts.append(sections.joined(separator: "\n\n"))
+        func act(_ opener: String, _ line: String, _ witness: TaleWitness?) -> String {
+            [opener + line, witness.map(said)].compactMap { $0 }.joined(separator: "\n")
         }
 
+        parts.append(act("Once upon a time, ", tale.shape.once, chosen[.beginning]))
+        if let middle = chosen[.middle] {
+            parts.append(act("Then ", tale.shape.then, middle))
+        }
+        if let climax = chosen[.climax] {
+            parts.append(act("And then ", tale.shape.climax, climax))
+        }
         if let ending = tale.ending {
-            parts.append(ending.closingLine)
+            parts.append(act("In the end, ", ending.closingLine, chosen[.end]))
+        } else if let end = chosen[.end] {
+            parts.append(said(end))
         }
 
-        parts.append("You were inside that the whole time. I'm not going to ask you anything about it.")
+        parts.append("You were inside a tale the whole time. I'm not going to ask you anything about it.")
         return parts.joined(separator: "\n\n")
     }
 
@@ -1251,6 +1662,8 @@ enum TaleBinding {
             "taleWitnessCount": "\(tale.witnesses.count)",
             "taleOpenedAt": "\(tale.openedAt.timeIntervalSince1970)",
             "taleBeats": told(tale).map(\.beat.rawValue).joined(separator: ","),
+            "taleThreadID": tale.thread?.id ?? "",
+            "taleThreadName": tale.thread?.name ?? "",
             "noBeliefReward": "false",
             "tags": [
                 "tale-bound",
@@ -1278,15 +1691,15 @@ enum TaleBinding {
         return metadata
     }
 
-    /// The headline. Uses the reader's own title when they gave the tale one by
-    /// writing inside it.
+    /// The headline is the tale's own name. Older tales stored a title built
+    /// from the reader's last clause; it read as nonsense, so it is not used.
     static func headline(for tale: LivingTale) -> String {
-        tale.title.isEmpty ? tale.shape.commonName : tale.title
+        tale.thread?.title ?? tale.shape.commonName
     }
 
     /// What the desk says about why this arrived.
     static func reason(for tale: LivingTale) -> String {
-        "A tale finished. I only recognised it on the way out, which is how these things generally go."
+        "A tale finished. I only knew it was one at the end. That's how it goes with tales."
     }
 }
 

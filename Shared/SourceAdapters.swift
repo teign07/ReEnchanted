@@ -13524,8 +13524,10 @@ struct TaleBoundPageSourceAdapter: BookPageSourceAdapter {
         boundTales: [LivingTale],
         archivedDays: [BookDay]
     ) -> LivingTale? {
+        // Only a tale with a thread: one thing, followed through the reader's
+        // own pages. Older tales were rows of unrelated pages and stay unbound.
         guard source.isActive,
-              let tale = boundTales.last(where: { $0.boundAt == nil }),
+              let tale = boundTales.last(where: { $0.boundAt == nil && $0.thread != nil }),
               !tale.isOpen else { return nil }
 
         let tag = "tale:\(tale.id)"
