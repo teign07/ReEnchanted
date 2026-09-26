@@ -174,6 +174,26 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertFalse(recognized?.thread?.id.contains("margaret") ?? false)
     }
 
+    /// A thing opening a sentence reads like a name. It counts once the reader
+    /// has written it lowercase elsewhere; a real name never is.
+    func testAThingOpeningASentenceStillCounts() {
+        let pages = [
+            page(0, type: .diary, tags: [], text: "Kettle. That's the whole entry."),
+            page(3, type: .diary, tags: [], text: "Burnt my thumb on the kettle."),
+            page(6, type: .diary, tags: [], text: "Kettle whistling at six.")
+        ]
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(7))
+        XCTAssertEqual(TaleGrammar.recognize(witnesses: witnesses, now: day(7), calendar: calendar)?.thread?.id, "word:kettle")
+
+        let names = [
+            page(0, type: .diary, tags: [], text: "Margaret rang. Long call."),
+            page(3, type: .diary, tags: [], text: "Margaret laughed at my coat."),
+            page(6, type: .diary, tags: [], text: "Margaret again, with cake.")
+        ]
+        let nameWitnesses = TaleGrammar.witnesses(events: [], days: days(names), now: day(7))
+        XCTAssertFalse(nameWitnesses.flatMap { $0.subjects ?? [] }.contains { $0.contains("margaret") })
+    }
+
     /// A word in nearly every page is the furniture of the reader's life.
     func testAWordInEveryPageIsFurnitureNotATale() {
         let pages = (0..<12).map { page($0 * 2, type: .diary, tags: [], text: "Coffee again, number \($0).") }
@@ -365,6 +385,74 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertEqual(kind.title(for: thread("coffee")), "The Coffee After Dark")
     }
 
+    func testSayingYouWouldAndDoingItIsAPromise() {
+        let witnesses = own(["I'm going to fix the bike this week.", "The bike is still in bits.", "Did it. The bike works."])
+        let kind = TaleKind.detect(thread: thread("bike"), witnesses: witnesses, calendar: calendar)
+        XCTAssertEqual(kind, .promise)
+        XCTAssertEqual(kind.title(for: thread("bike")), "The Promise About the Bike")
+    }
+
+    func testSomethingNewThatSettledInIsANewThing() {
+        let witnesses = own(["First time in the new pool. Freezing.", "The pool again, lanes were busy.", "Pool, then toast."])
+        let kind = TaleKind.detect(thread: thread("pool"), witnesses: witnesses, calendar: calendar)
+        XCTAssertEqual(kind, .newThing)
+        XCTAssertEqual(kind.title(for: thread("pool")), "How the Pool Stopped Being New")
+    }
+
+    /// Every kind has its own title, teaser and Gemma hint.
+    func testEveryKindCanBeTold() {
+        for kind in TaleKind.allCases {
+            XCTAssertFalse(kind.title(for: thread("heron")).isEmpty)
+            XCTAssertFalse(kind.teaserLine.isEmpty)
+            XCTAssertFalse(kind.gemmaHint.isEmpty)
+        }
+    }
+
+    /// Two things on the same pages, day after day, are a tale of their own.
+    func testTwoThingsThatKeepTurningUpTogetherAreATale() {
+        let pages = [
+            page(0, type: .diary, tags: [], text: "Tea on the step and the heron on its post."),
+            page(3, type: .diary, tags: [], text: "The heron watched me drink my tea."),
+            page(6, type: .diary, tags: [], text: "Cold tea, patient heron.")
+        ]
+        let witnesses = TaleGrammar.witnesses(events: [], days: days(pages), now: day(7))
+        let recognized = TaleGrammar.recognize(witnesses: witnesses, now: day(7), calendar: calendar)
+        XCTAssertEqual(recognized?.thread?.id, "pair:word:heron|word:tea")
+        XCTAssertEqual(recognized?.thread?.title, "The Tale of the Heron and the Tea")
+
+        let tale = TaleGrammar.tend(current: nil, witnesses: witnesses, now: day(7), calendar: calendar).opened!
+        XCTAssertEqual(tale.kind, .together)
+        // It grows only with pages that carry both.
+        let more = TaleGrammar.witnesses(events: [], days: days(pages + [
+            page(8, type: .diary, tags: [], text: "Just tea this morning."),
+            page(9, type: .diary, tags: [], text: "Heron and tea again, like old friends.")
+        ]), now: day(10))
+        let grown = TaleGrammar.tend(current: tale, witnesses: more, now: day(10), calendar: calendar).updated
+        XCTAssertEqual(grown?.witnesses.count, tale.witnesses.count + 1)
+
+        let closed = TaleGrammar.tend(current: grown!, witnesses: more, now: day(16), calendar: calendar).closed!
+        let body = TaleBinding.body(for: closed)
+        XCTAssertTrue(body.contains("Once upon a time, there was a heron, and there was a tea."), body)
+        XCTAssertTrue(body.contains("In the end, they were still turning up together."))
+
+        // Gemma has to say both.
+        let prompt = TaleGemmaTelling.prompt(for: closed) ?? ""
+        XCTAssertTrue(prompt.contains("Say \"heron\" and \"tea\" in the first line."))
+        let onlyOne = """
+        Once upon a time, a heron stood by the water.
+        Then the heron watched you drink, day after day.
+        In the end, the heron and the cup were old friends.
+        """
+        XCTAssertNil(TaleGemmaTelling.lines(from: onlyOne, for: closed))
+        let spread = """
+        Once upon a time, a little cup of tea sat on the stone step.
+        The heron watched you sip it, very seriously.
+        In the end, the heron and the tea were old friends.
+        """
+        let lines = TaleGemmaTelling.lines(from: spread, for: closed)
+        XCTAssertEqual(lines?.then, "Then the heron watched you sip it, very seriously.")
+    }
+
     /// When the reader has two threads going, the rarer kind of tale wins.
     func testTheRarerTaleIsToldFirst() {
         let pages = [
@@ -504,6 +592,30 @@ final class TaleGrammarTests: XCTestCase {
         let lines = TaleGemmaTelling.lines(from: split, for: closedKettleTale())
         XCTAssertEqual(lines?.once, "Once upon a time, there was a kettle that stayed warm for you.")
         XCTAssertEqual(lines?.then, "Then the kettle bit back, and you laughed.")
+    }
+
+    /// A place's opener carries its name and gets finished on the next line.
+    func testAnOpenerFinishedOnTheNextLineIsJoined() {
+        let bench = TaleThread(id: "anchor:a1", name: "Riverside Bench", kind: .place)
+        let witnesses = ["Sat and watched the ducks until my tea went cold.",
+                         "Cold, but I stayed an hour anyway. Nobody else came.",
+                         "A heron, finally. I didn't move for ages."].enumerated().map { index, line in
+            TaleWitness(id: "b\(index)", beat: .test, receiptID: "b\(index)", receiptKind: "reader-page",
+                        evidence: line, witnessedAt: day(index * 3), tags: [], subjects: [bench.id])
+        }
+        let tale = LivingTale(id: "bench", shape: .threeEncounters, title: "t", witnesses: witnesses,
+                              openedAt: day(0), lastWitnessedAt: day(6), closedAt: day(7), ending: .stillHere,
+                              boundAt: nil, thread: bench, kind: .goingBack)
+        XCTAssertTrue(TaleGemmaTelling.prompt(for: tale)?.contains("Once upon a time, at Riverside Bench,") == true)
+        let answer = """
+        Once upon a time, at Riverside Bench,
+        you sat and watched the little ducks until your warm tea grew chilly.
+        Then, even though it felt cold, you stayed for a whole hour by yourself.
+        In the end, a tall heron finally showed up for you.
+        """
+        let lines = TaleGemmaTelling.lines(from: answer, for: tale)
+        XCTAssertEqual(lines?.once, "Once upon a time, at Riverside Bench, you sat and watched the little ducks until your warm tea grew chilly.")
+        XCTAssertEqual(lines?.then, "Then even though it felt cold, you stayed for a whole hour by yourself.")
     }
 
     func testMarkdownAroundTheLinesIsForgiven() {

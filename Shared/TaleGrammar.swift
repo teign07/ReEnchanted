@@ -429,6 +429,12 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
     case allWeathers
     /// Only ever turned up after dark.
     case nightOnly
+    /// Said "I'm going to" about it at the start, and did it by the end.
+    case promise
+    /// New at the start, just part of the days by the end.
+    case newThing
+    /// Two things that kept turning up on the same pages.
+    case together
     /// A place the reader kept going back to.
     case goingBack
 
@@ -437,8 +443,9 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
     /// comes out of the reader's own pages.
     var rarity: Int {
         switch self {
-        case .goingAway, .search, .changing: return 25
-        case .allWeathers, .nightOnly: return 15
+        case .goingAway, .search, .changing, .promise: return 25
+        case .allWeathers, .nightOnly, .newThing: return 15
+        case .together: return 20
         case .goingBack, .threeTimes: return 0
         }
     }
@@ -446,6 +453,9 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
     static let searchStarts = ["looking for", "look for", "searching", "hunting for", "can't find",
                                "couldn't find", "need a ", "need to find", "want a ", "wish i had", "where is"]
     static let searchEnds = ["found", "finally", "at last", "got one", "got it", "tracked down"]
+    static let promiseStarts = ["going to", "i will", "i'll ", "promise", "plan to", "i'm gonna", "determined to"]
+    static let promiseEnds = ["did it", "done", "finally", "at last", "managed", "finished", "kept my"]
+    static let newStarts = ["first time", "brand new", "new ", "never had", "never tried", "tried a", "tried the"]
     /// Opposites the reader might use about the same thing, in either order.
     static let opposites: [(String, String)] = [
         ("cold", "warm"), ("cold", "hot"), ("broken", "fixed"), ("broke", "fixed"), ("empty", "full"),
@@ -490,6 +500,7 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
     }
 
     static func detect(thread: TaleThread, witnesses: [TaleWitness], calendar: Calendar = .current) -> TaleKind {
+        if thread.isPair { return .together }
         let own = witnesses.filter(\.isReaderAuthored).sorted { $0.witnessedAt < $1.witnessedAt }
         guard let first = own.first, let last = own.last, own.count >= 3 else { return .threeTimes }
         let start = first.evidence.lowercased(), finish = last.evidence.lowercased()
@@ -499,7 +510,13 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
         if searchStarts.contains(where: start.contains), searchEnds.contains(where: finish.contains) {
             return .search
         }
+        if promiseStarts.contains(where: start.contains), promiseEnds.contains(where: finish.contains) {
+            return .promise
+        }
         if change(first: first.evidence, last: last.evidence) != nil { return .changing }
+        if newStarts.contains(where: start.contains), !newStarts.contains(where: finish.contains) {
+            return .newThing
+        }
         let weathers = own.compactMap(weather(of:))
         if weathers.count == own.count, Set(weathers).count >= 2 { return .allWeathers }
         let nightly = own.allSatisfy { witness in
@@ -522,6 +539,9 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
         case .changing: return "How \(bare) Changed"
         case .allWeathers: return "\(bare.prefix(1).uppercased() + bare.dropFirst()) in All Weathers"
         case .nightOnly: return "\(bare.prefix(1).uppercased() + bare.dropFirst()) After Dark"
+        case .promise: return "The Promise About \(bare)"
+        case .newThing: return "How \(bare) Stopped Being New"
+        case .together: return thread.title
         }
     }
 
@@ -535,6 +555,9 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
         case .allWeathers: return "You met it in all sorts of weather."
         case .nightOnly: return "It only ever came out at night."
         case .goingBack: return "You kept going back."
+        case .promise: return "You said you would."
+        case .newThing: return "It was new, once."
+        case .together: return "They kept turning up together."
         }
     }
 
@@ -548,6 +571,9 @@ enum TaleKind: String, Codable, Equatable, CaseIterable {
         case .allWeathers: return "It is a tale about meeting the same thing in different weather."
         case .nightOnly: return "It is a tale about something that only came out at night."
         case .goingBack: return "It is a tale about going back to the same place."
+        case .promise: return "It is a tale about saying you would do something, and doing it."
+        case .newThing: return "It is a tale about something new that became part of the days."
+        case .together: return "It is a tale about two things that kept turning up together."
         }
     }
 }
@@ -563,22 +589,59 @@ struct TaleThread: Codable, Equatable {
         case thing
     }
 
-    /// `anchor:<id>` or `word:<noun>`.
+    /// The second of two things that kept turning up on the same pages.
+    struct Partner: Codable, Equatable {
+        var id: String
+        var name: String
+        var kind: Kind
+    }
+
+    /// `anchor:<id>`, `word:<noun>`, or `pair:<id>|<id>` for two together.
     var id: String
     /// "Riverside Bench" (the reader's own name) or "kettle".
     var name: String
     var kind: Kind
+    /// Set when the tale is about two things together.
+    var partner: Partner? = nil
 
-    /// How the tale says it: "the kettle", or the place's own name.
-    var spoken: String {
+    var isPair: Bool { partner != nil }
+
+    static func spoken(_ name: String, _ kind: Kind) -> String {
         kind == .thing ? "the \(name)" : name
     }
 
+    static func titled(_ name: String, _ kind: Kind) -> String {
+        kind == .thing ? "the \(name.prefix(1).uppercased() + name.dropFirst())" : name
+    }
+
+    /// How the tale says it: "the kettle", the place's own name, or both.
+    var spoken: String {
+        let lead = Self.spoken(name, kind)
+        guard let partner else { return lead }
+        return "\(lead) and \(Self.spoken(partner.name, partner.kind))"
+    }
+
     var title: String {
-        switch kind {
-        case .thing: return "The Tale of the \(name.prefix(1).uppercased() + name.dropFirst())"
-        case .place: return "The Tale of \(name)"
-        }
+        let lead = Self.titled(name, kind)
+        guard let partner else { return "The Tale of \(lead)" }
+        return "The Tale of \(lead) and \(Self.titled(partner.name, partner.kind))"
+    }
+
+    /// The subjects a page must carry to be part of this thread: one, or
+    /// both of a pair.
+    var memberIDs: [String] {
+        guard isPair, id.hasPrefix("pair:") else { return [id] }
+        return id.dropFirst("pair:".count).split(separator: "|").map(String.init)
+    }
+
+    func isAbout(_ subjects: [String]?) -> Bool {
+        let carried = Set(subjects ?? [])
+        return memberIDs.allSatisfy(carried.contains)
+    }
+
+    /// The names a telling has to say for it to be about this thread.
+    var names: [String] {
+        [name] + (partner.map { [$0.name] } ?? [])
     }
 }
 
@@ -744,13 +807,13 @@ enum TaleGrammar {
         // earlier beat in the grammar wins, because a thing is a crossing
         // before it is a return.
         var seen: Set<String> = []
-        return found
+        return TaleSubjects.resolve(found
             .sorted { left, right in
                 if left.receiptID != right.receiptID { return left.witnessedAt < right.witnessedAt }
                 return left.beat.position < right.beat.position
             }
             .filter { seen.insert($0.receiptID).inserted }
-            .sorted { $0.witnessedAt < $1.witnessedAt }
+            .sorted { $0.witnessedAt < $1.witnessedAt })
     }
 
     /// A kept page. The reader's own words are the strongest evidence there is,
@@ -907,9 +970,32 @@ enum TaleSubjects {
             found.append("anchor:\(anchor)")
         }
         if let readerText {
-            found += things(in: readerText, cacheKey: page.id).map { "word:\($0)" }
+            for word in extractCached(readerText, cacheKey: page.id) {
+                // "?word" is a noun that only showed up opening a sentence,
+                // where a name looks the same. `resolve` keeps it only if the
+                // reader writes it lowercase somewhere else.
+                found.append(word.hasPrefix("?") ? "word?:\(word.dropFirst())" : "word:\(word)")
+            }
         }
         return found
+    }
+
+    /// Turns tentative sentence-opening nouns into things when the same word
+    /// is used lowercase, mid-sentence, on some other page. A name never is.
+    static func resolve(_ witnesses: [TaleWitness]) -> [TaleWitness] {
+        let confident = Set(witnesses.flatMap { $0.subjects ?? [] }.filter { $0.hasPrefix("word:") })
+        return witnesses.map { witness in
+            guard let subjects = witness.subjects, subjects.contains(where: { $0.hasPrefix("word?:") }) else {
+                return witness
+            }
+            var resolved = witness
+            resolved.subjects = Array(Set(subjects.compactMap { subject -> String? in
+                guard subject.hasPrefix("word?:") else { return subject }
+                let word = "word:" + subject.dropFirst("word?:".count)
+                return confident.contains(word) ? word : nil
+            })).sorted()
+            return resolved
+        }
     }
 
     /// The things in a line of the reader's: common nouns, in their base form,
@@ -919,6 +1005,10 @@ enum TaleSubjects {
     /// Cached by page, because tending runs after every keep and the archive
     /// does not change underneath a page that is already kept.
     static func things(in text: String, cacheKey: String? = nil) -> [String] {
+        extractCached(text, cacheKey: cacheKey).filter { !$0.hasPrefix("?") }
+    }
+
+    private static func extractCached(_ text: String, cacheKey: String?) -> [String] {
         let key = cacheKey.map { "\($0)|\(text.count)|\(text.hashValue)" }
         if let key {
             lock.lock()
@@ -955,13 +1045,47 @@ enum TaleSubjects {
             // Names are not things.
             let (nameTag, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .nameType)
             if let nameTag, [.personalName, .placeName, .organizationName].contains(nameTag) { return true }
-            // A capital in the middle of a sentence is a name the tagger missed.
-            if let first = token.first, first.isUppercase, !startsSentence(range.lowerBound, in: text) { return true }
+            // Any capital: mid-sentence it's a name the tagger missed, and at a
+            // sentence's start it might be one. Openers get their own,
+            // tentative, second pass below.
+            if let first = token.first, first.isUppercase { return true }
             let (lemmaTag, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma)
             let word = (lemmaTag?.rawValue ?? token).lowercased()
                 .trimmingCharacters(in: .punctuationCharacters)
             if word.count >= 3, word.allSatisfy(\.isLetter), !stopwords.contains(word) {
                 found.insert(word)
+            }
+            return true
+        }
+
+        // Second pass: the same text with every sentence's first letter
+        // lowered, so "Heron and tea" and "Kettle." can be read as nouns. What
+        // this finds at a sentence's start is only tentative.
+        var lowered = ""
+        var atStart = true
+        for character in text {
+            if atStart, character.isLetter {
+                lowered.append(contentsOf: character.lowercased())
+                atStart = false
+            } else {
+                lowered.append(character)
+                if ".!?\n".contains(character) { atStart = true }
+            }
+        }
+        let second = NLTagger(tagSchemes: [.lexicalClass, .lemma])
+        second.string = lowered
+        second.enumerateTags(
+            in: lowered.startIndex..<lowered.endIndex,
+            unit: .word,
+            scheme: .lexicalClass,
+            options: [.omitWhitespace, .omitPunctuation]
+        ) { tag, range in
+            guard tag == .noun, startsSentence(range.lowerBound, in: lowered) else { return true }
+            let (lemmaTag, _) = second.tag(at: range.lowerBound, unit: .word, scheme: .lemma)
+            let word = (lemmaTag?.rawValue ?? String(lowered[range])).lowercased()
+                .trimmingCharacters(in: .punctuationCharacters)
+            if word.count >= 3, word.allSatisfy(\.isLetter), !stopwords.contains(word), !found.contains(word) {
+                found.insert("?" + word)
             }
             return true
         }
@@ -1030,8 +1154,17 @@ extension TaleGrammar {
 
         var bySubject: [String: [TaleWitness]] = [:]
         for witness in own {
-            for subject in Set(witness.subjects ?? []) where !barredThreadIDs.contains(subject) {
+            let subjects = Set(witness.subjects ?? []).sorted()
+            for subject in subjects where !barredThreadIDs.contains(subject) {
                 bySubject[subject, default: []].append(witness)
+            }
+            // Two things on the same page, as one more possible thread. They
+            // only count once they share three pages on three days.
+            for (index, first) in subjects.enumerated() {
+                for second in subjects[(index + 1)...] {
+                    let key = "pair:\(first)|\(second)"
+                    if !barredThreadIDs.contains(key) { bySubject[key, default: []].append(witness) }
+                }
             }
         }
 
@@ -1069,6 +1202,16 @@ extension TaleGrammar {
     }
 
     static func thread(for key: String, names: [String: String]) -> TaleThread? {
+        if key.hasPrefix("pair:") {
+            let parts = key.dropFirst("pair:".count).split(separator: "|").map(String.init)
+            guard parts.count == 2,
+                  let lead = thread(for: parts[0], names: names),
+                  let other = thread(for: parts[1], names: names) else { return nil }
+            var pair = lead
+            pair.id = key
+            pair.partner = TaleThread.Partner(id: other.id, name: other.name, kind: other.kind)
+            return pair
+        }
         if key.hasPrefix("anchor:") {
             guard let name = names[key]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else { return nil }
             return TaleThread(id: key, name: name, kind: .place)
@@ -1203,7 +1346,7 @@ extension TaleGrammar {
         let fresh = witnesses.filter {
             !known.contains($0.receiptID)
                 && $0.isReaderAuthored
-                && ($0.subjects ?? []).contains(thread.id)
+                && thread.isAbout($0.subjects)
         }
 
         if !fresh.isEmpty {
@@ -1249,7 +1392,7 @@ extension TaleGrammar {
             // Read off the last thing the reader wrote about it.
             let last = tale.witnesses.filter(\.isReaderAuthored)
                 .max { $0.witnessedAt < $1.witnessedAt }?.evidence.lowercased() ?? ""
-            if TaleKind.isAbsent(last, thread: thread) {
+            if !thread.isPair, TaleKind.isAbsent(last, thread: thread) {
                 return .returnedEmpty
             }
             if tags.contains("refused") || tags.contains("refusal") { return .refused }
@@ -2377,13 +2520,26 @@ enum TaleGemmaTelling {
         }
         let how: String
         switch (tale.ending, thread.kind) {
+        case _ where thread.isPair: how = "\(thread.spoken) were still turning up together"
         case (.returnedEmpty?, .thing): how = "\(thread.spoken) was not there any more"
         case (.returnedEmpty?, .place): how = "the place was not the same any more"
         case (.refused?, _): how = "you said no to it"
         case (_, .place): how = "you were still going back there"
         case (_, .thing): how = "\(thread.spoken) was still there"
         }
-        let subject = thread.kind == .place ? "a place you call \(thread.name)" : thread.spoken
+        let subject = thread.kind == .place && !thread.isPair ? "a place you call \(thread.name)" : thread.spoken
+        // A place said in every line came out stiff ("in Riverside Bench"
+        // three times), and asked for once it was said as a preamble and left
+        // out of the tale. Built into the opener, it lands where it belongs.
+        let naming: String
+        let firstOpener: String
+        if let partner = thread.partner {
+            naming = "Say \"\(thread.name)\" and \"\(partner.name)\" in the first line."
+            firstOpener = "Once upon a time,"
+        } else {
+            naming = thread.kind == .place ? "" : "Say \"\(thread.name)\" in every line."
+            firstOpener = thread.kind == .place ? "Once upon a time, at \(thread.name)," : "Once upon a time,"
+        }
         // Notes, not quotations: `you wrote: "..."` was answered by echoing
         // the quotes and stopping. The bare openers at the end are what it
         // finishes most reliably (22 of 24 kept in the mirror).
@@ -2395,8 +2551,8 @@ enum TaleGemmaTelling {
         How it ended: \(how).
 
         \((tale.kind ?? .threeTimes).gemmaHint)
-        Now tell it as a tiny fairy tale about \(subject). Say "\(thread.name)" in every line. Retell it in your own words. Finish these three lines, one sentence each:
-        Once upon a time,
+        Now tell it as a tiny fairy tale about \(subject). \(naming) Retell it in your own words. Finish these three lines, one sentence each:
+        \(firstOpener)
         Then
         In the end,
         """
@@ -2421,20 +2577,39 @@ enum TaleGemmaTelling {
             .filter { !$0.isEmpty }
         let openers: [(key: String, opener: String)] = [("ONCE", "Once upon a time"), ("THEN", "Then"), ("END", "In the end")]
         var found: [String: String] = [:]
+        var foundAt: [String: Int] = [:]
         for (index, row) in rows.enumerated() {
             for entry in openers where found[entry.key] == nil && row.hasPrefix(entry.opener) {
+                foundAt[entry.key] = index
                 var value = row
                 // "Then" alone, or "Once upon a time," alone: the sentence is on the next line.
+                // Or the opener is finished mid-sentence ("Once upon a time,
+                // at Riverside Bench,") and carried on below.
                 let rest = row.dropFirst(entry.opener.count).trimmingCharacters(in: CharacterSet(charactersIn: " ,"))
-                if rest.isEmpty, index + 1 < rows.count {
+                let unfinished = rest.isEmpty || row.hasSuffix(",")
+                if unfinished, index + 1 < rows.count,
+                   !openers.contains(where: { rows[index + 1].hasPrefix($0.opener) }) {
                     let next = rows[index + 1]
                     let joined = next.prefix(1).lowercased() + next.dropFirst()
-                    value = entry.opener + (entry.key == "THEN" ? " " : ", ") + joined
+                    let head = rest.isEmpty
+                        ? entry.opener + (entry.key == "THEN" ? "" : ",")
+                        : row.trimmingCharacters(in: CharacterSet(charactersIn: " ,")) + ","
+                    value = head + " " + joined
                 }
                 if entry.key == "THEN", value.hasPrefix("Then,") {
                     value = "Then" + value.dropFirst("Then,".count)
                 }
                 found[entry.key] = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"\u{201C}\u{201D} "))
+            }
+        }
+        // The middle line sometimes comes without its "Then". When exactly one
+        // plain line sits between the first and the last, that line is it.
+        if found["THEN"] == nil, let start = foundAt["ONCE"], let finish = foundAt["END"], finish - start >= 2 {
+            let joinedOnce = (found["ONCE"] ?? "").count > rows[start].count ? 1 : 0
+            let between = rows[(start + 1 + joinedOnce)..<finish]
+            if between.count == 1, let middle = between.first,
+               !openers.contains(where: { middle.hasPrefix($0.opener) }) {
+                found["THEN"] = "Then " + middle.prefix(1).lowercased() + middle.dropFirst()
             }
         }
         guard let once = found["ONCE"], let then = found["THEN"], let end = found["END"] else {
@@ -2449,6 +2624,13 @@ enum TaleGemmaTelling {
         for (key, line, opener, mustName) in checks {
             if let problem = problem(line, opener: opener, quotes: quotes, thread: thread, mustName: mustName) {
                 return (nil, "\(key) \(problem): \(line)")
+            }
+        }
+        // A pair tale has to be about both, somewhere in its three lines.
+        if thread.isPair {
+            let whole = [once, then, end].joined(separator: " ").lowercased()
+            if let missing = thread.names.first(where: { !whole.contains($0.lowercased()) }) {
+                return (nil, "lost half the pair (\(missing))")
             }
         }
         return (TaleTellingLines(once: once, then: then, end: end), nil)
@@ -2483,7 +2665,8 @@ enum TaleGemmaTelling {
         if line.contains(where: \.isNumber) { return "carried a number" }
         guard let last = line.last, ".!".contains(last) else { return "didn't end a sentence" }
         let lowered = line.lowercased()
-        if mustName, !lowered.contains(thread.name.lowercased()) { return "lost the thread" }
+        // The first line names the thing; for a pair, at least one of the two.
+        if mustName, !thread.names.contains(where: { lowered.contains($0.lowercased()) }) { return "lost the thread" }
         if words.contains(where: { bannedWords.contains($0.lowercased().trimmingCharacters(in: .punctuationCharacters)) }) {
             return "used a banned word"
         }
@@ -2492,7 +2675,7 @@ enum TaleGemmaTelling {
         for quote in quotes where sharesRun(own, normalised(quote), length: 5) { return "copied the reader" }
         // No invented names. A capital that isn't opening a sentence, "I", or
         // already in the reader's words or the thread is somebody made up.
-        let known = Set((quotes + [thread.name]).flatMap(normalised))
+        let known = Set((quotes + thread.names).flatMap(normalised))
         var sentenceStart = true
         for word in words {
             let bare = word.trimmingCharacters(in: .punctuationCharacters)
@@ -2613,6 +2796,35 @@ enum TaleFrame {
                 then: "Then, \(weathers[1] ?? "another day"), \(name) came back.",
                 end: "In the end, \(weathers[2] ?? "on the last day"), \(name) was still there.",
                 closing: "Rain or sun, it kept turning up. That's loyalty, in a tale."
+            )
+        case .promise:
+            lines = Lines(
+                opening: "You said you would, about \(name). I wrote it down. I always write those down.",
+                once: "Once upon a time, you made a promise about \(name).",
+                then: "Then \(name) waited, the way promises do.",
+                end: "In the end, you did it. Promises in tales get kept or broken, and yours got kept.",
+                closing: "A kept promise is the oldest magic there is. You did it without a wand."
+            )
+        case .newThing:
+            lines = Lines(
+                opening: "\(Name) was new when it first came into your pages. I remember. It isn't new now.",
+                once: "Once upon a time, \(name) was brand new.",
+                then: "Then \(name) came back, a little less new.",
+                end: "In the end, \(name) was just part of your days. That's how new things end, when they go well.",
+                closing: "New things turn into your things. It happens so quietly nobody writes it down. You did."
+            )
+        case .together:
+            let partner = thread.partner!
+            func with(_ name: String, _ kind: TaleThread.Kind) -> String {
+                guard kind == .thing else { return name }
+                return ("aeiou".contains(name.prefix(1).lowercased()) ? "an " : "a ") + name
+            }
+            lines = Lines(
+                opening: "\(Name) kept turning up on the same days. I don't think that's an accident. Things in tales don't come in ones.",
+                once: "Once upon a time, there was \(with(thread.name, thread.kind)), and there was \(with(partner.name, partner.kind)).",
+                then: "Then they turned up together again.",
+                end: "In the end, they were still turning up together.",
+                closing: "Some things go together. You found two of them."
             )
         case .nightOnly:
             lines = Lines(

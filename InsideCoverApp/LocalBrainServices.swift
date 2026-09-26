@@ -5051,21 +5051,26 @@ enum LocalBrainTaleTeller {
     static func tell(taleID: String) async -> LivingTale? {
         guard let tale = (PlayerVault.shared.data.boundTales ?? []).first(where: { $0.id == taleID }) else { return nil }
         guard tale.thread != nil, tale.telling == nil,
-              let prompt = TaleGemmaTelling.prompt(for: tale),
-              let response = await LocalBrainProse.write(
+              let prompt = TaleGemmaTelling.prompt(for: tale) else { return tale }
+        // One more try when the first is dropped: on the Mac mirror about one
+        // telling in six fails a check, and a second draw nearly always passes.
+        var lines: TaleTellingLines?
+        for attempt in 0..<2 where lines == nil {
+            guard let response = await LocalBrainProse.write(
                 prompt: prompt,
                 instructions: TaleGemmaTelling.instructions,
                 maxTokens: 220,
                 sourceID: "tale-telling",
                 tags: ["tale-bound", "tale:\(taleID)"],
-                temperature: 0.6
-              )
-        else { return tale }
-        let verdict = TaleGemmaTelling.judge(response, for: tale)
-        guard let lines = verdict.lines else {
-            appLog.info("Tale telling dropped for \(taleID, privacy: .public): \(verdict.reason ?? "unknown", privacy: .private)")
-            return tale
+                temperature: attempt == 0 ? 0.6 : 0.75
+            ) else { break }
+            let verdict = TaleGemmaTelling.judge(response, for: tale)
+            if let reason = verdict.reason {
+                appLog.info("Tale telling dropped for \(taleID, privacy: .public) (try \(attempt + 1)): \(reason, privacy: .private)")
+            }
+            lines = verdict.lines
         }
+        guard let lines else { return tale }
         var told = tale
         told.telling = lines
         PlayerVault.shared.mutate {
