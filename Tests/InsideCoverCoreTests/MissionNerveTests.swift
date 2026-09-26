@@ -120,3 +120,60 @@ final class ErrandRationTests: XCTestCase {
 // entirely rather than metering them. Anything that wants to protect the reader
 // belongs there, where it is legible, and not in a curator cap that also quietly
 // suppresses the reader's best day.
+
+/// The voice pass on playful missions (2026-09-26). Each of these guards a
+/// shape that had crept in: the grounding-exercise register, the legal hedge,
+/// the duplicate, the banned word.
+final class PlayfulMissionVoiceTests: XCTestCase {
+
+    private var all: [PlayfulMission] { PlayfulMissionRegistry.missions }
+
+    /// Play is the meal. A body scan in a costume isn't play.
+    func testNoMissionIsAGroundingExerciseInDisguise() {
+        let scans = ["unclench", "your tongue", "yawn on purpose", "breath so slow", "find your pulse",
+                     "notice what changes in your body", "let the chair do all the work"]
+        for mission in all {
+            let text = (mission.prompt + " " + mission.proofPrompt).lowercased()
+            for phrase in scans {
+                XCTAssertFalse(text.contains(phrase), "\(mission.id) is a body scan: \(phrase)")
+            }
+        }
+    }
+
+    /// Safety lives in the rate limits and the distress gate, not in hedges
+    /// the reader has to read past.
+    func testNoMissionLecturesTheReader() {
+        let hedges = ["permitted", "lawful", "if the moment is welcome", "veto", "disclosure",
+                      "cross no boundary", "safe, permitted", "no forced"]
+        for mission in all {
+            let text = (mission.prompt + " " + mission.proofPrompt).lowercased()
+            for hedge in hedges {
+                XCTAssertFalse(text.contains(hedge), "\(mission.id) lectures: \(hedge)")
+            }
+            XCTAssertFalse(mission.prompt.contains(";"), "\(mission.id) balances a clause instead of stopping")
+            XCTAssertFalse(mission.tags.contains("ritual"), "\(mission.id): \"ritual\" is banned vocabulary")
+            XCTAssertFalse(mission.prompt.lowercased().contains("ritual"), "\(mission.id): \"ritual\" is banned vocabulary")
+        }
+    }
+
+    func testEveryMissionIsItsOwnThing() {
+        let titles = all.map(\.title)
+        XCTAssertEqual(Set(titles).count, titles.count, "two missions share a title")
+        let prompts = all.map(\.prompt)
+        XCTAssertEqual(Set(prompts).count, prompts.count, "two missions share an instruction")
+        let spellTitles = Set(SpellRegistry.all.map { $0.title.lowercased() })
+        for mission in all {
+            XCTAssertFalse(spellTitles.contains(mission.title.lowercased()), "\(mission.id) is already a spell")
+        }
+    }
+
+    /// The Cast lines on every mission card speak plainly.
+    func testEveryHostSpeaksPlainly() {
+        for mission in all {
+            let line = mission.host.invitationLine
+            XCTAssertFalse(line.contains("roller skates"), line)
+            XCTAssertFalse(line.lowercased().contains("register of"), line)
+            XCTAssertLessThanOrEqual(line.split(separator: " ").count, 20, line)
+        }
+    }
+}

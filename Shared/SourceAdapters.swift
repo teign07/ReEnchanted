@@ -10336,7 +10336,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["missionHostLead"] = host.invitationLine
         metadata["primaryLivedInvitation"] = "true"
         if let recentHostReceipt {
-            metadata["missionContinuityLine"] = "\(host.name) read what came back from ‘\(recentHostReceipt.title)’ and adjusted the next trouble."
+            metadata["missionContinuityLine"] = "\(host.name) read what you brought back from ‘\(recentHostReceipt.title)’. This one follows on."
         }
         metadata["missionNerve"] = String(format: "%.2f", mission.missionNerve)
         metadata["missionMinutes"] = "\(mission.missionMinutes)"
@@ -10372,7 +10372,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             metadata["variant"] = "shadow-wonder"
         }
         let continuityLine = recentHostReceipt.map {
-            "\n\n\(host.name) has read the evidence you brought back from ‘\($0.title).’ This one is the next turn of the lens."
+            "\n\n\(host.name) read what you brought back from ‘\($0.title)’. This one follows on."
         } ?? ""
 
         return SurfacePage(

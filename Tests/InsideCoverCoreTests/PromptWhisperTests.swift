@@ -95,7 +95,7 @@ final class PromptWhisperTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["playfulMissionTitle"], whisper.title)
         XCTAssertEqual(surface.payload.metadata["mission"], whisper.body)
         XCTAssertTrue(surface.payload.metadata["souvenirPrompt"]?.hasPrefix(whisper.keepPrompt) == true)
-        XCTAssertTrue(surface.payload.metadata["souvenirPrompt"]?.contains("photograph") == true)
+        XCTAssertTrue(surface.payload.metadata["souvenirPrompt"]?.contains("photo") == true)
         XCTAssertEqual(surface.payload.metadata["proofKind"], "sentence-or-photo")
         XCTAssertEqual(surface.payload.metadata["openedFromPromptWhisper"], "true")
         XCTAssertEqual(surface.payload.metadata["promptWhisperID"], whisper.id)

@@ -7249,7 +7249,7 @@ extension PlayfulMission {
                 slug: slug,
                 name: voice.name,
                 assetName: voice.asset,
-                invitationLine: "\(voice.name) has left this standing open since you last looked in on them."
+                invitationLine: "\(voice.name) left this one open for you. It's still waiting."
             )
         }
         let lowered = Set(tags.map { $0.lowercased() })
@@ -7258,7 +7258,7 @@ extension PlayfulMission {
                 slug: "dusk-thorn",
                 name: "The Dusk Thorn",
                 assetName: "LabyrinthTalismanDuskThorn",
-                invitationLine: "The Thorn found a worn edge and wants evidence before it believes the dark about anything."
+                invitationLine: "The Dusk Thorn likes old things and the dark. It wants proof, not stories."
             )
         }
         if !lowered.isDisjoint(with: ["people", "connection", "shared-wonder", "kindness"]) {
@@ -7266,7 +7266,7 @@ extension PlayfulMission {
                 slug: "serenity-brown",
                 name: "Serenity Brown",
                 assetName: "LabyrinthCharacterSerenityBrown",
-                invitationLine: "Serenity has drawn a tiny route between your attention and somebody else's day."
+                invitationLine: "Serenity wants you to catch something small and good about somebody else's day."
             )
         }
         if !lowered.isDisjoint(with: ["movement", "outside", "route", "commute", "place", "nature"]) {
@@ -7274,7 +7274,7 @@ extension PlayfulMission {
                 slug: "zara-finch",
                 name: "Zara Finch",
                 assetName: "LabyrinthCharacterZaraFinch",
-                invitationLine: "Zara tested the route and left this one small enough to carry."
+                invitationLine: "Zara tried this route first. It's short. Go on."
             )
         }
         if !lowered.isDisjoint(with: ["history", "evidence", "memory", "object", "visual"]) {
@@ -7282,7 +7282,7 @@ extension PlayfulMission {
                 slug: "penny-blackletter",
                 name: "Penny Blackletter",
                 assetName: "LabyrinthCharacterPennyBlackletter",
-                invitationLine: "Penny suspects one overlooked detail is holding up the whole scene."
+                invitationLine: "Penny thinks one small thing nobody looks at is holding the whole place up. Find it."
             )
         }
         if !lowered.isDisjoint(with: ["ridiculous", "imagination", "words", "sound"]) {
@@ -7290,7 +7290,7 @@ extension PlayfulMission {
                 slug: "pippa-pilcrow",
                 name: "Pippa Pilcrow",
                 assetName: "LabyrinthCharacterPilcrow",
-                invitationLine: "Pippa has put one ordinary fact on roller skates and sent you after it."
+                invitationLine: "Pippa wants to see if an ordinary minute can be made ridiculous. She thinks you can do it."
             )
         }
         if !lowered.isDisjoint(with: ["inside", "food", "taste", "scent", "making"]) {
@@ -7298,14 +7298,14 @@ extension PlayfulMission {
                 slug: "lydia-boggle",
                 name: "Professor Boggle",
                 assetName: "LabyrinthCharacterLydiaBoggle",
-                invitationLine: "Professor Boggle thinks the ordinary room is performing household magic again."
+                invitationLine: "Professor Boggle is sure your house is doing magic behind your back. Catch it at it."
             )
         }
         return PlayfulMissionHost(
             slug: "gwendolyn-mythwright",
             name: "Gwendolyn Mythwright",
             assetName: "LabyrinthCharacterGwendolynMythwright",
-            invitationLine: "Gwendolyn requires one field observation for the register of verified wonders."
+            invitationLine: "Gwendolyn keeps a list of real wonders. She needs one more."
         )
     }
 
@@ -7328,21 +7328,21 @@ extension PlayfulMission {
     var souvenirInvitation: String {
         switch playMode {
         case .share:
-            return "\(proofPrompt) Keep only what was freely offered."
+            return "\(proofPrompt) Only keep what they chose to give you."
         case .perform:
-            return "\(proofPrompt) A sentence is enough; the ridiculous part happened out there."
+            return "\(proofPrompt) One line is plenty. The silly part already happened."
         case .make:
-            return allowsPhoto ? "\(proofPrompt) A photograph of the evidence counts." : proofPrompt
+            return allowsPhoto ? "\(proofPrompt) A photo of it counts." : proofPrompt
         case .roam:
             return allowsPhoto
-                ? "\(proofPrompt) Bring back words, a photograph, or a voice scrap."
-                : "\(proofPrompt) Bring back words or a voice scrap."
+                ? "\(proofPrompt) Words, a photo or a voice note."
+                : "\(proofPrompt) Words or a voice note."
         case .listen:
-            return "\(proofPrompt) A voice scrap may answer better than spelling it."
+            return "\(proofPrompt) A voice note might say it better."
         case .photograph:
-            return "\(proofPrompt) A photograph may answer."
+            return "\(proofPrompt) A photo can answer."
         case .witness:
-            return allowsPhoto ? "\(proofPrompt) Words or a photograph will do." : proofPrompt
+            return allowsPhoto ? "\(proofPrompt) Words or a photo." : proofPrompt
         }
     }
 }
@@ -7930,24 +7930,24 @@ enum PlayfulMissionRegistry {
     private static let fullMoonMission = mission(
         "moon-full-face",
         "Full Moon Errand",
-        "Step somewhere the full moon can see you tonight. Stand still until you can tell what color its light actually is: it is never quite white.",
-        "Write the moon's true color, or what stood between you and it.",
+        "Stand somewhere the full moon can see you tonight. Stay still until you can tell what colour its light really is. It's never quite white.",
+        "The moon's real colour, or what got in the way.",
         ["natural-phenomenon", "moon", "full-moon", "light", "night", "outside"]
     )
 
     private static let waningGibbousMoonMission = mission(
         "moon-waning-gibbous-shadow",
         "Moon Shadow Errand",
-        "Tonight, if the moon is visible, find one shadow it casts. If it hides, find the place where moonlight would have landed.",
-        "Write the moon-shadow, or the place it would have touched.",
+        "If the moon is out tonight, find one shadow it's making. If it's hiding, find where its light would have landed.",
+        "The moon-shadow, or where it would have fallen.",
         ["natural-phenomenon", "moon", "waning-gibbous", "shadow", "night", "outside"]
     )
 
     private static let stormWindMission = mission(
         "storm-wind-shift",
         "Wind Change Watch",
-        "Step to a safe outside threshold, close your eyes, and listen for the exact moment the wind changes direction or argues with itself.",
-        "Write the wind's change: direction, sound, or first clue.",
+        "Stand at an open door or window, close your eyes, and listen for the moment the wind changes direction or starts arguing with itself.",
+        "How the wind changed.",
         ["natural-phenomenon", "weather", "storm", "wind", "sound", "outside"],
         allowsPhoto: false
     )
@@ -7972,18 +7972,18 @@ enum PlayfulMissionRegistry {
         let text = text.lowercased()
         if containsAny(text, ["harbor", "river", "lake", "pond", "creek", "stream", "water", "waterfront", "shore", "beach", "bay", "marina", "bridge"]) {
             return [
-                mission("water-flow-low-point", "Water Chooses Down", "Find the highest or lowest physical point nearby, then look for which way water would travel from there.", "Write the point you chose and the direction water would go.", ["natural-phenomenon", "water", "place", "outside", "movement"]),
-                mission("water-true-color", "Water's True Color", "Find water, or the nearest piece of the world acting like it: a window, puddle, kettle, polished stone. Name the color it is holding right now.", "Write: The water was really...", ["natural-phenomenon", "water", "place", "outside", "visual"]),
-                mission("water-edge-sound", "Water at the Edge", "Find the nearest watery sound or edge. Listen for the smallest sound it makes after the obvious one.", "Write the quiet sound hiding inside the water-sound.", ["natural-phenomenon", "water", "place", "outside", "sound"]),
-                mission("water-carried-clue", "What Water Carried", "Look for one thing water has moved, marked, or left behind: a leaf, a tide line, grit in a crack, a darkened curb. Treat it as evidence.", "Write what water carried or changed.", ["natural-phenomenon", "water", "place", "outside", "noticing"])
+                mission("water-flow-low-point", "Water Chooses Down", "Find the highest or lowest spot near you. If you poured water there, which way would it run?", "The spot, and which way the water would go.", ["natural-phenomenon", "water", "place", "outside", "movement"]),
+                mission("water-true-color", "Water's True Color", "Find some water: a puddle, a pond, a glass, a river. Name the colour it's holding right now. It's never just 'blue'.", "The water was really...", ["natural-phenomenon", "water", "place", "outside", "visual"]),
+                mission("water-edge-sound", "Water at the Edge", "Find the nearest water you can hear. Listen past the obvious sound for the smallest one hiding underneath.", "The quiet sound under the water-sound.", ["natural-phenomenon", "water", "place", "outside", "sound"]),
+                mission("water-carried-clue", "What Water Carried", "Find one thing water has moved, marked or left behind: a leaf, a tide line, grit in a crack, a dark stain on a kerb. It's evidence.", "What the water carried, or changed.", ["natural-phenomenon", "water", "place", "outside", "noticing"])
             ]
         }
         if containsAny(text, ["hill", "ridge", "mountain", "trail", "overlook", "stairs", "elevator", "slope", "summit", "valley"]) {
             return [
-                mission("altitude-nearby-point", "High Low Reading", "Find the highest or lowest physical point nearby. Stand there for ten seconds and decide what the place is sending downhill.", "Write the point and what seems to move away from it.", ["natural-phenomenon", "altitude", "place", "outside", "movement"], allowsPhoto: false),
-                mission("altitude-horizon-line", "Horizon Line", "Find the longest line you can see from here: roofline, hill, stair rail, treetop, curb. Follow it until it disappears.", "Write where the line let go of your sight.", ["natural-phenomenon", "altitude", "place", "outside", "visual"]),
-                mission("altitude-gravity-clue", "Gravity's Clue", "Find one ordinary thing that reveals the slope of this place: a rolling leaf, a drain, a leaning sign, a worn step. Let gravity point.", "Write the clue gravity gave you.", ["natural-phenomenon", "altitude", "place", "outside", "movement"]),
-                mission("altitude-air-change", "Different Air", "Move just enough to change your height: one flight, one curb, one hill, one overlook. Notice the first thing the air does differently.", "Write the air's first difference.", ["natural-phenomenon", "altitude", "place", "outside", "scent", "sound"])
+                mission("altitude-nearby-point", "High Low Reading", "Find the highest or lowest spot near you and stand there for ten seconds. If you let go of a marble, where would it end up?", "The spot, and where the marble would go.", ["natural-phenomenon", "altitude", "place", "outside", "movement"], allowsPhoto: false),
+                mission("altitude-horizon-line", "Horizon Line", "Find the longest line you can see from here: a roof, a hill, a railing, a kerb. Follow it with your eyes until it disappears.", "Where the line got away from you.", ["natural-phenomenon", "altitude", "place", "outside", "visual"]),
+                mission("altitude-gravity-clue", "Gravity's Clue", "Find one thing that shows which way the ground slopes here: a rolling leaf, a drain, a leaning sign, a worn step. Let gravity point.", "The clue gravity gave you.", ["natural-phenomenon", "altitude", "place", "outside", "movement"]),
+                mission("altitude-air-change", "Different Air", "Go up or down a little: one flight of stairs, one kerb, one hill. What's the first thing the air does differently?", "What the air did differently.", ["natural-phenomenon", "altitude", "place", "outside", "scent", "sound"])
             ]
         }
         return []
@@ -8301,36 +8301,41 @@ enum PlayfulMissionRegistry {
     /// person who sends them. They are not six skins over one noticing prompt:
     /// each host changes the kind of play, the real-world action, and the proof
     /// worth carrying home.
+    ///
+    /// House style for every mission (2026-09-26): one thing to do now, said
+    /// plainly; a game in it (a rule, a role, a make-believe) rather than
+    /// "notice X"; something fun to bring back. No safety lectures, no body
+    /// scans, and nothing a spell or a favor already asks.
     static let hostedSurpriseMissions: [PlayfulMission] = [
         // Pippa Pilcrow: language misbehaves until an ordinary moment develops a plot.
         mission(
             "surprise-sound-effect",
             "Smuggle In A Sound Effect",
-            "Give the next utterly ordinary action its own sound effect. A whispered fwoop for opening a cupboard counts. So does one eyebrow silently performing the noise in public.",
-            "Write the action and the sound effect it had been missing.",
+            "Give the next ordinary thing you do its own sound effect. A tiny fwoop for opening a cupboard. A ta-da for finding your keys. Whisper it if people are around.",
+            "What did you do, and what noise had it been missing?",
             ["hosted-surprise", "ridiculous", "sound", "anywhere", "low-stakes"],
             allowsPhoto: false
         ),
         mission(
             "surprise-minor-prophecy",
             "A Very Minor Prophecy",
-            "Choose one harmless thing already in motion and predict its immediate future with unreasonable gravity: the kettle will click, the door will sigh, the sock will be found. Wait just long enough to learn whether you have the Gift.",
-            "Keep the prophecy and what actually happened.",
+            "Pick something that's about to happen: the kettle will click, the door will creak, the cat will sit down. Announce it like a prophecy. Then wait and find out if you have the Gift.",
+            "Your prophecy, and whether it came true.",
             ["hosted-surprise", "ridiculous", "imagination", "anywhere", "low-stakes"],
             allowsPhoto: false
         ),
         mission(
             "surprise-wrong-field-guide",
             "The Incorrect Field Guide",
-            "Pick one ordinary thing in sight. Invent one magnificently false field-guide fact about it, then look closely enough to discover one true fact stranger than your lie.",
-            "Write the false fact and the inconveniently marvelous truth.",
+            "Pick one ordinary thing near you. Make up one wonderful, completely false fact about it. Then look closely until you find one true fact that's even stranger.",
+            "The lie, and the stranger truth.",
             ["hosted-surprise", "ridiculous", "words", "anywhere", "low-stakes"]
         ),
         mission(
             "surprise-plot-twist",
             "Plot Twist Inspection",
-            "The next harmless interruption is now a plot twist. When it arrives, however small, inspect the exact detail it changed instead of merely resenting its entrance.",
-            "Write: The plot twisted when... and name what changed.",
+            "The next small interruption today is a plot twist. When it comes, don't be cross. Look at exactly what it changed.",
+            "The plot twisted when... and what changed.",
             ["hosted-surprise", "ridiculous", "imagination", "anywhere", "low-stakes"],
             allowsPhoto: false
         ),
@@ -8339,29 +8344,29 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-three-clue-theory",
             "Three Clues, One Theory",
-            "Choose a neglected corner you may safely inspect. Find three visible clues about what happens there, then make the smallest theory those clues can honestly support.",
-            "List the three clues and your careful little theory.",
+            "Pick a corner nobody looks at. Find three clues about what happens there when nobody's watching. Then make the smallest theory the clues can prove.",
+            "Your three clues and your theory.",
             ["hosted-surprise", "evidence", "visual", "low-stakes", "inside", "public"]
         ),
         mission(
             "surprise-shaped-absence",
             "The Shape Of What Is Missing",
-            "Find an absence with edges: a pale rectangle, an empty hook, a clean ring in dust, a gap in a row. Do not invent who removed it. Study what the remaining evidence can prove.",
-            "Write the shape of the absence and one thing it proves.",
+            "Find a gap where something used to be: a pale square on a wall, an empty hook, a clean ring in the dust. Don't guess who took it. Work out what the gap can prove.",
+            "The shape of the missing thing, and one thing it proves.",
             ["hosted-surprise", "evidence", "history", "visual", "low-energy"]
         ),
         mission(
             "surprise-material-impostor",
             "The Material Impostor",
-            "Find something pretending to be another material: plastic wood, paper stone, painted metal, false marble, digital paper. Catch the tiny tell that breaks the disguise.",
-            "Name the impostor and the clue that gave it away.",
+            "Find something pretending to be something else: plastic dressed as wood, paper dressed as stone, paint dressed as metal. Catch the tiny clue that gives it away.",
+            "The impostor, and what gave it away.",
             ["hosted-surprise", "evidence", "visual", "design", "low-stakes"]
         ),
         mission(
             "surprise-accidental-collection",
             "The Accidental Collection",
-            "Find three unrelated things that have accidentally become a collection because they share one exact trait. Penny permits color only if the shade is painfully specific.",
-            "Name the three exhibits and the trait that admitted them.",
+            "Find three things that don't belong together but share one exact thing: the same shade of green, the same little dent, the same shape. Nobody meant to make this collection. You found it.",
+            "The three things, and what they share.",
             ["hosted-surprise", "evidence", "object", "visual", "low-stakes"]
         ),
 
@@ -8369,30 +8374,30 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-sound-border",
             "Walk Until The Sound Changes",
-            "On a safe, permitted route, move only until the background sound clearly changes. Stop at that invisible border. Wheels count, and so does listening from two sides of an open doorway.",
-            "Write where one sound-country ended and the next began.",
+            "Walk, or roll, until the sounds around you change. Stop right on the border. That's where one sound-country ends and the next one starts.",
+            "Where the border was, and what was on each side.",
             ["hosted-surprise", "movement", "outside", "route", "sound", "accessible"],
             allowsPhoto: false
         ),
         mission(
             "surprise-unofficial-landmark",
             "Borrow An Unofficial Landmark",
-            "Choose one landmark no map would bother naming: the brave weed, red drainpipe, crooked mailbox, window full of bottles. Let it guide the next small piece of a familiar route.",
-            "Name the landmark and the direction it gave you.",
+            "Pick a landmark no map would bother with: a brave weed, a red drainpipe, a crooked postbox. Let it choose which way you go for the next bit.",
+            "The landmark, and where it sent you.",
             ["hosted-surprise", "route", "place", "outside", "public", "low-stakes"]
         ),
         mission(
             "surprise-reverse-arrival",
             "Arrive On The Way Out",
-            "When you safely leave a familiar place, turn back from the permitted path and look as if you have never arrived before. Find the detail that only belongs to the entrance view.",
-            "Write the detail the place shows only to arrivals.",
+            "When you leave somewhere you know well, turn round once and look at it as if you'd only just arrived. Find the one thing you can only see from the door.",
+            "What the place only shows to people arriving.",
             ["hosted-surprise", "route", "place", "outside", "public", "visual", "low-stakes"]
         ),
         mission(
             "surprise-color-relay",
             "The Color Relay",
-            "Choose one exact color already near you. On the next safe stretch of your route, follow it from object to object until the color disappears or changes its mind.",
-            "Record the color and the last three places it ran.",
+            "Pick one colour near you. As you go, follow it from thing to thing, like a relay race, until it runs out.",
+            "The colour, and the last three places it ran.",
             ["hosted-surprise", "movement", "outside", "route", "color", "public"]
         ),
 
@@ -8400,32 +8405,32 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-two-person-weather",
             "Two-Person Weather",
-            "Ask someone you already know, if the moment is welcome, for one color that fits their day. No explanation required. Choose yours too and place the two colors side by side.",
-            "Write the two colors. Keep their explanation only if they offered one.",
+            "Ask someone you know what colour their day is. They don't have to explain. Pick a colour for yours too, and put the two side by side.",
+            "The two colours. Their reason only if they gave one.",
             ["hosted-surprise", "people", "connection", "shared-wonder", "low-stakes"],
             allowsPhoto: false
         ),
         mission(
             "surprise-borrowed-ordinary-favorite",
             "Borrow Their Ordinary Favorite",
-            "Ask someone you know which ordinary thing has treated them well today: a pen, bus seat, spoon, shoe, doorway, anything. Later, find your own version and see whether it deserves the recommendation.",
-            "Write both ordinary favorites and your verdict.",
+            "Ask someone which ordinary thing has been good to them today: a pen, a spoon, a bus seat. Later, find your own and see if it's as good.",
+            "Their favourite, yours, and your verdict.",
             ["hosted-surprise", "people", "connection", "shared-wonder", "low-stakes"],
             allowsPhoto: false
         ),
         mission(
             "surprise-tiny-council",
             "Convene A Tiny Council",
-            "At a welcome moment, ask someone you know to choose between two harmless options already available: this cup or that one, left or right, song A or song B. Your veto remains final. Their reason is optional and therefore interesting.",
-            "Write the tiny question, their choice, and any reason freely given.",
+            "Ask someone to choose for you between two small things: this cup or that one, left or right, this song or that. Whatever they pick, you have to do it.",
+            "The question, and what they chose.",
             ["hosted-surprise", "people", "connection", "choice", "low-stakes"],
             allowsPhoto: false
         ),
         mission(
             "surprise-kindness-detectives",
             "Kindness Detectives",
-            "With someone you already happen to be with, hunt for one sign that an absent person made this place easier: a refill, repair, label, swept step, charged thing. Do not perform gratitude at strangers. Just catch the evidence together.",
-            "Write the evidence you both convicted of kindness.",
+            "With someone you're already with, look for a sign that somebody who isn't there made this place nicer: a swept step, a full soap, a fixed thing. Catch the evidence together.",
+            "The kindness you both found.",
             ["hosted-surprise", "people", "connection", "kindness", "public", "low-stakes"],
             allowsPhoto: false
         ),
@@ -8434,32 +8439,32 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-ingredient-three-jobs",
             "An Ingredient With Three Jobs",
-            "Choose one ingredient, snack, or drink already available. Catch it doing three different jobs at once: flavor, color, temperature, structure, comfort, noise, memory. Professor Boggle insists one ingredient is always overemployed.",
-            "Write the ingredient and its three jobs.",
+            "Pick something you're about to eat or drink. Catch it doing three jobs at once: taste, colour, warmth, crunch, comfort, noise. Professor Boggle says every ingredient is overworked.",
+            "The ingredient and its three jobs.",
             ["hosted-surprise", "food", "taste", "inside", "low-energy"],
             allowsPhoto: false
         ),
         mission(
             "surprise-cup-climate",
             "Weather Inside A Cup",
-            "Before the next safe sip, inspect the tiny climate above the cup: heat, scent, condensation, stillness, a cold little front. Do not burn your nose proving anything.",
-            "File the cup's weather report.",
+            "Before your next sip, look at the tiny weather above your cup: steam, smell, a cold little breeze. Don't burn your nose finding out.",
+            "The cup's weather report.",
             ["hosted-surprise", "taste", "scent", "inside", "low-energy"],
             allowsPhoto: false
         ),
         mission(
             "surprise-leftover-coronation",
             "Crown The Leftovers",
-            "Take an ordinary leftover, snack, or drink you were already going to have and give it one absurd improvement using only what is on hand: a better bowl, a herb, a cut, a name, a ceremonial napkin. No shopping expedition.",
-            "Write what was crowned and the one thing that changed its rank.",
+            "Take a snack or leftover you were going to have anyway. Make it grander with whatever's to hand: a better plate, a fancy name, a folded napkin. Crown it.",
+            "What you crowned, and how.",
             ["hosted-surprise", "food", "making", "inside", "low-stakes"]
         ),
         mission(
             "surprise-household-treaty",
             "A Household Treaty",
-            "Find two harmless things in the same room that seem to be working against each other: lamp and glare, chair and doorway, blanket and draft. Negotiate one tiny rearrangement, or merely propose it if moving things is not welcome.",
-            "Name the two parties and the treaty term.",
-            ["hosted-surprise", "making", "inside", "ritual", "low-stakes"],
+            "Find two things in a room that don't get on: the lamp and the glare, the chair and the door, the blanket and the draught. Make peace between them by moving one small thing.",
+            "The two sides, and the peace you made.",
+            ["hosted-surprise", "making", "inside", "peace", "low-stakes"],
             allowsPhoto: false
         ),
 
@@ -8467,30 +8472,30 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-coincidence-court",
             "Court Of Coincidence",
-            "Find two unrelated things sharing one implausibly exact feature: the same bent angle, tiny color, rhythm, number, or accidental expression. Convene court and decide whether coincidence has a case.",
-            "Write the two witnesses and your verdict.",
+            "Find two things that have nothing to do with each other but share one exact detail: the same bend, the same tiny colour, the same pattern. Decide if it's a coincidence or a conspiracy.",
+            "The two things, and your verdict.",
             ["hosted-surprise", "wonder", "coincidence", "color", "low-energy"]
         ),
         mission(
             "surprise-minute-capsule",
             "A Time Capsule For This Minute",
-            "Choose one detail that could prove this exact minute existed to someone opening it a hundred years from now. It must be ordinary, specific, and true. You need not keep the thing, only its evidence.",
-            "Write the detail you would send through time.",
+            "Find one detail that would prove this exact minute happened, to somebody opening a time capsule a hundred years from now. It has to be ordinary, and true.",
+            "The detail you'd send through time.",
             ["hosted-surprise", "wonder", "time", "attention", "low-energy"],
             allowsPhoto: false
         ),
         mission(
             "surprise-light-jailbreak",
             "The Light Escaped",
-            "Find light breaking a boundary it was meant to obey: under a door, through a sleeve, around a curtain, across a crack, inside a reflection. Determine the escape route.",
-            "Write where the light got out and how.",
+            "Find some light that's got out of where it's meant to be: under a door, round a curtain, through a crack. Work out how it escaped.",
+            "Where the light got out, and how.",
             ["hosted-surprise", "wonder", "light", "threshold", "low-energy"]
         ),
         mission(
             "surprise-small-impossible",
             "A Small Impossible Thing",
-            "Find something that looks physically impossible for one second: a floating reflection, balanced load, backward shadow, invisible support. Then inspect it until the mechanism gives itself away.",
-            "Keep both truths: what looked impossible, and how it was done.",
+            "Find something that looks impossible for one second: a floating reflection, a shadow going the wrong way, a thing balanced on nothing. Then look until you catch how it's done.",
+            "What looked impossible, and the trick behind it.",
             ["hosted-surprise", "wonder", "mechanism", "attention", "low-stakes"]
         )
     ]
@@ -8501,78 +8506,78 @@ enum PlayfulMissionRegistry {
     /// (House law: the Book may be impressed by the reader's seeing of real
     /// people; it never invents their words: see PeopleOfTheBook.)
     static let peopleMissions: [PlayfulMission] = [
-        mission("people-hands", "The Hands Report", "The next time someone talks to you today, watch their hands instead of the air. Hands keep saying things after sentences end.", "Write what their hands were doing while they talked.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
-        mission("people-refrain", "Catch The Refrain", "Everyone carries a phrase they reach for. Catch the exact words someone near you repeats: word for word, no paraphrase.", "Write the phrase exactly as they said it.", ["people", "connection", "sound", "public", "low-stakes"], allowsPhoto: false),
-        mission("people-laugh", "The True Laugh", "The next laugh you hear from someone you know: find one true comparison for the sound. Not 'nice.' The actual sound.", "Complete this: Their laugh sounded like...", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
-        mission("people-noticing", "What They Notice", "Watch what someone near you pays attention to. What does their attention love that yours skips past?", "Write the thing their attention went to first.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
-        mission("people-asked", "The Borrowed Eye", "Ask someone what they noticed today: anything at all. Then keep their answer like it was your own page.", "Write their answer in their words, and who lent it.", ["people", "connection", "kindness", "low-stakes"], allowsPhoto: false),
-        mission("people-craft", "Watch The Craft", "Watch someone do something they are good at: pouring, parking, chopping, explaining. Find the exact moment the skill shows.", "Write the moment their skill became visible.", ["people", "connection", "visual", "public"], allowsPhoto: false),
-        mission("people-voice", "Under The Words", "While someone talks to you, listen once to the voice instead of the words. What is the voice doing that the words are not?", "Write what the voice carried that the sentence didn't.", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
-        mission("people-uncut", "The Uncut Detail", "If this person were a character, what detail would the author refuse to cut? Find it while they are in front of you.", "Write the detail the author would keep.", ["people", "connection", "visual", "character", "low-stakes"], allowsPhoto: false)
+        mission("people-hands", "The Hands Report", "Next time someone talks to you today, watch their hands instead of their face. Hands keep talking after the words stop.", "What their hands were saying.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-refrain", "Catch The Refrain", "Everybody has a phrase they say all the time. Catch someone's today, word for word.", "Their phrase, exactly as they said it.", ["people", "connection", "sound", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-laugh", "The True Laugh", "Next time someone you know laughs, work out what it actually sounds like. Not 'nice'. The real sound.", "Their laugh sounded like...", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
+        mission("people-noticing", "What They Notice", "Watch what someone near you looks at first. What do they see that you walk straight past?", "What they noticed first.", ["people", "connection", "visual", "public", "low-stakes"], allowsPhoto: false),
+        mission("people-asked", "The Borrowed Eye", "Ask someone what they noticed today. Anything at all. Keep their answer like it's a page of your own.", "Their answer, in their words, and who lent it to you.", ["people", "connection", "kindness", "low-stakes"], allowsPhoto: false),
+        mission("people-craft", "Watch The Craft", "Watch someone do a thing they're good at: pouring, parking, chopping, explaining. Catch the exact moment you can see how good they are.", "The moment their skill showed.", ["people", "connection", "visual", "public"], allowsPhoto: false),
+        mission("people-voice", "Under The Words", "While someone talks to you, listen to their voice instead of their words, just once. What is the voice saying that the words aren't?", "What the voice said.", ["people", "connection", "sound", "low-stakes"], allowsPhoto: false),
+        mission("people-uncut", "The Uncut Detail", "If this person were in a book, which detail about them would the writer never cut? Find it while they're in front of you.", "The detail the book would keep.", ["people", "connection", "visual", "character", "low-stakes"], allowsPhoto: false)
     ]
 
     /// Tiny outward-facing acts of enchantment: optional, free, and designed to
     /// brighten someone else's ordinary day without asking them to perform back.
     static let sharedWonderMissions: [PlayfulMission] = [
-        mission("shared-no-reply-glint", "No-Reply Glint", "Send someone a photo, song, or one-line observation that made you think of them. Add: ‘I saw this and threw it your way. No return postage.’", "Write what you passed along and who it belonged to.", ["shared-wonder", "connection", "kindness", "low-stakes"]),
-        mission("shared-specific-thanks", "Specific Thanks", "Thank someone for one exact thing they did: a held door, clear directions, a good question, a steady hand. Only say it if you mean it; specificity is the magic.", "Write the exact thing you thanked them for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
-        mission("shared-point-it-out", "Pass The Glint", "When you are with someone, point out one small wonderful thing they might have missed: a shadow, a dog with a job, a ridiculous cloud, a perfect tiny color.", "Write the glint you passed along.", ["shared-wonder", "connection", "visual", "public"]),
-        mission("shared-better-exit", "Leave It Kinder", "On your way out of a shared space, do one tiny thing that makes the next person's arrival easier: return a basket, push in a chair, or put one safe thing back where it belongs.", "Write the small kindness you left behind.", ["shared-wonder", "kindness", "public", "errand"]),
-        mission("shared-good-news", "Good News Courier", "Tell someone you already know one small piece of good news that is not about productivity, money, or disaster. A bird, a soup, a tiny victory, a strange cloud: it counts.", "Write the good news you carried.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
-        mission("shared-maker-credit", "Credit The Maker", "If something made your day easier or nicer, tell its maker or keeper specifically: the cook, artist, cashier, coworker, librarian, neighbor, or friend. Keep it brief and true.", "Write what you gave credit for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
-        mission("shared-ordinary-toast", "An Ordinary Toast", "Raise a cup, snack, or imaginary glass with someone to one extremely ordinary thing that went right today: the bus came, the laundry dried, the key fit, the light turned green.", "Write what earned the tiny toast.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
-        mission("shared-open-the-way", "Make A Little Room", "At the next harmless chance, make a little room for someone: let them merge, hold a door, offer the closer seat, or step aside. No flourish required.", "Write how you made room.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
-        mission("shared-friend-portrait", "One Good Sentence", "Tell a friend, family member, or coworker one good sentence about them that is not about how useful they are. Keep it concrete.", "Write the sentence you gave away.", ["shared-wonder", "connection", "kindness", "low-stakes"], allowsPhoto: false),
-        mission("shared-kind-route", "The Kinder Route", "Share one small, genuinely useful local delight with someone: a good bench, a quiet shortcut, a free view, a friendly plant, a library shelf. Tell them where it is, then let the bench make its own case.", "Write the delight you recommended.", ["shared-wonder", "connection", "place", "public", "low-stakes"])
+        mission("shared-no-reply-glint", "No-Reply Glint", "Send someone a photo, a song or one line that made you think of them. Add: ‘Saw this and thought of you. No need to reply.’", "What you sent, and who it was for.", ["shared-wonder", "connection", "kindness", "low-stakes"]),
+        mission("shared-specific-thanks", "Specific Thanks", "Thank someone for one exact thing they did: held a door, gave good directions, asked a good question. Say exactly what it was. Exact is the magic part.", "What you thanked them for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
+        mission("shared-point-it-out", "Pass The Glint", "When you're with someone, point out one small wonderful thing they'd have missed: a funny cloud, a dog with a job, a perfect colour.", "The thing you pointed out.", ["shared-wonder", "connection", "visual", "public"]),
+        mission("shared-better-exit", "Leave It Kinder", "When you leave a place other people use, do one small thing to make it nicer for the next person. Push a chair in. Put a basket back.", "What you left nicer.", ["shared-wonder", "kindness", "public", "errand"]),
+        mission("shared-good-news", "Good News Courier", "Tell someone one small piece of good news that isn't about work or money. A bird, a soup, a tiny win. It counts.", "The good news you carried.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
+        mission("shared-maker-credit", "Credit The Maker", "If something made your day better, tell the person who made it: the cook, the librarian, the neighbour. Keep it short and true.", "What you gave them credit for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
+        mission("shared-ordinary-toast", "An Ordinary Toast", "Raise a cup with someone, a real one or a pretend one, to one ordinary thing that went right today. The bus came. The washing dried. The key fitted.", "What got the toast.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
+        mission("shared-open-the-way", "Make A Little Room", "Next chance you get, make a little room for someone: let them go first, hold a door, give them the better seat. No fuss about it.", "How you made room.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
+        mission("shared-friend-portrait", "One Good Sentence", "Tell someone one good sentence about them that isn't about how useful they are. Make it exact.", "The sentence you gave away.", ["shared-wonder", "connection", "kindness", "low-stakes"], allowsPhoto: false),
+        mission("shared-kind-route", "The Kinder Route", "Tell someone about one small good thing near you: a nice bench, a secret shortcut, a free view, a good shelf at the library. Then let it speak for itself.", "What you told them about.", ["shared-wonder", "connection", "place", "public", "low-stakes"])
     ]
 
     static let coreMissions: [PlayfulMission] = [
-        mission("oldest-smell", "The Oldest Thing", "Find the oldest thing near you and smell it. What does age smell like here?", "Complete this: The oldest thing near me smelled like...", ["scent", "touch", "inside", "low-energy"]),
-        mission("coldest-touch", "The Coldest Touch", "Find the coldest thing you are allowed to touch. Hold it for five seconds.", "Write one sentence about where the cold seemed to come from.", ["touch", "temperature", "inside", "low-energy"]),
-        mission("quietest-sound", "The Quietest Sound", "Stand still and hunt the quietest sound in the room. Not the loudest. The shyest.", "Complete this: Under everything else, I heard...", ["sound", "inside", "low-energy"]),
-        mission("three-rough", "Texture Thief", "Find three rough textures within ten steps. Rank them from friendly to suspicious.", "Write one sentence naming the strangest texture.", ["touch", "inside", "public"]),
-        mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet.", "Write the blue thing that surprised you most.", ["visual", "color", "inside", "public"]),
-        mission("tiny-door", "Tiny Door", "Find the smallest opening nearby: a crack, keyhole, drawer gap, vent, bottle mouth, or shadow under a door.", "Write what might live on the other side.", ["visual", "imagination", "inside"]),
-        mission("weather-scent", "Weather Has A Smell", "Step near a door or window and compare the air on both sides. Which side has more weather in it?", "Write one sentence about the smell or weight of the air.", ["weather", "scent", "inside"]),
-        mission("object-portrait", "Object Portrait", "Choose one ordinary object and photograph it like it is the main character.", "Write its first line of dialogue.", ["photo", "visual", "character", "inside"]),
-        mission("five-shadows", "Shadow Hunt", "Find five shadows. Pick the one that looks least like the thing casting it.", "Write what the shadow is pretending to be.", ["visual", "photo", "inside", "public"]),
-        mission("softest-edge", "The Softest Edge", "Find the softest edge nearby. A sleeve, paper, light, bread crust, blanket, voice, or dust counts.", "Write one sentence about what made it soft.", ["touch", "visual", "low-energy"]),
-        mission("smell-map", "Smell Map", "Move through three nearby spots and notice how the smell changes. Make a tiny map in your head.", "Write the border where the smell changed.", ["scent", "movement", "inside"]),
-        mission("tiny-kindness", "Evidence Of Kindness", "Find one tiny sign that someone made life easier for someone else.", "Write the evidence, no moral required.", ["visual", "public", "errand"]),
-        mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker, sign, or package text nearby.", "Write what makes it strange.", ["visual", "public", "errand"]),
-        mission("sound-layer", "Sound Layer", "Listen for three layers: machine, body, world. Name one sound in each layer.", "Write the layer that felt most alive.", ["sound", "inside", "public"]),
-        mission("weight-guess", "Weight Oracle", "Pick up a safe object. Guess its exact weight, then decide if your hand agrees.", "Write whether it was heavier or lighter than its face suggested.", ["touch", "weight", "inside"]),
-        mission("one-inch-kingdom", "One-Inch Kingdom", "Look closely at one square inch of something: fabric, bark, carpet, table, wall, sidewalk.", "Write what lives in that tiny kingdom.", ["visual", "touch", "photo", "low-energy"]),
-        mission("borrowed-color", "Borrowed Color", "Find an object borrowing color from something else: reflected light, stained glass, screen glow, sunset, shade.", "Write who lent the color.", ["visual", "color", "photo"]),
-        mission("old-date", "Date Hunter", "Find the oldest visible date nearby: on a coin, receipt, book, sign, package, building, or file.", "Write what that date has been waiting through.", ["visual", "public", "history"]),
-        mission("chair-held", "The Chair Holds", "Sit down and let the chair do all the work for sixty seconds. Notice where it pushes back.", "Complete this: The chair held me by...", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false),
-        mission("brightest-small", "Small Bright Thing", "Find the brightest small thing nearby. Not the biggest bright thing. The small one.", "Write why it caught the light.", ["visual", "low-energy", "inside", "public"])
+        mission("oldest-smell", "The Oldest Thing", "Find the oldest thing near you and smell it. What does old smell like here?", "The oldest thing near me smelled like...", ["scent", "touch", "inside", "low-energy"]),
+        mission("coldest-touch", "The Coldest Touch", "Find the coldest thing you're allowed to touch and hold it for five seconds. Where is the cold coming from?", "Where the cold seemed to come from.", ["touch", "temperature", "inside", "low-energy"]),
+        mission("quietest-sound", "The Quietest Sound", "Stand still and hunt for the quietest sound in the room. Not the loudest. The shyest one.", "Under everything else, I heard...", ["sound", "inside", "low-energy"]),
+        mission("three-rough", "Texture Thief", "Find three rough things near you. Rank them from friendly to suspicious.", "The most suspicious texture.", ["touch", "inside", "public"]),
+        mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet.", "The blue thing that surprised you most.", ["visual", "color", "inside", "public"]),
+        mission("tiny-door", "Tiny Door", "Find the smallest opening near you: a crack, a keyhole, the gap in a drawer, the shadow under a door. Something could live through there.", "What lives on the other side.", ["visual", "imagination", "inside"]),
+        mission("weather-scent", "Weather Has A Smell", "Open a door or a window. Smell the air inside, then the air outside. Which side has more weather in it?", "What the weather smelled like.", ["weather", "scent", "inside"]),
+        mission("object-portrait", "Object Portrait", "Pick one ordinary thing and photograph it like it's the main character in a film.", "Its first line in the film.", ["photo", "visual", "character", "inside"]),
+        mission("five-shadows", "Shadow Hunt", "Find five shadows. Pick the one that looks least like the thing that's making it.", "What that shadow is pretending to be.", ["visual", "photo", "inside", "public"]),
+        mission("softest-edge", "The Softest Edge", "Find the softest edge near you. A sleeve, a bread crust, a blanket, a patch of light. Soft edges hide everywhere.", "The softest edge, and what made it soft.", ["touch", "visual", "low-energy"]),
+        mission("smell-map", "Smell Map", "Walk through three spots nearby and smell each one. Find the exact border where one smell turns into another.", "Where the smell changed, and into what.", ["scent", "movement", "inside"]),
+        mission("tiny-kindness", "The Lost Property Office", "Find something lost near you: one glove, a button, a lid with no pot. Give it a sign, or just a name, so it knows someone's noticed it's waiting.", "What was lost, and what you called it.", ["visual", "public", "errand"]),
+        mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker or sign near you. Read the whole thing.", "The strangest line on it.", ["visual", "public", "errand"]),
+        mission("sound-layer", "Sound Layer", "Listen for three kinds of sound: one a machine is making, one a body is making, and one the world outside is making.", "The three sounds, and which one felt most alive.", ["sound", "inside", "public"]),
+        mission("weight-guess", "Weight Oracle", "Pick up something small. Guess exactly how heavy it is. Then decide whether your hand agrees with your guess.", "Heavier or lighter than it looked?", ["touch", "weight", "inside"]),
+        mission("one-inch-kingdom", "One-Inch Kingdom", "Look very closely at one tiny square of something: a jumper, bark, carpet, a table, a pavement. It's a whole kingdom.", "Who lives in the tiny kingdom?", ["visual", "touch", "photo", "low-energy"]),
+        mission("borrowed-color", "Borrowed Color", "Find something wearing a colour that isn't its own: light through coloured glass, a screen's glow on a wall, the sunset on a window.", "Who lent it the colour?", ["visual", "color", "photo"]),
+        mission("old-date", "Date Hunter", "Find the oldest date you can see: on a coin, a receipt, a book, a sign, a building.", "The date, and what it's been waiting through.", ["visual", "public", "history"]),
+        mission("chair-held", "The Chair's Opinion", "Sit in a chair and decide what it thinks of you. Pleased? Offended? Bored? Chairs have opinions. They just keep them to themselves.", "What the chair thinks of you.", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false),
+        mission("brightest-small", "Small Bright Thing", "Find the brightest small thing near you. Not the biggest bright thing. The small one.", "Why it caught the light.", ["visual", "low-energy", "inside", "public"])
     ]
 
     /// Immediate nonsense with a sensory job to do. Every mission begins now,
     /// works in public or private, needs no special object or able-bodied
     /// movement, and accepts either a sentence or a photo as its souvenir.
     static let ridiculousMissions: [PlayfulMission] = [
-        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Convene an emergency meeting of three body parts you can safely move: toes, fingers, eyebrows, shoulders, anything. Let each vote once. Which one is clearly trying to take over?", "Write the three delegates and the would-be ruler.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
-        mission("ridiculous-ambient-conductor", "Conduct The Situation", "For twenty seconds, conduct every sound around you with one finger. Bring in the hum. Silence the clunk. Give the smallest sound an outrageous solo.", "Write which sound got the solo.", ["ridiculous", "anywhere", "present-moment", "sound", "movement", "imagination"], allowsPhoto: false),
-        mission("ridiculous-countdown", "Completely Unnecessary Countdown", "Choose one harmless tiny action you can do right now: blink, sip, stand, tap, turn a page. Give it a five-second launch countdown, then notice the exact instant it becomes done.", "Write the action that received launch clearance.", ["ridiculous", "anywhere", "present-moment", "body", "time", "noticing"], allowsPhoto: false),
-        mission("ridiculous-dramatic-zoom", "Dramatic Zoom", "Pick the most boring thing in view. Slowly lean your attention closer like a television camera revealing the villain. Stop when one detail becomes suspicious.", "Write the suspicious detail revealed by the zoom.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "low-energy"], allowsPhoto: false),
-        mission("ridiculous-tiny-applause", "Applause For The Competent", "Find one ordinary thing currently doing its job. Give it the smallest possible round of applause (fingertips, one nod, or silent jazz hands), then inspect what it did to earn this.", "Write the performer and its exact achievement.", ["ridiculous", "anywhere", "present-moment", "visual", "touch", "imagination"], allowsPhoto: false),
-        mission("ridiculous-object-election", "Emergency Object Election", "Choose three things you can see. Elect one Mayor of Right Now, one Minister of Suspicious Affairs, and one object that absolutely demanded a title it cannot handle.", "Write the cabinet and the evidence behind one appointment.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "imagination"], allowsPhoto: false),
-        mission("ridiculous-freeze-frame", "Freeze-Frame Investigation", "When you are safely still, freeze for ten seconds in the exact pose you are already in. Your only job is to catch what keeps moving without you.", "Write the thing that refused to freeze.", ["ridiculous", "anywhere", "present-moment", "body", "visual", "movement"], allowsPhoto: false),
-        mission("ridiculous-imaginary-hat", "Adjust The Invisible Hat", "You are wearing an invisible hat of unreasonable importance. Adjust it once with complete dignity. Now notice what your forehead, hair, skin, or the air was actually doing.", "Write the hat's title and the real sensation beneath it.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "imagination"], allowsPhoto: false),
-        mission("ridiculous-five-beat-parade", "Five-Beat Parade", "Hold a five-beat parade using whatever can safely move: feet, shoulders, fingers, wheels, or eyebrows. Give every beat more ceremony than the last.", "Write which beat believed the hype most.", ["ridiculous", "anywhere", "present-moment", "body", "rhythm", "movement"], allowsPhoto: false),
-        mission("ridiculous-support-surface", "Gravity's Press Conference", "Press gently into whatever is supporting you: floor, chair, bed, wall, shoes. Ask gravity one question by shifting your weight, then feel exactly where the answer pushes back.", "Write where gravity answered.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "weight"], allowsPhoto: false),
-        mission("ridiculous-air-border", "Air Border Patrol", "Move one hand slowly through the air around you. Find the border where the temperature, breeze, light, or texture changes. It is a tiny country now; name it.", "Write the border and the country's name.", ["ridiculous", "anywhere", "present-moment", "touch", "temperature", "imagination"], allowsPhoto: false),
-        mission("ridiculous-blink-photo", "Blink Photograph", "Frame the scene in front of you with your eyes. Close them for three seconds. Open them and catch the very first detail that develops.", "Write the first detail in the blink photograph.", ["ridiculous", "anywhere", "present-moment", "visual", "body", "low-energy"], allowsPhoto: false),
-        mission("ridiculous-museum-plaque", "Museum Of This Exact Second", "Choose the nearest utterly ordinary thing and give it a seven-word museum plaque describing its exact condition right now. Curators are standing by.", "Write the seven-word plaque.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "words"], allowsPhoto: false),
-        mission("ridiculous-sound-audition", "Audition The Soundtrack", "Audition three sounds you can hear for the role of Sound of This Exact Moment. Listen to each candidate all the way through before choosing the winner.", "Write the winning sound and why it got the part.", ["ridiculous", "anywhere", "present-moment", "sound", "attention", "imagination"], allowsPhoto: false),
-        mission("ridiculous-micro-ceremony", "Historic Tiny Achievement", "Complete one tiny action already available to you, then mark the occasion with a solemn nod, a fingertip fanfare, or one whispered 'done.' Notice what changes in your body after the ceremony.", "Write the achievement and what shifted after it.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "noticing"], allowsPhoto: false),
-        mission("ridiculous-opposite-hand", "Cameo By The Other Hand", "Give your non-usual hand one safe, tiny job right now. Let it tap, point, turn, hold, or choose. Watch what suddenly requires a committee.", "Write the job and the awkwardly vivid part.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
-        mission("ridiculous-constellation", "Emergency Constellation", "Choose three points above or ahead of you: marks, lights, corners, clouds, anything. Connect them into a constellation and name the extremely local legend it depicts.", "Write the constellation and its legend in one line.", ["ridiculous", "anywhere", "present-moment", "visual", "place", "imagination"], allowsPhoto: false),
-        mission("ridiculous-official-nod", "The Official Nod", "Find the most overlooked thing in sight. Study its actual work for ten seconds, then give it one grave official nod. The inspection is complete.", "Write what passed inspection and the job it was doing.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "attention"], allowsPhoto: false),
-        mission("ridiculous-red-carpet", "Three-Step Red Carpet", "Travel three safe steps toward whatever you were doing next as if the ground has waited all day for this entrance. If steps do not suit, walk two fingers across a surface. Notice one sensation per step.", "Write the three red-carpet sensations.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
-        mission("ridiculous-reality-caption", "Caption Reality Badly", "Look at this exact moment and give it the most overdramatic six-word title the evidence can support. It must include one real detail you can sense now.", "Write the six-word title.", ["ridiculous", "anywhere", "present-moment", "visual", "words", "imagination"], allowsPhoto: false)
+        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Call an emergency meeting of three body parts: toes, fingers, eyebrows, anything. Each one gets one vote. Which one is clearly trying to take over?", "The three delegates, and the one trying to rule.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-ambient-conductor", "Conduct The Situation", "For twenty seconds, conduct every sound around you with one finger. Bring in the hum. Shush the clunk. Give the smallest sound a big solo.", "Which sound got the solo?", ["ridiculous", "anywhere", "present-moment", "sound", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-countdown", "Completely Unnecessary Countdown", "Pick one tiny thing you're about to do: a sip, standing up, turning a page. Give it a five-second launch countdown. Then blast off.", "What got launched.", ["ridiculous", "anywhere", "present-moment", "body", "time", "noticing"], allowsPhoto: false),
+        mission("ridiculous-dramatic-zoom", "Dramatic Zoom", "Pick the most boring thing you can see. Lean in slowly, like a camera in a film revealing the villain. Stop when one detail looks suspicious.", "The suspicious detail.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "low-energy"], allowsPhoto: false),
+        mission("ridiculous-tiny-applause", "Applause For The Competent", "Find one ordinary thing doing its job right now. Give it the smallest round of applause you can: fingertips, one nod, silent jazz hands. Then work out what it did to deserve it.", "Who got the applause, and what for.", ["ridiculous", "anywhere", "present-moment", "visual", "touch", "imagination"], allowsPhoto: false),
+        mission("ridiculous-object-election", "Emergency Object Election", "Pick three things you can see. Elect one Mayor of Right Now, one Minister of Suspicious Business, and one that wanted a title and really shouldn't have one.", "Your cabinet, and why one of them got the job.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "imagination"], allowsPhoto: false),
+        mission("ridiculous-freeze-frame", "Statue", "Freeze exactly as you are for ten seconds, like a game of statues. Something around you will keep moving. Catch it.", "The thing that wouldn't freeze.", ["ridiculous", "anywhere", "present-moment", "body", "visual", "movement"], allowsPhoto: false),
+        mission("ridiculous-imaginary-hat", "Adjust The Invisible Hat", "You're wearing an invisible hat of great importance. Adjust it once, with dignity. Now decide what kind of hat it is, and who gave it to you.", "The hat, and who gave it to you.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "imagination"], allowsPhoto: false),
+        mission("ridiculous-five-beat-parade", "Five-Beat Parade", "Hold a five-beat parade with whatever can move: feet, shoulders, fingers, wheels, eyebrows. Every beat gets fancier than the last.", "Which beat got most carried away?", ["ridiculous", "anywhere", "present-moment", "body", "rhythm", "movement"], allowsPhoto: false),
+        mission("ridiculous-support-surface", "Interview The Floor", "Ask the floor one question, out loud and very politely. One tap for yes, two for no. Decide what it answered.", "Your question, and the floor's answer.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "imagination"], allowsPhoto: false),
+        mission("ridiculous-air-border", "Air Border Patrol", "Move one hand slowly through the air around you. Find the border where it gets warmer, cooler or breezier. That's a tiny country now. Name it.", "The tiny country's name.", ["ridiculous", "anywhere", "present-moment", "touch", "temperature", "imagination"], allowsPhoto: false),
+        mission("ridiculous-blink-photo", "Blink Photograph", "Look at what's in front of you. Close your eyes for three seconds, like a camera shutter. Open them and catch the first thing that develops.", "The first thing in the blink photograph.", ["ridiculous", "anywhere", "present-moment", "visual", "body", "low-energy"], allowsPhoto: false),
+        mission("ridiculous-museum-plaque", "Museum Of This Exact Second", "Pick the nearest completely ordinary thing and write it a seven-word museum label. The curators are waiting.", "The seven-word label.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "words"], allowsPhoto: false),
+        mission("ridiculous-sound-audition", "Audition The Soundtrack", "Three sounds you can hear are auditioning for the part of Sound Of This Exact Moment. Listen to each one all the way through. Pick the winner.", "The winning sound, and why it got the part.", ["ridiculous", "anywhere", "present-moment", "sound", "attention", "imagination"], allowsPhoto: false),
+        mission("ridiculous-micro-ceremony", "Historic Tiny Achievement", "Do one tiny job you've been putting off: a cup to the sink, one reply, one sock. Then hold a very small, very serious ceremony for it.", "The achievement, and its ceremony.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "noticing"], allowsPhoto: false),
+        mission("ridiculous-opposite-hand", "Cameo By The Other Hand", "Give your other hand one tiny job right now: tap, point, turn a page, hold a cup. Watch how much fuss it makes about it.", "The job, and how the other hand coped.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
+        mission("ridiculous-constellation", "Emergency Constellation", "Pick three spots above or in front of you: marks, lights, corners, clouds. Join them into a constellation. Name it, and make up the legend it's from.", "The constellation and its legend, in one line.", ["ridiculous", "anywhere", "present-moment", "visual", "place", "imagination"], allowsPhoto: false),
+        mission("ridiculous-official-nod", "Secret Agent", "For the next minute you're a secret agent. Nobody can know. Find one thing in the room an agent would notice and a normal person never would.", "What the agent noticed.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "attention"], allowsPhoto: false),
+        mission("ridiculous-red-carpet", "Three-Step Red Carpet", "Take three steps toward whatever you're doing next as if it's a red carpet and the ground has waited all day for you. Two fingers walking across a table count.", "One thing you felt on each step.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
+        mission("ridiculous-reality-caption", "Caption Reality Badly", "Give this exact moment the most dramatic six-word title you can. It has to include one real thing you can see or hear.", "The six-word title.", ["ridiculous", "anywhere", "present-moment", "visual", "words", "imagination"], allowsPhoto: false)
     ].map { draft in
         var mission = draft
         mission.allowsPhoto = true
@@ -8580,111 +8585,88 @@ enum PlayfulMissionRegistry {
     }
 
     static let attentionMissions: [PlayfulMission] = [
-        mission("body-heartbeat-location", "The Body Reports In", "Stand completely still until you can feel your heartbeat somewhere other than your chest. Report the location.", "Write the place where the heartbeat answered.", ["body", "touch", "low-energy", "inside"], allowsPhoto: false),
-        mission("body-quiet-steps", "Quiet Step Audit", "Walk ten steps as quietly as you possibly can. What gave you away?", "Write the sound or movement that betrayed you.", ["body", "sound", "movement", "inside"], allowsPhoto: false),
-        mission("body-warmer-hand", "Hand Weather", "Find out which of your hands is warmer right now. Form a theory about why.", "Write which hand was warmer and your best theory.", ["body", "touch", "temperature", "low-energy"], allowsPhoto: false),
-        mission("body-unclench-report", "The Muscle Confesses", "Unclench everything. Report which muscle was holding on and refused to admit it.", "Name the muscle that was still holding on.", ["body", "touch", "rest", "low-energy"], allowsPhoto: false),
-        mission("body-tongue-watch", "Tongue Watch", "Notice what your tongue is doing right now. It was doing something.", "Write the tongue report in one exact phrase.", ["body", "taste", "low-energy"], allowsPhoto: false),
-        mission("body-wall-palm", "Building Report", "Press your palm flat against the nearest wall for ten seconds. Decide what the building is doing today.", "Write what the building is doing today.", ["body", "touch", "inside", "place"], allowsPhoto: false),
-        mission("body-chair-border", "Chair Border", "Find the exact place where your body ends and the chair begins. It is blurrier than you would think.", "Write one sentence about the blurriest border.", ["body", "touch", "rest", "inside"], allowsPhoto: false),
-        mission("body-purposeful-yawn", "Yawn Route", "Yawn on purpose. Track where it travels: jaw, ears, eyes, spine. File a route map.", "Write the route the yawn took.", ["body", "rest", "low-energy"], allowsPhoto: false),
-        mission("body-suspicious-breath", "Suspicious Breath", "Take one breath so slow it feels suspicious. What did you smell at the very bottom of it?", "Write the bottom-of-the-breath smell.", ["body", "scent", "low-energy"], allowsPhoto: false),
-        mission("body-ankle-save", "Ankle Rescue", "Stand on one foot while you wait for something today. Report what your ankle did to save you.", "Write what the ankle did.", ["body", "balance", "movement"], allowsPhoto: false),
-        mission("body-engine-count", "The Engine", "Find your pulse with two fingers. Count to ten beats. That is the engine. It never gets thanked.", "Write where you found the engine.", ["body", "touch", "low-energy"], allowsPhoto: false),
-        mission("sound-newcomer", "Name The Newcomer", "Count the sounds you can hear right now. Then wait, perfectly still, for the next one to arrive. Name the newcomer.", "Write the newest sound by name.", ["sound", "inside", "low-energy"], allowsPhoto: false),
-        mission("sound-lowest-room", "Lowest Sound", "Find the lowest sound in the room. It has probably been running this whole time.", "Write the lowest sound and where it might live.", ["sound", "inside", "low-energy"], allowsPhoto: false),
-        mission("sound-farthest-away", "Farthest Sound", "Listen for the farthest-away sound you can detect. Estimate the distance in honest units.", "Write the sound and its honest distance.", ["sound", "inside", "outside"], allowsPhoto: false),
-        mission("sound-three-objects", "Best Voice", "Tap three safe objects within reach. Which one has the best voice?", "Write which object had the best voice.", ["sound", "touch", "inside"], allowsPhoto: false),
-        mission("sound-appliance-duet", "Appliance Duet", "Hum one low note and hold it. Somewhere, an appliance is humming back. Find your duet partner.", "Write the duet partner.", ["sound", "inside", "low-energy"], allowsPhoto: false),
-        mission("sound-daily-unmentioned", "Unmentioned Sound", "Identify one sound you hear every single day but have never once mentioned to anyone. Mention it now.", "Write the daily sound.", ["sound", "inside", "low-energy"], allowsPhoto: false),
-        mission("sound-ear-cups", "Borrowed Ears", "Cup your hands behind your ears for ten seconds. Report what got louder.", "Write what changed when your ears borrowed walls.", ["sound", "body", "inside"], allowsPhoto: false),
-        mission("sound-room-pulse", "Room Pulse", "Find the room's pulse: something that ticks, blinks, drips, or hums in rhythm. Take its tempo.", "Write the pulse and its tempo.", ["sound", "rhythm", "inside"], allowsPhoto: false),
-        mission("object-oldest-story", "Oldest Witness", "Find the oldest object in the room and ask what it has seen. Record its best story in one line.", "Write the oldest object's best story.", ["object", "history", "inside"]),
-        mission("object-no-credit", "No-Credit Object", "Pick the object nearest you that gets no credit. Thank it specifically for the exact job it does.", "Write the object and the job it does.", ["object", "visual", "inside", "low-energy"]),
-        mission("object-tired", "Object Rest", "Find one object that is tired. What would rest look like for it?", "Write what rest would look like for that object.", ["object", "visual", "imagination", "inside"]),
-        mission("object-face", "Object Face", "Choose any object and find its face. Most of them have one. Describe the expression.", "Write the object's expression.", ["object", "visual", "imagination", "inside"]),
-        mission("object-waiting", "Waiting Object", "Locate an object that is waiting. For what?", "Write what the object is waiting for.", ["object", "visual", "inside"]),
-        mission("object-most-loyal", "Most Loyal", "Find the most loyal object you own: longest service, still working. Note its years.", "Write the object and its years of service.", ["object", "history", "inside"]),
-        mission("object-repair", "Worth Saving", "Find a repair: tape, glue, a stitch, a weld. Someone decided this thing was worth saving. Guess why.", "Write the repair and the reason it survived.", ["object", "visual", "history", "inside"]),
-        mission("object-traveled-farther", "Farther Traveled", "Find something in this room that has traveled farther than you ever have. Name its homeland.", "Write the object and its homeland.", ["object", "history", "inside"]),
-        mission("object-in-charge", "Room Politics", "Decide which object in this room is actually in charge. Then decide which one merely thinks it is.", "Write the ruler and the pretender.", ["object", "imagination", "inside"]),
-        mission("object-drawer-greeting", "Drawer Greeting", "Open a drawer you have not opened in a month. Greet one thing inside it by name.", "Write the thing's name.", ["object", "inside", "low-energy"]),
-        mission("object-pocket-story", "Pocket Story", "Find one thing in your pocket or bag with a story you have never told anyone. Tell me the short version.", "Write the pocket thing and the short version.", ["object", "memory", "inside", "public"]),
-        mission("object-remembered-color", "Remembered Color", "Find something that is a different color than you remembered it being. Record both colors: the remembered and the real.", "Write the remembered color and the real one.", ["object", "visual", "color"]),
-        mission("nature-small-commute", "Tiny Commute", "Find one living thing smaller than your thumbnail. Watch its commute for thirty seconds. Report its errand.", "Write the living thing and its errand.", ["nature", "visual", "outside", "movement"]),
-        mission("nature-plant-reaching", "Plant Wants", "Find the nearest plant and check what it is reaching toward. Plants always want something.", "Write what the plant wants.", ["nature", "visual", "inside", "outside"]),
-        mission("nature-bird-business", "Bird Business", "Spot a bird and track it until it lands or vanishes. What business was it on?", "Write the bird's business.", ["nature", "visual", "outside", "movement"]),
-        mission("nature-unseen-animal", "Unseen Suspect", "Find evidence of an animal you cannot currently see: tracks, sounds, leavings, damage. Name your suspect.", "Write the evidence and the suspect.", ["nature", "visual", "outside", "public"]),
-        mission("nature-weed-winning", "Weed Winning", "Find a weed winning, growing somewhere it was never invited. Salute it. Note the territory claimed.", "Write the territory the weed claimed.", ["nature", "visual", "outside", "public"]),
-        mission("nature-tree-scar", "Tree Scar", "Locate the nearest tree and find its oldest scar. Estimate the year of the wound.", "Write the scar and your estimated year.", ["nature", "visual", "history", "outside"]),
-        mission("nature-moss-project", "Moss Project", "Find moss or lichen. It has been working on that exact spot longer than you have been alive. Acknowledge the project.", "Write the project site.", ["nature", "visual", "outside", "low-energy"]),
-        mission("nature-compressed-forest", "Compressed Forest", "Find one seed anywhere: in food, in the air, on the ground. You are holding a compressed forest. Note where it was headed.", "Write the seed and its destination.", ["nature", "visual", "food", "outside"]),
-        mission("sky-plain-forecast", "Sky Desk", "Step outside, or to a window. What is the sky deciding right now? File the forecast in plain words.", "Write the sky's plain-word forecast.", ["sky", "weather", "visual", "inside", "outside"]),
-        mission("sky-find-wind", "Find The Wind", "Find the wind, not by feeling it, but by seeing it. What is it moving?", "Write what the wind moved.", ["sky", "weather", "visual", "movement", "outside"]),
-        mission("sky-cloud-fleet", "Cloud Fleet", "Name today's clouds like ships in a harbor. Where is the fleet headed?", "Write one ship-name and where the fleet is headed.", ["sky", "weather", "visual", "imagination"]),
-        mission("sky-real-color", "Real Sky Color", "Catch the exact color of the sky directly overhead. Not blue, not grey: the real one. Mix it in words.", "Write the true color in your own words.", ["sky", "weather", "visual", "color"]),
-        mission("sky-rain-stage", "Rain Journey", "Find where the rain goes after it lands. Follow it one stage of its journey.", "Write the rain's next stage.", ["sky", "weather", "water", "outside"]),
-        mission("sky-watchkeeper", "Watchkeeper Sighting", "Find the moon in daytime, or the first star at night. Log the sighting like a watchkeeper.", "Write the sighting log.", ["sky", "night", "visual", "outside"]),
-        mission("sky-cloud-before-after", "Cloud Before After", "Watch one cloud until it changes shape. Record the before and after.", "Write the cloud before and after.", ["sky", "weather", "visual", "outside"]),
-        mission("light-route", "Light Route", "Find where the light enters this room, and trace where it finally dies. Map the route.", "Write the route the light took.", ["light", "visual", "inside"]),
-        mission("light-shadow-performer", "Shadow Performer", "Locate one shadow doing something interesting. Shadows are usually understated performers.", "Write what the shadow was doing.", ["light", "shadow", "visual", "inside", "photo"]),
-        mission("light-reflection-secret", "Unknowing Reflection", "Find a reflection of something that does not know it is being reflected.", "Write what was reflected.", ["light", "visual", "inside", "photo"]),
-        mission("light-non-screen-bright", "Not A Screen", "Find the brightest thing in the room that is not a screen.", "Write the brightest non-screen thing.", ["light", "visual", "inside", "low-energy"]),
-        mission("light-sun-delivery", "Sun Delivery", "Find a patch of sunlight and put your hand in it. Report the delivery; it left the sun eight minutes ago.", "Write what the delivery felt like.", ["light", "touch", "inside", "outside"], allowsPhoto: false),
-        mission("light-room-rearrange", "Dark Rearrangement", "Turn off one light you would normally leave on. Watch the room rearrange itself. What stepped forward in the dark?", "Write what stepped forward.", ["light", "night", "inside", "low-energy"]),
-        mission("threshold-doorway-between", "Doorway Between", "Stand in a doorway for ten full seconds. Doorways are thresholds. Decide what you are between.", "Write what the doorway held you between.", ["threshold", "place", "inside", "low-energy"], allowsPhoto: false),
-        mission("threshold-temperature-border", "Temperature Border", "Find the spot in your home where the temperature changes. That is a border. Borders have guards; identify yours.", "Write the border and its guard.", ["threshold", "temperature", "inside", "place"]),
-        mission("threshold-quiet-corner", "Corner View", "Find the quietest corner of the room and stand in it. Describe the room from its point of view.", "Write the corner's view.", ["threshold", "sound", "inside", "low-energy"], allowsPhoto: false),
-        mission("threshold-unstood-spot", "New Footprint", "Stand somewhere in your own home you have never stood before. There is at least one spot. Claim it.", "Write the claimed spot.", ["threshold", "place", "inside", "low-energy"]),
-        mission("threshold-previous-message", "Previous Message", "Find evidence of whoever was in this space before you: a nail hole, a paint line, a scuff, a worn patch. Read the message they left.", "Write the message you read.", ["threshold", "history", "inside", "visual"]),
-        mission("threshold-mouse-door", "Mouse-Sized Door", "Find the room's secret door: the place a mouse-sized visitor would enter and exit. Note it on the map.", "Write where the secret door is.", ["threshold", "visual", "inside", "imagination"]),
-        mission("threshold-wall-perimeter", "Wall Report", "Walk the perimeter of one room slowly, trailing a hand along the wall. Report the one thing the wall told you.", "Write what the wall told you.", ["threshold", "touch", "inside", "movement"], allowsPhoto: false),
-        mission("motion-long-way", "The Long Way", "Take the long way to wherever you are going next. Report what the shortcut was hiding from you.", "Write what the shortcut was hiding.", ["movement", "public", "errand"]),
-        mission("motion-half-speed", "Half Speed", "Walk at half speed for exactly one minute. Report what caught up with you.", "Write what caught up.", ["movement", "body", "low-energy"]),
-        mission("motion-ankle-height", "Ankle-Height Treasure", "Take twenty steps and find one thing at ankle height worth keeping.", "Write the ankle-height thing.", ["movement", "visual", "outside", "public"]),
-        mission("motion-three-circles", "Circle Collection", "On your next walk, collect three circles. Any size. Report your haul.", "Write the three circles.", ["movement", "visual", "shape", "outside", "public"]),
-        mission("motion-five-color", "Color Before Noon", "Find five of one color before noon. I accept photographs and testimony.", "Write the color and your five witnesses.", ["movement", "visual", "color", "public"]),
-        mission("motion-halfway-point", "Invisible Halfway", "Cross any street or hallway and notice the exact moment you are halfway. Halfway points are invisible until you look.", "Write where halfway appeared.", ["movement", "threshold", "public"], allowsPhoto: false),
-        mission("motion-unwatched-moving", "Watch It For Them", "Next time you are a passenger or waiting in line, find the one moving thing nobody else is watching. Watch it for them.", "Write the unwatched moving thing.", ["movement", "public", "visual"]),
-        mission("work-building-voice", "Workplace Voice", "Find the one sound your workplace makes that no other building on Earth makes. That is its voice.", "Write the workplace voice.", ["work", "sound", "public"], allowsPhoto: false),
-        mission("work-ignored-object-title", "Gallery Title", "Locate the most ignored object at work and give it a title, like a painting in a gallery.", "Write the object's gallery title.", ["work", "object", "visual", "public"]),
-        mission("work-machine-mood", "Machine Mood", "Your machine has moods. What is today's?", "Write the machine and today's mood.", ["work", "object", "public"]),
-        mission("work-boring-minute-moving", "Boring Minute Motion", "During the most boring minute of your day, find one thing that is moving. Something always is.", "Write the moving thing.", ["work", "movement", "visual", "public"]),
-        mission("work-small-tending", "Small Tending", "Find one coworker's small act of tending: a watered plant, a straightened stack, a propped door. Witness it for the record.", "Write the tending you witnessed.", ["work", "kindness", "public", "visual"]),
-        mission("work-senior-staff", "Senior Staff", "Find the oldest thing in your workplace that still does its job every day. Senior staff. Note its tenure.", "Write the senior staff member and tenure.", ["work", "history", "object", "public"]),
-        mission("work-route-new-thing", "Route River", "On your commute, find one thing that was not there last week. The route is not the same river twice.", "Write what changed on the route.", ["work", "commute", "public", "visual"]),
-        mission("fuel-first-sip", "First Sip Report", "Hold the first sip of your next drink for five full seconds before swallowing. Report what is actually in there.", "Write what the sip contained.", ["taste", "fuel", "body", "low-energy"], allowsPhoto: false),
-        mission("fuel-closed-eyes-bite", "Three Things In It", "Eat one bite with your eyes closed and name three things in it, not one.", "Write the three things.", ["taste", "fuel", "body"], allowsPhoto: false),
-        mission("fuel-oldest-ingredient", "Oldest Ingredient", "Find the oldest ingredient in your next meal: the one that took longest to grow, age, or travel. Credit it.", "Write the ingredient and what it endured.", ["taste", "fuel", "history"], allowsPhoto: false),
-        mission("fuel-smell-prediction", "Prediction Before Taste", "Smell something before you taste it and write down your prediction. Grade the prediction after.", "Write the prediction and the grade.", ["taste", "scent", "fuel"], allowsPhoto: false),
-        mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count what is still awake.", "Write the count and one thing still awake.", ["night", "sound", "visual", "outside"]),
-        mission("night-guard-light", "Last Light Guard", "Find the last light on in your house tonight and ask what it is guarding.", "Write what the light is guarding.", ["night", "light", "inside", "low-energy"]),
-        mission("night-second-voice", "Second Voice", "Find one sound that only exists at night in your home. The house has a second voice it saves for after hours.", "Write the night-only sound.", ["night", "sound", "inside"], allowsPhoto: false),
-        mission("night-farthest-light", "Farthest Light", "Look out a dark window and find the farthest light you can see. Someone or something is there. Wish them well.", "Write the farthest light.", ["night", "light", "visual", "inside"]),
-        mission("strange-visual-rhyme", "Visual Rhyme", "Find something that visually rhymes with something else in the room: two shapes that did not know they matched. Introduce them.", "Write the two matching shapes.", ["visual", "shape", "inside", "imagination"]),
-        mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. Imagine the conversation.", "Write the introduction.", ["visual", "history", "outside", "imagination"]),
-        mission("strange-outlive-you", "Outliving Object", "Touch something that will outlive you. Be polite about it.", "Write the object and the politeness.", ["touch", "object", "history", "inside"], allowsPhoto: false),
-        mission("strange-new-thing", "New Thing", "Find something that did not exist a year ago, anywhere in view.", "Write the new thing.", ["visual", "history", "inside", "public"]),
-        mission("strange-growth-decay", "Exchange Rate", "Find something mid-decay and something mid-growth within ten feet of each other. Note the exchange rate.", "Write the exchange rate.", ["visual", "nature", "history", "outside"]),
-        mission("strange-age-gap", "Age Gap", "Estimate the age of one thing you can see, then find out if you can. Record the gap between guess and truth.", "Write the guess, the truth, or the mystery.", ["visual", "history", "object"]),
-        mission("strange-stranger-decision", "A Stranger Chose That", "Pick up the nearest human-made object and find one decision a stranger made about it: a curve, a color, a button, a corner. Agree or disagree with them.", "Write the decision and your verdict.", ["object", "touch", "design", "inside"], allowsPhoto: false),
-        mission("strange-technical-miracle", "Furniture Miracle", "Find one thing in arm's reach that is technically a miracle and is being treated like furniture. Restore its title for one minute.", "Write the restored title.", ["object", "wonder", "inside", "low-energy"])
+        mission("body-heartbeat-location", "The Body Reports In", "Stand completely still until you can feel your heartbeat somewhere that isn't your chest. Where did it turn up?", "Where your heartbeat answered.", ["body", "touch", "low-energy", "inside"], allowsPhoto: false),
+        mission("body-quiet-steps", "Quiet Step Audit", "Walk ten steps as quietly as you possibly can, like a burglar in your own house. What gave you away?", "The sound that gave you away.", ["body", "sound", "movement", "inside"], allowsPhoto: false),
+        mission("body-warmer-hand", "Hand Weather", "Find out which of your hands is warmer right now. Then come up with a theory about why.", "The warmer hand, and your theory.", ["body", "touch", "temperature", "low-energy"], allowsPhoto: false),
+        mission("body-wall-palm", "Building Report", "Put your palm flat on the nearest wall for ten seconds. Decide what the building is doing today.", "What the building is doing today.", ["body", "touch", "inside", "place"], allowsPhoto: false),
+        mission("body-ankle-save", "Ankle Rescue", "Next time you're waiting for something, stand on one foot. Watch what your ankle does to save you.", "What your ankle did.", ["body", "balance", "movement"], allowsPhoto: false),
+        mission("sound-newcomer", "Name The Newcomer", "Count the sounds you can hear right now. Then wait, very still, for a new one to arrive. Give the newcomer a name.", "The newcomer's name.", ["sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("sound-lowest-room", "Lowest Sound", "Find the lowest sound in the room. It's probably been humming this whole time without you.", "The lowest sound, and where it lives.", ["sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("sound-farthest-away", "Farthest Sound", "Listen for the farthest-away sound you can hear. Guess how far it's come.", "The sound, and how far it travelled.", ["sound", "inside", "outside"], allowsPhoto: false),
+        mission("sound-three-objects", "Best Voice", "Tap three things you can reach. Which one has the best voice?", "The thing with the best voice.", ["sound", "touch", "inside"], allowsPhoto: false),
+        mission("sound-appliance-duet", "Appliance Duet", "Hum one low note and hold it. Somewhere, a machine is humming back. Find your duet partner.", "Your duet partner.", ["sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("sound-daily-unmentioned", "Unmentioned Sound", "Find one sound you hear every single day and have never once mentioned to anyone. Mention it now.", "The sound nobody mentions.", ["sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("sound-ear-cups", "Borrowed Ears", "Cup your hands behind your ears for ten seconds, like a fox. What got louder?", "What the fox ears heard.", ["sound", "body", "inside"], allowsPhoto: false),
+        mission("sound-room-pulse", "Room Pulse", "Find something in the room that ticks, blinks, drips or hums in a rhythm. That's the room's pulse. Tap along with it.", "The pulse, and how fast it was going.", ["sound", "rhythm", "inside"], allowsPhoto: false),
+        mission("object-oldest-story", "Oldest Witness", "Find the oldest thing in the room and ask it what it's seen. Decide on its best story.", "The oldest thing's best story, in one line.", ["object", "history", "inside"]),
+        mission("object-tired", "Object Rest", "Find one thing that looks tired. What would a day off look like for it?", "The tired thing, and its day off.", ["object", "visual", "imagination", "inside"]),
+        mission("object-face", "Object Face", "Pick anything and find its face. Most things have one if you look. What's its expression?", "The thing, and the look on its face.", ["object", "visual", "imagination", "inside"]),
+        mission("object-waiting", "Waiting Object", "Find something that's waiting. What for?", "What it's waiting for.", ["object", "visual", "inside"]),
+        mission("object-repair", "Worth Saving", "Find something mended: tape, glue, a stitch, a nail. Somebody decided it was worth saving. Guess why.", "The mend, and why it was saved.", ["object", "visual", "history", "inside"]),
+        mission("object-in-charge", "Room Politics", "Decide which thing in this room is really in charge. Then decide which one only thinks it is.", "The ruler, and the pretender.", ["object", "imagination", "inside"]),
+        mission("object-drawer-greeting", "Drawer Greeting", "Open a drawer you haven't opened in a month. Say hello to one thing inside it, by name.", "What you said hello to.", ["object", "inside", "low-energy"]),
+        mission("object-pocket-story", "Pocket Story", "Find one thing in your pocket or bag that has a story you've never told anyone. Tell me the short version.", "The thing, and the short version.", ["object", "memory", "inside", "public"]),
+        mission("object-remembered-color", "Remembered Color", "Find something that's a different colour from how you remembered it. Things do this.", "The colour you remembered, and the real one.", ["object", "visual", "color"]),
+        mission("nature-small-commute", "Tiny Commute", "Find one living thing smaller than your thumbnail. Watch its journey for thirty seconds. Where's it off to?", "The tiny thing, and its errand.", ["nature", "visual", "outside", "movement"]),
+        mission("nature-plant-reaching", "Plant Wants", "Find the nearest plant and look at which way it's leaning. Plants always want something.", "What the plant wants.", ["nature", "visual", "inside", "outside"]),
+        mission("nature-unseen-animal", "Unseen Suspect", "Find evidence of an animal you can't see: tracks, nibbles, a feather, a noise. Name your suspect.", "The evidence, and your suspect.", ["nature", "visual", "outside", "public"]),
+        mission("nature-weed-winning", "Weed Winning", "Find a weed growing somewhere it was never invited. Salute it. It's winning.", "Where the weed has set up home.", ["nature", "visual", "outside", "public"]),
+        mission("nature-tree-scar", "Tree Scar", "Find the nearest tree and look for its oldest scar. Guess what happened, and when.", "The scar, and your guess.", ["nature", "visual", "history", "outside"]),
+        mission("nature-moss-project", "Moss Project", "Find some moss or lichen. It's been working on that exact spot longer than you've been alive. Tell it you've noticed.", "Where the moss is working.", ["nature", "visual", "outside", "low-energy"]),
+        mission("nature-compressed-forest", "Compressed Forest", "Find one seed: in your food, on the ground, stuck to a sock. You're holding a whole folded-up forest. Where was it going?", "The seed, and where it was headed.", ["nature", "visual", "food", "outside"]),
+        mission("sky-plain-forecast", "Sky Desk", "Go outside, or to a window. What is the sky making up its mind about? Give the forecast in plain words.", "The sky's forecast.", ["sky", "weather", "visual", "inside", "outside"]),
+        mission("sky-find-wind", "Find The Wind", "Find the wind without feeling it. You have to see it instead. What is it moving?", "What the wind was moving.", ["sky", "weather", "visual", "movement", "outside"]),
+        mission("sky-cloud-fleet", "Cloud Fleet", "Name today's clouds like ships in a harbour. Where's the fleet sailing?", "One ship's name, and where the fleet is going.", ["sky", "weather", "visual", "imagination"]),
+        mission("sky-real-color", "Real Sky Color", "Look straight up and catch the exact colour of the sky. Not 'blue' or 'grey'. The real one. Mix it out of words.", "The sky's real colour.", ["sky", "weather", "visual", "color"]),
+        mission("sky-rain-stage", "Rain Journey", "Find where the rain goes after it lands. Follow it one step of its journey.", "Where the rain went next.", ["sky", "weather", "water", "outside"]),
+        mission("sky-watchkeeper", "Watchkeeper Sighting", "Find the moon in the daytime, or the first star at night. Write it down like a sailor keeping watch.", "The sighting, like a ship's log.", ["sky", "night", "visual", "outside"]),
+        mission("light-route", "Light Route", "Find where the light comes into this room, and follow it to the place it finally stops.", "The light's route, from door to dead end.", ["light", "visual", "inside"]),
+        mission("light-reflection-secret", "Unknowing Reflection", "Find a reflection of something that doesn't know it's being reflected.", "What was being reflected, without knowing.", ["light", "visual", "inside", "photo"]),
+        mission("light-sun-delivery", "Sun Delivery", "Find a patch of sunlight and put your hand in it. That light left the sun eight minutes ago, just to get here.", "What the delivery felt like.", ["light", "touch", "inside", "outside"], allowsPhoto: false),
+        mission("threshold-quiet-corner", "Corner View", "Find the quietest corner of the room and stand in it. Describe the room the way the corner sees it.", "The room, from the corner's point of view.", ["threshold", "sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("threshold-unstood-spot", "New Footprint", "Stand somewhere in your own home where you've never stood before. There's at least one spot. Claim it.", "The spot you claimed.", ["threshold", "place", "inside", "low-energy"]),
+        mission("threshold-previous-message", "Previous Message", "Find a mark left by whoever was here before you: a nail hole, a paint line, a scuff, a worn patch. What were they doing?", "The mark, and what they were up to.", ["threshold", "history", "inside", "visual"]),
+        mission("motion-long-way", "The Long Way", "Take the long way to wherever you're going next. What was the shortcut hiding from you?", "What the shortcut was hiding.", ["movement", "public", "errand"]),
+        mission("motion-half-speed", "Half Speed", "Walk at half your normal speed for one whole minute. What catches up with you?", "What caught up.", ["movement", "body", "low-energy"]),
+        mission("motion-ankle-height", "Ankle-Height Treasure", "Take twenty steps looking only at ankle height. Find one thing down there worth keeping.", "The ankle-height treasure.", ["movement", "visual", "outside", "public"]),
+        mission("motion-three-circles", "Circle Collection", "On your next walk, collect three circles. Any size at all.", "Your three circles.", ["movement", "visual", "shape", "outside", "public"]),
+        mission("motion-five-color", "Five Of One Color", "Pick a colour. Find five things that colour before your next meal. Photos and witness statements both accepted.", "The colour, and your five witnesses.", ["movement", "visual", "color", "public"]),
+        mission("motion-unwatched-moving", "Watch It For Them", "Next time you're waiting in a queue or riding somewhere, find the one moving thing nobody else is watching. Watch it for them.", "The thing you watched for everyone.", ["movement", "public", "visual"]),
+        mission("work-building-voice", "Workplace Voice", "Find the one sound your workplace makes that no other building in the world makes. That's its voice.", "The building's voice.", ["work", "sound", "public"], allowsPhoto: false),
+        mission("work-ignored-object-title", "Gallery Title", "Find the most ignored thing where you work and give it a title, like a painting in a gallery.", "The thing, and its gallery title.", ["work", "object", "visual", "public"]),
+        mission("work-machine-mood", "Machine Mood", "Pick one machine you use every day. It has moods. What's today's?", "The machine, and its mood today.", ["work", "object", "public"]),
+        mission("work-boring-minute-moving", "Boring Minute Motion", "In the most boring minute of your day, find one thing that's moving. Something always is.", "The thing that was moving.", ["work", "movement", "visual", "public"]),
+        mission("work-route-new-thing", "Route River", "On your way somewhere you go often, find one thing that wasn't there last week. You never walk the same street twice.", "What's new on the route.", ["work", "commute", "public", "visual"]),
+        mission("fuel-first-sip", "First Sip Report", "Hold the first sip of your next drink in your mouth for five whole seconds. What's actually in there?", "Everything that was in the sip.", ["taste", "fuel", "body", "low-energy"], allowsPhoto: false),
+        mission("fuel-closed-eyes-bite", "Three Things In It", "Eat one bite with your eyes closed and find three different things in it. Not one. Three.", "The three things.", ["taste", "fuel", "body"], allowsPhoto: false),
+        mission("fuel-oldest-ingredient", "Oldest Ingredient", "Find the oldest ingredient in your next meal: the one that took longest to grow, age or travel. Give it the credit.", "The ingredient, and what it went through.", ["taste", "fuel", "history"], allowsPhoto: false),
+        mission("fuel-smell-prediction", "Prediction Before Taste", "Smell something before you taste it and make a prediction. Then taste it and mark your prediction out of ten.", "The prediction, and its mark.", ["taste", "scent", "fuel"], allowsPhoto: false),
+        mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count everything that's still awake.", "How many, and one of them.", ["night", "sound", "visual", "outside"]),
+        mission("night-guard-light", "Last Light Guard", "Find the last light on in your home tonight. What is it guarding?", "What the light is guarding.", ["night", "light", "inside", "low-energy"]),
+        mission("night-second-voice", "Second Voice", "Find one sound your home only makes at night. Houses have a second voice they save for after dark.", "The house's night voice.", ["night", "sound", "inside"], allowsPhoto: false),
+        mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something is over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
+        mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"]),
+        mission("strange-outlive-you", "Outliving Object", "Touch something that will still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
+        mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago.", "The new thing.", ["visual", "history", "inside", "public"]),
+        mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then find out if you can.", "Your guess, and the truth, or the mystery.", ["visual", "history", "object"]),
+        mission("strange-stranger-decision", "A Stranger Chose That", "Pick up the nearest made thing and find one decision a stranger made about it: a curve, a colour, a button. Do you agree with them?", "The decision, and your verdict.", ["object", "touch", "design", "inside"], allowsPhoto: false),
+        mission("strange-technical-miracle", "Furniture Miracle", "Find one thing within reach that's actually a miracle and gets treated like furniture: a light switch, a zip, a tap with clean water. Give it its proper title for one minute.", "The miracle, and its proper title.", ["object", "wonder", "inside", "low-energy"])
     ]
 
     static let shadowMissions: [PlayfulMission] = [
-        mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded, cracked, or overlooked thing your brain usually deletes. Look for ten seconds before deciding what it is.", "Write what time has done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
-        mission("shadow-mystery-clue", "The Mystery Mission", "From a lawful public path or a place you already have permission to be, choose one closed, old, or half-forgotten thing and find one visible clue about what it used to be. Cross no boundary for the story.", "Write the clue and the question it opened.", ["shadow-wonder", "mystery", "history", "public", "visual"]),
-        mission("shadow-tribute-object", "The Tribute Mission", "Find one repaired, worn, or past-its-prime object. Give it thirty seconds of respect without trying to fix it.", "Write one sentence honoring what it survived.", ["shadow-wonder", "tribute", "object", "history", "inside"]),
-        mission("shadow-mood-match", "Mood Match", "Stop fighting the grey and go find the one thing in the room that agrees with it. Something here is already the same colour as today.", "Write the detail that matched the weather inside you.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),
-        mission("shadow-last-light", "Last Light Witness", "Find the last, smallest, or most stubborn light nearby. Ask what it is guarding from the dark.", "Write what the light was guarding.", ["shadow-wonder", "night", "light", "threshold", "inside"]),
-        mission("shadow-offering", "Leave an Offering", "Make one small offering with no audience and no litter: water a plant you are allowed to tend, return a borrowed thing, or leave a kindness no one must answer. Do not feed wildlife for this mission.", "Write what you offered, and to whom or what.", ["shadow-wonder", "offering", "kindness", "fae", "folklore"], allowsPhoto: false),
-        mission("shadow-threshold", "Honor a Threshold", "Find one threshold: a doorway, gate, or the seam where one room becomes another. Pause on it. Notice it is neither in nor out.", "Write what changes the moment you cross.", ["shadow-wonder", "threshold", "liminal", "folklore", "inside"], allowsPhoto: false),
-        mission("shadow-true-name", "The True Name", "Find one vague thing and give it a more exact name: a feeling if that is welcome, or else the weather, a sound, a color, or the condition of an old object. Precision is enough; disclosure is not required.", "Write the exact name you chose, or simply keep it private.", ["shadow-wonder", "true-names", "naming", "low-energy", "inside"], allowsPhoto: false),
-        mission("shadow-iron-key", "Mind the Edges", "Find the iron already in your home (a key, a nail, a cast pan) and set it deliberately by a door, the way folklore minds a threshold.", "Write whether a guarded edge changes the room.", ["shadow-wonder", "protection", "iron", "threshold", "folklore", "inside"]),
-        mission("shadow-correspondence", "One Correspondence", "Make one old correspondence literal: salt for protection, rosemary for memory, a dark stone for rest. Place it where you'll see it.", "Write what it now stands for.", ["shadow-wonder", "correspondences", "witchcraft", "folklore", "inside"]),
-        mission("shadow-ending-thing", "The Vanishing", "Find one thing quietly ending right now (light going, a flower past peak, a cup going cold) and witness it leave without stopping it.", "Write one sentence for it before it's gone.", ["shadow-wonder", "mono-no-aware", "memory", "low-energy", "inside"], allowsPhoto: false),
-        mission("shadow-cost", "The Goblin's Question", "Pick one 'free' thing in your day (a scroll, a shortcut, a numbing habit) and ask the Goblin Market's only question of it.", "Write its real, hidden cost in one line.", ["shadow-wonder", "goblin", "bargain", "unseelie"], allowsPhoto: false),
-        mission("shadow-disowned", "Turn the Lamp", "Notice one small thing about today you have been skipping. If the day itself is too tender, choose a neglected object instead. Look for ten seconds: no fixing, no verdict, no forced disclosure.", "Write what you actually saw, or keep only the object's name.", ["shadow-wonder", "shadow-self", "low-energy", "inside"], allowsPhoto: false)
+        mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded or cracked thing your eyes usually skip. Look at it for ten whole seconds before you decide what it is.", "What time has done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
+        mission("shadow-mystery-clue", "The Mystery Mission", "Find something closed, old or half-forgotten that you can see from where you're allowed to be. Find one clue about what it used to be. Don't go in.", "The clue, and the question it opened.", ["shadow-wonder", "mystery", "history", "public", "visual"]),
+        mission("shadow-tribute-object", "The Tribute Mission", "Find something mended, worn out or past its best. Give it thirty seconds of respect. Don't try to fix it.", "One sentence for what it survived.", ["shadow-wonder", "tribute", "object", "history", "inside"]),
+        mission("shadow-mood-match", "Mood Match", "Find the one thing in the room that matches how today feels. Not the weather outside. The weather in you.", "The thing that matched.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),
+        mission("shadow-last-light", "Count The Dark", "Turn the lights off and count the tiny lights that stay on: standby dots, clock numbers, the line under the door. They're keeping watch.", "How many, and which one looked most awake.", ["shadow-wonder", "night", "light", "threshold", "inside"]),
+        mission("shadow-offering", "Leave An Offering", "Leave one small offering that nobody sees you leave: water a plant, put back something you borrowed, leave something nice for whoever comes next. No food for animals.", "What you offered, and to what.", ["shadow-wonder", "offering", "kindness", "fae", "folklore"], allowsPhoto: false),
+        mission("shadow-threshold", "The Other Side Of The Mirror", "Look into a mirror and find one thing that's different on the other side: something the wrong way round that you never noticed was wrong.", "What's different through the glass.", ["shadow-wonder", "threshold", "liminal", "folklore", "inside"], allowsPhoto: false),
+        mission("shadow-true-name", "The True Name", "Find something with no proper name: a sound, a colour between two colours, a smell you can't place. Give it its true name.", "The true name. Or keep it to yourself.", ["shadow-wonder", "true-names", "naming", "low-energy", "inside"], allowsPhoto: false),
+        mission("shadow-iron-key", "Mind The Edges", "Find some iron in your home: a key, a nail, an old pan. The old stories say the fair folk can't stand it. Put it by a door for tonight.", "Where you put it, and whether the room felt different.", ["shadow-wonder", "protection", "iron", "threshold", "folklore", "inside"]),
+        mission("shadow-correspondence", "One Correspondence", "Make something you already have stand for something, the old way: salt for keeping safe, a stone for rest, a leaf for remembering. Put it where you'll see it.", "What it stands for now.", ["shadow-wonder", "correspondences", "witchcraft", "folklore", "inside"]),
+        mission("shadow-ending-thing", "The Vanishing", "Find something ending right now: light going, a flower past its best, tea going cold. Watch it go. Don't save it.", "One sentence for it before it's gone.", ["shadow-wonder", "mono-no-aware", "memory", "low-energy", "inside"], allowsPhoto: false),
+        mission("shadow-cost", "The Goblin's Question", "Pick one free thing in your day: a scroll, a shortcut, a habit. The goblins only ever ask one question about a thing. What does it really cost?", "What it really costs, in one line.", ["shadow-wonder", "goblin", "bargain", "unseelie"], allowsPhoto: false),
+        mission("shadow-disowned", "The Thing On The Stairs", "Find one thing you've been stepping round for days: a pile, a box, a letter. Don't deal with it. Look at it properly for ten seconds, as if it's a creature that moved in.", "What kind of creature it is.", ["shadow-wonder", "shadow-self", "low-energy", "inside"], allowsPhoto: false)
     ]
 
     private static func mission(
