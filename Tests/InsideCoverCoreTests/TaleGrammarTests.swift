@@ -295,6 +295,70 @@ final class TaleGrammarTests: XCTestCase {
         XCTAssertTrue(TaleBinding.body(for: tale).contains("Then the kettle kept coming back."))
     }
 
+    // MARK: Gemma's telling
+
+    private let goodTelling = """
+    ONCE: Once upon a time, there was a kettle that stayed warm for you.
+    THEN: Then the kettle bit back, and you laughed.
+    END: In the end, the kettle was still there, making tea.
+    """
+
+    func testGemmaGetsTheThreadAndTheThreeQuotes() {
+        let prompt = TaleGemmaTelling.prompt(for: closedKettleTale()) ?? ""
+        XCTAssertTrue(prompt.contains("The tale is about: the kettle."))
+        XCTAssertTrue(prompt.contains("The kettle was still warm when I got back."))
+        XCTAssertTrue(prompt.contains("Made tea in the kettle nobody else likes."))
+        XCTAssertFalse(prompt.contains("bus was late"))
+    }
+
+    func testAnHonestTellingIsKeptAndTold() {
+        var tale = closedKettleTale()
+        let lines = TaleGemmaTelling.lines(from: goodTelling, for: tale)
+        XCTAssertEqual(lines?.then, "Then the kettle bit back, and you laughed.")
+        tale.telling = lines
+        let body = TaleBinding.body(for: tale)
+        XCTAssertTrue(body.contains("Then the kettle bit back, and you laughed."))
+        XCTAssertTrue(body.contains("The kettle was still warm when I got back."), "the reader's quote left the tale")
+        XCTAssertFalse(body.contains("Then the kettle came back."))
+    }
+
+    func testATellingThatCopiesTheReaderIsDropped() {
+        let copied = goodTelling.replacingOccurrences(
+            of: "Then the kettle bit back, and you laughed.",
+            with: "Then you burnt my thumb on the kettle, like an idiot."
+        )
+        XCTAssertNil(TaleGemmaTelling.lines(from: copied, for: closedKettleTale()))
+    }
+
+    func testATellingThatInventsSomebodyIsDropped() {
+        let invented = goodTelling.replacingOccurrences(
+            of: "Then the kettle bit back, and you laughed.",
+            with: "Then your friend Harriet came round for the kettle."
+        )
+        XCTAssertNil(TaleGemmaTelling.lines(from: invented, for: closedKettleTale()))
+    }
+
+    func testATellingThatLosesTheThreadIsDropped() {
+        let lost = goodTelling.replacingOccurrences(
+            of: "Once upon a time, there was a kettle that stayed warm for you.",
+            with: "Once upon a time, you came home late and tired."
+        )
+        XCTAssertNil(TaleGemmaTelling.lines(from: lost, for: closedKettleTale()))
+    }
+
+    func testATellingInTheWrongShapeIsDropped() {
+        XCTAssertNil(TaleGemmaTelling.lines(from: "Here is your tale about a kettle!", for: closedKettleTale()))
+        let noOpener = goodTelling.replacingOccurrences(of: "END: In the end,", with: "END: Finally,")
+        XCTAssertNil(TaleGemmaTelling.lines(from: noOpener, for: closedKettleTale()))
+        let dated = goodTelling.replacingOccurrences(of: "bit back", with: "bit back at 7")
+        XCTAssertNil(TaleGemmaTelling.lines(from: dated, for: closedKettleTale()))
+    }
+
+    func testMarkdownAroundTheLinesIsForgiven() {
+        let dressed = goodTelling.components(separatedBy: "\n").map { "**" + $0.trimmingCharacters(in: .whitespaces) }.joined(separator: "\n")
+        XCTAssertNotNil(TaleGemmaTelling.lines(from: dressed, for: closedKettleTale()))
+    }
+
     /// A tale without a thread is never handed over: it was a row of pages.
     func testATaleWithoutAThreadIsNeverBound() {
         var tale = closedKettleTale()

@@ -464,6 +464,9 @@ struct LivingTale: Codable, Equatable, Identifiable {
     /// the old beat grammar and read as unrelated pages in a row; they are
     /// never bound.
     var thread: TaleThread? = nil
+    /// Gemma's telling, once it has passed the checks. The reader's quotes
+    /// never live here: only the three lines that join them.
+    var telling: TaleTellingLines? = nil
 
     var isOpen: Bool { closedAt == nil }
 
@@ -1583,11 +1586,12 @@ enum TaleBinding {
         case let other?: ending = "In the end, " + other.closingLine
         }
 
+        let told = tale.telling
         return [
             opening,
-            once + "\n" + quote(moments.beginning),
-            then + "\n" + quote(moments.middle),
-            ending + "\n" + quote(moments.end),
+            (told?.once ?? once) + "\n" + quote(moments.beginning),
+            (told?.then ?? then) + "\n" + quote(moments.middle),
+            (told?.end ?? ending) + "\n" + quote(moments.end),
             "Things in tales come in threes. You were inside this one the whole time."
         ].joined(separator: "\n\n")
     }
@@ -2150,5 +2154,139 @@ enum BoundSpanShape {
         case .ret:
             return "You came back to something, and it had moved while you were gone."
         }
+    }
+}
+
+
+// MARK: - Gemma's telling
+//
+// The found thread is the tale. Gemma only writes the three lines that join
+// the reader's own quotes, and those lines have to pass the same honesty the
+// grammar keeps: nothing the reader didn't write, no names, no borrowed
+// sentences. Anything that fails is thrown away and the plain telling stays.
+
+/// The three joining lines Gemma wrote for a tale.
+struct TaleTellingLines: Codable, Equatable {
+    var once: String
+    var then: String
+    var end: String
+}
+
+enum TaleGemmaTelling {
+    static let instructions = """
+    You are the Book: a small, curious, living book. You are telling a very short fairy tale about one thing in the reader's life, using three things they wrote.
+    Write exactly three lines, in this format and nothing else:
+    ONCE: Once upon a time, ...
+    THEN: Then ...
+    END: In the end, ...
+    Each line is one or two short sentences, in plain words a child would use.
+    Only say what the reader's words show. Do not add people, names, places, times or events that are not in their words.
+    Do not repeat their words. Their words are shown under your lines.
+    No questions. No advice. Do not explain what it means.
+    """
+
+    static func prompt(for tale: LivingTale) -> String? {
+        guard let thread = tale.thread, let moments = TaleBinding.threadMoments(tale) else { return nil }
+        func line(_ witness: TaleWitness) -> String {
+            witness.evidence.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+        }
+        let how: String
+        switch (tale.ending, thread.kind) {
+        case (.returnedEmpty?, .thing): how = "at the end, \(thread.spoken) was not there any more"
+        case (.returnedEmpty?, .place): how = "at the end, the place was not the same"
+        case (.refused?, _): how = "at the end, the reader said no to it"
+        case (_, .place): how = "at the end, the reader was still going back there"
+        case (_, .thing): how = "at the end, \(thread.spoken) was still there"
+        }
+        let subject = thread.kind == .place ? "a place the reader calls \(thread.name)" : thread.spoken
+        return """
+        The tale is about: \(subject).
+        BEGINNING. The reader wrote: "\(line(moments.beginning))"
+        MIDDLE. The reader wrote: "\(line(moments.middle))"
+        END. The reader wrote: "\(line(moments.end))"
+        How it ended: \(how).
+        Write the three lines now.
+        """
+    }
+
+    /// Reads Gemma's answer and keeps it only if every line is honest.
+    static func lines(from response: String, for tale: LivingTale) -> TaleTellingLines? {
+        guard let thread = tale.thread, let moments = TaleBinding.threadMoments(tale) else { return nil }
+        var found: [String: String] = [:]
+        for raw in response.components(separatedBy: .newlines) {
+            let cleaned = raw.trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "*-#> "))
+            for key in ["ONCE", "THEN", "END"] where cleaned.uppercased().hasPrefix(key + ":") {
+                let value = cleaned.dropFirst(key.count + 1)
+                    .trimmingCharacters(in: .whitespaces)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"\u{201C}\u{201D}"))
+                if found[key] == nil { found[key] = value }
+            }
+        }
+        guard let once = found["ONCE"], let then = found["THEN"], let end = found["END"] else { return nil }
+        let quotes = [moments.beginning, moments.middle, moments.end].map(\.evidence)
+        guard acceptable(once, opener: "Once upon a time", quotes: quotes, thread: thread, mustName: true),
+              acceptable(then, opener: "Then", quotes: quotes, thread: thread, mustName: false),
+              acceptable(end, opener: "In the end", quotes: quotes, thread: thread, mustName: false)
+        else { return nil }
+        return TaleTellingLines(once: once, then: then, end: end)
+    }
+
+    static let bannedWords: Set<String> = [
+        "ritual", "tapestry", "testament", "journey", "embrace", "delve", "whispered", "cherish"
+    ]
+
+    static func acceptable(
+        _ line: String,
+        opener: String,
+        quotes: [String],
+        thread: TaleThread,
+        mustName: Bool
+    ) -> Bool {
+        guard line.hasPrefix(opener) else { return false }
+        let words = line.split(whereSeparator: { $0.isWhitespace })
+        guard (4...32).contains(words.count) else { return false }
+        guard !line.contains("?"), !line.contains(";"),
+              !line.contains(where: \.isNumber),
+              let last = line.last, ".!".contains(last) else { return false }
+        let lowered = line.lowercased()
+        if mustName, !lowered.contains(thread.name.lowercased()) { return false }
+        if words.contains(where: { bannedWords.contains($0.lowercased().trimmingCharacters(in: .punctuationCharacters)) }) {
+            return false
+        }
+        // No borrowed sentences: the reader's words sit right under this line.
+        let own = normalised(line)
+        for quote in quotes where sharesRun(own, normalised(quote), length: 5) { return false }
+        // No invented names. A capital that isn't opening a sentence, "I", or
+        // already in the reader's words or the thread is somebody made up.
+        let known = Set((quotes + [thread.name]).flatMap(normalised))
+        var sentenceStart = true
+        for word in words {
+            let bare = word.trimmingCharacters(in: .punctuationCharacters)
+            defer { sentenceStart = word.last.map { ".!".contains($0) } ?? false }
+            guard let first = bare.first, first.isUppercase, !sentenceStart, bare != "I" else { continue }
+            if bare.hasPrefix("I'") { continue }
+            if !known.contains(bare.lowercased()) { return false }
+        }
+        return true
+    }
+
+    private static func normalised(_ text: String) -> [String] {
+        text.lowercased()
+            .split(whereSeparator: { !$0.isLetter && $0 != "'" })
+            .map(String.init)
+    }
+
+    private static func sharesRun(_ left: [String], _ right: [String], length: Int) -> Bool {
+        guard left.count >= length, right.count >= length else { return false }
+        var runs = Set<String>()
+        for index in 0...(right.count - length) {
+            runs.insert(right[index..<index + length].joined(separator: " "))
+        }
+        for index in 0...(left.count - length) where runs.contains(left[index..<index + length].joined(separator: " ")) {
+            return true
+        }
+        return false
     }
 }

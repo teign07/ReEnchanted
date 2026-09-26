@@ -1446,6 +1446,8 @@ struct CapturePageSheet: View {
     /// The feast-day throw is already decided when the page is built; this only
     /// tracks whether the reader has turned it over yet.
     @State private var festivalBonesRevealed = false
+    /// A tale told again by Gemma, once its lines passed the checks.
+    @State private var taleToldBody: String?
     @State private var text = ""
     @State private var didRecordPageOpened = false
     @State private var playfulMissionOpenBurstTrigger = 0
@@ -8247,10 +8249,11 @@ struct CapturePageSheet: View {
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
                     AuthoredSceneProseView(text: surface.payload.body)
                 } else {
-                    Text(surface.payload.body)
+                    Text(taleToldBody ?? surface.payload.body)
                         .font(.system(.body, design: .serif))
                         .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
+                        .task(id: surface.id) { await tellTaleWithGemmaIfPossible() }
                 }
             }
 
@@ -10019,6 +10022,43 @@ struct CapturePageSheet: View {
                 .stroke(LeafInk.gold.opacity(0.34), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
         )
         .padding(.top, 4)
+    }
+
+    /// Layer two of the Tales: while the reader is looking at a finished
+    /// tale, Gemma may write the three lines that join their quotes. It runs
+    /// here, with the page open and the screen on, never in the background.
+    /// Lines that fail the honesty checks are dropped and the plain telling
+    /// stays. Once told, the lines live on the tale, so it reads the same
+    /// on the desk and in the monthly edition.
+    private func tellTaleWithGemmaIfPossible() async {
+        guard surface.type == .taleBound,
+              taleToldBody == nil,
+              let taleID = surface.payload.metadata["taleID"]?.nonEmpty,
+              let tale = (PlayerVault.shared.data.boundTales ?? []).first(where: { $0.id == taleID }),
+              tale.thread != nil,
+              tale.telling == nil,
+              let prompt = TaleGemmaTelling.prompt(for: tale),
+              let response = await LocalBrainProse.write(
+                prompt: prompt,
+                instructions: TaleGemmaTelling.instructions,
+                maxTokens: 220,
+                sourceID: "tale-telling",
+                tags: ["tale-bound", "tale:\(taleID)"],
+                temperature: 0.6
+              ),
+              let lines = TaleGemmaTelling.lines(from: response, for: tale)
+        else { return }
+        var told = tale
+        told.telling = lines
+        PlayerVault.shared.mutate {
+            if let index = $0.boundTales?.firstIndex(where: { $0.id == taleID }) {
+                $0.boundTales?[index].telling = lines
+            }
+        }
+        PlayerVault.shared.save()
+        withAnimation(BookMotion.reveal(reduceMotion)) {
+            taleToldBody = TaleBinding.body(for: told)
+        }
     }
 
     private func answerTaleAsk(_ ask: BraidTaleAsk.Ask, _ answer: BraidTaleAsk.Answer) {
