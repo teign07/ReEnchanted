@@ -3602,6 +3602,7 @@ enum BookCurator {
             if tarot.spendsCuratorAskBudget,
                let existingVisibleAsk,
                !picked[existingVisibleAsk].isDeskMilestone,
+               !holdsItsChair(picked[existingVisibleAsk]),
                picked[existingVisibleAsk].type != .bookOfYou {
                 // Tarot is an ordinary invitation, not permission to put a
                 // second question on the desk. If it enters, it takes the
@@ -3832,6 +3833,7 @@ enum BookCurator {
         }
         func protected(_ page: SurfacePage) -> Bool {
             page.isDeskMilestone
+                || holdsItsChair(page)
                 || page.type == .bookOfYou
                 || page.carriesEarnedReaderTrace
                 || page.payload.metadata["curatorPreparedArtifact"] == "true"
@@ -4015,6 +4017,9 @@ enum BookCurator {
     /// exactly what was happening, in both directions.
     static func holdsItsChair(_ page: SurfacePage) -> Bool {
         page.isDeskMilestone || page.type == .bookOfYou || page.type == .festival
+            // A spell the world laid out today (fog, dusk, the shore) is as
+            // bound to the day as a feast: tomorrow it may not exist at all.
+            || (page.type == .spell && page.payload.metadata["spellConditional"] == "true")
     }
 
     private static func injectionVictimIndex(
@@ -4642,15 +4647,58 @@ enum BookCurator {
         /// looks past them: they stop a family crowding the desk, and this is
         /// one Page. A hard day never gets one; the adapter already refused.
         func placeSpellFloor() {
-            guard !mood.distressActive,
-                  !picked.contains(where: { $0.type == .spell }),
-                  let seat = selectionOrder.first(where: { $0.type == .spell })
-            else { return }
-            if picked.count < limit {
-                add(seat)
+            guard !mood.distressActive else { return }
+            // Already on the block: a spell the world laid out that ranked
+            // below the fold still belongs on the visible desk. It swaps with
+            // the chair it would have taken, so nothing leaves the block.
+            if let seated = picked.firstIndex(where: { $0.type == .spell }) {
+                guard seated >= visibleLimit,
+                      picked[seated].payload.metadata["spellConditional"] == "true"
+                else { return }
+                let visible = Array(picked.indices.prefix(visibleLimit))
+                // The visible desk already has its one errand. The spell the
+                // world laid out today outranks an ordinary one, so they trade
+                // places: the other errand stays on the block, one leaf down.
+                if let errand = visible.first(where: { picked[$0].isReaderActionCommission }) {
+                    let other = picked[errand]
+                    if !holdsItsChair(other),
+                       other.payload.metadata["curatorPreparedArtifact"] != "true",
+                       other.payload.metadata["bookCurationDirectiveID"] == nil,
+                       intention?.liveOpportunity?.matches(other) != true {
+                        picked.swapAt(errand, seated)
+                    }
+                    return
+                }
+                let reprises = visible.filter { picked[$0].deskJob == .reprise }.count
+                func swapIndex(_ job: DeskJob) -> Int? {
+                    visible.last { index in
+                        let page = picked[index]
+                        return page.deskJob == job
+                            && page.type != .bookOfYou
+                            && page.type != .festival
+                            && !page.isDeskMilestone
+                            && page.payload.metadata["curatorPreparedArtifact"] != "true"
+                    }
+                }
+                if let chair = swapIndex(.play) ?? swapIndex(.instrument) ?? swapIndex(.quiet)
+                    ?? (reprises > 1 ? swapIndex(.reprise) : nil) {
+                    picked.swapAt(chair, seated)
+                }
                 return
             }
-            let worldLaidItOut = seat.payload.metadata["spellConditional"] == "true"
+            guard let seat = selectionOrder.first(where: { $0.type == .spell }) else { return }
+            // One errand at a glance, still. The visible desk never shows a
+            // spell beside another thing to go and do.
+            let visibleHasErrand = picked.prefix(visibleLimit).contains(where: \.isReaderActionCommission)
+            if picked.count < limit {
+                if picked.count < visibleLimit, visibleHasErrand { return }
+                add(seat)
+                // Appended below the fold on a desk still filling up; a spell
+                // the world laid out then moves up, by the rule above.
+                placeSpellFloor()
+                return
+            }
+            let worldLaidItOut = seat.payload.metadata["spellConditional"] == "true" && !visibleHasErrand
             let chairs = worldLaidItOut
                 ? Array(picked.indices.prefix(visibleLimit))
                 : Array(picked.indices.dropFirst(visibleLimit))
@@ -4665,9 +4713,13 @@ enum BookCurator {
                         && page.payload.metadata["curatorPreparedArtifact"] != "true"
                 }
             }
+            // A reprise may give up its chair only when it isn't the desk's
+            // only return: the Book answering the reader outranks a spell.
+            let reprises = chairs.filter { picked[$0].deskJob == .reprise }.count
             guard let victim = victimIndex(.play)
                 ?? victimIndex(.instrument)
                 ?? victimIndex(.quiet)
+                ?? (reprises > 1 ? victimIndex(.reprise) : nil)
             else { return }
             let capable = seat.withResolvedPageCapabilities()
             picked[victim] = intention == nil
