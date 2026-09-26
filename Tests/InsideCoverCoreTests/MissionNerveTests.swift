@@ -128,14 +128,22 @@ final class PlayfulMissionVoiceTests: XCTestCase {
 
     private var all: [PlayfulMission] { PlayfulMissionRegistry.missions }
 
-    /// Play is the meal. A body scan in a costume isn't play.
-    func testNoMissionIsAGroundingExerciseInDisguise() {
-        let scans = ["unclench", "your tongue", "yawn on purpose", "breath so slow", "find your pulse",
-                     "notice what changes in your body", "let the chair do all the work"]
+    /// bj, 2026-09-26: "People have no idea what their tongue is doing, or
+    /// that they even have one most of the time." The little shock of feeling
+    /// something that is always there is one of the things these are for. It
+    /// is not the soothing register: nothing here says to relax or be kind to
+    /// yourself. It says you have a tongue.
+    func testTheBodyIsStillFullOfSurprises() {
+        let body = all.filter { $0.tags.contains("body") }
+        XCTAssertGreaterThanOrEqual(body.count, 15, "the body missions went missing again")
+        for id in ["body-tongue-watch", "body-sock-check", "body-own-nose", "body-engine-count"] {
+            XCTAssertTrue(all.contains { $0.id == id }, "\(id) is gone")
+        }
+        let soothing = ["be kind to yourself", "take a moment", "self-care", "gently remind", "you deserve"]
         for mission in all {
-            let text = (mission.prompt + " " + mission.proofPrompt).lowercased()
-            for phrase in scans {
-                XCTAssertFalse(text.contains(phrase), "\(mission.id) is a body scan: \(phrase)")
+            let text = mission.prompt.lowercased()
+            for phrase in soothing {
+                XCTAssertFalse(text.contains(phrase), "\(mission.id) went soft: \(phrase)")
             }
         }
     }
