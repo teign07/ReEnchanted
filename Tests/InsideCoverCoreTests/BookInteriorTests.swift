@@ -681,12 +681,12 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(evolved.activeFavor?.family, .encounter)
         XCTAssertEqual(evolved.activeFavor?.cultivates, .worldOtherness)
         XCTAssertTrue([
-            "Where Are They Going?",
-            "Watch the Puddle",
-            "Who Was Here?",
-            "Turn It Over",
-            "Watch a Creature Work",
-            "Watch the Ice"
+            "Who Turns First",
+            "Look Into Water",
+            "Somebody Was Here",
+            "The Bottom of Things",
+            "Watch an Animal Work",
+            "Watch a Cloud Change"
         ].contains(evolved.activeFavor?.title ?? ""))
     }
 

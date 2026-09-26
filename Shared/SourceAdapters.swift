@@ -7820,7 +7820,7 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
             intent: .capture,
             renderStyle: .loreLetter,
             score: 76,
-            reason: "I need the reader's eyes for one small piece of trouble.",
+            reason: "I can't do this one myself. I need your hands.",
             prompt: favor.title,
             detail: favor.ask,
             payload: BookPagePayload(
