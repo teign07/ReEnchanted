@@ -665,7 +665,7 @@ enum SelfKnowledgePackRegistry {
         ,question("money-boundary", "Should my errands ever cost money?", "Magic shouldn't need a shop. Tell me where your line is.", "Free, always. A few coins is fine. Ask first. Spending is fine...", .comfort, .privateContext, ["boundary", "constraint", "budget", "curation"], 53)
         ,question("story-no", "Is there anything I should never put in a story?", "A closed door is useful to know about. I won't rattle it.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
         ,question("childhood-wonder", "What fascinated you before usefulness got involved?", "Children notice doors that grown-ups paint over later.", "Rocks. Ghost stories. Trains. Drawing maps. Taking things apart...", .story, .storyOnly, ["childhood", "wonder", "story-seed"], 51)
-        ,question("lost-interest", "What did you once love that has gone quiet?", "I might remember it. I won't make you take it up again.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
+        ,question("lost-interest", "What did you once love that's gone quiet?", "I might remember it. I won't make you take it up again.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
         ,question("desired-surprise", "What kind of surprise almost always works on you?", "Surprise comes in flavours. I want to know yours.", "A strange fact. A beautiful place. A joke. A message. A tiny challenge...", .delight, .privateContext, ["surprise", "wonder-affinity", "curation"], 49)
         ,question("current-question", "What are you quietly trying to understand lately?", "It doesn't have to be a goal. Questions can just colour the margins.", "A relationship. A decision. A craft. My own attention. Something unnamed...", .story, .storyOnly, ["question", "current-season", "story-seed"], 48)
         ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. I own an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
@@ -4796,7 +4796,7 @@ enum SpellRegistry {
             title: "Be kind to the ugliest thing here",
             practice: "The Loathly Lady (Arthurian tales)",
             source: .folk,
-            blurb: "Sir Gawain married the ugliest woman at King Arthur's court, and was kind to her, and she turned out to be under a spell. The stories are full of this. The ugly one is always the one with the secret. So you'd better be nice to it.",
+            blurb: "Sir Gawain married the ugliest woman at King Arthur's court, and was kind to her, and she turned out to be under a spell. The stories are full of this. The ugly one's always the one with the secret. So you'd better be nice to it.",
             invitation: "Find the ugliest thing where you are. Photograph it properly, like it's beautiful. Then say one nice thing to it.",
             rule: "Mean it. It'll know if you don't.",
             ask: "What is it, and what did you say to it?",
@@ -4963,7 +4963,7 @@ enum SpellRegistry {
             title: "Find the secret sentence in a page",
             practice: "Blackout poetry, Tom Phillips, 1966",
             source: .folk,
-            blurb: "Tom Phillips bought an old novel in 1966 and spent fifty years crossing most of it out. What was left on each page was a poem that had been hiding in there all along. He never added a word. Every page you've ever read has one.",
+            blurb: "Tom Phillips bought an old novel in 1966 and spent fifty years crossing most of it out. What was left on each page was a poem that'd been hiding in there all along. He never added a word. Every page you've ever read has one.",
             invitation: "Take any printed page you don't need. A leaflet, a receipt, an old letter. Cross out everything except the sentence that was hiding in it.",
             rule: "Only cross out. Never add a word.",
             ask: "What was hiding in there?",
@@ -5119,7 +5119,7 @@ enum SpellRegistry {
             title: "Listen to what the rain is landing on",
             practice: "Listening to rain",
             source: .folk,
-            blurb: "Rain sounds different on a car roof, a leaf, a puddle, a bin lid. The world is drawing you a map of itself out of sound. And most people are indoors with the window shut.",
+            blurb: "Rain sounds different on a car roof, a leaf, a puddle, a bin lid. The world's drawing you a map of itself out of sound. And most people are indoors with the window shut.",
             invitation: "Stand where you can hear it. Pick out three different things it's landing on.",
             rule: "Eyes shut the whole time.",
             ask: "What was the one you had to work hardest to hear?",
@@ -5135,7 +5135,7 @@ enum SpellRegistry {
             title: "Walk into the fog on purpose",
             practice: "The dérive, in bad visibility",
             source: .folk,
-            blurb: "Fog eats distance. It takes a street you've walked a thousand times and only gives you back the next few steps of it. In the old stories, fog is where people wander off into the other world. They usually came back. Usually.",
+            blurb: "Fog eats distance. It takes a street you've walked a thousand times and only gives you back the next few steps of it. In the old stories, fog's where people wander off into the other world. They usually came back. Usually.",
             invitation: "Go out and walk toward something you can't see yet. Keep going until it shows up.",
             rule: "Don't use your phone to find it. Let the fog give it back.",
             ask: "What came out of the fog? Name the moment it did.",
@@ -5199,7 +5199,7 @@ enum SpellRegistry {
             title: "Say it where you can see your breath",
             practice: "Breath-saining",
             source: .academy,
-            blurb: "The Academy holds that a thing said where you can see your breath has been let out properly, because you can watch it go. There's no evidence for this. Duskthorn says the cold carries words further. There's no evidence for that either.",
+            blurb: "The Academy holds that a thing said where you can see your breath's been let out properly, because you can watch it go. There's no evidence for this. Duskthorn says the cold carries words further. There's no evidence for that either.",
             invitation: "Go outside where the cold makes your breath show. Say the thing you haven't said. Watch it go.",
             rule: "Say all of it. Half a thing in the cold just freezes.",
             ask: "Sign when you've let it go. You don't have to tell me what it was.",
@@ -5401,7 +5401,7 @@ enum SpellRegistry {
             title: "Sit in a room you know with the lights off",
             practice: "Sitting in the dark",
             source: .academy,
-            blurb: "A room you know perfectly stops being that room when you take the light out. Everything's still where you left it, and none of it is where you thought. It takes about four minutes. The Academy calls it the room showing you its other face.",
+            blurb: "A room you know perfectly stops being that room when you take the light out. Everything's still where you left it, and none of it's where you thought. It takes about four minutes. The Academy calls it the room showing you its other face.",
             invitation: "Turn the lights off in a room you know by heart. Sit down. Stay until your eyes catch up.",
             rule: "No phone light. Not even a peek.",
             ask: "What was the first thing you could make out?",

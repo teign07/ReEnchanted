@@ -7938,8 +7938,8 @@ enum PlayfulMissionRegistry {
     private static let waningGibbousMoonMission = mission(
         "moon-waning-gibbous-shadow",
         "Moon Shadow Errand",
-        "If the moon is out tonight, find one shadow it's making. If it's hiding, find where its light would have landed.",
-        "The moon-shadow, or where it would have fallen.",
+        "If the moon is out tonight, find one shadow it's making. If it's hiding, find where its light would've landed.",
+        "The moon-shadow, or where it would've fallen.",
         ["natural-phenomenon", "moon", "waning-gibbous", "shadow", "night", "outside"]
     )
 
@@ -7975,7 +7975,7 @@ enum PlayfulMissionRegistry {
                 mission("water-flow-low-point", "Water Chooses Down", "Find the highest or lowest spot near you. If you poured water there, which way would it run?", "The spot, and which way the water would go.", ["natural-phenomenon", "water", "place", "outside", "movement"]),
                 mission("water-true-color", "Water's True Color", "Find some water: a puddle, a pond, a glass, a river. Name the colour it's holding right now. It's never just 'blue'.", "The water was really...", ["natural-phenomenon", "water", "place", "outside", "visual"]),
                 mission("water-edge-sound", "Water at the Edge", "Find the nearest water you can hear. Listen past the obvious sound for the smallest one hiding underneath.", "The quiet sound under the water-sound.", ["natural-phenomenon", "water", "place", "outside", "sound"]),
-                mission("water-carried-clue", "What Water Carried", "Find one thing water has moved, marked or left behind: a leaf, a tide line, grit in a crack, a dark stain on a kerb. It's evidence.", "What the water carried, or changed.", ["natural-phenomenon", "water", "place", "outside", "noticing"])
+                mission("water-carried-clue", "What Water Carried", "Find one thing water's moved, marked or left behind: a leaf, a tide line, grit in a crack, a dark stain on a kerb. It's evidence.", "What the water carried, or changed.", ["natural-phenomenon", "water", "place", "outside", "noticing"])
             ]
         }
         if containsAny(text, ["hill", "ridge", "mountain", "trail", "overlook", "stairs", "elevator", "slope", "summit", "valley"]) {
@@ -8413,7 +8413,7 @@ enum PlayfulMissionRegistry {
         mission(
             "surprise-borrowed-ordinary-favorite",
             "Borrow Their Ordinary Favorite",
-            "Ask someone which ordinary thing has been good to them today: a pen, a spoon, a bus seat. Later, find your own and see if it's as good.",
+            "Ask someone which ordinary thing's been good to them today: a pen, a spoon, a bus seat. Later, find your own and see if it's as good.",
             "Their favourite, yours, and your verdict.",
             ["hosted-surprise", "people", "connection", "shared-wonder", "low-stakes"],
             allowsPhoto: false
@@ -8558,7 +8558,7 @@ enum PlayfulMissionRegistry {
     /// works in public or private, needs no special object or able-bodied
     /// movement, and accepts either a sentence or a photo as its souvenir.
     static let ridiculousMissions: [PlayfulMission] = [
-        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Call an emergency meeting of three body parts: toes, fingers, eyebrows, anything. Each one gets one vote. Which one is clearly trying to take over?", "The three delegates, and the one trying to rule.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Call an emergency meeting of three body parts: toes, fingers, eyebrows, anything. Each one gets one vote. Which one's clearly trying to take over?", "The three delegates, and the one trying to rule.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
         mission("ridiculous-ambient-conductor", "Conduct The Situation", "For twenty seconds, conduct every sound around you with one finger. Bring in the hum. Shush the clunk. Give the smallest sound a big solo.", "Which sound got the solo?", ["ridiculous", "anywhere", "present-moment", "sound", "movement", "imagination"], allowsPhoto: false),
         mission("ridiculous-countdown", "Completely Unnecessary Countdown", "Pick one tiny thing you're about to do: a sip, standing up, turning a page. Give it a five-second launch countdown. Then blast off.", "What got launched.", ["ridiculous", "anywhere", "present-moment", "body", "time", "noticing"], allowsPhoto: false),
         mission("ridiculous-dramatic-zoom", "Dramatic Zoom", "Pick the most boring thing you can see. Lean in slowly, like a camera in a film revealing the villain. Stop when one detail looks suspicious.", "The suspicious detail.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "low-energy"], allowsPhoto: false),
@@ -8597,11 +8597,11 @@ enum PlayfulMissionRegistry {
         mission("body-tongue-watch", "Tongue Watch", "What is your tongue doing right now? It was doing something. You just didn't know you had one until now.", "The tongue report, in one exact phrase.", ["body", "taste", "low-energy"], allowsPhoto: false),
         mission("body-purposeful-yawn", "Yawn Route", "Yawn on purpose. Follow where it goes: jaw, ears, eyes, all the way down your back. Map the route.", "The route the yawn took.", ["body", "rest", "low-energy"], allowsPhoto: false),
         mission("body-suspicious-breath", "Suspicious Breath", "Take one breath so slow it feels suspicious. What can you smell right at the very bottom of it?", "The smell at the bottom of the breath.", ["body", "scent", "low-energy"], allowsPhoto: false),
-        mission("body-engine-count", "The Engine", "Find your pulse with two fingers and count ten beats. That's the engine. It has run your whole life and has never once been thanked.", "Where you found the engine.", ["body", "touch", "low-energy"], allowsPhoto: false),
+        mission("body-engine-count", "The Engine", "Find your pulse with two fingers and count ten beats. That's the engine. It's run your whole life and it's never once been thanked.", "Where you found the engine.", ["body", "touch", "low-energy"], allowsPhoto: false),
         mission("body-chair-border", "Chair Border", "Find the exact place where you stop and the chair starts. It's blurrier than you'd think.", "Where the border was, if you could find it.", ["body", "touch", "rest", "inside"], allowsPhoto: false),
         mission("body-sock-check", "Sock Check", "Feel your socks. You've had them on for hours and haven't felt them once. What are they doing down there? No socks? Whatever your feet are touching, then.", "The sock report.", ["body", "touch", "low-energy"], allowsPhoto: false),
         mission("body-clothes-weight", "The Weight Of Your Clothes", "Feel how heavy your clothes are. You carry them everywhere, all day, and you never feel it. Where are they heaviest?", "Where your clothes weigh the most.", ["body", "touch", "weight", "low-energy"], allowsPhoto: false),
-        mission("body-own-nose", "Your Own Nose", "Look at your nose. Close one eye, then the other. It's been in every single thing you've ever seen, and your brain has been rubbing it out the whole time.", "What your nose looks like, now you can see it.", ["body", "visual", "low-energy"], allowsPhoto: false),
+        mission("body-own-nose", "Your Own Nose", "Look at your nose. Close one eye, then the other. It's been in every single thing you've ever seen, and your brain's been rubbing it out the whole time.", "What your nose looks like, now you can see it.", ["body", "visual", "low-energy"], allowsPhoto: false),
         mission("body-blink-notice", "Blink", "Notice yourself blinking. There. Now you can't stop noticing. Count how long it takes to forget again.", "How long it took to forget.", ["body", "visual", "time", "low-energy"], allowsPhoto: false),
         mission("body-gravity-answer", "Gravity Answers", "Push gently into whatever is holding you up: the floor, the chair, the bed. Feel exactly where it pushes back. That's gravity. It's been holding you all day.", "Where gravity pushed back.", ["body", "touch", "weight", "rest"], allowsPhoto: false),
         mission("body-own-voice", "The Sound Of You", "Hold very still and listen for a sound your own body is making: breathing, a swallow, a creak, your stomach having an opinion.", "The sound your body made.", ["body", "sound", "low-energy"], allowsPhoto: false),
@@ -8659,9 +8659,9 @@ enum PlayfulMissionRegistry {
         mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count everything that's still awake.", "How many, and one of them.", ["night", "sound", "visual", "outside"]),
         mission("night-guard-light", "Last Light Guard", "Find the last light on in your home tonight. What is it guarding?", "What the light is guarding.", ["night", "light", "inside", "low-energy"]),
         mission("night-second-voice", "Second Voice", "Find one sound your home only makes at night. Houses have a second voice they save for after dark.", "The house's night voice.", ["night", "sound", "inside"], allowsPhoto: false),
-        mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something is over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
+        mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something's over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
         mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"]),
-        mission("strange-outlive-you", "Outliving Object", "Touch something that will still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
+        mission("strange-outlive-you", "Outliving Object", "Touch something that'll still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
         mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago.", "The new thing.", ["visual", "history", "inside", "public"]),
         mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then find out if you can.", "Your guess, and the truth, or the mystery.", ["visual", "history", "object"]),
         mission("strange-stranger-decision", "A Stranger Chose That", "Pick up the nearest made thing and find one decision a stranger made about it: a curve, a colour, a button. Do you agree with them?", "The decision, and your verdict.", ["object", "touch", "design", "inside"], allowsPhoto: false),
@@ -8669,7 +8669,7 @@ enum PlayfulMissionRegistry {
     ]
 
     static let shadowMissions: [PlayfulMission] = [
-        mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded or cracked thing your eyes usually skip. Look at it for ten whole seconds before you decide what it is.", "What time has done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
+        mission("shadow-spark-hunt", "Shadow Spark Hunt", "Find one broken, rusty, faded or cracked thing your eyes usually skip. Look at it for ten whole seconds before you decide what it is.", "What time's done to it.", ["shadow-wonder", "shadow", "history", "visual", "low-energy"]),
         mission("shadow-mystery-clue", "The Mystery Mission", "Find something closed, old or half-forgotten that you can see from where you're allowed to be. Find one clue about what it used to be. Don't go in.", "The clue, and the question it opened.", ["shadow-wonder", "mystery", "history", "public", "visual"]),
         mission("shadow-tribute-object", "The Tribute Mission", "Find something mended, worn out or past its best. Give it thirty seconds of respect. Don't try to fix it.", "One sentence for what it survived.", ["shadow-wonder", "tribute", "object", "history", "inside"]),
         mission("shadow-mood-match", "Mood Match", "Find the one thing in the room that matches how today feels. Not the weather outside. The weather in you.", "The thing that matched.", ["shadow-wonder", "mood-match", "night", "weather", "inside"], allowsPhoto: false),

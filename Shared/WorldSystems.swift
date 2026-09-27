@@ -11825,7 +11825,7 @@ enum BookOpenVoiceComposer {
         }
         if context.greyLevel >= 2 {
             return aside
-                ? "The grey has been asked to wait outside. It's doing a terrible job."
+                ? "The grey's been asked to wait outside. It's doing a terrible job."
                 : "The cover taps twice. The grey heard you. Good."
         }
         if aside, context.openBargainFae?.nonEmpty != nil {
@@ -11855,7 +11855,7 @@ enum BookOpenVoiceComposer {
     /// The asides for each of the Book's moods.
     private static func stanceQuip(_ stance: BookStance) -> String? {
         switch stance {
-        case .contrite: return "The eraser has asked for a seat at the editors' table. Fair."
+        case .contrite: return "The eraser's asked for a seat at the editors' table. Fair."
         case .protective: return "I've locked one door and left six windows open."
         case .mischievous: return "The index has filed an objection. It was alphabetized beautifully."
         case .hushed: return "Even the footnotes have taken their shoes off."
