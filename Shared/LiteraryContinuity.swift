@@ -1679,11 +1679,11 @@ enum BookMaterialMark: String, Equatable {
     var explanation: String {
         switch self {
         case .greyScar:
-            return "A pale edge means you've begun seeing through me, and I became routine too. I've broken my own pattern. Something living is at stake."
+            return "A pale edge means I started going boring on you. The Curse gets into books too. I'm fighting it. Watch me."
         case .sealedLeaf:
             return "A sealed leaf means I've a secret of my own ready to open."
         case .dogEar:
-            return "A dog-ear means I've chosen a favorite Page and mean to defend my taste."
+            return "A dog-ear means I've picked a favourite Page, and I'll fight you about it."
         case .keepingWatch:
             return "A ribbon left standing means I'm keeping an unfinished promise."
         case .revision:
@@ -1691,7 +1691,7 @@ enum BookMaterialMark: String, Equatable {
         case .mischief:
             return "A crooked mark means my ribbon, Index, or eraser has started something. I haven't caught the culprit. I have suspects."
         case .longGame:
-            return "A map-ribbon means one of my longer schemes has moved. I'll tell you what I've earned the right to tell."
+            return "A map-ribbon means one of my big plans moved a step. I'll tell you when I'm allowed."
         case .unmarked:
             return "A quiet cover means I've no loose business showing. It doesn't mean I'm asleep."
         }

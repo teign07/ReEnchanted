@@ -11971,7 +11971,7 @@ enum BookOpenVoiceComposer {
             return "\(talisman) knocks back from inside the binding."
         }
         if let relationship = context.relationshipLine?.nonEmpty, context.seed % 4 == 1 {
-            return "The Loom answers: \(relationship.bookPreviewSentenceLimit(1))"
+            return "Somebody answers from inside: \(relationship.bookPreviewSentenceLimit(1))"
         }
         if context.greyLevel >= 2 {
             return "The cover taps twice. The grey heard you. Good."
@@ -11980,10 +11980,10 @@ enum BookOpenVoiceComposer {
             return "Something under today's kept fragment knocks back."
         }
         return pick([
-            "Tap received. The nearest Page is pretending it was already awake.",
+            "Knock knock. The nearest Page is pretending it was already awake.",
             "The cover warms under your hand.",
             "A shelf somewhere answers with one careful creak.",
-            "I knock back, politely theatrical."
+            "I knock back. Twice. Showing off."
         ], seed: context.seed, salt: 73)
     }
 

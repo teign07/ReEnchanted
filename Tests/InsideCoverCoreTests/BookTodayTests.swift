@@ -79,8 +79,8 @@ final class BookTodayTests: XCTestCase {
         )
 
         XCTAssertEqual(edition.form, .observatoryWindow)
-        XCTAssertTrue(edition.reading.contains("familiar thing visible again"))
-        XCTAssertTrue(edition.reading.contains("I'll take one glint"))
+        XCTAssertTrue(edition.reading.contains("one thing you've stopped seeing"))
+        XCTAssertTrue(edition.reading.contains("One glint will do"))
         XCTAssertTrue(edition.reading.contains("I'm trying"))
         XCTAssertFalse(edition.reading.contains("private test evidence"))
         XCTAssertEqual(edition.beats.last?.kind, .byNightfall)

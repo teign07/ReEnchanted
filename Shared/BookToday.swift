@@ -121,7 +121,7 @@ enum BookTodayProjector {
         } else if let place = inputs.currentPlaceContext {
             beats.append(.init(
                 kind: .atTheWindows,
-                line: "I recognize this as \(place.title). I'm reading the room before I speak.",
+                line: "I know this place. It's \(place.title). I'm having a good sniff before I say anything.",
                 symbolName: "location"
             ))
         }
@@ -161,7 +161,7 @@ enum BookTodayProjector {
         } else if hour >= 19 {
             beats.append(.init(
                 kind: .byNightfall,
-                line: "I'll keep what mattered and let the rest of the day remain unbound.",
+                line: "I'll keep the good bits. The rest of the day can go where it likes.",
                 symbolName: "moon.stars"
             ))
         }
@@ -228,12 +228,12 @@ enum BookTodayProjector {
             return "\(capitalized(mark))."
         }
         if hour < 11 {
-            return "The day's still chewing its name. I'm listening."
+            return "The day hasn't picked a name yet. I'm listening."
         }
         if hour >= 20 {
             return "I'm gathering the day's loose pages."
         }
-        return "The room's hiding something ordinary. I'm watching its hands."
+        return "Something ordinary is up to something. I'm watching it."
     }
 
     private static func readingLine(
@@ -249,7 +249,7 @@ enum BookTodayProjector {
             }
             return relationship.depth == .firstPages
                 ? "I don't know enough yet. Good. I'm watching."
-                : "The day hasn't shown me its hinge. I'm not making one up."
+                : "Nothing strange has happened yet. I'm not going to make one up."
         }
         let opening = hour < 12 ? "This morning" : (hour < 18 ? "Today" : "This evening")
         return "\(opening), I'm \(attemptLine(for: intention.movement)) \(ambitionEnding(intention.ambition))"
@@ -257,23 +257,23 @@ enum BookTodayProjector {
 
     private static func attemptLine(for movement: BookReenchantmentMovement) -> String {
         switch movement {
-        case .freshSight: return "trying to make one familiar thing visible again."
-        case .livingWorld: return "looking for proof that the world has business of its own."
-        case .scriptFreedom: return "leaving one expected script unlocked."
-        case .chosenDetour: return "keeping watch for one worthwhile detour."
-        case .exactLanguage: return "waiting for the exact words that make an ordinary thing yours."
-        case .humanOtherness: return "making room for another person to remain surprising."
-        case .livingContinuity: return "bringing an earlier thing back into the present."
-        case .shelter: return "keeping my voice down and making room around you."
+        case .freshSight: return "trying to find one thing you've stopped seeing."
+        case .livingWorld: return "looking for proof the world is up to something without you."
+        case .scriptFreedom: return "trying to knock one bit of the usual day off its rails."
+        case .chosenDetour: return "keeping an eye out for a good wrong turn."
+        case .exactLanguage: return "hunting for the exact word for something."
+        case .humanOtherness: return "curious about somebody else in your day."
+        case .livingContinuity: return "fetching something old back to see you."
+        case .shelter: return "keeping quiet and staying close."
         }
     }
 
     private static func ambitionEnding(_ ambition: BookSessionAmbition) -> String {
         switch ambition {
-        case .glint: return "I'll take one glint."
-        case .connection: return "I'm arranging a connection, not a conclusion."
-        case .return: return "I've got something sniffing its way back."
-        case .intervention: return "I think the opening's worth acting on."
+        case .glint: return "One glint will do."
+        case .connection: return "I want to join two things up. I don't need an answer."
+        case .return: return "Something's sniffing its way back."
+        case .intervention: return "I think something today is worth a go."
         case .revelation: return "I suspect two distant things have been passing notes."
         }
     }
@@ -283,22 +283,22 @@ enum BookTodayProjector {
         hour: Int
     ) -> String {
         if intention.liveOpportunity != nil {
-            return "The opening is real but temporary. I've put the useful doors among the Pages above."
+            return "It won't last. I've put the doors for it in the Pages above."
         }
         if hour >= 18 {
-            return "I'm watching to see what follows you home, not whether you obeyed it."
+            return "I want to see what follows you home."
         }
-        return "By nightfall, I hope there'll be one detail today couldn't have produced without you."
+        return "By tonight I want one thing today couldn't have done without you."
     }
 
     private static func consequenceLine(for stage: BookExperienceCueStage) -> String {
         switch stage {
-        case .opened: return "A Page you opened is still warm at the binding. I haven't mistaken attention for an answer."
-        case .acted: return "Something crossed the threshold from Page into life. I'm waiting for what comes back."
+        case .opened: return "You opened a Page and left it open. It's still warm. I'm not nagging."
+        case .acted: return "Something got out of a Page and into your day. I'm waiting to hear what happened."
         case .kept: return "A kept Page has crawled under my binding. It's staying."
-        case .loved: return "One Page has been given unusual weight. I've dog-eared the evidence."
+        case .loved: return "You liked one Page more than the others. I've folded its corner down."
         case .displayed: return "A Page is waiting without tapping the glass."
-        case .dismissed: return "One possibility was sent back under the furniture."
+        case .dismissed: return "One Page got sent away. It's sulking under the furniture."
         }
     }
 
@@ -313,9 +313,9 @@ enum BookTodayProjector {
         }
         let held = grimoire.rows.values.filter { $0.state == .standing }.count
         if held >= GrimoireLedger.Bars.maximumHeld { return "my head is full of your rules" }
-        if held > 0 { return "I am sure of \(held) of your rules" }
+        if held > 0 { return "I'm sure of \(held) of your rules" }
         if grimoire.rows.values.contains(where: { $0.state == .watching }) {
-            return "I am counting something about you"
+            return "I'm counting something about you"
         }
         return nil
     }
@@ -333,7 +333,7 @@ enum BookTodayProjector {
         }
         if interior.currentDispute != nil { return "an argument is loose in my margins" }
         if interior.longGame?.hasUnannouncedPhase == true {
-            return "a long game has moved"
+            return "my big plan moved a step"
         }
         if interior.favorite?.firstPresentedAt == nil, interior.favorite != nil {
             return "one Page has been dog-eared"
@@ -356,7 +356,7 @@ enum BookTodayProjector {
             ?? "the question with too many fingerprints"
         var lines = [
             "“\(subject)” is loose in the margins again. Nobody has won the pencil.",
-            "The footnotes have taken sides over “\(subject)” I am counting voices, not votes.",
+            "The footnotes have taken sides over “\(subject)” I'm counting who's shouting loudest.",
             "“\(subject)” has \(question.positions.count) different answers scratching at its door."
         ]
 
@@ -497,7 +497,7 @@ enum BookTodayProjector {
             if tie.tension > max(3, tie.warmth) {
                 line = "The thread between \(names[0]) and \(names[1]) is pulled tight. Neither has let go."
             } else if tie.warmth > max(3, tie.tension) {
-                line = "\(names[0]) and \(names[1]) have warmed the same thread. It is beginning to remember them."
+                line = "\(names[0]) and \(names[1]) have warmed the same thread. It's starting to remember them."
             } else {
                 line = "\(names[0]) and \(names[1]) keep turning up in each other's ledger."
             }
@@ -575,7 +575,7 @@ enum BookTodayProjector {
         case .weatherTurned: return "The weather changed the rules. I saw it."
         case .placeOpened: return "I found a nearby door standing open."
         case .calendarWindowOpened: return "I found a hole in the day's fence."
-        case .capacityOpened: return "The day made room. I've put my foot in it."
+        case .capacityOpened: return "The day's got a gap in it. I've put my foot in it."
         }
     }
 
@@ -714,8 +714,8 @@ enum BookTodayCensusProjector {
             value: heldRules,
             symbol: "text.book.closed",
             lines: [
-                "\(heldRules) \(word(heldRules, one: "rule", many: "rules")) about you that I am sure of.",
-                "I am holding \(heldRules) \(word(heldRules, one: "rule", many: "rules")) about how you go."
+                "\(heldRules) \(word(heldRules, one: "rule", many: "rules")) about you that I'm sure of.",
+                "I'm holding \(heldRules) \(word(heldRules, one: "rule", many: "rules")) about how you go."
             ]
         )
         let takenBack = inputs.grimoire.crossedOut.count
@@ -980,7 +980,7 @@ enum BookTodayCensusProjector {
             symbol: "person.line.dotted.person.fill",
             lines: [
                 "\(relationshipReceipts) \(word(relationshipReceipts, one: "Page carries", many: "Pages carry")) proof that another life touched yours.",
-                "Other people have left \(relationshipReceipts) inspectable \(word(relationshipReceipts, one: "trace", many: "traces")) in the binding."
+                "Other people have left \(relationshipReceipts) \(word(relationshipReceipts, one: "fingerprint", many: "fingerprints")) in the binding."
             ]
         )
 
@@ -1002,7 +1002,7 @@ enum BookTodayCensusProjector {
             value: finishedTales,
             symbol: "book.closed.fill",
             lines: [
-                "\(finishedTales) \(word(finishedTales, one: "tale has", many: "tales have")) found an ending without pretending to be finished forever.",
+                "I've finished \(finishedTales) \(word(finishedTales, one: "tale", many: "tales")). They might start up again.",
                 "I have tied the last knot on \(finishedTales) \(word(finishedTales, one: "tale", many: "tales"))."
             ]
         )
@@ -1121,7 +1121,7 @@ enum BookTodayCensusProjector {
             value: revealedQuirks,
             symbol: "scribble.variable",
             lines: [
-                "Living with you has given me \(revealedQuirks) observable \(word(revealedQuirks, one: "quirk", many: "quirks")).",
+                "Living with you has given me \(revealedQuirks) \(word(revealedQuirks, one: "quirk", many: "quirks")). You can check.",
                 "I have acquired \(revealedQuirks) bad little \(word(revealedQuirks, one: "habit", many: "habits")) you can prove."
             ]
         )
@@ -1167,7 +1167,7 @@ enum BookTodayCensusProjector {
             value: disputes,
             symbol: "quote.bubble.fill",
             lines: [
-                "You and I have kept \(disputes) \(word(disputes, one: "argument", many: "arguments")) without flattening either side.",
+                "We've got \(disputes) \(word(disputes, one: "argument", many: "arguments")) going, and neither of us has given in.",
                 "There are \(disputes) honest \(word(disputes, one: "disagreement", many: "disagreements")) in the margins. I did not eat yours."
             ]
         )
@@ -1276,8 +1276,8 @@ enum BookTodayCensusProjector {
             value: usableFacts,
             symbol: "hand.raised.fill",
             lines: [
-                "You have permitted me to carry \(usableFacts) \(word(usableFacts, one: "truth", many: "truths")) about you.",
-                "I know \(usableFacts) reader-approved \(word(usableFacts, one: "thing", many: "things")) and am forbidden to pretend I know the rest."
+                "You've let me keep \(usableFacts) true \(word(usableFacts, one: "thing", many: "things")) about you.",
+                "I know \(usableFacts) \(word(usableFacts, one: "thing", many: "things")) about you that you said I could. I don't pretend about the rest."
             ]
         )
 
@@ -1298,7 +1298,7 @@ enum BookTodayCensusProjector {
             value: relationship.protectedBoundaryCount,
             symbol: "lock.shield.fill",
             lines: [
-                "\(relationship.protectedBoundaryCount) hard \(word(relationship.protectedBoundaryCount, one: "boundary is", many: "boundaries are")) written into how I read you.",
+                "You told me to leave \(relationship.protectedBoundaryCount) \(word(relationship.protectedBoundaryCount, one: "thing", many: "things")) alone. I have.",
                 "You closed \(relationship.protectedBoundaryCount) \(word(relationship.protectedBoundaryCount, one: "door", many: "doors")), and I kept them closed."
             ]
         )
@@ -1310,7 +1310,7 @@ enum BookTodayCensusProjector {
             value: recentCastMovements,
             symbol: "figure.walk.motion",
             lines: [
-                "The recent Academy ledger contains \(recentCastMovements) offstage \(word(recentCastMovements, one: "movement", many: "movements")).",
+                "The cast got up to \(recentCastMovements) \(word(recentCastMovements, one: "thing", many: "things")) offstage lately.",
                 "The cast has done \(recentCastMovements) recent \(word(recentCastMovements, one: "thing", many: "things")) without waiting for the plot to look at them."
             ]
         )
@@ -1402,7 +1402,7 @@ enum BookTodayCensusProjector {
         selectionSeed: Int
     ) -> String {
         if pageCount == 0 {
-            return "I am still mostly cover. That will not last."
+            return "I'm still mostly cover. That won't last."
         }
         if inputs.quietDays > 0 {
             let greeting: String
