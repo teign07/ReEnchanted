@@ -320,11 +320,11 @@ final class BookPersonalityTests: XCTestCase {
     }
 
     func testPhysicalMarksExplainActualBookBusiness() {
-        XCTAssertTrue(BookMaterialMark.dogEar.explanation.contains("favorite Page"))
+        XCTAssertTrue(BookMaterialMark.dogEar.explanation.contains("favourite Page"))
         XCTAssertTrue(BookMaterialMark.keepingWatch.explanation.contains("unfinished promise"))
         XCTAssertTrue(BookMaterialMark.revision.explanation.contains("too certain"))
         XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, Index, or eraser"))
-        XCTAssertTrue(BookMaterialMark.greyScar.explanation.contains("routine too"))
+        XCTAssertTrue(BookMaterialMark.greyScar.explanation.contains("Routine gets into books too"))
     }
 
     func testNightlyBraidReceivesTheSameLivingBookPacket() {

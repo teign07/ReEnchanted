@@ -1679,7 +1679,7 @@ enum BookMaterialMark: String, Equatable {
     var explanation: String {
         switch self {
         case .greyScar:
-            return "A pale edge means I started going boring on you. The Curse gets into books too. I'm fighting it. Watch me."
+            return "A pale edge means I started going boring on you. Routine gets into books too. I'm fighting it. Watch me."
         case .sealedLeaf:
             return "A sealed leaf means I've a secret of my own ready to open."
         case .dogEar:

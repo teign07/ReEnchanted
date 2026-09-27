@@ -11698,22 +11698,28 @@ enum WorldChargeComposer {
         if let relationshipLine = BookRelationshipVoice.openingLine(for: context.bookRelationship) {
             return relationshipLine
         }
+        // Said as the Book, about what it has noticed: never an order, never
+        // the machinery's name. At most two sentences, because this sits under
+        // "I'm awake" every time the cover opens.
+        let pageWord = context.availablePages == 1 ? "Page is" : "Pages are"
+        let keptWord = context.keptToday == 1 ? "thing" : "things"
+        let returnedWord = context.resurfacedPages == 1 ? "Page" : "Pages"
         let liveLines = [
-            context.celebrationTitle?.nonEmpty.map { "The Wheel is keeping \($0). Let one ordinary thing answer it." },
-            context.relationshipLine?.nonEmpty.map { "The Loom moved: \($0.bookPreviewSentenceLimit(1))" },
-            context.castActionLine?.nonEmpty.map { "The cast kept acting offscreen: \($0.bookPreviewSentenceLimit(1))" },
-            context.beliefMovementLine?.nonEmpty.map { "Belief shifted in the margins: \($0.bookPreviewSentenceLimit(1))" },
-            context.ascendantTalismanName?.nonEmpty.map { "\($0) is leaning on the binding today. The Pages may answer differently." },
-            context.tunedStationTitle?.nonEmpty.map { "\($0) is still in the paper. Let the next Page keep rhythm." },
-            context.enchantedWeatherLine?.nonEmpty.map { "The sky left a margin note: \($0.bookPreviewSentenceLimit(1))" },
+            context.celebrationTitle?.nonEmpty.map { "The world's keeping \($0) today. I've been waiting for it." },
+            context.relationshipLine?.nonEmpty.map { "Something happened between the cast: \($0.bookPreviewSentenceLimit(1))" },
+            context.castActionLine?.nonEmpty.map { "While you were out: \($0.bookPreviewSentenceLimit(1))" },
+            context.beliefMovementLine?.nonEmpty.map { "Something shifted while you were gone: \($0.bookPreviewSentenceLimit(1))" },
+            context.ascendantTalismanName?.nonEmpty.map { "\($0) is pushing on my spine today. I can feel it." },
+            context.tunedStationTitle?.nonEmpty.map { "I can still hear \($0) in my pages. I've been humming." },
+            context.enchantedWeatherLine?.nonEmpty.map { "The sky's been writing on me: \($0.bookPreviewSentenceLimit(1))" },
             context.weatherPhrase?.nonEmpty.map { weatherLine(for: $0, seed: context.seed) },
-            context.greyLevel >= 2 ? "A grey edge is near the desk. One true detail can turn the light up." : nil,
-            context.openBargainFae?.nonEmpty.map { "A \($0) still has a finger under the page. Terms may flutter." },
-            context.pactLine?.nonEmpty.map { "\($0.bookPreviewSentenceLimit(1)) Another Page is listening from the map." },
-            context.availablePages > 0 ? "\(context.availablePages) Page\(context.availablePages == 1 ? "" : "s") are tapping at the glass. Choose the one that glows back." : nil,
-            context.keptToday > 0 ? "The margins hold \(context.keptToday) fragment\(context.keptToday == 1 ? "" : "s"). The next Page is already listening." : nil,
-            context.resurfacedPages > 0 ? "\(context.resurfacedPages) older Page\(context.resurfacedPages == 1 ? "" : "s") found the stair back up." : nil,
-            context.moonName != "New Moon" ? "The \(context.moonName) is stamped in the corner. Let it choose one small thing." : nil
+            context.greyLevel >= 2 ? "The grey's been sniffing round the desk. I don't like it." : nil,
+            context.openBargainFae?.nonEmpty.map { "A \($0) is still holding the corner of a page. It wants its bargain." },
+            context.pactLine?.nonEmpty.map { "\($0.bookPreviewSentenceLimit(1)) I'm keeping an eye on the map." },
+            context.availablePages > 0 ? "\(context.availablePages) \(pageWord) waiting for you. One of them is showing off." : nil,
+            context.keptToday > 0 ? "You've kept \(context.keptToday) \(keptWord) today. I've been reading them." : nil,
+            context.resurfacedPages > 0 ? "\(context.resurfacedPages) old \(returnedWord) climbed back up to see you." : nil,
+            context.moonName != "New Moon" ? "The \(context.moonName) is in my corner tonight. I drew it myself." : nil
         ].compactMap { $0?.nonEmpty }
 
         if !liveLines.isEmpty {
@@ -11728,33 +11734,33 @@ enum WorldChargeComposer {
         let lines: [String]
         if lowered.contains("rain") || lowered.contains("drizzle") || lowered.contains("shower") {
             lines = [
-                "The rain is writing on the glass. Keep what it changes.",
-                "Rain has the day's edges softened. Let one detail shine through."
+                "It's raining. I can hear it on my cover.",
+                "Rain! Everything smells like old paper when it rains."
             ]
         } else if lowered.contains("snow") || lowered.contains("sleet") || lowered.contains("ice") {
             lines = [
-                "The cold has made the world legible. Keep one mark before it melts.",
-                "Snow-light is editing the ordinary. Notice what it leaves bright."
+                "It's snowing. The whole world's gone white, like a new page.",
+                "Snow! Go and look at it for me. I can't see out."
             ]
         } else if lowered.contains("fog") || lowered.contains("mist") || lowered.contains("haze") {
             lines = [
-                "The fog is leaving half the page unwritten. Keep the half that shows.",
-                "Mist has lowered the ceiling of the day. Listen for the nearest thing."
+                "Fog. Half the world's gone missing. I want to know where it went.",
+                "It's foggy out. Anything could be hiding in it."
             ]
         } else if lowered.contains("wind") || lowered.contains("gust") || lowered.contains("breez") {
             lines = [
-                "The wind keeps turning pages outside. Catch one before it goes.",
-                "Something in the air is restless. Give it a detail to carry."
+                "It's windy. Something out there keeps turning pages.",
+                "The wind's being very rude today. I like it."
             ]
         } else if lowered.contains("sun") || lowered.contains("clear") || lowered.contains("bright") {
             lines = [
-                "The light is choosing surfaces. Keep one thing it touches.",
-                "The day is bright enough to show its fingerprints. Look close."
+                "It's bright out. The light's landing on everything it can find.",
+                "Sunshine. I'm getting warm, and I didn't even move."
             ]
         } else {
             lines = [
-                "The weather is already inside the story. Let one real thing answer it.",
-                "The sky has entered the margins. Keep the first detail that notices."
+                "I can feel the weather through my cover.",
+                "The sky's up to something today. I can tell."
             ]
         }
         return lines[abs(seed) % lines.count]
@@ -11765,23 +11771,23 @@ enum WorldChargeComposer {
         switch hour {
         case 5..<11:
             lines = [
-                "Morning has not settled on its meaning yet. Keep the first true thing.",
-                "The day is still damp with beginning. Let one small sign through."
+                "Good morning. The day hasn't decided what it is yet.",
+                "It's early. I've been awake for ages."
             ]
         case 17..<21:
             lines = [
-                "Evening is leaning on the windows. Keep one thing it touches.",
-                "The day is turning down its lamp. Catch the last glint."
+                "It's getting dark. This is my favourite bit.",
+                "The day's putting its shoes away."
             ]
         case 21..., ..<5:
             lines = [
-                "Night has opened the quieter shelf. Keep what glows without asking.",
-                "The room is reading itself softly. Listen for the next Page."
+                "It's late. Everything's gone quiet except me.",
+                "Night. The room's gone very quiet. I'm listening to it."
             ]
         default:
             lines = [
-                "The ordinary is already misbehaving. Keep the evidence.",
-                "A Page is near the surface. Give it one real thing to hold."
+                "Something ordinary is up to something. I can tell.",
+                "I'm awake, and I've got opinions."
             ]
         }
         return lines[abs(seed) % lines.count]

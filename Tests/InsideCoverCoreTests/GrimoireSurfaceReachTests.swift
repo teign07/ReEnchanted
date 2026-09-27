@@ -73,7 +73,7 @@ final class GrimoireSurfaceReachTests: XCTestCase {
 
     func testSomethingMerelyBeingCountedIsSaidQuietly() throws {
         let mark = try XCTUnwrap(edition(ledger(held: 0, crossedOut: 0, watching: 2)).marginalMark)
-        XCTAssertEqual(mark, "I am counting something about you")
+        XCTAssertEqual(mark, "I'm counting something about you")
     }
 
     // MARK: Ask the Book

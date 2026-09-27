@@ -67,8 +67,8 @@ final class BookGreetingTests: XCTestCase {
             hour: 12,
             seed: 0
         ))
-        XCTAssertTrue(kept.contains("2 fragments"))
-        XCTAssertTrue(kept.contains("next Page"))
+        XCTAssertTrue(kept.contains("2 things"))
+        XCTAssertTrue(kept.contains("reading them"))
     }
 
     func testWorldChargeCarriesCelebrationFaeAndPactSignals() {
@@ -87,7 +87,7 @@ final class BookGreetingTests: XCTestCase {
             openBargainFae: "Sentence Salamander"
         ))
         XCTAssertTrue(fae.contains("Sentence Salamander"))
-        XCTAssertTrue(fae.contains("Terms"))
+        XCTAssertTrue(fae.contains("bargain"))
 
         let pact = WorldChargeComposer.compose(.init(
             moonName: "New Moon",
@@ -96,7 +96,7 @@ final class BookGreetingTests: XCTestCase {
             pactLine: "The Wind Cipher asks for a small errand."
         ))
         XCTAssertTrue(pact.contains("Wind Cipher"))
-        XCTAssertTrue(pact.contains("Another Page"))
+        XCTAssertTrue(pact.contains("keeping an eye on the map"))
     }
 
     func testAfterglowCarriesTheKeepOutward() {
