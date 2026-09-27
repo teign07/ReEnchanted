@@ -126,13 +126,15 @@ final class BookGreetingTests: XCTestCase {
         ))
 
         XCTAssertFalse(voice.heroLine.isEmpty)
-        XCTAssertFalse(voice.edgeLine.isEmpty)
+        // The line under "I'm awake" carries one of the live signals, in the
+        // Book's own words rather than a dashboard label.
         XCTAssertTrue(
-            voice.edgeLine.contains("Relationship")
-                || voice.edgeLine.contains("Cast")
-                || voice.edgeLine.contains("Belief")
-                || voice.edgeLine.contains("Talisman")
+            ["Zara", "Wicker", "Dusk Thorn", "Mothlight"].contains { voice.heroLine.contains($0) },
+            voice.heroLine
         )
+        for label in ["Loom Weather", "Relationship weather", "Belief Drift", "Talisman action"] {
+            XCTAssertFalse(voice.heroLine.contains(label), voice.heroLine)
+        }
     }
 
     func testOpeningVoiceKeepsReadableLineCount() {
@@ -145,7 +147,7 @@ final class BookGreetingTests: XCTestCase {
         ))
 
         XCTAssertLessThanOrEqual(voice.heroLine.components(separatedBy: ". ").count, 2)
-        XCTAssertLessThanOrEqual(voice.edgeLine.components(separatedBy: ". ").count, 2)
+        XCTAssertLessThanOrEqual(voice.knockLine.components(separatedBy: ". ").count, 2)
     }
 
     func testBookPreviewSentenceLimitKeepsDoctorNamesIntact() {

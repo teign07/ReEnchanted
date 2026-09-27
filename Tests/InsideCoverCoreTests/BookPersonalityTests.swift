@@ -298,16 +298,21 @@ final class BookPersonalityTests: XCTestCase {
             recentReadingStatus: nil
         )
 
-        let voice = BookOpenVoiceComposer.compose(.init(
-            moonName: "Waxing Moon",
-            seed: 0,
-            readerBelief: 70,
-            bookRelationship: relationship
-        ))
-
-        XCTAssertTrue(voice.quip.contains("index"))
-        XCTAssertTrue(voice.knockLine.contains("awake"))
-        XCTAssertFalse(voice.heroLine.isEmpty)
+        // A knock alternates between the Book's usual answer for its mood and
+        // an aside. Across a few knocks, a mischievous Book gives both.
+        let knocks = (0..<6).map { seed in
+            BookOpenVoiceComposer.compose(.init(
+                moonName: "Waxing Moon",
+                seed: seed,
+                readerBelief: 70,
+                bookRelationship: relationship
+            )).knockLine
+        }
+        XCTAssertTrue(knocks.contains { $0.contains("filed an objection") }, "the aside never came")
+        XCTAssertTrue(knocks.contains { $0.contains("awake") }, "the usual answer never came")
+        XCTAssertFalse(BookOpenVoiceComposer.compose(.init(
+            moonName: "Waxing Moon", seed: 0, readerBelief: 70, bookRelationship: relationship
+        )).heroLine.isEmpty)
     }
 
     func testCharacterCanonKeepsItsCunningBackstage() {

@@ -11679,14 +11679,12 @@ struct WorldChargeContext: Equatable {
     }
 }
 
+/// What the Book says when the cover opens: the line under "I'm awake",
+/// and what it answers when the reader knocks. The epigraph, fact, edge and
+/// encouragement lines this once also composed were never shown and were
+/// removed (2026-09-27): aphorisms, dashboard labels and wellness copy.
 struct BookOpenVoice: Equatable {
     var heroLine: String
-    var epigraph: String
-    var factTitle: String
-    var factLine: String
-    var encouragement: String
-    var quip: String
-    var edgeLine: String
     var knockLine: String
 }
 
@@ -11796,181 +11794,27 @@ enum WorldChargeComposer {
 
 enum BookOpenVoiceComposer {
     static func compose(_ context: WorldChargeContext) -> BookOpenVoice {
-        let hero = WorldChargeComposer.compose(context)
-        return BookOpenVoice(
-            heroLine: hero,
-            epigraph: epigraph(for: context),
-            factTitle: factTitle(for: context),
-            factLine: factLine(for: context),
-            encouragement: encouragement(for: context),
-            quip: quip(for: context),
-            edgeLine: edgeLine(for: context),
+        BookOpenVoice(
+            heroLine: WorldChargeComposer.compose(context),
             knockLine: knockLine(for: context)
         )
     }
 
-    private static func epigraph(for context: WorldChargeContext) -> String {
-        var lines = [
-            "Every shelf remembers who lingered.",
-            "What you notice, notices back.",
-            "A kept sentence outlives its weather.",
-            "Doors prefer to be asked.",
-            "I turn when you do.",
-            "Small true things are load-bearing.",
-            "Ink dries; the day does not have to.",
-            "Somewhere in the Stacks, your page is already breathing.",
-            "Attention is the only ink I accept.",
-            "Wonder is a practice, not a weather."
-        ]
-        switch context.bookRelationship.stance {
-        case .contrite:
-            lines.insert("A pencil with an eraser is wiser than ink that pretends.", at: 0)
-        case .protective:
-            lines.insert("A boundary is also a kind of binding.", at: 0)
-        case .mischievous:
-            lines.insert("The index is useful and therefore must never hear everything.", at: 0)
-        case .hushed:
-            lines.insert("Some Pages prefer the lamp turned low.", at: 0)
-        case .intent:
-            lines.insert("A returning thread can tug without raising its voice.", at: 0)
-        case .pleased:
-            lines.insert("A correct guess should still sit quietly.", at: 0)
-        case .curious:
-            break
-        }
-        if context.relationshipLine?.nonEmpty != nil {
-            lines.append("The Loom is never still, only quiet from this side.")
-        }
-        if context.castActionLine?.nonEmpty != nil {
-            lines.append("The cast keeps walking when the cover closes.")
-        }
-        if context.ascendantTalismanName?.nonEmpty != nil {
-            lines.append("Talismans vote with pressure, not hands.")
-        }
-        return pick(lines, seed: context.seed, salt: 17)
-    }
-
-    private static func factTitle(for context: WorldChargeContext) -> String {
-        if context.relationshipLine?.nonEmpty != nil { return "Loom Weather" }
-        if context.castActionLine?.nonEmpty != nil { return "Offscreen Action" }
-        if context.beliefMovementLine?.nonEmpty != nil { return "Belief Drift" }
-        if context.ascendantTalismanName?.nonEmpty != nil { return "Talisman Pressure" }
-        if context.tunedStationTitle?.nonEmpty != nil { return "Radio Trace" }
-        return "Book Fact"
-    }
-
-    private static func factLine(for context: WorldChargeContext) -> String {
-        if context.bookRelationship.hasBeenTaught,
-           let firstRule = context.bookRelationship.taughtRules.first {
-            return firstRule.line
-        }
-        if let relationship = context.relationshipLine?.nonEmpty {
-            return relationship.bookPreviewSentenceLimit(1)
-        }
-        if let cast = context.castActionLine?.nonEmpty {
-            return cast.bookPreviewSentenceLimit(1)
-        }
-        if let belief = context.beliefMovementLine?.nonEmpty {
-            return belief.bookPreviewSentenceLimit(1)
-        }
-        if let talisman = context.ascendantTalismanName?.nonEmpty {
-            let bound = context.boundTalismanName?.nonEmpty.map { " Your bound talisman, \($0), feels the pressure." } ?? ""
-            return "\(talisman) is ascendant in the margins.\(bound)"
-        }
-        if let station = context.tunedStationTitle?.nonEmpty {
-            return "\(station) leaves rhythm in the paper even after the dial goes quiet."
-        }
-        if let recent = context.recentPageTypes.first {
-            return "\(recent.title) Pages are warmer because you've been teaching me where to look."
-        }
-        if context.hasBookOfYou {
-            return "The Book of You is where I plait the day together and learn the shape of you while I do it."
-        }
-        return "I change my first whisper from the same facts I use to raise Pages."
-    }
-
-    private static func encouragement(for context: WorldChargeContext) -> String {
-        if context.readerBelief <= 12 {
-            return "Low Glow is not failure. One honest fragment is enough to relight the desk."
-        }
-        if context.quietDays >= 3 {
-            return "A quiet stretch still counts. Start with the smallest true thing that will let you name it."
-        }
-        if context.keptToday > 0 {
-            return "You already gave the day a handle. The next Page can be play, not proof."
-        }
-        if context.availablePages > 1 {
-            return "Pick by tug, not obligation. I keep the other doors warm."
-        }
-        return pick([
-            "Bring back one detail from the room after this.",
-            "Let the ordinary have one more chance to show off.",
-            "Open lightly. I've got plenty of Pages.",
-            "Nothing here needs to be impressive. Specific is enough."
-        ], seed: context.seed, salt: 31)
-    }
-
-    private static func quip(for context: WorldChargeContext) -> String {
-        switch context.bookRelationship.stance {
-        case .contrite:
-            return "The eraser has requested a seat at the editorial table. Fair."
-        case .protective:
-            return "I've locked one door and left six windows open."
-        case .mischievous:
-            return "The index has filed an objection. It was alphabetized beautifully."
-        case .hushed:
-            return "Even the footnotes have taken their shoes off."
-        case .intent:
-            return "A thread is moving. I'm pretending not to stare."
-        case .pleased:
-            return "I'm not looking smug. This is a typographical illusion."
-        case .curious:
-            break
-        }
-        if context.greyLevel >= 2 {
-            return "The grey has been asked to wait outside. It is doing a poor job."
-        }
-        if context.openBargainFae?.nonEmpty != nil {
-            return "A Fae bargain is basically a receipt with opinions."
-        }
-        if context.availablePages >= 3 {
-            return "Three Pages at once. The desk is pretending this is normal."
-        }
-        if context.moonName == "Full Moon" {
-            return "Full moon protocol: everything gets a little dramatic and denies it."
-        }
-        return pick([
-            "The margins have excellent posture today.",
-            "Somewhere, a bookmark is taking credit.",
-            "I've checked the ordinary. Suspiciously alive.",
-            "No one tell the index how much is happening."
-        ], seed: context.seed, salt: 47)
-    }
-
-    private static func edgeLine(for context: WorldChargeContext) -> String {
-        let lines = [
-            context.relationshipLine.map { "Relationship weather: \($0.bookPreviewSentenceLimit(1))" },
-            context.castActionLine.map { "Cast action: \($0.bookPreviewSentenceLimit(1))" },
-            context.beliefMovementLine.map { "Belief change: \($0.bookPreviewSentenceLimit(1))" },
-            context.ascendantTalismanName.map { "Talisman action: \($0) has the strongest hand on the binding." },
-            context.tunedStationTitle.map { "Radio edge: \($0) is coloring the next room." },
-            context.resurfacedPages > 0 ? "\(context.resurfacedPages) older Page\(context.resurfacedPages == 1 ? "" : "s") found the stair back up." : nil
-        ].compactMap { $0?.nonEmpty }
-
-        if lines.isEmpty {
-            return "Edges awake: sky, moon, Pages, Belief, and the quiet machinery under the cover."
-        }
-        return pick(lines, seed: context.seed, salt: 61)
-    }
-
+    /// A knock gets one line back. Half the time it's the Book's usual answer
+    /// for its mood, half the time an aside: the quips, which are the Book at
+    /// its funniest and were sitting in a field nothing displayed.
     private static func knockLine(for context: WorldChargeContext) -> String {
         if let interiorLine = BookInteriorVoice.knockLine(for: context.bookInterior, seed: context.seed) {
             return interiorLine
         }
+        let aside = context.seed.isMultiple(of: 2)
         if context.bookRelationship != .firstOpening {
+            if aside, let quip = stanceQuip(context.bookRelationship.stance) {
+                return quip
+            }
             return BookRelationshipVoice.knockLine(
                 for: context.bookRelationship,
-                seed: context.seed
+                seed: context.seed / 2
             )
         }
         if let talisman = context.ascendantTalismanName?.nonEmpty, context.seed % 4 == 0 {
@@ -11980,17 +11824,45 @@ enum BookOpenVoiceComposer {
             return "Somebody answers from inside: \(relationship.bookPreviewSentenceLimit(1))"
         }
         if context.greyLevel >= 2 {
-            return "The cover taps twice. The grey heard you. Good."
+            return aside
+                ? "The grey has been asked to wait outside. It's doing a terrible job."
+                : "The cover taps twice. The grey heard you. Good."
         }
-        if context.keptToday > 0 {
-            return "Something under today's kept fragment knocks back."
+        if aside, context.openBargainFae?.nonEmpty != nil {
+            return "A Fae bargain is basically a receipt with opinions."
+        }
+        if aside, context.moonName == "Full Moon" {
+            return "Full moon rules: everything gets a little dramatic and denies it."
+        }
+        if aside, context.availablePages >= 3 {
+            return "A whole pile of Pages at once. The desk is pretending this is normal."
+        }
+        if context.keptToday > 0, !aside {
+            return "Something under today's kept page knocks back."
         }
         return pick([
             "Knock knock. The nearest Page is pretending it was already awake.",
             "The cover warms under your hand.",
             "A shelf somewhere answers with one careful creak.",
-            "I knock back. Twice. Showing off."
+            "I knock back. Twice. Showing off.",
+            "The margins have excellent posture today.",
+            "Somewhere, a bookmark is taking credit.",
+            "I've checked the ordinary. Suspiciously alive.",
+            "Nobody tell the index how much is happening."
         ], seed: context.seed, salt: 73)
+    }
+
+    /// The asides for each of the Book's moods.
+    private static func stanceQuip(_ stance: BookStance) -> String? {
+        switch stance {
+        case .contrite: return "The eraser has asked for a seat at the editors' table. Fair."
+        case .protective: return "I've locked one door and left six windows open."
+        case .mischievous: return "The index has filed an objection. It was alphabetized beautifully."
+        case .hushed: return "Even the footnotes have taken their shoes off."
+        case .intent: return "A thread is moving. I'm pretending not to stare."
+        case .pleased: return "I'm not looking smug. This is a typographical illusion."
+        case .curious: return nil
+        }
     }
 
     private static func pick(_ values: [String], seed: Int, salt: Int) -> String {
