@@ -81,7 +81,7 @@ final class JournalPromptTests: XCTestCase {
             inputs: .empty,
             context: .make(for: day),
             now: now,
-            scorer: FixedSemanticScorer(matchingPhrase: "sound served")
+            scorer: FixedSemanticScorer(matchingPhrase: "full stop")
         )
 
         XCTAssertEqual(selection.entry.id, "sound-punctuation")
@@ -194,5 +194,36 @@ final class JournalPromptTests: XCTestCase {
         Calendar(identifier: .gregorian).date(
             from: DateComponents(year: 2026, month: 7, day: 17, hour: hour)
         )!
+    }
+}
+
+/// The voice pass on journal questions (2026-09-27). A journal question is
+/// read at the end of a day by someone tired. It has to be plain enough to
+/// answer before the reader has worked out what it means.
+final class JournalPromptVoiceTests: XCTestCase {
+
+    private var entries: [JournalPromptEntry] { JournalPromptCatalog.entries }
+
+    func testQuestionsAreSaidPlainly() {
+        // The shapes that made questions hard to answer: therapy words,
+        // essayist words, and asides that comment on themselves.
+        let tells = ["avoidance", "interrupted the default", "supplied the explanation", "supposedly",
+                     "honestly take", "indignity", "brought it to you", "abstractions", "survives the indignity"]
+        for entry in entries {
+            for text in [entry.question, entry.deeperQuestion, entry.title] {
+                for tell in tells {
+                    XCTAssertFalse(text.lowercased().contains(tell), "\(entry.id): \(tell)")
+                }
+                XCTAssertFalse(text.contains(";"), "\(entry.id) balances a clause instead of stopping")
+                XCTAssertFalse(text.contains(", which "), "\(entry.id) remarks on its own sentence")
+            }
+            XCTAssertLessThanOrEqual(entry.question.split(separator: " ").count, 32,
+                                     "\(entry.id) asks too much in one breath")
+        }
+    }
+
+    func testEveryTitleIsItsOwn() {
+        XCTAssertEqual(Set(entries.map(\.title)).count, entries.count)
+        XCTAssertEqual(Set(entries.map(\.question)).count, entries.count)
     }
 }
