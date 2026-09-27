@@ -2521,8 +2521,8 @@ enum TaleGemmaTelling {
         let how: String
         switch (tale.ending, thread.kind) {
         case _ where thread.isPair: how = "\(thread.spoken) were still turning up together"
-        case (.returnedEmpty?, .thing): how = "\(thread.spoken) was not there any more"
-        case (.returnedEmpty?, .place): how = "the place was not the same any more"
+        case (.returnedEmpty?, .thing): how = "\(thread.spoken) wasn't there any more"
+        case (.returnedEmpty?, .place): how = "the place wasn't the same any more"
         case (.refused?, _): how = "you said no to it"
         case (_, .place): how = "you were still going back there"
         case (_, .thing): how = "\(thread.spoken) was still there"
