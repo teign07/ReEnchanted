@@ -210,7 +210,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
         )
         let interestPage = try XCTUnwrap(pages.first { $0.payload.metadata["questionID"] == "interest-01" })
         XCTAssertEqual(interestPage.score, 91)
-        XCTAssertTrue(interestPage.reason.contains("The Bleed"))
+        XCTAssertTrue(interestPage.reason.contains("One thing you love"))
     }
 
     func testColdStartQuestionTargetsTheContextualUncertaintyThatWouldChangeCuration() throws {
@@ -302,7 +302,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
         ).first(where: { $0.payload.metadata["brightInterlude"] == "true" }))
         XCTAssertEqual(page.payload.metadata["brightInterlude"], "true")
         XCTAssertEqual(page.score, 86)
-        XCTAssertTrue(page.reason.contains("worth stealing"))
+        XCTAssertTrue(page.reason.contains("This one's for fun"))
     }
 
     func testAboutYouMarksColdStartQuestionsAndLimitsThemToOnePerLivedDay() throws {
@@ -339,7 +339,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
             $0.payload.metadata["causalColdStartQuestion"] == "true"
         })
         XCTAssertEqual(directed.score, 77)
-        XCTAssertTrue(directed.reason.contains("change which real door"))
+        XCTAssertTrue(directed.reason.contains("which door I try next"))
 
         let answeredQuestion = try XCTUnwrap(
             SelfKnowledgePackRegistry.question(
@@ -845,5 +845,24 @@ final class RutSelfKnowledgeTests: XCTestCase {
             createdAt: now,
             updatedAt: now
         )
+    }
+}
+
+/// The voice pass on the Book's getting-to-know-you questions (2026-09-27).
+/// The reader meets the Book here, not the machinery behind it.
+final class AboutYouVoiceTests: XCTestCase {
+
+    func testTheBookAsksAndTheMachineryStaysOutOfSight() {
+        for question in SelfKnowledgePackRegistry.questions {
+            for text in [question.prompt, question.detail, question.placeholder] {
+                let lowered = text.lowercased()
+                XCTAssertFalse(lowered.contains("curator"), "\(question.id) names the machinery: \(text)")
+                XCTAssertFalse(lowered.contains("story page"), "\(question.id) names the machinery: \(text)")
+                XCTAssertFalse(lowered.contains("hinge"), "\(question.id): no hinge talk")
+                XCTAssertFalse(lowered.contains("ritual"), "\(question.id): \"ritual\" is banned vocabulary")
+                XCTAssertFalse(text.contains(";"), "\(question.id) balances a clause instead of stopping")
+            }
+            XCTAssertFalse(question.tags.contains("ritual"), "\(question.id): \"ritual\" is banned vocabulary")
+        }
     }
 }

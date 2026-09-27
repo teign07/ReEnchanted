@@ -75,7 +75,7 @@ final class ReaderStatePulseTests: XCTestCase {
             $0.payload.metadata["readerStatePulse"] == "true"
         })
         XCTAssertEqual(offered.type, .aboutYou)
-        XCTAssertTrue(offered.payload.metadata["privacy"]?.contains("not a permanent profile fact") == true)
+        XCTAssertTrue(offered.payload.metadata["privacy"]?.contains("won't hold you to it") == true)
         XCTAssertFalse(offered.payload.metadata["pulseScores"]?.isEmpty ?? true)
 
         let dimension = try XCTUnwrap(offered.payload.metadata["pulseDimension"])

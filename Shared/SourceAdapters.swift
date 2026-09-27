@@ -1454,7 +1454,7 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
                 intent: .capture,
                 renderStyle: .promptCard,
                 score: context.distress.isActive ? 72 : 64,
-                reason: context.distress.isActive ? "Something heavy showed up, and it just wants a gentle name." : "Dr. Inkrest left a little chart window open for you.",
+                reason: context.distress.isActive ? "Something heavy turned up. It just wants a name." : "Dr. Inkrest left the chart open for you.",
                 prompt: "What's the weather like inside you?",
                 detail: "\(window.name). Give the sky inside you a name. One tap is plenty.",
                 payload: BookPagePayload(
@@ -1489,12 +1489,12 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
                     intent: .capture,
                     renderStyle: .promptCard,
                     score: (context.distress.isActive ? 72 : 64) + shadow.scoreBoost,
-                    reason: "Shadow Wonder heard the grey humming and refused to paint it yellow.",
-                    prompt: "What's the weather inside: the real, quiet, grey kind?",
-                    detail: "\(window.name). The grey got here first and locked the yellow paint outside. Name the sky inside you exactly how it is, clouds and all. One honest tap catches it.",
+                    reason: "Some days are grey, and I'm not going to paint them yellow.",
+                    prompt: "What's the weather like inside you? The real kind, grey and all.",
+                    detail: "\(window.name). No need to cheer it up. Name the sky inside you exactly as it is. One tap is plenty.",
                     payload: BookPagePayload(
                         headline: "Inner Weather",
-                        body: "Name the inner sky in its true key. A minor key still holds you. One honest tap is enough.",
+                        body: "Name the sky inside you exactly as it is. Grey counts. One tap is plenty.",
                         metadata: metadata
                     )
                 )
@@ -3821,13 +3821,13 @@ enum BookAsks {
     /// Book wondering about exactly that. Order is narrative priority when a
     /// sentence carries more than one.
     static let hedges: [(word: String, probe: String)] = [
-        ("again", "An \u{201C}again\u{201D} means there was a first time, and the first time is not in any page I hold. What was it like?"),
+        ("again", "An \u{201C}again\u{201D} means there was a first time, and the first time isn't in any page I have. What was it like?"),
         ("still", "A \u{201C}still\u{201D} has been carrying something for a while now. How long, would you say?"),
         ("anymore", "An \u{201C}anymore\u{201D} marks the place where something stopped. When did it stop?"),
-        ("finally", "A \u{201C}finally\u{201D} is the last page of a chapter I never got to read. What was the waiting made of?"),
-        ("almost", "An \u{201C}almost\u{201D} is a door that did not quite open. What stopped it?"),
+        ("finally", "A \u{201C}finally\u{201D} is the last page of a chapter I never got to read. What was all the waiting like?"),
+        ("almost", "An \u{201C}almost\u{201D} is a door that didn't quite open. What stopped it?"),
         ("this time", "A \u{201C}this time\u{201D} admits there were other times. I've been quietly wondering about those."),
-        ("as usual", "An \u{201C}as usual\u{201D}: I missed the becoming. When did this turn usual?"),
+        ("as usual", "An \u{201C}as usual\u{201D}. So there was a time it wasn't usual, and I missed it. When did it turn usual?"),
         ("for once", "A \u{201C}for once\u{201D} makes me wonder what it is like the rest of the time.")
     ]
 
@@ -3879,7 +3879,7 @@ enum BookAsks {
 
         That \u{201C}\(question.hedgeWord)\u{201D} snagged my page. \(probe)
 
-        Answer in the margin and keep it beside the first Page. Or shut me. The question can chew paper for a while.
+        Answer in the margin and I'll keep it beside the first Page. Or shut me. The question can chew paper for a while.
         """
     }
 
@@ -8848,12 +8848,12 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                         reason: isFirstQuestion
                             ? "I should learn your name before I guess."
                             : (isFirstInterestQuestion
-                                ? "One bright interest gives The Bleed and future pages a real shelf to open."
+                                ? "One thing you love gives me somewhere real to start."
                                 : (isBrightInterlude
-                                    ? "The Book learned one practical edge. Now it owes the reader a question worth stealing."
+                                    ? "That was a practical one. This one's for fun."
                                     : (isCausalColdStartQuestion
-                                        ? "This answer would change which real door the Curator tries next."
-                                        : "One true thing lets future pages feel less generic."))),
+                                        ? "Your answer changes which door I try next."
+                                        : "One true thing, so the next pages are more yours."))),
                         prompt: question.prompt,
                         detail: question.detail,
                         payload: BookPagePayload(
@@ -9074,7 +9074,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             "pulseCodes": question.codes.joined(separator: "||"),
             "exampleLineMode": "state-pulse",
             "choicePrompt": question.choicePrompt,
-            "privacy": "private local weather; not a permanent profile fact",
+            "privacy": "Just for today. I won't hold you to it.",
             "tags": "about-you,reader-state-pulse,reenchantment-measure,\(dimension.rawValue)"
         ]
         if let target {
@@ -9100,8 +9100,8 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             // outrank a delayed-outcome question, which is always worth more.
             score: (target == nil ? 72 : 88) + (target == nil ? inputs.twinGates.pulseScoreBoost : 0),
             reason: target == nil
-                ? "A fresh within-day reading lets the Curator choose a fitting door without turning weather into identity."
-                : "Enough lived time has passed to ask whether one attributable curation attempt actually changed anything.",
+                ? "A quick reading of today, so I pick the right door."
+                : "Enough time has passed to ask whether something I sent you actually worked.",
             prompt: question.prompt,
             detail: question.detail,
             payload: BookPagePayload(
@@ -9207,10 +9207,10 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             )
         case .hiddenMagic:
             return PulseQuestion(
-                headline: "Unassigned Magic",
-                prompt: "Has hidden magic found you lately, without being assigned?",
-                detail: "A detail, coincidence, creature, person, place, or moment that arrived on its own.",
-                body: "The unassigned part matters. I want to know what kept happening after I went quiet.",
+                headline: "Magic Nobody Sent",
+                prompt: "Has anything magic found you lately, all by itself, without me sending you?",
+                detail: "A detail, a coincidence, a creature, a person, a place. Something that turned up on its own.",
+                body: "The by-itself part matters. I want to know what happens when I'm not looking.",
                 choicePrompt: "DID ANYTHING FIND YOU BY ITSELF?",
                 choices: [
                     "0 · No.",
@@ -9226,11 +9226,11 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             return PulseQuestion(
                 headline: "How Wide Is Today?",
                 prompt: "How much adventure can today honestly hold?",
-                detail: "I can work with a minute. It merely needs the truth.",
+                detail: "I can work with a minute. I just need the truth.",
                 body: "A narrow day is not a failed day. It just needs a smaller door.",
                 choicePrompt: "WHAT CAN TODAY HOLD?",
                 choices: [
-                    "0 · None. Be gentle.",
+                    "0 · None today.",
                     "2 · One minute.",
                     "5 · Ten minutes.",
                     "8 · Half an hour.",
@@ -9242,8 +9242,8 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         case .delayedOutcome:
             return PulseQuestion(
                 headline: "Did It Escape the Page?",
-                prompt: "Since I last opened, did anything feel more alive than it ordinarily would have?",
-                detail: "This is the important part: not whether the Page was pleasant, but whether life outside it changed.",
+                prompt: "Since last time, did anything out there feel more alive than usual?",
+                detail: "I don't care if the Page was nice. I care if anything out there changed.",
                 body: "I'm checking my work. A no is useful. It means the next attempt should be different.",
                 choicePrompt: "WHAT HAPPENED OUT THERE?",
                 choices: [
