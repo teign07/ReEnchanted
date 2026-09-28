@@ -11,6 +11,8 @@ import UIKit
 /// hardcover, each with its cover where the app makes one. Files land in
 /// Documents/edition-proofs with a status line per publication.
 ///
+/// Optional exported QA Pages in edition-proof-input/authored-pages.json are
+/// copied into October 12 of that synthetic year. The harness never reads a vault.
 /// No account, purchase, network request, model, or vault content is touched:
 /// the year is invented here and never saved. It exists so a human can read
 /// the actual publications without living a year first.
@@ -36,6 +38,28 @@ enum EditionProofHarness {
         // archive -> edition -> PDF path without changing a Reader library.
         let markDirectory = directory.deletingLastPathComponent()
             .appendingPathComponent("edition-proof-input", isDirectory: true)
+        let authoredURL = markDirectory.appendingPathComponent("authored-pages.json")
+        if FileManager.default.fileExists(atPath: authoredURL.path) {
+            do {
+                var pages = try ContentPackFileLocator.decoder().decode([BookPage].self,
+                    from: Data(contentsOf: authoredURL))
+                let date = calendar.startOfDay(for: SyntheticReaderYear.date(2026, 10, 12))
+                // The synthetic year deliberately has quiet days. Give this
+                // explicit fixture a day even when October 12 was one of them.
+                for index in pages.indices { pages[index].createdAt = date.addingTimeInterval(Double(index + 1) * 60) }
+                if let dayIndex = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
+                    days[dayIndex].pages.append(contentsOf: pages)
+                } else {
+                    days.append(BookDay(id: BookDay.id(for: date, calendar: calendar), date: date, pages: pages))
+                    days.sort { $0.date < $1.date }
+                }
+                status.append("exported QA Page fixtures: \(pages.count), copied to October 12")
+            } catch {
+                status.append("FAILED exported QA Page fixtures: \(error)")
+                try? status.joined(separator: "\n").write(to: directory.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+                return
+            }
+        }
         let markURLs = ((try? FileManager.default.contentsOfDirectory(at: markDirectory,
             includingPropertiesForKeys: nil)) ?? [])
             .filter { $0.pathExtension.lowercased() == "png" }

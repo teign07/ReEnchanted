@@ -185,6 +185,13 @@ const overCap = await quoteRequest({ ...quoteBody([]), pageCount: 94 });
 check(overCap.status === 400 && overCap.body?.error === "edition_too_long",
   "a monthly past its 92-page cap is refused before pricing");
 
+const legacyWithinCap = await quoteRequest({ ...quoteBody([]), editionKind: undefined, pageCount: 208 });
+check(legacyWithinCap.status === 200 && legacyWithinCap.body.request?.editionKind === null,
+  "an older client can still quote within the largest edition cap");
+const legacyOverCap = await quoteRequest({ ...quoteBody([]), editionKind: undefined, pageCount: 210 });
+check(legacyOverCap.status === 400 && legacyOverCap.body?.error === "edition_too_long",
+  "omitting the edition kind cannot bypass the premium-paper page cap");
+
 const inventedKind = await quoteRequest({ ...quoteBody([]), editionKind: "cheap-please" });
 check(inventedKind.status === 400, "an invented edition kind is refused");
 

@@ -11,6 +11,12 @@ import QuartzCore
 //
 //     --perf-scroll desk,glow-pages,shop,radio [--perf-idle 3] [--perf-scroll-seconds 6]
 //
+// Surfaces include `today`, every division leaf as `div:<name>` (`div:cast`,
+// `div:colophon`), and `braid-page`, the latest Book of You opened as a Page.
+// `--perf-fling` flicks and lets the scroll decay instead of dragging at a
+// steady 1400pt/s; `--perf-watch <s>` lengthens the arrival window so a hand
+// can drive the surface while it is measured.
+//
 // For each named surface the app opens it the way the reader would, watches it
 // arrive, finds the scroll view that surface put on screen, sits still for a
 // moment, then scrolls it at a steady hand speed. It reports:
@@ -190,6 +196,13 @@ final class ScrollHitchProbe: NSObject {
     private var worstFrame: CFTimeInterval = 0
     private var direction: CGFloat = 1
     private let pointsPerSecond: CGFloat = 1_400
+    /// `--perf-fling`: instead of a steady drag, flick the way a thumb does —
+    /// fast off the glass, decaying at UIScrollView's own normal rate, then
+    /// flick again the other way. A steady 1400pt/s never brings content in as
+    /// fast as a real flick does.
+    private let flings = ProcessInfo.processInfo.arguments.contains("--perf-fling")
+    private let flingSpeed: CGFloat = 4_800
+    private var velocity: CGFloat = 0
     private var finished: CheckedContinuation<Void, Never>?
 
     /// Watches a surface arrive: frame pacing and main-thread time with
@@ -209,8 +222,9 @@ final class ScrollHitchProbe: NSObject {
     ) async -> Report? {
         let scroll = scrolls ? target(excluding: before) : nil
         if scrolls && scroll == nil { return nil }
+        let mode = ProcessInfo.processInfo.arguments.contains("--perf-fling") ? "flings" : "steady 1400pt/s"
         let description = scroll.map {
-            "\(type(of: $0)) \(Int($0.bounds.width))x\(Int($0.bounds.height)) content=\(Int($0.contentSize.height))"
+            "\(type(of: $0)) \(Int($0.bounds.width))x\(Int($0.bounds.height)) content=\(Int($0.contentSize.height)) \(mode)"
         } ?? "none"
 
         // Idle: the surface is open and nobody is touching it.
@@ -305,13 +319,26 @@ final class ScrollHitchProbe: NSObject {
             let inset = scrollView.adjustedContentInset
             let top = -inset.top
             let bottom = max(top, scrollView.contentSize.height + inset.bottom - scrollView.bounds.height)
-            var y = scrollView.contentOffset.y + direction * pointsPerSecond * CGFloat(interval)
+            let speed: CGFloat
+            if flings {
+                // UIScrollView.DecelerationRate.normal is 0.998 per millisecond.
+                if velocity < 180 { velocity = flingSpeed }
+                speed = velocity
+                velocity *= pow(0.998, CGFloat(interval * 1_000))
+            } else {
+                speed = pointsPerSecond
+            }
+            var y = scrollView.contentOffset.y + direction * speed * CGFloat(interval)
             if y >= bottom {
                 y = bottom
                 direction = -1
+                velocity = flingSpeed
             } else if y <= top {
                 y = top
                 direction = 1
+                velocity = flingSpeed
+            } else if flings, velocity < 180 {
+                direction = -direction
             }
             scrollView.contentOffset = CGPoint(x: scrollView.contentOffset.x, y: y)
         }
@@ -390,4 +417,5 @@ final class ScrollHitchProbe: NSObject {
         }
     }
 }
+
 #endif

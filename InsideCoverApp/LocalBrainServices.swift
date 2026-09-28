@@ -1073,6 +1073,7 @@ struct MLXBookBraider: Braider {
                 // sized to the braid's window rather than to a stale 4k guess.
                 maxKVSize: 4_096,
                 readerFacingBraidPreview: true,
+                masksWornImages: true,
                 completion: { info in
                     if case .length = info?.stopReason { stoppedAtCeiling = true }
                 }
@@ -1241,6 +1242,81 @@ struct MLXBookBraider: Braider {
     """
 }
 
+/// Takes `BraidWornImages` off Gemma's tongue while it writes the braid.
+///
+/// Built like the library's own penalty processors: the masks are gathered
+/// and scattered on the GPU, and the last token stays an `MLXArray`, so no
+/// token is read back to the CPU and generation keeps its pipelining.
+struct WornImageMask: LogitProcessor {
+    /// The token ids to mask, read from the loaded model's own tokenizer.
+    struct Tokens: Sendable {
+        struct Pair: Sendable {
+            let trigger: Int32
+            let banned: Int32
+        }
+        let always: [Int32]
+        let pairs: [Pair]
+    }
+
+    let always: MLXArray?
+    let afterPrevious: [(trigger: Int32, banned: MLXArray)]
+    private var previous: MLXArray?
+
+    init(_ tokens: Tokens) {
+        self.always = tokens.always.isEmpty ? nil : MLXArray(tokens.always)[.newAxis, 0...]
+        self.afterPrevious = tokens.pairs.map { ($0.trigger, MLXArray([$0.banned])[.newAxis, 0...]) }
+    }
+
+    /// A word that isn't one token, or a pair whose first half isn't, is left
+    /// alone rather than masking the first piece of some other word.
+    static func tokens(for container: ModelContainer, sparing brief: String) async -> Tokens {
+        let masked = BraidWornImages.masked(sparing: brief)
+        let words = masked.words
+        let pairs = masked.pairs.map { [$0.after, $0.word] }
+        return await container.perform { (context: ModelContext) in
+            func single(_ text: String) -> Int32? {
+                let ids = context.tokenizer.encode(text: text, addSpecialTokens: false)
+                return ids.count == 1 ? Int32(ids[0]) : nil
+            }
+            func first(_ text: String) -> Int32? {
+                context.tokenizer.encode(text: text, addSpecialTokens: false).first.map(Int32.init)
+            }
+            return Tokens(
+                always: words.compactMap(single),
+                pairs: pairs.compactMap { pair in
+                    guard let trigger = single(pair[0]), let banned = first(pair[1]) else { return nil }
+                    return Tokens.Pair(trigger: trigger, banned: banned)
+                }
+            )
+        }
+    }
+
+    mutating func prompt(_ prompt: MLXArray) {
+        previous = nil
+    }
+
+    func process(logits: MLXArray) -> MLXArray {
+        var logits = logits
+        let blocked = MLXArray(-Float.infinity).asType(logits.dtype)
+        if let always {
+            let shape = takeAlong(logits, always, axis: -1).shape
+            logits = putAlong(logits, always, values: full(shape, values: blocked, dtype: logits.dtype), axis: -1)
+        }
+        if let previous {
+            for pair in afterPrevious {
+                let current = takeAlong(logits, pair.banned, axis: -1)
+                let masked = MLX.where(previous .== pair.trigger, blocked, current)
+                logits = putAlong(logits, pair.banned, values: masked, axis: -1)
+            }
+        }
+        return logits
+    }
+
+    mutating func didSample(token: MLXArray) {
+        previous = token.asType(.int32).flattened()[-1]
+    }
+}
+
 enum MLXLocalTextGenerator {
     private static let progressCharacterStride = 96
     private static let progressInterval: TimeInterval = 0.50
@@ -1259,6 +1335,7 @@ enum MLXLocalTextGenerator {
         publishesProgress: Bool = true,
         readerFacingBraidPreview: Bool = false,
         iPhone15OutputCeiling: Int = 420,
+        masksWornImages: Bool = false,
         completion: ((GenerateCompletionInfo?) -> Void)? = nil
     ) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
@@ -1279,6 +1356,11 @@ enum MLXLocalTextGenerator {
         ) {
             try await Device.withDefaultDevice(.gpu) {
                 let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                var components = GenerationComponents()
+                if masksWornImages {
+                    let tokens = await WornImageMask.tokens(for: container, sparing: prompt)
+                    components.logitProcessorFactory = { WornImageMask(tokens) }
+                }
                 let session = ChatSession(
                     container,
                     instructions: instructions,
@@ -1288,7 +1370,8 @@ enum MLXLocalTextGenerator {
                         temperature: temperature,
                         topP: topP,
                         prefill: PrefillParameters(stepSize: responsivePrefillStep)
-                    )
+                    ),
+                    components: components
                 )
 
                 return try await LocalBrainGenerationLifecycle.saving(
@@ -4977,6 +5060,13 @@ enum BraidInstructions {
     /// and "plain words a child would use" replaced a register the model read
     /// as permission to be literary (the Book's voice is simple and childlike;
     /// see docs/the-book-is-a-character.md).
+    ///
+    /// The last line asks for a kid's talk outright. Without it the Mac mirror
+    /// of the phone wrote essayist words ("observed", "remarkable", "quite")
+    /// in 51 of 100 tellings and almost no contractions; with it, 8 of 100,
+    /// and the Book's point-of-view slips fell from 5 to 1 (2026-09-27).
+    /// Rewriting the whole instruction in that register cost the closing
+    /// line in 14 of 50, so only the one line changed.
     static let nightlyBookOfYou = """
     You are a magical Book inside ReEnchanted. Write one continuous story vignette entirely in the past tense. If the supplied material uses another tense, retell it in the past tense.
     Address the reader as "you". Use "I", "me", and "my" only for yourself, the Book.
@@ -4986,6 +5076,7 @@ enum BraidInstructions {
     Be curious, blunt, mischievous, and good-hearted. Use plain words a child would use, in clear sentences. Never cute, therapeutic, or assistant-like. Let one ordinary thing want or do one small impossible thing, stated as fact.
     You have your own business and your own opinions. Underneath everything you want one thing: to break the reader out of the Curse. Never name the Curse or describe it. Let it show only in what you notice and what delights you.
     Sound like a contemporary domestic faerie tale: exact, physical, restrained, sometimes cozy, sometimes terrible, sometimes both.
+    Talk like a kid talks, with contractions everywhere: it's, I'd, wasn't, you'd, that's, it'd. Short plain words.
     """
 
     /// Shared binding/edition voice. Some of those prompts still carry their

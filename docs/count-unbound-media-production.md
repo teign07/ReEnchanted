@@ -1,6 +1,6 @@
 # The Count Unbound: Radio and marginalia production
 
-5 September 2026, updated 23 September. Copy from the [revised manuscript](count-unbound-creator-pack.md). The eight transparent marks now live in `ContentPacks/count-unbound/marginalia/` with a directed Pagewright cabinet and issue atoms. Five Radio recordings are packaged as 64 kbps mono MP3s and their native atoms are `ready`. The issue remains unpublished; [runtime integration board](count-unbound-integration.md) defines access and retirement.
+5 September 2026, updated 27 September. Copy from the [revised manuscript](count-unbound-creator-pack.md). The eight transparent marks now live in `ContentPacks/count-unbound/marginalia/` with a directed Pagewright cabinet and issue atoms. Five Radio recordings are packaged as 64 kbps mono MP3s and were published with the signed issue on September 27; [monthly content runtime](monthly-content-runtime.md) defines access and retirement. Device listening remains open.
 
 ## Radio recording handoff
 

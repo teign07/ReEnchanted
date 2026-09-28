@@ -687,7 +687,7 @@ Ambrose moves the salt out of its way. A paper moon hangs over the Great Hall, t
 
 On the wooden stand, *Dracula* tries to close.
 
-I wedge myself beneath the cover. It presses down. I've held heavier things than you open.
+I wedge myself beneath the cover. It presses down. I've held open heavier books than this.
 
 Permancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.
 
@@ -701,7 +701,7 @@ Dracula descends the stair. He sees the open source, Serenity, and the invitatio
 
 **Direction — choose exactly one invitation socket:**
 
-- Exact quotation allowed: `I open to the sentence you brought me. “{reader_invitation_sentence}” We have given the threshold that way of saying come in.`
+- Exact quotation allowed: `I open to the sentence you brought me. “{reader_invitation_sentence}” The threshold learns to say come in the same way.`
 - Kept finding, quotation withheld: `I keep your sentence shut. The threshold uses the invitation you brought back; your words stay with me.`
 - No invitation finding: `Ambrose pulls a chair back from the table. The threshold takes its shape from the empty place.`
 
@@ -1056,7 +1056,7 @@ Serenity's map pulls towards the room.
 
 Ambrose brings the supper table to the threshold. It wobbles. He puts a folded menu under its short leg.
 
-I'm under the other one, holding the Count's book open. Nobody's putting anything under me.
+I'm still wedged under the Count's cover. Nobody's putting a menu under me.
 
 Dracula reads his signature beside the butter mark.
 
@@ -1351,7 +1351,7 @@ Permancer has asked the Bleed to print the exact sentence. We have.
 
 **`count-unbound.bleed.east-stacks` — Serenity Brown Awake**
 
-Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used the wound to hold himself in Academy space.
+Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used her to hold himself inside the Academy.
 
 Brown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose. No further injury has been reported.
 

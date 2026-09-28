@@ -799,6 +799,58 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .fuel, .souvenir])
     }
 
+    func testFreshReaderCanMeetABoundedAuthoredSceneDuringItsWindow() {
+        let now = localDate(year: 2026, month: 10, day: 16, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let ordinaryStory = rankedCandidate(.narrativeOS, score: 90)
+        let authored = rankedCandidate(.narrativeOS, score: 90).withMetadata([
+            MonthlyIssuePageMetadata.issueID: "october-issue",
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            MonthlyIssuePageMetadata.priority: MonthlyIssueContentPriority.spine.rawValue,
+            MonthlyIssuePageMetadata.mayReserve: "true",
+            MonthlyIssuePageMetadata.claimHistoryKey: "october-issue:2026-10-16"
+        ])
+
+        XCTAssertFalse(mood.allows(ordinaryStory))
+        XCTAssertTrue(mood.allows(authored))
+
+        let picked = [
+            rankedCandidate(.weather, score: 55),
+            rankedCandidate(.fuel, score: 54),
+            rankedCandidate(.lore, score: 53)
+        ]
+        let reserved = BookCurator.reservingAuthoredIssuePageIfOwed(
+            in: picked, candidates: [authored], day: day, inputs: inputs,
+            context: CuratorContext.make(for: day), preferences: .none,
+            mood: mood, now: now, limit: 3
+        )
+        XCTAssertTrue(reserved.prefix(3).contains { $0.id == authored.id })
+
+        let strategic = picked.map {
+            $0.withMetadata(["bookCurationDirectiveID": "ongoing-strategy"])
+        }
+        let sharedDesk = BookCurator.reservingAuthoredIssuePageIfOwed(
+            in: strategic, candidates: [authored], day: day, inputs: inputs,
+            context: CuratorContext.make(for: day), preferences: .none,
+            mood: mood, now: now, limit: 3
+        )
+        XCTAssertTrue(sharedDesk.contains { $0.id == authored.id })
+        XCTAssertTrue(sharedDesk.contains { $0.payload.metadata["bookCurationDirectiveID"] != nil })
+
+        let protectedOpening = picked.map { $0.withMetadata(["milestone": "true"]) }
+        let laterAct = protectedOpening + picked
+        let reachable = BookCurator.reservingAuthoredIssuePageIfOwed(
+            in: laterAct, candidates: [authored], day: day, inputs: inputs,
+            context: CuratorContext.make(for: day), preferences: .none,
+            mood: mood, now: now, limit: 9
+        )
+        XCTAssertEqual(Array(reachable.prefix(3)), protectedOpening)
+        XCTAssertTrue(reachable.prefix(9).contains { $0.id == authored.id })
+    }
+
     func testFirstHoursCuratorAllowsActiveBookJumpButHidesStart() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         let start = bookJumpCandidate(action: .start, score: 100)
@@ -3783,6 +3835,23 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertEqual(stabilized.first?.id, "desk-quip-s01")
         XCTAssertEqual(stabilized.last?.id, "desk-lore-s02")
         XCTAssertEqual(stabilized.last?.detail, "A new letter arrived.")
+    }
+
+    func testStabilizedDeskOrderKeepsPublishedAuthoredSceneAcrossEnrichment() {
+        let published = deskCard(id: "count-first-scene", type: .narrativeOS)
+            .withMetadata([MonthlyIssuePageMetadata.authoredStoryScene: "true"])
+        let nextScene = deskCard(
+            id: "count-next-scene", type: .narrativeOS,
+            detail: "A different scene is ready."
+        ).withMetadata([MonthlyIssuePageMetadata.authoredStoryScene: "true"])
+
+        let stabilized = BookCurator.stabilizedDeskOrder(
+            previous: [deskCard(id: "weather", type: .weather), published],
+            rebuilt: [nextScene, deskCard(id: "weather", type: .weather)],
+            limit: 2
+        )
+
+        XCTAssertEqual(stabilized[1].id, published.id)
     }
 
     func testStabilizedDeskOrderKeepsShownCardsAndFillsOnlyEmptySlots() {

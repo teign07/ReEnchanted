@@ -14,6 +14,11 @@ final class CountUnboundOpeningTests: XCTestCase {
     func testOpeningDecodesAndValidationAcceptsCompletedContent() throws {
         let p = try pack()
         let manifest = try XCTUnwrap(p.authoringManifests?.first)
+        let radioAtoms = manifest.content.filter { $0.channel == .radioBanter }
+        XCTAssertEqual(radioAtoms.count, 5)
+        XCTAssertTrue(radioAtoms.allSatisfy {
+            $0.occurrence.kind == .repeatable && $0.occurrence.cooldownHours == 1
+        })
         let report = MonthlyIssueAuthoringValidator.validate(manifest, against: p, mode: .working)
         XCTAssertTrue(report.errors.isEmpty, "\(report)")
         XCTAssertTrue(report.warnings.isEmpty, "\(report)")
@@ -33,6 +38,92 @@ final class CountUnboundOpeningTests: XCTestCase {
         missingOpening.storyScenes?.removeAll { $0.id == "count-unbound.scene.wrong-castle" }
         let broken = MonthlyIssueAuthoringValidator.validate(manifest, against: missingOpening, mode: .release)
         XCTAssertTrue(broken.errors.contains { $0.code == .missingPhaseBeat && $0.subjectID == "climax" })
+    }
+
+    func testFirstSundayBookJumpPassesNativeSceneAndPlacementGates() throws {
+        let issue = try pack()
+        let now = date(4)
+        let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.monthlyIssueAuthoringManifests = try XCTUnwrap(issue.authoringManifests)
+        inputs.authoredStoryScenes = try XCTUnwrap(issue.storyScenes)
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: issue.id, event: try XCTUnwrap(issue.events.first),
+            now: now, calendar: calendar
+        ))
+
+        let native = AuthoredStoryScenePageAdapter.candidates(
+            for: day, inputs: inputs, now: now, lifecycleOverride: [snapshot]
+        )
+        XCTAssertTrue(native.contains {
+            $0.payload.metadata["authoredStorySceneID"] == jumpID
+        }, "The scene adapter should produce the Sunday node.")
+        let prepared = MonthlyIssuePageCuration.preparing(
+            native, manifests: inputs.monthlyIssueAuthoringManifests,
+            day: day, inputs: inputs, now: now, lifecycleOverride: [snapshot]
+        )
+        XCTAssertTrue(prepared.contains {
+            $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == jumpID
+        }, "The monthly gates should admit the Sunday node.")
+
+        let jump = try XCTUnwrap(prepared.first {
+            $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == jumpID
+        })
+        XCTAssertEqual(jump.payload.metadata[MonthlyIssuePageMetadata.interaction], "choice")
+        XCTAssertTrue(jump.pageCapabilities.asksReader)
+        var mood = CuratorMood.make(inputs: inputs, now: now)
+        mood.isFirstHours = true
+        XCTAssertTrue(mood.allows(jump), "A fresh Reader must not lose a bounded Sunday scene to the introduction ladder.")
+        let reserved = BookCurator.reservingAuthoredIssuePageIfOwed(
+            in: [], candidates: prepared, day: day, inputs: inputs,
+            context: CuratorContext.make(for: day), preferences: .none,
+            mood: mood, now: now, limit: BookDeskRound.reserveCapacity
+        )
+        XCTAssertEqual(reserved.first?.payload.metadata[MonthlyIssuePageMetadata.contentID], jumpID)
+    }
+
+    func testUnfinishedSundayJumpReturnsDailyUntilTheNextBeat() throws {
+        let issue = try pack()
+        let manifest = try XCTUnwrap(issue.authoringManifests?.first)
+        let event = try XCTUnwrap(issue.events.first)
+        var inputs = BookSourceInputs.empty
+        inputs.monthlyIssueAuthoringManifests = [manifest]
+        inputs.authoredStoryScenes = try XCTUnwrap(issue.storyScenes)
+        var history: [String: SurfaceHistoryRecord] = [:]
+
+        for dayNumber in 3...8 {
+            let now = date(dayNumber)
+            let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
+            let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+                packID: issue.id, event: event, now: now, calendar: calendar))
+            let native = AuthoredStoryScenePageAdapter.candidates(
+                for: day, inputs: inputs, now: now, lifecycleOverride: [snapshot])
+            let offers = MonthlyIssuePageCuration.preparing(
+                native, manifests: [manifest], day: day, inputs: inputs,
+                now: now, lifecycleOverride: [snapshot])
+            let jump = offers.first {
+                $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == jumpID
+            }
+            if !(4...7).contains(dayNumber) {
+                XCTAssertNil(jump, "The invitation belongs to Sunday through Wednesday.")
+                continue
+            }
+            let page = try XCTUnwrap(jump, "Still-unfinished invitation on October \(dayNumber)")
+            XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+                page, history: history, preferences: .none, now: now))
+            for key in page.curatorServedHistoryKeys {
+                history[key] = SurfaceHistoryRecord(lastShownAt: now, recentShowCount: 10)
+            }
+            XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+                page, history: history, preferences: .none, now: now),
+                "The same unchanged invitation need not nag again that day.")
+            for state in [AuthoredContentReceiptState.delivered, .opened] {
+                for receipt in page.authoredContentReceipts(state: state, at: now) {
+                    inputs.authoredContentReceipts = inputs.authoredContentReceipts.recording(receipt)
+                }
+            }
+        }
     }
 
     func testNovemberOccasionCarriesOnlySerenitysOctoberSuggestion() throws {
@@ -157,6 +248,49 @@ final class CountUnboundOpeningTests: XCTestCase {
         }
     }
 
+    func testMonthlyMissionReturnArchivesReaderSentenceAsReply() throws {
+        XCTAssertEqual(try pack().minimumRuntimeVersion, 10)
+        let sentence = "The latch was smooth outside and scratched behind the door."
+        let metadata = [
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            MonthlyIssuePageMetadata.interaction: MonthlyIssueInteractionKind.readerEvidence.rawValue
+        ]
+        let reply = AuthoredStoryArchiveReply.text(metadata: metadata,
+            prompt: "Look from the other side", readerInput: sentence)
+        let page = BookPage(type: .narrativeOS, promptText: "Look from the other side",
+            userInput: sentence, playerReply: reply, origin: .simulated)
+        XCTAssertEqual(page.readerContributions.filter { $0.kind == .sentence }.map(\.text), [sentence])
+        XCTAssertEqual(page.readerAuthoredTextForAnalysis, sentence)
+        XCTAssertNil(page.bookAuthoredText)
+
+        let scope = AuthoredContentScope(scopeID: "count-unbound-october-2026",
+            runID: "count-unbound:2026")
+        let receipt = AuthoredContentReceipt(contentID: "count-unbound.mission.other-side",
+            occurrenceID: "return", channel: .storyScene, scope: scope,
+            state: .completed, recordedAt: date(20), evidencePageIDs: [page.id])
+        let after = try XCTUnwrap(try pack().storyScenes?.first { $0.id == "count-unbound.strategy" }?
+            .nodes?.first { $0.id == "count-unbound.strategy.gambit.after" }?.findingInsertion)
+        XCTAssertTrue(after.render(scope: scope, ledger: .empty.recording(receipt), pages: [page])
+            .contains(sentence))
+        let composite = "It said come in by…\n\nMargin note: The porch lamp lit an empty chair beside the door."
+        XCTAssertEqual(AuthoredStoryArchiveReply.text(metadata: metadata,
+            prompt: "It said come in by…", readerInput: composite),
+            "The porch lamp lit an empty chair beside the door.")
+        let compositePage = BookPage(type: .narrativeOS, promptText: "It said come in by…",
+            userInput: composite, playerReply: AuthoredStoryArchiveReply.text(
+                metadata: metadata, prompt: "It said come in by…", readerInput: composite),
+            origin: .simulated)
+        XCTAssertEqual(compositePage.readerContributions.filter { $0.kind == .sentence }.map(\.text),
+            ["The porch lamp lit an empty chair beside the door."])
+        XCTAssertEqual(compositePage.bookAuthoredText, "It said come in by…")
+        XCTAssertEqual(AuthoredStoryArchiveReply.text(metadata: metadata,
+            prompt: "It said come in by…", readerInput: "It said come in by…"), "")
+        XCTAssertEqual(AuthoredStoryArchiveReply.text(metadata: [
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            MonthlyIssuePageMetadata.interaction: MonthlyIssueInteractionKind.choice.rawValue
+        ], prompt: "Book prose", readerInput: "Book prose"), "")
+    }
+
     func testBleedLettersClassesAndResidueFollowTheirCalendar() throws {
         let p = try pack()
         let event = try XCTUnwrap(p.events.first)
@@ -199,6 +333,90 @@ final class CountUnboundOpeningTests: XCTestCase {
         let casebookDay = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9))!
         XCTAssertEqual(WorldEventResolver.lifecycleSnapshot(packID: p.id, event: event,
             now: casebookDay, calendar: calendar)?.stage, .casebookAvailable)
+    }
+
+    func testWickerBroadcastCanUsePublicWrongCastleReportOnlyAfterItExists() throws {
+        let p = try pack()
+        let event = try XCTUnwrap(p.events.first)
+        let manifest = try XCTUnwrap(p.authoringManifests?.first)
+        func offered(_ dayNumber: Int, hoursLater: Int = 0,
+                     receipts: AuthoredContentReceiptLedger = .empty) throws -> Bool {
+            let now = date(dayNumber).addingTimeInterval(Double(hoursLater) * 3_600)
+            let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+                packID: p.id, event: event, now: now, calendar: calendar))
+            var inputs = BookSourceInputs.empty
+            inputs.monthlyIssueAuthoringManifests = [manifest]
+            inputs.authoredStoryScenes = p.storyScenes ?? []
+            inputs.authoredContentReceipts = receipts
+            let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
+            return MonthlyIssueContentResolver.eligible(channel: .radioBanter,
+                referenceKind: .radioBanter, day: day, inputs: inputs, now: now,
+                lifecycleOverride: [snapshot]).contains {
+                    $0.atom.id == "count-unbound.radio.wicker-one-sentence"
+                }
+        }
+        XCTAssertFalse(try offered(21))
+        XCTAssertFalse(try offered(22))
+        XCTAssertTrue(try offered(23))
+        XCTAssertTrue(try offered(27))
+        let played = AuthoredContentReceipt(contentID: "count-unbound.radio.wicker-one-sentence",
+            occurrenceID: "first-play", channel: .radioBanter,
+            scope: AuthoredContentScope(scopeID: manifest.id, runID: "count-unbound:2026"),
+            state: .played, recordedAt: date(23))
+        XCTAssertFalse(try offered(23, receipts: .empty.recording(played)))
+        XCTAssertTrue(try offered(23, hoursLater: 2, receipts: .empty.recording(played)))
+        XCTAssertTrue(try offered(27, receipts: .empty.recording(played)))
+        XCTAssertFalse(try offered(28))
+        XCTAssertFalse(try offered(28, receipts: .empty.recording(played)))
+    }
+
+    func testAftermathMediaSurvivesEndingButStillExpiresAndDoesNotRepeat() throws {
+        let p = try pack()
+        let manifest = try XCTUnwrap(p.authoringManifests?.first)
+        let event = try XCTUnwrap(p.events.first)
+        let scope = AuthoredContentScope(scopeID: manifest.id, runID: "count-unbound:2026")
+        let ledger = AuthoredContentReceiptLedger.empty
+            .recording(AuthoredContentReceipt(contentID: "issue-conclusion", occurrenceID: "ending",
+                channel: .storyScene, scope: scope, state: .concluded, recordedAt: date(28)))
+            .recording(AuthoredContentReceipt(contentID: "count-unbound.scene.first-nightbound-morning",
+                occurrenceID: "naming", channel: .storyScene, scope: scope,
+                state: .completed, recordedAt: date(29)))
+        let media: [(String, AuthoredContentChannel, MonthlyIssueContentReferenceKind)] = [
+            ("count-unbound.margin.still-serenity", .marginalia, .marginalia),
+            ("count-unbound.radio.protocols", .radioBanter, .radioBanter),
+            ("count-unbound.bleed.count-returned", .bleedArticle, .bleedArticle),
+            ("count-unbound.class.rest-after-door", .page, .worldEventBeat),
+            ("count-unbound.letter.wicker", .page, .worldEventBeat)
+        ]
+        func offers(at now: Date, channel: AuthoredContentChannel,
+                    kind: MonthlyIssueContentReferenceKind,
+                    receipts: AuthoredContentReceiptLedger) throws -> [ResolvedMonthlyIssueContent] {
+            let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+                packID: p.id, event: event, now: now, calendar: calendar))
+            var inputs = BookSourceInputs.empty
+            inputs.monthlyIssueAuthoringManifests = [manifest]
+            inputs.authoredContentReceipts = receipts
+            let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
+            return MonthlyIssueContentResolver.eligible(channel: channel, referenceKind: kind,
+                day: day, inputs: inputs, now: now, lifecycleOverride: [snapshot])
+        }
+        let november = calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 9))!
+        for (id, channel, kind) in media {
+            let offer = try XCTUnwrap(offers(at: date(30), channel: channel, kind: kind,
+                receipts: ledger).first { $0.atom.id == id }, id)
+            let states: [AuthoredContentReceiptState] = channel == .radioBanter ? [.played, .delivered] : [.delivered]
+            for state in states {
+                let seen = ledger.recording(offer.receipt(occurrenceID: "aftermath-" + id,
+                    state: state, at: date(30)))
+                let stillOffered = try offers(at: date(31), channel: channel, kind: kind,
+                    receipts: seen).contains { $0.atom.id == id }
+                XCTAssertEqual(stillOffered, channel == .radioBanter, "\(id): \(state)")
+            }
+            XCTAssertFalse(try offers(at: november, channel: channel, kind: kind,
+                receipts: ledger).contains { $0.atom.id == id }, id)
+        }
+        XCTAssertTrue(try offers(at: date(30), channel: .radioBanter, kind: .radioBanter,
+            receipts: ledger).allSatisfy { $0.atom.id != "count-unbound.radio.four-came-home" })
     }
 
     func testPublicCasebookKeepsAuthoredHistoryBesidePrivateReceipt() throws {

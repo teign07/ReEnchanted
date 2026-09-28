@@ -999,6 +999,7 @@ extension BookObjectDivision {
         case .bestiary: return .illuminatedPhoto
         case .gazetteer: return .wonderCompass
         case .atlas: return .marginsAtlas
+        case .labyrinthMap: return .marginsAtlas
         case .todaysMargins: return .note
         case .returned: return .bookRemembered
         case .bookOfYou: return .bookOfYou

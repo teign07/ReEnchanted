@@ -4,7 +4,7 @@
   "runID": "count-unbound:2026",
   "files": [
     {
-      "id": "count-unbound.runtime.v1",
+      "id": "count-unbound.runtime.v2",
       "kind": "worldEventPack",
       "source": "opening.reenchantedevents.json",
       "fileName": "count-unbound.reenchantedevents.json"
@@ -16,7 +16,7 @@
       "fileName": "count-unbound.reenchantedpack.json"
     },
     {
-      "id": "count-unbound.play.v1",
+      "id": "count-unbound.play.v2",
       "kind": "editionPlayPack",
       "source": "paper.editionplay.json",
       "fileName": "count-unbound.editionplay.json",

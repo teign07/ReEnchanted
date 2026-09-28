@@ -1515,10 +1515,16 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             guard let resolved = liveAuthoredBanters.first(where: {
                 $0.authored.stationID == station.id && $0.authored.banter.id == banter.id
             }) else { return }
-            let receipt = resolved.content.receipt(occurrenceID: resolved.occurrenceID, state: state, at: Date())
+            let repeats = resolved.content.atom.occurrence.kind == .repeatable
+            let occurrenceID = repeats
+                ? "radio-\(banter.id)-\(UUID().uuidString)"
+                : resolved.occurrenceID
+            let receipt = resolved.content.receipt(occurrenceID: occurrenceID, state: state, at: Date())
             PlayerVault.shared.data.authoredContentReceipts =
                 (PlayerVault.shared.data.authoredContentReceipts ?? .empty).recording(receipt)
-            liveAuthoredBanters.removeAll { $0.content.atom.id == resolved.content.atom.id }
+            if !repeats {
+                liveAuthoredBanters.removeAll { $0.content.atom.id == resolved.content.atom.id }
+            }
             PlayerVault.shared.save()
         }
         PlayerVault.shared.save()

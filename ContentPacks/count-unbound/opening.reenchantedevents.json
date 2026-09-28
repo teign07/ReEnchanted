@@ -28,7 +28,69 @@
           "intensity": 1,
           "lexicalRules": [],
           "role": "setup",
-          "scene": "October's brought wet coats into the Great Hall. The Quillquarium has learned to splash uphill. Ambrose is putting out more bowls. Come in; I saved a dry bit of bench."
+          "scene": "October's brought wet coats into the Great Hall. The Quillquarium has learned to splash uphill. Ambrose is putting out more bowls. Come in; I saved a dry bit of bench.",
+          "staging": [
+            {
+              "castID": "serenity-brown",
+              "roomID": "location-kitchens",
+              "note": "Serenity's got her map out between the salt and the bread.",
+              "fromHour": 12,
+              "untilHour": 13
+            },
+            {
+              "castID": "wicker-eddies",
+              "roomID": "location-kitchens",
+              "note": "Wicker's sitting opposite Serenity. She's drawing a bog on his side of the map.",
+              "fromHour": 12,
+              "untilHour": 13
+            },
+            {
+              "castID": "professor-permancer",
+              "roomID": "location-vault-of-doors",
+              "note": "Permancer's counting ribbons for the Jump. Everyone gets one.",
+              "fromDay": 3,
+              "throughDay": 3,
+              "fromHour": 9,
+              "untilHour": 12
+            },
+            {
+              "castID": "wicker-eddies",
+              "roomID": "location-vault-of-doors",
+              "note": "Wicker's holding the source volume like it owes him money.",
+              "fromDay": 3,
+              "throughDay": 3,
+              "fromHour": 9,
+              "untilHour": 12
+            },
+            {
+              "castID": "penny-blackletter",
+              "roomID": "location-vault-of-doors",
+              "note": "Penny's got the roster, and she's matching names, not counting heads.",
+              "fromDay": 3,
+              "throughDay": 3,
+              "fromHour": 9,
+              "untilHour": 12
+            },
+            {
+              "castID": "serenity-brown",
+              "roomID": "location-vault-of-doors",
+              "note": "Serenity's come to watch the door.",
+              "fromDay": 3,
+              "throughDay": 3,
+              "fromHour": 9,
+              "untilHour": 12
+            }
+          ],
+          "roomNotes": [
+            {
+              "roomID": "location-great-hall",
+              "note": "Wet coats on every bench. October's got in."
+            },
+            {
+              "roomID": "location-quillquarium",
+              "note": "The water's learned to splash uphill. The pens think it's funny."
+            }
+          ]
         },
         {
           "id": "uninvited",
@@ -38,7 +100,67 @@
           "intensity": 1,
           "lexicalRules": [],
           "role": "buildup",
-          "scene": "The East Stacks are shut. Serenity's awake in the Kitchens. I've kept a place for her map; it keeps moving when nobody touches it."
+          "scene": "The East Stacks are shut. Serenity's awake in the Kitchens. I've kept a place for her map; it keeps moving when nobody touches it.",
+          "closedRoomIDs": [
+            "location-east-stacks"
+          ],
+          "staging": [
+            {
+              "castID": "serenity-brown",
+              "roomID": "location-kitchens",
+              "note": "Serenity's awake. She can hear page-turns from books that are shut.",
+              "fromDay": 8,
+              "fromHour": 7,
+              "untilHour": 22
+            },
+            {
+              "castID": "professor-permancer",
+              "roomID": "location-vault-of-doors",
+              "note": "Permancer's going through the return list again. And again.",
+              "fromHour": 8,
+              "untilHour": 22
+            },
+            {
+              "castID": "wicker-eddies",
+              "roomID": "location-vault-of-doors",
+              "note": "Wicker's helping with the investigation. He keeps saying so.",
+              "throughDay": 13,
+              "fromHour": 13,
+              "untilHour": 18
+            },
+            {
+              "castID": "penny-blackletter",
+              "roomID": "location-stacks",
+              "note": "Reports about the East Stacks go to Penny. She's got a card for every one.",
+              "fromHour": 8,
+              "untilHour": 20
+            },
+            {
+              "castID": "count-dracula",
+              "roomID": "location-old-reading-room",
+              "note": "The Count's reading *Dracula* under the green lamp. He's got a pencil.",
+              "name": "The Count",
+              "fromDay": 14,
+              "fromHour": 20,
+              "untilHour": 6
+            }
+          ],
+          "roomNotes": [
+            {
+              "roomID": "location-east-stacks",
+              "note": "Shut. Something in there's got teeth."
+            },
+            {
+              "roomID": "location-kitchens",
+              "note": "Visits to Serenity go through Ambrose. He's strict about it.",
+              "fromDay": 8
+            },
+            {
+              "roomID": "location-old-reading-room",
+              "note": "The door's open now. It never used to be.",
+              "fromDay": 14
+            }
+          ]
         },
         {
           "id": "reciprocal",
@@ -48,7 +170,127 @@
           "intensity": 1,
           "lexicalRules": [],
           "role": "climax",
-          "scene": "There's a stair between the supper tables. I've caught a loose moon in my ribbon. We need to get these rooms home before the rest of the library follows them out."
+          "scene": "There's a stair between the supper tables. I've caught a loose moon in my ribbon. We need to get these rooms home before the rest of the library follows them out.",
+          "closedRoomIDs": [
+            "location-east-stacks"
+          ],
+          "borrowedRooms": [
+            {
+              "id": "borrowed-wrong-castle",
+              "name": "The Wrong Castle",
+              "note": "It grew up out of the East Stacks overnight. The bottom's library. The top's stolen a nursery window. The stair in the middle keeps asking for another floor.",
+              "x": 0.905,
+              "y": 0.375,
+              "width": 0.09,
+              "height": 0.075,
+              "form": "tower",
+              "joins": [
+                {
+                  "roomID": "location-east-stacks",
+                  "kind": "stair"
+                },
+                {
+                  "roomID": "location-quillquarium",
+                  "kind": "drawbridge"
+                }
+              ]
+            },
+            {
+              "id": "borrowed-ballroom",
+              "name": "The Borrowed Ballroom",
+              "note": "A ballroom out of somebody else's book, pushed in beside the supper tables. It's got more centuries than it needs.",
+              "x": 0.25,
+              "y": 0.585,
+              "width": 0.15,
+              "height": 0.045,
+              "form": "room",
+              "joins": [
+                {
+                  "roomID": "location-great-hall",
+                  "kind": "stair"
+                }
+              ],
+              "fromDay": 24
+            }
+          ],
+          "staging": [
+            {
+              "castID": "professor-permancer",
+              "roomID": "borrowed-wrong-castle",
+              "note": "Permancer's tying ribbons to the banister. He counts everyone twice now.",
+              "throughDay": 26,
+              "fromHour": 9,
+              "untilHour": 18
+            },
+            {
+              "castID": "serenity-brown",
+              "roomID": "borrowed-wrong-castle",
+              "note": "Serenity's got her map out. She's going first.",
+              "throughDay": 26,
+              "fromHour": 13,
+              "untilHour": 18
+            },
+            {
+              "castID": "wicker-eddies",
+              "roomID": "borrowed-wrong-castle",
+              "note": "Wicker's holding the source volume and watching Serenity's map case.",
+              "throughDay": 26,
+              "fromHour": 13,
+              "untilHour": 18
+            },
+            {
+              "castID": "count-dracula",
+              "roomID": "borrowed-wrong-castle",
+              "note": "The Count's up in the castle. The nursery window's lit.",
+              "name": "The Count",
+              "throughDay": 26,
+              "fromHour": 19,
+              "untilHour": 7
+            },
+            {
+              "castID": "count-dracula",
+              "roomID": "location-great-hall",
+              "note": "The Count's at supper. Ambrose laid him a place.",
+              "name": "The Count",
+              "fromDay": 27,
+              "throughDay": 27,
+              "fromHour": 18,
+              "untilHour": 22
+            },
+            {
+              "castID": "serenity-brown",
+              "roomID": "location-great-hall",
+              "note": "Serenity's sitting across from the Count. On purpose.",
+              "fromDay": 27,
+              "throughDay": 27,
+              "fromHour": 18,
+              "untilHour": 22
+            },
+            {
+              "castID": "ambrose-trencher",
+              "roomID": "location-great-hall",
+              "note": "Ambrose is serving the soup himself.",
+              "fromDay": 27,
+              "throughDay": 27,
+              "fromHour": 18,
+              "untilHour": 22
+            }
+          ],
+          "roomNotes": [
+            {
+              "roomID": "location-quillquarium",
+              "note": "There's a drawbridge hanging over the pens. It's shut to visitors. The nibs are furious."
+            },
+            {
+              "roomID": "location-great-hall",
+              "note": "There's a stair between the supper tables. It wasn't there last week.",
+              "fromDay": 24
+            },
+            {
+              "roomID": "borrowed-wrong-castle",
+              "note": "Penny's pinned a notice to it: THE EAST STACKS ARE SEVERAL PLACES. PLEASE USE ONE AT A TIME."
+            }
+          ]
         },
         {
           "id": "nightbound",
@@ -58,7 +300,33 @@
           "intensity": 1,
           "lexicalRules": [],
           "role": "aftermath",
-          "scene": "The tables are back. Serenity's named what she can hear. Permancer's writing on both sides of the notice now. I have a loose stitch, and Penny says to stop poking it."
+          "scene": "The tables are back. Serenity's named what she can hear. Permancer's writing on both sides of the notice now. I have a loose stitch, and Penny says to stop poking it.",
+          "staging": [
+            {
+              "castID": "serenity-brown",
+              "roomID": "location-kitchens",
+              "note": "Serenity's here with her cards. They keep coming up moons.",
+              "fromHour": 7,
+              "untilHour": 11
+            },
+            {
+              "castID": "professor-permancer",
+              "roomID": "location-vault-of-doors",
+              "note": "Permancer's fitting the new safeguards. No teaching Jumps till they're done.",
+              "fromHour": 9,
+              "untilHour": 20
+            }
+          ],
+          "roomNotes": [
+            {
+              "roomID": "location-vault-of-doors",
+              "note": "New notice on the door: name every traveller, close the list, check both sides."
+            },
+            {
+              "roomID": "location-kitchens",
+              "note": "Serenity's toast tower's got buttresses now."
+            }
+          ]
         }
       ],
       "triggers": [],
@@ -87,7 +355,12 @@
           "report": "Permancer's class practiced matching each returning ribbon to a named traveller, not merely counting them.",
           "isMilestone": false,
           "pageType": "academyClass",
-          "reportsWhenMissed": false
+          "reportsWhenMissed": false,
+          "roomID": "location-vault-of-doors",
+          "castIDs": [
+            "professor-permancer",
+            "penny-blackletter"
+          ]
         },
         {
           "id": "count-unbound.class.ink-has-no-conscience",
@@ -100,7 +373,11 @@
           "report": "Villanelle's class studied the sentence Wicker wrote in the source and asked who bore its consequence.",
           "isMilestone": false,
           "pageType": "academyClass",
-          "reportsWhenMissed": false
+          "reportsWhenMissed": false,
+          "roomID": "location-inkworks",
+          "castIDs": [
+            "professor-vivian-villanelle"
+          ]
         },
         {
           "id": "count-unbound.letter.permancer",
@@ -113,7 +390,11 @@
           "report": "Permancer wrote to the Reader about the return list's blind side and the procedure he was changing.",
           "isMilestone": false,
           "pageType": "letter",
-          "reportsWhenMissed": false
+          "reportsWhenMissed": false,
+          "roomID": "location-vault-of-doors",
+          "castIDs": [
+            "professor-permancer"
+          ]
         },
         {
           "id": "count-unbound.class.invitation-shape",
@@ -126,7 +407,11 @@
           "report": "Wispwood's class tested how the direction of an ordinary chair could change an invitation.",
           "isMilestone": false,
           "pageType": "academyClass",
-          "reportsWhenMissed": false
+          "reportsWhenMissed": false,
+          "roomID": "location-spark-annex",
+          "castIDs": [
+            "professor-luna-wispwood"
+          ]
         },
         {
           "id": "count-unbound.class.rest-after-door",
@@ -139,7 +424,11 @@
           "report": "Stonebrook made room for rest after the return rather than assigning another crossing.",
           "isMilestone": false,
           "pageType": "academyClass",
-          "reportsWhenMissed": false
+          "reportsWhenMissed": false,
+          "roomID": "location-still-room",
+          "castIDs": [
+            "professor-cedric-stonebrook"
+          ]
         },
         {
           "id": "count-unbound.letter.wicker",
@@ -166,7 +455,11 @@
           "isMilestone": false,
           "pageType": "bookNotices",
           "reportsWhenMissed": false,
-          "lifecycleStage": "residue"
+          "lifecycleStage": "residue",
+          "roomID": "location-vault-of-doors",
+          "castIDs": [
+            "professor-permancer"
+          ]
         },
         {
           "id": "count-unbound.residue.route-receipt",
@@ -182,7 +475,49 @@
           "reportsWhenMissed": false,
           "lifecycleStage": "residue"
         }
-      ]
+      ],
+      "foreshadowAcademy": {
+        "staging": [
+          {
+            "castID": "professor-permancer",
+            "roomID": "location-vault-of-doors",
+            "note": "Permancer's checking the bookmarks for Sunday's Jump. Twice.",
+            "fromHour": 16,
+            "untilHour": 21
+          }
+        ],
+        "roomNotes": [
+          {
+            "roomID": "location-vault-of-doors",
+            "note": "There's a list pinned to the door for Sunday's Jump. It's got a lot of names on it."
+          },
+          {
+            "roomID": "location-east-stacks",
+            "note": "Something in here's been turning its own pages. Only after dark."
+          }
+        ]
+      },
+      "residueAcademy": {
+        "staging": [
+          {
+            "castID": "serenity-brown",
+            "roomID": "location-kitchens",
+            "note": "Serenity's having breakfast in here. She's still listening to the crossings.",
+            "fromHour": 7,
+            "untilHour": 9
+          }
+        ],
+        "roomNotes": [
+          {
+            "roomID": "location-east-stacks",
+            "note": "People say the red chair still turns up after closing. It's facing the right way now."
+          },
+          {
+            "roomID": "location-vault-of-doors",
+            "note": "Permancer's notice has a new line: an invitation can be held open, lit, arranged, or left waiting."
+          }
+        ]
+      }
     }
   ],
   "authoringManifests": [
@@ -394,7 +729,7 @@
           "audience": "everyone",
           "voice": "immediate",
           "interaction": "choice",
-          "priority": "featured",
+          "priority": "milestone",
           "gate": {
             "allOf": [
               {
@@ -1848,7 +2183,8 @@
           "tags": [
             "count-unbound",
             "monthly-margin"
-          ]
+          ],
+          "survivesConclusion": true
         },
         {
           "id": "count-unbound.radio.thornwave-corners",
@@ -1887,7 +2223,8 @@
             "noneOf": []
           },
           "occurrence": {
-            "kind": "oncePerRun"
+            "kind": "repeatable",
+            "cooldownHours": 1
           },
           "dependencies": [],
           "productionStatus": "ready",
@@ -1938,7 +2275,8 @@
             "noneOf": []
           },
           "occurrence": {
-            "kind": "oncePerRun"
+            "kind": "repeatable",
+            "cooldownHours": 1
           },
           "dependencies": [
             {
@@ -1997,7 +2335,8 @@
             "noneOf": []
           },
           "occurrence": {
-            "kind": "oncePerRun"
+            "kind": "repeatable",
+            "cooldownHours": 1
           },
           "dependencies": [
             {
@@ -2056,7 +2395,8 @@
             "noneOf": []
           },
           "occurrence": {
-            "kind": "oncePerRun"
+            "kind": "repeatable",
+            "cooldownHours": 1
           },
           "dependencies": [
             {
@@ -2115,7 +2455,8 @@
             "noneOf": []
           },
           "occurrence": {
-            "kind": "oncePerRun"
+            "kind": "repeatable",
+            "cooldownHours": 1
           },
           "dependencies": [
             {
@@ -2131,7 +2472,8 @@
           "tags": [
             "count-unbound",
             "monthly-radio"
-          ]
+          ],
+          "survivesConclusion": true
         },
         {
           "id": "count-unbound.bleed.jump-complete",
@@ -2335,7 +2677,8 @@
           "tags": [
             "count-unbound",
             "monthly-bleed"
-          ]
+          ],
+          "survivesConclusion": true
         },
         {
           "id": "count-unbound.class.book-jumping-roster",
@@ -2590,7 +2933,8 @@
           "tags": [
             "count-unbound",
             "class"
-          ]
+          ],
+          "survivesConclusion": true
         },
         {
           "id": "count-unbound.letter.wicker",
@@ -2641,7 +2985,8 @@
           "tags": [
             "count-unbound",
             "letter"
-          ]
+          ],
+          "survivesConclusion": true
         },
         {
           "id": "count-unbound.residue.protocol-amendment",
@@ -3310,6 +3655,12 @@
           "choices": [],
           "braidText": "Wicker gave Serenity the larger piece of bread. She made land with hers, on his map-bog. I kept the fallen crumbs."
         }
+      ],
+      "roomID": "location-kitchens",
+      "castIDs": [
+        "serenity-brown",
+        "wicker-eddies",
+        "ambrose-trencher"
       ]
     },
     {
@@ -3328,7 +3679,14 @@
         "count-unbound",
         "academy"
       ],
-      "braidText": "Villanelle rubbed the grand words off the board. Underneath was an orange on a wet bus-stop bench. I could get my teeth round that."
+      "braidText": "Villanelle rubbed the grand words off the board. Underneath was an orange on a wet bus-stop bench. I could get my teeth round that.",
+      "roomID": "location-inkworks",
+      "castIDs": [
+        "professor-vivian-villanelle",
+        "penny-blackletter",
+        "serenity-brown",
+        "wicker-eddies"
+      ]
     },
     {
       "id": "academy.school.wrong-way",
@@ -3399,6 +3757,11 @@
           "choices": [],
           "braidText": "I nipped the paper bird’s tail. It nipped my ribbon back."
         }
+      ],
+      "roomID": "location-north-staircase",
+      "castIDs": [
+        "serenity-brown",
+        "soren-ng"
       ]
     },
     {
@@ -3582,7 +3945,14 @@
         "allowsReaderAnchor": true
       },
       "report": "On Sunday, Permancer took the Book Jump Club into Dracula. Wicker wrote a sentence giving the Count a choice of verb. The professor brought every named traveller home; Penny checked the list. Afterwards, a word caught in the Book’s stitching went missing.",
-      "reportAfterLiveDay": 3
+      "reportAfterLiveDay": 3,
+      "roomID": "location-vault-of-doors",
+      "castIDs": [
+        "professor-permancer",
+        "wicker-eddies",
+        "penny-blackletter",
+        "serenity-brown"
+      ]
     },
     {
       "id": "count-unbound.scene.east-stacks",
@@ -3655,7 +4025,14 @@
         }
       ],
       "reportAfterLiveDay": 7,
-      "report": "Penny left a report: Serenity was found in the East Stacks with two wounds at her neck. Ambrose carried her to the Kitchens. Dracula had used her as a living anchor. Her map now traced his movements. Wicker brought water and held the door."
+      "report": "Penny left a report: Serenity was found in the East Stacks with two wounds at her neck. Ambrose carried her to the Kitchens. Dracula had used her as a living anchor. Her map now traced his movements. Wicker brought water and held the door.",
+      "roomID": "location-east-stacks",
+      "castIDs": [
+        "serenity-brown",
+        "wicker-eddies",
+        "penny-blackletter",
+        "professor-permancer"
+      ]
     },
     {
       "id": "count-unbound.mission.hold-place",
@@ -3695,7 +4072,14 @@
         "count-unbound",
         "academy"
       ],
-      "braidText": "Soren brought Serenity a map for her boat. Wicker arrived with a repaired map case and stayed for tea. I stood on my fore-edge while she drew a ladder."
+      "braidText": "Soren brought Serenity a map for her boat. Wicker arrived with a repaired map case and stayed for tea. I stood on my fore-edge while she drew a ladder.",
+      "roomID": "location-kitchens",
+      "castIDs": [
+        "soren-ng",
+        "serenity-brown",
+        "wicker-eddies",
+        "ambrose-trencher"
+      ]
     },
     {
       "id": "count-unbound.scene.man-reading-himself",
@@ -3768,7 +4152,12 @@
         }
       ],
       "reportAfterLiveDay": 16,
-      "report": "Penny recorded the meeting in the reading room. Dracula wanted a future beyond his written ending. Serenity confronted him about the harm he had done. He escaped through several books; the black line on her map split into branches."
+      "report": "Penny recorded the meeting in the reading room. Dracula wanted a future beyond his written ending. Serenity confronted him about the harm he had done. He escaped through several books; the black line on her map split into branches.",
+      "roomID": "location-old-reading-room",
+      "castIDs": [
+        "serenity-brown",
+        "penny-blackletter"
+      ]
     },
     {
       "id": "count-unbound.mission.invitation-without-words",
@@ -3864,7 +4253,14 @@
         }
       ],
       "reportAfterLiveDay": 21,
-      "report": "The East Stacks had become a tangle of borrowed rooms. In the central hall, Penny named three parts of the return: source, invitation, living claim. Serenity put her hand over the third card. Only she could withdraw that claim."
+      "report": "The East Stacks had become a tangle of borrowed rooms. In the central hall, Penny named three parts of the return: source, invitation, living claim. Serenity put her hand over the third card. Only she could withdraw that claim.",
+      "roomID": "location-east-stacks",
+      "castIDs": [
+        "serenity-brown",
+        "wicker-eddies",
+        "penny-blackletter",
+        "professor-permancer"
+      ]
     },
     {
       "id": "count-unbound.mission.other-side",
@@ -3921,7 +4317,7 @@
                 "count-unbound:strategy-terms"
               ],
               "nextNodeID": "count-unbound.strategy.terms",
-              "braidText": "You chose to join the Supper with a Finished Man preparation."
+              "braidText": "You went to supper with a finished man. I kept my ribbon out of the soup."
             },
             {
               "id": "hunt",
@@ -3933,7 +4329,7 @@
                 "count-unbound:strategy-hunt"
               ],
               "nextNodeID": "count-unbound.strategy.hunt",
-              "braidText": "You chose to join the The Door’s Autopsy preparation."
+              "braidText": "You went to watch Penny draw chalk round a missing door."
             },
             {
               "id": "gambit",
@@ -3945,7 +4341,7 @@
                 "count-unbound:strategy-gambit"
               ],
               "nextNodeID": "count-unbound.strategy.gambit",
-              "braidText": "You chose to join the A Room Made of Paper preparation."
+              "braidText": "You went where Wicker was making a room out of paper. I tried not to look hungry."
             }
           ]
         },
@@ -3965,7 +4361,7 @@
                 "count-unbound:preparation-terms-admit"
               ],
               "nextNodeID": "count-unbound.strategy.terms.after",
-              "braidText": "In the Supper with a Finished Man preparation, you chose: The Academy must admit what it did. Ambrose writes that the door was opened and its return wrongly declared safe. He leaves space for Permancer's signature."
+              "braidText": "At supper, you asked for the Academy to admit what it did. Ambrose wrote that the door was opened and its return wrongly called safe. He left a space for Permancer to sign."
             },
             {
               "id": "name-act",
@@ -3977,7 +4373,7 @@
                 "count-unbound:preparation-terms-name-act"
               ],
               "nextNodeID": "count-unbound.strategy.terms.after",
-              "braidText": "In the Supper with a Finished Man preparation, you chose: Dracula must name his act. “I harmed Serenity deliberately,” the Count says at last. Penny writes every word. Serenity checks the line herself."
+              "braidText": "At supper, you asked for the Count to say what he did. “I harmed Serenity deliberately,” he said at last. Penny wrote every word, and Serenity checked the line herself."
             },
             {
               "id": "change-jumps",
@@ -3989,7 +4385,7 @@
                 "count-unbound:preparation-terms-change-jumps"
               ],
               "nextNodeID": "count-unbound.strategy.terms.after",
-              "braidText": "In the Supper with a Finished Man preparation, you chose: Future Jumps must change. Ambrose writes a closed return list, a stated purpose, and a safeguard for both directions. “Professor can work out the knot,” he says."
+              "braidText": "At supper, you asked for future Jumps to change. Ambrose wrote a closed return list, a stated purpose, and a guard on both sides of the door. He left the knot to Permancer."
             }
           ]
         },
@@ -4024,7 +4420,7 @@
                 "count-unbound:preparation-hunt-sentence"
               ],
               "nextNodeID": "count-unbound.strategy.hunt.after",
-              "braidText": "In the The Door’s Autopsy preparation, you chose: Wicker's sentence. Its ink pulls towards the source. “He could choose where to look,” Permancer says. Penny writes SOURCE."
+              "braidText": "At the chalk outline, you put Wicker's sentence in first. Its ink pulled towards the source, and Penny wrote SOURCE."
             },
             {
               "id": "invitation",
@@ -4036,7 +4432,7 @@
                 "count-unbound:preparation-hunt-invitation"
               ],
               "nextNodeID": "count-unbound.strategy.hunt.after",
-              "braidText": "In the The Door’s Autopsy preparation, you chose: The return invitation. *All of you* appears inside the chalk. Permancer winces. Penny writes INVITATION."
+              "braidText": "At the chalk outline, you put the return invitation in first. *All of you* showed up inside the chalk. Permancer winced, and Penny wrote INVITATION."
             },
             {
               "id": "map",
@@ -4048,7 +4444,7 @@
                 "count-unbound:preparation-hunt-map"
               ],
               "nextNodeID": "count-unbound.strategy.hunt.after",
-              "braidText": "In the The Door’s Autopsy preparation, you chose: Serenity's map. A black branch reaches towards the outline and holds there. Penny writes LIVING CLAIM. “She's the only one who can let this go.”"
+              "braidText": "At the chalk outline, you put Serenity's map in first. A black branch reached for the outline and held on. Penny wrote LIVING CLAIM."
             }
           ]
         },
@@ -4083,7 +4479,7 @@
                 "count-unbound:preparation-gambit-seat"
               ],
               "nextNodeID": "count-unbound.strategy.gambit.after",
-              "braidText": "In the A Room Made of Paper preparation, you chose: A seat and an open view. He turns the paper chair towards the window."
+              "braidText": "In the paper room, you asked for a seat and an open view. Wicker turned the paper chair towards the window."
             },
             {
               "id": "light",
@@ -4095,7 +4491,7 @@
                 "count-unbound:preparation-gambit-light"
               ],
               "nextNodeID": "count-unbound.strategy.gambit.after",
-              "braidText": "In the A Room Made of Paper preparation, you chose: Light beside an unfinished page. He draws a lamp. The blank below it stays blank."
+              "braidText": "In the paper room, you asked for a light beside an unfinished page. Wicker drew a lamp and left the blank below it blank."
             },
             {
               "id": "way",
@@ -4107,7 +4503,7 @@
                 "count-unbound:preparation-gambit-way"
               ],
               "nextNodeID": "count-unbound.strategy.gambit.after",
-              "braidText": "In the A Room Made of Paper preparation, you chose: A way held open. He puts a paper stone against the door."
+              "braidText": "In the paper room, you asked for a way held open. Wicker set a paper stone against the door."
             },
             {
               "id": "finding",
@@ -4119,7 +4515,7 @@
                 "count-unbound:preparation-gambit-finding"
               ],
               "nextNodeID": "count-unbound.strategy.gambit.after",
-              "braidText": "In the paper-room preparation, you made room for your kept finding. Wicker left the drawing unfinished.",
+              "braidText": "In the paper room, Wicker stopped drawing and asked to see your sentence. The paper had room for it.",
               "requiresFindingContentID": "count-unbound.mission.invitation-without-words"
             }
           ]
@@ -4139,6 +4535,14 @@
             "interpretations": {}
           }
         }
+      ],
+      "roomID": "location-great-hall",
+      "castIDs": [
+        "serenity-brown",
+        "wicker-eddies",
+        "penny-blackletter",
+        "professor-permancer",
+        "ambrose-trencher"
       ]
     },
     {
@@ -4146,7 +4550,7 @@
       "packID": "count-unbound-october-2026",
       "eventID": "count-unbound",
       "title": "A Future Tense",
-      "opening": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held heavier things than you open.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\nAmbrose pulls a chair back from the table. The threshold takes its shape from the empty place.\n\nDracula stops on the last stair.\n\nHe has noticed.",
+      "opening": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held open heavier books than this.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\nAmbrose pulls a chair back from the table. The threshold takes its shape from the empty place.\n\nDracula stops on the last stair.\n\nHe has noticed.",
       "prompt": "Choose what happens.",
       "detail": "The Count Unbound · October 2026",
       "choices": [],
@@ -4161,7 +4565,7 @@
         {
           "id": "count-unbound.scene.future-tense.choose",
           "title": "A Future Tense",
-          "body": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held heavier things than you open.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\n{invitation}\n\nDracula stops on the last stair.\n\nHe has noticed.",
+          "body": "The stair has reached the supper tables.\n\nAmbrose moves the salt out of its way. A paper moon hangs over the Great Hall, torn from a book that keeps calling for it.\n\nOn the wooden stand, *Dracula* tries to close.\n\nI wedge myself beneath the cover. It presses down. I've held open heavier books than this.\n\nPermancer reads the return list. This time he names everyone allowed through. Penny checks every ribbon from both sides.\n\nSerenity stands by the final fold. The map case is open at her feet.\n\n“He's coming.”\n\nThe paper moon goes dark.\n\nDracula descends the stair. He sees the open source, Serenity, and the invitation we've made.\n\n{invitation}\n\nDracula stops on the last stair.\n\nHe has noticed.",
           "prompt": "How do we send him back?",
           "choices": [
             {
@@ -4174,7 +4578,7 @@
                 "count-unbound:return-by-terms"
               ],
               "nextNodeID": "count-unbound.scene.future-tense.terms",
-              "braidText": "You chose the terms method for the Count’s return."
+              "braidText": "You chose to send the Count back by terms. Ambrose steadied the supper table."
             },
             {
               "id": "rule",
@@ -4186,7 +4590,7 @@
                 "count-unbound:return-by-rule"
               ],
               "nextNodeID": "count-unbound.scene.future-tense.rule",
-              "braidText": "You chose the rule method for the Count’s return."
+              "braidText": "You chose to send the Count back by rule. Penny set out the three cards."
             },
             {
               "id": "ruse",
@@ -4198,7 +4602,7 @@
                 "count-unbound:return-by-ruse"
               ],
               "nextNodeID": "count-unbound.scene.future-tense.ruse",
-              "braidText": "You chose the ruse method for the Count’s return."
+              "braidText": "You chose to send the Count back by a trick. Wicker took hold of the paper hinge."
             }
           ],
           "carryForward": {
@@ -4213,7 +4617,7 @@
           "findingInsertion": {
             "contentID": "count-unbound.mission.invitation-without-words",
             "marker": "{invitation}",
-            "quotationTemplate": "I open to the sentence you brought me. “{sentence}” We have given the threshold that way of saying come in.",
+            "quotationTemplate": "I open to the sentence you brought me. “{sentence}” The threshold learns to say come in the same way.",
             "fallback": "Ambrose pulls a chair back from the table. The threshold takes its shape from the empty place.",
             "interpretations": {
               "place": "The threshold widens to leave a place.",
@@ -4225,11 +4629,11 @@
         {
           "id": "count-unbound.scene.future-tense.terms",
           "title": "Return by Terms",
-          "body": "Ambrose brings the supper table to the threshold. It wobbles. He puts a folded menu under its short leg.\n\nI'm under the other one, holding the Count's book open. Nobody's putting anything under me.\n\nDracula reads his signature beside the butter mark.\n\nPermancer signs the Academy's admission underneath.\n\n“No promise of release,” the Count says.\n\n“None.”\n\n“No visit.”\n\n“None.”\n\nHe looks at Serenity. She waits beside the open source.\n\n“Poor terms.”\n\nAmbrose puts a hand on the table to steady it.\n\n“They're the ones you signed.”\n\nHe reads them twice. I hold. My corner's gone numb.\n\nDracula steps towards the threshold.",
+          "body": "Ambrose brings the supper table to the threshold. It wobbles. He puts a folded menu under its short leg.\n\nI'm still wedged under the Count's cover. Nobody's putting a menu under me.\n\nDracula reads his signature beside the butter mark.\n\nPermancer signs the Academy's admission underneath.\n\n“No promise of release,” the Count says.\n\n“None.”\n\n“No visit.”\n\n“None.”\n\nHe looks at Serenity. She waits beside the open source.\n\n“Poor terms.”\n\nAmbrose puts a hand on the table to steady it.\n\n“They're the ones you signed.”\n\nHe reads them twice. I hold. My corner's gone numb.\n\nDracula steps towards the threshold.",
           "prompt": "Keep this leaf.",
           "choices": [],
           "nextNodeID": "count-unbound.scene.future-tense.terms.withdrawal",
-          "braidText": "The terms return began. Serenity still held the living claim."
+          "braidText": "The Count read the terms he had signed and stepped towards the threshold. Serenity still held the living claim."
         },
         {
           "id": "count-unbound.scene.future-tense.terms.withdrawal",
@@ -4246,7 +4650,7 @@
           "prompt": "Keep this leaf.",
           "choices": [],
           "nextNodeID": "count-unbound.scene.future-tense.rule.withdrawal",
-          "braidText": "The rule return began. Serenity still held the living claim."
+          "braidText": "Penny's cards closed the old invitation around our names. The Count's name was outside it. Serenity still held the living claim."
         },
         {
           "id": "count-unbound.scene.future-tense.rule.withdrawal",
@@ -4263,7 +4667,7 @@
           "prompt": "Keep this leaf.",
           "choices": [],
           "nextNodeID": "count-unbound.scene.future-tense.ruse.withdrawal",
-          "braidText": "The ruse return began. Serenity still held the living claim."
+          "braidText": "The Count stepped into Wicker's paper room, and Wicker held the last fold for Serenity. She still held the living claim."
         },
         {
           "id": "count-unbound.scene.future-tense.ruse.withdrawal",
@@ -4275,7 +4679,15 @@
         }
       ],
       "reportAfterLiveDay": 27,
-      "report": "The Count was returned to his source. Ambrose brought the terms, Permancer opened the book, Penny checked the threshold, and Wicker held the hinge. Serenity withdrew the living claim herself. The borrowed rooms fell back into words. The Book lost a stitch holding the source open."
+      "report": "The Count was returned to his source. Ambrose brought the terms, Permancer opened the book, Penny checked the threshold, and Wicker held the hinge. Serenity withdrew the living claim herself. The borrowed rooms fell back into words. The Book lost a stitch holding the source open.",
+      "roomID": "location-great-hall",
+      "castIDs": [
+        "serenity-brown",
+        "wicker-eddies",
+        "penny-blackletter",
+        "professor-permancer",
+        "ambrose-trencher"
+      ]
     },
     {
       "id": "count-unbound.scene.first-nightbound-morning",
@@ -4304,7 +4716,14 @@
         }
       ],
       "reportAfterLiveDay": 28,
-      "report": "In the Kitchens, Serenity chose the word Nightbound for what she could hear. The new Jump notice required named travellers and checks on both sides, and forbade living anchors. Serenity added that anyone mapping what she heard must ask her first."
+      "report": "In the Kitchens, Serenity chose the word Nightbound for what she could hear. The new Jump notice required named travellers and checks on both sides, and forbade living anchors. Serenity added that anyone mapping what she heard must ask her first.",
+      "roomID": "location-kitchens",
+      "castIDs": [
+        "serenity-brown",
+        "professor-permancer",
+        "penny-blackletter",
+        "ambrose-trencher"
+      ]
     },
     {
       "id": "count-unbound.protocols.threshold",
@@ -4332,6 +4751,11 @@
           "choices": [],
           "braidText": "After Serenity named Nightbound, Permancer posted eight Threshold Protocols in the Vault. Penny kept the old list beside them."
         }
+      ],
+      "roomID": "location-vault-of-doors",
+      "castIDs": [
+        "professor-permancer",
+        "penny-blackletter"
       ]
     },
     {
@@ -4366,7 +4790,7 @@
               "consequenceTags": [
                 "count-unbound:november-soren-roof"
               ],
-              "braidText": "You suggested the glass roof with Soren. “I'd like to see it in the rain.” She unfolds the bird and writes back on its clean side."
+              "braidText": "You told Serenity to take Soren up on the glass roof. She said she'd like to see it in the rain, and wrote back on the clean side of his bird."
             },
             {
               "id": "wicker-conversation",
@@ -4377,7 +4801,7 @@
               "consequenceTags": [
                 "count-unbound:november-wicker-conversation"
               ],
-              "braidText": "You suggested a conversation with Wicker. “At the table. And he can answer the question I actually ask.” She gets a fresh card. It stays blank for a moment before she starts."
+              "braidText": "You told Serenity to ask Wicker for that conversation. She wanted it at the table, and she wanted him to answer the question she actually asked."
             },
             {
               "id": "own-evening",
@@ -4388,10 +4812,14 @@
               "consequenceTags": [
                 "count-unbound:november-own-evening"
               ],
-              "braidText": "You suggested an evening for Serenity herself. “I might.” She puts both things in the case and opens her map to somewhere neither of them has seen."
+              "braidText": "You told Serenity to have an evening of her own. “I might,” she said, and opened her map to somewhere neither of them had seen."
             }
           ]
         }
+      ],
+      "roomID": "location-book-burrow",
+      "castIDs": [
+        "serenity-brown"
       ]
     },
     {
@@ -4418,7 +4846,7 @@
           "body": "I found the two sentences again. One from the first look. One from the return.\n\n{two-looks}\n\nI have put them where they can see each other. If the thing stayed the same, I still have two looks. I will not scribble a miracle where there was none.",
           "prompt": "Keep this leaf.",
           "choices": [],
-          "braidText": "The Book placed your first and return sentences facing each other after Serenity named Nightbound.",
+          "braidText": "I put your first look and your second look facing each other.",
           "observationPairInsertion": {
             "contentID": "count-unbound.mission.go-back-once",
             "marker": "{two-looks}",
@@ -4455,7 +4883,7 @@
       "packID": "count-unbound-october-2026",
       "eventID": "count-unbound",
       "title": "An evening in November",
-      "opening": "October ended. It did not shut all the doors.\n\nSerenity made one plan before the last lesson was over. I tucked her answer beneath my ribbon. I have found it again.\n\nThis is the page she asked for first. First is not forever.",
+      "opening": "October's over. It didn't shut all its doors.\n\nSerenity made one plan before the last lesson. I tucked it under my ribbon so it wouldn't get lost, and now I've found it again.\n\nThis is the page she picked first. First isn't forever.",
       "prompt": "Open the page she chose.",
       "detail": "The Count Unbound · November residue",
       "choices": [],
@@ -4471,7 +4899,7 @@
         {
           "id": "count-unbound.relationship.november-occasion.entry",
           "title": "An evening in November",
-          "body": "October ended. It did not shut all the doors.\n\nSerenity made one plan before the last lesson was over. I tucked her answer beneath my ribbon. I have found it again.\n\nThis is the page she asked for first. First is not forever.",
+          "body": "October's over. It didn't shut all its doors.\n\nSerenity made one plan before the last lesson. I tucked it under my ribbon so it wouldn't get lost, and now I've found it again.\n\nThis is the page she picked first. First isn't forever.",
           "prompt": "Open the page she chose.",
           "choices": [
             {
@@ -4515,123 +4943,129 @@
         {
           "id": "count-unbound.relationship.november-occasion.soren",
           "title": "The glass roof",
-          "body": "Rain has made the glass roof a second sky. It is full of little falling lines.\n\nSoren is there with two cups and the paper bird. He has written no message on its clean wing.\n\n“You came,” he says.\n\n“I said I would.” Serenity takes a cup. “That was the hard part of the conversation.”\n\nHe laughs, then catches himself looking at her neck.\n\n“Ask,” she says.\n\n“Does it hurt?”\n\n“Not now. Sometimes a closed book sounds as if somebody is knocking from inside.”\n\nSoren puts his cup on the sill. He does not ask for a demonstration.\n\n“I could leave,” he says. “If you wanted quiet.”\n\n“The rain is loud enough to hide us both.”\n\nI press my corner against the glass. He offers her the bird, dry inside his coat. Her map case is at her feet. Its crooked clasp catches the light.\n\n“What do you want to tell him tonight?” she asks, almost as if she has forgotten I am listening.",
-          "prompt": "What should she offer?",
+          "body": "Rain has turned the glass roof into a second sky, full of little falling lines.\n\nSoren's there with two cups and the paper bird. He hasn't written anything on its clean wing.\n\n“You came,” he says.\n\n“I said I would.” Serenity takes a cup. “That was the hard part of the conversation.”\n\nHe laughs, then catches himself looking at her neck.\n\n“Ask,” she says.\n\n“Does it hurt?”\n\n“Not now. Sometimes a closed book sounds like someone knocking from inside.”\n\nSoren puts his cup on the sill. He doesn't ask her to prove it.\n\n“I could go,” he says. “If you want it quiet.”\n\n“The rain's loud enough to hide us both.”\n\nI press my corner to the glass. It's cold, and the rain is louder from this side. Soren takes the bird out of his coat, still dry. Her map case is at her feet. Its crooked clasp catches the light.\n\nSerenity looks at you, not at him.\n\n“What do I show him?”",
+          "prompt": "What does she show him?",
           "choices": [
             {
               "id": "soren-map",
-              "title": "Let him see one line of the map.",
-              "prompt": "Let him see one line of the map.",
-              "result": "She slides the case open. “Only this line. And do not draw on it.” Soren nods. He puts the bird beside her hand, not on the map.",
+              "title": "One line of the map.",
+              "prompt": "One line of the map.",
+              "result": "She slides the case open. “Only this line. And don't draw on it.” Soren nods. He puts the bird by her hand, not on the map.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-soren-trust"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.soren-after",
-              "braidText": "On the glass roof, Serenity showed Soren one line of her map on her own terms."
+              "braidText": "On the glass roof, Serenity showed Soren one line of her map. He put his bird by her hand, not on the map."
             },
             {
               "id": "soren-rain",
-              "title": "Keep the map closed and stay for the rain.",
-              "prompt": "Keep the map closed and stay for the rain.",
-              "result": "She closes the crooked clasp. “Tell me something about this roof that has nothing to do with me.” Soren points out the place where the rain runs uphill before it falls. She leans closer to see.",
+              "title": "Nothing. Just the rain.",
+              "prompt": "Nothing. Just the rain.",
+              "result": "She shuts the crooked clasp. “Tell me something about this roof that's got nothing to do with me.” Soren shows her where the rain runs uphill before it falls. She leans in to see.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-soren-ordinary"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.soren-after",
-              "braidText": "On the glass roof, Serenity kept her map closed and stayed with Soren for the rain."
+              "braidText": "On the glass roof, Serenity kept her map shut. Soren showed her where the rain ran uphill, and she leaned in to see."
             }
           ]
         },
         {
           "id": "count-unbound.relationship.november-occasion.soren-after",
           "title": "The glass roof",
-          "body": "When they leave, Soren gives her the bird. She tucks it under the map case strap instead of inside. The rain has softened one wing. I keep that crease. It is a beginning small enough to be true.",
+          "body": "When they go down, Soren gives her the bird. She tucks it under the strap of her map case, not inside. The rain has made one wing soft. I keep the crease.",
           "prompt": "Keep this leaf.",
           "choices": [],
-          "braidText": "Serenity spent an evening beneath the glass roof with Soren. He listened, and she chose what to share."
+          "braidText": "Serenity spent a wet evening under the glass roof with Soren. She came down with his bird tucked under her strap, one wing gone soft."
         },
         {
           "id": "count-unbound.relationship.november-occasion.wicker",
           "title": "At the table",
-          "body": "The Kitchens are empty except for a plate Ambrose has left beneath a cloth. Wicker sits at one end of the table. Serenity takes the other. She puts her map case between them, not as a bridge.\n\n“I thought one sentence could make him choose a harmless verb,” Wicker says.\n\n“You wrote a way for him to choose.”\n\n“I did.”\n\nHe keeps his hands on the table where she can see them. He is usually quick enough to make a joke before a hard word lands. I wait for one. None comes.\n\n“I was angry when you asked to take the anchor,” she says. “You kept trying to pay for what happened with yourself. That would have made another person carry you home.”\n\n“I know that now.”\n\n“You knew I said no.”\n\n“Yes.”\n\nThe cloth lifts at one corner. Ambrose has left two slices of pear tart. Neither reaches for it.\n\nWicker looks at the crooked clasp he fitted to her case. “I can fix that.”\n\n“It works.” She touches it once. “You can answer the question I came to ask. What will you do differently at the next door?”\n\nHe takes a breath. “Ask who has to live on the other side of it.”\n\nShe does not forgive him. She does not leave. That is the length of this table tonight.\n\nShe looks down at the blank back of her map. What should the next line between them be?",
-          "prompt": "What should come next?",
+          "body": "The Kitchens are empty except for a plate Ambrose has left under a cloth. Wicker sits at one end of the table. Serenity takes the other. She puts her map case in the middle, where neither of them can reach it without standing up.\n\n“I thought one sentence could make him choose a harmless verb,” Wicker says.\n\n“You wrote a way for him to choose.”\n\n“I did.”\n\nHe keeps his hands flat on the table where she can see them. Usually he's got a joke ready before a hard word lands. I wait for one. Nothing comes.\n\n“I was angry when you asked to take the anchor,” she says. “You kept trying to pay for it with yourself. Then someone else would've had to carry you home.”\n\n“I know that now.”\n\n“You knew I'd said no.”\n\n“Yes.”\n\nThe cloth lifts at one corner. Ambrose has left two slices of pear tart. Nobody reaches for them.\n\nWicker looks at the crooked clasp he put on her case. “I can fix that.”\n\n“It works.” She touches it once. “You can answer the question I came to ask. What will you do differently at the next door?”\n\nHe takes a breath. “Ask who has to live on the other side of it.”\n\nShe doesn't forgive him. She doesn't leave either. The tart sits between them.\n\nShe turns her map over to its blank back and looks at you.",
+          "prompt": "What does she ask him for?",
           "choices": [
             {
               "id": "wicker-work",
-              "title": "Ask him to help revise the door notice, at separate ends of the table.",
-              "prompt": "Ask him to help revise the door notice, at separate ends of the table.",
-              "result": "She pushes a blank card halfway across. “The next door needs two sides checked. Start with the side you never saw.” Wicker picks up his pencil. Neither moves closer.",
+              "title": "Help with the door notice, from his end.",
+              "prompt": "Help with the door notice, from his end.",
+              "result": "She pushes a blank card halfway across. “The next door needs both sides checked. Start with the side you never saw.” Wicker picks up his pencil. Neither of them moves closer.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-wicker-work"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.wicker-after",
-              "braidText": "Serenity asked Wicker to help revise the door notice, with a boundary between their chairs."
+              "braidText": "Serenity asked Wicker to help rewrite the door notice. He stayed at his end of the table, and she stayed at hers."
             },
             {
               "id": "wicker-space",
-              "title": "Ask him to leave the clasp and give her more time.",
-              "prompt": "Ask him to leave the clasp and give her more time.",
-              "result": "“That answers one question,” she says. “I have others. Not tonight.” Wicker stands. At the doorway he looks at the crooked clasp, but keeps his hand down. “All right.”",
+              "title": "Leave the clasp. Give her time.",
+              "prompt": "Leave the clasp. Give her time.",
+              "result": "“That answers one question,” she says. “I've got others. Not tonight.” Wicker stands. At the door he looks at the crooked clasp, but he keeps his hand down. “All right.”",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-wicker-space"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.wicker-after",
-              "braidText": "Serenity asked Wicker for more time after their first honest conversation."
+              "braidText": "Serenity asked Wicker to leave the clasp alone and give her time. He said all right and kept his hand down."
             }
           ]
         },
         {
           "id": "count-unbound.relationship.november-occasion.wicker-after",
           "title": "At the table",
-          "body": "The tart is still on the table. Serenity takes one slice upstairs. I do not write forgiveness in the margin. I write that Wicker answered her question and let her answer be hers.",
+          "body": "The tart is still on the table. Serenity takes one slice upstairs. The other stays under the cloth. I don't write forgiveness in my margin. Nobody said it. I write down his answer instead.",
           "prompt": "Keep this leaf.",
           "choices": [],
-          "braidText": "Wicker answered Serenity at the Kitchens table. She kept the next step on her own terms."
+          "braidText": "At the Kitchens table, Wicker answered Serenity's question. Nobody forgave anybody. She took one slice of tart upstairs."
         },
         {
           "id": "count-unbound.relationship.november-occasion.own",
           "title": "A greenhouse evening",
-          "body": "Serenity takes the path behind the greenhouses. Neither folded bird nor repaired map case is a summons. She has brought both because they are hers.\n\nThe little greenhouse is still warm from the day. A moth is asleep on the watering can. She sits beside it and takes out a card.\n\nOn one side she draws the pantry door. On the other, the path she took here. She can hear a page turning somewhere no one else can hear it. She lets it turn.\n\nPenny stops outside with two paper cups. “I can leave one,” she says. “Or both.”\n\nSerenity opens the door a little. “You have exactly one minute to tell me whether the Vault notices are still arguing.”\n\n“Seven minutes. Permancer used a colon.”\n\nSerenity laughs and takes a cup. Penny waits. Serenity has an evening of her own, whether or not she shares some of it.\n\nShe looks at the second chair, then at the empty path. Which part of the evening should I keep?",
+          "body": "Serenity takes the path behind the greenhouses on her own. Soren's bird is in one pocket. The map case bumps her hip. Neither of them gets a say tonight.\n\nThe little greenhouse is still warm from the day. There are two chairs, and a moth asleep on the watering can. She sits beside it and takes out a card.\n\nOn one side she draws the pantry door. On the other, the path that brought her here. Somewhere nobody else can hear, a page turns. She lets it.\n\nPenny stops outside with two paper cups. “I can leave one,” she says. “Or both.”\n\nSerenity opens the door a crack. “You've got exactly one minute to tell me if the Vault notices are still arguing.”\n\n“Seven minutes. Permancer used a colon.”\n\nSerenity laughs and takes a cup. Penny stays on the step.\n\nSerenity looks at the second chair, then at the dark path home. I want to keep one of them.",
           "prompt": "Which part should I keep?",
           "choices": [
             {
               "id": "own-penny",
-              "title": "Keep the chair Penny takes.",
-              "prompt": "Keep the chair Penny takes.",
-              "result": "“You can stay,” Serenity says. “But no more colons.” Penny sits. They spend the next hour inventing terrible names for the moth.",
+              "title": "Penny in the second chair.",
+              "prompt": "Penny in the second chair.",
+              "result": "“You can stay,” Serenity says. “No more colons.” Penny sits. They spend the next hour giving the moth terrible names.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-own-friendship"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.own-after",
-              "braidText": "Serenity shared part of her greenhouse evening with Penny and kept the choice to herself."
+              "braidText": "Serenity let Penny into the greenhouse. They spent an hour giving a sleeping moth terrible names."
             },
             {
               "id": "own-solitude",
-              "title": "Keep the path home alone.",
-              "prompt": "Keep the path home alone.",
-              "result": "“Take the other cup to Ambrose,” Serenity says. Penny nods and leaves. Serenity finishes drawing the path on the back of the card. It has a return arrow.",
+              "title": "The walk home alone.",
+              "prompt": "The walk home alone.",
+              "result": "“Take the other cup to Ambrose,” Serenity says. Penny nods and goes. Serenity finishes drawing the path on the back of the card. She gives it an arrow pointing home.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:november-own-solitude"
               ],
               "nextNodeID": "count-unbound.relationship.november-occasion.own-after",
-              "braidText": "Serenity kept the greenhouse evening and its return path for herself."
+              "braidText": "Serenity sent Penny back with the other cup and walked home alone. She drew the path on a card, with an arrow pointing home."
             }
           ]
         },
         {
           "id": "count-unbound.relationship.november-occasion.own-after",
           "title": "A greenhouse evening",
-          "body": "The moth has not moved. Serenity closes the greenhouse door gently so it can keep sleeping. Her evening belongs to her. I had better not put a name on it that she did not choose.",
+          "body": "The moth hasn't moved. Serenity shuts the greenhouse door gently so it can keep sleeping. I'm not giving her evening a name. She didn't give it one.",
           "prompt": "Keep this leaf.",
           "choices": [],
-          "braidText": "Serenity took an evening of her own in the greenhouse after October."
+          "braidText": "Serenity spent an evening in the little greenhouse with a sleeping moth. It was hers."
         }
+      ],
+      "roomID": "location-kitchens",
+      "castIDs": [
+        "serenity-brown",
+        "soren-ng",
+        "wicker-eddies"
       ]
     },
     {
@@ -4658,7 +5092,7 @@
           "body": "Ambrose kept the Count’s place card. His name is on the front. On the back, a small ring where the soup bowl stood. Ambrose turned it over when the table was cleared. I have kept it that way.",
           "prompt": "Keep this trace.",
           "choices": [],
-          "braidText": "The Book kept the turned-down place card after the terms return, alongside your October finding."
+          "braidText": "I kept the Count's place card from the terms supper, turned face down, beside your October sentence."
         }
       ]
     },
@@ -4686,7 +5120,7 @@
           "body": "The Vault made this from the brass round the old doorway. IN at one end. OUT at the other. Penny checked both. Then she checked what happened when she turned it over.",
           "prompt": "Keep this trace.",
           "choices": [],
-          "braidText": "The Book kept the two-sided bookmark after the rule return, alongside your October finding."
+          "braidText": "I kept the two-sided bookmark from the rule return, beside your October sentence."
         }
       ]
     },
@@ -4714,12 +5148,12 @@
           "body": "One fold stayed out when the room went home. There is a bit of window on it, and a thumb mark where Wicker waited. Hold it up. The paper still remembers how to bend.",
           "prompt": "Keep this trace.",
           "choices": [],
-          "braidText": "The Book kept the paper hinge after the ruse return, alongside your October finding."
+          "braidText": "I kept the fold of paper hinge that stayed out when Wicker's room went home, beside your October sentence."
         }
       ]
     }
   ],
-  "minimumRuntimeVersion": 9,
+  "minimumRuntimeVersion": 10,
   "marginalia": [
     {
       "id": "count-unbound.margin.listening-door",
@@ -4965,7 +5399,7 @@
       "eventID": "count-unbound",
       "title": "Serenity Brown Awake",
       "byline": "Penny Blackletter",
-      "body": "Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used the wound to hold himself in Academy space.\n\nBrown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose. No further injury has been reported.\n\nPermancer has confirmed that he opened the return invitation. Eddies has confirmed his alteration to the source. Both are assisting the investigation.",
+      "body": "Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used her to hold himself inside the Academy.\n\nBrown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose. No further injury has been reported.\n\nPermancer has confirmed that he opened the return invitation. Eddies has confirmed his alteration to the source. Both are assisting the investigation.",
       "editionKinds": [
         "morning",
         "evening"

@@ -47,6 +47,32 @@ requires an external event or a later release rehearsal.
 
 ## Separate release and content work
 
+### Canada and United Kingdom reader launch (September 25 check)
+
+The free Book and open monthly story can be offered in Canada and the United
+Kingdom without enabling physical checkout. App Store Connect availability is
+still a separate release setting; it has not been changed here. The shipping
+form now starts with the device's country code and labels province/postal code
+or county/postcode appropriately. Prices and payment remain in USD test mode.
+
+The deployed Worker accepted no-charge Lulu sandbox quotes for premium-color
+92-page monthly softcovers in Toronto and London. Their manufacturing cost was
+$14.77 each; Mail was $12.25 to Toronto and $5.22 to London. A 112-page seasonal
+softcover quoted in both countries. London's 208-page linen annual also quoted.
+Toronto's linen annual returned `physical_book_request_failed` at both 92 and
+208 pages, and a 208-page Vancouver linen quote failed the same way, while a
+208-page Toronto illustrated hardcover quoted. This identifies a
+current Canadian Bound Year blocker, not its cause; do not silently change the
+promised annual binding. These quotes used synthetic addresses and created no
+payment, print job, or tax registration. They do not establish live Lulu
+availability, customer tax, customs treatment, or contribution margin.
+
+Before international physical sales: resolve Canada's linen binding with Lulu;
+rehearse actual Canadian and UK PDF/package combinations; configure and verify
+applicable Stripe Tax and business obligations; check delivered totals and
+support/refund copy in each destination; then inspect physical proofs. Keep the
+existing checkout-mode and live-sales gates closed meanwhile.
+
 - Apple developer enrollment, App Store Connect configuration, real Apple Sandbox
   purchase/restore/refund and production verification.
 - Live Stripe/Lulu credentials, business tax/customs settings and deliberate

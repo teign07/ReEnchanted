@@ -46,8 +46,11 @@ final class BookTodayTests: XCTestCase {
         )
 
         XCTAssertEqual(edition.form, .weatherMap)
-        XCTAssertTrue(edition.headline.contains("Fog along the harbor"))
+        // The forecast is written out once, in the At the Windows beat. The headline never carries it.
+        XCTAssertFalse(edition.headline.contains("Fog along the harbor"))
         XCTAssertEqual(edition.beats.first?.kind, .atTheWindows)
+        XCTAssertTrue(edition.beats.first?.line.contains("Fog along the harbor. 61°F.") == true)
+        XCTAssertEqual(edition.beats.filter { $0.line.contains("Fog along the harbor") }.count, 1)
         XCTAssertEqual(edition.beats.first?.symbolName, "cloud.fog")
         XCTAssertFalse(edition.reading.localizedCaseInsensitiveContains("score"))
         XCTAssertFalse(edition.reading.localizedCaseInsensitiveContains("page ready"))

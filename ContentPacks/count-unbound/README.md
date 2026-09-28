@@ -1,6 +1,8 @@
-# The Count Unbound: implementation draft
+# The Count Unbound: published October issue
 
-This is an unpublished partial October issue. The editorial source is
+Published to the monthly shelf on September 27, 2026 as `count-unbound-2026-10`.
+The signed manifest and all 37 currently available Reader downloads match the
+release; the December casebook is correctly withheld. The editorial source is
 `docs/count-unbound-creator-pack.md`; the September 20 product decision supersedes
 its extra sentence-permission controls: submitting a sentence makes it material
 for the Reader's story, braid, and printed books. Reader words and Book-authored
@@ -32,7 +34,11 @@ fiction retain separate provenance.
 | An evening in November | Nov 1–7 residue | Only the suggested occasion opens; one further choice records its consequence |
 
 The supervised Jump uses the real BookJumpEngine and expires at the start of
-October 8. The class ribbon works without a personal finding. Selected anchors
+October 8. Its unfinished invitation gets a fresh automatic offer each day from
+October 4 through October 7; merely serving or opening it does not retire it.
+Completion or explicit dismissal closes it. Each node offers once per day, while
+node advancement can continue immediately in the same sitting. The class ribbon
+works without a personal finding. Selected anchors
 come from actual recent Reader sentence contributions. Saved nodes resume their
 chosen route; Keep and Trash retire content through durable receipts.
 
@@ -49,11 +55,13 @@ Earlier revisions introduced the opened ending's continuation window (runtime
 cross-scene choice carry-forward, authored finding insertion, and observation
 revisits. Older runtimes must not silently ignore these behaviors.
 
-This revision requires runtime 9: a finding-based Gambit option appears only
+Runtime 9 introduced the finding-based Gambit option, which appears only
 while its kept Reader sentence is available; the later two-looks leaf quotes
 only an actual paired return. The three relic leaves require a completed
 pre-climax finding and the corresponding final method. The October suggestion
 carries to one November residue scene without deciding Serenity's partner.
+This issue now requires runtime 10 so a sentence kept directly from a mission
+return is archived as Reader-authored evidence for those later callbacks.
 `paper.editionplay.json` and its generated, path-verified maze are delivered
 as small publication assets, retained after the live issue retires. The weekly
 premiere and October monthly edition may
@@ -109,13 +117,46 @@ The draft does not sign, upload, or publish anything. With all atoms ready,
 run the shared `prepare_monthly_release.py` and signer
 against a fresh staged directory and the chosen private Worker origin.
 
-Still required: a full app walkthrough of
-the interrupted-climax recovery;
-Radio listening/caption and device checks for Bleed, letters, classes, and residue; complete app
-walkthroughs, generated-braid quality, and customer physical-edition proof. The
-four phase plans and production-count checks are in place; release validation
-now passes with the five recordings. Synthetic monthly and seasonal interiors establish
-the paired-observation layout, and older kept observations are searchable. The pack
-remains unpublished despite passing full-issue release validation. It is neither bundled
-nor remotely published. Local StoreKit rehearsals are not App Store billing
+The September 27 signed candidate passed full-issue release validation and the
+publisher dry run verifies all 38 assets. Production Gemma has generated a Count
+braid on Rabbit; its Reader sentence and authored passages survived an isolated
+SwiftData save/reload and the app's weekly/monthly/seasonal/annual PDF writers.
+Exact protected-passage duplication discovered there is fixed and covered by a
+regression test. See `REHEARSAL.md` for the distinction between new inference
+and the publication-only replay, and for rendered-page evidence.
+
+The five authored Radio breaks may recur with regular station mixing during
+their own windows; a one-hour cooldown prevents immediate repetition. Wicker's
+repeat and expiry passed a simulator walkthrough. The combined September 27
+Release player, including the latest Curator and print changes, is installed
+and visibly launched on Rabbit. A physical listening review remains open.
+
+September 27 ordinary-discovery QA promoted the Sunday Book Jump to the issue's
+milestone and repaired Curator reservation and launch stabilization. The current
+pack SHA-256 is `7fce1b1ef2bbc4935322c0ffa951db9b567d40c0e8f86b12c42800f88c1056c6`;
+the matching candidate is now signed at
+`~/.reenchanted-publishing/releases/2026-09-27-count-unbound-2026-10-candidate`.
+Its runtime asset matches the source byte for byte and was published with the
+other 37 signed assets on September 27. The playable
+Sunday entry reached the ninth Page of a fresh post-guidance QA folio through
+ordinary page turns, with both entry choices available. See `REHEARSAL.md` for
+the temporary calendar shift and limits of that proof.
+
+Terms/Hunt finding callbacks, carried climax choices, and the Terms/Rule relics
+now pass isolated app walkthroughs, including Keep and retirement on relaunch.
+The actual saved callbacks and relics also pass the app's four edition PDF writers
+and rendered-page review. That proof repaired duplicate event prose, background
+scraps crossing narrow print text, long-story clipping, and crowded weekly excerpts.
+Remaining Reader follow-up: repeated-day missed-beat behavior and human listening
+to the Count Radio recordings on a device. Sunday, Monday, and the closing
+boundary have app evidence. Playback, fallback, repeat, and
+expiry have already passed simulator rehearsals. The ordinary Reader-operated
+nightly save now passes in an isolated two-day QA library; sustained October
+cadence remains unproven.
+One fresh Release fixture on Rabbit took 29.7 seconds for Gemma generation and
+32.2 seconds through archive and PDF exports, with nominal thermal state. This
+does not establish sustained multi-night performance. Customer manufacturing proof belongs to physical-publishing
+readiness; no customer print is established by the local PDFs. The pack is
+remotely published and is not bundled into the app. This content publication
+does not release the app to the App Store or enable live billing. Local StoreKit rehearsals are not App Store billing
 verification and create no real charge.

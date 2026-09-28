@@ -180,7 +180,6 @@ enum BookTodayProjector {
             headline: headline(
                 intention: intention,
                 event: event,
-                weather: weather,
                 mark: mark,
                 hour: hour
             ),
@@ -200,26 +199,17 @@ enum BookTodayProjector {
         )
     }
 
+    /// The headline is shown twice (shelf subtitle and banner epigraph), both
+    /// line-clipped, so it never carries the weather. The At the Windows beat
+    /// is the one place the forecast is written out in full.
     private static func headline(
         intention: BookSessionIntention?,
         event: ResolvedWorldEvent?,
-        weather: String?,
         mark: String?,
         hour: Int
     ) -> String {
         if let event {
             return "\(event.title) has got into my Stacks."
-        }
-        if let weather {
-            let condition = weather
-                .split(separator: ".")
-                .first
-                .map(String.init)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if let mark {
-                return "\(condition ?? "The outer weather's got under my cover"). \(capitalized(mark))."
-            }
-            return "\(condition ?? "The outer weather's got under my cover")."
         }
         if let live = intention?.liveOpportunity {
             return liveOpportunityHeadline(live.kind)

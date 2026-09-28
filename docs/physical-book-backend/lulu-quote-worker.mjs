@@ -941,6 +941,9 @@ const EDITION_PAGE_CAPS = new Map([
   ["annual", 208],
   ["special", 208],
 ]);
+// Older clients omit editionKind. They retain their legacy price floor but
+// cannot use that omission to order an unbounded premium-color book.
+const LEGACY_EDITION_PAGE_CAP = Math.max(...EDITION_PAGE_CAPS.values());
 
 // A gift buys the whole edition, never more than its cap.
 const GIFT_PRESS_PAGE_COUNTS = new Map([
@@ -3213,9 +3216,9 @@ function canonicalQuoteRequest(request) {
     throw new HTTPError(400, "unsupported_page_count", "That binding cannot hold this many pages.");
   }
   const editionKind = canonicalEditionKind(request.editionKind);
-  const editionCap = editionKind ? EDITION_PAGE_CAPS.get(editionKind) : null;
-  if (editionCap && request.pageCount > editionCap) {
-    throw new HTTPError(400, "edition_too_long", `A ${editionKind} edition prints at most ${editionCap} pages.`);
+  const editionCap = editionKind ? EDITION_PAGE_CAPS.get(editionKind) : LEGACY_EDITION_PAGE_CAP;
+  if (request.pageCount > editionCap) {
+    throw new HTTPError(400, "edition_too_long", `This edition prints at most ${editionCap} pages.`);
   }
   if (String(request.currencyCode || "").toUpperCase() !== "USD") {
     throw new HTTPError(400, "unsupported_currency", "Physical Books are currently quoted in USD.");

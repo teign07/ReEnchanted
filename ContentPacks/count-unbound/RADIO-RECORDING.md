@@ -1,6 +1,6 @@
 # Count Unbound recording sheet
 
-Status: five recordings have been delivered, compressed for the monthly pack, and marked `ready`. The issue remains unpublished. The captions still need a listening check against the recorded speech and a device playback rehearsal.
+Status: five recordings have been delivered, compressed for the monthly pack, and published with the September 27 issue. The captions still need a listening check against the recorded speech and a device playback rehearsal.
 Use the existing character voices. Record speech separately from effects; stage directions are not spoken.
 The delivery copies are in `ContentPacks/count-unbound/audio/` with the exact filenames in `docs/count-unbound-media-production.md`. The stable content ID stays in the JSON; the separate `count-unbound.audio.*` ID identifies the replaceable recording. Duration and asset digest come from the delivered files; the final audio URL is assigned only during release preparation.
 

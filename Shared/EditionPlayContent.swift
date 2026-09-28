@@ -77,6 +77,46 @@ struct EditionPlayLeaf: Codable, Equatable, Identifiable {
     var weeklyRotationIndex: Int? = nil
 }
 
+extension EditionPlayPrompt {
+    /// `writingLines` and `note` may be left out of an authored pack.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        label = try values.decode(String.self, forKey: .label)
+        writingLines = try values.decodeIfPresent(Int.self, forKey: .writingLines) ?? 1
+        note = try values.decodeIfPresent(String.self, forKey: .note)
+    }
+}
+
+extension EditionPlayLeaf {
+    /// Every field with a default may be left out of an authored pack. The
+    /// synthesized decoder would demand them anyway, and one leaf without
+    /// `eventOutcomeIDs` once kept a whole month off every reader's shelf:
+    /// installs are all-or-nothing, so one pack that won't decode rolls the
+    /// issue back.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        title = try values.decode(String.self, forKey: .title)
+        contentsListing = try values.decode(String.self, forKey: .contentsListing)
+        instruction = try values.decode(String.self, forKey: .instruction)
+        form = try values.decode(EditionPlayForm.self, forKey: .form)
+        cadence = try values.decode(PublicationEditionKind.self, forKey: .cadence)
+        templateSlot = try values.decode(EditionPlayTemplateSlot.self, forKey: .templateSlot)
+        footprint = try values.decode(EditionPlayFootprint.self, forKey: .footprint)
+        eventPhaseIDs = try values.decodeIfPresent([String].self, forKey: .eventPhaseIDs) ?? []
+        eventOutcomeIDs = try values.decodeIfPresent([String].self, forKey: .eventOutcomeIDs) ?? []
+        body = try values.decodeIfPresent(String.self, forKey: .body)
+        prompts = try values.decodeIfPresent([EditionPlayPrompt].self, forKey: .prompts) ?? []
+        options = try values.decodeIfPresent([String].self, forKey: .options) ?? []
+        answerKey = try values.decodeIfPresent(String.self, forKey: .answerKey)
+        assetName = try values.decodeIfPresent(String.self, forKey: .assetName)
+        accessibilityDescription = try values.decodeIfPresent(String.self, forKey: .accessibilityDescription)
+        availableMonths = try values.decodeIfPresent([Int].self, forKey: .availableMonths)
+        weeklyRotationIndex = try values.decodeIfPresent(Int.self, forKey: .weeklyRotationIndex)
+    }
+}
+
 struct EditionPlayContentPack: Codable, Equatable, Identifiable {
     var id: String
     var version: Int

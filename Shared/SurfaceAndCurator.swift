@@ -3719,10 +3719,6 @@ enum BookCurator {
         let visibleLimit = min(3, max(0, limit))
         guard visibleLimit > 0,
               !context.distress.isActive,
-              !picked.contains(where: {
-                  $0.payload.metadata["bookCurationDirectiveID"] != nil
-                      || $0.payload.metadata["bookCampaignID"] != nil
-              }),
               FirstRunPageSequence.surfaces(
                   for: day,
                   context: context,
@@ -3784,6 +3780,10 @@ enum BookCurator {
                 with: incoming,
                 visibleLimit: visibleLimit,
                 intention: intention
+            ) ?? replacingVisibleIssueVictim(
+                in: result, with: incoming,
+                visibleLimit: min(limit, BookDeskRound.reserveCapacity),
+                intention: intention
             ) ?? picked
         }
         if currentIndex < visibleLimit { return result }
@@ -3792,6 +3792,10 @@ enum BookCurator {
             in: result,
             for: incoming,
             visibleLimit: visibleLimit,
+            intention: intention
+        ) ?? visibleIssueVictimIndex(
+            in: result, for: incoming,
+            visibleLimit: min(limit, BookDeskRound.reserveCapacity),
             intention: intention
         ) else { return picked }
         result.swapAt(currentIndex, victim)
@@ -3832,18 +3836,26 @@ enum BookCurator {
             }
         }
         func protected(_ page: SurfacePage) -> Bool {
-            page.isDeskMilestone
+            let soleDirective = page.payload.metadata["bookCurationDirectiveID"] != nil
+                && indices.filter { picked[$0].payload.metadata["bookCurationDirectiveID"] != nil }.count == 1
+            return page.isDeskMilestone
                 || holdsItsChair(page)
                 || page.type == .bookOfYou
                 || page.carriesEarnedReaderTrace
                 || page.payload.metadata["curatorPreparedArtifact"] == "true"
-                || page.payload.metadata["bookCurationDirectiveID"] != nil
+                || soleDirective
                 || page.payload.metadata["bookCampaignID"] != nil
                 || intention?.liveOpportunity?.matches(page) == true
                 || soleProtectedBeat(page)
         }
         func preservesPressureBudget(replacing index: Int) -> Bool {
-            let remaining = indices.filter { $0 != index }.map { picked[$0] }
+            // Each three-Page act has its own pressure budget. If the opening
+            // holds protected Reader work, the issue may use a later chair in
+            // the same nine-Page folio rather than vanish into the bench.
+            let act = index / BookDeskRound.openingCapacity
+            let remaining = indices.filter {
+                $0 != index && $0 / BookDeskRound.openingCapacity == act
+            }.map { picked[$0] }
             let askCount = remaining.filter(\.spendsCuratorAskBudget).count
                 + (incoming.spendsCuratorAskBudget ? 1 : 0)
             let actionCount = remaining.filter(\.spendsCuratorActionBudget).count
@@ -5571,6 +5583,13 @@ enum BookCurator {
             uniquingKeysWith: { first, _ in first }
         )
         var desk = previous.map { shown -> SurfacePage in
+            // All authored narrative scenes share one source/type slot. A
+            // quick launch can publish one scene, record its delivery, then
+            // enrich the bench with a different scene in that same slot.
+            // Keep the encounter already placed in the reader's binding.
+            if shown.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                return shown
+            }
             guard let fresh = rebuiltByKey[shown.deskSlotKey] else { return shown }
             return fresh.contentMatches(shown) ? shown : fresh
         }
@@ -9768,10 +9787,13 @@ struct CuratorMood {
             let isActiveJump = page.type == .bookJump
                 && page.payload.metadata["bookJumpAction"] != BookJumpAction.start.rawValue
                 && page.payload.metadata["bookJumpAction"] != nil
-            // World events run on real, limited dates: the season's front
-            // door must not wait for a stage a new reader can't reach in time.
+            // World events run on real, limited dates: neither their front
+            // door nor an eligible authored scene can wait for a stage a new
+            // reader cannot reach before the scene's window closes.
             let isWorldEventDoor = page.sourceID == "world-event-door"
-            if !isActiveJump && !isWorldEventDoor { return false }
+            let isBoundedAuthoredScene = page.belongsToAuthoredIssue
+                && page.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
+            if !isActiveJump && !isWorldEventDoor && !isBoundedAuthoredScene { return false }
         }
         guard isFirstHours else { return true }
         if page.type == .bookJump,

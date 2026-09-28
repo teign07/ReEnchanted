@@ -4423,14 +4423,22 @@ enum MonthlyEditionPDFWriter {
                 drawText(caption, font: .serifItalicFont(ofSize: 9), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 6)
             }
         }
-        drawText(
-            item.body,
-            font: .serifFont(ofSize: 11, weight: .regular),
-            color: style.palette.ink.withAlphaComponent(0.92),
-            cursor: &cursor,
-            spacingAfter: 6
-        )
+        let bodyFont = UIFont.serifFont(ofSize: 11, weight: .regular)
+        let bodyHeight = max(24, cursor.bottom - cursor.y - 6)
+        let bodyLeaves = observationTextLeaves(item.body, font: bodyFont,
+            width: cursor.contentWidth, height: bodyHeight)
+        for (index, text) in bodyLeaves.enumerated() {
+            if index > 0 {
+                beginComposedPage(context, style: style, cursor: &cursor)
+                drawText("\(item.title) — continued", font: .systemFont(ofSize: 12, weight: .bold),
+                    color: style.palette.ink, cursor: &cursor, spacingAfter: 4)
+            }
+            drawText(text, font: bodyFont, color: style.palette.ink.withAlphaComponent(0.92),
+                cursor: &cursor, spacingAfter: 6)
+        }
         if let contextNote = item.contextNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            ensureSpace(measuredTextHeight(contextNote, font: .serifItalicFont(ofSize: 8.8),
+                width: cursor.contentWidth) + 7, style: style, context: context, cursor: &cursor)
             drawText(
                 contextNote,
                 font: .serifItalicFont(ofSize: 8.8),
@@ -4440,6 +4448,7 @@ enum MonthlyEditionPDFWriter {
             )
         }
         if let image = retainedMarkImage(from: item.mediaAssets) {
+            ensureSpace(86, style: style, context: context, cursor: &cursor)
             drawRetainedMark(image, cursor: &cursor)
         }
 
@@ -5069,7 +5078,10 @@ enum MonthlyEditionPDFWriter {
         // Weekly issues now reserve their rails for actual marginalia from the
         // cabinet. The historical anonymous scraps remain available to older
         // edition layouts, but cannot drift beneath a narrow 6 x 9 text column.
-        guard includesFragments else { return }
+        // Six-by-nine interiors do not have the reading copy's 120-point
+        // gutter. Cabinet marginalia uses measured rails; these anonymous
+        // background scraps must stay out of the narrower prose column.
+        guard includesFragments, bounds.width >= 600 else { return }
 
         // Composted fragments in the left gutter and corners - never in the text
         // column (x >= 120). One or two scraps of tape and torn paper per page.
@@ -5357,7 +5369,7 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    private static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+    fileprivate static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         let attributes: [NSAttributedString.Key: Any] = [
@@ -7848,9 +7860,18 @@ enum WeeklyIssuePDFWriter {
                 (cursor, side) = beginLeaf(section: "Kept Alongside \(weekday)", kind: .reading, signedMargin: true)
                 heading("The other scraps", cursor: &cursor, size: 21)
                 do {
-                    for page in alongside.prefix(4) {
+                    let excerpts = Array(alongside.prefix(4))
+                    for (index, page) in excerpts.enumerated() {
+                        let labelHeight = Monthly.measuredTextHeight(page.bindingDisplayTitle.uppercased(),
+                            font: .systemFont(ofSize: 7.6, weight: .heavy), width: cursor.contentWidth) + 4
+                        let share = (cursor.bottom - cursor.y) / CGFloat(excerpts.count - index)
+                        let available = share - labelHeight - 12
+                        guard available >= 20 else { break }
                         label(page.bindingDisplayTitle, cursor: &cursor, after: 4)
-                        body(cleanBody(page), cursor: &cursor, limit: 420, size: 10.7)
+                        let excerpt = fittedExcerpt(cleanBody(page), limit: 420,
+                            font: .serifFont(ofSize: 10.7, weight: .regular),
+                            width: cursor.contentWidth, height: available)
+                        body(excerpt, cursor: &cursor, limit: Int.max, size: 10.7)
                     }
                 }
                 if let dayMark, cursor.bottom - cursor.y >= 90 {
@@ -8677,6 +8698,22 @@ enum WeeklyIssuePDFWriter {
         let cut = trimmed.prefix(limit)
         let atWord = cut.lastIndex(where: { $0 == " " || $0 == "\n" }).map { cut[..<$0] } ?? cut
         return String(atWord).trimmingCharacters(in: .whitespacesAndNewlines) + "\u{2026}"
+    }
+
+    /// Alongside scraps are glances, each sharing a fixed magazine leaf.
+    /// Measure with the actual print font rather than treating characters as
+    /// height; paragraph breaks otherwise let several short keeps overflow.
+    private static func fittedExcerpt(_ text: String, limit: Int, font: UIFont,
+                                      width: CGFloat, height: CGFloat) -> String {
+        let prose = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        var low = 0, high = min(limit, prose.count)
+        while low < high {
+            let middle = (low + high + 1) / 2
+            if Monthly.measuredTextHeight(clamp(prose, limit: middle), font: font, width: width) <= height {
+                low = middle
+            } else { high = middle - 1 }
+        }
+        return clamp(prose, limit: low)
     }
 
     private static func physicalTextChunks(

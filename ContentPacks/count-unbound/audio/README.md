@@ -10,4 +10,4 @@ The five delivered recordings are here under these exact filenames. The spoken c
 | Wicker, one sentence | `DJ_thornwave_count_unbound_one_sentence_01.mp3` |
 | Penny, protocols | `DJ_faefi_count_unbound_protocols_01.mp3` |
 
-The October JSON contains captions and stable media IDs, and all five atoms are marked `ready`. Release preparation computes each file's actual bytes and SHA-256 digest. A listening check of speech against captions and device playback are still required before publication.
+The October JSON contains captions and stable media IDs, and all five atoms are marked `ready`. The September 27 publication verified the recordings' actual bytes and SHA-256 digests through the Reader download route. A listening check of speech against captions and device playback remains open follow-up work.

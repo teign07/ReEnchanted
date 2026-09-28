@@ -1930,6 +1930,45 @@ enum BraidPointOfView {
     }
 }
 
+/// Words the 2B model reaches for on almost every night, taken off its tongue
+/// while it writes the braid.
+///
+/// Asked nicely, the model copies whatever it is shown, so these are never
+/// named in the brief: the generator masks their tokens instead. On the Mac
+/// mirror of the phone, 84 of 100 tellings carried at least one ("dust
+/// motes", "shimmer", "dancing", "trapped" stars, "iridescent"); masked, 36
+/// of 100, and those were nearly all "a strange". Nothing else moved:
+/// closings, point of view and word band held (2026-09-27).
+enum BraidWornImages {
+    /// Masked wherever the model would start them. Only a word that is a
+    /// single token can be masked this way; the generator skips any other.
+    static let words = [
+        " shimmer", " shimmering", " iridescent", " ethereal", " glimmer", " tapestry",
+        " mote", " dance", " dances", " dancing", " danced", " trapped", " hazy", " strangely",
+        // The brief's own machinery, and an essayist's verbs.
+        " vignette", " subplot", " observed", " remarkable"
+    ]
+
+    /// Masked only straight after the word before it: "dust" is a fine word,
+    /// and "motes" is two tokens whose first one starts other words.
+    static let pairs: [(after: String, word: String)] = [
+        (" dust", " motes"),
+        (" Dust", " motes")
+    ]
+
+    /// What to mask for one brief. A worn word the brief itself carries is
+    /// spared, because it came from the reader's day or the world's, and a
+    /// reader who went dancing has to be allowed to have gone dancing.
+    static func masked(sparing brief: String) -> (words: [String], pairs: [(after: String, word: String)]) {
+        let lower = brief.lowercased()
+        func carried(_ word: String) -> Bool {
+            let bare = NSRegularExpression.escapedPattern(for: word.trimmingCharacters(in: .whitespaces).lowercased())
+            return lower.range(of: "\\b\(bare)\\b", options: .regularExpression) != nil
+        }
+        return (words.filter { !carried($0) }, pairs.filter { !carried($0.word) })
+    }
+}
+
 enum BraidNarrativeOutput {
     private static let paragraphControl = "PARAGRAPH"
 
@@ -2209,6 +2248,12 @@ enum BraidNarrativeOutput {
             "let sentences lead into each other instead of repeating each item",
             "return only the finished body, with no title",
             "write tonight's page as one continuous story vignette in flowing prose",
+            "write tonight's page as one continuous story in plain prose",
+            "something odd in my world tonight",
+            "it must happen in the story):",
+            "from that odd thing happen in the story",
+            "talk like a kid talks",
+            "contractions everywhere",
             "entirely in the past tense",
             "retell material written in any other tense in the past",
             "shared-world event that must happen inside the vignette",
@@ -2895,7 +2940,7 @@ extension BraidScenePlan {
         }
 
         var lines = [
-            "Write tonight's page as one continuous story vignette in flowing prose, entirely in the past tense.",
+            "Write tonight's page as one continuous story in plain prose, entirely in the past tense.",
             "Retell material written in any other tense in the past.",
             "Address the reader as \"you\". Use \"I\", \"me\", and \"my\" only for me, the Book.",
             "Story shape: \(Self.formLine(form))"
@@ -2907,8 +2952,8 @@ extension BraidScenePlan {
             // Rabbit's small output turn used to spend itself walking the
             // reader facts in order, then stop before the later world request.
             // This is one event to weave, not a second outline to execute.
-            lines.append("Shared-world event that must happen inside the vignette: \(joined(worldMaterial))")
-            lines.append("Before the first paragraph ends, make at least one concrete detail from that event part of the narration itself. Do not omit it, list it, or leave it as background information.")
+            lines.append("\(Self.worldLabel) \(joined(worldMaterial))")
+            lines.append("Before the first paragraph ends, make at least one concrete detail from that odd thing happen in the story. Do not omit it, list it, or leave it as background information.")
         }
         if !livedMaterial.isEmpty {
             // The commission calls the model "you" and the material calls the
@@ -2925,7 +2970,7 @@ extension BraidScenePlan {
         if let worldBeat {
             lines.append(worldModeInstruction(worldBeat.mode))
         } else if isQuietDay {
-            lines.append("Tonight's vignette may belong entirely to the shared world.")
+            lines.append("Tonight's story may be all about my world.")
         }
         if answering?.leftUnresolved.isEmpty == false {
             lines.append("An earlier page left something open. Leave it open.")
@@ -2941,19 +2986,24 @@ extension BraidScenePlan {
         lines.append(Self.closingInstruction)
         return lines.joined(separator: "\n")
     }
+    /// The world's line in the brief, in the Book's own words. Named as
+    /// "Shared-world event … inside the vignette", with "subplot" and "strand"
+    /// in the mode lines, the 2B model wrote the machinery into the story:
+    /// "Then the shared world slipped in" in 20 of 50 tellings (2026-09-24).
+    static let worldLabel = "Something odd in my world tonight (it must happen in the story):"
     static let readerDayLabel = "Reader-day material (the reader did these, not me; write them with \"you\"):"
     static let closingInstruction = "Return only the finished story, with no title. Its last sentence begins The Book kept the page: then tells what one object from tonight did, in a few plain words."
 
     private func worldModeInstruction(_ mode: WorldBeatMode) -> String {
         switch mode {
         case .independent:
-            return "The shared world must appear and may run as its own subplot."
+            return "The odd thing must happen. It may run beside the reader's day."
         case .intersecting:
-            return "The shared world must appear and cross the reader's day once."
+            return "The odd thing must happen and cross the reader's day once."
         case .counterpoint:
-            return "The shared world must appear and may alternate with the day as a separate strand."
+            return "The odd thing must happen. It may take turns with the reader's day."
         case .echoing:
-            return "The shared world must appear and may echo the day without explaining it."
+            return "The odd thing must happen. It may look like the reader's day without explaining it."
         }
     }
 }

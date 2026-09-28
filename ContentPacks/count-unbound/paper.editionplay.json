@@ -21,6 +21,7 @@
         "reciprocal",
         "nightbound"
       ],
+      "eventOutcomeIDs": [],
       "body": null,
       "prompts": [],
       "options": [],
@@ -41,6 +42,7 @@
         "reciprocal",
         "nightbound"
       ],
+      "eventOutcomeIDs": [],
       "body": null,
       "prompts": [],
       "options": [],
@@ -60,6 +62,7 @@
       "eventPhaseIDs": [
         "nightbound"
       ],
+      "eventOutcomeIDs": [],
       "body": "Leave a little room at the hinge. Doors change their minds there. The page keeps what you write.",
       "prompts": [
         {

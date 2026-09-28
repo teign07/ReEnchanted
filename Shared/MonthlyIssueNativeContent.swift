@@ -109,6 +109,26 @@ struct AuthoredFindingInsertion: Codable, Equatable {
     }
 }
 
+/// A mission return is a Book-authored surface carrying a Reader-written
+/// sentence. Keep the surface's origin, but archive that sentence as a reply so
+/// later callbacks can distinguish it from the Book's own prose.
+enum AuthoredStoryArchiveReply {
+    static func text(metadata: [String: String], prompt: String, readerInput: String) -> String {
+        guard metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
+              let interaction = metadata[MonthlyIssuePageMetadata.interaction]
+                .flatMap(MonthlyIssueInteractionKind.init(rawValue:)),
+              interaction == .readerEvidence || interaction == .readerResponse else {
+            return metadata["playerReply"] ?? ""
+        }
+        let probe = BookPage(type: .narrativeOS, promptText: prompt,
+            userInput: readerInput, origin: .simulated)
+        if let extracted = probe.readerAuthoredTextForAnalysis { return extracted }
+        guard !probe.hasEmbeddedReaderContributionLabels else { return "" }
+        let plain = readerInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return plain == prompt.trimmingCharacters(in: .whitespacesAndNewlines) ? "" : plain
+    }
+}
+
 struct AuthoredObservationPairInsertion: Codable, Equatable {
     var contentID: String
     var marker: String
@@ -167,6 +187,10 @@ struct AuthoredStoryScene: MonthlyIssueNativeContent {
     var choices: [AuthoredStorySceneChoice] = []
     var entities: [String] = []
     var tags: [String] = []
+    /// Where the scene happens in the Academy (`location-*`), and the Cast
+    /// in it by entity id. The Book's map reads both off the Page.
+    var roomID: String? = nil
+    var castIDs: [String]? = nil
 }
 
 struct AuthoredRadioBanter: MonthlyIssueNativeContent {
@@ -336,7 +360,10 @@ enum MonthlyIssueContentResolver {
                               in: inputs.authoredContentReceipts,
                               currentScope: resolved.scope,
                               now: now
-                          ) || (dependency.failurePolicy == .reportThenContinue && isReport)
+                          ) || (dependency.failurePolicy == .reportThenContinue && (isReport
+                              || MonthlyIssueCatchUp.report(for: dependency, manifest: manifest,
+                                  scenes: inputs.authoredStoryScenes, snapshot: snapshot,
+                                  ledger: inputs.authoredContentReceipts, now: now) != nil))
                       })
                 else { return nil }
                 return resolved
@@ -586,6 +613,8 @@ enum AuthoredStoryScenePageAdapter {
                     MonthlyIssuePageMetadata.referenceID: scene.id,
                     "worldEventIDs": scene.eventID,
                     "worldEventPackID": scene.packID,
+                    AcademyScene.roomKey: scene.roomID ?? "",
+                    AcademyScene.castKey: (scene.castIDs ?? []).joined(separator: ","),
                     "tags": tags.joined(separator: ",")
                 ]
             )
@@ -1612,7 +1641,12 @@ enum MonthlyIssueBraidMatter {
     static func pending(ledger: AuthoredContentReceiptLedger, days: [BookDay],
                         replacing: BookPage?, now: Date) -> [AuthoredContentReceipt] {
         let originalIDs = replacing.map(receiptIDs) ?? []
-        let covered = Set(days.compactMap(\.bookOfYou).flatMap { receiptIDs(in: $0) })
+        var covered = Set<String>()
+        for day in days {
+            for page in day.pages where page.type == .bookOfYou {
+                covered.formUnion(receiptIDs(in: page))
+            }
+        }
         let eligible = ledger.receipts.filter {
             $0.recordedAt <= now && $0.storyText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && [.nodeCompleted, .completed, .reported].contains($0.state)
@@ -1631,6 +1665,23 @@ enum MonthlyIssueBraidMatter {
         let selected = ordered(receipts).filter { !covered.contains($0.id) }
         guard !selected.isEmpty else { return page }
         var result = page
+        // The model sees protected passages as context and may echo their exact
+        // words despite the commission. Retire those copies before inserting
+        // the authoritative passage once; leave new connective prose alone.
+        if page.tags.contains(interludeTag) {
+            for receipt in selected {
+                if let passage = receipt.storyText, !passage.isEmpty {
+                    result.userInput = result.userInput.replacingOccurrences(of: passage, with: "")
+                }
+            }
+            result.userInput = result.userInput
+                .replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+                .replacingOccurrences(of: #"\n(?:[ \t]*\n){2,}"#, with: "\n\n", options: .regularExpression)
+                .components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n\n")
+        }
         let text = result.userInput
         let closing = text.range(of: "The Book kept the page:", options: .backwards)?.lowerBound
         var insertion = closing ?? text.endIndex

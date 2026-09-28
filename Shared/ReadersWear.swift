@@ -49,6 +49,7 @@ enum BookRoom: String, CaseIterable, Codable, Sendable {
     case bestiary
     case gazetteer
     case atlas
+    case labyrinthMap = "labyrinth-map"
     case todaysMargins = "margins"
     case returned
     case bookOfYou = "book-of-you"
@@ -86,6 +87,7 @@ enum BookRoom: String, CaseIterable, Codable, Sendable {
         case .bestiary: return "the Bestiary"
         case .gazetteer: return "the Gazetteer"
         case .atlas: return "the Atlas"
+        case .labyrinthMap: return "my map of the Labyrinth"
         case .todaysMargins: return "today's margins"
         case .returned: return "what came back from the stacks"
         case .bookOfYou: return "the Book of You"
@@ -110,6 +112,7 @@ enum BookRoom: String, CaseIterable, Codable, Sendable {
         case .bestiary: return "everything alive I've found in your photographs is filed in there"
         case .gazetteer: return "every place you've stood long enough to name is in there"
         case .atlas: return "your whole world is drawn out in there, and it has a shape"
+        case .labyrinthMap: return "every room I've been in is drawn in there, and the blank bits are where I haven't been yet"
         case .todaysMargins: return "the loose ink of the last few hours is still wet in there"
         case .returned: return "things I sent back up and then thought better of are in there"
         case .bookOfYou: return "everything already sewn in is in there, and it's heavier than you think"

@@ -1684,7 +1684,7 @@ enum RoutineRecallProbe {
 
             \(scenario.emptyRetort)
 
-            So a bit stuck. Out of a whole hour you were awake for.
+            That's all that stuck, out of a whole hour you were awake for.
             """
         default:
             return """

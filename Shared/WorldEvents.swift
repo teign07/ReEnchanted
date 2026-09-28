@@ -52,6 +52,10 @@ struct WorldEvent: Codable, Identifiable, Equatable {
     /// Authored dramatic atoms. Phase IDs remain bespoke and stable; beats use
     /// the universal role only to say what job they perform in an issue.
     var beats: [WorldEventBeat]? = nil
+    /// The Academy map in the week before the issue opens, and the week
+    /// after it closes. Phases only cover the live month.
+    var foreshadowAcademy: AcademyStagingSet? = nil
+    var residueAcademy: AcademyStagingSet? = nil
 }
 
 struct WorldEventCalendar: Codable, Equatable {
@@ -176,6 +180,16 @@ struct WorldEventPhase: Codable, Identifiable, Equatable {
     /// instruction), this is shown to the player. Optional so user-imported
     /// packs without it fall back to the packet logline.
     var scene: String? = nil
+    /// Who's where in the Academy for the whole of this phase. Outranks
+    /// everybody's timetable and habits on the Book's map.
+    var staging: [AcademyStaging]? = nil
+    /// Rooms that are shut for this phase: drawn on the map as closed, and
+    /// nobody drifts into them out of habit.
+    var closedRoomIDs: [String]? = nil
+    /// Lines the Book writes beside rooms on its map during this phase.
+    var roomNotes: [AcademyStagedNote]? = nil
+    /// Rooms out of other books that push into the Academy during this phase.
+    var borrowedRooms: [AcademyBorrowedRoom]? = nil
 }
 
 struct WorldEventBeat: Codable, Identifiable, Equatable {
@@ -206,6 +220,11 @@ struct WorldEventBeat: Codable, Identifiable, Equatable {
     /// this is witnessed history: surfacing it is delivery, not participation.
     var participationPrompt: String? = nil
     var participationPlaceholder: String? = nil
+    /// The Academy room this beat happens in (`location-*`), and the Cast in
+    /// it. While the beat's open, the map puts them there; the Page carries
+    /// both, so a kept beat remembers where it happened.
+    var roomID: String? = nil
+    var castIDs: [String]? = nil
 
     var resolvedLifecycleStage: WorldEventLifecycleStage {
         lifecycleStage ?? .live
@@ -2074,7 +2093,7 @@ enum MonthlyIssueRequestPolicy {
 }
 
 enum MonthlyIssueDeliveryPolicy {
-    static let runtimeVersion = 9
+    static let runtimeVersion = 10
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumCasebookBytes = 2 * 1_024 * 1_024
@@ -2570,7 +2589,9 @@ enum MonthlyIssueAssetInstaller {
         return data
     }
 
-    private static func validateMaterializedAsset(
+    /// Internal so the tests can hold every authored pack to exactly the
+    /// check a reader's device applies before it installs anything.
+    static func validateMaterializedAsset(
         _ data: Data,
         asset: MonthlyIssueDeliveryAsset
     ) throws {

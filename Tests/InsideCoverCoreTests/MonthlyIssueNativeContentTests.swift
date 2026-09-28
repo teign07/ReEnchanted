@@ -119,6 +119,24 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         XCTAssertTrue(braid.userInput.contains("fictional stair"))
     }
 
+    func testBraidCoverageChecksEverySavedBraidInOneDay() {
+        let now = date(2027, 9, 2, 22)
+        let firstReceipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "first", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now.addingTimeInterval(-2), storyText: "The first door opened.")
+        let secondReceipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "second", channel: .storyScene,
+            state: .nodeCompleted, recordedAt: now.addingTimeInterval(-1), storyText: "The second door closed.")
+        let ledger = [firstReceipt, secondReceipt].reduce(AuthoredContentReceiptLedger.empty) { $0.recording($1) }
+        let firstBraid = MonthlyIssueBraidMatter.binding([firstReceipt], into: BookPage(type: .bookOfYou,
+            createdAt: now, promptText: "Earlier", userInput: "An earlier braid."))
+        let secondBraid = MonthlyIssueBraidMatter.binding([secondReceipt], into: BookPage(type: .bookOfYou,
+            createdAt: now, promptText: "Later", userInput: "A later braid."))
+        let day = BookDay(id: "2027-09-02", date: now, pages: [firstBraid, secondBraid])
+
+        XCTAssertTrue(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: nil, now: now).isEmpty)
+        XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: firstBraid, now: now).map(\.id),
+            [firstReceipt.id])
+    }
+
     func testMonthlyInterludePreservesExactCanonBetweenOpeningAndContinuation() {
         let now = date(2027, 9, 2, 22)
         let first = AuthoredContentReceipt(contentID: "scene", occurrenceID: "start", channel: .storyScene,
@@ -132,6 +150,20 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         XCTAssertEqual(bound.userInput, "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nWicker took the pin.\n\nThe hinge stopped biting.\n\nSerenity shut the schoolroom door.\n\nI worried at the loose end.\n\nThe Book kept the page: one red thread.")
         XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), Set([first.id, second.id]))
         XCTAssertEqual(MonthlyIssueBraidMatter.binding([first, second], into: bound), bound)
+    }
+
+    func testMonthlyInterludeRetiresExactModelEchoesBeforeBinding() {
+        let receipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "end", channel: .storyScene,
+            state: .completed, recordedAt: date(2027, 9, 2, 22), storyText: "Serenity withdrew the living claim. The rooms broke into words.")
+        let passage = receipt.storyText!
+        let page = BookPage(type: .bookOfYou, promptText: "Tonight",
+            userInput: "The Porch Lamp\n\nYou noticed the empty chair. \(passage)\n\n\(passage)\n\nI felt the binding shift.\n\nThe Book kept the page: the binding shifted.",
+            tags: [MonthlyIssueBraidMatter.interludeTag])
+        let bound = MonthlyIssueBraidMatter.binding([receipt], into: page)
+        XCTAssertEqual(bound.userInput,
+            "The Porch Lamp\n\nYou noticed the empty chair.\n\n\(passage)\n\nI felt the binding shift.\n\nThe Book kept the page: the binding shifted.")
+        XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), [receipt.id])
+        XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: bound), bound)
     }
 
     func testMonthlyInterludeFallsBackBeforeClosingWithoutRequiringModelFormat() {

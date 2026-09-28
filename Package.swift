@@ -33,6 +33,7 @@ let package = Package(
                 "EmergentScenes.swift",
                 "WorldPressure.swift",
                 "PlaceMemory.swift",
+                "AcademyGeography.swift",
                 "WorldAccounts.swift",
                 "AcademySeason.swift",
                 "ContestedQuestions.swift",

@@ -1516,7 +1516,7 @@ enum IlluminatedQuoteCardRenderer {
     }
 }
 
-struct BookOfYouShareArtifact: Equatable {
+struct BookOfYouShareArtifact: Hashable {
     var title: String
     var excerpt: String
     var dateLine: String
@@ -1831,26 +1831,42 @@ struct BookOfYouPressedPageSpotlight: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shimmer = false
+    @State private var plate: UIImage?
+
+    init(artifact: BookOfYouShareArtifact, isWorking: Bool = false) {
+        self.artifact = artifact
+        self.isWorking = isWorking
+        // A plate already pressed arrives with the view, not a frame after it.
+        _plate = State(initialValue: BookOfYouPressedPlate.cached(artifact))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             GeometryReader { proxy in
-                let scale = proxy.size.width / BookOfYouShareCard.renderSize.width
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(BookPalette.nightPanel.opacity(0.82))
                         .shadow(color: BookPalette.lampGold.opacity(shimmer ? 0.26 : 0.12), radius: shimmer ? 28 : 16, x: 0, y: 12)
 
-                    BookOfYouShareCard(artifact: artifact)
-                        .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height)
-                        .scaleEffect(scale * 0.92, anchor: .center)
-                        .rotationEffect(.degrees(reduceMotion ? 0 : (shimmer ? 0.7 : -0.7)))
-                        .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 8)
-                        // Rasterise the oversized, scaled card so it renders reliably
-                        // as a thumbnail instead of dropping out to a blank slot.
-                        .frame(width: proxy.size.width, height: proxy.size.height)
-                        .drawingGroup()
-                        .accessibilityHidden(true)
+                    // The pressed page as the bitmap it is, not the card drawn
+                    // live. Drawn live, the 1080-point card had to sit in a
+                    // `drawingGroup` to show at all, and that offscreen texture
+                    // was rebuilt every time the leaf around it redisplayed:
+                    // every frame of a scroll, and every frame of the banner's
+                    // drift on the same leaf. Book Today delivered 59 frames in
+                    // 245 while it was on the page.
+                    if let plate {
+                        Image(uiImage: plate)
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .scaleEffect(0.92, anchor: .center)
+                            .rotationEffect(.degrees(reduceMotion ? 0 : (shimmer ? 0.7 : -0.7)))
+                            .shadow(color: .black.opacity(0.26), radius: 12, x: 0, y: 8)
+                            .transition(.opacity)
+                            .accessibilityHidden(true)
+                    }
 
                     ForEach(0..<9, id: \.self) { index in
                         let angle = Double(index) / 9 * 2 * .pi
@@ -1900,6 +1916,17 @@ struct BookOfYouPressedPageSpotlight: View {
         }
         .onAppear { syncShimmer() }
         .onChange(of: isWorking) { _, _ in syncShimmer() }
+        .task(id: artifact) {
+            if let pressed = BookOfYouPressedPlate.cached(artifact) {
+                plate = pressed
+                return
+            }
+            // Let the leaf finish arriving before the one-time pressing.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            let pressed = BookOfYouPressedPlate.plate(for: artifact)
+            withAnimation(.easeOut(duration: 0.25)) { plate = pressed }
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Pressed Book of You share page. \(artifact.stamp.map { $0 + ". " } ?? "")Titled \(artifact.title). \(artifact.excerpt)")
     }
@@ -2181,22 +2208,78 @@ struct EditionCelebration: View {
     }
 }
 
+/// The Book of You share card, pressed once into pixels.
+///
+/// The thumbnail on a leaf and the PNG that leaves the app are the same
+/// picture, so they are the same bitmap: whichever asks first pays for the
+/// pressing and the other finds it done.
+@MainActor
+enum BookOfYouPressedPlate {
+    /// The latest braid's plate and at most one other. Each is 1080x1350, about
+    /// 5.8 MB, so this is not a gallery.
+    private static var plates: [(artifact: BookOfYouShareArtifact, image: UIImage)] = []
+
+    static func cached(_ artifact: BookOfYouShareArtifact) -> UIImage? {
+        plates.first { $0.artifact == artifact }?.image
+    }
+
+    static func plate(for artifact: BookOfYouShareArtifact) -> UIImage? {
+        if let pressed = cached(artifact) { return pressed }
+        let renderer = ImageRenderer(
+            content: BookOfYouShareCard(artifact: artifact)
+                .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height)
+        )
+        renderer.scale = 1
+        guard let drawing = renderer.cgImage, let pixels = rasterized(drawing) else { return nil }
+        let image = UIImage(cgImage: pixels, scale: 1, orientation: .up)
+        plates.insert((artifact, image), at: 0)
+        if plates.count > 2 { plates.removeLast(plates.count - 2) }
+        return image
+    }
+
+    /// `ImageRenderer` does not rasterize when asked; it hands back an image
+    /// that draws the card when something first needs its pixels. Shown as it
+    /// is, every redisplay of the layer holding it would draw the whole card
+    /// again. Drawn into memory here, it is a bitmap.
+    private static func rasterized(_ drawing: CGImage) -> CGImage? {
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(
+                data: nil,
+                width: drawing.width,
+                height: drawing.height,
+                bitsPerComponent: 8,
+                bytesPerRow: 0,
+                space: space,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+              ) else { return nil }
+        context.draw(drawing, in: CGRect(x: 0, y: 0, width: drawing.width, height: drawing.height))
+        return context.makeImage()
+    }
+}
+
 @MainActor
 enum BookOfYouShareCardRenderer {
     static func render(artifact: BookOfYouShareArtifact) -> URL? {
-        let content = BookOfYouShareCard(artifact: artifact)
-            .frame(width: BookOfYouShareCard.renderSize.width, height: BookOfYouShareCard.renderSize.height)
+        guard let image = BookOfYouPressedPlate.plate(for: artifact) else { return nil }
+        return write(image, seed: artifact.seed)
+    }
 
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = 1
-        guard let image = renderer.uiImage,
-              let data = image.pngData() else {
-            return nil
-        }
+    /// The same pressing, with the PNG encoded and written off the main
+    /// thread. Encoding a 1080x1350 plate is the slow half, and it used to land
+    /// in the first frames of Book Today opening.
+    static func renderInBackground(artifact: BookOfYouShareArtifact) async -> URL? {
+        guard let image = BookOfYouPressedPlate.plate(for: artifact) else { return nil }
+        let seed = artifact.seed
+        return await Task.detached(priority: .utility) {
+            write(image, seed: seed)
+        }.value
+    }
 
+    nonisolated private static func write(_ image: UIImage, seed: Int) -> URL? {
+        guard let data = image.pngData() else { return nil }
         do {
             let directory = try renderedDirectory()
-            let filename = "book-of-you-pressed-\(artifact.seed.magnitude).png"
+            let filename = "book-of-you-pressed-\(seed.magnitude).png"
             let url = directory.appendingPathComponent(filename)
             try data.write(to: url, options: [.atomic])
             return url
@@ -2206,7 +2289,7 @@ enum BookOfYouShareCardRenderer {
         }
     }
 
-    private static func renderedDirectory() throws -> URL {
+    nonisolated private static func renderedDirectory() throws -> URL {
         let baseURL = InsideCoverStore.containerURL
             ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let directory = baseURL.appendingPathComponent("BookOfYouPressedPages", isDirectory: true)
@@ -5481,6 +5564,10 @@ struct MarginaliaImage: View {
     }
 }
 
+/// A marginal drawing that breathes: a slow swell and a sway, forever.
+///
+/// The breath runs in the render server (see `AmbientInkView`), not in
+/// SwiftUI. Held still, it stops where it is.
 struct LivingMarginaliaImage: View {
     let name: String
     let width: CGFloat
@@ -5491,52 +5578,94 @@ struct LivingMarginaliaImage: View {
     var sway: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var breath = false
 
-    private var isAnimating: Bool {
+    private var moves: Bool {
         #if DEBUG
         if PerfProbeSwitches.shared.stillMarginalia { return false }
         #endif
-        return !reduceMotion && !isPaused
+        return !reduceMotion
     }
 
     var body: some View {
-        Image(name)
-            .resizable()
-            .scaledToFit()
-            .frame(width: width)
-            .opacity(opacity)
-            // Gathered into one picture before the breath moves it, so the card
-            // it sits on is not redrawn on every frame of the breath; without
-            // this, scrolling that card dropped seven frames in eight. Not
-            // `drawingGroup`: that rasterises the ink, and the breath's swell
-            // then resamples it — the quill lost a fifth of its detail.
-            .compositingGroup()
-            .scaleEffect(breath && isAnimating ? 1.025 : 0.995)
-            .rotationEffect(.degrees(breath && isAnimating ? sway : -sway))
-            .shadow(color: BookPalette.lampGold.opacity(glow ? (breath && isAnimating ? 0.45 : 0.22) : 0.12), radius: glow ? (breath && isAnimating ? 16 : 8) : 3)
-            .animation(
-            isAnimating ? .easeInOut(duration: 4.8).repeatForever(autoreverses: true) : nil,
-            value: breath
+        let aspect = AmbientInkView.aspectRatio(of: name)
+        BreathingInk(
+            name: name,
+            opacity: opacity,
+            glow: glow,
+            sway: sway,
+            moves: moves,
+            isHeld: isPaused
         )
-        .onAppear {
-            guard isAnimating else { return }
-            breath = true
-        }
-        .onChange(of: isPaused) { _, paused in
-            if paused {
-                breath = false
-            } else if !reduceMotion {
-                breath = true
-            }
-        }
+        .frame(width: width, height: width * aspect)
     }
 }
 
-/// A whisper of Ken Burns: endless slow scale-and-drift breathing for
-/// `scaledToFill` imagery. The minimum scale keeps a few points of overflow
-/// in reserve so the image never pulls away from its clip edges.
-struct AmbientKenBurnsModifier: ViewModifier {
+private struct BreathingInk: UIViewRepresentable {
+    let name: String
+    let opacity: Double
+    let glow: Bool
+    let sway: Double
+    let moves: Bool
+    let isHeld: Bool
+
+    private static let period: CFTimeInterval = 4.8
+
+    func makeUIView(context: Context) -> AmbientInkView {
+        AmbientInkView()
+    }
+
+    func updateUIView(_ view: AmbientInkView, context: Context) {
+        // The original drawing, resampled once by the render server on its
+        // way to the screen, as SwiftUI did. Shrunk to size first and then
+        // turned by the breath, it was resampled twice and the quill lost 42%
+        // of its edge detail and the stamp 32%.
+        view.content = .fitted(name: name)
+        view.ink.opacity = Float(opacity)
+        let radians = CGFloat(sway * .pi / 180)
+        let rest = CATransform3DRotate(CATransform3DMakeScale(0.995, 0.995, 1), -radians, 0, 0, 1)
+        let swell = CATransform3DRotate(CATransform3DMakeScale(1.025, 1.025, 1), radians, 0, 0, 1)
+        view.ink.shadowColor = UIColor(BookPalette.lampGold).cgColor
+        view.ink.shadowOffset = .zero
+        view.ink.shadowOpacity = glow ? 0.22 : 0.12
+        view.ink.shadowRadius = glow ? 8 : 3
+        view.ink.transform = rest
+
+        guard moves else {
+            view.run(nil, isHeld: isHeld)
+            return
+        }
+        var parts: [CAAnimation] = []
+        let breath = CABasicAnimation(keyPath: "transform")
+        breath.fromValue = NSValue(caTransform3D: rest)
+        breath.toValue = NSValue(caTransform3D: swell)
+        parts.append(breath)
+        if glow {
+            let glowOpacity = CABasicAnimation(keyPath: "shadowOpacity")
+            glowOpacity.fromValue = 0.22
+            glowOpacity.toValue = 0.45
+            let glowRadius = CABasicAnimation(keyPath: "shadowRadius")
+            glowRadius.fromValue = 8
+            glowRadius.toValue = 16
+            parts += [glowOpacity, glowRadius]
+        }
+        let group = CAAnimationGroup()
+        group.animations = parts
+        group.duration = Self.period
+        view.run(
+            AmbientInkView.forever(group),
+            signature: "breath|\(sway)|\(glow)",
+            isHeld: isHeld
+        )
+    }
+}
+
+/// A whisper of Ken Burns: endless slow scale-and-drift breathing for a
+/// picture that fills its frame. The minimum scale keeps a few points of
+/// overflow in reserve so the picture never pulls away from its clip edges.
+///
+/// Runs in the render server, like `LivingMarginaliaImage`; the caller clips.
+struct AmbientKenBurnsImage: View {
+    let name: String
     var minScale: CGFloat = 1.03
     var maxScale: CGFloat = 1.06
     var drift: CGSize = CGSize(width: 4, height: 2)
@@ -5544,37 +5673,215 @@ struct AmbientKenBurnsModifier: ViewModifier {
     var isPaused = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var phase = false
 
-    private var isAnimating: Bool {
+    private var moves: Bool {
         #if DEBUG
         if PerfProbeSwitches.shared.stillKenBurns { return false }
         #endif
-        return !reduceMotion && !isPaused
+        return !reduceMotion
     }
 
-    func body(content: Content) -> some View {
-        content
-            .scaleEffect(isAnimating ? (phase ? maxScale : minScale) : 1.0)
-            .offset(
-                x: isAnimating ? (phase ? drift.width : -drift.width) : 0,
-                y: isAnimating ? (phase ? drift.height : -drift.height) : 0
+    var body: some View {
+        KenBurnsInk(
+            name: name,
+            minScale: minScale,
+            maxScale: maxScale,
+            drift: drift,
+            period: period,
+            moves: moves,
+            isHeld: isPaused
+        )
+    }
+}
+
+private struct KenBurnsInk: UIViewRepresentable {
+    let name: String
+    let minScale: CGFloat
+    let maxScale: CGFloat
+    let drift: CGSize
+    let period: Double
+    let moves: Bool
+    let isHeld: Bool
+
+    func makeUIView(context: Context) -> AmbientInkView {
+        AmbientInkView()
+    }
+
+    func updateUIView(_ view: AmbientInkView, context: Context) {
+        view.content = .filling(name: name)
+        guard moves else {
+            view.ink.transform = CATransform3DIdentity
+            view.run(nil, isHeld: isHeld)
+            return
+        }
+        // Scale about the centre, then drift: the order SwiftUI's
+        // `scaleEffect` then `offset` applied them in.
+        func pose(scale: CGFloat, direction: CGFloat) -> CATransform3D {
+            CATransform3DConcat(
+                CATransform3DMakeScale(scale, scale, 1),
+                CATransform3DMakeTranslation(drift.width * direction, drift.height * direction, 0)
             )
-            .animation(
-                isAnimating ? .easeInOut(duration: period).repeatForever(autoreverses: true) : nil,
-                value: phase
-            )
-            .onAppear {
-                guard isAnimating else { return }
-                phase = true
+        }
+        let from = pose(scale: minScale, direction: -1)
+        view.ink.transform = from
+        let wander = CABasicAnimation(keyPath: "transform")
+        wander.fromValue = NSValue(caTransform3D: from)
+        wander.toValue = NSValue(caTransform3D: pose(scale: maxScale, direction: 1))
+        wander.duration = period
+        view.run(
+            AmbientInkView.forever(wander),
+            signature: "kenburns|\(minScale)|\(maxScale)|\(drift.width)|\(drift.height)|\(period)",
+            isHeld: isHeld
+        )
+    }
+}
+
+/// Ambient motion the render server runs by itself.
+///
+/// A SwiftUI `repeatForever` animation is recomputed on the main thread every
+/// frame for as long as it runs. On an iPhone 15, Book Today sat at about
+/// 130 ms of main thread per second with nobody touching it, and spent 3 to
+/// 4 ms of every scrolled frame, nearly all of it on its breathing marginalia
+/// and drifting banner. As a layer animation the same motion costs the main
+/// thread nothing once it has started.
+///
+/// Holding still freezes the motion where it is. SwiftUI could only snap it
+/// back to rest, which on the banner was a jump of up to a tenth of its size.
+final class AmbientInkView: UIView {
+    enum Content: Equatable {
+        /// Fitted to the view.
+        case fitted(name: String)
+        /// Filling the view, cropped by whoever holds it.
+        case filling(name: String)
+    }
+
+    /// The layer that moves. The view's own layer belongs to SwiftUI.
+    let ink = CALayer()
+
+    var content: Content? {
+        didSet {
+            guard content != oldValue else { return }
+            ink.contents = nil
+            setNeedsLayout()
+        }
+    }
+
+    private var motion: CAAnimation?
+    private var signature: String?
+    private var isHeld = false
+    private static let motionKey = "ambient"
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
+        // Every property here is set by hand or animated on purpose; none of
+        // them should pick up Core Animation's implicit quarter-second fade.
+        let still = NSNull()
+        ink.actions = [
+            "bounds": still, "position": still, "contents": still, "transform": still, "opacity": still,
+            "shadowOpacity": still, "shadowRadius": still, "shadowColor": still, "shadowOffset": still
+        ]
+        layer.addSublayer(ink)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(resumeAfterBackground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    static func aspectRatio(of name: String) -> CGFloat {
+        guard let size = UIImage(named: name)?.size, size.width > 0 else { return 1 }
+        return size.height / size.width
+    }
+
+    /// The same motion there and back again, for as long as the layer lives.
+    static func forever(_ animation: CAAnimation) -> CAAnimation {
+        animation.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        animation.autoreverses = true
+        animation.repeatCount = .infinity
+        // Belt and braces with `resumeAfterBackground`: nothing about a trip
+        // to the background or out of the window may leave the ink still.
+        animation.isRemovedOnCompletion = false
+        return animation
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        ink.bounds = CGRect(origin: .zero, size: bounds.size)
+        ink.position = CGPoint(x: bounds.midX, y: bounds.midY)
+        guard ink.contents == nil, let content else { return }
+        switch content {
+        case let .fitted(name):
+            ink.contentsGravity = .resizeAspect
+            ink.contents = UIImage(named: name)?.cgImage
+        case let .filling(name):
+            ink.contentsGravity = .resizeAspectFill
+            ink.contents = UIImage(named: name)?.cgImage
+        }
+    }
+
+    /// Starts, holds or drops the motion. `signature` names the motion, so a
+    /// SwiftUI update that describes the same breath leaves the running one
+    /// alone instead of restarting it from rest.
+    func run(_ motion: CAAnimation?, signature: String? = nil, isHeld: Bool) {
+        guard let motion else {
+            ink.removeAnimation(forKey: Self.motionKey)
+            self.motion = nil
+            self.signature = nil
+            ink.speed = 1
+            ink.timeOffset = 0
+            ink.beginTime = 0
+            self.isHeld = isHeld
+            return
+        }
+        if signature != self.signature || ink.animation(forKey: Self.motionKey) == nil {
+            self.motion = motion
+            self.signature = signature
+            ink.speed = 1
+            ink.timeOffset = 0
+            ink.beginTime = 0
+            ink.add(motion, forKey: Self.motionKey)
+            // Held from the moment it arrived, it is caught on its first
+            // frame, which is its rest pose, until it is let go.
+            self.isHeld = false
+        }
+        hold(isHeld)
+    }
+
+    private func hold(_ held: Bool) {
+        defer { isHeld = held }
+        if held, ink.speed != 0, ink.animation(forKey: Self.motionKey) != nil {
+            let now = ink.convertTime(CACurrentMediaTime(), from: nil)
+            ink.speed = 0
+            ink.timeOffset = now
+        } else if !held {
+            if ink.animation(forKey: Self.motionKey) == nil, let motion {
+                ink.add(motion, forKey: Self.motionKey)
             }
-            .onChange(of: isPaused) { _, paused in
-                if paused {
-                    phase = false
-                } else if !reduceMotion {
-                    phase = true
-                }
-            }
+            guard ink.speed == 0 else { return }
+            let frozenAt = ink.timeOffset
+            ink.speed = 1
+            ink.timeOffset = 0
+            ink.beginTime = 0
+            ink.beginTime = ink.convertTime(CACurrentMediaTime(), from: nil) - frozenAt
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { resumeAfterBackground() }
+    }
+
+    @objc private func resumeAfterBackground() {
+        guard let motion, ink.animation(forKey: Self.motionKey) == nil, !isHeld else { return }
+        ink.add(motion, forKey: Self.motionKey)
     }
 }
 
@@ -5614,16 +5921,6 @@ struct AmbientPulseModifier: ViewModifier {
 }
 
 extension View {
-    func ambientKenBurns(
-        minScale: CGFloat = 1.03,
-        maxScale: CGFloat = 1.06,
-        drift: CGSize = CGSize(width: 4, height: 2),
-        period: Double = 18,
-        isPaused: Bool = false
-    ) -> some View {
-        modifier(AmbientKenBurnsModifier(minScale: minScale, maxScale: maxScale, drift: drift, period: period, isPaused: isPaused))
-    }
-
     func ambientPulse(dimmed: Double = 0.55, bright: Double = 1.0, period: Double = 3.4, isPaused: Bool = false) -> some View {
         modifier(AmbientPulseModifier(dimmed: dimmed, bright: bright, period: period, isPaused: isPaused))
     }
@@ -9839,7 +10136,7 @@ struct OnboardingFlowView: View {
             OnboardingChoice(
                 id: "caught",
                 title: "I caught it",
-                detail: "It was \u{201C}\(livingInkProofParts.word.trimmingCharacters(in: .punctuationCharacters))\u{201D}. Was that yours?",
+                detail: "It was \u{201C}\(livingInkProofParts.word.trimmingCharacters(in: .punctuationCharacters))\u{201D}. Wasn't it?",
                 symbol: "eye.fill"
             ),
             OnboardingChoice(id: "uncertain", title: "Something shifted", detail: "I saw movement, but I couldn't say what went missing.", symbol: "eye.trianglebadge.exclamationmark"),
@@ -9884,11 +10181,11 @@ struct OnboardingFlowView: View {
     private let sleeveWords = ["GLINT", "MARGIN", "THRESHOLD"]
     private let tasteChoices = [
         OnboardingChoice(id: "letters", title: "Letters and voices", detail: "People inside the Book should look up sooner.", symbol: "envelope.open"),
-        OnboardingChoice(id: "errands", title: "Strange errands", detail: "Small impossible invitations should find the desk.", symbol: "wand.and.stars"),
+        OnboardingChoice(id: "errands", title: "Strange errands", detail: "Small impossible invitations, sent to me.", symbol: "wand.and.stars"),
         OnboardingChoice(id: "cozy", title: "Cozy noticing", detail: "Warm, exact, ordinary magic should come first.", symbol: "mug"),
         OnboardingChoice(id: "weather-place", title: "Weather and place", detail: "Sky, ground, rooms, and thresholds should speak up.", symbol: "cloud.sun"),
         OnboardingChoice(id: "eerie", title: "Eerie story threads", detail: "Let the edges get a little haunted.", symbol: "moon.stars"),
-        OnboardingChoice(id: "oddities", title: "Funny little oddities", detail: "Tell me to get peculiar. I have been waiting badly.", symbol: "sparkles")
+        OnboardingChoice(id: "oddities", title: "Funny little oddities", detail: "The stranger the better.", symbol: "sparkles")
     ]
     private let comfortChoices = [
         OnboardingChoice(id: "gentle", title: "Invite me", detail: "Show me doors. If I say no, leave the hinges alone.", symbol: "leaf"),
@@ -9896,10 +10193,10 @@ struct OnboardingFlowView: View {
         OnboardingChoice(id: "strange", title: "Call me on my nonsense", detail: "Cajole me. Provoke me. If I say no, go bother the furniture.", symbol: "eye")
     ]
     private let whisperChoices = [
-        OnboardingChoice(id: "morning", title: "Morning", detail: "One keepable prompt near the start of the day.", symbol: "sunrise"),
-        OnboardingChoice(id: "evening", title: "Evening", detail: "One return when the day's ready to braid.", symbol: "moon"),
-        OnboardingChoice(id: "both", title: "Both", detail: "One morning prompt and one evening return.", symbol: "sunrise.fill"),
-        OnboardingChoice(id: "inside", title: "Only the necessary knocks", detail: "No ordinary whispers or keepable prompts. Only the Book's brief attention knocks arrive outside the covers.", symbol: "bell.slash")
+        OnboardingChoice(id: "morning", title: "Morning", detail: "One small thing to look for, near the start of the day.", symbol: "sunrise"),
+        OnboardingChoice(id: "evening", title: "Evening", detail: "One knock before the day's gone, to keep something from it.", symbol: "moon"),
+        OnboardingChoice(id: "both", title: "Both", detail: "Something to look for in the morning, a knock in the evening.", symbol: "sunrise.fill"),
+        OnboardingChoice(id: "inside", title: "Only inside the covers", detail: "No knocking. I wait until you open me.", symbol: "bell.slash")
     ]
     private let wickerChoices = [
         WickerModeChoice(
@@ -10730,7 +11027,7 @@ struct OnboardingFlowView: View {
             title: "Story Arc",
             detail: "Drama, baby.",
             symbol: "arrow.triangle.turn.up.right.diamond",
-            outcomeLine: "The Page answered, \"Then I'd give it a hinge.\" A thin gold arrow appeared under the line. It pointed at you, then at the door, then at you again, which wasn't helpful but was definitely a plot."
+            outcomeLine: "The Page answered, \"Then I'd give it somewhere to go.\" A thin gold arrow appeared under the line. It pointed at you, then at the door, then at you again, which wasn't helpful but was definitely a plot."
         ),
         FirstPressNarrativeChoice(
             id: "surprise",
@@ -11103,7 +11400,7 @@ struct OnboardingFlowView: View {
                 onboardingProse("""
                 The grey creeps back at the corner of your Page. A word starts to fade.
 
-                "That's the Rut," Zara says. "It turns a whole life into wallpaper. It goes quiet around something you actually believe."
+                "That's the Rut," Zara says. "It turns a whole life into wallpaper. It backs off from things people actually believe."
 
                 She goes first: "I believe every book is a door."
 
@@ -11211,7 +11508,7 @@ struct OnboardingFlowView: View {
 
                 "Waiting? I'm starving."
 
-                "Pick what you're hungry for today."
+                Zara ignores it. "Pick what you want first."
                 """)
                 onboardingChoiceList(choices: tasteChoices, selection: $tastePreference)
                 if !tastePreference.isEmpty {
@@ -11623,7 +11920,7 @@ struct OnboardingFlowView: View {
 
         "Then I asked about \(awake), and \(handed)."
 
-        "You weren't there for the \(hour). That's all it takes."
+        "You weren't there for the \(hour). Nobody told you. It just went."
         """
     }
 
@@ -11756,7 +12053,7 @@ struct OnboardingFlowView: View {
             if didRevealRoutineEvidence {
                 onboardingRoutineReceiptCard
                     .transition(.opacity.combined(with: .move(edge: .top)))
-                openingMiniContinueButton("Ask me about them") {
+                openingMiniContinueButton("Test me") {
                     advanceOpeningMiniStep()
                 }
                 .id("onboarding-opening-routine-evidence")
@@ -11772,7 +12069,7 @@ struct OnboardingFlowView: View {
             // Picks up the receipt from the previous beat by its own number, so
             // the two screens read as one argument rather than a fresh topic.
             onboardingProse("""
-            "Then let's take one hour out of the \(openingSpentMinutesToday). Which of these did you do last? Don't think about it."
+            "So let's go and look at one ordinary hour. Which of these did you do last? Don't think about it."
             """)
             onboardingChipChoices(
                 choices: RoutineRecallProbe.scenarios.map {
@@ -11849,7 +12146,7 @@ struct OnboardingFlowView: View {
             onboardingProse(openingVerdictProse)
             onboardingNotYourFaultCard
                 .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.10))
-            openingMiniContinueButton("So what is it") {
+            openingMiniContinueButton("What do we do about it") {
                 advanceOpeningMiniStep()
             }
         }
@@ -11857,9 +12154,9 @@ struct OnboardingFlowView: View {
 
     private var onboardingOpeningConspiracyStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Not "What We're Up Against": there is no "we" until the
-            // arrangement below creates one.
-            onboardingTitle("What It's Called")
+            // The verdict screen already named the Curse, so this heading says
+            // what the screen is for: the offer, then the arrangement.
+            onboardingTitle("What We Do About It")
                 .id("onboarding-opening-offer")
             // Three names, not five. The aliases exist because the rest of the
             // app really does say Rut in code and Grey on the Page, so the
@@ -11867,7 +12164,7 @@ struct OnboardingFlowView: View {
             // six teaches the reader that the Book cannot decide what its own
             // antagonist is called.
             onboardingProse("""
-            "I call it the Curse. Other things in here call it the Rut, or the Grey. Same thing."
+            "Things in here call it the Rut, or the Grey. Same Curse."
             """)
             onboardingProse(openingOfferProse)
             onboardingTitle("Where It Gets In")
@@ -11928,7 +12225,7 @@ struct OnboardingFlowView: View {
             openingMiniContinueButton(
                 firstPressTrimmedText.isEmpty
                     ? "Find one true thing"
-                    : (rehearsalChoice == nil ? "Keep it or let it wait" : "Let the Rut try"),
+                    : (rehearsalChoice == nil ? "Keep it or let it wait" : "What about the others?"),
                 disabled: firstPressTrimmedText.isEmpty || rehearsalChoice == nil
             ) {
                 advanceOpeningMiniStep()
@@ -11961,7 +12258,7 @@ struct OnboardingFlowView: View {
             onboardingProse("""
             "I want the true answer, not the polite one."
 
-            "When you looked at it twice: did it get stranger, or did it stay exactly as dull as it was?"
+            "When you looked at it twice, did it get a bit stranger?"
             """)
             onboardingChoiceList(choices: hiddenMagicChoices, selection: $hiddenMagicStance)
             if !hiddenMagicStance.isEmpty {
@@ -12168,7 +12465,7 @@ struct OnboardingFlowView: View {
 
     private var onboardingOpeningPress: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("\"I can't do this on my own. I'm a book: I only know what you carry back through the covers. And you can't do it on your own either, or you'd have done it by now.\"\n\n\"So before I hand you anything, I want your word on it. I'll go first.\"")
+            Text("\"Before you go looking, let's swap promises. I'll go first.\"")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.82))
                 .lineSpacing(3)
@@ -12241,11 +12538,11 @@ struct OnboardingFlowView: View {
             VStack(alignment: .leading, spacing: 9) {
                 onboardingPactPromise(
                     symbol: "shield.lefthalf.filled",
-                    text: "We fight the Curse. Not beat it: fight it. Every day it takes a piece of your life, and every day we take some back."
+                    text: "We fight the Curse. It keeps coming back, so we keep going. Every day it takes a piece of your life, and every day we take some back."
                 )
                 onboardingPactPromise(
                     symbol: "sparkle.magnifyingglass",
-                    text: "I find the magic that's already in your life. I'm not going to add any. There's more there than you think and you've stopped seeing it, which is the entire problem."
+                    text: "I find the magic that's already in your life. I don't add any. There's more there than you think. You've just stopped seeing it."
                 )
                 onboardingPactPromise(
                     symbol: "calendar.badge.plus",
@@ -12281,7 +12578,7 @@ struct OnboardingFlowView: View {
                             .foregroundStyle(BookPalette.ink)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(sworePact ? "Good. Bring me scraps." : "Tap if that sounds like fun.")
+                        Text(sworePact ? "Sworn." : "Tap if that sounds like fun.")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(sworePact ? BookPalette.lampGold : BookPalette.ink.opacity(0.52))
                     }
@@ -13119,7 +13416,7 @@ struct OnboardingFlowView: View {
                         .font(.system(size: 12, weight: .black))
                         .tracking(1.1)
                         .foregroundStyle(BookPalette.gold)
-                    Text("Choose when I may tap the glass.")
+                    Text("When should I knock?")
                         .font(.system(.title3, design: .serif).weight(.bold))
                         .foregroundStyle(BookPalette.ink)
                 }
@@ -13135,7 +13432,7 @@ struct OnboardingFlowView: View {
 
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("WHEN SHOULD I KNOCK?")
+                Text("PICK A TIME")
                     .font(.system(size: 12, weight: .black))
                     .tracking(1.0)
                     .foregroundStyle(BookPalette.gold)
@@ -13158,7 +13455,7 @@ struct OnboardingFlowView: View {
                     .id("onboarding-whisper-hinge")
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 } else {
-                    Text("Pick one to carry on. Silence counts too; if you leave it blank, I will chew the ribbon instead.")
+                    Text("Pick one to carry on. Want me quiet? That's the last one.")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(BookPalette.ink.opacity(0.62))
                         .fixedSize(horizontal: false, vertical: true)
@@ -13215,7 +13512,7 @@ struct OnboardingFlowView: View {
                 }
             }
 
-            Text("Missing days doesn't undo it. Almost nobody builds one cleanly.")
+            Text("Missing days doesn't undo it. Almost nobody builds a habit without missing some.")
                 .font(.system(.body, design: .serif).weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
@@ -13426,7 +13723,7 @@ struct OnboardingFlowView: View {
             onboardingHabitScienceStat(
                 number: "0",
                 title: "days you have to do in a row",
-                body: "This is the part people get wrong. Missing a day didn't set anyone in the study back, and the people who did build the habit missed plenty of days along the way. Patchy, uneven, on-and-off is not the failed version of this. It is the normal one, and it still works."
+                body: "This is the part people get wrong. Missing a day didn't set anyone in the study back, and the people who did build the habit missed plenty of days along the way. Patchy and on-and-off is normal, and it still works."
             )
 
             onboardingHabitScienceStat(
@@ -14513,15 +14810,15 @@ struct OnboardingFlowView: View {
             """
         case .wait:
             return """
-            Good. The page that waits still counts. I want real details, not good ones.
+            Good. A Page that waits still counts. I'd take a real detail over a good one any day.
 
-            Now the sample page turns in the air. The cover opens underneath it.
+            Now the loose page slides back between the covers. The Book opens underneath it.
             """
         case nil:
             return """
             One real detail is enough to start with.
 
-            Now the cover opens the wrong way.
+            Now the loose page slides back between the covers. The Book opens underneath it.
             """
         }
     }
@@ -14969,7 +15266,7 @@ struct OnboardingFlowView: View {
 	            // "You can't lose this" and "he walks off with something of
 	            // yours" were withdrawing each other one clause apart. Both
 	            // facts are true; only the reassurance had to go.
-	            Text("One answer, one roll of the dice. Pick the one you mean. The scene ends either way; the roll only decides whether Wicker walks off with something of yours.")
+	            Text("One answer, one throw of the Inkbones. Pick the one you mean. The scene ends either way; the roll only decides whether Wicker walks off with something of yours.")
 	                .font(.system(.callout, design: .serif))
 	                .foregroundStyle(BookPalette.ink.opacity(0.64))
                 .fixedSize(horizontal: false, vertical: true)
@@ -15437,7 +15734,9 @@ struct OnboardingFlowView: View {
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("\"I took one word off your page and you didn't feel it go. That's the size of your not-noticing. Now hold that steady across \(openingSpentMinutesToday) minutes.\"")
+            Text(pageChangeNoticed == "caught"
+                 ? "\"You caught one word, and you were staring right at it. Today's had \(openingSpentMinutesToday) minutes so far. How many of those did you catch?\""
+                 : "\"One word went while you were staring right at it. Today's had \(openingSpentMinutesToday) minutes so far. How many of those did you actually see?\"")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .lineSpacing(2)
@@ -15984,21 +16283,16 @@ struct OnboardingFlowView: View {
                 .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\"\(belief)\" can become a Cast Member")
+                    Text("\"\(belief)\"")
                         .font(.subheadline.weight(.black))
                         .foregroundStyle(BookPalette.ink.opacity(0.78))
-                    Text("Lend your answer some Belief and it can become a living thread the Book recognizes and brings back.")
+                    Text("Put some Belief behind it and it comes alive in here.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.66))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                onboardingBeliefBenefitRow("Connects moments that belong together", symbol: "link")
-                onboardingBeliefBenefitRow("Can return across future Pages", symbol: "arrow.triangle.2.circlepath")
-                onboardingBeliefBenefitRow("Pulls your living story toward what it means", symbol: "book.pages")
-            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -16043,13 +16337,6 @@ struct OnboardingFlowView: View {
                 .stroke(BookPalette.teal.opacity(0.28), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
-    }
-
-    private func onboardingBeliefBenefitRow(_ line: String, symbol: String) -> some View {
-        Label(line, systemImage: symbol)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(BookPalette.ink.opacity(0.68))
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     private func onboardingBeliefRule(_ title: String, _ body: String, symbol: String) -> some View {
@@ -16312,7 +16599,7 @@ struct OnboardingFlowView: View {
                         Text("\(chapter.talismanName) warms.")
                             .font(.subheadline.weight(.black))
                             .foregroundStyle(BookPalette.ink.opacity(0.84))
-                        Text("It's a first tug, not your Binding. The Book tests this argument first. What you keep answers more honestly later.")
+                        Text("Just a first pull. Nothing's settled. What you keep from now on will show which argument is really yours.")
                             .font(.system(.callout, design: .serif))
                             .foregroundStyle(BookPalette.ink.opacity(0.68))
                             .fixedSize(horizontal: false, vertical: true)
@@ -17282,9 +17569,9 @@ struct OnboardingFlowView: View {
     private var comfortPreviewLine: String {
         switch comfortBoundary {
         case "gentle":
-            return "I found \(inscriptionChapterSubject) still here. I left the door beside it open and threatened the hinges."
+            return "I found \(inscriptionChapterSubject) still here. I left a door open beside it, in case you want another look."
         case "strange":
-            return "You called \(inscriptionChapterSubject) ordinary. Suspicious. Ordinary things don't usually survive being looked at twice."
+            return "Look at \(inscriptionChapterSubject), pretending to be ordinary. Suspicious. Ordinary things don't usually survive being looked at twice."
         default:
             return "You nearly let \(inscriptionChapterSubject) go grey. Look again before it gets away with it."
         }
@@ -17292,9 +17579,9 @@ struct OnboardingFlowView: View {
 
     private var comfortBoundaryLine: String {
         switch comfortBoundary {
-        case "gentle": return "\"Doors, not shoves. If you say no, I sulk inside the covers.\""
-        case "strange": return "\"Teeth out. Still, no means no. I bite doors, not hands.\""
-        default: return "\"I can interrupt. I don't get to drag.\""
+        case "gentle": return "\"I'll show you doors. If you say no, I'll sulk inside the covers.\""
+        case "strange": return "\"Teeth out. You can still say no, and then I'll go and bother the furniture.\""
+        default: return "\"I'll interrupt. If you say no, I stop.\""
         }
     }
 
@@ -17311,7 +17598,7 @@ struct OnboardingFlowView: View {
         case "both":
             return "Morning knocks. Evening brings the evidence back. Change either bell later; they aren't in charge."
         default:
-            return "No ordinary whisper. Opening the covers is the cue, but my brief attention knocks still arrive while the study is awake."
+            return "No knocking, then. I'll be in here when you open me."
         }
     }
 
@@ -17609,7 +17896,7 @@ struct OnboardingFlowView: View {
             case .triumph:
                 carriedThread = "The new door labels itself \(mostAliveTitle.uppercased()). Wicker has to follow your direction or admit he's afraid of it."
             case .hold:
-                carriedThread = "I point your next page toward \(mostAliveTitle.lowercased()), with \(magicSourceTitle.lowercased()) waiting at the hinge."
+                carriedThread = "I point your next page toward \(mostAliveTitle.lowercased()), with \(magicSourceTitle.lowercased()) waiting at the next turn."
             case .glance:
                 carriedThread = "He pins you to the promise: find one real sign of \(magicSourceTitle.lowercased()) where you feel \(mostAliveTitle.lowercased())."
             case .cost:
@@ -18567,19 +18854,21 @@ struct OnboardingFlowView: View {
         .modifier(OnboardingSectionArrivalModifier(kind: .artifact, delay: 0.10))
     }
 
-    /// The Curse, evidenced: three real studies and one extrapolation the Book
-    /// owns out loud.
+    /// The Curse, evidenced: two real studies and one extrapolation the Book
+    /// owns out loud. Spliced from the landing page's "Who we're up against"
+    /// chapter, which bj preferred, so the app and the site make the same
+    /// argument in the same words.
     ///
-    /// The extrapolation used to be hedged three separate times — "here is my
-    /// extrapolation", "I am naming the consequence", "I don't intend to call
-    /// that harmless" — and a claim disclaimed three times reads as a Book that
-    /// does not believe itself. The line between what the researchers found and
-    /// what the Book infers is now drawn exactly once, in its own voice, and
-    /// the inference then stands at full strength.
+    /// The line between what the researchers found and what the Book infers
+    /// is drawn exactly once, and the inference then stands at full strength.
+    /// The reader's own recall contrast is not repeated here: the verdict
+    /// prose directly above has already said it.
     private var onboardingNotYourFaultCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 10) {
-                Text("WAIT. WHAT?")
+                // A reader who kept all three has just beaten the test, so the
+                // research is about everybody else.
+                Text(recallRemembered >= RoutineRecallProbe.askedCount ? "EVERYONE ELSE, THOUGH" : "IT ISN'T JUST YOU")
                     .font(.system(size: 11, weight: .black))
                     .tracking(1.1)
                     .foregroundStyle(BookPalette.nightText)
@@ -18599,36 +18888,31 @@ struct OnboardingFlowView: View {
                     .accessibilityHidden(true)
             }
 
-            // First proof: a thing the size of a gorilla can go past unseen.
+            // First proof: about half the time, the mind is somewhere else.
             VStack(alignment: .leading, spacing: 9) {
-                Text("THE GORILLA NOBODY SAW")
-                    .font(.system(.title3, design: .serif).weight(.black))
-                    .foregroundStyle(BookPalette.ink)
+                Text("46.9%")
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .foregroundStyle(BookPalette.gold)
+                    .accessibilityLabel("46.9 percent")
 
-                Text("In a 1999 study, people watched two teams pass basketballs and counted the passes made by one team. Then someone in a gorilla suit walked straight through the game.")
+                Text("Researchers caught people in ordinary life and asked where their minds were. In 46.9% of the moments, people were paying attention to something other than what they were doing. Driving, but thinking about work. Cooking, but worrying about the bills.")
                     .font(.system(.callout, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("56%")
-                        .font(.system(size: 42, weight: .black, design: .rounded))
-                        .foregroundStyle(BookPalette.gold)
-                    Text("DIDN'T REPORT SEEING IT")
-                        .font(.system(size: 11, weight: .black))
-                        .tracking(0.8)
-                        .foregroundStyle(BookPalette.ink.opacity(0.64))
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Fifty-six percent did not report seeing the person in the gorilla suit.")
-
-                Label("Simons & Chabris, Perception (1999)", systemImage: "text.book.closed")
+                Label("Killingsworth & Gilbert, Science (2010)", systemImage: "text.book.closed")
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(BookPalette.ink.opacity(0.52))
 
-                Text("\"A whole gorilla. Right in front of them. They were busy counting. That's the size of thing you can miss.\"")
-                    .font(.system(.title3, design: .serif).weight(.bold))
+                Text("\"That's where the study ends. The next part is mine. If you're not paying attention, you're not making memories. Almost half your life never gets the chance to become one.\"")
+                    .font(.system(.callout, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.86))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("\"Carry that across ten years and almost five years of your waking life go missing while they're happening. Not asleep. Not resting. Gone.\"")
+                    .font(.system(.title3, design: .serif).weight(.black))
                     .foregroundStyle(BookPalette.teal.opacity(0.94))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
@@ -18640,98 +18924,37 @@ struct OnboardingFlowView: View {
                     .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
             }
 
-            // Second proof: it happens about half of the time.
-            VStack(alignment: .leading, spacing: 8) {
-                Text("In a 2010 experience-sampling study, people said their minds were somewhere else in 46.9% of the moments researchers checked.")
+            // Second proof: a thing the size of a gorilla can go past unseen.
+            VStack(alignment: .leading, spacing: 9) {
+                Text("56%")
+                    .font(.system(size: 42, weight: .black, design: .rounded))
+                    .foregroundStyle(BookPalette.gold)
+                    .accessibilityLabel("56 percent")
+
+                Text("In another study, people counted basketball passes in a video. A person in a gorilla suit walked right through the game and stayed there a bit. 56% of them didn't report seeing it. A whole gorilla. They were busy counting.")
                     .font(.system(.callout, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .foregroundStyle(BookPalette.ink.opacity(0.76))
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                // The citation belongs against the sentence it backs, not
-                // stranded at the foot of the card where it reads as a credit
-                // rather than as evidence for that specific claim.
-                Label("Killingsworth & Gilbert, Science (2010)", systemImage: "text.book.closed")
-                    .font(.footnote.weight(.bold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.52))
-
-                Text("\"They called it mind-wandering. I call it autopilot: hands moving, road passing, water boiling, attention somewhere else.\"")
-                    .font(.system(.title3, design: .serif).weight(.bold))
-                    .foregroundStyle(BookPalette.ink)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // The one place the Book leaves the findings behind. Marked once,
-            // then said at full strength.
-            VStack(alignment: .leading, spacing: 10) {
-                Text("\"That's their number. The next part is mine.\"")
-                    .font(.system(.callout, design: .serif).weight(.black))
-                    .foregroundStyle(BookPalette.ink.opacity(0.80))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(alignment: .center, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("10")
-                            .font(.system(size: 34, weight: .black, design: .rounded))
-                            .foregroundStyle(BookPalette.ink)
-                        Text("YEARS' WAKING HOURS")
-                            .font(.system(size: 9, weight: .black))
-                            .tracking(0.8)
-                            .foregroundStyle(BookPalette.ink.opacity(0.52))
-                    }
-
-                    Image(systemName: "arrow.right")
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(BookPalette.gold)
-
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text("4.69")
-                            .font(.system(size: 34, weight: .black, design: .rounded))
-                            .foregroundStyle(BookPalette.teal)
-                        Text("YEARS' WAKING HOURS ELSEWHERE")
-                            .font(.system(size: 9, weight: .black))
-                            .tracking(0.8)
-                            .foregroundStyle(BookPalette.ink.opacity(0.52))
-                    }
-                }
-                .padding(.vertical, 2)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("If the study's average held across ten years of waking hours, 4.69 years' worth of those hours would pass with the mind elsewhere.")
-
-                Text("\"Hold 46.9% across ten years and four years and eight months of your waking life go by with you somewhere else. Not asleep. Not resting. Gone.\"")
-                    .font(.system(.title3, design: .serif).weight(.black))
-                    .foregroundStyle(BookPalette.teal.opacity(0.94))
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Why the wandered hours do not stay. The useful-wandering clause
-            // keeps the claim accurate without softening it.
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Attention is how a moment gets into memory. When attention leaves, less of what's in front of you gets in. Some wandering is useful: plans, daydreams. It still doesn't save the room you were standing in.")
-                    .font(.system(.callout, design: .serif).weight(.semibold))
-                    .foregroundStyle(BookPalette.ink.opacity(0.78))
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Label("Blondé et al., Neuroscience & Biobehavioral Reviews (2022)", systemImage: "text.book.closed")
+                Label("Simons & Chabris, Perception (1999)", systemImage: "text.book.closed")
                     .font(.footnote.weight(.bold))
                     .foregroundStyle(BookPalette.ink.opacity(0.52))
             }
+            .padding(12)
+            .background(BookPalette.lampGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.26), lineWidth: 1)
+            }
 
-            // The reader's own two answers, which outrank every study above.
-            Text(recallContrastLine)
-                .font(.system(.callout, design: .serif).weight(.bold))
-                .foregroundStyle(BookPalette.ink.opacity(0.84))
+            Text("\"That's how strong attention is. It decides what gets into the story of your life. If worry gets all of it, worry writes a tragedy. Turn some of it toward the magic already around you, and the very same life can become a Faerie tale.\"")
+                .font(.system(.callout, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(
-                recallRemembered >= RoutineRecallProbe.askedCount
-                    ? "\"That's the Curse. Not a percentage, and not a verdict on you. I'm not a cure. I keep watch on what you already notice.\""
-                    : "\"That's the Curse. The part of your life that happens and never becomes anywhere you can go back to. I'm not a cure. I keep the pieces it misses.\""
-            )
+            Text("\"That's what I'm for. I point. You look. We keep what the Curse wanted you to miss.\"")
                 .font(.system(.title3, design: .serif).weight(.black))
                 .foregroundStyle(BookPalette.ink)
                 .lineSpacing(2)

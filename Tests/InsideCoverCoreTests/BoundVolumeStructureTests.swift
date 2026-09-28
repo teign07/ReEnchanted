@@ -121,6 +121,18 @@ final class BoundVolumeStructureTests: XCTestCase {
         )
     }
 
+    func testPrintedSamplingDoesNotCallTheArchiveComplete() throws {
+        let full = edition(otherPages: 4)
+        let fullArchive = try XCTUnwrap(full.sections.first { $0.id == "other-kept-pages" })
+        let fitted = try XCTUnwrap(full.trimmedForPrint())
+        let printedArchive = try XCTUnwrap(fitted.sections.first { $0.id == "other-kept-pages" })
+
+        XCTAssertEqual(fullArchive.title, "The Complete Archive")
+        XCTAssertLessThan(printedArchive.items.count, fullArchive.items.count)
+        XCTAssertEqual(printedArchive.title, "From the Archive")
+        XCTAssertTrue(printedArchive.note.contains("sampling"))
+    }
+
     func testEveryBoundSectionActuallyHasContent() {
         XCTAssertTrue(
             edition().sections.allSatisfy { !$0.items.isEmpty },

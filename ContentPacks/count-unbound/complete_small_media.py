@@ -25,7 +25,7 @@ Professor Permancer opened the return. Every registered entrant answered the boo
 “I meant it,” Eddies said when asked whether it was a prank.
 
 Permancer has asked the Bleed to print the exact sentence. We have."""),
-    article("count-unbound.bleed.east-stacks", "Serenity Brown Awake", """Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used the wound to hold himself in Academy space.
+    article("count-unbound.bleed.east-stacks", "Serenity Brown Awake", """Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used her to hold himself inside the Academy.
 
 Brown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose. No further injury has been reported.
 
@@ -51,7 +51,21 @@ def beat(id, phase, role, first, last, title, body, report, page_type, stage=Non
                   isMilestone=False, pageType=page_type, reportsWhenMissed=False)
     if stage:
         result["lifecycleStage"] = stage
+    if id in BEAT_ROOMS:
+        result["roomID"], result["castIDs"] = BEAT_ROOMS[id]
     return result
+
+
+# Where each beat happens in the Academy, and who's in it. The Book's map
+# reads both off the beat's Page, on the desk or kept.
+BEAT_ROOMS = {
+    "count-unbound.class.book-jumping-roster": ("location-vault-of-doors", ["professor-permancer", "penny-blackletter"]),
+    "count-unbound.class.ink-has-no-conscience": ("location-inkworks", ["professor-vivian-villanelle"]),
+    "count-unbound.letter.permancer": ("location-vault-of-doors", ["professor-permancer"]),
+    "count-unbound.class.invitation-shape": ("location-spark-annex", ["professor-luna-wispwood"]),
+    "count-unbound.class.rest-after-door": ("location-still-room", ["professor-cedric-stonebrook"]),
+    "count-unbound.residue.protocol-amendment": ("location-vault-of-doors", ["professor-permancer"]),
+}
 
 
 BEATS = [
@@ -101,17 +115,26 @@ def atom(id, title, channel, kind, role, first, last, stage="live", tags=()):
                 interaction="none", priority="featured" if stage == "live" else "ambient",
                 gate=gate, occurrence={"kind": "oncePerRun"}, dependencies=[],
                 productionStatus="ready", isRequired=True,
-                tags=["count-unbound", *tags])
+                tags=["count-unbound", *tags],
+                **({"survivesConclusion": True} if role == "aftermath" and stage == "live" else {}))
+
+
+def replace_by_id_in_place(existing, generated):
+    """Refresh authored entries without moving them past unrelated content."""
+    replacements = {item["id"]: item for item in generated}
+    existing_ids = {item["id"] for item in existing}
+    return [replacements.get(item["id"], item) for item in existing] + [
+        item for item in generated if item["id"] not in existing_ids
+    ]
 
 
 def main():
     pack = json.loads(PACK.read_text())
     event = pack["events"][0]
     manifest = pack["authoringManifests"][0]
-    ids = {item["id"] for item in ARTICLES + BEATS}
-    pack["bleedArticles"] = [item for item in pack.get("bleedArticles", []) if item["id"] not in ids] + ARTICLES
-    event["beats"] = [item for item in event.get("beats", []) if item["id"] not in ids] + BEATS
-    atoms = [item for item in manifest["content"] if item["id"] not in ids]
+    pack["bleedArticles"] = replace_by_id_in_place(pack.get("bleedArticles", []), ARTICLES)
+    event["beats"] = replace_by_id_in_place(event.get("beats", []), BEATS)
+    atoms = []
     # News of a same-day incident starts the following morning. An unseen
     # Reader may receive public history, but never a premature headline.
     for item, role, first, last in zip(ARTICLES, ("setup", "buildup", "climax", "aftermath"),
@@ -124,7 +147,7 @@ def main():
         atoms.append(atom(item["id"], item["title"], "page", "worldEventBeat",
                           item["role"], item["opensOnDay"], item["expiresAfterDay"],
                           stage=stage, tags=tags))
-    manifest["content"] = atoms
+    manifest["content"] = replace_by_id_in_place(manifest["content"], atoms)
     # Every preparation can meet Penny's independent check. A completed Week
     # Three return adds the Reader's exact observation; absent evidence leaves
     # the same fictional discovery in place without inventing participation.

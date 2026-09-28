@@ -11121,6 +11121,9 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             "selectedEntityIDs": packet.selectedEntities.map(\.id).joined(separator: ","),
             "storySettingID": storySetting?.id ?? "",
             "storySettingName": storySetting?.name ?? "",
+            // Where the scene is and who's in it, for the Book's map.
+            AcademyScene.roomKey: storySetting?.id ?? "",
+            AcademyScene.castKey: packet.selectedEntities.filter { $0.kind == .character }.map(\.id).joined(separator: ","),
             "storySettingDetail": storySettingDetail,
             "storyFormID": packet.storyFormID ?? "",
             "storyFormName": packet.storyFormName ?? "",
@@ -15466,6 +15469,12 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                 "event-beat:\(beat.id)"
             ] + (beat.pageType.map { [$0.rawValue] } ?? [])).joined(separator: ",")
         ]
+        if let roomID = beat.roomID?.nonEmpty {
+            metadata[AcademyScene.roomKey] = roomID
+        }
+        if let castIDs = beat.castIDs, !castIDs.isEmpty {
+            metadata[AcademyScene.castKey] = castIDs.joined(separator: ",")
+        }
         if let participation {
             metadata["worldEventParticipationDoor"] = "true"
             metadata["fieldworkPrompt"] = participation

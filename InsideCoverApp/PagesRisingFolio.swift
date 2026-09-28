@@ -622,7 +622,7 @@ struct PagesRisingFolio: View {
                     }
 
                     if !charms.isEmpty {
-                        FolioBookCharmRail(charms: charms)
+                        FolioBookCharmRail(charms: charms, isPaused: isAmbientMotionPaused)
                             .offset(x: 34, y: pageHeight - 20)
                             .zIndex(0.82)
                     }
@@ -2079,6 +2079,11 @@ private struct FolioBookClasp: View {
 
 private struct FolioBookCharmRail: View {
     let charms: [PagesRisingBookCharm]
+    /// Something is covering the Book. The charms hang where they are and the
+    /// motion sensor is let go: on an iPhone 15 its thirty samples a second,
+    /// each re-rendering both charms, were the whole of the main thread's
+    /// work under every opened leaf.
+    var isPaused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var motion = FolioCharmMotionModel()
 
@@ -2096,10 +2101,17 @@ private struct FolioBookCharmRail: View {
         .fixedSize()
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tools hanging from the Book")
-        .onAppear { motion.start(reduceMotion: reduceMotion) }
+        .onAppear { syncMotion() }
         .onDisappear { motion.stop() }
-        .onChange(of: reduceMotion) { _, next in
-            motion.start(reduceMotion: next)
+        .onChange(of: reduceMotion) { _, _ in syncMotion() }
+        .onChange(of: isPaused) { _, _ in syncMotion() }
+    }
+
+    private func syncMotion() {
+        if isPaused && !reduceMotion {
+            motion.stop()
+        } else {
+            motion.start(reduceMotion: reduceMotion)
         }
     }
 }
@@ -2165,8 +2177,17 @@ private final class FolioCharmMotionModel: ObservableObject {
 
     private let manager = CMMotionManager()
     private var lastTimestamp: TimeInterval?
+    private var lightAngle: Double = 0
+    private var heavyAngle: Double = 0
     private var lightVelocity: Double = 0
     private var heavyVelocity: Double = 0
+
+    /// A twentieth of a degree moves the foot of a charm, some 75 points below
+    /// its hook, by under a tenth of a point. Smaller changes are not
+    /// published: sensor noise
+    /// on a phone lying still otherwise re-rendered both charms thirty times a
+    /// second for a movement nobody could see.
+    private static let visibleStep = 0.05
 
     func start(reduceMotion: Bool) {
         stop(reset: reduceMotion)
@@ -2188,6 +2209,8 @@ private final class FolioCharmMotionModel: ObservableObject {
         lightVelocity = 0
         heavyVelocity = 0
         if reset {
+            lightAngle = 0
+            heavyAngle = 0
             lightCharmAngle = 0
             heavyCharmAngle = 0
         }
@@ -2201,7 +2224,7 @@ private final class FolioCharmMotionModel: ObservableObject {
         let gravityTarget = max(-12, min(12, sample.gravity.x * 17))
         let impulse = max(-1.4, min(1.4, sample.userAcceleration.x))
         integrate(
-            angle: &lightCharmAngle,
+            angle: &lightAngle,
             velocity: &lightVelocity,
             target: gravityTarget,
             impulse: impulse * 8.0,
@@ -2210,7 +2233,7 @@ private final class FolioCharmMotionModel: ObservableObject {
             dt: dt
         )
         integrate(
-            angle: &heavyCharmAngle,
+            angle: &heavyAngle,
             velocity: &heavyVelocity,
             target: gravityTarget * 0.72,
             impulse: impulse * 4.2,
@@ -2218,6 +2241,12 @@ private final class FolioCharmMotionModel: ObservableObject {
             dampingPerFrame: 0.90,
             dt: dt
         )
+        if abs(lightAngle - lightCharmAngle) >= Self.visibleStep {
+            lightCharmAngle = lightAngle
+        }
+        if abs(heavyAngle - heavyCharmAngle) >= Self.visibleStep {
+            heavyCharmAngle = heavyAngle
+        }
     }
 
     private func integrate(

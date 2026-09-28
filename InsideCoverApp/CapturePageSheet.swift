@@ -6476,7 +6476,7 @@ struct CapturePageSheet: View {
         let stations = RadioStationRegistry.stations(unlockedPackIDs: unlocked)
         let currentPlayback = radioManager.isPlaying ? radioManager.playback : (radioManager.playback.isTuned ? radioManager.playback : radioPlayback)
         let dialStation = RadioStationRegistry.tunedStation(to: radioDialFrequency, unlockedPackIDs: unlocked)
-        let liveDialIsBetweenStations = (radioManager.isPlaying || hasTouchedRadioDial) && dialStation == nil && selectedRadioStationID == nil
+        let liveDialIsBetweenStations = (radioManager.isPlayingTuningNoise || hasTouchedRadioDial) && dialStation == nil && selectedRadioStationID == nil
         let fallbackID = liveDialIsBetweenStations ? nil : (currentPlayback.activeStationID ?? surface.payload.metadata["radioStationID"] ?? stations.first?.id)
         let activeID = dialStation?.id ?? selectedRadioStationID ?? fallbackID
         let active = activeID.flatMap { RadioStationRegistry.station(id: $0, unlockedPackIDs: unlocked) } ?? (liveDialIsBetweenStations ? nil : stations.first)
@@ -14209,7 +14209,7 @@ struct CapturePageSheet: View {
         bookOfYouShareMessage = force ? "I'm pressing one safe page for the outside world." : ""
         defer { isPressingBookOfYouShareCard = false }
 
-        let renderedURL = BookOfYouShareCardRenderer.render(artifact: artifact)
+        let renderedURL = await BookOfYouShareCardRenderer.renderInBackground(artifact: artifact)
         bookOfYouShareCardURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)

@@ -2621,7 +2621,17 @@ enum MonthlyEditionBuilder {
                 )
             ]
 
-        let orderedSections = sections.filter { !$0.items.isEmpty }
+        // The event summary may point at a Page already bound in Letters,
+        // Souvenirs, or the archive. Keep the summary, but bind that Page's
+        // prose once; seasonal and annual chapters reuse these sections.
+        let elsewhereIDs = Set(sections.filter { $0.id != "world-events" }
+            .flatMap { $0.items.map(\.id) })
+        let orderedSections = sections.map { section -> MonthlyEditionSection in
+            guard section.id == "world-events" else { return section }
+            var section = section
+            section.items.removeAll { elsewhereIDs.contains($0.id) }
+            return section
+        }.filter { !$0.items.isEmpty }
 
         return MonthlyEdition(
             title: title,
@@ -5516,7 +5526,9 @@ extension MonthlyEdition {
             let keep = max(floor, section.items.count / 2)
             section.items = EditionPrintFitting.evenlySpaced(section.items, keeping: keep)
             if id == "other-kept-pages" {
-                // It used to promise "Nothing here was left out."
+                // The complete appendix stays in the digital archive. A
+                // sampled printed copy must not call itself complete.
+                section.title = "From the Archive"
                 section.note = section.items.isEmpty
                     ? ""
                     : "A sampling of everything else the month kept. The rest stays in your archive."

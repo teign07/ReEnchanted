@@ -46,7 +46,9 @@ a $49.99 product floor; a seasonal, annual, or special softcover has a $69.99
 floor. Illustrated hardcovers remain $89.99, cloth-and-foil remains $99.99,
 and weekly stitched issues remain $19.99. Requests from older app versions that
 do not carry an edition kind retain the former $79.99 softcover floor so an old
-saved quote cannot be repriced after it was shown to its reader. Manufacturing
+saved quote cannot be repriced after it was shown to its reader. New quotes from
+those clients have the largest current edition cap, 208 pages; omitting the kind
+does not reopen the old 800-page press limit. Manufacturing
 cost can still lift any product above its floor to preserve the contribution
 margin.
 

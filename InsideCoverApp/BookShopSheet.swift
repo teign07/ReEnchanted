@@ -161,7 +161,7 @@ struct BookShopSheet: View {
     @State private var physicalBookCity = ""
     @State private var physicalBookShippingStateCode = ""
     @State private var physicalBookShippingPostalCode = ""
-    @State private var physicalBookShippingCountryCode = "US"
+    @State private var physicalBookShippingCountryCode = Locale.current.region?.identifier ?? "US"
     @State private var physicalBookPhoneNumber = ""
     @State private var physicalBookRecipientTaxID = ""
     @State private var physicalBookPaymentIntent: PhysicalBookPaymentIntent?
@@ -3864,33 +3864,36 @@ struct BookShopSheet: View {
                 TextField("City", text: $physicalBookCity)
                     .textContentType(.addressCity)
                     .textFieldStyle(.roundedBorder)
-                TextField("State", text: $physicalBookShippingStateCode)
+                TextField(physicalBookAdministrativeAreaLabel, text: $physicalBookShippingStateCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .keyboardType(.asciiCapable)
                     .textContentType(.addressState)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 74)
-                TextField("ZIP", text: $physicalBookShippingPostalCode)
+                TextField(physicalBookPostalCodeLabel, text: $physicalBookShippingPostalCode)
                     .keyboardType(.numbersAndPunctuation)
                     .textContentType(.postalCode)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 96)
+                    .frame(width: 108)
             }
 
             HStack(spacing: 6) {
-                TextField("Country", text: $physicalBookShippingCountryCode)
+                TextField("Country code", text: $physicalBookShippingCountryCode)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
                     .keyboardType(.asciiCapable)
-                    .textContentType(.countryName)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 96)
+                    .frame(width: 108)
                 TextField("Phone", text: $physicalBookPhoneNumber)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
                     .textFieldStyle(.roundedBorder)
             }
+
+            Text("Use a two-letter country code, such as US, CA, or GB.")
+                .font(.caption2)
+                .foregroundStyle(BookPalette.ink.opacity(0.62))
 
             if physicalBookDestinationNeedsRecipientTaxID {
                 TextField(physicalBookRecipientTaxIDLabel, text: $physicalBookRecipientTaxID)
@@ -4026,6 +4029,23 @@ struct BookShopSheet: View {
         ["BR", "CL", "MX"].contains(
             physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         )
+    }
+
+    private var physicalBookAdministrativeAreaLabel: String {
+        switch physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "US": return "State"
+        case "CA": return "Province"
+        case "GB": return "County"
+        default: return "Region"
+        }
+    }
+
+    private var physicalBookPostalCodeLabel: String {
+        switch physicalBookShippingCountryCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() {
+        case "US": return "ZIP"
+        case "GB": return "Postcode"
+        default: return "Postal code"
+        }
     }
 
     private var physicalBookRecipientTaxIDLabel: String {

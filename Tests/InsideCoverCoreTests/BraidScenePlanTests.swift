@@ -425,22 +425,22 @@ final class BraidScenePlanTests: XCTestCase {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
         let brief = plan.brief()
 
-        XCTAssertTrue(brief.contains("one continuous story vignette in flowing prose, entirely in the past tense"), brief)
+        XCTAssertTrue(brief.contains("one continuous story in plain prose, entirely in the past tense"), brief)
         XCTAssertTrue(brief.contains("Retell material written in any other tense in the past"), brief)
         XCTAssertTrue(brief.contains("Address the reader as \"you\""), brief)
         XCTAssertTrue(brief.contains("only for me, the Book"), brief)
         XCTAssertTrue(brief.contains("Story shape:"), brief)
         XCTAssertTrue(brief.contains(BraidScenePlan.readerDayLabel), brief)
-        XCTAssertTrue(brief.contains("Shared-world event that must happen inside the vignette:"), brief)
+        XCTAssertTrue(brief.contains(BraidScenePlan.worldLabel), brief)
         XCTAssertTrue(brief.contains("Before the first paragraph ends"), brief)
-        XCTAssertTrue(brief.contains("part of the narration itself"), brief)
+        XCTAssertTrue(brief.contains("from that odd thing happen in the story"), brief)
         XCTAssertTrue(brief.contains("Do not omit it, list it, or leave it as background information"), brief)
         XCTAssertLessThan(
-            brief.range(of: "Shared-world event")!.lowerBound,
+            brief.range(of: BraidScenePlan.worldLabel)!.lowerBound,
             brief.range(of: "Reader-day material")!.lowerBound,
             "the required world event must reach the small model before the day's evidence"
         )
-        XCTAssertTrue(brief.contains("must appear and may run as its own subplot"), brief)
+        XCTAssertTrue(brief.contains("It may run beside the reader's day"), brief)
         XCTAssertTrue(brief.contains("ingredients, not as an outline or a list"), brief)
         XCTAssertTrue(brief.contains("Let sentences lead into each other instead of repeating each item and commenting on it"), brief)
         XCTAssertFalse(brief.contains("BOOK:OWN"), brief)
@@ -763,11 +763,11 @@ final class BraidScenePlanTests: XCTestCase {
             )
             let brief = plan.brief()
             XCTAssertTrue(
-                brief.contains("Shared-world event that must happen inside the vignette:"),
+                brief.contains(BraidScenePlan.worldLabel),
                 "\(night.name) did not hand its world detail to Gemma"
             )
             XCTAssertTrue(
-                brief.contains("part of the narration itself"),
+                brief.contains("from that odd thing happen in the story"),
                 "\(night.name) made its world detail optional"
             )
         }
@@ -784,7 +784,7 @@ final class BraidScenePlanTests: XCTestCase {
         // opening action. What the test guards is unchanged — the beats are one
         // page of concurrent world life, and every selected beat is commissioned
         // by id rather than left for the model to invent around.
-        XCTAssertTrue(brief.contains("Tonight's vignette may belong entirely to the shared world"), brief)
+        XCTAssertTrue(brief.contains("Tonight's story may be all about my world"), brief)
         for beat in plan.quietDayBeats {
             XCTAssertTrue(brief.contains(BraidScenePlan.worldMaterial(beat)), brief)
             XCTAssertFalse(brief.contains("WORLD:\(beat.id)"), brief)
@@ -978,9 +978,36 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertEqual(plan.worldBeat?.source, .houseCanon)
     }
 
+    /// The worn images are masked at the tokenizer, never named to Gemma: the
+    /// 2B model copies whatever the brief shows it, so a brief that said
+    /// "don't write dust motes" would be a brief that wrote them.
+    func testNoBriefNamesAWornImage() {
+        let worn = BraidWornImages.words.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            + BraidWornImages.pairs.map { "\($0.after)\($0.word)".trimmingCharacters(in: .whitespaces).lowercased() }
+        for night in BraidBench.corpus() {
+            let brief = BraidScenePlanBuilder.plan(for: night.day, context: night.context).brief().lowercased()
+            for image in worn {
+                XCTAssertNil(
+                    brief.range(of: "\\b\(image)\\b", options: .regularExpression),
+                    "\(night.name)'s brief names \"\(image)\""
+                )
+            }
+        }
+    }
+
+    func testAWornWordFromTheReadersDayIsNotMasked() {
+        let brief = "Reader-day material: You went dancing with Sam and the dust motes flew."
+        let masked = BraidWornImages.masked(sparing: brief)
+        XCTAssertFalse(masked.words.contains(" dancing"))
+        XCTAssertTrue(masked.words.contains(" dance"), "only the carried word is spared")
+        XCTAssertTrue(masked.words.contains(" shimmer"))
+        XCTAssertTrue(masked.pairs.isEmpty, "the reader's own motes stay writable")
+        XCTAssertEqual(BraidWornImages.masked(sparing: "You fixed the lamp.").words, BraidWornImages.words)
+    }
+
     func testIndependentWorldBusinessMayRemainASeparateSubplot() {
         let brief = BraidScenePlanBuilder.plan(for: day([diary()])).brief()
-        XCTAssertTrue(brief.contains("must appear and may run as its own subplot"), brief)
+        XCTAssertTrue(brief.contains("It may run beside the reader's day"), brief)
         XCTAssertFalse(brief.contains("same narrative movement"), brief)
     }
 

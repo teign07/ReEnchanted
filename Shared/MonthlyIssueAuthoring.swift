@@ -1451,6 +1451,16 @@ enum MonthlyIssuePageCuration {
         metadata[MonthlyIssuePageMetadata.occurrenceID] = pageID
         metadata[MonthlyIssuePageMetadata.referenceKind] = atom.reference.kind.rawValue
         metadata[MonthlyIssuePageMetadata.referenceID] = atom.reference.id
+        // An unresolved authored visit is a dated invitation, not evergreen
+        // prose that should rest longer each time it is served. Give each
+        // current node one automatic offer per day until the manifest's own
+        // window or final disposition closes it. Advancing a node can still
+        // continue in the same sitting.
+        if atom.channel == .storyScene, atom.occurrence.kind == .untilResolved {
+            let node = metadata["authoredStoryNodeID"] ?? "leaf"
+            metadata["automaticRecurrenceSlot"] =
+                "authored:\(manifest.id):\(snapshot.runID):\(atom.id):\(node):\(day.id)"
+        }
         let missionOffer = atom.missionReturn != nil && atom.interaction == .fieldMission
         metadata["authoredMissionOffer"] = missionOffer ? "true" : "false"
         metadata["authoredConcludesRun"] = atom.concludesRun == true ? "true" : "false"
@@ -1459,7 +1469,8 @@ enum MonthlyIssuePageCuration {
             metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey] = "[]"
         }
         let nodeWithoutChoices = metadata["authoredStoryNodeID"] != nil && metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey] == "[]"
-        metadata[MonthlyIssuePageMetadata.interaction] = missionOffer || nodeWithoutChoices ? MonthlyIssueInteractionKind.none.rawValue : atom.interaction.rawValue
+        let interaction: MonthlyIssueInteractionKind = missionOffer || nodeWithoutChoices ? .none : atom.interaction
+        metadata[MonthlyIssuePageMetadata.interaction] = interaction.rawValue
         metadata[MonthlyIssuePageMetadata.narrativeVoice] = atom.voice.rawValue
         if mayReserve {
             metadata[MonthlyIssuePageMetadata.mayReserve] = "true"
@@ -1487,7 +1498,7 @@ enum MonthlyIssuePageCuration {
         )
         if atom.channel == .storyScene {
             return prepared.withPageCapabilities(
-                AuthoredStoryScenePageAdapter.capabilities(for: atom.interaction)
+                AuthoredStoryScenePageAdapter.capabilities(for: interaction)
             )
         }
         return prepared

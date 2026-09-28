@@ -3567,6 +3567,13 @@ struct BookPage: Codable, Identifiable, Equatable {
     /// survive a keep, and a bestiary assembled from prose would be the Book
     /// quoting itself as evidence. Nil means nothing ever looked.
     var creatureSightings: [CreatureSighting]?
+    /// Everything the desk Page knew about itself when it was kept: its story
+    /// setting, the Cast it seated, the thread it belonged to, the world event
+    /// it came from. A kept Page keeps all of it. Nil only for Pages kept
+    /// before this was carried across, which is where that record went
+    /// missing. Stored as it arrived; anything leaving the device filters at
+    /// its own boundary.
+    var metadata: [String: String]?
 
     init(
         id: String = UUID().uuidString,
@@ -3593,7 +3600,8 @@ struct BookPage: Codable, Identifiable, Equatable {
         externalReference: BookPageExternalReference? = nil,
         relationshipReceipt: RelationshipPageReceipt? = nil,
         livedQuestReceipt: LivedQuestReceipt? = nil,
-        creatureSightings: [CreatureSighting]? = nil
+        creatureSightings: [CreatureSighting]? = nil,
+        metadata: [String: String]? = nil
     ) {
         self.id = id
         self.type = type
@@ -3620,6 +3628,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         self.relationshipReceipt = relationshipReceipt
         self.livedQuestReceipt = livedQuestReceipt
         self.creatureSightings = creatureSightings
+        self.metadata = metadata
     }
 
     enum CodingKeys: String, CodingKey {
@@ -3648,6 +3657,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         case relationshipReceipt
         case livedQuestReceipt
         case creatureSightings
+        case metadata
     }
 
     init(from decoder: Decoder) throws {
@@ -3677,6 +3687,7 @@ struct BookPage: Codable, Identifiable, Equatable {
         relationshipReceipt = try container.decodeIfPresent(RelationshipPageReceipt.self, forKey: .relationshipReceipt)
         livedQuestReceipt = try container.decodeIfPresent(LivedQuestReceipt.self, forKey: .livedQuestReceipt)
         creatureSightings = try container.decodeIfPresent([CreatureSighting].self, forKey: .creatureSightings)
+        metadata = try container.decodeIfPresent([String: String].self, forKey: .metadata)
     }
 }
 
@@ -3995,7 +4006,7 @@ extension BookPage {
         "Your field report:", "Souvenir:"
     ]
 
-    private var hasEmbeddedReaderContributionLabels: Bool {
+    var hasEmbeddedReaderContributionLabels: Bool {
         userInput
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -4014,6 +4025,13 @@ extension BookPage {
         if tags.contains("onboarding-first-souvenir"),
            let legacy = OnboardingFirstSouvenirProvenance.legacyParts(in: userInput) {
             return legacy.bookText.nonEmpty
+        }
+        // Some interactive leaves archive the Reader's exact response in both
+        // the visible body slot and the reply slot. The duplicate is still one
+        // Reader sentence; it must not become Book-authored prose as well.
+        if let reply = playerReply.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+           userInput.trimmingCharacters(in: .whitespacesAndNewlines) == reply {
+            return nil
         }
         let dynamicallyBookWritten = tags.contains("earned-label")
             || tags.contains("sentence-mastery")

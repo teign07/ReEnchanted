@@ -238,6 +238,7 @@ enum BookObjectDivision: String, Identifiable {
     case bestiary
     case gazetteer
     case atlas
+    case labyrinthMap
     case todaysMargins
     case returned
     case bookOfYou
@@ -256,6 +257,7 @@ enum BookObjectDivision: String, Identifiable {
         case .bestiary: return .bestiary
         case .gazetteer: return .gazetteer
         case .atlas: return .atlas
+        case .labyrinthMap: return .labyrinthMap
         case .todaysMargins: return .todaysMargins
         case .returned: return .returned
         case .bookOfYou: return .bookOfYou
@@ -271,6 +273,7 @@ enum BookObjectDivision: String, Identifiable {
         case .bestiary: return "The Bestiary"
         case .gazetteer: return "The Gazetteer"
         case .atlas: return "The Atlas"
+        case .labyrinthMap: return "A Map of the Labyrinth"
         case .todaysMargins: return "Today's Margins"
         case .returned: return "Returned From The Stacks"
         case .bookOfYou: return "The Book of You"
@@ -3311,6 +3314,8 @@ struct ContentView: View {
             return AnyView(gazetteerShelf)
         case .atlas:
             return AnyView(atlasShelf)
+        case .labyrinthMap:
+            return AnyView(labyrinthMapShelf)
         case .todaysMargins:
             return AnyView(todayFragments)
         case .returned:
@@ -4315,7 +4320,6 @@ struct ContentView: View {
 
         applySurfaceBuildMetadata(stage.result)
         curatedSurfaceBench = stage.result.surfaces
-        recordServedSurfaces(Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity)))
 
         withAnimation(.easeOut(duration: 0.22)) {
             isLaunchFrontMatterReady = true
@@ -4334,6 +4338,10 @@ struct ContentView: View {
             deskRound.begin(with: surfacedPages)
             isLaunchDeskCurating = false
         }
+        // Record the published folio, not the quick bench before its leaves
+        // exist. A receipt written first can make enrichment retire an authored
+        // scene that the reader has not yet had a chance to meet.
+        recordServedSurfaces(surfacedPages)
         AppMemoryLedger.record("launch-quick-curation-published")
 
         let launchDays = days
@@ -7435,8 +7443,12 @@ struct ContentView: View {
     /// is a curation-sized snapshot and has previously exhausted the menu's
     /// SwiftUI update stack when used for visibility or routing.
     func openCastMemberPage(for item: GlowEntityMenuItem, now: Date = Date()) {
+        openCastMemberPage(entityID: item.id, now: now)
+    }
+
+    func openCastMemberPage(entityID: String, now: Date = Date()) {
         let cast = NarrativePackRegistry.entities + customCastMembers.map(\.entity)
-        guard let entity = cast.first(where: { $0.id == item.id }) else {
+        guard let entity = cast.first(where: { $0.id == entityID }) else {
             BookFeedback.play(.error)
             statusMessage = "That Cast Member slipped behind the binding."
             return
@@ -8274,6 +8286,11 @@ struct ContentView: View {
         case "remembered":
             selectedSurface = freshManualSurface(for: .bookRemembered)
 
+        case "map":
+            // The Book's map of the Labyrinth. Sent, not wandered into, so it
+            // leaves no wear on the paper.
+            openBookDivision(.labyrinthMap, arrival: .sent)
+
         case "glow":
             selectedSurface = freshManualSurface(for: .glowInvitation)
 
@@ -8955,7 +8972,7 @@ struct ContentView: View {
         }
         defer { isPressingLatestBraidShareCard = false }
         latestBraidSharePageID = page.id
-        latestBraidShareCardURL = BookOfYouShareCardRenderer.render(artifact: artifact)
+        latestBraidShareCardURL = await BookOfYouShareCardRenderer.renderInBackground(artifact: artifact)
         latestBraidShareMessage = latestBraidShareCardURL == nil
             ? "The page did not finish pressing. Text sharing still works."
             : "Ready to share. The full braid stays private."
@@ -9905,20 +9922,18 @@ struct ContentView: View {
             greyIsInsideCover: vault.data.greyPageThreats?.activeThreat != nil
         )
 
-        return Image("ReEnchantedTopBanner")
-            .resizable()
-            .scaledToFill()
+        // Keep a generous crop reserve at the smallest part of the breath.
+        // This banner's near-edge composition can otherwise reveal the image
+        // boundary when the horizontal drift reaches its outward extreme.
+        return AmbientKenBurnsImage(
+            name: "ReEnchantedTopBanner",
+            minScale: 1.08,
+            maxScale: 1.115,
+            drift: CGSize(width: 2, height: 1),
+            isPaused: shouldPauseAmbientMotion
+        )
             .frame(maxWidth: .infinity)
             .frame(height: 142)
-            // Keep a generous crop reserve at the smallest part of the breath.
-            // This banner's near-edge composition can otherwise reveal the image
-            // boundary when the horizontal drift reaches its outward extreme.
-            .ambientKenBurns(
-                minScale: 1.08,
-                maxScale: 1.115,
-                drift: CGSize(width: 2, height: 1),
-                isPaused: shouldPauseAmbientMotion
-            )
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 bannerTimeWash
@@ -10451,6 +10466,14 @@ struct ContentView: View {
                 action: { openBookDivision(.atlas) }
             ),
             PagesRisingContentsEntry(
+                id: "labyrinth-map",
+                wear: marks(.labyrinthMap),
+                title: "A Map of the Labyrinth",
+                detail: "Every room I've been in, drawn. The blank bits are next.",
+                systemImage: "map.circle",
+                action: { openBookDivision(.labyrinthMap) }
+            ),
+            PagesRisingContentsEntry(
                 id: "margins",
                 wear: marks(.todaysMargins),
                 title: "Today's Margins",
@@ -10547,7 +10570,7 @@ struct ContentView: View {
             bannerSeed = Int.random(in: 0..<10_000)
         case .cast:
             isCastLedgerExpanded = true
-        case .correspondences, .bestiary, .gazetteer, .atlas:
+        case .correspondences, .bestiary, .gazetteer, .atlas, .labyrinthMap:
             // Nothing to unfold: these are references the reader opened on
             // purpose, so they are already open when they arrive.
             break
@@ -11978,6 +12001,45 @@ struct ContentView: View {
         )
     }
 
+    /// The Labyrinth and the Academy inside it, drawn as far as the Book has
+    /// been. The rooms come from `AcademyGeography`; a room goes on the map
+    /// when a story, a kept Page or the room's own memory puts it there.
+    ///
+    /// It's a living map. People are placed by the month's staging, the Pages
+    /// on the desk right now, Pages kept in the last few hours, the timetable,
+    /// and everybody's own day, in that order, and the map works it out again
+    /// every minute.
+    var labyrinthMapShelf: some View {
+        let now = Date()
+        var map = AcademyMapView(inputs: AcademyChartInputs(
+            days: days,
+            placeStates: vault.data.placeStates ?? [:],
+            storySettingAffinities: vault.data.storySettingAffinities ?? [:],
+            sky: skyOnTheLeaf?.condition,
+            anchorNames: anchorLedger.map(\.name),
+            deskScenes: surfacedPages.compactMap { AcademyScene(metadata: $0.payload.metadata, at: now, pageID: $0.id) },
+            worldEvents: WorldEventRegistry.enabledEvents().map(\.event),
+            now: now
+        ))
+        // One statement per handler: each closure captures this whole view.
+        map.onOpenPage = { openKeptPage($0) }
+        map.onOpenCastMember = { openCastMemberFromMap($0) }
+        return map
+    }
+
+    /// A Cast member touched on the map. The map's already closed itself; the
+    /// division still has to go before their Page can open underneath it.
+    func openCastMemberFromMap(_ entityID: String) {
+        if activeBookDivision != nil {
+            activeBookDivision = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                openCastMemberPage(entityID: entityID)
+            }
+        } else {
+            openCastMemberPage(entityID: entityID)
+        }
+    }
+
     var sourceControlsShelf: some View {
         VStack(alignment: .leading, spacing: 12) {
             if shouldShowBookWorkingAuthorityCard {
@@ -12964,10 +13026,12 @@ struct ContentView: View {
             statusMessage = "That page's time has closed. Your kept pages are still here."
             return
         }
+        let archivedReaderReply = AuthoredStoryArchiveReply.text(
+            metadata: surface.payload.metadata, prompt: surface.prompt, readerInput: input)
         if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
             let interaction = surface.payload.metadata[MonthlyIssuePageMetadata.interaction].flatMap(MonthlyIssueInteractionKind.init(rawValue:))
             if interaction == .readerEvidence || interaction == .readerResponse {
-                guard !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                guard !archivedReaderReply.isEmpty else { return }
             }
             if interaction == .choice {
                 let choiceID = surface.payload.metadata["storyResultChoiceID"] ?? tags.first(where: { $0.hasPrefix("choice:") }).map { String($0.dropFirst(7)) }
@@ -13118,7 +13182,7 @@ struct ContentView: View {
             createdAt: keptAt,
             promptText: surface.prompt,
             userInput: input,
-            playerReply: surface.payload.metadata["playerReply"] ?? "",
+            playerReply: archivedReaderReply,
             tags: keptTags,
             sourceID: surface.sourceID,
             origin: surface.origin,
@@ -13134,7 +13198,8 @@ struct ContentView: View {
                 mediaAssets: keptMedia,
                 completedAt: keptAt
             ),
-            creatureSightings: CreatureSighting.sightings(from: surface)
+            creatureSightings: CreatureSighting.sightings(from: surface),
+            metadata: surface.payload.metadata.isEmpty ? nil : surface.payload.metadata
         )
         applyGreyPageThreatResolutionIfNeeded(
             surface: surface,
@@ -19624,6 +19689,7 @@ struct ContentView: View {
         // How long to wait between announcing a surface and opening it, so an
         // outside `sample` can attach before the tap lands.
         let openDelay = seconds(after: "--perf-open-delay", default: 0)
+        let watchSeconds = seconds(after: "--perf-watch", default: 2.5)
         var lines: [String] = []
         // Nobody touches the device during a run, so keep it from locking and
         // sending the app to the background halfway through.
@@ -19648,8 +19714,11 @@ struct ContentView: View {
                 lines.append("PERF \(surface) | unknown surface")
                 continue
             }
-            // The tap: from asking for the surface to it settling.
-            let opening = await ScrollHitchProbe.watchOpening(seconds: 2.5)
+            // The tap: from asking for the surface to it settling. Lengthened
+            // with `--perf-watch`, it also covers a hand driving the surface —
+            // dragging a sheet between detents, say — which the scripted scroll
+            // below cannot do.
+            let opening = await ScrollHitchProbe.watchOpening(seconds: watchSeconds)
             if let report = await ScrollHitchProbe.measure(
                 label: surface,
                 excluding: before,
@@ -19688,6 +19757,14 @@ struct ContentView: View {
             isAlmanacPresented = true
         case "today":
             openBookDivision(.bookToday, arrival: .sent)
+        case let name where name.hasPrefix("div:"):
+            // Any division leaf by its raw name: `div:cast`, `div:bestiary`.
+            guard let division = BookObjectDivision(rawValue: String(name.dropFirst(4))) else { return false }
+            openBookDivision(division, arrival: .sent)
+        case "braid-page":
+            // The latest Book of You, opened as a Page.
+            guard let page = latestBookOfYouPage else { return false }
+            openKeptPage(page)
         case "today-kb", "today-mg", "today-still":
             // Book Today with its banner's drift (kb), its breathing marginalia
             // (mg), or both (still) held still, to see what each costs.
@@ -19709,7 +19786,7 @@ struct ContentView: View {
         }
         switch surface {
         case "shop": isBookShopPresented = false
-        case "radio": selectedSurface = nil
+        case "radio", "braid-page": selectedSurface = nil
         case "stacks": isStacksSearchPresented = false
         case "almanac": isAlmanacPresented = false
         default: break
@@ -19723,6 +19800,45 @@ struct ContentView: View {
         #endif
         #if DEBUG && targetEnvironment(simulator)
         let smokeArguments = ProcessInfo.processInfo.arguments
+        if smokeArguments.contains("--smoke-curator-report") {
+            let now = Date()
+            let inputs = sourceInputs.resolvingWorldEvents(for: today, now: now)
+            let mood = CuratorMood.make(inputs: inputs, now: now)
+            let candidates = BookCurator.candidatePool(
+                for: today, context: CuratorContext.make(for: today), inputs: inputs, now: now
+            )
+            let eventRows = WorldEventResolver.lifecycleEvents(
+                now: now, ledger: inputs.worldEventLifecycle
+            ).filter { $0.eventID == "count-unbound" }.map {
+                "event \($0.packID) \($0.stage.rawValue) \($0.phaseID ?? "-") day=\($0.liveDay.map(String.init) ?? "-")"
+            }
+            let issueRows = candidates.filter {
+                $0.payload.metadata["worldEventIDs"] == "count-unbound"
+                    || $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == "count-unbound-october-2026"
+            }.map { page in
+                let content = page.payload.metadata[MonthlyIssuePageMetadata.contentID]
+                    ?? page.payload.metadata["authoredStorySceneID"]
+                    ?? page.payload.metadata["worldEventBeatIDs"]
+                    ?? "-"
+                return "candidate \(content) \(page.type.rawValue) mood=\(mood.allows(page)) memory=\(!BookMemoryGate.locks(page.type, keptPageCount: mood.keptPageCount)) novelty=\(CuratorNoveltyPolicy.allowsAutomaticSurface(page, history: mood.surfaceHistory, preferences: curatorSurfacePreferences(now: now), now: now))"
+            }
+            let visibleRows = surfaces.map {
+                "visible \($0.payload.metadata[MonthlyIssuePageMetadata.contentID] ?? $0.id) directive=\($0.payload.metadata["bookCurationDirectiveID"] ?? "-") campaign=\($0.payload.metadata["bookCampaignID"] ?? "-") ask=\($0.spendsCuratorAskBudget) action=\($0.spendsCuratorActionBudget) job=\($0.deskJob.rawValue)"
+            }
+            let nativeOffers = AuthoredStoryScenePageAdapter.candidates(for: today, inputs: inputs, now: now)
+            let nativeRows = nativeOffers.map { page in
+                let prepared = MonthlyIssuePageCuration.preparing(page, manifests: inputs.monthlyIssueAuthoringManifests,
+                    day: today, inputs: inputs, now: now)
+                let sceneID = page.payload.metadata["authoredStorySceneID"] ?? page.id
+                return "native \(sceneID) prepared=\(prepared != nil)"
+            }
+            let report = (eventRows + ["native-scenes \(inputs.authoredStoryScenes.count)",
+                "authored-receipts \(inputs.authoredContentReceipts.receipts.count)"] + nativeRows
+                + issueRows + visibleRows).joined(separator: "\n")
+            if let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                try? report.write(to: documents.appendingPathComponent("monthly-curator-report.txt"), atomically: true, encoding: .utf8)
+            }
+        }
         if let flag = smokeArguments.firstIndex(of: "--smoke-monthly-content")
             ?? smokeArguments.firstIndex(of: "--smoke-authored-story")
             ?? smokeArguments.firstIndex(of: "--smoke-world-event-beat") {

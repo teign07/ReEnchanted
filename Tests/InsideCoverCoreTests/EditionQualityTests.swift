@@ -24,6 +24,31 @@ final class EditionQualityTests: XCTestCase {
 
     // MARK: Bookkeeping never becomes the reader's language
 
+    func testEventCallbacksAndRelicsBindOnceBesideTheirEventSummary() {
+        let at = date(10, 12)
+        let pages = [
+            BookPage(id: "callback", type: .narrativeOS, createdAt: at,
+                promptText: "Keep this leaf.", userInput: "The latch was smooth outside and scratched behind the door.",
+                tags: ["authored-story-scene", "event:count-unbound"], origin: .generated),
+            BookPage(id: "relic", type: .narrativeOS, createdAt: at,
+                promptText: "Keep this trace.", userInput: "Ambrose turned the Count's place card over.",
+                tags: ["return-relic", "event:count-unbound"], origin: .generated),
+            BookPage(id: "event-note", type: .plainPage, createdAt: at,
+                promptText: "My note", userInput: "I noticed the door's brass edge.",
+                tags: ["event:count-unbound"])
+        ]
+        let days = [BookDay(id: "2026-10-12", date: at, pages: pages)]
+        let month = MonthlyEditionBuilder.edition(from: days, readerName: "QA",
+            startDate: date(10, 1, hour: 0), endDate: date(10, 31, hour: 23), calendar: calendar)
+        let season = MonthlyEditionBuilder.seasonal(from: days, startingMonth: date(9, 1), readerName: "QA", calendar: calendar)
+        let annual = MonthlyEditionBuilder.annual(2026, from: days, readerName: "QA", calendar: calendar)
+        for sections in [month.sections, season.chapters.flatMap(\.sections), annual.chapters.flatMap(\.sections)] {
+            let items = sections.flatMap(\.items)
+            for page in pages { XCTAssertEqual(items.filter { $0.id == page.id }.count, 1, page.id) }
+            XCTAssertTrue(items.contains { $0.id == "world-events-summary" && $0.body.contains("Count Unbound") })
+        }
+    }
+
     /// "Diary, Then Braid" was a month's theme: page tags counted as words.
     func testTagsAndBraidPlumbingAreNotPatternWords() {
         let souvenir = BookPage(type: .souvenir, createdAt: date(10, 1), promptText: "Keep one thing",

@@ -458,6 +458,21 @@ final class BraidDraftVerifierTests: XCTestCase {
         )
     }
 
+    func testThePlainWorldInstructionsCannotBecomePartOfThePage() {
+        let raw = """
+        Write tonight's page as one continuous story in plain prose, entirely in the past tense.
+        Something odd in my world tonight (it must happen in the story): the Academy stairs shifted sideways.
+        Before the first paragraph ends, make at least one concrete detail from that odd thing happen in the story.
+        Talk like a kid talks, with contractions everywhere: it's, I'd, wasn't.
+        The Academy stairs shifted sideways and sulked until dawn.
+        """
+
+        XCTAssertEqual(
+            BraidNarrativeOutput.cleaned(raw),
+            "The Academy stairs shifted sideways and sulked until dawn."
+        )
+    }
+
     func testParagraphControlBecomesAReaderFacingParagraphBreak() {
         let raw = """
         LIVED:f1 You bought plums at the market.
