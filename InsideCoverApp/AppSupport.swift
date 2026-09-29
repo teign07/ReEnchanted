@@ -391,66 +391,9 @@ enum BookFeedback {
             }
         }
         #endif
-
-        /// Bundled bookish sound, synthesized by scripts/generate_book_sounds.py.
-        var soundName: String {
-            switch self {
-            case .tap:
-                return "tap"
-            case .select:
-                return "select"
-            case .openPage:
-                return "open-page"
-            case .keepPage:
-                return "keep-page"
-            case .dismissPage:
-                return "dismiss-page"
-            case .undo:
-                return "undo"
-            case .braidStart:
-                return "braid-start"
-            case .braidComplete:
-                return "braid-complete"
-            case .sourceRefresh:
-                return "source-refresh"
-            case .error:
-                return "error"
-            case .knock:
-                return "knock"
-            case .knockReply:
-                return "knock-reply"
-            }
-        }
     }
 
-    #if canImport(AudioToolbox)
-    private static var bookSoundIDs: [String: SystemSoundID] = [:]
-
-    private static func bookSoundID(for cue: Cue) -> SystemSoundID? {
-        if let cached = bookSoundIDs[cue.soundName] {
-            return cached
-        }
-        guard let url = Bundle.main.url(
-            forResource: cue.soundName,
-            withExtension: "caf",
-            subdirectory: "BookSounds"
-        ) else {
-            return nil
-        }
-        var soundID: SystemSoundID = 0
-        guard AudioServicesCreateSystemSoundID(url as CFURL, &soundID) == kAudioServicesNoError else {
-            return nil
-        }
-        bookSoundIDs[cue.soundName] = soundID
-        return soundID
-    }
-
-    private static func playBookSound(_ cue: Cue) {
-        AudioServicesPlaySystemSound(bookSoundID(for: cue) ?? cue.systemSoundID)
-    }
-    #endif
-
-    static func play(_ cue: Cue) {
+    static func play(_ cue: Cue, sound: Bool = true) {
         let playedComposedHaptic = BookHapticEngine.shared.play(cue)
         #if canImport(UIKit)
         if !playedComposedHaptic, hapticMode != .off {
@@ -479,16 +422,17 @@ enum BookFeedback {
         }
         #endif
 
-        #if canImport(AudioToolbox)
-        playBookSound(cue)
-        #endif
+        if sound { BookSoundBank.play(cue) }
     }
 
-    /// A whisper-light haptic with no sound, for press-down feedback on tap
-    /// targets. Safe to fire on every button: it carries no audio, and lands
-    /// on touch-down so it layers under (rather than collides with) any cue a
-    /// button plays on release. Respects the reader's haptic-mode setting.
+    /// A whisper-light haptic, plus a barely-there wooden 'thip' in Full sound
+    /// mode, for press-down feedback on tap
+    /// targets. Safe to fire on every button: the thip is a few milliseconds
+    /// at whisper level, and lands on touch-down so it layers under (rather
+    /// than collides with) the note a button plays on release. Respects the
+    /// reader's haptic and sound settings independently.
     static func pressTick() {
+        BookSoundBank.press()
         #if canImport(UIKit)
         guard hapticMode != .off else { return }
         let intensity = hapticMode == .gentle ? 0.18 : 0.3
@@ -498,8 +442,10 @@ enum BookFeedback {
 
     /// A soft, silent give as the Pagewright lifts a loose finding or an
     /// already-placed mark. Distinct from a button tick: this should feel like
-    /// paper leaving timber, not another control being pressed.
+    /// paper leaving timber, not another control being pressed. Its voice is a small rising lute-and-
+    /// mandolin figure, Full sound mode only.
     static func pagewrightLift() {
+        BookSoundBank.pagewrightLift()
         #if canImport(UIKit)
         guard hapticMode != .off else { return }
         let intensity = hapticMode == .gentle ? 0.24 : 0.42
@@ -507,9 +453,10 @@ enum BookFeedback {
         #endif
     }
 
-    /// The small, firmer landing when a Pagewright mark is set onto the paper.
-    /// It stays silent so repeated arranging never turns the worktable noisy.
+    /// The small, firmer landing when a Pagewright mark is set onto the paper. Four rotating variants,
+    /// Full sound mode only, so repeated arranging is a little song and not a repeated click.
     static func pagewrightDrop() {
+        BookSoundBank.pagewrightDrop()
         #if canImport(UIKit)
         guard hapticMode != .off else { return }
         let intensity = hapticMode == .gentle ? 0.34 : 0.56
@@ -519,11 +466,11 @@ enum BookFeedback {
 
     /// The tactile edge of the dismiss threshold: a silent tick at the moment a
     /// drag crosses into (or back out of) the range where letting go would
-    /// let the page pass. It carries no audio, because the reader is still
-    /// mid-gesture and nothing has happened yet; the sound belongs to the
-    /// dismissal itself. Engaging is firmer than releasing, so the reader can
+    /// let the page pass. Its sound is a whisper-small wooden latch (Full sound mode only): the
+    /// dismissal itself still owns the real sound. Engaging is firmer than releasing, so the reader can
     /// tell the two crossings apart by feel without watching the seal.
     static func sealTick(engaged: Bool) {
+        BookSoundBank.sealTick(engaged: engaged)
         #if canImport(UIKit)
         guard hapticMode != .off else { return }
         let gentle = hapticMode == .gentle
@@ -543,6 +490,10 @@ enum BookFeedback {
     /// dictation, and the sentence builder's own insertions are left alone: they
     /// aren't handwriting, and they already carry their own cues.
     static func inkTick(from old: String, to new: String) {
+        if new.utf8.count - old.utf8.count == 1, new.last != old.last,
+           let typed = new.last, ".!?…".contains(typed) {
+            BookSoundBank.inkSentence()
+        }
         #if canImport(UIKit)
         let mode = hapticMode
         guard mode != .off else { return }
@@ -612,18 +563,22 @@ enum BookFeedback {
     }
 
     static func beliefTransferred(amount: Int, recipientGlow: Int) {
+        BookSoundBank.beliefTransferred(amount: amount)
         BookHapticEngine.shared.playBeliefTransfer(amount: amount, recipientGlow: recipientGlow)
     }
 
     static func bookJump(_ cue: BookJumpCue) {
+        BookSoundBank.bookJump(cue)
         BookHapticEngine.shared.playBookJump(cue)
     }
 
     static func faeArrival(kind: String, court: String? = nil) {
+        BookSoundBank.faeArrival(kind: kind, court: court)
         BookHapticEngine.shared.playFaeArrival(kind: kind, court: court)
     }
 
     static func constellationDiscovered(nodes: Int) {
+        BookSoundBank.constellation(nodes: nodes)
         BookHapticEngine.shared.playConstellation(nodes: nodes)
     }
 
@@ -633,48 +588,49 @@ enum BookFeedback {
 
     static func chapterBindingReveal() {
         BookHapticEngine.shared.playChapterBinding()
-        #if canImport(AudioToolbox)
-        playBookSound(.braidStart)
+        BookSoundBank.play(.braidStart)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            playBookSound(.sourceRefresh)
+            BookSoundBank.play(.sourceRefresh)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
-            playBookSound(.braidComplete)
+            BookSoundBank.play(.braidComplete)
         }
-        #endif
     }
 
     static func chapterBindingAccepted() {
         BookHapticEngine.shared.playChapterBinding()
-        #if canImport(AudioToolbox)
-        playBookSound(.braidComplete)
+        BookSoundBank.play(.braidComplete)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            playBookSound(.keepPage)
+            BookSoundBank.play(.keepPage)
         }
-        #endif
     }
 
     /// The Monthly Binding's own ceremonial haptic: distinct from every page
     /// and braid cue, reserved for the month being sewn between covers.
     static func monthBound() {
+        BookSoundBank.monthBound()
         BookHapticEngine.shared.playMonthBound()
     }
 
     /// The print-ready export's ceremonial haptic: the foil-stamp press,
     /// reserved for a month set for a physical printer.
     static func pressReady() {
+        BookSoundBank.pressReady()
         BookHapticEngine.shared.playPressReady()
     }
 
     static func pageRising(rarity: Int) {
+        BookSoundBank.pageRising(rarity: rarity)
         BookHapticEngine.shared.playPageRise(rarity: rarity)
     }
 
     static func nothingPressure(_ level: Int) {
+        BookSoundBank.nothingPressure(level)
         BookHapticEngine.shared.playNothing(level: level)
     }
 
     static func radioLocked() {
+        BookSoundBank.radioLocked()
         BookHapticEngine.shared.playRadioLock()
     }
 }
@@ -4189,7 +4145,7 @@ enum BookWhispers {
         let content = UNMutableNotificationContent()
         content.title = prompt.title
         content.body = prompt.body
-        content.sound = .default
+        content.sound = BookSoundBank.notificationSound
         content.categoryIdentifier = promptCategoryIdentifier
         content.userInfo = [
             "promptWhisperID": prompt.id,
@@ -4218,7 +4174,7 @@ enum BookWhispers {
             content = UNMutableNotificationContent()
             content.title = reservation.title
             content.body = reservation.body
-            content.sound = .default
+            content.sound = BookSoundBank.notificationSound
         }
         content.userInfo["bookInterruptionSpecific"] = reservation.isSpecific
         content.userInfo["bookInterruptionKind"] = reservation.kind.rawValue
@@ -4241,7 +4197,7 @@ enum BookWhispers {
         let content = UNMutableNotificationContent()
         content.title = "WHERE'S YOUR MIND?"
         content.body = "Quick. Where was your mind just before I knocked?"
-        content.sound = .default
+        content.sound = BookSoundBank.notificationSound
         content.categoryIdentifier = attentionCategoryIdentifier
         content.userInfo = [
             "attentionProbeID": reservation.attentionProbeID ?? reservation.candidateID,
@@ -4255,7 +4211,7 @@ enum BookWhispers {
         let content = UNMutableNotificationContent()
         content.title = prompt.title
         content.body = prompt.body
-        content.sound = .default
+        content.sound = BookSoundBank.notificationSound
         content.categoryIdentifier = outcomeCategoryIdentifier
         if let data = try? JSONEncoder().encode(prompt) {
             content.userInfo["delayedOutcomePrompt"] = data.base64EncodedString()
@@ -5366,7 +5322,7 @@ extension BookWhispers {
             let content = UNMutableNotificationContent()
             content.title = "A test whisper"
             content.body = "If you can read this, my voice reaches you. (It waited about ten seconds.)"
-            content.sound = .default
+            content.sound = BookSoundBank.notificationSound
             center.add(UNNotificationRequest(
                 identifier: "book-test-whisper-\(UUID().uuidString)",
                 content: content,

@@ -722,6 +722,7 @@ struct BookGiftSheet: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                 }
                 .tint(BookPalette.violet)
+                .bookToggleSound(acceptsFulfillment)
             }
 
             Button {

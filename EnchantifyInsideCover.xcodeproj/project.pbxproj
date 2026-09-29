@@ -17,6 +17,7 @@
 		010000000000000000000014 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010D /* Assets.xcassets */; };
 		010000000000000000000015 /* BookArchiveDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010E /* BookArchiveDatabase.swift */; };
 		010000000000000000000017 /* AppSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01000000000000000000010F /* AppSupport.swift */; };
+		0100000000000000000009A2 /* BookSoundBank.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000009A1 /* BookSoundBank.swift */; };
 		010000000000000000000018 /* LocalBrainServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000110 /* LocalBrainServices.swift */; };
 		010000000000000000000019 /* BookStatusCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000111 /* BookStatusCards.swift */; };
 		01000000000000000000001A /* CapturePageSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000112 /* CapturePageSheet.swift */; };
@@ -186,6 +187,7 @@
 		01000000000000000000010D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		01000000000000000000010E /* BookArchiveDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookArchiveDatabase.swift; sourceTree = "<group>"; };
 		01000000000000000000010F /* AppSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppSupport.swift; sourceTree = "<group>"; };
+		0100000000000000000009A1 /* BookSoundBank.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSoundBank.swift; sourceTree = "<group>"; };
 		010000000000000000000110 /* LocalBrainServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBrainServices.swift; sourceTree = "<group>"; };
 		010000000000000000000111 /* BookStatusCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookStatusCards.swift; sourceTree = "<group>"; };
 		010000000000000000000112 /* CapturePageSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePageSheet.swift; sourceTree = "<group>"; };
@@ -357,6 +359,7 @@
 				010000000000000000000102 /* ContentView.swift */,
 				040000000000000000000102 /* ReEnchantedWidgetSnapshotWriter.swift */,
 				01000000000000000000010F /* AppSupport.swift */,
+				0100000000000000000009A1 /* BookSoundBank.swift */,
 				010000000000000000000110 /* LocalBrainServices.swift */,
 				010000000000000000000111 /* BookStatusCards.swift */,
 				010000000000000000000112 /* CapturePageSheet.swift */,
@@ -679,6 +682,7 @@
 				041000000000000000000202 /* ReEnchantedWidgetSnapshotWriter.swift in Sources */,
 				010000000000000000000011 /* BookDatabase.swift in Sources */,
 				010000000000000000000017 /* AppSupport.swift in Sources */,
+				0100000000000000000009A2 /* BookSoundBank.swift in Sources */,
 				010000000000000000000018 /* LocalBrainServices.swift in Sources */,
 				010000000000000000000019 /* BookStatusCards.swift in Sources */,
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,

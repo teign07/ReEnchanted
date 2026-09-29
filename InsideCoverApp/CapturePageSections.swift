@@ -538,6 +538,7 @@ struct AnchorOfferFormView: View {
                         Toggle("Let the room use the Maps name", isOn: $usesRealPlaceNameInStory)
                             .font(.caption.weight(.semibold))
                             .tint(BookPalette.teal)
+                            .bookToggleSound(usesRealPlaceNameInStory)
                     }
                 }
                 .padding(10)

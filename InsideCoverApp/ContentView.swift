@@ -780,6 +780,7 @@ struct ContentView: View {
     @AppStorage("hasSpentBeliefOnFiction") var hasSpentBeliefOnFiction = false
     @AppStorage("scrapbookCompletedMarginaliaAchievements") var completedMarginaliaAchievementLedger = ""
     @AppStorage("bookHapticMode") var bookHapticMode = BookFeedback.HapticMode.full.rawValue
+    @AppStorage("bookSoundMode") var bookSoundMode = BookSoundMode.full.rawValue
     @AppStorage("completedCompassRunLedger") var completedCompassRunLedger = ""
     var entityBeliefLedgerData: String {
         get {
@@ -4420,6 +4421,8 @@ struct ContentView: View {
         guard isOpeningMovieVisible, isLaunchPresentationReady else { return }
 
         withAnimation(.easeInOut(duration: 0.28)) {
+            // "Found your place": the desk has fallen quiet enough to hear a settling two-note step.
+            BookSoundBank.overture(.settle)
             isOpeningMovieVisible = false
         }
 
@@ -10583,7 +10586,13 @@ struct ContentView: View {
         case .colophon:
             isQuietMechanicsExpanded = true
         }
-        BookFeedback.play(.openPage)
+        if division == .bookToday, arrival == .sent {
+            // The first reading surface rising out of the Book: its own flourish, not the everyday leaf.
+            BookFeedback.play(.openPage, sound: false)
+            BookSoundBank.todaySurfaces()
+        } else {
+            BookFeedback.play(.openPage)
+        }
         activeBookDivision = division
     }
 
@@ -12221,6 +12230,31 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Tactile enchantment")
                             .font(.caption.weight(.bold))
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("My voice")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(MaterialInk.text.opacity(0.86))
+                        Picker("My voice", selection: $bookSoundMode) {
+                            ForEach(BookSoundMode.allCases) { mode in
+                                Text(mode.title).tag(mode.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: bookSoundMode) { _, rawValue in
+                            let mode = BookSoundMode(rawValue: rawValue) ?? .full
+                            if mode != .off {
+                                BookSoundBank.play(.keep, variant: 2)
+                            }
+                            statusMessage = mode == .off
+                                ? "I'll stay quiet."
+                                : "My voice is now \(mode.title.lowercased())."
+                        }
+                        Text("Full gives every touch a note. Quiet keeps only the big moments. Your silent switch always wins.")
+                            .font(.caption2)
+                            .foregroundStyle(MaterialInk.text.opacity(0.58))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                             .foregroundStyle(MaterialInk.text.opacity(0.86))
                         Picker("Tactile enchantment", selection: $bookHapticMode) {
                             ForEach(BookFeedback.HapticMode.allCases) { mode in
@@ -12292,6 +12326,7 @@ struct ContentView: View {
                             .foregroundStyle(MaterialInk.text.opacity(0.86))
                         TextField("DEMO_KEY (limited): paste a free key from fdc.nal.usda.gov", text: $usdaKey)
                             .font(.caption)
+                        .bookToggleSound(personalizedWebResearchOptIn)
                             .textFieldStyle(.roundedBorder)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -12674,6 +12709,7 @@ struct ContentView: View {
                                             Label(title, systemImage: "checkmark")
                                         } else {
                                             Text(title)
+                        .bookToggleSound(includePrivateWeatherInMonthlyBinding)
                                         }
                                     }
                                 }

@@ -1563,6 +1563,7 @@ struct BookShopSheet: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .tint(BookPalette.teal)
+                    .bookToggleSound(physicalBookThirdPartyPrintConsent)
 
                     Button {
                         guard let cadence = boundYearEnrollmentCadence else { return }
@@ -3323,6 +3324,7 @@ struct BookShopSheet: View {
             }
             .toggleStyle(.switch)
             .tint(BookPalette.teal)
+            .bookToggleSound(physicalBookThirdPartyPrintConsent)
         }
         .padding(10)
         .background(BookPalette.violet.opacity(0.08), in: RoundedRectangle(cornerRadius: 8, style: .continuous))

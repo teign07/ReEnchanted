@@ -65,6 +65,7 @@ struct InsideCoverApp: App {
         WeatherBell.register()
         BookWhispers.configureForegroundPresentation()
         Self.warmReferenceLibrary()
+        BookSoundBank.prewarm()
         #if (DEBUG || BRAID_PROOF) && NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         BraidProofHarness.runIfRequested()
         #endif

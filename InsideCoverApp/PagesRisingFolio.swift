@@ -10643,6 +10643,14 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             willTransitionTo pendingViewControllers: [UIViewController]
         ) {
             isTransitioning = true
+            // The finger has lifted a corner: the leaf answers with a two-note
+            // step up (or down, turning back). Programmatic moves carry their own
+            // cues, so only the physical curl speaks here.
+            if let pendingIndex = pendingViewControllers.first.flatMap(leafID(for:)).flatMap(index(of:)),
+               let visibleIndex = pageViewController.viewControllers?.first
+                   .flatMap(leafID(for:)).flatMap(index(of:)) {
+                BookSoundBank.pageTurn(forward: pendingIndex > visibleIndex)
+            }
         }
 
         func pageViewController(

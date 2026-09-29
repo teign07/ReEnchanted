@@ -3641,6 +3641,7 @@ struct CapturePageSheet: View {
                 }
                 .toggleStyle(.switch)
                 .tint(LeafInk.gold)
+                .bookToggleSound(includePrivateWeatherInBoundVolumes)
                 Text("When this is on, the almanac may print counts and recurring food, drink, and Inner Weather patterns from Vellum and Inkrest. It does not print raw Health values or diagnose them.")
                     .font(.caption2)
                     .foregroundStyle(openPageSecondaryText.opacity(0.78))

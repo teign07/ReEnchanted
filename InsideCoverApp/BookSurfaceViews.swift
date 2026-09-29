@@ -4419,6 +4419,7 @@ struct SourceSettingsSheet: View {
                 }
             }
             .tint(BookPalette.teal)
+            .bookToggleSound(publicMarginsIncomingOptIn)
 
             Divider().overlay(BookPalette.ink.opacity(0.10))
 
@@ -4432,6 +4433,7 @@ struct SourceSettingsSheet: View {
                 }
             }
             .tint(BookPalette.lampGold)
+            .bookToggleSound(publicMarginsOutgoingOptIn)
 
             if publicMarginsReceiptCount > 0 {
                 Divider().overlay(BookPalette.ink.opacity(0.10))
@@ -4533,6 +4535,7 @@ struct SourceToggleRow: View {
             .labelsHidden()
             .disabled(!isEditable)
             .tint(visualStyle.accent)
+            .bookToggleSound(isEnabled)
         }
         .padding(14)
         .parchmentSurface(style: visualStyle, isActive: isEnabled && source.isActive)
@@ -5995,6 +5998,7 @@ struct BookWorkingAuthoritySheet: View {
                 Section {
                     Toggle("Let the Book arrange Workings", isOn: $draft.isEnabled)
                         .tint(BookPalette.lampGold)
+                        .bookToggleSound(draft.isEnabled)
                 } header: {
                     Text("A standing pact")
                 } footer: {
@@ -6017,8 +6021,10 @@ struct BookWorkingAuthoritySheet: View {
                     Section {
                         Toggle("Make openings in Calendar", isOn: $draft.allowsCalendarOpenings)
                             .tint(BookPalette.teal)
+                            .bookToggleSound(draft.allowsCalendarOpenings)
                         Toggle("Use a governed whisper seat", isOn: $draft.allowsNotificationSummons)
                             .tint(BookPalette.lampGold)
+                            .bookToggleSound(draft.allowsNotificationSummons)
                     } header: {
                         Text("House keys")
                     } footer: {
@@ -6888,6 +6894,7 @@ struct OpeningBookLoadingView: View {
             // correctly reports that as an invalid update loop. The clock still
             // paints every intermediate frame; these two tasks only ring the
             // hold and finish bells once.
+            BookSoundBank.overture(.appear)
             try? await Task.sleep(for: .seconds(leadInDuration))
             guard !Task.isCancelled else { return }
             reachHold()
@@ -6948,6 +6955,7 @@ struct OpeningBookLoadingView: View {
               revealStartElapsed == nil,
               !didFinish else { return }
         revealStartElapsed = clock.elapsed
+        BookSoundBank.overture(.open)
     }
 
     private func finish() {

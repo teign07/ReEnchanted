@@ -1,0 +1,1442 @@
+[
+ {
+  "instrument": "foley",
+  "file": "foley/0_+0_foley_cover_1_0.wav",
+  "f0": 0.0,
+  "midi": 0.0,
+  "dur": 5.0,
+  "take": "foley_cover_1.wav",
+  "rough": 1.395
+ },
+ {
+  "instrument": "foley",
+  "file": "foley/0_+0_foley_cover_1_1.wav",
+  "f0": 0.0,
+  "midi": 0.0,
+  "dur": 5.0,
+  "take": "foley_cover_1.wav",
+  "rough": 1.6295
+ },
+ {
+  "instrument": "foley",
+  "file": "foley/0_+0_foley_cover_2_0.wav",
+  "f0": 0.0,
+  "midi": 0.0,
+  "dur": 5.0,
+  "take": "foley_cover_2.wav",
+  "rough": 1.2295
+ },
+ {
+  "instrument": "foley",
+  "file": "foley/0_+0_foley_cover_3_0.wav",
+  "f0": 0.0,
+  "midi": 0.0,
+  "dur": 5.0,
+  "take": "foley_cover_3.wav",
+  "rough": 1.4137
+ },
+ {
+  "instrument": "foley",
+  "file": "foley/0_+0_foley_cover_4_0.wav",
+  "f0": 0.0,
+  "midi": 0.0,
+  "dur": 5.0,
+  "take": "foley_cover_4.wav",
+  "rough": 1.5126
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_-6_lute_high_1_0.wav",
+  "f0": 260.69298299042185,
+  "midi": 59.93817872369813,
+  "dur": 0.4579365079365079,
+  "take": "lute_high_1.wav",
+  "rough": 0.1506
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/64_+14_lute_high_1_1.wav",
+  "f0": 332.32830478454946,
+  "midi": 64.14126780613944,
+  "dur": 0.7572562358276644,
+  "take": "lute_high_1.wav",
+  "rough": 0.1217
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/68_+17_lute_high_1_2.wav",
+  "f0": 419.4740665541413,
+  "midi": 68.17293716283186,
+  "dur": 0.5227891156462585,
+  "take": "lute_high_1.wav",
+  "rough": 0.1085
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+13_lute_high_1_3.wav",
+  "f0": 443.35607439220126,
+  "midi": 69.13154781820235,
+  "dur": 0.35816326530612247,
+  "take": "lute_high_1.wav",
+  "rough": 0.0483
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/68_+2_lute_high_1_4.wav",
+  "f0": 415.7495677257377,
+  "midi": 68.01853487671089,
+  "dur": 0.5427437641723356,
+  "take": "lute_high_1.wav",
+  "rough": 0.1044
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/73_+22_lute_high_1_5.wav",
+  "f0": 561.350989213964,
+  "midi": 73.21679503044935,
+  "dur": 0.27834467120181405,
+  "take": "lute_high_1.wav",
+  "rough": 0.1058
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/68_+9_lute_high_1_6.wav",
+  "f0": 417.5025154239075,
+  "midi": 68.09137639201467,
+  "dur": 0.5178004535147392,
+  "take": "lute_high_1.wav",
+  "rough": 0.161
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_+4_lute_high_1_7.wav",
+  "f0": 262.21060966641556,
+  "midi": 60.0386704544605,
+  "dur": 1.8059863945578232,
+  "take": "lute_high_1.wav",
+  "rough": 0.113
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+0_lute_high_2_0.wav",
+  "f0": 391.9634822871281,
+  "midi": 66.99858871879985,
+  "dur": 1.106439909297052,
+  "take": "lute_high_2.wav",
+  "rough": 0.0862
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/64_-3_lute_high_2_1.wav",
+  "f0": 328.9817756819042,
+  "midi": 63.9660497123786,
+  "dur": 0.3382086167800454,
+  "take": "lute_high_2.wav",
+  "rough": 0.0333
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+5_lute_high_2_2.wav",
+  "f0": 393.19668117569887,
+  "midi": 67.05297144884867,
+  "dur": 0.6524943310657596,
+  "take": "lute_high_2.wav",
+  "rough": 0.1162
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+4_lute_high_2_3.wav",
+  "f0": 440.9861554793527,
+  "midi": 69.03875808140643,
+  "dur": 1.0565759637188208,
+  "take": "lute_high_2.wav",
+  "rough": 0.1933
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_-3_lute_high_2_4.wav",
+  "f0": 439.3460134108931,
+  "midi": 68.97424895224006,
+  "dur": 0.38310657596371883,
+  "take": "lute_high_2.wav",
+  "rough": 0.0865
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_-7_lute_high_2_5.wav",
+  "f0": 390.4979544998039,
+  "midi": 66.93373761041778,
+  "dur": 0.2683673469387755,
+  "take": "lute_high_2.wav",
+  "rough": 0.0898
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+4_lute_high_2_6.wav",
+  "f0": 349.984116657808,
+  "midi": 65.03743111092709,
+  "dur": 0.46791383219954646,
+  "take": "lute_high_2.wav",
+  "rough": 0.0637
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/63_+7_lute_high_2_7.wav",
+  "f0": 312.3647702139616,
+  "midi": 63.06873870975532,
+  "dur": 0.2683673469387755,
+  "take": "lute_high_2.wav",
+  "rough": 0.1424
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/72_+23_lute_high_2_8.wav",
+  "f0": 530.0993881442427,
+  "midi": 72.22511221994584,
+  "dur": 0.29331065759637187,
+  "take": "lute_high_2.wav",
+  "rough": 0.4628
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/71_+13_lute_high_2_9.wav",
+  "f0": 497.69036877884105,
+  "midi": 71.13293933689067,
+  "dur": 0.25839002267573696,
+  "take": "lute_high_2.wav",
+  "rough": 0.1219
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/71_+5_lute_high_2_10.wav",
+  "f0": 495.29385504571536,
+  "midi": 71.0493743792655,
+  "dur": 0.43798185941043083,
+  "take": "lute_high_2.wav",
+  "rough": 0.0423
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_-2_lute_high_2_11.wav",
+  "f0": 439.4210813755933,
+  "midi": 68.97720673747281,
+  "dur": 0.3032879818594104,
+  "take": "lute_high_2.wav",
+  "rough": 0.0823
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+20_lute_high_2_12.wav",
+  "f0": 396.6421364049947,
+  "midi": 67.20401308191288,
+  "dur": 0.4579365079365079,
+  "take": "lute_high_2.wav",
+  "rough": 0.1476
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+5_lute_high_2_13.wav",
+  "f0": 393.21893841831354,
+  "midi": 67.05395140131408,
+  "dur": 0.8969387755102041,
+  "take": "lute_high_2.wav",
+  "rough": 0.1149
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-3_lute_high_2_14.wav",
+  "f0": 293.1516144134833,
+  "midi": 61.969721736761585,
+  "dur": 0.2833333333333333,
+  "take": "lute_high_2.wav",
+  "rough": 0.2417
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+7_lute_high_3_0.wav",
+  "f0": 350.5527600709257,
+  "midi": 65.06553684204528,
+  "dur": 0.9967120181405895,
+  "take": "lute_high_3.wav",
+  "rough": 0.027
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+11_lute_high_3_1.wav",
+  "f0": 394.3913305598409,
+  "midi": 67.1054917829804,
+  "dur": 0.49784580498866216,
+  "take": "lute_high_3.wav",
+  "rough": 0.0341
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_-25_lute_high_3_2.wav",
+  "f0": 433.72810737817804,
+  "midi": 68.751448981151,
+  "dur": 0.49784580498866216,
+  "take": "lute_high_3.wav",
+  "rough": 0.194
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+14_lute_high_3_3.wav",
+  "f0": 443.44680188682725,
+  "midi": 69.13509021826965,
+  "dur": 0.49784580498866216,
+  "take": "lute_high_3.wav",
+  "rough": 0.0452
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/70_+12_lute_high_3_4.wav",
+  "f0": 469.4830156576207,
+  "midi": 70.12283331767101,
+  "dur": 0.4928571428571429,
+  "take": "lute_high_3.wav",
+  "rough": 0.2618
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/71_+22_lute_high_3_5.wav",
+  "f0": 500.0582904888601,
+  "midi": 71.21511302559222,
+  "dur": 0.5028344671201814,
+  "take": "lute_high_3.wav",
+  "rough": 0.0944
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/72_+12_lute_high_3_6.wav",
+  "f0": 526.7677408579925,
+  "midi": 72.11596169062545,
+  "dur": 0.5178004535147392,
+  "take": "lute_high_3.wav",
+  "rough": 0.0616
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/73_+11_lute_high_3_7.wav",
+  "f0": 558.0088422737741,
+  "midi": 73.11341351521243,
+  "dur": 0.4878684807256236,
+  "take": "lute_high_3.wav",
+  "rough": 0.0726
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/74_+5_lute_high_3_8.wav",
+  "f0": 589.1252949236755,
+  "midi": 74.05285169667009,
+  "dur": 0.4828798185941043,
+  "take": "lute_high_3.wav",
+  "rough": 0.113
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/74_+2_lute_high_3_9.wav",
+  "f0": 587.9744888697174,
+  "midi": 74.0190004414633,
+  "dur": 0.4878684807256236,
+  "take": "lute_high_3.wav",
+  "rough": 0.0599
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/73_-1_lute_high_3_10.wav",
+  "f0": 553.9488604965101,
+  "midi": 72.98699126177026,
+  "dur": 0.51281179138322,
+  "take": "lute_high_3.wav",
+  "rough": 0.0489
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/64_+9_lute_high_3_11.wav",
+  "f0": 331.2898786853766,
+  "midi": 64.08708725074086,
+  "dur": 0.4878684807256236,
+  "take": "lute_high_3.wav",
+  "rough": 0.0373
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+12_lute_high_3_12.wav",
+  "f0": 351.61399155853724,
+  "midi": 65.11786747376277,
+  "dur": 0.5078231292517007,
+  "take": "lute_high_3.wav",
+  "rough": 0.0497
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/66_+8_lute_high_3_13.wav",
+  "f0": 371.62849238374923,
+  "midi": 66.0762911063126,
+  "dur": 0.49784580498866216,
+  "take": "lute_high_3.wav",
+  "rough": 0.0412
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_-10_lute_high_3_14.wav",
+  "f0": 389.67433025760477,
+  "midi": 66.89718448262015,
+  "dur": 0.5028344671201814,
+  "take": "lute_high_3.wav",
+  "rough": 0.0339
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+9_lute_high_3_15.wav",
+  "f0": 442.2268259870723,
+  "midi": 69.08739623515837,
+  "dur": 0.5178004535147392,
+  "take": "lute_high_3.wav",
+  "rough": 0.0709
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/71_+9_lute_high_3_16.wav",
+  "f0": 496.44298913072043,
+  "midi": 71.08949431545467,
+  "dur": 0.477891156462585,
+  "take": "lute_high_3.wav",
+  "rough": 0.0772
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/72_+19_lute_high_3_17.wav",
+  "f0": 529.0268451980446,
+  "midi": 72.19004891127099,
+  "dur": 0.5078231292517007,
+  "take": "lute_high_3.wav",
+  "rough": 0.0285
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/73_+8_lute_high_3_18.wav",
+  "f0": 556.8787930924283,
+  "midi": 73.07831795530504,
+  "dur": 0.47290249433106574,
+  "take": "lute_high_3.wav",
+  "rough": 0.0574
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/72_+6_lute_high_3_19.wav",
+  "f0": 525.0974399052997,
+  "midi": 72.0609796574734,
+  "dur": 0.5078231292517007,
+  "take": "lute_high_3.wav",
+  "rough": 0.0577
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/74_+3_lute_high_3_20.wav",
+  "f0": 588.5008263788869,
+  "midi": 74.03449100834828,
+  "dur": 0.5078231292517007,
+  "take": "lute_high_3.wav",
+  "rough": 0.0576
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/71_+14_lute_high_3_21.wav",
+  "f0": 497.8089196225544,
+  "midi": 71.13706268003202,
+  "dur": 0.4928571428571429,
+  "take": "lute_high_3.wav",
+  "rough": 0.0599
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+12_lute_high_3_22.wav",
+  "f0": 443.0512258092348,
+  "midi": 69.11963987774814,
+  "dur": 0.46791383219954646,
+  "take": "lute_high_3.wav",
+  "rough": 0.0523
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/70_+19_lute_high_3_23.wav",
+  "f0": 471.2939354487172,
+  "midi": 70.189483119646,
+  "dur": 0.5178004535147392,
+  "take": "lute_high_3.wav",
+  "rough": 0.0558
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+4_lute_high_3_24.wav",
+  "f0": 440.993353195959,
+  "midi": 69.03904064878905,
+  "dur": 0.49784580498866216,
+  "take": "lute_high_3.wav",
+  "rough": 0.0431
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+3_lute_high_3_25.wav",
+  "f0": 392.65249784637103,
+  "midi": 67.02899461246824,
+  "dur": 0.4878684807256236,
+  "take": "lute_high_3.wav",
+  "rough": 0.0665
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+14_lute_high_3_26.wav",
+  "f0": 352.11921251449155,
+  "midi": 65.14272507225192,
+  "dur": 0.4928571428571429,
+  "take": "lute_high_3.wav",
+  "rough": 0.087
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_+15_lute_high_3_27.wav",
+  "f0": 296.21108103888577,
+  "midi": 62.149465056572765,
+  "dur": 1.76,
+  "take": "lute_high_3.wav",
+  "rough": 0.0952
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-3_lute_high_4_0.wav",
+  "f0": 293.155065548963,
+  "midi": 61.969925545568636,
+  "dur": 0.37811791383219956,
+  "take": "lute_high_4.wav",
+  "rough": 0.1888
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-4_lute_high_4_1.wav",
+  "f0": 293.0674158770648,
+  "midi": 61.96474859987589,
+  "dur": 1.147482993197279,
+  "take": "lute_high_4.wav",
+  "rough": 0.1725
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/81_+9_lute_high_4_2.wav",
+  "f0": 884.4628449215343,
+  "midi": 81.08757617744011,
+  "dur": 0.41802721088435374,
+  "take": "lute_high_4.wav",
+  "rough": 0.1017
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/81_+5_lute_high_4_3.wav",
+  "f0": 882.6460443792379,
+  "midi": 81.05197782708987,
+  "dur": 0.4030612244897959,
+  "take": "lute_high_4.wav",
+  "rough": 0.1872
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_-3_lute_high_4_4.wav",
+  "f0": 348.70046773263437,
+  "midi": 64.97381730646163,
+  "dur": 0.2683673469387755,
+  "take": "lute_high_4.wav",
+  "rough": 0.189
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/79_-2_lute_high_4_5.wav",
+  "f0": 783.001554743306,
+  "midi": 78.97813978095489,
+  "dur": 0.43299319727891156,
+  "take": "lute_high_4.wav",
+  "rough": 0.0514
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/81_+4_lute_high_4_6.wav",
+  "f0": 882.0416132057278,
+  "midi": 81.04011837009962,
+  "dur": 0.423015873015873,
+  "take": "lute_high_4.wav",
+  "rough": 0.0844
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_-1_lute_high_4_7.wav",
+  "f0": 349.10872691062644,
+  "midi": 64.99407477156393,
+  "dur": 0.31825396825396823,
+  "take": "lute_high_4.wav",
+  "rough": 0.0437
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+24_lute_high_4_8.wav",
+  "f0": 446.069253513132,
+  "midi": 69.23717023523486,
+  "dur": 0.6026077097505669,
+  "take": "lute_high_4.wav",
+  "rough": 0.1679
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-8_lute_high_4_9.wav",
+  "f0": 292.3404069207959,
+  "midi": 61.92174871989127,
+  "dur": 0.9059183673469388,
+  "take": "lute_high_4.wav",
+  "rough": 0.1009
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/43_+13_lute_low_1_0.wav",
+  "f0": 98.71820088882198,
+  "midi": 43.126613800586206,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_1.wav",
+  "rough": 0.4086
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/39_-14_lute_low_1_1.wav",
+  "f0": 77.14366509205612,
+  "midi": 38.85739285600927,
+  "dur": 0.35816326530612247,
+  "take": "lute_low_1.wav",
+  "rough": 0.3537
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/44_-16_lute_low_1_2.wav",
+  "f0": 102.89699844432826,
+  "midi": 43.844368499726116,
+  "dur": 0.9917233560090702,
+  "take": "lute_low_1.wav",
+  "rough": 0.4791
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/48_+34_lute_low_1_3.wav",
+  "f0": 133.3856024763686,
+  "midi": 48.33719313543703,
+  "dur": 0.8171201814058957,
+  "take": "lute_low_1.wav",
+  "rough": 0.3216
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/41_+5_lute_low_1_4.wav",
+  "f0": 87.53914392064522,
+  "midi": 41.045959880788935,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_1.wav",
+  "rough": 0.4865
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/44_+28_lute_low_2_0.wav",
+  "f0": 105.5233475356314,
+  "midi": 44.28070456254617,
+  "dur": 0.37811791383219956,
+  "take": "lute_low_2.wav",
+  "rough": 0.3561
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/43_+26_lute_low_2_1.wav",
+  "f0": 99.50358253550563,
+  "midi": 43.263802210438485,
+  "dur": 0.7572562358276644,
+  "take": "lute_low_2.wav",
+  "rough": 0.3713
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/39_+22_lute_low_2_2.wav",
+  "f0": 78.79537402445338,
+  "midi": 39.22415177701695,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_2.wav",
+  "rough": 0.4217
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/45_+17_lute_low_3_0.wav",
+  "f0": 111.07590414251905,
+  "midi": 45.16850833180991,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_3.wav",
+  "rough": 0.3216
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/36_-32_lute_low_3_1.wav",
+  "f0": 64.19031768010295,
+  "midi": 35.67508898782334,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_3.wav",
+  "rough": 0.3208
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/38_+2_lute_low_3_2.wav",
+  "f0": 73.5193784595901,
+  "midi": 38.02431541618199,
+  "dur": 1.8059863945578232,
+  "take": "lute_low_3.wav",
+  "rough": 0.4167
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/48_+14_lute_mid_1_0.wav",
+  "f0": 131.84835127417128,
+  "midi": 48.136512084930004,
+  "dur": 1.8059863945578232,
+  "take": "lute_mid_1.wav",
+  "rough": 0.5006
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_-2_lute_mid_2_0.wav",
+  "f0": 261.2484078598903,
+  "midi": 59.975024654124255,
+  "dur": 1.8059863945578232,
+  "take": "lute_mid_2.wav",
+  "rough": 0.3015
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_-8_lute_mid_3_0.wav",
+  "f0": 260.42568446801357,
+  "midi": 59.92041860982238,
+  "dur": 1.8059863945578232,
+  "take": "lute_mid_3.wav",
+  "rough": 0.1852
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_+1_lute_pentatonic_1_0.wav",
+  "f0": 261.8210773448781,
+  "midi": 60.01293263137916,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_1.wav",
+  "rough": 0.0756
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_-2_lute_pentatonic_1_1.wav",
+  "f0": 348.7608961789168,
+  "midi": 64.97681720837481,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_1.wav",
+  "rough": 0.0692
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/60_+4_lute_pentatonic_1_2.wav",
+  "f0": 262.1591419259797,
+  "midi": 60.03527198592998,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_1.wav",
+  "rough": 0.073
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_+18_lute_pentatonic_1_3.wav",
+  "f0": 296.7318756325282,
+  "midi": 62.17987666884642,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_1.wav",
+  "rough": 0.0587
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+6_lute_pentatonic_1_4.wav",
+  "f0": 350.43117216698994,
+  "midi": 65.05953108038146,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_1.wav",
+  "rough": 0.0521
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/69_+1_lute_pentatonic_2_0.wav",
+  "f0": 440.3622670718957,
+  "midi": 69.01424797832844,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_2.wav",
+  "rough": 0.0366
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/67_+6_lute_pentatonic_2_1.wav",
+  "f0": 393.2989623228373,
+  "midi": 67.05747427367588,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_2.wav",
+  "rough": 0.1463
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-12_lute_pentatonic_2_2.wav",
+  "f0": 291.69659399703244,
+  "midi": 61.88358020301404,
+  "dur": 1.8059863945578232,
+  "take": "lute_pentatonic_2.wav",
+  "rough": 0.0488
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+19_lute_pentatonic_3_0.wav",
+  "f0": 353.1296203289083,
+  "midi": 65.19233177919423,
+  "dur": 1.0893197278911564,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0584
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-1_lute_pentatonic_3_1.wav",
+  "f0": 293.49240229198716,
+  "midi": 61.98983559212665,
+  "dur": 1.2253061224489796,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0491
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+18_lute_pentatonic_3_2.wav",
+  "f0": 352.8330012972812,
+  "midi": 65.17778378524551,
+  "dur": 1.08140589569161,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0526
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_+3_lute_pentatonic_3_3.wav",
+  "f0": 294.13882206250327,
+  "midi": 62.02792425459841,
+  "dur": 1.416439909297052,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0614
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/65_+15_lute_pentatonic_3_4.wav",
+  "f0": 352.3090245245689,
+  "midi": 65.15205488061116,
+  "dur": 1.1012244897959185,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0571
+ },
+ {
+  "instrument": "lute",
+  "file": "lute/62_-8_lute_pentatonic_3_5.wav",
+  "f0": 292.2909329934317,
+  "midi": 61.918818635855374,
+  "dur": 1.0459863945578232,
+  "take": "lute_pentatonic_3.wav",
+  "rough": 0.0745
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/69_+2_mandolin_high_1_0.wav",
+  "f0": 440.43173814872176,
+  "midi": 69.01697893910163,
+  "dur": 0.2683673469387755,
+  "take": "mandolin_high_1.wav",
+  "rough": 0.1318
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/70_+26_mandolin_high_1_1.wav",
+  "f0": 473.3347793103308,
+  "midi": 70.26428888881365,
+  "dur": 0.29331065759637187,
+  "take": "mandolin_high_1.wav",
+  "rough": 0.0753
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+20_mandolin_high_1_2.wav",
+  "f0": 396.6440935102723,
+  "midi": 67.20409850397535,
+  "dur": 1.7291836734693877,
+  "take": "mandolin_high_1.wav",
+  "rough": 0.0924
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_-37_mandolin_high_2_0.wav",
+  "f0": 383.80105614518516,
+  "midi": 66.63426189362931,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_high_2.wav",
+  "rough": 0.1405
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+7_mandolin_high_3_0.wav",
+  "f0": 393.6683787523318,
+  "midi": 67.07372771431109,
+  "dur": 0.3382086167800454,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0242
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+8_mandolin_high_3_1.wav",
+  "f0": 393.81528665428846,
+  "midi": 67.08018707279858,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0298
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+5_mandolin_high_3_2.wav",
+  "f0": 393.16177775428736,
+  "midi": 67.05143459270043,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0332
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+2_mandolin_high_3_3.wav",
+  "f0": 392.47782015008346,
+  "midi": 67.0212912293869,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0447
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+9_mandolin_high_3_4.wav",
+  "f0": 394.06907026715675,
+  "midi": 67.09133994930966,
+  "dur": 1.6833106575963719,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0352
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/69_+30_mandolin_high_3_5.wav",
+  "f0": 447.67021908581313,
+  "midi": 69.29919388217762,
+  "dur": 0.3382086167800454,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0758
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+13_mandolin_high_3_6.wav",
+  "f0": 394.961861159836,
+  "midi": 67.13051789760456,
+  "dur": 0.3531746031746032,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0325
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+9_mandolin_high_3_7.wav",
+  "f0": 393.9292766698904,
+  "midi": 67.08519741261757,
+  "dur": 0.35816326530612247,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0387
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/65_+5_mandolin_high_3_8.wav",
+  "f0": 350.2501478149165,
+  "midi": 65.05058562914549,
+  "dur": 0.35816326530612247,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0595
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/65_+13_mandolin_high_3_9.wav",
+  "f0": 351.8039576911776,
+  "midi": 65.12721826855959,
+  "dur": 0.35816326530612247,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0574
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+15_mandolin_high_3_10.wav",
+  "f0": 395.3125866561622,
+  "midi": 67.14588440635751,
+  "dur": 0.4030612244897959,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0356
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+13_mandolin_high_3_11.wav",
+  "f0": 395.05723714432446,
+  "midi": 67.13469800294546,
+  "dur": 0.37811791383219956,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.0343
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+10_mandolin_high_3_12.wav",
+  "f0": 394.30695610521644,
+  "midi": 67.10178765602224,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_high_3.wav",
+  "rough": 0.051
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_-24_mandolin_high_4_0.wav",
+  "f0": 409.64837529426245,
+  "midi": 67.76259083058449,
+  "dur": 0.9168934240362812,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.1472
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+6_mandolin_high_4_1.wav",
+  "f0": 416.8542735461484,
+  "midi": 68.06447522331914,
+  "dur": 0.9268707482993197,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0317
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+7_mandolin_high_4_2.wav",
+  "f0": 417.03084193261463,
+  "midi": 68.07180671782679,
+  "dur": 0.712358276643991,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0862
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+7_mandolin_high_4_3.wav",
+  "f0": 416.9709242503611,
+  "midi": 68.06931915638404,
+  "dur": 0.43798185941043083,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0455
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+1_mandolin_high_4_4.wav",
+  "f0": 415.62935692410053,
+  "midi": 68.01352842229788,
+  "dur": 0.7971655328798186,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.049
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+16_mandolin_high_4_5.wav",
+  "f0": 419.23466694522926,
+  "midi": 68.16305395191527,
+  "dur": 0.6425170068027211,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.1303
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/75_+30_mandolin_high_4_6.wav",
+  "f0": 633.2098219437515,
+  "midi": 75.30216132068252,
+  "dur": 0.41303854875283447,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.3612
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/73_+9_mandolin_high_4_7.wav",
+  "f0": 557.386556753402,
+  "midi": 73.09409620417054,
+  "dur": 0.4579365079365079,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0804
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/71_-11_mandolin_high_4_8.wav",
+  "f0": 490.81043022999535,
+  "midi": 70.89194861208638,
+  "dur": 0.38310657596371883,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0489
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/69_+3_mandolin_high_4_9.wav",
+  "f0": 440.77227699610944,
+  "midi": 69.03035955169176,
+  "dur": 0.3382086167800454,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0269
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/69_+3_mandolin_high_4_10.wav",
+  "f0": 440.7535146574972,
+  "midi": 69.02962260219446,
+  "dur": 0.3531746031746032,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.0546
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_-5_mandolin_high_4_11.wav",
+  "f0": 414.0326428699849,
+  "midi": 67.9468919088593,
+  "dur": 0.931859410430839,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.064
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/68_+9_mandolin_high_4_12.wav",
+  "f0": 417.37164456713896,
+  "midi": 68.08594879355775,
+  "dur": 0.5227891156462585,
+  "take": "mandolin_high_4.wav",
+  "rough": 0.072
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/58_-26_mandolin_low_2_0.wav",
+  "f0": 229.598100130694,
+  "midi": 57.739286164284216,
+  "dur": 0.5926303854875283,
+  "take": "mandolin_low_2.wav",
+  "rough": 0.4232
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+25_mandolin_low_3_0.wav",
+  "f0": 298.0067666398318,
+  "midi": 62.25409878742034,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_low_3.wav",
+  "rough": 0.519
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/64_+3_mandolin_mid_1_0.wav",
+  "f0": 330.21494379202335,
+  "midi": 64.03082264124218,
+  "dur": 1.3958049886621315,
+  "take": "mandolin_mid_1.wav",
+  "rough": 0.071
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+17_mandolin_mid_1_1.wav",
+  "f0": 395.78514370171723,
+  "midi": 67.16656723512321,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_mid_1.wav",
+  "rough": 0.0959
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/64_+1_mandolin_mid_1_2.wav",
+  "f0": 329.8165793209864,
+  "midi": 64.00992478422202,
+  "dur": 1.1812925170068027,
+  "take": "mandolin_mid_1.wav",
+  "rough": 0.0533
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+18_mandolin_mid_1_3.wav",
+  "f0": 396.04153014128985,
+  "midi": 67.17777839948737,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_mid_1.wav",
+  "rough": 0.0348
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/65_+32_mandolin_mid_3_0.wav",
+  "f0": 355.7246706151473,
+  "midi": 65.31909011423211,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_mid_3.wav",
+  "rough": 0.0446
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+9_mandolin_mid_4_0.wav",
+  "f0": 394.1523288801456,
+  "midi": 67.09499730107342,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_mid_4.wav",
+  "rough": 0.0399
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+30_mandolin_scale_2_0.wav",
+  "f0": 398.9618917890611,
+  "midi": 67.3049691038734,
+  "dur": 0.4928571428571429,
+  "take": "mandolin_scale_2.wav",
+  "rough": 0.0942
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+45_mandolin_scale_2_1.wav",
+  "f0": 301.4720476095395,
+  "midi": 62.45424862032268,
+  "dur": 0.7572562358276644,
+  "take": "mandolin_scale_2.wav",
+  "rough": 0.1283
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+40_mandolin_scale_2_2.wav",
+  "f0": 300.5712330394153,
+  "midi": 62.402440982246105,
+  "dur": 0.47290249433106574,
+  "take": "mandolin_scale_2.wav",
+  "rough": 0.1352
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+27_mandolin_scale_2_3.wav",
+  "f0": 298.36153412050624,
+  "midi": 62.27469631460989,
+  "dur": 0.36315192743764174,
+  "take": "mandolin_scale_2.wav",
+  "rough": 0.0826
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+28_mandolin_scale_2_4.wav",
+  "f0": 298.50634658715046,
+  "midi": 62.283096977001236,
+  "dur": 0.6275510204081632,
+  "take": "mandolin_scale_2.wav",
+  "rough": 0.1839
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+8_mandolin_scale_3_0.wav",
+  "f0": 295.09381195656374,
+  "midi": 62.08404173259573,
+  "dur": 0.8270975056689343,
+  "take": "mandolin_scale_3.wav",
+  "rough": 0.1061
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+15_mandolin_scale_3_1.wav",
+  "f0": 296.26043280793533,
+  "midi": 62.152349227749305,
+  "dur": 0.26337868480725624,
+  "take": "mandolin_scale_3.wav",
+  "rough": 0.0872
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/62_+18_mandolin_scale_3_2.wav",
+  "f0": 296.7843340317353,
+  "midi": 62.18293699864448,
+  "dur": 0.36315192743764174,
+  "take": "mandolin_scale_3.wav",
+  "rough": 0.296
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+21_mandolin_scale_3_3.wav",
+  "f0": 396.72143789817824,
+  "midi": 67.20747402844597,
+  "dur": 0.34319727891156465,
+  "take": "mandolin_scale_3.wav",
+  "rough": 0.0413
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+0_mandolin_scale_3_4.wav",
+  "f0": 391.99574959789487,
+  "midi": 67.00001385074117,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_scale_3.wav",
+  "rough": 0.0446
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+12_mandolin_scale_4_0.wav",
+  "f0": 394.66142192164074,
+  "midi": 67.11734375051232,
+  "dur": 0.4030612244897959,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.0437
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/69_+4_mandolin_scale_4_1.wav",
+  "f0": 441.0501687617701,
+  "midi": 69.04127094785564,
+  "dur": 1.0116780045351474,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.1104
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/70_-6_mandolin_scale_4_2.wav",
+  "f0": 464.52836055232007,
+  "midi": 69.93915786579213,
+  "dur": 0.6026077097505669,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.1557
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/70_+11_mandolin_scale_4_3.wav",
+  "f0": 469.1825243335026,
+  "midi": 70.11174905373738,
+  "dur": 0.39807256235827665,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.1339
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/72_-2_mandolin_scale_4_4.wav",
+  "f0": 522.5276848462706,
+  "midi": 71.97604743747203,
+  "dur": 0.34319727891156465,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.1248
+ },
+ {
+  "instrument": "mandolin",
+  "file": "mandolin/67_+11_mandolin_scale_4_5.wav",
+  "f0": 394.51324516811775,
+  "midi": 67.11084256250689,
+  "dur": 1.8059863945578232,
+  "take": "mandolin_scale_4.wav",
+  "rough": 0.0573
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/71_+4_mandolin_tremolo_take_1_0.wav",
+  "f0": 495.09154866190306,
+  "midi": 71.04230158308819,
+  "dur": 3.2427437641723356,
+  "take": "mandolin_tremolo_take_1.wav",
+  "rough": 0.173
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/71_-8_mandolin_tremolo_take_1_1.wav",
+  "f0": 491.59688540777665,
+  "midi": 70.91966701871915,
+  "dur": 1.9107709750566892,
+  "take": "mandolin_tremolo_take_1.wav",
+  "rough": 0.1271
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/71_+14_mandolin_tremolo_take_1_2.wav",
+  "f0": 497.95218656075855,
+  "midi": 71.14204436894707,
+  "dur": 5.0,
+  "take": "mandolin_tremolo_take_1.wav",
+  "rough": 0.1622
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/71_+26_mandolin_tremolo_take_2_0.wav",
+  "f0": 501.301382119277,
+  "midi": 71.25809625571563,
+  "dur": 0.46904761904761905,
+  "take": "mandolin_tremolo_take_2.wav",
+  "rough": 0.4397
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/73_-24_mandolin_tremolo_take_2_1.wav",
+  "f0": 546.6491220320356,
+  "midi": 72.75733899464723,
+  "dur": 0.4640589569160998,
+  "take": "mandolin_tremolo_take_2.wav",
+  "rough": 0.2368
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/72_+8_mandolin_tremolo_take_2_2.wav",
+  "f0": 525.5942654046405,
+  "midi": 72.07735213439813,
+  "dur": 5.0,
+  "take": "mandolin_tremolo_take_2.wav",
+  "rough": 0.2994
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/71_+10_mandolin_tremolo_take_2_3.wav",
+  "f0": 496.76081646635964,
+  "midi": 71.1005742875785,
+  "dur": 0.6536281179138322,
+  "take": "mandolin_tremolo_take_2.wav",
+  "rough": 0.2158
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/61_+14_mandolin_tremolo_take_2_4.wav",
+  "f0": 279.4195357717039,
+  "midi": 61.13915240816451,
+  "dur": 2.344784580498866,
+  "take": "mandolin_tremolo_take_2.wav",
+  "rough": 0.1085
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/66_-2_mandolin_tremolo_take_3_0.wav",
+  "f0": 369.5417983126716,
+  "midi": 65.9788083708008,
+  "dur": 5.0,
+  "take": "mandolin_tremolo_take_3.wav",
+  "rough": 0.2427
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/68_+33_mandolin_tremolo_take_4_0.wav",
+  "f0": 423.20811681712564,
+  "midi": 68.3263652854312,
+  "dur": 1.1275510204081634,
+  "take": "mandolin_tremolo_take_4.wav",
+  "rough": 0.3012
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/68_+20_mandolin_tremolo_take_4_1.wav",
+  "f0": 420.06342516270064,
+  "midi": 68.19724382853583,
+  "dur": 5.0,
+  "take": "mandolin_tremolo_take_4.wav",
+  "rough": 0.1275
+ },
+ {
+  "instrument": "mandolin_tremolo",
+  "file": "mandolin_tremolo/68_+20_mandolin_tremolo_take_4_2.wav",
+  "f0": 420.1048417490355,
+  "midi": 68.19895067244653,
+  "dur": 3.746598639455782,
+  "take": "mandolin_tremolo_take_4.wav",
+  "rough": 0.1092
+ }
+]
