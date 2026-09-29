@@ -671,32 +671,43 @@ def dismiss():
 
 @family('keep')
 def keep():
-    """Keeping a page: five tiers. A stamp, a rising chord-tone run, a shimmer.
-    Tier climbs with a streak, so the fifth keep in a row is a small fanfare."""
-    for tier in range(5):
+    """Keeping a page: eight tiers that climb with the day's keeps (the first keep of the day is tier 0;
+    the eighth and every later one is tier 7). A stamp, a rising chord-tone run, a shimmer; later
+    tiers double the run a lute-octave lower, slip a mandolin tremolo swell under it, and end on a
+    rolled chord. Each keep of the day is a little bigger than the last."""
+    body = [-5, 0, 2, 3, 5, 7, 8, 10]                   # D3 D4 F#4 A4 D5 F#5 A5 D6: chord tones only
+    for tier in range(8):
         rng = rng_for('keep', tier)
-        run = [(-5), 0, 2, 3, 5, 7, 8, 10][:4 + tier]         # D3-ish body then up the scale
-        dur = 1.5 + 0.25 * tier
+        run = body[:min(len(body), 4 + tier)]
+        gap = 0.062 if tier < 5 else 0.05               # the flourish quickens
+        dur = 1.5 + 0.22 * tier
         tr = Track(dur)
         # the stamp: a lute-body thump + wooden knock, weight for the phone speaker's low-mids
         tr.add(pluck(deg(-5), 0.55, tone=0.8, rng=rng), 0.0, gain=0.95)
         tr.add(wood(300, 0.11, drop=0.35, tau=0.035, click_level=0.3, rng=rng), 0.0, gain=0.7)
         # the rising run
         for k, step in enumerate(run[1:]):
-            at = 0.085 + 0.062 * k
-            tr.add(pluck(deg(step), 0.9, rng=rng), at, pan=-0.45 + 0.9 * (k / max(1, len(run) - 2)),
-                   gain=0.85, haas=0.9)
-        end = 0.085 + 0.062 * len(run)
-        top = deg(run[-1])
-        tr.add(bell(top * 2, 1.0, index=2.0, ratio=3.5, tau=0.55, rng=rng), end - 0.03, pan=0.0, gain=0.34)
+            at = 0.085 + gap * k
+            pan = -0.45 + 0.9 * (k / max(1, len(run) - 2))
+            tr.add(pluck(deg(step), 0.9, rng=rng), at, pan=pan, gain=0.85, haas=0.9)
+            if tier >= 5 and step >= 2:                 # the same climb, a lute-octave below
+                tr.add(pluck(deg(step - 5), 0.9, rng=rng), at + 0.004, pan=-pan * 0.6, gain=0.42)
+        end = 0.085 + gap * len(run)
+        tr.add(bell(deg(run[-1]), 1.0, index=1.6, ratio=3.5, tau=0.55, rng=rng), end - 0.03, pan=0.0, gain=0.34)
         if tier >= 2:
-            for mono, off in sparkle(rng, count=3 + tier * 2, span=0.10 + 0.05 * tier, level=0.22 + 0.03 * tier):
+            for mono, off in sparkle(rng, count=2 + tier, span=0.10 + 0.06 * tier, level=0.24 + 0.02 * tier):
                 tr.add(mono, end + off, pan=float(rng.uniform(-0.8, 0.8)), gain=1.0)
         if tier >= 4:
-            tr.add(pad([deg(3), deg(5), deg(7)], 1.4, attack=0.12, cutoff=3200), end - 0.05, gain=0.06)
-        out = reverb(tr.stereo(), 0.7 + 0.12 * tier, 0.28 + 0.03 * tier)
-        out = pingpong(out, 0.15, 0.42, 3 + (tier >= 3), wet=0.20 + 0.03 * tier)
-        write('keep', tier, finish(out, 0.44 + 0.03 * tier))
+            tr.add(pad([deg(3), deg(5), deg(7)], 1.4, attack=0.12, cutoff=3000), end - 0.05, gain=0.06)
+        if tier >= 6:                                   # a real mandolin tremolo swell blooming under the top
+            tr.add(swell(deg(5), 0.55, 0.10, rng), max(0.0, end - 0.55), pan=0.0, gain=0.34)
+        if tier >= 7:                                   # the last flourish: a rolled D chord
+            for j, step in enumerate([-5, 3, 5, 7]):
+                tr.add(pluck(deg(step), 1.3, rng=rng), end + 0.06 + 0.035 * j, pan=-0.5 + 0.33 * j, gain=0.8, haas=0.8)
+        out = reverb(tr.stereo(), 0.7 + 0.1 * tier, 0.28 + 0.02 * tier)
+        out = pingpong(out, 0.15, 0.42, 3 + (tier >= 3), wet=0.20 + 0.02 * tier)
+        # each keep of the day is a little bigger than the last: ~-1.5 dB for the first, ~+1.5 dB for the eighth
+        write('keep', tier, finish(out, 0.44 + 0.02 * tier) * 10 ** ((-1.5 + 0.43 * tier) / 20))
 
 
 @family('undo')

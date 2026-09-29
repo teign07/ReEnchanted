@@ -37,8 +37,8 @@ enum BookSoundMode: String, CaseIterable, Identifiable {
 /// - **variants** rotate round-robin, never repeating back to back;
 /// - the **select ladder** climbs a rung for every choice made in quick
 ///   succession, and resets after a pause;
-/// - the **keep streak** escalates: the fifth page kept inside a minute is a
-///   small fanfare, not the same stamp again.
+/// - the **keep count** escalates through the day: the eighth page kept today is a
+///   full flourish, not the same stamp again.
 ///
 /// Plays through AudioServices, as the cues always have: it follows the silent
 /// switch, mixes with the radio and other apps' audio, and needs no session.
@@ -163,21 +163,35 @@ enum BookSoundBank {
         #endif
     }
 
-    /// Five tiers. Each keep within `keepWindow` of the last climbs a tier;
-    /// a pause resets to the plain stamp.
-    private static let keepWindow: TimeInterval = 14
+    /// Eight tiers, one per keep across the day: the first page kept today is the plain stamp, the
+    /// second a little bigger, and so on up to a full flourish from the eighth keep onward. The count
+    /// is per calendar day (local time) and survives relaunches, so a day of keeping is an arc.
+    private static let keepCountKey = "bookKeepCountToday"
+    private static let keepDayKey = "bookKeepDay"
 
     private static func playKeepStreak() {
         #if canImport(AudioToolbox)
         let tiers = max(1, variantCount(for: .keep))
-        state.lock.lock()
-        let now = CACurrentMediaTime()
-        state.keepStreak = (now - state.keepAt <= keepWindow) ? state.keepStreak + 1 : 0
-        state.keepAt = now
-        let tier = min(state.keepStreak, tiers - 1)
-        state.lock.unlock()
-        play(.keep, variant: tier)
+        let tier = min(registerKeepToday() - 1, tiers - 1)
+        play(.keep, variant: max(0, tier))
         #endif
+    }
+
+    /// Counts a keep against today and returns how many have been kept, this one included.
+    private static func registerKeepToday(now: Date = Date()) -> Int {
+        let defaults = UserDefaults.standard
+        let parts = Calendar.current.dateComponents([.year, .month, .day], from: now)
+        let today = "\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+        state.lock.lock()
+        defer { state.lock.unlock() }
+        var count = defaults.integer(forKey: keepCountKey)
+        if defaults.string(forKey: keepDayKey) != today {
+            defaults.set(today, forKey: keepDayKey)
+            count = 0
+        }
+        count += 1
+        defaults.set(count, forKey: keepCountKey)
+        return count
     }
 
     // MARK: Moments
@@ -332,8 +346,6 @@ enum BookSoundBank {
         var ladderRung = 0
         var ladderDirection = 1
         var ladderAt: TimeInterval = -100
-        var keepStreak = 0
-        var keepAt: TimeInterval = -100
     }
 
     private static let state = State()
