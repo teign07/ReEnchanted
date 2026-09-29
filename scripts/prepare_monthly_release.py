@@ -22,7 +22,6 @@ SUFFIXES = {
     'radioStationPack': '.reenchantedradio.json',
     'sentenceBuilderPack': '.sentencepack.json',
     'editionPlayPack': '.editionplay.json',
-    'casebook': '.reenchantedcasebook.json',
     'media': '',
 }
 
@@ -81,7 +80,7 @@ def prepare(template, source_root, output, origin, previous=None):
         issue_ids.add(issue_id)
         require(issue.get('packID') and issue.get('title'), 'Missing issue packID or title')
         bounds = [date(issue[key]) for key in ('foreshadowStartsAt', 'liveStartsAt',
-                  'liveEndsAt', 'residueEndsAt', 'casebookAvailableAt')]
+                  'liveEndsAt', 'residueEndsAt')]
         require(bounds == sorted(bounds) and bounds[1] < bounds[2], 'Invalid issue lifecycle dates')
         intervals.append((bounds[1], bounds[2]))
         destinations = set()
@@ -94,8 +93,7 @@ def prepare(template, source_root, output, origin, previous=None):
             destinations.add(filename)
             kind, scope = asset['kind'], asset['scope']
             require(kind in SUFFIXES and filename.endswith(SUFFIXES[kind]), 'Unknown kind or wrong file suffix')
-            require(scope in ('runtime', 'publication', 'casebook') and (kind != 'casebook' or scope == 'casebook'),
-                    'Invalid asset scope')
+            require(scope in ('runtime', 'publication'), 'Invalid asset scope')
             require(type(asset.get('isRequired')) is bool, 'Asset isRequired must be explicit')
             if asset.get('retiresAt') is not None:
                 require(scope == 'runtime' and bounds[0] < date(asset['retiresAt']) <= bounds[3],
@@ -113,7 +111,7 @@ def prepare(template, source_root, output, origin, previous=None):
         (stage / 'assets').mkdir()
         for issue, asset, source in files:
             destination = stage / 'assets' / asset['id']
-            limit = (2 if asset['scope'] in ('publication', 'casebook') else 180) * 1024 * 1024
+            limit = (2 if asset['scope'] == 'publication' else 180) * 1024 * 1024
             digest, size = hashlib.sha256(), 0
             with source.open('rb') as incoming, destination.open('xb') as outgoing:
                 while chunk := incoming.read(1024 * 1024):

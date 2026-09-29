@@ -13,7 +13,6 @@ const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 8);
 const end = new Date(start); end.setDate(end.getDate() + 30);
 const residue = new Date(end); residue.setDate(residue.getDate() + 3);
 const foreshadow = new Date(start); foreshadow.setDate(foreshadow.getDate() - 2);
-const casebook = new Date(residue); casebook.setDate(casebook.getDate() + 7);
 const pack = JSON.parse(await readFile(join(root, 'docs/fixtures/monthly-rehearsal/school-door.reenchantedevents.json')));
 pack.authoringManifests[0].id = 'school-door-simulator';
 Object.assign(pack.events[0].calendar, { startYear: start.getFullYear(), startMonth: start.getMonth() + 1, startDay: start.getDate() });
@@ -74,7 +73,7 @@ for (const [id, kind, fileName] of [
 const manifest = { schemaVersion: 1, generatedAt: now.toISOString(), allowedAssetHosts: ['rehearsal.invalid'],
   issues: [{ id: 'school-door-simulator', packID: pack.id, title: pack.displayName,
     liveStartsAt: start.toISOString(), liveEndsAt: end.toISOString(), foreshadowStartsAt: foreshadow.toISOString(),
-    residueEndsAt: residue.toISOString(), casebookAvailableAt: casebook.toISOString(), assets }] };
+    residueEndsAt: residue.toISOString(), assets }] };
 const payload = Buffer.from(JSON.stringify(manifest));
 const keys = generateKeyPairSync('ed25519');
 await writeFile(join(output, 'public-key.bin'), keys.publicKey.export({ type: 'spki', format: 'der' }).subarray(-32));

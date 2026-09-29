@@ -15251,15 +15251,11 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                         source: source
                     ))
                 }
-            case .sealed, .casebookAvailable:
+            case .sealed:
                 break
             }
         }
 
-        if let latest = availableCasebooks(inputs: inputs, now: now).first,
-           now.timeIntervalSince(latest.publishedAt) < 7 * 86_400 {
-            candidates.append(Self.casebookSurface(latest, day: day, source: source))
-        }
         var seen = Set<String>()
         return candidates.filter { seen.insert($0.id).inserted }
     }
@@ -15349,9 +15345,6 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                 source: source
             )
         }
-        if let casebook = availableCasebooks(inputs: inputs, now: now).first {
-            return Self.casebookSurface(casebook, day: day, source: source)
-        }
         return SurfacePage(
             id: "\(source.id)-quiet-\(Int(now.timeIntervalSince1970))",
             type: .bookNotices,
@@ -15367,14 +15360,6 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                 body: "I peek at the almanac, the margins, and the weather living in the grammar, and nothing out there is tugging my sleeve for fieldwork today.",
                 metadata: ["source": source.id, "tags": "world-event,quiet-almanac"]
             )
-        )
-    }
-
-    private func availableCasebooks(inputs: BookSourceInputs, now: Date) -> [WorldEventCasebook] {
-        WorldEventCasebookRegistry.available(
-            local: inputs.worldEventLifecycle.casebooks ?? [],
-            now: now,
-            hasMonthlyAccess: PackEntitlements.hasMonthlyContentPackAccess(in: inputs.ownedPackIDs)
         )
     }
 
@@ -15644,54 +15629,6 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                         "event:\(event.id)",
                         receipt ? "event-receipt" : "event-rumor"
                     ].joined(separator: ",")
-                ]
-            )
-        )
-    }
-
-    static func casebookSurface(
-        _ casebook: WorldEventCasebook,
-        day: BookDay,
-        source: BookPageSource? = nil
-    ) -> SurfacePage {
-        let resolvedSource = source ?? WorldEventPageSourceAdapter().source
-        let entries = casebook.entries.map { "\($0.title)\n\($0.account)" }
-        let receiptLine: String
-        if casebook.residueVoice == .receipt {
-            let count = casebook.evidencePageIDs.count
-            receiptLine = count == 1
-                ? "This copy carries one evidence leaf from me."
-                : "This copy carries \(count) evidence leaves from me."
-        } else {
-            receiptLine = "This is the public record. I wasn't there."
-        }
-        let body = ([
-            casebook.historySentence,
-            casebook.outcomeTitle.map { "Filed outcome: \($0)." },
-            receiptLine
-        ].compactMap { $0 } + entries).joined(separator: "\n\n⸻\n\n")
-        return SurfacePage(
-            id: "\(resolvedSource.id)-\(casebook.id)",
-            type: .bookNotices,
-            sourceID: resolvedSource.id,
-            intent: .importReference,
-            renderStyle: .loreLetter,
-            score: 54,
-            reason: "A sealed issue left its casebook on my desk.",
-            prompt: casebook.title,
-            detail: casebook.subtitle,
-            payload: BookPagePayload(
-                headline: casebook.title,
-                body: body,
-                metadata: [
-                    "source": resolvedSource.id,
-                    "worldEventPackID": casebook.packID,
-                    "worldEventIDs": casebook.eventID,
-                    "worldEventRunID": casebook.runID,
-                    "worldEventCasebookID": casebook.id,
-                    "readOnlyPublication": "true",
-                    "noveltyKey": "world-event-casebook:\(casebook.runID)",
-                    "tags": "world-event,world-event-casebook,event:\(casebook.eventID),read-only-publication"
                 ]
             )
         )

@@ -16,8 +16,7 @@
         "recurrence": "oneShot",
         "startYear": 2026,
         "foreshadowDays": 7,
-        "residueDays": 7,
-        "casebookDelayDays": 23
+        "residueDays": 7
       },
       "phases": [
         {
@@ -515,6 +514,47 @@
           {
             "roomID": "location-vault-of-doors",
             "note": "Permancer's notice has a new line: an invitation can be held open, lit, arranged, or left waiting."
+          }
+        ]
+      },
+      "record": {
+        "outcomeTitle": "The Count Returned",
+        "historySentence": "Dracula returned to his source; Serenity Brown withdrew the living claim herself and later named what remained Nightbound.",
+        "entries": [
+          {
+            "id": "count-unbound.record.school-and-jump",
+            "title": "The lesson",
+            "account": "October began with lunch, lessons, and a supervised Jump into *Dracula*. In the source margin, Wicker Eddies wrote: *For one sentence, let him choose the verb.* Dracula chose *follow*. He saw the reciprocal doorway and crossed under Permancer's invitation. The bookmark counted every registered Jumper home. It had never been asked to count anyone else."
+          },
+          {
+            "id": "count-unbound.record.living-claim",
+            "title": "The living claim",
+            "account": "Outside his source, Dracula began to lose his hold on the Academy. He deliberately harmed Serenity Brown and used the wound as a living claim. Serenity survived. Closed books began to sound like doors to her."
+          },
+          {
+            "id": "count-unbound.record.reading-room",
+            "title": "A finished man",
+            "account": "The Academy found the Count reading his own ending. He wanted a tomorrow. He intended to keep the one he had taken."
+          },
+          {
+            "id": "count-unbound.record.borrowed-rooms",
+            "title": "Borrowed rooms",
+            "account": "His absence pulled neighboring stories into the East Stacks. A castle grew out of borrowed rooms. The Academy learned how to return him: an open source, a recognizable invitation, and Serenity's withdrawal of the claim."
+          },
+          {
+            "id": "count-unbound.record.return",
+            "title": "The return",
+            "account": "Ambrose brought terms. Permancer and Penny reconstructed the rule. Wicker made the paper threshold. Serenity pulled the black line free of her map. Dracula went back. The rooms followed."
+          },
+          {
+            "id": "count-unbound.record.nightbound",
+            "title": "The morning after",
+            "account": "Serenity still heard the page-turns. At breakfast she chose the name Nightbound. Permancer wrote the Threshold Protocols. Wicker asked to enter the Kitchens. Serenity told him, “Not today.” The next day's lessons began with the notice still drying."
+          },
+          {
+            "id": "count-unbound.record.threshold-protocols",
+            "title": "Threshold Protocols",
+            "account": "The Academy opened a door. Someone came the other way.\n\nPermancer has written these beside the Vault:\n\n1. Name the source and why you are entering it.\n2. Name every traveller allowed to return.\n3. Close the invitation around those names.\n4. Check the doorway from both sides.\n5. Leave the people in the source their own lives. No experiments on them for the sake of a lesson.\n6. No living anchors.\n7. Ask before using what a changed person can do.\n8. After the return, check what came back different.\n\nPenny has pinned the old list beside the new one. The old one is complete. That is why she kept it."
           }
         ]
       }

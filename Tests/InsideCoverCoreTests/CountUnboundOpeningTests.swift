@@ -330,9 +330,9 @@ final class CountUnboundOpeningTests: XCTestCase {
         let sealed = calendar.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 9))!
         XCTAssertFalse(try IDs(sealed, channel: .page, kind: .worldEventBeat)
             .contains("count-unbound.residue.protocol-amendment"))
-        let casebookDay = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9))!
+        let december = calendar.date(from: DateComponents(year: 2026, month: 12, day: 1, hour: 9))!
         XCTAssertEqual(WorldEventResolver.lifecycleSnapshot(packID: p.id, event: event,
-            now: casebookDay, calendar: calendar)?.stage, .casebookAvailable)
+            now: december, calendar: calendar)?.stage, .sealed)
     }
 
     func testWickerBroadcastCanUsePublicWrongCastleReportOnlyAfterItExists() throws {
@@ -419,48 +419,62 @@ final class CountUnboundOpeningTests: XCTestCase {
             receipts: ledger).allSatisfy { $0.atom.id != "count-unbound.radio.four-came-home" })
     }
 
-    func testPublicCasebookKeepsAuthoredHistoryBesidePrivateReceipt() throws {
+    func testTheRecordRidesInsideThePackAndTheEditionBindsIt() throws {
         let p = try pack()
+        let event = try XCTUnwrap(p.events.first)
+        let authored = try XCTUnwrap(event.record)
+        XCTAssertEqual(authored.entries.count, 7, "six crossings and the Threshold Protocols")
+        XCTAssertFalse(authored.historySentence.isEmpty)
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
-        let publicRecord = try ContentPackFileLocator.decoder().decode(WorldEventCasebook.self,
-            from: Data(contentsOf: root.appendingPathComponent(
-                "ContentPacks/count-unbound/public-record.reenchantedcasebook.json")))
-        XCTAssertEqual(publicRecord.runID, "count-unbound:2026")
-        XCTAssertEqual(publicRecord.entries.count, 7, "six crossings and the Threshold Protocols")
-        XCTAssertFalse(publicRecord.isPersonalized)
-        XCTAssertTrue(publicRecord.evidencePageIDs.isEmpty)
-        let when = calendar.date(from: DateComponents(year: 2026, month: 12, day: 2, hour: 9))!
-        var local = publicRecord
-        local.id = "casebook:count-unbound:2026"
-        local.subtitle = "The public record, with this Book's receipt tucked inside."
-        local.historySentence = "A sparse local fallback."
-        local.entries = []
-        local.residueVoice = .receipt
-        local.evidencePageIDs = ["reader-page"]
-        local.isPersonalized = true
-        let merged = try XCTUnwrap(WorldEventCasebookRegistry.available(
-            local: [local], downloaded: [publicRecord], now: when,
-            hasMonthlyAccess: true).first)
-        XCTAssertEqual(merged.entries, publicRecord.entries)
-        XCTAssertEqual(merged.historySentence, publicRecord.historySentence)
-        XCTAssertEqual(merged.evidencePageIDs, ["reader-page"])
-        XCTAssertEqual(merged.residueVoice, .receipt)
-        XCTAssertTrue(merged.isPersonalized)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(
+            "ContentPacks/count-unbound/public-record.reenchantedcasebook.json").path),
+            "the casebook is folded into the pack; no fourth file ships")
 
-        local.isPersonalized = false
-        local.evidencePageIDs = []
-        XCTAssertEqual(WorldEventCasebookRegistry.available(local: [local],
-            downloaded: [publicRecord], now: when, hasMonthlyAccess: true).first?.entries,
-            publicRecord.entries)
+        let november = calendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 9))!
         let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
-            packID: p.id, event: try XCTUnwrap(p.events.first), now: when, calendar: calendar))
-        let frozen = WorldEventCasebookBuilder.build(packID: p.id,
-            event: try XCTUnwrap(p.events.first), snapshot: snapshot,
-            ledger: .empty, outcome: nil)
-        XCTAssertFalse(frozen.isPersonalized)
-        XCTAssertTrue(frozen.entries.isEmpty)
-        XCTAssertFalse(frozen.historySentence.isEmpty)
+            packID: p.id, event: event, now: november, calendar: calendar))
+        // Nobody was there: the authored account stands alone.
+        let rumor = WorldEventRecordBuilder.build(packID: p.id, event: event,
+            snapshot: snapshot, ledger: .empty, outcome: nil)
+        XCTAssertFalse(rumor.isPersonalized)
+        XCTAssertTrue(rumor.evidencePageIDs.isEmpty)
+        XCTAssertEqual(rumor.entries, authored.entries)
+        XCTAssertEqual(rumor.historySentence, authored.historySentence)
+        XCTAssertEqual(rumor.outcomeTitle, "The Count Returned")
+
+        // A Reader who took part keeps the same shared history plus a receipt.
+        let ledger = WorldEventLifecycleReconciler.reconcileBoundary(
+            ledger: .empty, event: event, snapshot: snapshot, outcome: nil,
+            touchCount: 1, evidencePageIDs: ["reader-page"], now: november)
+        var frozen = try XCTUnwrap(ledger.records?.first)
+        XCTAssertTrue(frozen.isPersonalized)
+        frozen.evidencePageIDs = ["reader-page"]
+        XCTAssertEqual(frozen.entries, authored.entries)
+
+        let october = calendar.date(from: DateComponents(year: 2026, month: 10, day: 1))!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 23))!
+        let section = MonthlyEditionBuilder.worldRecordSection(
+            from: [frozen], start: october, end: end, calendar: calendar)
+        XCTAssertEqual(section.id, MonthlyEditionBuilder.recordSectionID)
+        XCTAssertEqual(section.items.count, 1 + authored.entries.count)
+        XCTAssertTrue(section.items[0].body.contains("kept one leaf"))
+        // A record for another month is not bound into this one.
+        let february = calendar.date(from: DateComponents(year: 2027, month: 2, day: 1))!
+        XCTAssertTrue(MonthlyEditionBuilder.worldRecordSection(
+            from: [frozen], start: february, end: february, calendar: calendar).items.isEmpty)
+        // A season or a year keeps the outcome, not the whole account.
+        var edition = MonthlyEditionBuilder.edition(from: [], startDate: october, endDate: end,
+            generatedAt: november, calendar: calendar,
+            academySeason: AcademySeasonEdition.Inputs(records: [frozen]))
+        XCTAssertEqual(edition.sections.first { $0.id == MonthlyEditionBuilder.recordSectionID }?.items.count,
+                       1 + authored.entries.count)
+        edition = MonthlyEditionBuilder.asVolumeChapter(edition)
+        XCTAssertEqual(edition.sections.first { $0.id == MonthlyEditionBuilder.recordSectionID }?.items.count, 1)
+    }
+
+    func testThePrintTrimmerNeverTrimsTheRecord() {
+        XCTAssertFalse(EditionPrintFitting.order.contains { $0.section == MonthlyEditionBuilder.recordSectionID })
     }
 
     func testOctoberMarginaliaAndRadioProductionHandoff() throws {

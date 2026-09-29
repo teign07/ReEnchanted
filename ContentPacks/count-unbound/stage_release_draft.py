@@ -22,7 +22,6 @@ CONFIG = json.loads((ROOT / 'issue.json').read_text())
 ISSUE_ID = CONFIG['issueID']
 PACK = ROOT / 'opening.reenchantedevents.json'
 MARGINS = ROOT / 'margins.reenchantedpack.json'
-CASEBOOK = ROOT / 'public-record.reenchantedcasebook.json'
 AUDIO = CONFIG['audio']['files']
 
 

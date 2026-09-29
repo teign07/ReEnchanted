@@ -58,8 +58,7 @@ private func validateManifest(_ data: Data) throws {
         "storyConsequencePack": ".storyconsequences.json",
         "radioStationPack": ".reenchantedradio.json",
         "sentenceBuilderPack": ".sentencepack.json",
-        "editionPlayPack": ".editionplay.json",
-        "casebook": ".reenchantedcasebook.json"
+        "editionPlayPack": ".editionplay.json"
     ]
 
     for issue in issues {
@@ -73,9 +72,8 @@ private func validateManifest(_ data: Data) throws {
         let liveStart = try date(issue["liveStartsAt"], field: "\(issueID).liveStartsAt")
         let liveEnd = try date(issue["liveEndsAt"], field: "\(issueID).liveEndsAt")
         let residueEnd = try date(issue["residueEndsAt"], field: "\(issueID).residueEndsAt")
-        let casebookAt = try date(issue["casebookAvailableAt"], field: "\(issueID).casebookAvailableAt")
         guard foreshadow <= liveStart, liveStart < liveEnd,
-              liveEnd <= residueEnd, residueEnd <= casebookAt else {
+              liveEnd <= residueEnd else {
             throw PublisherFailure(description: "Lifecycle dates are out of order for \(issueID).")
         }
         intervals.append((liveStart, liveEnd, issueID))
@@ -112,10 +110,7 @@ private func validateManifest(_ data: Data) throws {
             if let suffix = suffixes[kind], !fileName.hasSuffix(suffix) {
                 throw PublisherFailure(description: "Wrong suffix for \(assetID): expected \(suffix)")
             }
-            if kind == "casebook", scope != "casebook" {
-                throw PublisherFailure(description: "Casebook \(assetID) must use casebook scope.")
-            }
-            guard scope == "runtime" || scope == "publication" || scope == "casebook" else {
+            guard scope == "runtime" || scope == "publication" else {
                 throw PublisherFailure(description: "Unknown scope for \(assetID): \(scope)")
             }
             let remote = try requiredString(asset["remoteURL"], field: "\(assetID).remoteURL")
@@ -130,7 +125,7 @@ private func validateManifest(_ data: Data) throws {
             guard let byteCount = asset["byteCount"] as? Int, byteCount > 0 else {
                 throw PublisherFailure(description: "Invalid byteCount for \(assetID).")
             }
-            let ceiling = scope == "casebook" || scope == "publication" ? 2 * 1_024 * 1_024 : 180 * 1_024 * 1_024
+            let ceiling = scope == "publication" ? 2 * 1_024 * 1_024 : 180 * 1_024 * 1_024
             guard byteCount <= ceiling else {
                 throw PublisherFailure(description: "Asset exceeds its size ceiling: \(assetID)")
             }

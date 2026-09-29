@@ -136,15 +136,15 @@ test('real Apple verifier rejects unsigned local JSON',async()=>{
   const v=new SignedDataVerifier([],true,Environment.SANDBOX,'com.openclaw.enchantify.insidecover');
   await assert.rejects(()=>v.verifyAndDecodeTransaction(Buffer.from(JSON.stringify({expiresDate:now+99999})).toString('base64url')));
 });
-function issue(id,start,end) {return {id,foreshadowStartsAt:start,liveStartsAt:start,liveEndsAt:end,residueEndsAt:end,casebookAvailableAt:end,
+function issue(id,start,end) {return {id,foreshadowStartsAt:start,liveStartsAt:start,liveEndsAt:end,residueEndsAt:end,
   assets:[{id:id+'-asset',scope:'runtime',byteCount:3,remoteURL:`https://issues.example/monthly-issues/assets/${id}-asset`}]};}
-test('download shelf bounds current next retired and published casebook assets',()=>{
+test('download shelf bounds current next and retired assets, and never serves a retired casebook scope',()=>{
   const old=issue('old','2027-10-01','2027-11-01'),current=issue('current','2027-11-01','2027-12-01'),next=issue('next','2027-12-01','2028-01-01'),future=issue('future','2028-01-01','2028-02-01');
   old.assets.push({id:'old-casebook',scope:'casebook'});
   old.assets.push({id:'old-paper',scope:'publication'});
   current.assets.push({id:'current-paper',scope:'publication'});
   assert.deepEqual(availableMonthlyAssets([old,current,next,future],now).map(a=>a.id),
-    ['old-casebook','old-paper','current-asset','current-paper','next-asset']);
+    ['old-paper','current-asset','current-paper','next-asset']);
   current.assets[0].retiresAt=new Date(now).toISOString();
   assert.deepEqual(availableMonthlyAssets([current],now).map(a=>a.id), ['current-paper']);
 });

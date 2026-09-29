@@ -4,7 +4,7 @@
   "runID": "count-unbound:2026",
   "files": [
     {
-      "id": "count-unbound.runtime.v2",
+      "id": "count-unbound.runtime.v3",
       "kind": "worldEventPack",
       "source": "opening.reenchantedevents.json",
       "fileName": "count-unbound.reenchantedevents.json"
@@ -21,13 +21,6 @@
       "source": "paper.editionplay.json",
       "fileName": "count-unbound.editionplay.json",
       "scope": "publication"
-    },
-    {
-      "id": "count-unbound.casebook.public-record",
-      "kind": "casebook",
-      "scope": "casebook",
-      "source": "public-record.reenchantedcasebook.json",
-      "fileName": "count-unbound.reenchantedcasebook.json"
     }
   ],
   "media": [

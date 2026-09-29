@@ -49,8 +49,7 @@ try {
       ['foreshadow', at(issue.foreshadowStartsAt)],
       ['live', at(issue.liveStartsAt, (Date.parse(issue.liveEndsAt) - Date.parse(issue.liveStartsAt)) / 2)],
       ['residue', at(issue.liveEndsAt)],
-      ['after residue', at(issue.residueEndsAt)],
-      ['casebook', at(issue.casebookAvailableAt)]
+      ['after residue', at(issue.residueEndsAt)]
     ];
     console.log(`\n${issue.id} (${issue.title})`);
     for (const [name, clock] of edges) {
@@ -59,29 +58,25 @@ try {
       const { token } = await session.json();
       const listed = await call('/monthly-issues/manifest', clock, { token });
       assert.equal(listed.status, 200, `${name}: manifest ${listed.status} ${await listed.text()}`);
-      let runtime = 0, publication = 0, casebook = 0;
+      let runtime = 0, publication = 0;
       for (const asset of issue.assets) {
         const response = await call(`/monthly-issues/assets/${asset.id}`, clock, { token });
         if (response.status === 404) continue;
         assert.equal(response.status, 200, `${name}: ${asset.id} ${response.status}`);
         assert.deepEqual(Buffer.from(await response.arrayBuffer()),
           Buffer.from(assets[`assets/${asset.id}`], 'base64'), `${name}: ${asset.id} bytes differ`);
-        if (asset.scope === 'casebook') casebook++;
-        else if (asset.scope === 'publication') publication++;
+        if (asset.scope === 'publication') publication++;
         else runtime++;
       }
       const runtimeTotal = issue.assets.filter(asset => asset.scope === 'runtime').length;
       const publicationTotal = issue.assets.filter(asset => asset.scope === 'publication').length;
-      const casebookTotal = issue.assets.filter(asset => asset.scope === 'casebook').length;
       const problems = [];
       if (name === 'live' && runtime !== runtimeTotal) problems.push(`only ${runtime}/${runtimeTotal} runtime files while live`);
       if (Date.parse(clock) >= Date.parse(issue.residueEndsAt) && runtime > 0) problems.push('runtime files after residue ended');
       if (publication !== publicationTotal) problems.push(`publication files missing (${publication}/${publicationTotal})`);
-      if (Date.parse(clock) < Date.parse(issue.casebookAvailableAt) && casebook > 0) problems.push('casebook before publication');
-      if (name === 'casebook' && casebook !== casebookTotal) problems.push(`casebook missing (${casebook}/${casebookTotal})`);
       failures += problems.length;
       console.log(`  ${name.padEnd(13)} ${clock}  runtime ${String(runtime).padStart(3)}/${runtimeTotal}  `
-        + `publication ${publication}/${publicationTotal}  casebook ${casebook}/${casebookTotal}  ${problems.length ? 'FAIL: ' + problems.join('; ') : 'ok'}`);
+        + `publication ${publication}/${publicationTotal}  ${problems.length ? 'FAIL: ' + problems.join('; ') : 'ok'}`);
     }
   }
 } finally {
@@ -91,4 +86,4 @@ if (failures) {
   console.error(`\n${failures} delivery problem(s).`);
   process.exit(1);
 }
-console.log('\nPASS: every file byte-identical; windows, retirement and casebook timing as manifested.');
+console.log('\nPASS: every file byte-identical; windows and retirement timing as manifested.');

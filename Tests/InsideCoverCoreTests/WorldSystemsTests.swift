@@ -898,7 +898,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
     }
 
-    func testLifecycleClockWalksForeshadowLiveResidueSealAndCasebook() throws {
+    func testLifecycleClockWalksForeshadowLiveResidueAndSeal() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let event = WorldEventRegistry.dictionaryRebellion
@@ -936,7 +936,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
         XCTAssertEqual(
             WorldEventResolver.lifecycleSnapshot(packID: "dictionary-rebellion", event: event, now: date(11, 1), calendar: calendar)?.stage,
-            .casebookAvailable
+            .sealed
         )
 
         let residue = try XCTUnwrap(
@@ -1059,9 +1059,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(first, second)
         XCTAssertEqual(first.relics.count, 1)
         XCTAssertEqual(first.relics.first?.evidencePageIDs, ["page-one"])
-        XCTAssertEqual(first.casebooks?.count, 1)
-        XCTAssertEqual(first.casebooks?.first?.residueVoice, .receipt)
-        XCTAssertEqual(first.casebooks?.first?.publishedAt, residue.casebookAvailableAt)
+        XCTAssertEqual(first.records?.count, 1)
+        XCTAssertEqual(first.records?.first?.residueVoice, .receipt)
+        XCTAssertEqual(first.records?.first?.evidencePageIDs, ["page-one"])
     }
 
     func testLifecycleSimulatorCoversFiveReaderPersonas() throws {
@@ -1132,7 +1132,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             !$0.subscriptionActive && !$0.deskCandidateIDs.isEmpty
         } == false)
         XCTAssertTrue(simulations["active-participant"]?.frames.contains {
-            $0.stage == .casebookAvailable && !($0.casebookIDs ?? []).isEmpty
+            $0.stage == .sealed && !($0.recordIDs ?? []).isEmpty
         } == true)
     }
 
@@ -1217,7 +1217,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertFalse(delivered.participated(in: hintSnapshot.runID))
     }
 
-    func testNonparticipantCasebookIsRumorAndCarriesNoReaderEvidence() throws {
+    func testNonparticipantRecordIsRumorAndCarriesNoReaderEvidence() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let event = WorldEventRegistry.dictionaryRebellion
@@ -1237,14 +1237,14 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             evidencePageIDs: ["must-not-leak"],
             now: residueDate
         )
-        let casebook = try XCTUnwrap(ledger.casebooks?.first)
-        XCTAssertEqual(casebook.residueVoice, .rumor)
-        XCTAssertTrue(casebook.evidencePageIDs.isEmpty)
-        XCTAssertFalse(casebook.subtitle.lowercased().contains("you were"))
+        let record = try XCTUnwrap(ledger.records?.first)
+        XCTAssertEqual(record.residueVoice, .rumor)
+        XCTAssertTrue(record.evidencePageIDs.isEmpty)
+        XCTAssertFalse(record.subtitle.lowercased().contains("you were"))
         XCTAssertTrue(ledger.relics.isEmpty)
     }
 
-    func testLegacyEventWithoutMonthlyBeatSpineDoesNotPublishACasebook() throws {
+    func testLegacyEventWithoutMonthlyBeatSpineDoesNotFreezeARecord() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let event = WorldEventRegistry.starlitPaperTrial
@@ -1264,7 +1264,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             touchCount: 0,
             now: now
         )
-        XCTAssertTrue(ledger.casebooks?.isEmpty != false)
+        XCTAssertTrue(ledger.records?.isEmpty != false)
     }
 
     func testReaderFacingEventSurfacesCarryExactDeliveryAndReadOnlyContracts() throws {
@@ -1307,21 +1307,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
         XCTAssertEqual(reportSurface.payload.metadata["worldEventDeliveryKind"], "report")
         XCTAssertNil(reportSurface.payload.metadata["worldEventParticipationDoor"])
-
-        let casebook = WorldEventCasebookBuilder.build(
-            packID: "dictionary-rebellion",
-            event: event,
-            snapshot: snapshot,
-            ledger: .empty,
-            outcome: event.outcomes.first
-        )
-        let casebookSurface = WorldEventPageSourceAdapter.casebookSurface(casebook, day: day)
-        XCTAssertEqual(casebookSurface.payload.metadata["worldEventPackID"], casebook.packID)
-        XCTAssertEqual(casebookSurface.payload.metadata["readOnlyPublication"], "true")
-        XCTAssertFalse(casebookSurface.payload.body.lowercased().contains("choose"))
     }
 
-    func testDeliveryPlannerKeepsResidueCurrentNextAndPublishedCasebooksOnly() {
+    func testDeliveryPlannerKeepsResidueCurrentAndNextAndIgnoresARetiredCasebookAsset() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         func asset(_ id: String, scope: MonthlyIssueDeliveryAssetScope) -> MonthlyIssueDeliveryAsset {
             MonthlyIssueDeliveryAsset(
@@ -1329,9 +1317,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
                 kind: scope == .casebook ? .casebook : .worldEventPack,
                 scope: scope,
                 remoteURL: URL(string: "https://cdn.reenchanted.app/\(id).json")!,
-                fileName: scope == .casebook
-                    ? "\(id).reenchantedcasebook.json"
-                    : "\(id).reenchantedevents.json",
+                fileName: "\(id).reenchantedevents.json",
                 sha256: String(repeating: "0", count: 64),
                 byteCount: 10
             )
@@ -1341,8 +1327,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             start: TimeInterval,
             end: TimeInterval,
             foreshadow: TimeInterval,
-            residue: TimeInterval,
-            casebook: TimeInterval
+            residue: TimeInterval
         ) -> MonthlyIssueDeliveryIssue {
             MonthlyIssueDeliveryIssue(
                 id: id,
@@ -1352,7 +1337,6 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
                 liveEndsAt: Date(timeIntervalSince1970: end),
                 foreshadowStartsAt: Date(timeIntervalSince1970: foreshadow),
                 residueEndsAt: Date(timeIntervalSince1970: residue),
-                casebookAvailableAt: Date(timeIntervalSince1970: casebook),
                 assets: [asset("\(id)-runtime", scope: .runtime), asset("\(id)-casebook", scope: .casebook)]
             )
         }
@@ -1361,10 +1345,10 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             generatedAt: now,
             allowedAssetHosts: ["cdn.reenchanted.app"],
             issues: [
-                issue("previous", start: 1_797_000_000, end: 1_799_800_000, foreshadow: 1_796_500_000, residue: 1_800_100_000, casebook: 1_799_900_000),
-                issue("current", start: 1_799_900_000, end: 1_802_500_000, foreshadow: 1_799_300_000, residue: 1_803_000_000, casebook: 1_804_000_000),
-                issue("next", start: 1_802_600_000, end: 1_805_200_000, foreshadow: 1_802_000_000, residue: 1_805_800_000, casebook: 1_806_800_000),
-                issue("old", start: 1_790_000_000, end: 1_792_000_000, foreshadow: 1_789_000_000, residue: 1_793_000_000, casebook: 1_794_000_000)
+                issue("previous", start: 1_797_000_000, end: 1_799_800_000, foreshadow: 1_796_500_000, residue: 1_800_100_000),
+                issue("current", start: 1_799_900_000, end: 1_802_500_000, foreshadow: 1_799_300_000, residue: 1_803_000_000),
+                issue("next", start: 1_802_600_000, end: 1_805_200_000, foreshadow: 1_802_000_000, residue: 1_805_800_000),
+                issue("old", start: 1_790_000_000, end: 1_792_000_000, foreshadow: 1_789_000_000, residue: 1_793_000_000)
             ]
         )
         let plan = MonthlyIssueDeliveryPlanner.plan(
@@ -1378,7 +1362,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(ids.contains("current-runtime"))
         XCTAssertTrue(ids.contains("next-runtime"))
         XCTAssertFalse(ids.contains("old-runtime"))
-        XCTAssertTrue(ids.contains("old-casebook"))
+        // An old manifest may still list a casebook; it is decoded and never planned.
+        XCTAssertFalse(ids.contains("old-casebook"))
+        XCTAssertFalse(ids.contains("current-casebook"))
         manifest.issues[1].assets[0].retiresAt = now
         let boundaryPlan = MonthlyIssueDeliveryPlanner.plan(manifest: manifest, now: now,
             hasMonthlyAccess: true, manifestHost: "reenchanted.app")
@@ -1447,39 +1433,20 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             hasMonthlyAccess: true, directory: root.appendingPathComponent("nested")))
     }
 
-    func testManagedCasebookInstallerVerifiesInstallsAndPrunesItsOwnFile() async throws {
+    func testManagedInstallerVerifiesInstallsAndPrunesItsOwnFile() async throws {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory.appendingPathComponent("monthly-issue-test-\(UUID().uuidString)", isDirectory: true)
         defer { try? fileManager.removeItem(at: root) }
         let documents = root.appendingPathComponent("Documents", isDirectory: true)
         let stateURL = root.appendingPathComponent("Support/state.json", isDirectory: false)
-        let casebook = WorldEventCasebook(
-            id: "casebook:test:2027",
-            eventID: "test",
-            packID: "test",
-            runID: "test:2027",
-            title: "The Test Casebook",
-            subtitle: "A public record.",
-            liveStartsAt: Date(timeIntervalSince1970: 10),
-            liveEndsAt: Date(timeIntervalSince1970: 20),
-            publishedAt: Date(timeIntervalSince1970: 30),
-            outcomeTitle: nil,
-            historySentence: "The test passed through the stacks.",
-            entries: [],
-            residueVoice: .rumor,
-            evidencePageIDs: [],
-            isPersonalized: false
-        )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(casebook)
+        let data = Data("A small publication asset, exactly as delivered.".utf8)
         let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         let asset = MonthlyIssueDeliveryAsset(
-            id: "casebook-test",
-            kind: .casebook,
-            scope: .casebook,
+            id: "publication-test",
+            kind: .media,
+            scope: .publication,
             remoteURL: URL(string: "https://cdn.reenchanted.app/test.json")!,
-            fileName: "test.reenchantedcasebook.json",
+            fileName: "test.png",
             sha256: hash,
             byteCount: data.count
         )
@@ -1502,7 +1469,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         let managed = try fileManager.contentsOfDirectory(at: documents, includingPropertiesForKeys: nil)
         XCTAssertEqual(managed.count, 1)
         XCTAssertTrue(managed[0].lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix))
-        let readerImport = documents.appendingPathComponent("my-own.reenchantedcasebook.json")
+        let readerImport = documents.appendingPathComponent("my-own.reenchantedevents.json")
         try Data("reader-owned".utf8).write(to: readerImport)
         var replacement = asset
         replacement.id = "next-required-asset"
@@ -1546,34 +1513,15 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         defer { try? fileManager.removeItem(at: root) }
         let content = root.appendingPathComponent("Content", isDirectory: true)
         let stateURL = root.appendingPathComponent("Support/state.json", isDirectory: false)
-        let casebook = WorldEventCasebook(
-            id: "casebook:rollback:2027",
-            eventID: "rollback",
-            packID: "rollback",
-            runID: "rollback:2027",
-            title: "The Rollback Casebook",
-            subtitle: "A public record.",
-            liveStartsAt: Date(timeIntervalSince1970: 10),
-            liveEndsAt: Date(timeIntervalSince1970: 20),
-            publishedAt: Date(timeIntervalSince1970: 30),
-            outcomeTitle: nil,
-            historySentence: "Nothing half-installed remained.",
-            entries: [],
-            residueVoice: .rumor,
-            evidencePageIDs: [],
-            isPersonalized: false
-        )
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(casebook)
+        let data = Data("Nothing half-installed remained.".utf8)
         let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         func asset(_ id: String) -> MonthlyIssueDeliveryAsset {
             MonthlyIssueDeliveryAsset(
                 id: id,
-                kind: .casebook,
-                scope: .casebook,
+                kind: .media,
+                scope: .publication,
                 remoteURL: URL(string: "https://cdn.reenchanted.app/\(id).json")!,
-                fileName: "\(id).reenchantedcasebook.json",
+                fileName: "\(id).png",
                 sha256: hash,
                 byteCount: data.count
             )
@@ -1632,17 +1580,16 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
                     sealedAt: Date(timeIntervalSinceReferenceDate: 84)
                 )
             ],
-            casebooks: [
-                WorldEventCasebook(
-                    id: "casebook:dictionary-rebellion:2027",
+            records: [
+                WorldEventRecord(
+                    id: "record:dictionary-rebellion:2027",
                     eventID: "dictionary-rebellion",
                     packID: "dictionary-rebellion",
                     runID: "dictionary-rebellion:2027",
-                    title: "The Casebook of the Dictionary Rebellion",
+                    title: "The Dictionary Rebellion",
                     subtitle: "The public record.",
                     liveStartsAt: Date(timeIntervalSinceReferenceDate: 10),
                     liveEndsAt: Date(timeIntervalSinceReferenceDate: 20),
-                    publishedAt: Date(timeIntervalSinceReferenceDate: 30),
                     outcomeTitle: "Witnessed",
                     historySentence: "One word kept its better meaning.",
                     entries: [],
@@ -1656,7 +1603,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(decoded.ownedPacks, ["nocturne-folio"])
         XCTAssertEqual(decoded.openWorldEventArchive?.eventID, "starlit-paper-trial")
         XCTAssertEqual(decoded.worldEventLifecycle?.relics.first?.runID, "dictionary-rebellion:2027")
-        XCTAssertEqual(decoded.worldEventLifecycle?.casebooks?.first?.evidencePageIDs, ["page-one"])
+        XCTAssertEqual(decoded.worldEventLifecycle?.records?.first?.evidencePageIDs, ["page-one"])
     }
 
     // MARK: Wonder sparks

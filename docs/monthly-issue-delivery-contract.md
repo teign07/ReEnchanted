@@ -10,17 +10,18 @@ The [monthly delivery guide](physical-book-backend/MONTHLY-ISSUES.md) defines th
 
 ## Product law
 
-- A monthly issue may be **foreshadow**, **live**, **residue**, **sealed**, or a
-  published **casebook**.
+- A monthly issue may be **foreshadow**, **live**, **residue**, or **sealed**.
+  There is no casebook: the issue's public account (its `record`) rides inside
+  the world-event pack, is frozen when the live door closes, and binds into
+  that month's edition as The Record.
 - Only a live issue accepts participation.
 - The app may hold runtime assets for every issue whose foreshadow-through-
   residue envelope contains now, plus the next issue. This is normally current
   plus next and may briefly be previous residue plus current plus next.
 - Once residue ends, that issue's runtime and media leave the managed shelf.
-- A published casebook is small, textual, read-only, and not an episode.
 - The current open shelf grants every installation monthly access; the preserved
   paid gate can be restored if the offer changes. Access changes do not erase reader-owned
-  Pages, evidence, personal relics, or locally frozen casebooks.
+  Pages, evidence, personal relics, or locally frozen records.
 - Bundled packs remain a valid shipping and offline fallback path.
 
 ## Signed envelope
@@ -53,7 +54,6 @@ parse and re-encode the payload before verification. The decoded payload is a
       "liveEndsAt": "2027-10-01T00:00:00Z",
       "foreshadowStartsAt": "2027-08-25T00:00:00Z",
       "residueEndsAt": "2027-10-08T00:00:00Z",
-      "casebookAvailableAt": "2027-11-01T00:00:00Z",
       "assets": []
     }
   ]
@@ -65,7 +65,7 @@ not overlap. Calendar boundaries must be monotonic:
 
 ```text
 foreshadowStartsAt <= liveStartsAt < liveEndsAt
-liveEndsAt <= residueEndsAt <= casebookAvailableAt
+liveEndsAt <= residueEndsAt
 ```
 
 The endpoint and every asset URL must use HTTPS. Asset hosts must appear in the
@@ -77,9 +77,10 @@ Each `MonthlyIssueDeliveryAsset` declares:
 
 - a stable `id`;
 - `kind`: `worldEventPack`, `pageArchetypePack`, `storyFormPack`,
-  `storyConsequencePack`, `radioStationPack`, `sentenceBuilderPack`, `editionPlayPack`, `casebook`,
+  `storyConsequencePack`, `radioStationPack`, `sentenceBuilderPack`, `editionPlayPack`,
   or `media`;
-- `scope`: `runtime`, `publication`, or `casebook`;
+- `scope`: `runtime` or `publication`. (`casebook` is a retired scope: an old
+  manifest may still name it, the app decodes it and never installs it);
 - HTTPS `remoteURL` and a path-free `fileName`;
 - lowercase or uppercase hexadecimal `sha256` of the downloaded source bytes;
 - exact `byteCount`;
@@ -88,8 +89,7 @@ Each `MonthlyIssueDeliveryAsset` declares:
   instant within the issue envelope. Without it, runtime files last through residue.
 
 JSON filenames must retain the existing registry suffix for their kind. A
-casebook must use `.reenchantedcasebook.json` and `scope: casebook`. Pack JSON
-may refer to a delivered media destination with
+pack JSON may refer to a delivered media destination with
 `{{asset-path:ASSET_ID}}`. Replacement happens only after every destination is
 resolved, and the materialized JSON is decoded as its declared pack type before
 installation.
@@ -105,7 +105,7 @@ Limits are deliberately strict:
 | Limit | Ceiling |
 |---|---:|
 | One runtime or media asset | 180 MiB |
-| One publication asset or casebook | 2 MiB |
+| One publication asset | 2 MiB |
 | Entire managed shelf | 350 MiB |
 
 ## Installation and pruning
@@ -147,7 +147,7 @@ For the Count integration audit, remaining lifecycle work, and recording handoff
 see [the runtime board](count-unbound-integration.md) and
 [media production sheet](count-unbound-media-production.md).
 
-## Runtime and casebook behavior
+## Runtime and record behavior
 
 The world-event ledger records a beat only when its surface is actually served.
 Reports may acknowledge missed live beats, but do not become participation.
@@ -160,12 +160,13 @@ door establishes participation only when all of these are true:
 2. the resulting Page contains reader contribution; and
 3. the event is still live when the contribution is committed.
 
-At the live-to-residue boundary, reconciliation freezes exactly one casebook.
-For a participant it may preserve the outcome, history sentence, and IDs of
-their evidence Pages. For anyone else it is third-person rumor with no reader
-evidence IDs and no relic. The Almanac can open a published casebook, but its
-surface declares `readOnlyPublication`; the UI supplies Close and suppresses
-participation, Keep, and shelf-mark actions.
+At the live-to-residue boundary, reconciliation freezes exactly one record.
+The authored account (`event.record`: history sentence, optional outcome title,
+entries) is the same for every Reader. For a participant it also preserves the
+IDs of their evidence Pages. For anyone else it is third-person rumor with no
+reader evidence IDs and no relic. The monthly edition binds the record as its
+own protected section, The Record; a season or a year keeps only each story's
+outcome. There is no desk page and no Almanac shelf for it.
 
 ## Authored graph and native Book seams
 
@@ -276,7 +277,7 @@ exist in that bucket with their published bytes. Retain the previous envelope an
 assets for rollback; the Worker can hold the previous verified inventory for up
 to 30 seconds. `noLongerListed` is an inventory report, not a deletion command.
 Device cleanup is automatic, independently of when old server objects are
-removed. Never apply a bucket-wide expiry rule to retained casebooks or assets
+removed. Never apply a bucket-wide expiry rule to retained assets
 still referenced by a published manifest.
 
 ### Signing configuration
@@ -320,13 +321,13 @@ the app release configuration, not beside a mutable manifest.
 Before turning on a production endpoint:
 
 1. sign a fixture and prove a one-byte payload mutation is rejected;
-2. walk previous residue, current live, next foreshadow, sealing, and casebook
-   publication with an injected clock;
+2. walk previous residue, current live, next foreshadow, and sealing with an
+   injected clock;
 3. walk active participant, passive subscriber, late arrival, absent returner,
    and lapsed subscriber;
-4. prove lapsed access clears only managed runtime/casebook files;
+4. prove lapsed access clears only managed runtime files;
 5. prove a user-imported pack and reader-owned evidence survive that clearing;
-6. inspect the Almanac casebook on device and prove it has no replay or Keep
-   affordance; and
+6. bind the month's edition after residue and prove The Record section
+   carries the authored account, with a receipt only for a participant; and
 7. record build, focused tests, install, launch, calendar simulation, and visual
    QA as separate evidence. Static parse alone does not satisfy this gate.

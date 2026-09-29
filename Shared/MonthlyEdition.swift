@@ -2403,6 +2403,12 @@ enum MonthlyEditionBuilder {
     /// did run keeps its "What This Month Was".
     static func asVolumeChapter(_ chapter: MonthlyEdition) -> MonthlyEdition {
         var chapter = chapter
+        // A season or a year keeps each story's outcome, not its whole
+        // account; the month's own edition carries the full record.
+        for index in chapter.sections.indices where chapter.sections[index].id == recordSectionID {
+            chapter.sections[index].items = chapter.sections[index].items
+                .filter { $0.tags.contains("record-outcome") }
+        }
         chapter.sections.removeAll { section in
             section.id == "what-this-was"
                 && section.items.allSatisfy {
@@ -2569,7 +2575,15 @@ enum MonthlyEditionBuilder {
             memorySpineSection(from: monthDays, generatedAt: generatedAt),
             privateWeatherSection,
 
-            // V. The world that turned around it.
+            // V. The world that turned around it. The Record comes first: it is
+            //    the shared story, and the pages that follow are one Reader's
+            //    share of it.
+            worldRecordSection(
+                from: academySeason.records,
+                start: startDate,
+                end: endDate,
+                calendar: calendar
+            ),
             worldEventSection(from: boundPages),
             fictionalConsequenceSection(
                 from: storyConsequences.filter {
@@ -3297,6 +3311,69 @@ enum MonthlyEditionBuilder {
         default:
             return "\(cleaned.dropLast().joined(separator: ", ")), and \(cleaned.last ?? "")"
         }
+    }
+
+    /// The Academy's own account of a story that ran this month, in its own
+    /// voice. Protected from the print trimmer (`EditionPrintFitting` never
+    /// names this section): it is the canon, not one Reader's evidence.
+    static let recordSectionID = "the-record"
+
+    static func worldRecordSection(
+        from records: [WorldEventRecord],
+        start: Date,
+        end: Date,
+        calendar: Calendar = .current
+    ) -> MonthlyEditionSection {
+        let boundRecords = records
+            .filter { $0.liveStartsAt <= end && $0.liveEndsAt >= start }
+            .sorted { $0.liveStartsAt < $1.liveStartsAt }
+        var items: [MonthlyEditionItem] = []
+        for record in boundRecords {
+            var lines = [record.historySentence]
+            if let outcome = record.outcomeTitle { lines.append("Filed outcome: \(outcome).") }
+            if record.residueVoice == .receipt {
+                let count = record.evidencePageIDs.count
+                lines.append(count == 0
+                    ? "I was there for this one."
+                    : count == 1
+                        ? "I was there for this one, and I kept one leaf to prove it."
+                        : "I was there for this one, and I kept \(count) leaves to prove it.")
+            } else {
+                lines.append("I wasn't there for this one. This is what the Academy filed.")
+            }
+            items.append(MonthlyEditionItem(
+                id: "\(recordSectionID)-\(record.runID)-outcome",
+                kind: .continuity,
+                title: record.title,
+                body: lines.joined(separator: "\n\n"),
+                date: record.liveStartsAt,
+                pageType: nil,
+                sourceID: nil,
+                mediaAssets: [],
+                tags: [recordSectionID, "record-outcome", "event:\(record.eventID)"]
+            ))
+            for entry in record.entries {
+                items.append(MonthlyEditionItem(
+                    id: "\(recordSectionID)-\(record.runID)-\(entry.id)",
+                    kind: .continuity,
+                    title: entry.title,
+                    body: entry.account,
+                    date: entry.onDay.flatMap {
+                        calendar.date(byAdding: .day, value: $0, to: record.liveStartsAt)
+                    } ?? record.liveStartsAt,
+                    pageType: nil,
+                    sourceID: nil,
+                    mediaAssets: [],
+                    tags: [recordSectionID, "record-entry", "event:\(record.eventID)"]
+                ))
+            }
+        }
+        return MonthlyEditionSection(
+            id: recordSectionID,
+            title: "The Record",
+            note: "What the Academy did this month, written down plain. I only put you in it where I kept a receipt.",
+            items: items
+        )
     }
 
     private static func worldEventSection(from pages: [BookPage]) -> MonthlyEditionSection {
@@ -5493,6 +5570,8 @@ struct KeptAnnualEditionArtifact: Codable, Equatable {
 /// (`PrintSpec.pageCap(for:)`). Each step halves one section toward its
 /// floor, keeping items spread evenly across the span so no week goes dark.
 /// The nightly braids go last and never below eight: they are the book.
+/// The Record (`MonthlyEdition.recordSectionID`) is deliberately absent from
+/// this list: it is the story's canon and is never trimmed.
 enum EditionPrintFitting {
     static let order: [(section: String, floor: Int)] = [
         ("other-kept-pages", 0),

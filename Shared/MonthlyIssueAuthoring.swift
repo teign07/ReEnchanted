@@ -139,8 +139,6 @@ struct MonthlyIssueContentPlacement: Codable, Equatable {
             return 5
         case .sealed:
             return 6
-        case .casebookAvailable:
-            return 7
         }
     }
 }
@@ -599,7 +597,7 @@ enum MonthlyIssueAuthoringValidator {
             case .foreshadow: stageDays = event.calendar.resolvedForeshadowDays
             case .live: stageDays = event.calendar.durationDays
             case .residue: stageDays = event.calendar.resolvedResidueDays
-            case .sealed, .casebookAvailable: stageDays = 0
+            case .sealed: stageDays = 0
             }
             let invalidWindow = stageDays <= 0
                 || beat.opensOnDay < 0
@@ -612,7 +610,7 @@ enum MonthlyIssueAuthoringValidator {
             }
             if stage == .live {
                 liveRoles.insert(beat.role)
-            } else if stage == .sealed || stage == .casebookAvailable
+            } else if stage == .sealed
                 || beat.isMilestone || beat.participationPrompt != nil || beat.participationPlaceholder != nil {
                 add(.invalidEventBeat, "Non-live beat \(beat.id) may not be a milestone or accept participation.", beat.id, .error)
             }
@@ -816,8 +814,8 @@ enum MonthlyIssueAuthoringValidator {
                 || atom.priority == .spine || atom.priority == .milestone {
                 add(.unsafeNonliveContent, "Non-live content \(atom.id) may only continue a receipted participant choice without spine pressure.", atom.id, .error)
             }
-        case .sealed, .casebookAvailable:
-            add(.invalidContentPlacement, "Sealed and casebook shelves do not deliver live authored atoms.", atom.id, .error)
+        case .sealed:
+            add(.invalidContentPlacement, "A sealed run does not deliver live authored atoms.", atom.id, .error)
         }
 
         if atom.interaction.acceptsParticipation, atom.audience == .nonparticipants {

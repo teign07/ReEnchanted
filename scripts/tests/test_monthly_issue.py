@@ -32,7 +32,6 @@ class MonthlyIssueToolTests(unittest.TestCase):
             'liveStartsAt': '2026-10-01T00:00:00Z',
             'liveEndsAt': '2026-11-01T00:00:00Z',
             'residueEndsAt': '2026-11-08T00:00:00Z',
-            'casebookAvailableAt': '2026-12-01T12:00:00Z',
         })
 
     def test_a_new_month_is_a_valid_draft_with_its_own_calendar(self):
@@ -44,7 +43,6 @@ class MonthlyIssueToolTests(unittest.TestCase):
             'liveStartsAt': '2026-12-01T00:00:00Z',
             'liveEndsAt': '2027-01-01T00:00:00Z',
             'residueEndsAt': '2027-01-08T00:00:00Z',
-            'casebookAvailableAt': '2027-02-01T00:00:00Z',
         })
         pack = issue.pack
         self.assertEqual(check(pack), [])
@@ -63,22 +61,22 @@ class MonthlyIssueToolTests(unittest.TestCase):
         self.assertEqual([issue['id'] for issue in template['issues']],
                          ['count-unbound-2026-10', 'winter-lantern-2026-12'])
         self.assertEqual(missing, [])
-        self.assertEqual(count, 38 + len(template['issues'][1]['assets']))
+        self.assertEqual(count, 37 + len(template['issues'][1]['assets']))
         # The scaffold is all draft, so the release gate refuses the shelf
         # and names what is unfinished; nothing half-written ships.
         with self.assertRaisesRegex(ValueError, 'required content is not ready'):
             prepare(template, output / 'sources', self.root / 'prepared', 'https://shelf.example')
 
-    def test_a_casebook_off_its_calendar_day_is_refused(self):
+    def test_an_issue_without_a_record_is_refused(self):
         folder = self.root / 'ContentPacks' / 'count-copy'
         import shutil
         shutil.copytree(COUNT, folder, ignore=shutil.ignore_patterns('audio', '*.png', '*.jpg'))
-        casebook = folder / 'public-record.reenchantedcasebook.json'
-        record = json.loads(casebook.read_text())
-        record['publishedAt'] = '2026-12-05T12:00:00Z'
-        casebook.write_text(json.dumps(record))
-        with self.assertRaisesRegex(tool.IssueError, 'not on the calendar day'):
-            tool.Issue(folder).windows()
+        packfile = folder / 'opening.reenchantedevents.json'
+        pack = json.loads(packfile.read_text())
+        del pack['events'][0]['record']
+        packfile.write_text(json.dumps(pack))
+        with self.assertRaisesRegex(tool.IssueError, 'no record'):
+            tool.Issue(folder).validate()
 
 
 if __name__ == '__main__':

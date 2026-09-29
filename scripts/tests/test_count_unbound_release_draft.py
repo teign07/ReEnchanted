@@ -38,11 +38,10 @@ class CountReleaseDraftTests(unittest.TestCase):
             template = json.loads((output / 'delivery-template.json').read_text())
             assets = template['issues'][0]['assets']
             self.assertEqual(template['schemaVersion'], 2)
-            self.assertEqual(count, 38)
+            self.assertEqual(count, 37)
             self.assertEqual(len(assets), count)
             self.assertEqual(len(missing), 5)
-            self.assertEqual({a['kind'] for a in assets}, {'worldEventPack', 'pageArchetypePack', 'editionPlayPack', 'media', 'casebook'})
-            self.assertEqual(sum(a['scope'] == 'casebook' for a in assets), 1)
+            self.assertEqual({a['kind'] for a in assets}, {'worldEventPack', 'pageArchetypePack', 'editionPlayPack', 'media'})
             self.assertEqual(sum(a['scope'] == 'publication' for a in assets), 2)
             self.assertFalse((output / 'manifest.envelope.json').exists())
 
@@ -65,7 +64,7 @@ class CountReleaseDraftTests(unittest.TestCase):
                 (audio / filename).write_bytes(b'ID3\x04\x00\x00synthetic-test-only')
             draft = root / 'draft'
             count, missing = MODULE.stage(draft, '2026-09-23T20:00:00Z', audio_root=audio)
-            self.assertEqual((count, missing), (38, []))
+            self.assertEqual((count, missing), (37, []))
             template = json.loads((draft / 'delivery-template.json').read_text())
             source_root = draft / 'sources'
             world = source_root / MODULE.ISSUE_ID / 'count-unbound.reenchantedevents.json'
@@ -76,8 +75,8 @@ class CountReleaseDraftTests(unittest.TestCase):
             world.write_text(json.dumps(pack))
             release = root / 'prepared'
             report = prepare(template, source_root, release, 'https://shelf.example')
-            self.assertEqual(len(report['upload']), 38)
-            self.assertEqual(len(json.loads((release / 'manifest.json').read_text())['issues'][0]['assets']), 38)
+            self.assertEqual(len(report["upload"]), 37)
+            self.assertEqual(len(json.loads((release / 'manifest.json').read_text())['issues'][0]["assets"]), 37)
 
 
 if __name__ == '__main__':

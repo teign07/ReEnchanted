@@ -2,7 +2,7 @@
 
 Published to the monthly shelf on September 27, 2026 as `count-unbound-2026-10`.
 The signed manifest and all 37 currently available Reader downloads match the
-release; the December casebook is correctly withheld. The editorial source is
+release. The editorial source is
 `docs/count-unbound-creator-pack.md`; the September 20 product decision supersedes
 its extra sentence-permission controls: submitting a sentence makes it material
 for the Reader's story, braid, and printed books. Reader words and Book-authored
@@ -27,7 +27,7 @@ fiction retain separate provenance.
 | The Wrong Castle | Oct 22–27 | Three rooms and shared discovery |
 | A Future Tense | New offer Oct 28; opened route resumes through Oct 31 | Carried strategy, resolution, withdrawal and closing |
 | The First Nightbound Morning | Oct 29–31 | Naming and new protocols |
-| Threshold Protocols | Oct 30–31 | Full keepable notice; also in the December casebook |
+| Threshold Protocols | Oct 30–31 | Full keepable notice; also in The Record |
 | Return relic | Oct 30–31 | One method-specific trace, only after a lived Weeks One–Three finding and the encountered ending |
 | The two looks | Oct 30–31 | One response quoting the actual Week Four sentence pair after Nightbound |
 | After the last lesson | Oct 30–31 | Proposed November occasion, not a confirmed pairing |
@@ -102,9 +102,10 @@ two letters, four class Pages, two November residue notices, the carried Novembe
 finding callback from the editorial manuscript. The opening filename is
 retained for continuity, although the working draft now extends through the ending.
 
-`public-record.reenchantedcasebook.json` is the authored December 1 public
-history. The local casebook adds only proven private participation to that
-record. `stage_release_draft.py` gathers the issue, art, casebook, and exact
+The Academy's public account of the run is the event's `record` inside
+`opening.reenchantedevents.json`; it binds into October's edition as The
+Record, and a Reader who took part gets their receipt beside it.
+`stage_release_draft.py` gathers the issue, art, and exact
 five recording paths into a schema-2 delivery template. For an offline staging
 check with the delivered recordings:
 

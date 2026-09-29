@@ -18,19 +18,24 @@ enum AcademySeasonEdition {
         var pressures: [WorldPressure]
         var placeStates: [String: PlaceState]
         var castName: [String: String]
+        /// The runs of the world's stories the Academy has closed. The edition
+        /// binds them as The Record.
+        var records: [WorldEventRecord]
 
         init(
             movements: [CastAgencyMovement] = [],
             undertakings: [CastUndertaking] = [],
             pressures: [WorldPressure] = [],
             placeStates: [String: PlaceState] = [:],
-            castName: [String: String] = [:]
+            castName: [String: String] = [:],
+            records: [WorldEventRecord] = []
         ) {
             self.movements = movements
             self.undertakings = undertakings
             self.pressures = pressures
             self.placeStates = placeStates
             self.castName = castName
+            self.records = records
         }
     }
 

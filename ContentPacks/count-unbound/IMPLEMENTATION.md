@@ -37,9 +37,9 @@ gates passed; open Reader experience checks below remain follow-up work.
 - [x] Week-four offer/return and explicit earlier-observation selector; save-time source revalidation.
 - [x] Paired-observation monthly/chaptered print layout and older-observation search; synthetic PDF and core proof.
 - [x] Four phase plans and phase-specific Book copy/direction; production-count requirements now name the missing media.
-- [x] Authored December 1 public casebook and local receipt merge; schema-2 release inventory staged without publication.
+- [x] Authored public record (now `event.record` in the pack, bound into the October edition) and local receipt; schema-2 release inventory staged without publication.
 - [x] Week-four exact-pair callback after Nightbound; one route-specific relic for eligible endings.
-- [x] Full Threshold Protocols leaf and permanent casebook entry.
+- [x] Full Threshold Protocols leaf and permanent Record entry.
 - [x] Three carried November occasion routes with consequential second choices.
 - [x] Monthly-delivered paper leaves: verified door maze and writable personal threshold.
 - [x] Fourth-crossing first/second sentence selector and Keep walkthrough in

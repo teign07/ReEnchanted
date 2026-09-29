@@ -56,6 +56,9 @@ struct WorldEvent: Codable, Identifiable, Equatable {
     /// after it closes. Phases only cover the live month.
     var foreshadowAcademy: AcademyStagingSet? = nil
     var residueAcademy: AcademyStagingSet? = nil
+    /// The Academy's own account of the run, third person and safe for a Reader
+    /// who was never there. It binds into the month's edition as The Record.
+    var record: WorldEventPublicRecord? = nil
 }
 
 struct WorldEventCalendar: Codable, Equatable {
@@ -68,12 +71,9 @@ struct WorldEventCalendar: Codable, Equatable {
     /// imported packs decodable without inventing content for them.
     var foreshadowDays: Int? = nil
     var residueDays: Int? = nil
-    /// Silence after residue before the non-playable casebook may be bound.
-    var casebookDelayDays: Int? = nil
 
     var resolvedForeshadowDays: Int { max(0, foreshadowDays ?? 0) }
     var resolvedResidueDays: Int { max(0, residueDays ?? 0) }
-    var resolvedCasebookDelayDays: Int { max(0, casebookDelayDays ?? 0) }
 
     func interval(containing date: Date, calendar: Calendar = .current) -> DateInterval? {
         let components = calendar.dateComponents([.year], from: date)
@@ -129,11 +129,6 @@ struct WorldEventCalendar: Codable, Equatable {
 
     func residueEnds(for interval: DateInterval, calendar: Calendar = .current) -> Date {
         calendar.date(byAdding: .day, value: resolvedResidueDays, to: interval.end) ?? interval.end
-    }
-
-    func casebookAvailableAt(for interval: DateInterval, calendar: Calendar = .current) -> Date {
-        let residueEnd = residueEnds(for: interval, calendar: calendar)
-        return calendar.date(byAdding: .day, value: resolvedCasebookDelayDays, to: residueEnd) ?? residueEnd
     }
 
     private func interval(in year: Int, calendar: Calendar) -> DateInterval? {
@@ -282,17 +277,30 @@ struct WorldEventRunRelic: Codable, Identifiable, Equatable {
     var id: String { runID }
 }
 
-struct WorldEventCasebookEntry: Codable, Identifiable, Equatable {
+struct WorldEventRecordEntry: Codable, Identifiable, Equatable {
     var id: String
     var title: String
     /// Always third-person historical copy. It may say what the Academy did;
     /// it never invents that the reader was present.
     var account: String
+    /// The live day (0 is the first) the entry happened on, for the margin
+    /// ticker under a nightly braid. Nil entries appear only in The Record.
+    var onDay: Int? = nil
 }
 
-/// A published record, never a reopened event. It carries no choices, phase
-/// effects, participation door, or synthetic event clock.
-struct WorldEventCasebook: Codable, Identifiable, Equatable {
+/// What the pack's author wrote down about the run, in the Academy's voice.
+/// It rides inside the event so it is installed, retired and validated with
+/// the runtime pack rather than shipped as a fourth file.
+struct WorldEventPublicRecord: Codable, Equatable {
+    var outcomeTitle: String? = nil
+    var historySentence: String
+    var entries: [WorldEventRecordEntry]
+}
+
+/// The month's record, frozen when the live door closes. It binds into that
+/// month's edition and is never a reopened event: no choices, no phase
+/// effects, no participation door.
+struct WorldEventRecord: Codable, Identifiable, Equatable {
     var id: String
     var eventID: String
     var packID: String
@@ -301,17 +309,14 @@ struct WorldEventCasebook: Codable, Identifiable, Equatable {
     var subtitle: String
     var liveStartsAt: Date
     var liveEndsAt: Date
-    var publishedAt: Date
     var outcomeTitle: String?
     var historySentence: String
-    var entries: [WorldEventCasebookEntry]
+    var entries: [WorldEventRecordEntry]
     var residueVoice: WorldEventResidueVoice
     var evidencePageIDs: [String]
-    /// A generic downloaded casebook is still truthful history, but only a
-    /// locally frozen one may describe this particular Book's receipts.
+    /// Only a record frozen on this device may describe this particular
+    /// Book's receipts; the authored account is truthful for everyone.
     var isPersonalized: Bool
-
-    func isAvailable(at now: Date) -> Bool { publishedAt <= now }
 }
 
 struct WorldEventLifecycleLedger: Codable, Equatable {
@@ -319,7 +324,9 @@ struct WorldEventLifecycleLedger: Codable, Equatable {
     var boundaryReceipts: [WorldEventBoundaryReceipt] = []
     var participationReceipts: [WorldEventParticipationReceipt]? = nil
     var relics: [WorldEventRunRelic] = []
-    var casebooks: [WorldEventCasebook]? = nil
+    /// Frozen when the live door closes, so the edition can still bind the
+    /// month's record after the runtime pack has left the shelf.
+    var records: [WorldEventRecord]? = nil
 
     static let empty = WorldEventLifecycleLedger()
 
@@ -343,9 +350,9 @@ struct WorldEventLifecycleLedger: Codable, Equatable {
         for relic in other.relics where !relics.contains(where: { $0.id == relic.id }) {
             relics.append(relic)
         }
-        for casebook in other.casebooks ?? []
-        where !(casebooks ?? []).contains(where: { $0.id == casebook.id }) {
-            casebooks = (casebooks ?? []) + [casebook]
+        for record in other.records ?? []
+        where !(records ?? []).contains(where: { $0.id == record.id }) {
+            records = (records ?? []) + [record]
         }
     }
 }
@@ -355,7 +362,13 @@ enum WorldEventLifecycleStage: String, Codable, Equatable, CaseIterable {
     case live
     case residue
     case sealed
-    case casebookAvailable
+
+    /// `casebookAvailable` was retired when the casebook folded into the
+    /// edition. A boundary receipt that recorded it is still a sealed run.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: raw) ?? .sealed
+    }
 }
 
 enum WorldEventResidueVoice: String, Codable, Equatable {
@@ -374,7 +387,6 @@ struct WorldEventLifecycleSnapshot: Codable, Identifiable, Equatable {
     var liveInterval: DateInterval
     var foreshadowStartsAt: Date
     var residueEndsAt: Date
-    var casebookAvailableAt: Date
     var participated: Bool
 
     var id: String { runID }
@@ -696,8 +708,7 @@ enum WorldEventRegistry {
             recurrence: .oneShot,
             startYear: 2027,
             foreshadowDays: 7,
-            residueDays: 7,
-            casebookDelayDays: 24
+            residueDays: 7
         ),
         phases: [
             WorldEventPhase(
@@ -983,7 +994,6 @@ enum WorldEventResolver {
         let foreshadowStart = event.calendar.foreshadowStarts(for: interval, calendar: calendar)
         guard now >= foreshadowStart else { return nil }
         let residueEnd = event.calendar.residueEnds(for: interval, calendar: calendar)
-        let casebookAvailable = event.calendar.casebookAvailableAt(for: interval, calendar: calendar)
         let year = calendar.component(.year, from: interval.start)
         let runID = "\(event.id):\(year)"
 
@@ -994,10 +1004,8 @@ enum WorldEventResolver {
             stage = .live
         } else if now < residueEnd {
             stage = .residue
-        } else if now < casebookAvailable {
-            stage = .sealed
         } else {
-            stage = .casebookAvailable
+            stage = .sealed
         }
 
         let liveDay: Int?
@@ -1022,7 +1030,6 @@ enum WorldEventResolver {
             liveInterval: interval,
             foreshadowStartsAt: foreshadowStart,
             residueEndsAt: residueEnd,
-            casebookAvailableAt: casebookAvailable,
             participated: ledger.participated(in: runID)
         )
     }
@@ -1058,7 +1065,7 @@ enum WorldEventResolver {
             day = liveDay
         case .residue:
             day = max(0, calendar.dateComponents([.day], from: snapshot.liveInterval.end, to: now).day ?? 0)
-        case .sealed, .casebookAvailable:
+        case .sealed:
             return []
         }
         let delivered = Set(ledger.beatReceipts.filter { $0.runID == snapshot.runID }.map(\.beatID))
@@ -1107,7 +1114,7 @@ enum WorldEventResolver {
                 if snapshot.stage == .live, let day = snapshot.liveDay {
                     return beat.expiresAfterDay < day
                 }
-                return snapshot.stage == .residue || snapshot.stage == .sealed || snapshot.stage == .casebookAvailable
+                return snapshot.stage == .residue || snapshot.stage == .sealed
             }
             .sorted { $0.opensOnDay < $1.opensOnDay }
         guard !missed.isEmpty else { return nil }
@@ -1340,14 +1347,14 @@ enum WorldEventResolver {
     }
 }
 
-enum WorldEventCasebookBuilder {
+enum WorldEventRecordBuilder {
     static func build(
         packID: String,
         event: WorldEvent,
         snapshot: WorldEventLifecycleSnapshot,
         ledger: WorldEventLifecycleLedger,
         outcome: WorldEventOutcome?
-    ) -> WorldEventCasebook {
+    ) -> WorldEventRecord {
         let participated = snapshot.participated
             || ledger.participated(in: snapshot.runID)
         let evidence = Array(Set(
@@ -1358,81 +1365,36 @@ enum WorldEventCasebookBuilder {
                     .filter { $0.runID == snapshot.runID }
                     .flatMap(\.evidencePageIDs)
         )).sorted()
-        let entries = (event.beats ?? [])
+        let entries = event.record?.entries ?? (event.beats ?? [])
             .filter { $0.resolvedLifecycleStage == .live && $0.reportsWhenMissed != false }
             .sorted {
                 if $0.opensOnDay != $1.opensOnDay { return $0.opensOnDay < $1.opensOnDay }
                 return $0.id < $1.id
             }
             .map {
-                WorldEventCasebookEntry(id: $0.id, title: $0.title, account: $0.report)
+                WorldEventRecordEntry(id: $0.id, title: $0.title, account: $0.report, onDay: $0.opensOnDay)
             }
-        let history = outcome?.monthlyEditionLine ?? event.packet.monthlyEditionLine
-        return WorldEventCasebook(
-            id: "casebook:\(snapshot.runID)",
+        let history = event.record?.historySentence
+            ?? outcome?.monthlyEditionLine
+            ?? event.packet.monthlyEditionLine
+        return WorldEventRecord(
+            id: "record:\(snapshot.runID)",
             eventID: event.id,
             packID: packID,
             runID: snapshot.runID,
-            title: "The Casebook of \(event.title)",
+            title: event.title,
             subtitle: participated
                 ? "The public record, with this Book's receipt tucked inside."
                 : "The public record. No attendance has been invented.",
             liveStartsAt: snapshot.liveInterval.start,
             liveEndsAt: snapshot.liveInterval.end,
-            publishedAt: snapshot.casebookAvailableAt,
-            outcomeTitle: outcome?.title,
+            outcomeTitle: outcome?.title ?? event.record?.outcomeTitle,
             historySentence: history,
             entries: entries,
             residueVoice: participated ? .receipt : .rumor,
             evidencePageIDs: participated ? evidence : [],
             isPersonalized: participated
         )
-    }
-}
-
-enum WorldEventCasebookRegistry {
-    static let userCasebookFileSuffix = ".reenchantedcasebook.json"
-
-    static func downloadedCasebooks(fileManager: FileManager = .default) -> [WorldEventCasebook] {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return ContentPackFileLocator.urls(suffix: userCasebookFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? decoder.decode(WorldEventCasebook.self, from: data)
-            }
-    }
-
-    static func available(
-        local: [WorldEventCasebook],
-        downloaded: [WorldEventCasebook] = [],
-        now: Date,
-        hasMonthlyAccess: Bool
-    ) -> [WorldEventCasebook] {
-        guard hasMonthlyAccess else { return [] }
-        var byRunID: [String: WorldEventCasebook] = [:]
-        for casebook in downloaded where casebook.isAvailable(at: now) {
-            byRunID[casebook.runID] = casebook
-        }
-        // A local receipt is more specific than the public rumor edition.
-        for casebook in local where casebook.isAvailable(at: now) {
-            if let published = byRunID[casebook.runID], !published.isPersonalized {
-                if casebook.isPersonalized {
-                    // Keep the authored shared history and add only this Book's
-                    // proven receipt. A sparse local freeze must not replace it.
-                    var joined = published
-                    joined.id = casebook.id
-                    joined.subtitle = casebook.subtitle
-                    joined.residueVoice = casebook.residueVoice
-                    joined.evidencePageIDs = casebook.evidencePageIDs
-                    joined.isPersonalized = true
-                    byRunID[casebook.runID] = joined
-                }
-            } else if byRunID[casebook.runID]?.isPersonalized != true || casebook.isPersonalized {
-                byRunID[casebook.runID] = casebook
-            }
-        }
-        return byRunID.values.sorted { $0.liveStartsAt > $1.liveStartsAt }
     }
 }
 
@@ -1563,9 +1525,7 @@ enum WorldEventLifecycleReconciler {
             )
         }
 
-        let liveDoorClosed = snapshot.stage == .residue
-            || snapshot.stage == .sealed
-            || snapshot.stage == .casebookAvailable
+        let liveDoorClosed = snapshot.stage == .residue || snapshot.stage == .sealed
         let participated = snapshot.participated || touchCount > 0
         if liveDoorClosed,
            participated,
@@ -1583,9 +1543,9 @@ enum WorldEventLifecycleReconciler {
         }
         if liveDoorClosed,
            event.beats?.isEmpty == false,
-           !(copy.casebooks ?? []).contains(where: { $0.runID == snapshot.runID }) {
-            copy.casebooks = (copy.casebooks ?? []) + [
-                WorldEventCasebookBuilder.build(
+           !(copy.records ?? []).contains(where: { $0.runID == snapshot.runID }) {
+            copy.records = (copy.records ?? []) + [
+                WorldEventRecordBuilder.build(
                     packID: snapshot.packID,
                     event: event,
                     snapshot: snapshot,
@@ -1638,7 +1598,7 @@ struct WorldEventLifecycleSimulationFrame: Codable, Identifiable, Equatable {
     var residueVoice: WorldEventResidueVoice?
     var relicID: String?
     var marginaliaShelfIDs: [String]
-    var casebookIDs: [String]? = nil
+    var recordIDs: [String]? = nil
 
     var id: String { "\(personaID):\(date.timeIntervalSinceReferenceDate)" }
 }
@@ -1770,10 +1730,7 @@ enum WorldEventLifecycleSimulator {
                     residueVoice: snapshot?.stage == .residue ? snapshot?.residueVoice : nil,
                     relicID: relic?.id,
                     marginaliaShelfIDs: ledger.relics.map(\.id).sorted(),
-                    casebookIDs: (ledger.casebooks ?? [])
-                        .filter { $0.isAvailable(at: date) }
-                        .map(\.id)
-                        .sorted()
+                    recordIDs: (ledger.records ?? []).map(\.id).sorted()
                 )
             )
 
@@ -1902,6 +1859,8 @@ enum MonthlyIssueDeliveryAssetKind: String, Codable, Equatable {
     case radioStationPack
     case sentenceBuilderPack
     case editionPlayPack
+    /// Retired: the record now rides inside the world-event pack. Old
+    /// manifests still name it, so it decodes and is then never planned.
     case casebook
     case media
     /// A kind a newer publisher added. It is skipped, never fatal: a strict
@@ -1916,11 +1875,11 @@ enum MonthlyIssueDeliveryAssetKind: String, Codable, Equatable {
 }
 
 enum MonthlyIssueDeliveryAssetScope: String, Codable, Equatable {
-    /// Removed after residue once the casebook has been frozen.
+    /// Removed after residue once the record has been frozen.
     case runtime
     /// Small print-only definitions and artwork, retained for later binding.
     case publication
-    /// Small, read-only publication matter. It never activates event physics.
+    /// Retired with the casebook; decoded from old manifests, never planned.
     case casebook
     /// A scope a newer publisher added; skipped like an unsupported kind.
     case unsupported
@@ -1953,7 +1912,6 @@ struct MonthlyIssueDeliveryIssue: Codable, Identifiable, Equatable {
     var liveEndsAt: Date
     var foreshadowStartsAt: Date
     var residueEndsAt: Date
-    var casebookAvailableAt: Date
     var assets: [MonthlyIssueDeliveryAsset]
 }
 
@@ -2027,8 +1985,7 @@ enum MonthlyIssueManifestVerifier {
             }
             guard issue.foreshadowStartsAt <= issue.liveStartsAt,
                   issue.liveStartsAt < issue.liveEndsAt,
-                  issue.liveEndsAt <= issue.residueEndsAt,
-                  issue.residueEndsAt <= issue.casebookAvailableAt else {
+                  issue.liveEndsAt <= issue.residueEndsAt else {
                 throw MonthlyIssueDeliveryError.invalidManifest(issue.id)
             }
             if index > 0, ordered[index - 1].liveEndsAt > issue.liveStartsAt {
@@ -2045,9 +2002,6 @@ enum MonthlyIssueManifestVerifier {
                 if let retiresAt = asset.retiresAt,
                    asset.scope != .runtime || retiresAt <= issue.foreshadowStartsAt || retiresAt > issue.residueEndsAt {
                     throw MonthlyIssueDeliveryError.invalidManifest("invalid-retirement:\(asset.id)")
-                }
-                if asset.kind == .casebook, asset.scope != .casebook {
-                    throw MonthlyIssueDeliveryError.invalidManifest("live-casebook:\(asset.id)")
                 }
             }
         }
@@ -2096,7 +2050,7 @@ enum MonthlyIssueDeliveryPolicy {
     static let runtimeVersion = 10
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
-    static let maximumCasebookBytes = 2 * 1_024 * 1_024
+    static let maximumPublicationBytes = 2 * 1_024 * 1_024
     static let managedFilePrefix = "reenchanted-managed-"
     static let supportDirectoryName = "MonthlyIssueDelivery"
     static let managedContentDirectoryName = "Content"
@@ -2186,7 +2140,7 @@ enum MonthlyIssueDeliveryPlanner {
     }
 
     /// Installs the issue whose six-week envelope contains now, plus the next
-    /// issue. Published casebooks remain tiny read-only assets and may all be
+    /// issue. Publication assets are tiny and read-only and may all be
     /// present; old runtime/media packs are excluded from the plan and pruned.
     static func plan(
         manifest: MonthlyIssueDeliveryManifest,
@@ -2221,8 +2175,7 @@ enum MonthlyIssueDeliveryPlanner {
                 let wantsRuntime = asset.scope == .runtime && runtimeIssueIDs.contains(issue.id)
                     && now < (asset.retiresAt ?? issue.residueEndsAt)
                 let wantsPublication = asset.scope == .publication && issue.foreshadowStartsAt <= now
-                let wantsCasebook = asset.scope == .casebook && issue.casebookAvailableAt <= now
-                guard wantsRuntime || wantsPublication || wantsCasebook else { continue }
+                guard wantsRuntime || wantsPublication else { continue }
                 planned.append(MonthlyIssuePlannedAsset(
                     issueID: issue.id,
                     allowedHosts: signedHosts,
@@ -2513,8 +2466,8 @@ enum MonthlyIssueAssetInstaller {
             guard asset.byteCount > 0 else {
                 throw MonthlyIssueDeliveryError.invalidByteCount(asset.id)
             }
-            let maximum = asset.scope == .casebook || asset.scope == .publication
-                ? MonthlyIssueDeliveryPolicy.maximumCasebookBytes
+            let maximum = asset.scope == .publication
+                ? MonthlyIssueDeliveryPolicy.maximumPublicationBytes
                 : MonthlyIssueDeliveryPolicy.maximumSingleAssetBytes
             guard asset.byteCount <= maximum else {
                 throw MonthlyIssueDeliveryError.assetTooLarge(asset.id)
@@ -2563,7 +2516,7 @@ enum MonthlyIssueAssetInstaller {
         case .radioStationPack: return asset.fileName.hasSuffix(RadioStationRegistry.userPackFileSuffix)
         case .sentenceBuilderPack: return asset.fileName.hasSuffix(SentenceBuilderPackRegistry.userPackFileSuffix)
         case .editionPlayPack: return asset.fileName.hasSuffix(EditionPlayCatalogue.userPackFileSuffix)
-        case .casebook: return asset.fileName.hasSuffix(WorldEventCasebookRegistry.userCasebookFileSuffix)
+        case .casebook: return false
         case .media: return !asset.fileName.isEmpty
         case .unsupported: return false
         }
@@ -2616,7 +2569,7 @@ enum MonthlyIssueAssetInstaller {
             valid = (try? decoder.decode(EditionPlayContentPack.self, from: data)).map {
                 EditionPlayCatalogue.isValid($0) && $0.isCore != true
             } ?? false
-        case .casebook: valid = (try? decoder.decode(WorldEventCasebook.self, from: data)) != nil
+        case .casebook: valid = false
         case .media: valid = !data.isEmpty
         }
         guard valid else { throw MonthlyIssueDeliveryError.invalidAsset(asset.id) }

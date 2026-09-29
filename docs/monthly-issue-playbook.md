@@ -15,7 +15,7 @@ README checklist. Its story is example material, and every atom starts as
 `draft`, so a release refuses it until each one is written and marked `ready`.
 
 The event `calendar` in the pack **is** the schedule: foreshadow, live, residue
-and casebook dates are derived from it for the manifest, so the app and the
+dates are derived from it for the manifest, so the app and the
 shelf never disagree about when an issue is live.
 
 ## 2. Write it
@@ -35,9 +35,9 @@ python3 scripts/monthly_issue.py rehearse ContentPacks/count-unbound ContentPack
 
 List **every issue still on the shelf**, not just the new one: the delivery
 manifest is the whole shelf, and an issue dropped from it stops being served
-(including its casebook). The rehearsal stages, prepares and signs with a
+(including its residue). The rehearsal stages, prepares and signs with a
 throwaway key, then serves the result through the real Worker code at each
-issue's foreshadow, live, residue, after-residue and casebook edges, checking
+issue's foreshadow, live, residue and after-residue edges, checking
 bytes and timing. Then run the native checks:
 
 ```bash
@@ -72,8 +72,8 @@ replaced by publishing the previous candidate again.
 - Any atom not `ready`, or production counts outside an issue's declared
   coverage (`prepare_monthly_release.py`).
 - Radio references that differ from the recording sheet, or a missing recording.
-- A casebook whose `publishedAt` is not on its calendar day, or whose pack or
-  run doesn't match.
+- An issue whose event has no `record` (a `historySentence` and at least one
+  entry): the edition binds it as The Record.
 - Overlapping live windows, unsafe asset IDs, wrong file suffixes, and changed
   bytes under a published asset ID.
 - A signature that doesn't verify against the app's public key, or an asset

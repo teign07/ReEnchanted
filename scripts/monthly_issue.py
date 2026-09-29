@@ -14,7 +14,7 @@ Each issue folder carries an issue.json (see ContentPacks/count-unbound). The
 delivery windows are read from the pack's own event calendar, never typed in,
 so the manifest and the app can't disagree about when an issue is live. The
 shelf is every issue passed, in order: a November release names October too,
-so its residue and casebook keep being served.
+so its residue keeps being served.
 
 Nothing here uploads. Publish a candidate with scripts/publish_monthly_release.sh.
 """
@@ -91,22 +91,11 @@ class Issue:
         start = datetime(cal['startYear'], cal['startMonth'], cal['startDay'], tzinfo=timezone.utc)
         live_end = start + timedelta(days=cal['durationDays'])
         residue_end = live_end + timedelta(days=cal.get('residueDays', 0))
-        casebook = residue_end + timedelta(days=cal.get('casebookDelayDays', 0))
-        casebook_entry = self.file('casebook')
-        if casebook_entry is not None:
-            published = parse(self.json(casebook_entry)['publishedAt'])
-            # The casebook's own date wins, but it must fall on the day the
-            # calendar says, or the app and the shelf disagree about it.
-            if not casebook <= published < casebook + timedelta(days=1):
-                raise IssueError(f'{self.issue_id}: casebook publishedAt {iso(published)} is not '
-                                 f'on the calendar day {iso(casebook)[:10]}')
-            casebook = published
         return {
             'foreshadowStartsAt': iso(start - timedelta(days=cal.get('foreshadowDays', 0))),
             'liveStartsAt': iso(start),
             'liveEndsAt': iso(live_end),
             'residueEndsAt': iso(residue_end),
-            'casebookAvailableAt': iso(casebook),
         }
 
     def references(self):
@@ -136,11 +125,11 @@ class Issue:
         errors = check(pack)
         if errors:
             raise IssueError(f'{self.issue_id}: ' + '; '.join(errors))
-        casebook_entry = self.file('casebook')
-        if casebook_entry is not None:
-            casebook = self.json(casebook_entry)
-            if casebook.get('packID') != pack['id'] or casebook.get('runID') != self.config.get('runID'):
-                raise IssueError(f'{self.issue_id}: casebook does not match the pack and run')
+        # The Record binds into the month's edition, so a release without one
+        # would print a month whose story has no account of itself.
+        record = (pack['events'][0].get('record') or {}) if pack.get('events') else {}
+        if not record.get('historySentence') or not record.get('entries'):
+            raise IssueError(f'{self.issue_id}: the event has no record (historySentence and entries)')
         audio_refs = {ref for ref in self.references() if ref in self.audio}
         if audio_refs != set(self.audio):
             raise IssueError(f'{self.issue_id}: Radio media references differ from the recording sheet')
@@ -163,16 +152,12 @@ class Issue:
                 raise IssueError(f'Missing source for {asset_id}: {source}')
             assets.append(dict(id=asset_id, kind=kind, scope=scope, fileName=file_name, isRequired=True))
 
-        packs = [entry for entry in self.config['files'] if entry['kind'] != 'casebook']
-        for entry in packs:
+        for entry in self.config['files']:
             add(entry['id'], entry['kind'], entry.get('scope', 'runtime'),
                 self.directory / entry['source'], entry['fileName'])
         for asset_id, scope in sorted(self.reference_scopes().items()):
             source, suffix = self.media_source(asset_id, audio_directory)
             add(asset_id, 'media', scope, source, asset_id + suffix)
-        casebook = self.file('casebook')
-        if casebook is not None:
-            add(casebook['id'], 'casebook', 'casebook', self.directory / casebook['source'], casebook['fileName'])
         if missing and not allow_missing_audio:
             raise IssueError('Missing recordings: ' + ', '.join(missing))
         entry = {'id': self.issue_id, 'packID': self.pack['id'], 'title': self.config['title']}
@@ -281,15 +266,19 @@ def new(slug, title, year, month, foreshadow_days=7, residue_days=7):
     pack['minimumRuntimeVersion'] = RUNTIME_VERSION
     days = months.monthrange(year, month)[1]
     live_end = datetime(year, month, 1, tzinfo=timezone.utc) + timedelta(days=days)
-    residue_end = live_end + timedelta(days=residue_days)
-    next_month = datetime(residue_end.year + residue_end.month // 12, residue_end.month % 12 + 1, 1, tzinfo=timezone.utc)
     event = pack['events'][0]
     event['id'] = slug
     event['title'] = title
     event['calendar'] = {
         'startMonth': month, 'startDay': 1, 'durationDays': days, 'recurrence': 'oneShot', 'startYear': year,
         'foreshadowDays': foreshadow_days, 'residueDays': residue_days,
-        'casebookDelayDays': (next_month - residue_end).days,
+    }
+    # Example material like the rest of the scaffold: write the real account of
+    # the run before releasing. The edition binds it as The Record.
+    event['record'] = {
+        'historySentence': 'REPLACE: one sentence on how the run ended, in the Academy\'s voice.',
+        'entries': [{'id': f'{slug}.record.opening', 'title': 'REPLACE: what happened first',
+                     'account': 'REPLACE: a third-person account. Never claim a Reader was present.'}],
     }
     for manifest in pack.get('authoringManifests', []):
         manifest.update(id=issue_id, publicationKind='monthly', title=title, eventPackID=slug, eventID=slug)
@@ -320,8 +309,9 @@ material. Replace it, then mark each atom `ready` in the authoring manifest.
    for other folders.
 3. Radio: add each recording to `issue.json` `audio.files` and put the file in
    `audio/`.
-4. Optional: a public casebook (`kind: casebook`) in `issue.json`, with a
-   `publishedAt` on the calendar's casebook day.
+4. Write the event's `record`: the Academy's own account of the run
+   (`historySentence`, optional `outcomeTitle`, and `entries`). It binds into the
+   month's edition as The Record, so a release refuses an issue without one.
 5. `python3 scripts/monthly_issue.py rehearse ContentPacks/<every issue on the shelf>`
 6. Swift: `swift test --filter MonthlyIssue`
 7. `python3 scripts/monthly_issue.py release ... --previous <last published manifest.json>`

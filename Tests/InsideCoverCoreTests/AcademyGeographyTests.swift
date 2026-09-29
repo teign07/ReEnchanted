@@ -578,7 +578,7 @@ final class AcademyGeographyTests: XCTestCase {
             eventID: event.id, packID: "count-unbound", runID: "run", stage: .live,
             phaseID: "uninvited", phaseRole: .buildup, liveDay: 1,
             liveInterval: DateInterval(start: quietNoon, duration: 86_400 * 31),
-            foreshadowStartsAt: quietNoon, residueEndsAt: quietNoon, casebookAvailableAt: quietNoon,
+            foreshadowStartsAt: quietNoon, residueEndsAt: quietNoon,
             participated: false
         )
         let surface = WorldEventPageSourceAdapter.beatSurface(

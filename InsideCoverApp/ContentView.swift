@@ -2487,7 +2487,6 @@ struct ContentView: View {
         case .almanac:
             AlmanacSheet(
                 days: days,
-                casebooks: availableWorldEventCasebooks,
                 isEmbedded: true,
                 selectedPageID: padSelectedAlmanacPageID,
                 initialMonthAnchor: padAlmanacMonthAnchor,
@@ -2495,9 +2494,6 @@ struct ContentView: View {
                 onNavigationChange: { month, day in
                     padAlmanacMonthAnchor = month
                     padAlmanacSelectedDay = day
-                },
-                onOpenCasebook: { casebook in
-                    openWorldEventCasebook(casebook)
                 },
                 onOpen: { page in
                     padSelectedAlmanacPageID = page.id
@@ -3703,11 +3699,6 @@ struct ContentView: View {
                 BookPresentationGate(title: "The Almanac") {
                     AlmanacSheet(
                         days: days,
-                        casebooks: availableWorldEventCasebooks,
-                        onOpenCasebook: { casebook in
-                            isAlmanacPresented = false
-                            openWorldEventCasebook(casebook)
-                        },
                         onOpen: { page in
                             isAlmanacPresented = false
                             openKeptPage(page)
@@ -4421,8 +4412,6 @@ struct ContentView: View {
         guard isOpeningMovieVisible, isLaunchPresentationReady else { return }
 
         withAnimation(.easeInOut(duration: 0.28)) {
-            // "Found your place": the desk has fallen quiet enough to hear a settling two-note step.
-            BookSoundBank.overture(.settle)
             isOpeningMovieVisible = false
         }
 
@@ -4432,6 +4421,8 @@ struct ContentView: View {
             try? await Task.sleep(for: .milliseconds(360))
             guard !isOpeningMovieVisible else { return }
             isLaunchAmbientMotionPaused = false
+            // "Found your place": the desk has fallen quiet enough to hear a settling two-note step.
+            BookSoundBank.overture(.settle)
 
             try? await Task.sleep(for: .milliseconds(200))
             guard !isOpeningMovieVisible else { return }
@@ -7926,20 +7917,6 @@ struct ContentView: View {
                 pactErrandSurface = surface
             }
         }
-    }
-
-    var availableWorldEventCasebooks: [WorldEventCasebook] {
-        WorldEventCasebookRegistry.available(
-            local: (vault.data.worldEventLifecycle ?? .empty).casebooks ?? [],
-            now: Date(),
-            hasMonthlyAccess: PackEntitlements.hasMonthlyContentPackAccess(in: Set(vault.data.ownedPacks ?? []))
-        )
-    }
-
-    func openWorldEventCasebook(_ casebook: WorldEventCasebook) {
-        let surface = WorldEventPageSourceAdapter.casebookSurface(casebook, day: today)
-        recordServedSurfaces([surface])
-        selectedSurface = surface
     }
 
     func enchantmentSurface(_ enchantment: GlowEnchantmentMenuItem) -> SurfacePage {
@@ -12230,6 +12207,29 @@ struct ContentView: View {
                     VStack(alignment: .leading, spacing: 7) {
                         Text("Tactile enchantment")
                             .font(.caption.weight(.bold))
+                            .foregroundStyle(MaterialInk.text.opacity(0.86))
+                        Picker("Tactile enchantment", selection: $bookHapticMode) {
+                            ForEach(BookFeedback.HapticMode.allCases) { mode in
+                                Text(mode.title).tag(mode.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .onChange(of: bookHapticMode) { _, rawValue in
+                            let mode = BookFeedback.HapticMode(rawValue: rawValue) ?? .full
+                            BookFeedback.hapticMode = mode
+                            if mode != .off {
+                                BookFeedback.chapterBinding()
+                            }
+                            statusMessage = mode == .off
+                                ? "I'll keep still in your hands."
+                                : "My touch is now \(mode.title.lowercased())."
+                        }
+                        Text("Full uses the complete tactile language. Gentle keeps its shape at a quieter strength.")
+                            .font(.caption2)
+                            .foregroundStyle(MaterialInk.text.opacity(0.58))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     VStack(alignment: .leading, spacing: 7) {
                         Text("My voice")
                             .font(.caption.weight(.bold))
@@ -12250,29 +12250,6 @@ struct ContentView: View {
                                 : "My voice is now \(mode.title.lowercased())."
                         }
                         Text("Full gives every touch a note. Quiet keeps only the big moments. Your silent switch always wins.")
-                            .font(.caption2)
-                            .foregroundStyle(MaterialInk.text.opacity(0.58))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                            .foregroundStyle(MaterialInk.text.opacity(0.86))
-                        Picker("Tactile enchantment", selection: $bookHapticMode) {
-                            ForEach(BookFeedback.HapticMode.allCases) { mode in
-                                Text(mode.title).tag(mode.rawValue)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .onChange(of: bookHapticMode) { _, rawValue in
-                            let mode = BookFeedback.HapticMode(rawValue: rawValue) ?? .full
-                            BookFeedback.hapticMode = mode
-                            if mode != .off {
-                                BookFeedback.chapterBinding()
-                            }
-                            statusMessage = mode == .off
-                                ? "I'll keep still in your hands."
-                                : "My touch is now \(mode.title.lowercased())."
-                        }
-                        Text("Full uses the complete tactile language. Gentle keeps its shape at a quieter strength.")
                             .font(.caption2)
                             .foregroundStyle(MaterialInk.text.opacity(0.58))
                             .fixedSize(horizontal: false, vertical: true)
@@ -12326,7 +12303,6 @@ struct ContentView: View {
                             .foregroundStyle(MaterialInk.text.opacity(0.86))
                         TextField("DEMO_KEY (limited): paste a free key from fdc.nal.usda.gov", text: $usdaKey)
                             .font(.caption)
-                        .bookToggleSound(personalizedWebResearchOptIn)
                             .textFieldStyle(.roundedBorder)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
@@ -12350,6 +12326,7 @@ struct ContentView: View {
                             }
                         }
                         .tint(BookPalette.teal)
+                        .bookToggleSound(personalizedWebResearchOptIn)
 
                         HStack(spacing: 8) {
                             Image(systemName: RedditSourceAccount.isConfigured ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
@@ -12709,7 +12686,6 @@ struct ContentView: View {
                                             Label(title, systemImage: "checkmark")
                                         } else {
                                             Text(title)
-                        .bookToggleSound(includePrivateWeatherInMonthlyBinding)
                                         }
                                     }
                                 }
@@ -12733,6 +12709,7 @@ struct ContentView: View {
                         }
                         .toggleStyle(.switch)
                         .tint(BookPalette.lampGold)
+                        .bookToggleSound(includePrivateWeatherInMonthlyBinding)
                         .font(.caption2)
                         .foregroundStyle(MaterialInk.text.opacity(0.72))
                         .onChange(of: includePrivateWeatherInMonthlyBinding) { _, _ in
@@ -15667,14 +15644,6 @@ struct ContentView: View {
         let original = vault.data.worldEventLifecycle ?? .empty
         var next = original
 
-        if PackEntitlements.hasMonthlyContentPackAccess(in: Set(vault.data.ownedPacks ?? [])) {
-            let downloaded = WorldEventCasebookRegistry.downloadedCasebooks()
-            for casebook in downloaded
-            where !(next.casebooks ?? []).contains(where: { $0.id == casebook.id }) {
-                next.casebooks = (next.casebooks ?? []) + [casebook]
-            }
-        }
-
         var definitions = WorldEventRegistry.bundledPacks.flatMap { pack in
             pack.events.map { (packID: pack.id, event: $0) }
         }
@@ -15686,8 +15655,7 @@ struct ContentView: View {
         let nonParticipationTags: Set<String> = [
             "world-event-report",
             "world-event-foreshadow",
-            "world-event-residue",
-            "world-event-casebook"
+            "world-event-residue"
         ]
         var participationPagesByEventID: [String: [BookPage]] = [:]
         func indexParticipationPage(_ page: BookPage) {
@@ -16295,7 +16263,8 @@ struct ContentView: View {
             placeStates: vault.data.placeStates ?? [:],
             castName: Dictionary(
                 uniqueKeysWithValues: actorIDs.map { ($0, castName(for: $0)) }
-            )
+            ),
+            records: (vault.data.worldEventLifecycle ?? .empty).records ?? []
         )
     }
 
