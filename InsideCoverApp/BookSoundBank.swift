@@ -67,7 +67,8 @@ enum BookSoundBank {
         var minimumInterval: TimeInterval {
             switch self {
             case .press: return 0.05
-            case .tap, .select, .turn, .turnback, .toggle, .seal: return 0.045
+            case .turn, .turnback: return 0.14        // fast flipping stays a soft flutter, not a rattle
+            case .tap, .select, .toggle, .seal: return 0.045
             case .lift, .drop: return 0.08
             case .ink: return 0.12
             default: return 0.03

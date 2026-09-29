@@ -513,6 +513,8 @@ PROFILE_SHAPE = {
     'warm':     (3300, 0.30, (-33.0, -24.0), 0.33),
     'wake':     (4200, 0.16, (-28.0, -22.0), 0.42),
     'ceremony': (4800, 0.10, (-26.0, -20.0), 0.50),
+    # under-the-reading sounds (page turns): felt more than heard
+    'whisper':  (2800, 0.35, (-40.0, -33.0), 0.14),
 }
 
 
@@ -574,8 +576,9 @@ def hash_seed(s):
 # ceremony = the loudest, brightest things the Book does, and rare.
 PROFILE_OF = {
     **{f: 'warm' for f in ('press', 'tap', 'select', 'open', 'dismiss', 'undo', 'refresh', 'error', 'knock',
-                            'knockreply', 'turn', 'turnback', 'toggle', 'ink', 'seal', 'lift', 'drop',
+                            'knockreply', 'toggle', 'ink', 'seal', 'lift', 'drop',
                             'nothing', 'belief')},
+    **{f: 'whisper' for f in ('turn', 'turnback')},
     **{f: 'wake' for f in ('keep', 'braidstart', 'braidcomplete', 'rise', 'constellation', 'fae', 'jump',
                             'radiolock')},
     **{f: 'ceremony' for f in ('overture', 'today', 'ceremony', 'whisper')},
@@ -828,29 +831,31 @@ def knock_reply():
 
 # ----------------------------------------------- moments that had no sound ---
 
+def damped(y, tau=0.075, cutoff=1900):
+    """Palm-mute a pluck: a fast, dark decay, so it lands as a soft 'tok' with a pitch, then is gone."""
+    t = np.arange(len(y)) / SR
+    return fade(sos_filter(y, 'lowpass', cutoff, order=2) * np.exp(-t / tau), 1.5, 20)
+
+
 @family('turn')
 def turn():
-    """Page turn forward: a tiny dull paper touch under a two-note step. Five variants."""
-    for i in range(5):
+    """Page turn forward: ONE soft, damped lute-or-mandolin note. Nothing else. Five pitches from the
+    D-major triad so a run of flips is a gentle, uneven murmur; every note is round and short."""
+    for i, step in enumerate([-2, 0, 2, 3, 0]):                    # A3 D4 F#4 A4 D4
         rng = rng_for('turn', i)
-        tr = Track(0.7)
-        tr.add(click(7, 500, 2000, 0.09, rng), 0, gain=0.5)
-        a, b = 3 + i, 4 + i
-        tr.add(soft(deg(a), 0.32, rng), 0.006, pan=-0.2, gain=0.85)
-        tr.add(soft(deg(b), 0.36, rng), 0.075, pan=0.2, gain=0.95)
-        write('turn', i, finish(reverb(tr.stereo(), 0.4, 0.22), 0.26))
+        tr = Track(0.32)
+        tr.add(damped(pluck(deg(step), 0.3, tone=0.5, rng=rng)), 0.0, pan=[-0.1, 0.1, -0.05, 0.12, 0.0][i])
+        write('turn', i, finish(reverb(tr.stereo(), 0.22, 0.10), 0.16))
 
 
 @family('turnback')
 def turn_back():
-    for i in range(3):
+    """Turning back: the same single note, a touch lower and darker."""
+    for i, step in enumerate([-3, -2, 0]):                          # F#3 A3 D4
         rng = rng_for('turnback', i)
-        tr = Track(0.7)
-        tr.add(click(7, 500, 1900, 0.08, rng), 0, gain=0.45)
-        a, b = 5 + i, 4 + i
-        tr.add(soft(deg(a), 0.30, rng), 0.006, pan=0.2, gain=0.8)
-        tr.add(soft(deg(b), 0.34, rng), 0.075, pan=-0.2, gain=0.85)
-        write('turnback', i, finish(reverb(tr.stereo(), 0.36, 0.2), 0.24))
+        tr = Track(0.32)
+        tr.add(damped(pluck(deg(step), 0.3, tone=0.4, rng=rng), tau=0.08, cutoff=1600), 0.0, pan=[0.1, -0.1, 0.05][i])
+        write('turnback', i, finish(reverb(tr.stereo(), 0.2, 0.09), 0.15))
 
 
 @family('toggle')
