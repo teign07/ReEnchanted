@@ -1404,7 +1404,7 @@ enum MonthlyIssuePageCuration {
         guard let selected = eligible.sorted(by: preferred).first else {
             return nil
         }
-        let prepared = applying(selected, to: page, day: day)
+        let prepared = applying(selected, to: page, day: day, ledger: inputs.authoredContentReceipts, now: now)
         return MonthlyIssueCatchUp.preparing(prepared, atom: selected.atom, manifest: selected.manifest,
             inputs: inputs, scope: AuthoredContentScope(scopeID: selected.manifest.id, runID: selected.snapshot.runID,
                 phaseID: selected.snapshot.phaseID), snapshot: selected.snapshot, now: now)
@@ -1427,12 +1427,32 @@ enum MonthlyIssuePageCuration {
         return left.atom.id < right.atom.id
     }
 
-    private static func applying(_ match: Match, to page: SurfacePage, day: BookDay) -> SurfacePage {
+    private static func applying(
+        _ match: Match,
+        to page: SurfacePage,
+        day: BookDay,
+        ledger: AuthoredContentReceiptLedger,
+        now: Date
+    ) -> SurfacePage {
         let atom = match.atom
         let manifest = match.manifest
         let snapshot = match.snapshot
-        let mayReserve = snapshot.stage == .live
-            && (atom.priority == .spine || atom.priority == .milestone)
+        // The live spine owns a chair every day. Any other Page of the issue
+        // earns one chair for its first appearance, in any lifecycle stage, so
+        // a month's first showing never has to win the ordinary ranking. After
+        // it has been served it competes like any other Page.
+        let isFirstShowing = atom.channel == .page
+            && !ledger.satisfies(
+                AuthoredContentReceiptQuery(
+                    contentID: atom.id,
+                    scopeID: manifest.id,
+                    runID: snapshot.runID
+                ),
+                now: now
+            )
+        let mayReserve = (snapshot.stage == .live
+            && (atom.priority == .spine || atom.priority == .milestone))
+            || isFirstShowing
         var metadata = page.payload.metadata
         metadata[MonthlyIssuePageMetadata.issueID] = manifest.id
         metadata[MonthlyIssuePageMetadata.issueNumber] = "\(manifest.issueNumber)"

@@ -1308,9 +1308,13 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         let justFinishedID = activeTrack?.id
         let upcoming = selectNextTrack(for: station)
         let context = makeWorldContext(for: station)
-        let issueBanters = liveAuthoredBanters
+        let currentIssueBanters = liveAuthoredBanters
             .filter { $0.authored.stationID == station.id && authoredBanterIsCurrent?($0, Date()) == true }
-            .map(\.authored.banter)
+        let issueBanters = currentIssueBanters.map(\.authored.banter)
+        let receipts = PlayerVault.shared.data.authoredContentReceipts ?? .empty
+        let owedBanterIDs = Set(currentIssueBanters
+            .filter { $0.isOwed(in: receipts, now: Date()) }
+            .map(\.authored.banter.id))
         if RadioStationRegistry.shouldBanter(
             songsSinceLastBanter: tracksSinceBanter,
             state: playback,
@@ -1318,13 +1322,15 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             justFinishedTrackID: justFinishedID,
             upcomingTrackID: upcoming?.id,
             unlockedPackIDs: currentPackIDs,
-            additionalBanters: issueBanters
+            additionalBanters: issueBanters,
+            owedBanterIDs: owedBanterIDs
         ),
            let banter = RadioStationRegistry.nextBanter(
                 state: playback,
                 context: context,
                 unlockedPackIDs: currentPackIDs,
                 additionalBanters: issueBanters,
+                owedBanterIDs: owedBanterIDs,
                 justFinishedTrackID: justFinishedID,
                 upcomingTrackID: upcoming?.id
            ) {

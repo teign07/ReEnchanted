@@ -3300,6 +3300,7 @@ enum RadioStationRegistry {
         upcomingTrackID: String?,
         unlockedPackIDs: Set<String> = [],
         additionalBanters: [RadioBanter] = [],
+        owedBanterIDs: Set<String> = [],
         now: Date = Date()
     ) -> Bool {
         guard songsSinceLastBanter > 0,
@@ -3309,6 +3310,12 @@ enum RadioStationRegistry {
         let banters = station.resolvedBanters + additionalBanters
         guard !banters.isEmpty || !context.pageContext.storyConsequenceEchoes.isEmpty else { return false }
         if songsSinceLastBanter >= 2 { return true }
+        // A break the reader has never heard speaks at the very next seam.
+        if banters.contains(where: {
+            owedBanterIDs.contains($0.id)
+                && context.satisfies($0.conditions)
+                && $0.placementFits(justFinishedTrackID: justFinishedTrackID, upcomingTrackID: upcomingTrackID)
+        }) { return true }
         let hasBoundMoment = banters.contains {
             $0.isBound
                 && context.satisfies($0.conditions)
@@ -3336,6 +3343,7 @@ enum RadioStationRegistry {
         context: RadioWorldContext,
         unlockedPackIDs: Set<String> = [],
         additionalBanters: [RadioBanter] = [],
+        owedBanterIDs: Set<String> = [],
         justFinishedTrackID: String? = nil,
         upcomingTrackID: String? = nil,
         now: Date = Date()
@@ -3351,6 +3359,7 @@ enum RadioStationRegistry {
             station: extendedStation,
             state: state,
             context: context,
+            owedBanterIDs: owedBanterIDs,
             justFinishedTrackID: justFinishedTrackID,
             upcomingTrackID: upcomingTrackID,
             now: now
@@ -3363,6 +3372,7 @@ enum RadioStationRegistry {
         station: RadioStation,
         state: RadioPlaybackState,
         context: RadioWorldContext,
+        owedBanterIDs: Set<String> = [],
         justFinishedTrackID: String? = nil,
         upcomingTrackID: String? = nil,
         now: Date = Date()
@@ -3386,6 +3396,12 @@ enum RadioStationRegistry {
         let recent = Set(recentIDs)
         let seedDate = state.lastTunedAt ?? state.startedAt ?? now
         let slot = Int(now.timeIntervalSince(seedDate) / 900)
+
+        // A break the reader has never heard (a month's first appearance) goes
+        // ahead of the whole bag. Once it has aired it is an ordinary entry.
+        let owed = eligible.filter { owedBanterIDs.contains($0.id) }
+        if let first = owed.min(by: { $0.id < $1.id }) { return first }
+
         let fresh = eligible.filter { !recent.contains($0.id) }
         var pool = !fresh.isEmpty
             ? fresh

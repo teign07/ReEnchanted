@@ -692,6 +692,20 @@ struct ResolvedAuthoredRadioBanter: Equatable {
     var content: ResolvedMonthlyIssueContent
     var authored: AuthoredRadioBanter
     var occurrenceID: String
+
+    /// True until this break has reached the reader once in this run. An owed
+    /// break jumps the station's ordinary bag; after its first airing it is
+    /// just another entry and its occurrence rules take over.
+    func isOwed(in ledger: AuthoredContentReceiptLedger, now: Date) -> Bool {
+        !ledger.satisfies(
+            AuthoredContentReceiptQuery(
+                contentID: content.atom.id,
+                scopeID: content.scope.scopeID,
+                runID: content.scope.runID
+            ),
+            now: now
+        )
+    }
 }
 
 enum AuthoredRadioBanterResolver {

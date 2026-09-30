@@ -454,6 +454,45 @@ final class MonthlyIssueAuthoringTests: XCTestCase {
         ))!
     }
 
+    func testFeaturedPageReservesAChairOnlyForItsFirstShowing() throws {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+
+        var fixture = makeFixture()
+        let contentIndex = try XCTUnwrap(fixture.manifest.content.firstIndex {
+            $0.reference.id == "first-negotiation"
+        })
+        fixture.manifest.content[contentIndex].channel = .page
+        fixture.manifest.content[contentIndex].priority = .featured
+        fixture.manifest.content[contentIndex].occurrence =
+            AuthoredContentOccurrencePolicy(kind: .repeatable, cooldownHours: 0)
+        let now = date(year: 2027, month: 9, day: 10, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: fixture.pack.id,
+            event: fixture.pack.events[0],
+            now: now
+        ))
+        let beat = try XCTUnwrap(fixture.pack.events[0].beats?.first { $0.id == "first-negotiation" })
+        let surface = WorldEventPageSourceAdapter.beatSurface(
+            event: fixture.pack.events[0], beat: beat, snapshot: snapshot, day: day)
+        var inputs = BookSourceInputs.empty
+        inputs.monthlyIssueAuthoringManifests = [fixture.manifest]
+
+        let first = try XCTUnwrap(MonthlyIssuePageCuration.preparing(
+            surface, manifests: inputs.monthlyIssueAuthoringManifests, day: day, inputs: inputs, now: now))
+        XCTAssertEqual(first.authoredIssuePriority, .featured)
+        XCTAssertTrue(first.mayReserveAuthoredIssueSlot, "a first showing is owed a chair")
+
+        inputs.authoredContentReceipts = inputs.authoredContentReceipts.recording(
+            try XCTUnwrap(first.authoredContentDeliveryReceipt(servedAt: now)))
+        let again = try XCTUnwrap(MonthlyIssuePageCuration.preparing(
+            surface, manifests: inputs.monthlyIssueAuthoringManifests, day: day, inputs: inputs,
+            now: now.addingTimeInterval(3_600)))
+        XCTAssertFalse(again.mayReserveAuthoredIssueSlot, "after its first showing it competes like any Page")
+    }
+
     private func makeFixture() -> (manifest: MonthlyIssueAuthoringManifest, pack: WorldEventPack) {
         let event = WorldEventRegistry.dictionaryRebellion
         let pack = WorldEventPack(

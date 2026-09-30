@@ -382,6 +382,39 @@ final class RadioBanterTests: XCTestCase {
         ))
     }
 
+    func testOwedIssueBanterSpeaksAtTheNextSeamAheadOfTheWholeBag() throws {
+        let start = Date(timeIntervalSince1970: 1_750_000_000)
+        let state = RadioPlaybackState(activeStationID: "thornwave", startedAt: start)
+        let context = RadioWorldContext(timeOfDay: "day", grey: 0)
+        let issueBanter = RadioBanter(
+            id: "test.issue.first-hint",
+            category: .gossip,
+            assetName: nil,
+            caption: "A hint the reader has not yet heard.",
+            conditions: nil,
+            weight: 1
+        )
+
+        // Without the debt the clip is one light entry in a big bag.
+        let ordinary = (0..<24).compactMap { slot in
+            RadioStationRegistry.nextBanter(
+                state: state, context: context, additionalBanters: [issueBanter],
+                now: start.addingTimeInterval(Double(slot) * 900))?.id
+        }
+        XCTAssertTrue(ordinary.contains { $0 != issueBanter.id })
+
+        for slot in 0..<24 {
+            let moment = start.addingTimeInterval(Double(slot) * 300)
+            XCTAssertTrue(RadioStationRegistry.shouldBanter(
+                songsSinceLastBanter: 1, state: state, context: context,
+                justFinishedTrackID: nil, upcomingTrackID: nil,
+                additionalBanters: [issueBanter], owedBanterIDs: [issueBanter.id], now: moment))
+            XCTAssertEqual(RadioStationRegistry.nextBanter(
+                state: state, context: context, additionalBanters: [issueBanter],
+                owedBanterIDs: [issueBanter.id], now: moment)?.id, issueBanter.id)
+        }
+    }
+
     func testConditionsGateByWorldState() {
         var state = RadioPlaybackState(activeStationID: "thornwave", startedAt: Date())
         let bright = RadioWorldContext(timeOfDay: "day", grey: 10, listeningDays: 0)
