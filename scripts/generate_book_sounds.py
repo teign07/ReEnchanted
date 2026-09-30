@@ -14,7 +14,8 @@ DESIGN LANGUAGE — "moth-lit music box"
   The radio plays acoustic medieval plucks under electronica. The interface
   speaks the same language in miniature: every sound is a *note*, never a noise.
     - kalimba / music-box tines   the everyday voice (taps, selects)
-    - lute (low) + mandolin (high) warmth and weight, folk sparkle (open, keep, weave)
+    - lute: the only acoustic voice (simple plucks: warmth and weight)
+    - electronic pops, bloops and pop flurries: the ear candy, richer than the plucks
     - glass FM bell               sparkle, the "ear candy" on top
     - wooden tok                  the tactile transient (a knuckle, a stamp)
     - electronic blips + echo     the folktronica glue: pitch glides, ping-pong
@@ -145,24 +146,8 @@ def _synth_lute(f, dur=0.9, tone=0.55, rng=None):
     return fade(y, 0.9, 14)
 
 
-def _synth_mandolin(f, dur=0.7, tone=0.6, rng=None):
-    """Mandolin (synthesized fallback): paired steel courses a few cents apart (the shimmer), plectrum snap,
-    bright and quick. The folk-song sparkle over the lute's warmth."""
-    rng = rng or np.random.default_rng(int(f) + 13)
-    a = _string(f * 2 ** (-3.5 / 1200), dur, rng, pos=0.2, rolloff=1.25, base_decay=4.4, decay_slope=1.7, stretch=0.00035)
-    b = _string(f * 2 ** (3.5 / 1200), dur, rng, pos=0.2, rolloff=1.25, base_decay=4.4, decay_slope=1.7, stretch=0.00035)
-    y = 0.6 * (a + b)
-    t = tt(dur)
-    y = y * (1 + 0.10 * np.exp(-t / 0.02))        # plectrum snap: a little extra at the strike
-    y += 0.18 * sos_filter(y, 'bandpass', [1600, 3000])   # a little steel, not a lot
-    y += 0.35 * sos_filter(y, 'bandpass', [280, 700])     # and a round wooden bowl under it
-    pick = click(3, 1400, 5600, 0.18, rng)
-    y[:len(pick)] += pick
-    return fade(y, 0.5, 12)
-
-
 # ------------------------------------------------ real instrument samples ---
-# scripts/ingest_instrument_takes.py slices recorded lute and mandolin takes into a
+# scripts/ingest_instrument_takes.py slices recorded lute takes into a
 # bank of single, pitch-labelled notes. When the bank has a note within MAX_SHIFT
 # semitones of what a cue asks for, that real note plays (re-pitched, trimmed,
 # level-matched to the synth so every mix balance holds). Anywhere the bank has no
@@ -173,7 +158,7 @@ USE_BANK = os.environ.get('BOOK_SOUNDS_NO_BANK') != '1'
 MAX_SHIFT = 3.5          # semitones a sample may be re-pitched DOWN before we distrust it
 MAX_UP = 6.0             # ...and UP
 _BANK = {}
-ROUGH_MAX = {'lute': 0.20, 'mandolin': 0.20, 'mandolin_tremolo': 0.34, 'foley': 9.0}   # see sound_health.py
+ROUGH_MAX = {'lute': 0.20, 'foley': 9.0}   # see sound_health.py
 BANK_GAPS = {}           # instrument -> set of midi notes asked for but not covered
 
 
@@ -184,6 +169,8 @@ def _load_bank():
         for entry in json.load(f):
             with wave.open(os.path.join(BANK_DIR, entry['file'])) as w:
                 x = np.frombuffer(w.readframes(w.getnframes()), dtype='<i2').astype(np.float64) / 32768
+            if entry['instrument'] not in ('lute', 'foley'):
+                continue           # the mandolin is retired: lute and electronics only
             if entry.get('rough', 0.0) > ROUGH_MAX.get(entry['instrument'], 0.24):
                 continue           # quality gate: a note with natural string-beating stays out of the mix
             _BANK.setdefault(entry['instrument'], []).append((entry['midi'], entry['f0'], x))
@@ -233,19 +220,6 @@ def lute(f, dur=0.9, tone=0.55, rng=None):
     return ref if real is None else _match_level(real, ref)
 
 
-def _warm_mandolin(y):
-    """Real mandolin is bright (attack centroid ~2.7 kHz). Round it: roll the top, add wooden bowl."""
-    return sos_filter(y, 'lowpass', 3400, order=2) + 0.30 * sos_filter(y, 'bandpass', [250, 800], order=1)
-
-
-def mandolin(f, dur=0.7, tone=0.6, rng=None):
-    rng = rng or np.random.default_rng(int(f) + 13)
-    ref = _synth_mandolin(f, dur, tone, np.random.default_rng(int(f) + 13))
-    real = sample_note('mandolin', f, dur, rng)
-    y = ref if real is None else _match_level(real, ref)
-    return _warm_mandolin(y)
-
-
 def sample_gesture(instrument, f, lead, tail, rng, prefer_late_peak=True, fade_in_ms=8, fade_out_ms=40):
     """A slice of a recorded gesture (tremolo swell, foley creak) around its loudest moment:
     `lead` seconds before the peak, `tail` after. Re-pitched to f when the gesture is pitched
@@ -288,19 +262,24 @@ def sample_gesture(instrument, f, lead, tail, rng, prefer_late_peak=True, fade_i
     return y
 
 
-def swell(f, lead, tail, rng):
-    """A mandolin tremolo swell that peaks `lead` seconds in. Real recording when the bank
-    has one near f, else a synthesized run of quick picks that grows louder."""
-    y = sample_gesture('mandolin_tremolo', f, lead, tail, rng)
-    if y is not None:
-        return y
+def swell(step, lead, tail, rng):
+    """An electronic bloom that peaks `lead` seconds in: a cascade of tiny pops climbing the triad,
+    quickening and growing. (It replaces the mandolin tremolo swell.) `step` is a scale degree."""
     n = int((lead + tail) * SR)
     out = np.zeros(n)
-    step = int(0.062 * SR)
-    for k, at in enumerate(range(0, int(lead * SR), step)):
-        note = _synth_mandolin(f, 0.16, 0.6, rng)
-        g = (at / max(1, lead * SR)) ** 1.4 * 0.9 + 0.1
-        out[at:at + len(note)] += note[:n - at] * g
+    tones = [d for d in (0, 2, 3, 5, 7, 8, 10) if d >= step - 5][:7]
+    pops = max(6, int(lead / 0.06))
+    at = 0.0
+    for k in range(pops):
+        frac = k / max(1, pops - 1)
+        pop = candy_pop(deg(tones[min(len(tones) - 1, int(frac * (len(tones) - 1) + 0.5))]), dur=0.09)
+        g = 0.15 + 0.85 * frac ** 1.3
+        i0 = int(at * SR)
+        if i0 >= n:
+            break
+        seg = pop[:n - i0]
+        out[i0:i0 + len(seg)] += seg * g
+        at += 0.095 - 0.055 * frac                       # quickening
     return fade(out, 4, 60)
 
 
@@ -326,30 +305,52 @@ def plop(f_hi, f_lo=None, dur=0.16, tau=0.032, rising=False):
     return fade(sos_filter(y * env, 'lowpass', 2600, order=2), 0.5, 12)
 
 
+def candy_pop(f, at_peak=1.0, falling=False, dur=0.13):
+    """Electronic ear candy: one rounded sine bubble with a soft sub under it. Laid a beat after an acoustic
+    note, at the note's own pitch, so it reads as the tail of the pluck turning into a synth. Rounded:
+    lowpassed hard, no click. `falling` gives the low 'boop' used for closing."""
+    hi = f
+    lo = f * 0.62
+    y = plop(hi, lo, dur=dur, tau=0.034, rising=not falling)
+    sub = plop(hi * 0.5, lo * 0.5, dur=dur, tau=0.04, rising=not falling) * 0.45
+    out = sos_filter(y + sub, 'lowpass', 1700, order=4)
+    return out * at_peak
+
+
 PLUCK_LEAD = 1.25
 
 
 def soft(f, dur=0.35, rng=None, cutoff=3000):
-    """A short, rounded pluck (lute below ~G4, mandolin above): the everyday note."""
+    """A short, rounded lute pluck: the everyday note."""
     return sos_filter(pluck(f, dur, rng=rng), 'lowpass', cutoff, order=2)
 
 
 def pluck(f, dur=0.9, tone=0.55, rng=None):
-    """The Book's plucked voice. Lute below A3-ish, mandolin above: warm low, bright high.
-    (No harp: bj's ear.)"""
-    if f < 300:
-        return lute(f, dur, tone, rng) * PLUCK_LEAD
-    if f < 420:      # the crossover octave: lute body with a mandolin ring on top
-        body = lute(f, dur, tone, rng) * 0.75
-        ring = mandolin(f, min(dur, 0.6), tone, rng) * 0.45
-        out = np.zeros(max(len(body), len(ring)))
-        out[:len(body)] += body
-        out[:len(ring)] += ring
-        return out * PLUCK_LEAD
-    return mandolin(f, min(dur, 0.8), tone, rng) * PLUCK_LEAD
+    """The Book's plucked voice: lute, simple and warm, at every pitch (the recorded bank reaches D6).
+    No harp and no mandolin: bj's ear. The brightness comes from the electronic pops instead."""
+    y = lute(f, dur, tone, rng) * PLUCK_LEAD
+    if f >= 500:     # a lute pitched up past its middle gets wiry and beats; round it the way the mandolin was rounded
+        y = sos_filter(y, 'lowpass', 2500 if f < 700 else 2000, order=3) * 1.15
+    return y
 
 
-BELL_TRIM = 0.62      # glass is garnish: lute and mandolin lead
+def lute_led(f, dur=0.9, tone=0.55, rng=None):
+    """The lute at any pitch (kept as a name: the everyday cues call it)."""
+    return pluck(f, dur, tone, rng)
+
+
+def add_pops(tr, steps, at, gap=0.045, gain=0.2, crescendo=False, falling=False, width=0.6, dur=0.11, lp=1800):
+    """Lay several tiny electronic pops onto a Track, tumbling together across the stereo field: the
+    'more complex' half of the sound language (the lute stays simple). `steps` are scale degrees;
+    pops are pitched at the lute's own chord tones so nothing beats."""
+    for k, st in enumerate(steps):
+        frac = k / max(1, len(steps) - 1)
+        g = gain * ((0.55 + 0.45 * frac) if crescendo else 1.0)
+        pan = width * (-1 if k % 2 == 0 else 1) * (0.35 + 0.65 * frac)
+        tr.add(candy_pop(deg(st), falling=falling, dur=dur), at + gap * k, pan=pan, gain=g)
+
+
+BELL_TRIM = 0.62      # glass is garnish: lute leads, pops sparkle
 SPARKLE_TRIM = 0.65
 
 
@@ -402,15 +403,20 @@ def pad(freqs, dur=1.6, attack=0.25, cutoff=2400):
 
 
 def sparkle(rng, count=6, span=0.16, lo=None, hi=None, tau=0.14, level=0.4):
-    """A scatter of tiny glass notes: pixie dust. Chord tones only (D, F#, A across two octaves), so
-    no two sparkles ever sit a whole step apart inside one critical band (that beating is what reads
-    as rough). Returns [(mono, offset)]."""
+    """A scatter of tiny electronic pops: ear candy (it was glass notes, which were the bright part).
+    Chord tones only (A, D, F#, A, D across two octaves), so no two pops ever sit a whole step apart inside
+    one critical band. Returns [(mono, offset)]."""
     notes = []
-    tones = [5, 7, 8, 10, 12, 13]          # D5 F#5 A5 D6 F#6 A6
-    for _ in range(count):
-        f = deg(tones[int(rng.integers(0, len(tones)))])
-        notes.append((bell(f, 0.5, index=1.2, ratio=3.0, tau=tau, rng=rng) * level * SPARKLE_TRIM,
-                      float(rng.uniform(0, span))))
+    tones = [3, 5, 7, 8, 10]                  # A4 D5 F#5 A5 D6
+    last = -1
+    for k in range(count):
+        pick = int(rng.integers(0, len(tones)))
+        if pick == last:
+            pick = (pick + 2) % len(tones)    # never the same tone twice running
+        last = pick
+        pop = candy_pop(deg(tones[pick]), falling=bool(rng.integers(0, 2)), dur=float(rng.uniform(0.08, 0.12)))
+        slot = span / max(1, count)           # evenly spaced with a little jitter: pops tumble but never stack
+        notes.append((pop * level * 3.2, k * slot + float(rng.uniform(0, 0.4 * slot))))
     return notes
 
 
@@ -528,6 +534,8 @@ PROFILE_SHAPE = {
     'ceremony': (4800, 0.10, (-26.0, -20.0), 0.50),
     # everyday touches (taps, selections, opening a card, a small success): pleasing and low key
     'soft':     (3200, 0.30, (-37.0, -31.0), 0.22),
+    # the Book waking: warm, low and enveloping, like a hearth, with no glitter
+    'hearth':   (2500, 0.40, (-31.0, -24.0), 0.40),
     # small pleasures that repeat or follow a big moment (Book Today, Pagewright): a wink, not a statement
     'candy':    (3400, 0.30, (-36.0, -29.0), 0.22),
     # under-the-reading sounds (page turns): felt more than heard
@@ -593,13 +601,14 @@ def hash_seed(s):
 # ceremony = the loudest, brightest things the Book does, and rare.
 PROFILE_OF = {
     **{f: 'warm' for f in ('press', 'open', 'knock', 'knockreply', 'ink', 'nothing', 'belief')},
-    **{f: 'soft' for f in ('tap', 'select', 'dismiss', 'undo', 'refresh', 'error', 'toggle', 'seal',
+    **{f: 'soft' for f in ('tap', 'select', 'dismiss', 'close', 'glowopen', 'undo', 'refresh', 'error', 'toggle', 'seal',
                             'peek', 'confirm', 'begin')},
     **{f: 'whisper' for f in ('turn', 'turnback')},
     **{f: 'candy' for f in ('today', 'lift', 'drop')},
     **{f: 'wake' for f in ('keep', 'braidstart', 'braidcomplete', 'rise', 'constellation', 'fae', 'jump',
                             'radiolock')},
-    **{f: 'ceremony' for f in ('overture', 'ceremony', 'whisper')},
+    **{f: 'hearth' for f in ('overture',)},
+    **{f: 'ceremony' for f in ('ceremony', 'whisper')},
 }
 
 
@@ -629,12 +638,14 @@ def press():
 @family('tap')
 def tap():
     """The everyday confirm: one kalimba tine with a wooden knuckle under it."""
-    for i, d in enumerate([4, 5, 6, 7]):   # B4 D5 E5 F#5, gentle spread
+    for i, d in enumerate([2, 3, 4, 5]):   # F#4 A4 B4 D5: a step lower than before, where the lute is rounder
         rng = rng_for('tap', i)
         tr = Track(0.36)
-        tr.add(soft(deg(d), 0.30, rng), 0, pan=[-0.2, 0.15, -0.1, 0.2][i], haas=0.6, gain=0.9)
-        tr.add(kalimba(deg(d), 0.24, bright=0.6, decay=9, rng=rng), 0, gain=0.22)
+        tr.add(sos_filter(lute_led(deg(d), 0.30, rng=rng), 'lowpass', 2000, order=4), 0,
+               pan=[-0.2, 0.15, -0.1, 0.2][i], haas=0.6, gain=0.95)
+        tr.add(kalimba(deg(d), 0.24, bright=0.35, decay=9, rng=rng), 0, gain=0.10)
         tr.add(wood(deg(d - 5) * 2, 0.06, drop=0.2, tau=0.012, click_level=0.12, rng=rng), 0, gain=0.30)
+        tr.add(candy_pop(deg(d + 5)), 0.15, pan=[0.25, -0.2, 0.15, -0.25][i], gain=0.20)   # the electronica tail
         write('tap', i, finish(reverb(tr.stereo(), 0.28, 0.20), 0.30))
 
 
@@ -643,23 +654,26 @@ def select():
     """The ladder: ten rising notes. Swift climbs it while you keep choosing."""
     for i in range(10):
         rng = rng_for('select', i)
-        f = deg(-2 + i)         # A3 up to F#5: the lute-and-mandolin range, warm all the way up
+        f = deg(-3 + i)         # F#3 up to E5: the lute's warm range; the old ladder's F#5 top was the bright part
         tr = Track(0.55)
         pan = -0.35 + 0.7 * ((i % 4) / 3)
-        tr.add(soft(f, 0.45, rng), 0, pan=pan, haas=0.8, gain=0.95)
-        tr.add(kalimba(f, 0.30, bright=0.6, decay=8, rng=rng), 0.0, pan=-pan, gain=0.18)
-        if i >= 5:
-            tr.add(bell(f, 0.35, index=0.8, ratio=2.0, tau=0.07, rng=rng), 0.004, pan=-pan, gain=0.14)
+        cutoff = (2200, 2200, 2100, 2100, 2000, 1900, 1800, 1700, 1600, 1500)[i]   # darker as it climbs, never brighter
+        tr.add(sos_filter(lute_led(f, 0.45, rng=rng), 'lowpass', cutoff, order=4), 0,
+               pan=pan, haas=0.8, gain=1.0)
+        tr.add(kalimba(f, 0.30, bright=0.3, decay=8, rng=rng), 0.0, pan=-pan, gain=0.07)   # a whisper of tine; no glass
+        tr.add(candy_pop(f * (2 if i < 6 else 1)), 0.2, pan=-pan, gain=0.17)   # the electronica tail: an octave up, unison at the top (no beating)
+        if i >= 5:                       # the upper half of the climb tumbles: a second, smaller pop follows
+            tr.add(candy_pop(f * (2 if i < 6 else 1) * 1.5, dur=0.09), 0.27, pan=pan, gain=0.11)
         out = reverb(tr.stereo(), 0.34, 0.22)
-        if i >= 6:                       # the upper rungs get a little echo: the climb shimmers
-            out = pingpong(out, 0.12, 0.42, 2, wet=0.28)
+        if i >= 7:                       # only the summit echoes
+            out = pingpong(out, 0.12, 0.42, 2, wet=0.14)
         write('select', i, finish(out, 0.32))
 
 
 @family('open')
 def open_page():
-    """A leaf opens: a quick lute-and-mandolin run up the D-major triad (D F# A D' F# A'), a whisper of
-    glass on top. Triad tones are a minor third or more apart, so nothing inside the run beats."""
+    """A leaf opens: a quick lute run up the D-major triad (D F# A D' F# A'), then a little tumble of
+    electronic pops carrying on up the triad. Triad tones are a minor third or more apart, so nothing inside the run beats."""
     triad = [0, 2, 3, 5, 7, 8, 10]                    # D4 F#4 A4 D5 F#5 A5 D6
     shapes = [(0, 1, 3), (1, 2, 4), (0, 2, 3), (2, 3, 5), (1, 3, 4)]
     for i, sh in enumerate(shapes):
@@ -669,8 +683,9 @@ def open_page():
         for k, j in enumerate(sh):
             tr.add(pluck(deg(triad[j]), 0.7, rng=rng), 0.018 + 0.052 * k,
                    pan=-0.3 + 0.3 * k, gain=0.9 - 0.08 * k, haas=0.7)
-        tr.add(bell(deg(triad[sh[-1]]), 0.7, index=1.2, ratio=3.5, tau=0.24, rng=rng),
-               0.018 + 0.052 * len(sh), pan=0.3, gain=0.26)
+        start = min(sh[-1] + 1, len(triad) - 4)            # three distinct triad tones above the run (topping at A5)
+        nxt = triad[start:start + 3]
+        add_pops(tr, nxt, 0.018 + 0.052 * len(sh) + 0.02, gap=0.05, gain=0.20, crescendo=True)
         out = pingpong(reverb(tr.stereo(), 0.55, 0.28), 0.14, 0.36, 3, wet=0.18)
         write('open', i, finish(out, 0.34))
 
@@ -690,11 +705,41 @@ def dismiss():
         write('dismiss', i, finish(reverb(tr.stereo(), 0.38, 0.20), 0.28))
 
 
+@family('close')
+def close_room():
+    """Closing a room (the Glow menu's X): low and dark, falling, with a wooden latch, like a lid settling.
+    Nothing rises and nothing sparkles, so it cannot be mistaken for opening (a rising glass ping) or for
+    choosing (the lute ladder in the middle of the staff)."""
+    for i, (a, b) in enumerate([(-5, -7), (-5, -6), (-3, -5)]):      # D3>A2  D3>B2  F#3>D3
+        rng = rng_for('close', i)
+        tr = Track(0.75)
+        tr.add(wood(300 + 25 * i, 0.09, drop=0.3, tau=0.03, click_level=0.16, rng=rng), 0.0, gain=0.55)
+        tr.add(sos_filter(lute_led(deg(a), 0.5, tone=0.35, rng=rng), 'lowpass', 1500, order=2), 0.0, pan=0.12, gain=0.9)
+        tr.add(sos_filter(lute_led(deg(b), 0.6, tone=0.3, rng=rng), 'lowpass', 1300, order=2), 0.11, pan=-0.12, gain=0.85)
+        tr.add(candy_pop(deg(b + 5), falling=True, dur=0.16), 0.30, pan=0.0, gain=0.22)   # a low rounded 'boop' settling
+        write('close', i, finish(reverb(tr.stereo(), 0.4, 0.18), 0.26))
+
+
+@family('glowopen')
+def glow_open():
+    """Opening the Glow menu: the close's counterpart. A soft wooden unlatch, two lute plucks climbing a
+    fifth or a third (nothing mandolin, nothing glass), and the rounded electronic pop rising at the end.
+    Warm and mid-staff; the old open was a wiry glass ping."""
+    for i, (a, b) in enumerate([(0, 3), (-2, 2), (2, 5)]):        # D4>A4   A3>F#4   F#4>D5
+        rng = rng_for('glowopen', i)
+        tr = Track(0.85)
+        tr.add(wood(330 + 20 * i, 0.07, drop=0.28, tau=0.026, click_level=0.14, rng=rng), 0.0, gain=0.45)
+        tr.add(sos_filter(lute_led(deg(a), 0.45, tone=0.4, rng=rng), 'lowpass', 2000, order=4), 0.02, pan=-0.15, gain=0.95)
+        tr.add(sos_filter(lute_led(deg(b), 0.6, tone=0.4, rng=rng), 'lowpass', 1900, order=4), 0.13, pan=0.15, gain=0.95)
+        tr.add(candy_pop(deg(b + 5)), 0.30, pan=0.0, gain=0.21)       # the electronica tail, rising
+        write('glowopen', i, finish(reverb(tr.stereo(), 0.45, 0.20), 0.28))
+
+
 @family('keep')
 def keep():
     """Keeping a page: eight tiers that climb with the day's keeps (the first keep of the day is tier 0;
     the eighth and every later one is tier 7). A stamp, a rising chord-tone run, a shimmer; later
-    tiers double the run a lute-octave lower, slip a mandolin tremolo swell under it, and end on a
+    tiers double the run a lute-octave lower, slip an electronic pop-flurry under it, and end on a
     rolled chord. Each keep of the day is a little bigger than the last."""
     body = [-5, 0, 2, 3, 5, 7, 8, 10]                   # D3 D4 F#4 A4 D5 F#5 A5 D6: chord tones only
     for tier in range(8):
@@ -720,8 +765,10 @@ def keep():
                 tr.add(mono, end + off, pan=float(rng.uniform(-0.8, 0.8)), gain=1.0)
         if tier >= 4:
             tr.add(pad([deg(3), deg(5), deg(7)], 1.4, attack=0.12, cutoff=3000), end - 0.05, gain=0.06)
-        if tier >= 6:                                   # a real mandolin tremolo swell blooming under the top
-            tr.add(swell(deg(5), 0.55, 0.10, rng), max(0.0, end - 0.55), pan=0.0, gain=0.34)
+        if tier >= 1:                                   # the pops tumble out of the run, more of them each tier
+            add_pops(tr, [5, 7, 8, 10, 12][:2 + tier // 2 + (tier >= 4)], end - 0.02, gap=0.045, gain=0.18, crescendo=True)
+        if tier >= 6:                                   # a pop flurry blooming under the top, quickening
+            tr.add(swell(5, 0.55, 0.10, rng), max(0.0, end - 0.55), pan=0.0, gain=0.36)
         if tier >= 7:                                   # the last flourish: a rolled D chord
             for j, step in enumerate([-5, 3, 5, 7]):
                 tr.add(pluck(deg(step), 1.3, rng=rng), end + 0.06 + 0.035 * j, pan=-0.5 + 0.33 * j, gain=0.8, haas=0.8)
@@ -783,14 +830,14 @@ def braid_complete():
 
 @family('refresh')
 def refresh():
-    """Something arrives: a glass ping and a tiny upward blip, like a signal locking."""
+    """Something arrives: a tiny upward blip, a lute note, and a three-pop tumble like a signal locking."""
     for i in range(4):
         rng = rng_for('refresh', i)
         tr = Track(0.9)
         f = deg(2 + i)
         tr.add(blip(f * 0.75, f, 0.07, tone=0.0), 0, gain=0.18)
         tr.add(pluck(f, 0.6, rng=rng), 0.04, pan=[-0.3, 0.3, -0.15, 0.2][i], gain=0.9)
-        tr.add(bell(f * 2, 0.6, index=1.0, ratio=3.5, tau=0.2, rng=rng), 0.05, pan=[0.3, -0.3, 0.15, -0.2][i], gain=0.28)
+        add_pops(tr, [2 + i, 3 + i, 5 + i], 0.11, gap=0.06, gain=0.20, crescendo=True)
         out = pingpong(reverb(tr.stereo(), 0.5, 0.25), 0.15, 0.42, 3, wet=0.26)
         write('refresh', i, finish(out, 0.28))
 
@@ -857,7 +904,7 @@ def damped(y, tau=0.075, cutoff=1900):
 
 @family('turn')
 def turn():
-    """Page turn forward: ONE soft, damped lute-or-mandolin note. Nothing else. Five pitches from the
+    """Page turn forward: ONE soft, damped lute note. Nothing else. Five pitches from the
     D-major triad so a run of flips is a gentle, uneven murmur; every note is round and short."""
     for i, step in enumerate([-2, 0, 2, 3, 0]):                    # A3 D4 F#4 A4 D4
         rng = rng_for('turn', i)
@@ -898,10 +945,10 @@ def ink():
     for i in range(5):
         rng = rng_for('ink', i)
         tr = Track(0.6)
-        f = deg(3 + i)
-        tr.add(soft(f, 0.45, rng), 0, pan=[-0.2, 0.1, 0.25, -0.1, 0.15][i], haas=0.7, gain=0.95)
-        tr.add(bell(f * 2, 0.4, index=0.6, ratio=2.0, tau=0.10, rng=rng), 0.01, gain=0.10)
-        write('ink', i, finish(reverb(tr.stereo(), 0.4, 0.24), 0.17))
+        f = deg(2 + i)        # a step lower than it was: the lute is rounder there
+        tr.add(soft(f, 0.45, rng), 0, pan=[-0.2, 0.1, 0.25, -0.1, 0.15][i], haas=0.7, gain=1.1)
+        tr.add(candy_pop(f * 0.5, dur=0.09), 0.09, pan=-0.1, gain=0.16)   # a tiny low pop under the plink's tail, in place of the glass
+        write('ink', i, finish(reverb(tr.stereo(), 0.4, 0.24), 0.185))
 
 
 @family('radiolock')
@@ -1157,48 +1204,43 @@ def begin():
 
 @family('overture')
 def overture():
-    """The Book waking, in three beats timed to OpeningBookLoadingView:
-    0 appear + title writing (t=0, ~0.65 s lead-in), 1 cover opens (0.45 s reveal, flood at
-    ~0.23-0.45 s), 2 'found your place' settle as the desk fades in."""
-    # 0: a candle catches; the quill writes the title in five quickening strokes
+    """The Book waking, warm and comforting, in three beats timed to OpeningBookLoadingView:
+    0 appear + title writing (t=0, ~0.65 s lead-in), 1 cover opens (0.45 s reveal; the chord lands at
+    ~0.4 s), 2 'found your place' as the desk fades in. Low lute, a soft hum underneath, no glass,
+    no sparkle, almost no echo: a hearth, not a fanfare."""
+    # 0: a candle catches; the title is written in four unhurried strokes
     rng = rng_for('overture', 0)
     tr = Track(1.8)
-    tr.add(pluck(deg(-5), 1.0, tone=0.7, rng=rng), 0.0, gain=0.55)
-    tr.add(pad([deg(0), deg(3)], 1.4, attack=0.35, cutoff=2200), 0.0, gain=0.06)
-    for k, at in enumerate([0.12, 0.22, 0.32, 0.43, 0.55]):
-        tr.add(pluck(deg(3 + k), 0.6, rng=rng), at, pan=-0.35 + 0.17 * k, gain=0.55 + 0.06 * k, haas=0.6)
-        tr.add(wood(1700 + 120 * k, 0.03, drop=0.1, tau=0.006, click_level=0.2, rng=rng), at, gain=0.16)
-    tr.add(bell(deg(8), 1.0, index=1.2, ratio=3.5, tau=0.5, rng=rng), 0.60, gain=0.20)
-    out = pingpong(reverb(tr.stereo(), 1.0, 0.30), 0.19, 0.4, 3, wet=0.18)
+    tr.add(pluck(deg(-5), 1.2, tone=0.6, rng=rng), 0.0, gain=0.8)
+    tr.add(pad([deg(-5), deg(-2)], 1.6, attack=0.45, cutoff=1500), 0.0, gain=0.10)
+    for k, (at, step) in enumerate([(0.12, 0), (0.26, 2), (0.42, 3), (0.60, 5)]):     # D4 F#4 A4 D5
+        tr.add(soft(deg(step), 0.6, rng, cutoff=2200), at, pan=-0.25 + 0.17 * k, gain=0.55 + 0.05 * k, haas=0.5)
+    out = reverb(tr.stereo(), 1.2, 0.26, damp=3200)
     write('overture', 0, finish(out, 0.30))
 
-    # 1: the cover swings, light floods: creak + swell + a rolled chord landing at ~0.4 s
+    # 1: the cover swings, warm light spills: a leather creak, a low open chord, a long soft hum
     rng = rng_for('overture', 1)
     tr = Track(3.0)
-    cr = creak(0.25, 0.55, rng)
+    cr = creak(0.25, 0.55, rng, cutoff=1700)
     if cr is not None:
-        tr.add(cr, 0.0, gain=0.34)
-    tr.add(pluck(deg(-5), 1.4, tone=0.8, rng=rng), 0.0, gain=0.8)
-    tr.add(wood(300, 0.12, drop=0.35, tau=0.04, click_level=0.3, rng=rng), 0.0, gain=0.5)
-    tr.add(swell(deg(3), 0.34, 0.06, rng), 0.05, pan=0.0, gain=0.50)
-    for k, (at, s_) in enumerate([(0.38, -2), (0.41, 3), (0.44, 5), (0.47, 7), (0.50, 10)]):
-        tr.add(pluck(deg(s_), 1.2, rng=rng), at, pan=-0.6 + 0.3 * k, gain=0.85, haas=0.9)
-    tr.add(bell(deg(10), 1.8, index=2.0, ratio=3.5, tau=0.85, rng=rng), 0.50, gain=0.36)
-    tr.add(bell(deg(13), 1.6, index=1.6, ratio=3.0, tau=0.6, rng=rng), 0.58, pan=0.3, gain=0.22)
-    tr.add(pad([deg(0), deg(2), deg(3), deg(5)], 2.2, attack=0.25, cutoff=3000), 0.40, gain=0.10)
-    for mono, off in sparkle(rng, count=12, span=1.0, level=0.24):
-        tr.add(mono, 0.62 + off, pan=float(rng.uniform(-0.9, 0.9)))
-    out = pingpong(reverb(tr.stereo(), 1.5, 0.36), 0.2, 0.46, 5, wet=0.22)
-    write('overture', 1, finish(out, 0.50))
+        tr.add(cr, 0.0, gain=0.30)
+    tr.add(pluck(deg(-5), 1.6, tone=0.6, rng=rng), 0.0, gain=0.85)
+    tr.add(wood(300, 0.12, drop=0.35, tau=0.04, click_level=0.2, rng=rng), 0.0, gain=0.35)
+    sw = swell(0, 0.34, 0.06, rng)
+    tr.add(sos_filter(sw, 'lowpass', 1800, order=2), 0.05, pan=0.0, gain=0.34)
+    for k, (at, step) in enumerate([(0.36, -5), (0.40, -2), (0.44, 0), (0.48, 2), (0.52, 3)]):   # D3 A3 D4 F#4 A4, rolled
+        tr.add(pluck(deg(step), 1.6, tone=0.55, rng=rng), at, pan=-0.35 + 0.17 * k, gain=0.85, haas=0.8)
+    tr.add(pad([deg(-5), deg(-2), deg(0), deg(2)], 2.5, attack=0.30, cutoff=1700), 0.34, gain=0.14)
+    out = pingpong(reverb(tr.stereo(), 1.7, 0.34, damp=3000), 0.24, 0.32, 2, wet=0.07)
+    write('overture', 1, finish(out, 0.46))
 
     # 2: 'Found your place.'
     rng = rng_for('overture', 2)
     tr = Track(1.6)
-    tr.add(pluck(deg(5), 0.7, rng=rng), 0.0, pan=-0.2, gain=0.85)
-    tr.add(pluck(deg(8), 0.8, rng=rng), 0.11, pan=0.2, gain=0.9)
-    tr.add(bell(deg(11), 1.0, index=1.2, ratio=3.5, tau=0.45, rng=rng), 0.11, gain=0.26)
-    out = pingpong(reverb(tr.stereo(), 0.8, 0.28), 0.17, 0.4, 3, wet=0.2)
-    write('overture', 2, finish(out, 0.28))
+    tr.add(soft(deg(0), 0.8, rng, cutoff=2300), 0.0, pan=-0.15, gain=0.85)
+    tr.add(soft(deg(3), 0.9, rng, cutoff=2400), 0.12, pan=0.15, gain=0.9)
+    tr.add(pad([deg(-2), deg(0)], 1.2, attack=0.25, cutoff=1500), 0.0, gain=0.06)
+    write('overture', 2, finish(reverb(tr.stereo(), 0.9, 0.24, damp=3200), 0.26))
 
 
 @family('today')
@@ -1218,7 +1260,7 @@ def today():
 
 @family('seal')
 def seal():
-    """The dismiss threshold: engaged (0) is a crisp wooden latch with a mandolin glint;
+    """The dismiss threshold: engaged (0) is a crisp wooden latch with a lute glint;
     released (1) is a soft, lower tock. Mid-gesture, so tiny."""
     rng = rng_for('seal', 0)
     tr = Track(0.5)
@@ -1233,12 +1275,12 @@ def seal():
 
 @family('lift')
 def lift():
-    """Pagewright: a mark leaves the paper. A little rising 'pop', pitched, with a wink of mandolin."""
+    """Pagewright: a mark leaves the paper. A little rising 'pop', pitched, with a wink of lute."""
     for i, f in enumerate([deg(2), deg(3), deg(4), deg(5), deg(7)]):
         rng = rng_for('lift', i)
         tr = Track(0.35)
         tr.add(plop(f, f * 0.6, 0.11, tau=0.024, rising=True), 0.0, pan=[-0.15, 0.1, 0.15, -0.1, 0.05][i], gain=0.9)
-        tr.add(soft(f * 2, 0.16, rng, cutoff=2200), 0.012, gain=0.22)
+        tr.add(soft(f * 2, 0.16, rng, cutoff=1800), 0.012, gain=0.15)
         write('lift', i, finish(reverb(tr.stereo(), 0.2, 0.10), 0.16))
 
 

@@ -443,7 +443,7 @@ enum BookFeedback {
     /// A soft, silent give as the Pagewright lifts a loose finding or an
     /// already-placed mark. Distinct from a button tick: this should feel like
     /// paper leaving timber, not another control being pressed. Its voice is a small rising lute-and-
-    /// mandolin figure, Full sound mode only.
+    /// pop figure, Full sound mode only.
     static func pagewrightLift() {
         BookSoundBank.pagewrightLift()
         #if canImport(UIKit)

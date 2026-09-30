@@ -46,6 +46,7 @@ LIMITS = {
     'warm':     dict(centroid=1700, hi=0.045, sharp=1.30, rough=0.230, attack=1.5, rms=(-33, -23), peak=-9),
     'wake':     dict(centroid=2000, hi=0.080, sharp=1.50, rough=0.290, attack=1.5, rms=(-28, -21), peak=-7),
     'soft':     dict(centroid=1500, hi=0.035, sharp=1.30, rough=0.230, attack=1.5, rms=(-40, -28), peak=-11),
+    'hearth':   dict(centroid=1000, hi=0.010, sharp=1.15, rough=0.230, attack=1.5, rms=(-34, -22), peak=-8),
     'candy':    dict(centroid=1700, hi=0.030, sharp=1.30, rough=0.230, attack=1.5, rms=(-40, -27), peak=-11),
     'whisper':  dict(centroid=1500, hi=0.020, sharp=1.25, rough=0.230, attack=1.5, rms=(-42, -31), peak=-14),
     'ceremony': dict(centroid=2300, hi=0.120, sharp=1.65, rough=0.330, attack=1.5, rms=(-26, -19), peak=-6),

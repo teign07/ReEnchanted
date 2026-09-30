@@ -30,7 +30,7 @@ enum BookSoundMode: String, CaseIterable, Identifiable {
 }
 
 /// The Book's voice. Sounds are rendered by scripts/generate_book_sounds.py:
-/// lute, mandolin, kalimba and glass in D pentatonic, so any two that overlap
+/// lute plucks and electronic pops in D pentatonic, so any two that overlap
 /// are consonant. This type decides *which* rendering plays, so the same touch
 /// is never the same sound twice:
 ///
@@ -45,7 +45,7 @@ enum BookSoundMode: String, CaseIterable, Identifiable {
 enum BookSoundBank {
     /// One family of renderings on disk (`<family>-<n>.caf`).
     enum Family: String, CaseIterable {
-        case press, tap, select, open, dismiss, keep, undo
+        case press, tap, select, open, dismiss, close, glowopen, keep, undo
         case braidstart, braidcomplete, refresh, error, knock, knockreply
         case turn, turnback, toggle, ink, radiolock
         case fae, constellation, belief, rise, jump, nothing, ceremony
@@ -99,7 +99,7 @@ enum BookSoundBank {
         case .select: playLadderRung()
         case .openPage: play(fill ? .open : .peek)
         case .keepPage: playKeepStreak()
-        case .dismissPage: play(.dismiss)
+        case .dismissPage: play(.close)    // every closing shares the Glow menu's low falling voice
         case .undo: play(.undo)
         case .braidStart: play(fill ? .braidstart : .begin)
         case .braidComplete: play(fill ? .braidcomplete : .confirm)

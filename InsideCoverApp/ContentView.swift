@@ -7225,7 +7225,9 @@ struct ContentView: View {
             return
         }
 
-        BookFeedback.play(.sourceRefresh)
+        // Lute pair + electronic pop: the counterpart of the close, in place of the glass refresh ping.
+        BookFeedback.play(.sourceRefresh, sound: false)
+        BookSoundBank.play(.glowopen)
         glowMenuInitialSectionID = initialSectionID
         withAnimation(BookMotion.reveal(reduceMotion)) {
             isGlowMenuPresented = true
@@ -7251,6 +7253,8 @@ struct ContentView: View {
     }
 
     func closeGlowMenu() {
+        // `.dismissPage` now speaks with the low falling close: opening is a rising lute pair and
+        // choosing a row is the ladder, so closing sounds like neither.
         BookFeedback.play(.dismissPage)
         withAnimation(BookMotion.retreat(reduceMotion)) {
             isGlowMenuPresented = false
