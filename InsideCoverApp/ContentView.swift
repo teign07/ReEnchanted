@@ -4034,7 +4034,7 @@ struct ContentView: View {
 
     private func presentStacks(arrival: WearArrival = .byHand) {
         if arrival == .byHand { enterRoom(.search) }
-        BookFeedback.play(.openPage)
+        BookFeedback.play(.openPage, fill: true)
         if usesPadWorkspace {
             selectPadDestination(.stacks)
             padSearchFocusRequest &+= 1
@@ -4050,7 +4050,7 @@ struct ContentView: View {
 
     private func presentAlmanac(arrival: WearArrival = .byHand) {
         if arrival == .byHand { enterRoom(.almanac) }
-        BookFeedback.play(.openPage)
+        BookFeedback.play(.openPage, fill: true)
         if usesPadWorkspace {
             selectPadDestination(.almanac)
         } else {
@@ -7198,7 +7198,7 @@ struct ContentView: View {
             evidence: keepsake.title,
             additionalTags: [ReaderLearningEvent.curationLearningForbiddenTag]
         )
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
         return PartingWhisper.keepsakeClosingLine(for: surface, keepsake: keepsake)
     }
 
@@ -9009,7 +9009,7 @@ struct ContentView: View {
             ? "The PDF did not finish binding. Text sharing still works."
             : "Full braid PDF ready. Share it only where you mean to."
         if latestBraidPDFURL != nil {
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         }
     }
 
@@ -10370,7 +10370,7 @@ struct ContentView: View {
                 systemImage: "storefront",
                 action: {
                     enterRoom(.bookshop)
-                    BookFeedback.play(.openPage)
+                    BookFeedback.play(.openPage, fill: true)
                     bookShopInitialDestination = .market
                     currentStall = buildGoblinStall()
                     isBookShopPresented = true
@@ -10384,7 +10384,7 @@ struct ContentView: View {
                 systemImage: "scissors",
                 action: {
                     enterRoom(.pagewright)
-                    BookFeedback.play(.openPage)
+                    BookFeedback.play(.openPage, fill: true)
                     isPagewrightPresented = true
                 }
             ),
@@ -10514,7 +10514,7 @@ struct ContentView: View {
             $0.readerWear = ledger
         }
         if let cut {
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.sourceRefresh)
             statusMessage = Self.cutLine(for: cut)
         }
         return cut
@@ -15883,7 +15883,7 @@ struct ContentView: View {
         }
 
         surfaceRefreshDate = now
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
     }
 
     /// Pay a Talisman's Errand with a real field report: the talisman gains Control
@@ -15909,7 +15909,7 @@ struct ContentView: View {
             adjustEntityBelief(talisman, delta: 1, kind: .beliefInvested)
         }
         surfaceRefreshDate = now
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
     }
 
     /// Answer a current or past Fae Bargain with a field report. A genuine
@@ -15939,7 +15939,7 @@ struct ContentView: View {
         vault.data.fae = state
         vault.save()
         surfaceRefreshDate = now
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
     }
 
     /// Write the next new-moon Goblin Market window into the real Calendar.
@@ -19409,7 +19409,7 @@ struct ContentView: View {
             statusMessage = "Tonight's pages are all yours to keep, not mine to write. I'll leave them where they are."
             return
         }
-        BookFeedback.play(.braidStart)
+        BookFeedback.play(.braidStart, fill: true)
         generation.braidRecovery.beginAttempt()
         let start = braidMoment
         generation.isBraiding = true
@@ -19595,7 +19595,7 @@ struct ContentView: View {
                 // lost the tasting must not open over the page it lost to.
                 selectedSurface = keptSurface(for: officialBraid)
             }
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
             celebrateBookOfYouCompletion(page: braid)
             modelReport = LocalModelManager.report()
             if usedLocalModelFallback {

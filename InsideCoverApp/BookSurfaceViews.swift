@@ -7098,7 +7098,7 @@ struct LabyrinthCoverOpeningView: View {
     private func finish() {
         guard !didFinish else { return }
         didFinish = true
-        BookFeedback.play(.openPage)
+        BookFeedback.play(.openPage, fill: true)
         onFinished()
     }
 
@@ -13069,7 +13069,7 @@ struct OnboardingFlowView: View {
             BookFeedback.play(.error)
             return
         }
-        BookFeedback.play(.openPage)
+        BookFeedback.play(.openPage, fill: true)
         // Advance underneath, then reveal step 1 through the opening cover.
         advance()
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -13797,7 +13797,7 @@ struct OnboardingFlowView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button {
-            BookFeedback.play(.openPage)
+            BookFeedback.play(.openPage, fill: true)
             withAnimation(reduceMotion ? .none : .spring(response: 0.4, dampingFraction: 0.84)) {
                 action()
             }
@@ -14328,7 +14328,7 @@ struct OnboardingFlowView: View {
                 try MonthlyEditionPDFWriter.write(edition, to: url)
                 // Let the sewing beat play through before the book opens.
                 try? await Task.sleep(for: .milliseconds(reduceMotion ? 320 : 1200))
-                BookFeedback.play(.braidComplete)
+                BookFeedback.play(.braidComplete, fill: true)
                 withAnimation(.easeOut(duration: 0.35)) { isSewingFirstEdition = false }
                 isBindingFirstEdition = false
                 didBindFirstEdition = true
@@ -15579,7 +15579,7 @@ struct OnboardingFlowView: View {
         firstSouvenir = firstPressSouvenirLine
         rehearsalChoice = .keep
         didCompleteFirstPress = true
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
         // Celebrate authorship, not navigation: fire the burst + character echo
         // only on the first keep, and let the ink land before the note (the
         // live desk's sequencing rule).
@@ -17126,7 +17126,7 @@ struct OnboardingFlowView: View {
                 PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: artifactURL)
             }
             onboardingPhotoMessage = "Saved. The illuminated photograph is tucked into Photos."
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
         } catch {
             onboardingPhotoMessage = "Photos wouldn't take the illuminated photograph yet. Check photo permissions, then try again."
             BookFeedback.play(.error)

@@ -50,11 +50,12 @@ enum BookSoundBank {
         case turn, turnback, toggle, ink, radiolock
         case fae, constellation, belief, rise, jump, nothing, ceremony
         case overture, today, seal, lift, drop, whisper
+        case peek, confirm, begin
 
         /// Everyday touches. Quiet mode keeps only the families that mark a moment.
         var isEveryday: Bool {
             switch self {
-            case .press, .tap, .select, .turn, .turnback, .toggle, .ink, .seal, .lift, .drop:
+            case .press, .tap, .select, .turn, .turnback, .toggle, .ink, .seal, .lift, .drop, .peek, .confirm, .begin:
                 return true
             default:
                 return false
@@ -69,7 +70,8 @@ enum BookSoundBank {
             case .press: return 0.05
             case .turn, .turnback: return 0.14        // fast flipping stays a soft flutter, not a rattle
             case .tap, .select, .toggle, .seal: return 0.045
-            case .lift, .drop: return 0.08
+            case .lift, .drop, .confirm, .begin: return 0.08
+            case .peek: return 0.06
             case .ink: return 0.12
             default: return 0.03
             }
@@ -86,16 +88,21 @@ enum BookSoundBank {
     // MARK: Playing
 
     /// Plays a cue with the escalation rules each one has.
-    static func play(_ cue: BookFeedback.Cue) {
+    ///
+    /// Three levels of voice. By default a cue is a single pleasing gesture that never asks for
+    /// attention (peek, confirm, begin, refresh). `fill: true` is for impactful moments: opening
+    /// a major room, binding an edition, a braid, a pact. It swaps in the full flourish. Keeping a
+    /// page is always a fill and escalates through the day.
+    static func playCue(_ cue: BookFeedback.Cue, fill: Bool = false) {
         switch cue {
         case .tap: play(.tap)
         case .select: playLadderRung()
-        case .openPage: play(.open)
+        case .openPage: play(fill ? .open : .peek)
         case .keepPage: playKeepStreak()
         case .dismissPage: play(.dismiss)
         case .undo: play(.undo)
-        case .braidStart: play(.braidstart)
-        case .braidComplete: play(.braidcomplete)
+        case .braidStart: play(fill ? .braidstart : .begin)
+        case .braidComplete: play(fill ? .braidcomplete : .confirm)
         case .sourceRefresh: play(.refresh)
         case .error: play(.error)
         case .knock: play(.knock)

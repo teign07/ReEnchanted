@@ -1930,7 +1930,7 @@ struct BookShopSheet: View {
             pendingBoundYearPurchase = nil
             await PhysicalBookQuoteClient.completePurchaseAttempt(draft.purchaseAttemptID)
             boundYearStatusNote = "Standing. The first parcel goes when your first season closes."
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         } catch {
             boundYearStatusNote = "I couldn't check the receipt yet. Your purchase is still here; come back to it when the connection returns."
         }
@@ -4530,7 +4530,7 @@ struct BookShopSheet: View {
         if submittedPhysicalBookOrder != nil {
             physicalBookPressStage = .gone
             recordPressedVolume(edition: edition, spec: spec)
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
             // Let the last stitch land and be seen before the ceremony clears.
             // A seal that vanishes the instant it is drawn was never a seal.
             try? await Task.sleep(for: .milliseconds(1_600))
@@ -5052,7 +5052,7 @@ struct BookShopSheet: View {
                 bindingWareID = nil
             }
             clerkLine = "The clerk wraps \(ware.title) in waxed paper. \u{201C}Bound to you. Mind how you spend it.\u{201D}"
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         }
 
         if reduceMotion {
@@ -5413,7 +5413,7 @@ struct BookShopSheet: View {
             clerkLine = offer.listing.family == .standingOrder
                 ? "The clerk opens a fresh page and writes your name at the top of the ledger. \u{201C}A standing order. Everything we print finds you now.\u{201D}"
                 : "The clerk stamps the ledger twice. \u{201C}\(offer.listing.title) is bound to you. No refunds; the ink remembers.\u{201D}"
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         case .pending:
             clerkLine = "The clerk squints at the till. \u{201C}The App Store says this purchase is pending. Come back shortly.\u{201D}"
         case .cancelled:
@@ -7103,12 +7103,12 @@ struct StandingOrderSheet: View {
         withAnimation(reduceMotion ? nil : .spring(response: 0.58, dampingFraction: 0.72)) {
             bargainStrikeStage = .sealing
         }
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
         try? await Task.sleep(for: .milliseconds(reduceMotion ? 350 : 1_150))
         withAnimation(reduceMotion ? nil : .spring(response: 0.62, dampingFraction: 0.76)) {
             bargainStrikeStage = .ready
         }
-        BookFeedback.play(.keepPage)
+        BookFeedback.play(.sourceRefresh)
     }
 
     private func openStruckBargain() {

@@ -400,7 +400,7 @@ extension ContentView {
             withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
                 marginaliaAchievementUnlockNote = note
             }
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         }
     }
 
@@ -451,7 +451,7 @@ extension ContentView {
             try PagewrightPDFWriter.write(draft: draft, to: url)
             preparedPagewrightPDFURL = url
             statusMessage = "\(draft.format.shareName) PDF is bound. The Apple share sheet can carry it now."
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
             return url
         } catch {
             statusMessage = "The Pagewright could not bind that page: \(error.localizedDescription)"
@@ -2039,7 +2039,7 @@ extension ContentView {
         statusMessage = elective.bookFavorID == nil
             ? "\(elective.characterName) will remember this. My Glow warms."
             : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") The Book's Glow warms."
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
     }
 
 
@@ -2552,7 +2552,7 @@ extension ContentView {
             )
             preparedBleedPDFURL = url
             statusMessage = "The Bleed is bound for sharing."
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         } catch {
             statusMessage = "The edition would not bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -3994,7 +3994,7 @@ extension ContentView {
                 preparedMonthlyEditionURL = keptURL
                 preparedMonthlyEditionPeriodID = resolvedPeriodID
                 colophonBindingNote = "\(edition.title) is bound as a PDF and kept on the Book of You shelf."
-                BookFeedback.play(.braidComplete)
+                BookFeedback.play(.braidComplete, fill: true)
 
                 let reader = MonthlyEditionReader(
                     edition: edition,
@@ -4171,7 +4171,7 @@ extension ContentView {
                 colophonBindingNote = boundIssue.bindingStory != nil
                     ? "Issue No. \(issue.number) is wrapped around the story its daily bindings became, and kept on the Book of You shelf."
                     : "Issue No. \(issue.number) is wrapped and kept on the Book of You shelf."
-                BookFeedback.play(.braidComplete)
+                BookFeedback.play(.braidComplete, fill: true)
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("weekly-aborted")
                 weeklyIssueBindingNote = nil
@@ -4300,7 +4300,7 @@ extension ContentView {
             preparedWeeklyIssuePDFURL = pdfURL
             preparedWeeklyIssuePeriodID = weeklyPublicationPeriodID(for: artifact)
             weeklyIssueReader = reader
-            BookFeedback.play(.openPage)
+            BookFeedback.play(.openPage, fill: true)
         } catch {
             statusMessage = "Issue No. \(artifact.issue.number) would not open: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -4781,7 +4781,7 @@ extension ContentView {
                 pdfURL: pdfURL,
                 periodID: monthlyPublicationPeriodID(for: artifact)
             )
-            BookFeedback.play(.openPage)
+            BookFeedback.play(.openPage, fill: true)
         } catch {
             statusMessage = "\(artifact.edition.monthName) would not open: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -4890,7 +4890,7 @@ extension ContentView {
                 pdfURL: pdfURL,
                 periodID: artifact.periodID
             )
-            BookFeedback.play(.openPage)
+            BookFeedback.play(.openPage, fill: true)
         } catch {
             statusMessage = "The \(artifact.edition.year) annual would not open: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -6001,7 +6001,7 @@ extension ContentView {
                     annualBindingDedicationText = ""
                     clearPublicationBindingCheckpoint(slot: chapteredVolumeBindingSlot(for: annual))
                     statusMessage = "The \(targetYear) annual is bound, locked, and kept on the Book of You shelf."
-                    BookFeedback.play(.braidComplete)
+                    BookFeedback.play(.braidComplete, fill: true)
                     let reader = AnnualEditionReader(
                         edition: bound,
                         pdfURL: keptURL,
@@ -6482,7 +6482,7 @@ extension ContentView {
         notes.append(note)
         vault.data.learnedBraidNotes = Array(notes.suffix(6))
         vault.save()
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
         return "I listened, and I'll carry this into the next page: \(note)"
     }
 
@@ -6548,7 +6548,7 @@ extension ContentView {
         statusMessage = choice == .sameBones
             ? "Same bones. New breath. Hold still."
             : "I tipped the old bones onto the table to see another shape."
-        BookFeedback.play(.braidStart)
+        BookFeedback.play(.braidStart, fill: true)
         defer {
             generation.lastBraidDuration = Date().timeIntervalSince(startedAt)
             generation.braidingStartedAt = nil
@@ -6667,7 +6667,7 @@ extension ContentView {
                 message: "A new telling took the old Page's place. Its receipts stayed put."
             )
             surfaceRefreshDate = Date()
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
             modelReport = LocalModelManager.report()
             localBrainTelemetry.clearError()
 
@@ -7318,7 +7318,7 @@ extension ContentView {
         let title = BookShopCatalog.listing(forPackID: packID)?.title ?? packID
         statusMessage = ""
         presentPurchaseThankYouSurface(packID: packID, title: title)
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
     }
 
     @MainActor
@@ -14903,7 +14903,7 @@ struct PlainPageSheet: View {
                     }
                     isTranscribingVoice = false
                 }
-                BookFeedback.play(.keepPage)
+                BookFeedback.play(.braidComplete)
             } else {
                 voiceMessage = "Nothing was recorded."
             }

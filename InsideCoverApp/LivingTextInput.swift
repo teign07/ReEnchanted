@@ -158,7 +158,7 @@ struct LivingTextEditor: View {
         if analysis.isVivid, !didTransmute {
             didTransmute = true
             sentenceInkBurstTrigger += 1
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
             withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { shimmer = true }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 withAnimation(.easeOut(duration: 0.5)) { shimmer = false }
@@ -476,7 +476,7 @@ struct LivingTextEditor: View {
             starterDraft = nil
             selectedStarterSlotID = nil
         }
-        BookFeedback.play(.keepPage)
+        BookFeedback.play(.braidComplete)
     }
 
     private var cardEyebrow: String {
@@ -807,7 +807,7 @@ struct LivingTextEditor: View {
                     withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
                         isBuilderOpen = false
                     }
-                    BookFeedback.play(.keepPage)
+                    BookFeedback.play(.braidComplete)
                 } label: {
                     Label(analysis.canStandAsComplete ? "Keep sentence" : "Close helper", systemImage: analysis.canStandAsComplete ? "checkmark" : "xmark")
                         .font(.caption.weight(.bold))

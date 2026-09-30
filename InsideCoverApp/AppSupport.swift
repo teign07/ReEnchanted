@@ -393,7 +393,7 @@ enum BookFeedback {
         #endif
     }
 
-    static func play(_ cue: Cue, sound: Bool = true) {
+    static func play(_ cue: Cue, sound: Bool = true, fill: Bool = false) {
         let playedComposedHaptic = BookHapticEngine.shared.play(cue)
         #if canImport(UIKit)
         if !playedComposedHaptic, hapticMode != .off {
@@ -422,7 +422,7 @@ enum BookFeedback {
         }
         #endif
 
-        if sound { BookSoundBank.play(cue) }
+        if sound { BookSoundBank.playCue(cue, fill: fill) }
     }
 
     /// A whisper-light haptic, plus a barely-there wooden 'thip' in Full sound
@@ -588,20 +588,21 @@ enum BookFeedback {
 
     static func chapterBindingReveal() {
         BookHapticEngine.shared.playChapterBinding()
-        BookSoundBank.play(.braidStart)
+        BookSoundBank.playCue(.braidStart, fill: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            BookSoundBank.play(.sourceRefresh)
+            BookSoundBank.playCue(.sourceRefresh)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
-            BookSoundBank.play(.braidComplete)
+            BookSoundBank.playCue(.braidComplete, fill: true)
         }
     }
 
     static func chapterBindingAccepted() {
         BookHapticEngine.shared.playChapterBinding()
-        BookSoundBank.play(.braidComplete)
+        BookSoundBank.playCue(.braidComplete, fill: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            BookSoundBank.play(.keepPage)
+            // the second beat of the flourish; not a page keep, so it must not advance the day's count
+            BookSoundBank.play(.keep, variant: 2)
         }
     }
 

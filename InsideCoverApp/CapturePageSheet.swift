@@ -5303,7 +5303,7 @@ struct CapturePageSheet: View {
             text = prose
             gameRunBraided = true
             gameBraidMessage = ""
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         } catch {
             gameBraidMessage = "The Scribe could not braid this run: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -5934,7 +5934,7 @@ struct CapturePageSheet: View {
             )
             bleedPDFURL = url
             bleedExportMessage = "The Bleed is bound for sharing."
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         } catch {
             bleedExportMessage = "The edition would not bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -7989,7 +7989,7 @@ struct CapturePageSheet: View {
             activeInkbonesThrow = nil
         }
         storyContinuationMessage = "The Inkbones landed. I'm writing what changed."
-        BookFeedback.play(.braidComplete)
+        BookFeedback.play(.braidComplete, fill: true)
         Task {
             await generateStoryResultForActiveTurn(choiceID: inkbonesThrow.choiceID)
         }
@@ -10073,7 +10073,7 @@ struct CapturePageSheet: View {
         taleAskReply = answer == .keepsHappening
             ? "Then I will keep watching it, and I will not say what it means."
             : "Good. I have put it down and I will not pick it up again."
-        BookFeedback.play(.keepPage)
+        BookFeedback.play(.braidComplete)
     }
 
     private var braidFeedbackCard: some View {
@@ -10096,7 +10096,7 @@ struct CapturePageSheet: View {
                         let message = onLoveBraid(keptPageID)
                         braidFeedbackMessage = message.isEmpty ? "I marked this as a true page." : message
                         didSubmitBraidFeedback = true
-                        BookFeedback.play(.keepPage)
+                        BookFeedback.play(.braidComplete)
                     } label: {
                         Label("I loved this one", systemImage: "heart")
                             .font(.subheadline.weight(.bold))
@@ -12318,7 +12318,7 @@ struct CapturePageSheet: View {
                 keptVoiceMessage = keptVoiceRecorder.lastCadenceReceipt == nil
                     ? "Your voice is kept."
                     : "Your voice is kept, pauses and all."
-                BookFeedback.play(.keepPage)
+                BookFeedback.play(.braidComplete)
             } else {
                 keptVoiceMessage = "Nothing was recorded."
             }
@@ -14263,7 +14263,7 @@ struct CapturePageSheet: View {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: artifactURL)
             }
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
             illuminationMessage = "The plate is tucked into Photos."
         } catch {
             BookFeedback.play(.error)
@@ -14290,7 +14290,7 @@ struct CapturePageSheet: View {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetCreationRequest.creationRequestForAssetFromImage(atFileURL: artifactURL)
             }
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
             enchantmentMessage = "The Enchantment result is tucked into Photos."
         } catch {
             BookFeedback.play(.error)
@@ -16194,7 +16194,7 @@ struct CapturePageSheet: View {
             #endif
             faeResponseText = reply
             faeMessage = "The exchange is complete. Keep the page to remember it."
-            BookFeedback.play(.braidComplete)
+            BookFeedback.play(.braidComplete, fill: true)
         } catch {
             faeMessage = "The exchange did not settle: \(error.localizedDescription)"
             BookFeedback.play(.error)
@@ -16834,7 +16834,7 @@ private struct PublicMarginsContributionSheet: View {
                 confirmedAt: ISO8601DateFormatter().string(from: Date()),
                 consent: .init(publicDisplay: true, moderation: true)
             ))
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
         } catch {
             message = error.localizedDescription
             BookFeedback.play(.error)
@@ -16868,7 +16868,7 @@ private struct PublicMarginsContributionSheet: View {
                 confirmedAt: ISO8601DateFormatter().string(from: Date()),
                 consent: .init(publicDisplay: true, moderation: true)
             ))
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.braidComplete)
         } catch {
             choiceMessage = error.localizedDescription
             BookFeedback.play(.error)

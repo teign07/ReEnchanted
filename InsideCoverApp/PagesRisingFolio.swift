@@ -8100,7 +8100,7 @@ private struct FolioResponseLeafPanel: View {
         )
         draft.isRecordingVoice = false
         voiceMessage = "The leaf caught it, pauses and all."
-        BookFeedback.play(.keepPage)
+        BookFeedback.play(.braidComplete)
     }
 
     private static func voiceDuration(_ seconds: TimeInterval) -> String {

@@ -44,7 +44,7 @@ struct AcademyMapView: View {
             .clipped()
             .contentShape(Rectangle())
             .onTapGesture {
-                BookFeedback.play(.openPage)
+                BookFeedback.play(.openPage, fill: true)
                 isOpen = true
             }
             .accessibilityElement(children: .ignore)

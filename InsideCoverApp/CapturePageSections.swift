@@ -809,7 +809,7 @@ struct ElectiveFlyleafListView: View {
                             let photoURL = proofPhotoURLs[elective.id]
                             let locationSummary = locationProofSummaries[elective.id]
                             guard !proof.isEmpty || photoURL != nil || locationSummary != nil else { return }
-                            BookFeedback.play(.keepPage)
+                            BookFeedback.play(.braidComplete)
                             withAnimation(reduceMotion ? .easeOut(duration: 0.16) : .spring(response: 0.42, dampingFraction: 0.68)) {
                                 completedElectiveIDs.insert(elective.id)
                             }

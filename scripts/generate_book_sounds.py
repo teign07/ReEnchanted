@@ -313,6 +313,19 @@ def creak(lead=0.3, tail=0.5, rng=None, cutoff=2400):
     return sos_filter(y, 'lowpass', cutoff, order=2)
 
 
+def plop(f_hi, f_lo=None, dur=0.16, tau=0.032, rising=False):
+    """A round little bubble: a sine that glides down (plop) or up (pop) and dies fast. Ear candy on
+    tiny gestures; pitched, so a run of them is a soft xylophone of bubbles, not clicks."""
+    f_lo = f_lo or f_hi * 0.55
+    t = tt(dur)
+    a, b = (f_lo, f_hi) if rising else (f_hi, f_lo)
+    f = b + (a - b) * np.exp(-t / 0.018)
+    phase = 2 * np.pi * np.cumsum(f) / SR
+    y = np.sin(phase) + 0.18 * np.sin(2 * phase)
+    env = np.minimum(t / 0.002, 1.0) * np.exp(-t / tau)
+    return fade(sos_filter(y * env, 'lowpass', 2600, order=2), 0.5, 12)
+
+
 PLUCK_LEAD = 1.25
 
 
@@ -513,6 +526,10 @@ PROFILE_SHAPE = {
     'warm':     (3300, 0.30, (-33.0, -24.0), 0.33),
     'wake':     (4200, 0.16, (-28.0, -22.0), 0.42),
     'ceremony': (4800, 0.10, (-26.0, -20.0), 0.50),
+    # everyday touches (taps, selections, opening a card, a small success): pleasing and low key
+    'soft':     (3200, 0.30, (-37.0, -31.0), 0.22),
+    # small pleasures that repeat or follow a big moment (Book Today, Pagewright): a wink, not a statement
+    'candy':    (3400, 0.30, (-36.0, -29.0), 0.22),
     # under-the-reading sounds (page turns): felt more than heard
     'whisper':  (2800, 0.35, (-40.0, -33.0), 0.14),
 }
@@ -575,13 +592,14 @@ def hash_seed(s):
 # in docs/sound-comfort.md). warm = murmur under the fingers; wake = melodic and clear, never harsh;
 # ceremony = the loudest, brightest things the Book does, and rare.
 PROFILE_OF = {
-    **{f: 'warm' for f in ('press', 'tap', 'select', 'open', 'dismiss', 'undo', 'refresh', 'error', 'knock',
-                            'knockreply', 'toggle', 'ink', 'seal', 'lift', 'drop',
-                            'nothing', 'belief')},
+    **{f: 'warm' for f in ('press', 'open', 'knock', 'knockreply', 'ink', 'nothing', 'belief')},
+    **{f: 'soft' for f in ('tap', 'select', 'dismiss', 'undo', 'refresh', 'error', 'toggle', 'seal',
+                            'peek', 'confirm', 'begin')},
     **{f: 'whisper' for f in ('turn', 'turnback')},
+    **{f: 'candy' for f in ('today', 'lift', 'drop')},
     **{f: 'wake' for f in ('keep', 'braidstart', 'braidcomplete', 'rise', 'constellation', 'fae', 'jump',
                             'radiolock')},
-    **{f: 'ceremony' for f in ('overture', 'today', 'ceremony', 'whisper')},
+    **{f: 'ceremony' for f in ('overture', 'ceremony', 'whisper')},
 }
 
 
@@ -769,7 +787,7 @@ def refresh():
     for i in range(4):
         rng = rng_for('refresh', i)
         tr = Track(0.9)
-        f = deg(4 + i)
+        f = deg(2 + i)
         tr.add(blip(f * 0.75, f, 0.07, tone=0.0), 0, gain=0.18)
         tr.add(pluck(f, 0.6, rng=rng), 0.04, pan=[-0.3, 0.3, -0.15, 0.2][i], gain=0.9)
         tr.add(bell(f * 2, 0.6, index=1.0, ratio=3.5, tau=0.2, rng=rng), 0.05, pan=[0.3, -0.3, 0.15, -0.2][i], gain=0.28)
@@ -1092,6 +1110,49 @@ def ceremony():
 
 
 
+# ------------------------------------------------ the everyday register ---
+# Three levels of voice. Fills (open, braidcomplete, keep, overture...) are for impactful moments:
+# opening the app, keeping a page, opening a major room, binding an edition. Everything ordinary
+# (selecting, opening a card inside a room, a small success, a small start) gets one of these: a
+# single pleasing gesture that never asks for attention.
+
+@family('peek')
+def peek():
+    """Opening something inside a room: one soft note that scoops up into pitch, like a page lifting."""
+    for i, step in enumerate([0, 2, 3, -2, 5]):                      # D4 F#4 A4 A3 D5
+        rng = rng_for('peek', i)
+        f = deg(step)
+        tr = Track(0.5)
+        scoop = blip(f * 0.84, f, 0.05, vib=0.0, tone=0.0)
+        tr.add(scoop, 0.0, pan=[-0.1, 0.1, 0.0, -0.05, 0.1][i], gain=0.12)
+        tr.add(damped(pluck(f, 0.4, tone=0.5, rng=rng), tau=0.11, cutoff=2300), 0.03, pan=[-0.1, 0.1, 0.0, -0.05, 0.1][i], gain=0.95)
+        write('peek', i, finish(reverb(tr.stereo(), 0.3, 0.14), 0.2))
+
+
+@family('confirm')
+def confirm():
+    """A small success: two soft notes, root then a fifth up, the second left to breathe."""
+    for i, (a, b) in enumerate([(0, 3), (-2, 2), (2, 5), (3, 7)]):    # D4>A4  A3>F#4  F#4>D5  A4>F#5
+        rng = rng_for('confirm', i)
+        tr = Track(0.7)
+        tr.add(damped(pluck(deg(a), 0.3, rng=rng), tau=0.1, cutoff=2400), 0.0, pan=-0.12, gain=0.75)
+        tr.add(damped(pluck(deg(b), 0.5, rng=rng), tau=0.16, cutoff=2600), 0.085, pan=0.12, gain=0.95)
+        tr.add(bell(deg(b), 0.5, index=0.6, ratio=2.0, tau=0.14, rng=rng), 0.09, pan=0.2, gain=0.07)
+        write('confirm', i, finish(reverb(tr.stereo(), 0.4, 0.16), 0.22))
+
+
+@family('begin')
+def begin():
+    """Something is starting: a single low note leaning forward."""
+    for i, step in enumerate([-2, 0, 2]):                              # A3 D4 F#4
+        rng = rng_for('begin', i)
+        f = deg(step)
+        tr = Track(0.45)
+        tr.add(damped(pluck(f, 0.35, tone=0.45, rng=rng), tau=0.12, cutoff=2000), 0.0, pan=[-0.08, 0.08, 0.0][i], gain=0.9)
+        tr.add(blip(f, f * 1.19, 0.10, vib=0.0, tone=0.0), 0.05, gain=0.10)
+        write('begin', i, finish(reverb(tr.stereo(), 0.28, 0.12), 0.18))
+
+
 # ----------------------------------------------- the launch, and the day ---
 
 @family('overture')
@@ -1142,27 +1203,17 @@ def overture():
 
 @family('today')
 def today():
-    """Book Today surfaces: a reversed bell breathes in, a mandolin swell rises, then a lute
-    root and a seven-note climb blossom into a chord. Three roots so it never repeats exactly."""
-    for i in range(3):
+    """Book Today surfaces: a soft answer to the expressive opening, not a second fanfare. A low lute
+    breath and a slow three-note climb up the triad, a single grain of glass. Three roots to rotate."""
+    for i, climb in enumerate([(3, 5, 7), (2, 3, 5), (5, 7, 8)]):    # A D F# | F# A D | D F# A
         rng = rng_for('today', i)
-        tr = Track(3.4)
-        root = [0, 1, 2][i]                       # D, E, F# pentatonic rotations
-        rev = bell(deg(9 + root), 0.7, index=1.8, ratio=3.5, tau=0.4, rng=rng)[::-1]
-        tr.add(rev, 0.0, pan=0.0, gain=0.30)
-        tr.add(swell(deg(2 + root), 0.85, 0.05, rng), 0.0, gain=0.42)
-        tr.add(pluck(deg(-5 + root), 1.6, tone=0.85, rng=rng), 0.62, gain=0.95)
-        tr.add(wood(300, 0.1, drop=0.3, tau=0.035, click_level=0.25, rng=rng), 0.62, gain=0.45)
-        for k in range(7):
-            tr.add(pluck(deg(root + k), 1.1, rng=rng), 0.68 + 0.085 * k,
-                   pan=-0.7 + 1.4 * (k / 6), gain=0.75 + 0.03 * k, haas=0.8)
-        land = 0.68 + 0.085 * 7
-        tr.add(bell(deg(root + 10), 2.0, index=2.0, ratio=3.5, tau=0.95, rng=rng), land, gain=0.36)
-        tr.add(pad([deg(root), deg(root + 2), deg(root + 3)], 2.2, attack=0.2, cutoff=3000), land - 0.1, gain=0.09)
-        for mono, off in sparkle(rng, count=14, span=1.1, level=0.22):
-            tr.add(mono, land + 0.05 + off, pan=float(rng.uniform(-0.9, 0.9)))
-        out = pingpong(reverb(tr.stereo(), 1.5, 0.36), 0.21, 0.46, 5, wet=0.22)
-        write('today', i, finish(out, 0.50))
+        tr = Track(1.6)
+        tr.add(pluck(deg(-5 + (0, 2, 3)[i]), 0.9, tone=0.6, rng=rng), 0.0, gain=0.55)
+        for k, step in enumerate(climb):
+            tr.add(soft(deg(step), 0.6, rng, cutoff=2600), 0.07 + 0.13 * k, pan=-0.3 + 0.3 * k, gain=0.7 + 0.1 * k, haas=0.6)
+        tr.add(bell(deg(climb[-1] + 5), 0.8, index=0.8, ratio=3.0, tau=0.3, rng=rng), 0.07 + 0.13 * 2, pan=0.25, gain=0.12)
+        out = pingpong(reverb(tr.stereo(), 0.7, 0.20), 0.2, 0.35, 2, wet=0.14)
+        write('today', i, finish(out, 0.3))
 
 
 @family('seal')
@@ -1182,27 +1233,24 @@ def seal():
 
 @family('lift')
 def lift():
-    """Pagewright: a mark leaves the paper. Four small rising figures."""
-    for i in range(4):
+    """Pagewright: a mark leaves the paper. A little rising 'pop', pitched, with a wink of mandolin."""
+    for i, f in enumerate([deg(2), deg(3), deg(4), deg(5), deg(7)]):
         rng = rng_for('lift', i)
-        tr = Track(0.7)
-        a = 3 + i
-        tr.add(blip(deg(a - 3), deg(a), 0.09, vib=0.0, tone=0.0), 0.0, gain=0.25)
-        tr.add(pluck(deg(a), 0.4, rng=rng), 0.045, pan=-0.2 + 0.13 * i, gain=0.75)
-        tr.add(pluck(deg(a + 2), 0.5, rng=rng), 0.10, pan=0.2, gain=0.6)
-        write('lift', i, finish(reverb(tr.stereo(), 0.35, 0.2), 0.20))
+        tr = Track(0.35)
+        tr.add(plop(f, f * 0.6, 0.11, tau=0.024, rising=True), 0.0, pan=[-0.15, 0.1, 0.15, -0.1, 0.05][i], gain=0.9)
+        tr.add(soft(f * 2, 0.16, rng, cutoff=2200), 0.012, gain=0.22)
+        write('lift', i, finish(reverb(tr.stereo(), 0.2, 0.10), 0.16))
 
 
 @family('drop')
 def drop():
-    """Pagewright: a mark lands on the paper. Wooden tok, a lute note, a settling plink."""
-    for i in range(4):
+    """Pagewright: a mark lands on the paper. A round 'plop', pitched a little lower, with a soft lute thud."""
+    for i, f in enumerate([deg(1), deg(2), deg(3), deg(4), deg(5)]):
         rng = rng_for('drop', i)
-        tr = Track(0.8)
-        tr.add(wood(380 + 25 * i, 0.09, drop=0.3, tau=0.03, click_level=0.3, rng=rng), 0.0, gain=0.8)
-        tr.add(pluck(deg(-2 + i), 0.5, tone=0.6, rng=rng), 0.0, gain=0.7)
-        tr.add(kalimba(deg(6 + i), 0.5, decay=7, rng=rng), 0.06, pan=0.15, gain=0.5)
-        write('drop', i, finish(reverb(tr.stereo(), 0.35, 0.2), 0.24))
+        tr = Track(0.4)
+        tr.add(plop(f * 1.2, f * 0.6, 0.16, tau=0.034), 0.0, pan=[0.1, -0.1, 0.15, -0.15, 0.0][i], gain=0.9)
+        tr.add(damped(pluck(f * 0.5, 0.2, tone=0.5, rng=rng), tau=0.06, cutoff=1500), 0.004, gain=0.35)
+        write('drop', i, finish(reverb(tr.stereo(), 0.22, 0.10), 0.18))
 
 
 @family('whisper')

@@ -1036,7 +1036,7 @@ struct BeliefScoreBadge: View {
             }
         }
         .onChange(of: score) { _, _ in
-            BookFeedback.play(.keepPage)
+            BookFeedback.play(.sourceRefresh)
             if !isPaused {
                 inkBurstTrigger += 1
             }
