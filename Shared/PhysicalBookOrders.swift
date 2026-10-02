@@ -734,10 +734,25 @@ enum PhysicalBookPricing {
     /// floor. Keeping the two guards separate preserves the $35 contribution
     /// margin when a long Book is expensive to manufacture, while keeping the
     /// binding ladder legible and the Bound Year cheaper than four singles.
+    /// A monthly this thin is the Slim book: the entry price, with a smaller
+    /// contribution and a lower shelf floor. Must match SLIM_MAX_PAGES in the Worker.
+    static let slimMonthlyMaxPages = 72
+    static let slimMonthlyFloorCents = 3_999
+    static let slimMonthlyContributionCents = 2_500
+
+    static func isSlimMonthly(variant: PhysicalBookVariant, editionKind: PublicationEditionKind?, pageCount: Int?) -> Bool {
+        variant.coverTreatment == .perfectBound && editionKind == .monthly
+            && (pageCount.map { $0 > 0 && $0 <= slimMonthlyMaxPages } ?? false)
+    }
+
     static func minimumProductPriceCentsPerCopy(
         for variant: PhysicalBookVariant,
-        editionKind: PublicationEditionKind? = nil
+        editionKind: PublicationEditionKind? = nil,
+        pageCount: Int? = nil
     ) -> Int? {
+        if isSlimMonthly(variant: variant, editionKind: editionKind, pageCount: pageCount) {
+            return slimMonthlyFloorCents
+        }
         switch variant.coverTreatment {
         case .saddleStitch: return 1_999
         case .perfectBound:
@@ -765,9 +780,14 @@ enum PhysicalBookPricing {
 
     static func contributionMarginCentsPerCopy(
         for variant: PhysicalBookVariant,
-        policy: PhysicalBookPricingPolicy = .standardUS
+        policy: PhysicalBookPricingPolicy = .standardUS,
+        editionKind: PublicationEditionKind? = nil,
+        pageCount: Int? = nil
     ) -> Int {
-        variant.coverTreatment == .saddleStitch ? 1_500 : policy.markupPerCopyCents
+        if isSlimMonthly(variant: variant, editionKind: editionKind, pageCount: pageCount) {
+            return min(slimMonthlyContributionCents, policy.markupPerCopyCents)
+        }
+        return variant.coverTreatment == .saddleStitch ? 1_500 : policy.markupPerCopyCents
     }
 
     static func retailMarkupSubtotalCents(
@@ -775,13 +795,17 @@ enum PhysicalBookPricing {
         manufacturingSubtotalCents: Int,
         editionKind: PublicationEditionKind? = nil,
         policy: PhysicalBookPricingPolicy = .standardUS,
-        quantity: Int
+        quantity: Int,
+        pageCount: Int? = nil
     ) -> Int {
         let quantity = max(0, quantity)
-        let contributionFloor = contributionMarginCentsPerCopy(for: variant, policy: policy) * quantity
+        let contributionFloor = contributionMarginCentsPerCopy(
+            for: variant, policy: policy, editionKind: editionKind, pageCount: pageCount
+        ) * quantity
         guard let priceFloor = minimumProductPriceCentsPerCopy(
             for: variant,
-            editionKind: editionKind
+            editionKind: editionKind,
+            pageCount: pageCount
         ) else {
             return contributionFloor
         }
@@ -826,7 +850,8 @@ enum PhysicalBookPricing {
             manufacturingSubtotalCents: manufacturing,
             editionKind: request.editionKind,
             policy: policy,
-            quantity: request.quantity
+            quantity: request.quantity,
+            pageCount: request.pageCount
         ) + extras
         let subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup
         let processing = paymentProcessingFeeCents(chargeSubtotalCents: subtotalBeforeProcessing, policy: policy)

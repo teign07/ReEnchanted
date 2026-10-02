@@ -181,6 +181,26 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertGreaterThan(aLaCarteProductTotal, BoundYearPricing.annualCents)
     }
 
+    func testSlimMonthlyIsTheEntryPriceAndNothingElseIs() {
+        let softcover = PhysicalBookVariant.from(.perfectBoundSoftcover6x9)
+        func product(_ kind: PublicationEditionKind, _ pages: Int) -> Int {
+            let request = PhysicalBookQuoteRequest(
+                editionID: "e", editionKind: kind, variant: softcover, pageCount: pages, quantity: 1,
+                shipTo: PhysicalBookShippingDestination(countryCode: "US", stateCode: "ME", postalCode: "04915")
+            )
+            let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 0)
+            return price.manufacturingSubtotal.cents + price.markup.cents
+        }
+        XCTAssertEqual(PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover, editionKind: .monthly, pageCount: 64), 3_999)
+        XCTAssertEqual(product(.monthly, 64), 3_999)
+        XCTAssertGreaterThan(product(.monthly, 73), 3_999)
+        XCTAssertEqual(PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover, editionKind: .monthly), 4_999)
+        XCTAssertEqual(PhysicalBookPricing.minimumProductPriceCentsPerCopy(for: softcover, editionKind: .seasonal, pageCount: 64), 6_999)
+        // Slim still earns: never below its own contribution.
+        let slimMfg = PhysicalBookPricing.rawManufacturingSubtotalCents(variant: softcover, pageCount: 64, quantity: 1)
+        XCTAssertGreaterThanOrEqual(product(.monthly, 64) - slimMfg, 2_500)
+    }
+
     func testSoftcoverFloorDependsOnEditorialSpan() {
         let softcover = PhysicalBookVariant.from(.perfectBoundSoftcover6x9)
 
@@ -227,9 +247,12 @@ final class PhysicalBookOrdersTests: XCTestCase {
             shippingCents: 0
         )
 
-        // At each cap, premium paper still leaves the price at its floor
-        // ($49.99 / $69.99) with the contribution intact.
-        XCTAssertEqual(monthly.manufacturingSubtotal.cents + monthly.markup.cents, 4_999)
+        // The Field Book's monthly cap is long enough that cost plus the $35
+        // contribution passes the $49.99 floor; the seasonal still sits at its
+        // $69.99 floor. Either way the contribution is intact and the price
+        // never falls below its floor.
+        XCTAssertEqual(monthly.markup.cents, 3_500)
+        XCTAssertGreaterThanOrEqual(monthly.manufacturingSubtotal.cents + monthly.markup.cents, 4_999)
         XCTAssertEqual(seasonal.manufacturingSubtotal.cents + seasonal.markup.cents, 6_999)
         XCTAssertGreaterThanOrEqual(monthly.markup.cents, 3_500)
         XCTAssertGreaterThanOrEqual(seasonal.markup.cents, 3_500)

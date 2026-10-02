@@ -936,10 +936,10 @@ const VARIANT_PAGE_LIMITS = new Map([
 // MUST match PrintSpec.pageCap(for:) in Shared/MonthlyEdition.swift.
 const EDITION_PAGE_CAPS = new Map([
   ["weekly", 48],
-  ["monthly", 92],
-  ["seasonal", 112],
-  ["annual", 208],
-  ["special", 208],
+  ["monthly", 128],
+  ["seasonal", 176],
+  ["annual", 256],
+  ["special", 256],
 ]);
 // Older clients omit editionKind. They retain their legacy price floor but
 // cannot use that omission to order an unbounded premium-color book.
@@ -1967,6 +1967,7 @@ async function createQuote(quoteRequest, env) {
     quoteRequestWithCity.quantity,
     pricingPolicy,
     quoteRequestWithCity.editionKind,
+    quoteRequestWithCity.pageCount,
   ) + printOptionsSubtotalCents(quoteOptions, quoteRequestWithCity.quantity);
   const shippingOptions = await Promise.all(luluQuotes.map(async (quote, index) => {
     const level = shippingLevels[index];
@@ -3674,7 +3675,18 @@ function standardPricingPolicy() {
   };
 }
 
-function minimumProductPriceCentsPerCopy(variant, editionKind = null) {
+// A monthly this thin is the Slim book. Must match slimMonthly* in PhysicalBookOrders.swift.
+const SLIM_MAX_PAGES = 72;
+const SLIM_FLOOR_CENTS = 3999;
+const SLIM_CONTRIBUTION_CENTS = 2500;
+
+function isSlimMonthly(variant, editionKind, pageCount) {
+  return variant?.coverTreatment === "perfectBound" && editionKind === "monthly"
+    && Number.isInteger(pageCount) && pageCount > 0 && pageCount <= SLIM_MAX_PAGES;
+}
+
+function minimumProductPriceCentsPerCopy(variant, editionKind = null, pageCount = null) {
+  if (isSlimMonthly(variant, editionKind, pageCount)) return SLIM_FLOOR_CENTS;
   switch (variant?.coverTreatment) {
     case "saddleStitch": return 1999;
     case "perfectBound":
@@ -3693,12 +3705,15 @@ function minimumProductPriceCentsPerCopy(variant, editionKind = null) {
   }
 }
 
-function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy, editionKind = null) {
-  const contributionPerCopy = variant?.coverTreatment === "saddleStitch"
-    ? 1500
-    : policy.markupPerCopyCents;
+function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy, editionKind = null, pageCount = null) {
+  const slim = isSlimMonthly(variant, editionKind, pageCount);
+  const contributionPerCopy = slim
+    ? Math.min(SLIM_CONTRIBUTION_CENTS, policy.markupPerCopyCents)
+    : variant?.coverTreatment === "saddleStitch"
+      ? 1500
+      : policy.markupPerCopyCents;
   const contributionFloor = contributionPerCopy * quantity;
-  const productFloor = minimumProductPriceCentsPerCopy(variant, editionKind);
+  const productFloor = minimumProductPriceCentsPerCopy(variant, editionKind, pageCount);
   if (!Number.isInteger(productFloor)) return contributionFloor;
   return Math.max(contributionFloor, productFloor * quantity - manufacturingCents);
 }
@@ -3723,6 +3738,7 @@ function priceBreakdown(quoteRequest, shippingCents, estimatedTaxCents = 0, poli
     quantity,
     policy,
     quoteRequest.editionKind,
+    quoteRequest.pageCount,
   ) + extras;
   const subtotalBeforeProcessing = manufacturing + shippingCents + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
@@ -3758,6 +3774,7 @@ function priceBreakdownFromStoredQuote(quote, selectedShippingOption) {
     quantity,
     policy,
     quote.request.editionKind,
+    quote.request.pageCount,
   ) + extras;
   const subtotalBeforeProcessing = manufacturing + shipping + estimatedTaxCents + markup;
   const processing = paymentProcessingFeeCents(subtotalBeforeProcessing, policy);
