@@ -19,10 +19,10 @@
   const note=(text)=>`<p class="encounter-source">${text}</p>`;
   const form=`<form data-capture-form><label>One thing you noticed<textarea name="sentence" rows="3" maxlength="220" placeholder="The cats are staring at me." required></textarea></label><button type="submit" class="ink-button">Keep this sentence</button><p data-capture-status role="status" class="capture-receipt"></p></form><p class="encounter-source">Only in this tab. Never sent. Erase it in Capture.</p>`;
   const slips={
-    write:{title:'A little room for your ink',html:`${mark('MarginaliaGoblinWritingCrouched')}<p class="eyebrow">Your turn, if you like</p><h2>Catch one bright little thing.</h2><p>A crooked lamp. A suspicious cat. One thing you can see from here.</p>${form}<p class="encounter-permission">Or leave the paper empty. Turn on.</p>`},
+    write:{title:'A little room for your ink',html:`${mark('MarginaliaGoblinWritingCrouched')}<p class="eyebrow">Before I tell you everything</p><h2>Look beside you.</h2><p>Something there has been pretending to be ordinary. Give me one sentence about it.</p>${form}<p class="encounter-permission">Or just turn the Page. I’ve got something.</p>`},
     kept:{title:'One ordinary morning',html:`${mark('MarginaliaFeather')}<p class="eyebrow">A sentence from the maker’s Book</p><h2>A morning, kept.</h2><blockquote class="kept-sentence">Just chilling this morning when I would usually be working; it’s amazing.</blockquote>${note('The reader’s own words, kept on a Plain Page.')}<p class="encounter-permission">That was enough to give me.</p>`},
     mission:{title:'Temperature Border',html:`${mark('MarginaliaCompass')}<p class="eyebrow">A Wonder Compass mission</p><h2>Temperature Border</h2><p>Find the spot in your home where the temperature changes. That is a border. Borders have guards; identify yours.</p><p class="encounter-permission">A real invitation from the app. Try it wherever it suits you, or keep reading.</p><button class="ink-button" type="button" data-encounter-done="mission">I found a border</button><p class="capture-receipt" data-outcome="mission" role="status"></p>`},
-    dare:{title:'A word for the outside',html:`${mark('MarginaliaScrap')}<p class="eyebrow">Wicker has got in</p><h2>Throw a Word Outside</h2><p>Open a window or door. Say one word you love loudly enough for the outside to hear it. One word. Properly launched. Shut the door before it answers.</p><p class="encounter-permission">Only if it suits where you are. Wicker can bear a refusal.</p><button class="ink-button" type="button" data-encounter-done="dare">The word is out</button><form data-dare-word hidden><label>Which word was it?<input name="word" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Thunder"></label><button class="ink-button" type="submit">That was the one</button></form><p class="capture-receipt" data-outcome="dare" role="status"></p>${note('An authored dare from the app. — Wicker Eddies')}`},
+    dare:{title:'A word for the outside',html:`${mark('MarginaliaScrap')}<p class="eyebrow">Wicker has got in</p><h2>Throw a Word Outside</h2><div data-dare-invitation><p>Open a window or door. Say one word you love loudly enough for the outside to hear it. One word. Properly launched. Shut the door before it answers.</p><p class="encounter-permission">Only if it suits where you are. Wicker can bear a refusal.</p></div><button class="ink-button" type="button" data-encounter-done="dare">The word is out</button><form data-dare-word hidden><label>Which word was it?<input name="word" type="text" maxlength="40" autocomplete="off" spellcheck="false" placeholder="Thunder"></label><button class="ink-button" type="submit">That was the one</button></form><p class="capture-receipt" data-outcome="dare" role="status"></p>${note('An authored dare from the app. — Wicker Eddies')}`},
     map:{title:'A border worth drawing',html:`<p class="eyebrow">An ordinary place, redrawn</p><h2>A toll in treats.</h2><img class="encounter-map" src="./assets/book/temperature-border.svg" alt="An imaginary border on a staircase: cooler air above, warmer air below, and two cats guarding the crossing for treats." width="420" height="390">${note('Illustrated from the maker’s Temperature Border response. A playful adaptation, not a geographic map.')}<p class="encounter-permission">The guards have declined to accept coins.</p>`},
     cats:{title:'Something looked back',html:`${mark('MarginaliaGoblinShushing')}<p class="eyebrow">The reader’s own words</p><blockquote class="kept-sentence large-sentence">The cats are staring at me.</blockquote>${note('A souvenir from the maker’s Book.')}<p class="encounter-permission">One sentence. Nothing needed tidying.</p>`},
     remembered:{title:'I chose a favorite',html:`${mark('MarginaliaSeal')}<p class="eyebrow">I brought this back</p><h2>I chose a favorite.</h2><blockquote class="kept-sentence">Just chilling this morning when I would usually be working; it’s amazing.</blockquote><div class="book-reply"><p>This one.</p><p>It’s small and exact. It doesn’t waste a word.</p></div>${note('A real returned Page: the reader’s sentence above, my response below. Prepared here from the maker’s Book.')}`},
@@ -57,9 +57,13 @@
     }
     root.querySelectorAll('[data-capture-form] textarea,[data-capture-form] button').forEach(control=>{control.disabled=false;});
     root.querySelectorAll('[data-capture-form] textarea').forEach(input=>{if(input!==document.activeElement)input.value=draft;});
-    root.querySelectorAll('[data-capture-status]').forEach(el=>{el.textContent=sentence?'Kept. Turn a few leaves. I’ll find a place for it.':'';});
+    root.querySelectorAll('[data-capture-status]').forEach(el=>{el.textContent=sentence?'Kept. Turn on. I’ll find a place for it.':'';});
+    root.querySelectorAll('[data-opening-ink]').forEach(el=>{el.hidden=!sentence;});
+    root.querySelectorAll('[data-without-opening-ink]').forEach(el=>{el.hidden=!!sentence;});
+    root.querySelectorAll('[data-reader-ink]').forEach(el=>{el.textContent=sentence;el.closest('.reading-composition').classList.toggle('has-long-ink',sentence.length>110);});
+    root.querySelectorAll('[data-opening-source]').forEach(el=>{el.textContent=sentence?'Your words, unchanged. An authored scene. Only in this tab.':'An authored scene. Nothing personal was needed.';});
     root.querySelectorAll('[data-outcome]').forEach(el=>{el.textContent=outcomes.get(el.dataset.outcome)||'';});
-    root.querySelectorAll('[data-encounter-done="dare"]').forEach(el=>{el.hidden=outcomes.has('dare');});
+    root.querySelectorAll('[data-encounter-done="dare"],[data-dare-invitation]').forEach(el=>{el.hidden=outcomes.has('dare');});
     root.querySelectorAll('[data-dare-word]').forEach(form=>{
       form.hidden=!outcomes.has('dare')||!!dareWord;
       const input=form.querySelector('input');
@@ -71,6 +75,8 @@
       el.querySelector('[data-if-done]').hidden=!done;
       el.querySelector('[data-if-waiting]').hidden=done;
     });
+    // The opening Story Pages quote this sentence, so they follow it.
+    window.PublicStoryPages?.render(root);
     root.querySelectorAll('[data-returned-ink]').forEach(el=>{
       if(!sentence || steps-capturedAt<3)return;
       el.replaceChildren();
@@ -87,17 +93,19 @@
     if(said){
       event.preventDefault();const word=said.querySelector('input');
       if(!word.value.trim()){word.setCustomValidity('One word will do.');word.reportValidity();return;}
-      word.setCustomValidity('');dareWord=word.value.slice(0,40);persist();hydrate();return;
+      word.setCustomValidity('');dareWord=word.value.slice(0,40);persist();hydrate();window.BookSounds?.play('confirm');return;
     }
     const form=event.target.closest('[data-capture-form]');if(!form)return;
     event.preventDefault();const input=form.querySelector('textarea');if(!input.value.trim()){input.setCustomValidity('A few words will do.');input.reportValidity();return;}
     input.setCustomValidity('');sentence=input.value.slice(0,220);draft=sentence;capturedAt=steps;returnChapter='';clearReturnedInk();persist();hydrate();
+    window.BookSounds?.keep();
   });
   document.addEventListener('input',event=>{if(event.target.matches('[data-capture-form] textarea,[data-dare-word] input'))event.target.setCustomValidity('');});
   document.addEventListener('click',event=>{
     const done=event.target.closest('[data-encounter-done]');
-    if(done){outcomes.set(done.dataset.encounterDone,done.dataset.encounterDone==='mission'?'A border, then. You can keep the guard to yourself.':'Good. It belongs to the outside now.');persist();hydrate();}
+    if(done){outcomes.set(done.dataset.encounterDone,done.dataset.encounterDone==='mission'?'A border, then. You can keep the guard to yourself.':'Good. It belongs to the outside now.');persist();hydrate();window.BookSounds?.play('confirm');}
     if(event.target.closest('[data-erase-ink]')){
+      window.BookSounds?.play('undo');
       sentence='';draft='';returnChapter='';persist();
       clearReturnedInk('Gone. You can leave another sentence in Capture, or let this leaf stay quiet.');
       hydrate();document.querySelectorAll('[data-capture-status]').forEach(el=>el.textContent='Your ink is erased.');

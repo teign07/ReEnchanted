@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <defs>
+    <path id="paper" d="M22.0 20.0 41.2 24.0 60.3 15.0 79.5 20.0 98.7 21.0 117.9 15.0 137.0 22.0 156.2 30.0 175.4 22.0 194.6 18.0 213.7 21.0 232.9 15.0 252.1 25.0 271.2 20.0 290.4 15.0 309.6 15.0 328.8 21.0 347.9 19.0 367.1 20.0 386.3 15.0 405.4 25.0 424.6 22.0 443.8 18.0 463.0 23.0 482.1 17.0 501.3 33.0 520.5 24.0 539.7 23.0 558.8 18.0 578.0 19.0 576.0 22.0 577.0 41.2 583.0 60.3 582.0 79.5 577.0 98.7 582.0 117.9 579.0 137.0 577.0 156.2 584.0 175.4 577.0 194.6 567.0 213.7 583.0 232.9 580.0 252.1 578.0 271.2 583.0 290.4 581.0 309.6 577.0 328.8 584.0 347.9 583.0 367.1 568.0 386.3 578.0 405.4 577.0 424.6 580.0 443.8 575.0 463.0 575.0 482.1 577.0 501.3 585.0 520.5 577.0 539.7 585.0 558.8 577.0 578.0 578.0 582.0 558.8 580.0 539.7 581.0 520.5 582.0 501.3 571.0 482.1 584.0 463.0 576.0 443.8 585.0 424.6 578.0 405.4 579.0 386.3 578.0 367.1 580.0 347.9 579.0 328.8 585.0 309.6 579.0 290.4 575.0 271.2 581.0 252.1 580.0 232.9 581.0 213.7 582.0 194.6 565.0 175.4 580.0 156.2 576.0 137.0 585.0 117.9 580.0 98.7 575.0 79.5 584.0 60.3 579.0 41.2 575.0 22.0 582.0 25.0 578.0 21.0 558.8 16.0 539.7 23.0 520.5 16.0 501.3 24.0 482.1 16.0 463.0 37.0 443.8 18.0 424.6 22.0 405.4 18.0 386.3 25.0 367.1 22.0 347.9 25.0 328.8 22.0 309.6 19.0 290.4 21.0 271.2 22.0 252.1 22.0 232.9 21.0 213.7 25.0 194.6 37.0 175.4 15.0 156.2 22.0 137.0 24.0 117.9 15.0 98.7 17.0 79.5 25.0 60.3 15.0 41.2 17.0 22.0Z"/>
+    <linearGradient id="stock" x2=".18" y2="1">
+      <stop stop-color="#ddbc7d"/><stop offset=".24" stop-color="#f1deb3"/><stop offset=".7" stop-color="#e9cd96"/><stop offset="1" stop-color="#c69551"/>
+    </linearGradient>
+    <radialGradient id="scorch">
+      <stop stop-color="#26150d" stop-opacity=".8"/><stop offset=".5" stop-color="#784219" stop-opacity=".28"/><stop offset="1" stop-color="#7c3b13" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="rough" x="-5%" y="-5%" width="110%" height="110%">
+      <feTurbulence type="fractalNoise" baseFrequency=".13" numOctaves="3" seed="33" result="grain"/>
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="fibres">
+      <feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="3" seed="12"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .27 0 0 0 0 .12 0 0 0 0 .04 0 0 0 .18 0"/>
+    </filter>
+    <clipPath id="shape"><use href="#paper"/></clipPath>
+  </defs>
+  <g filter="url(#rough)">
+    <use href="#paper" fill="url(#stock)" stroke="#1d100b" stroke-width="17" stroke-linejoin="round"/>
+    <use href="#paper" fill="url(#stock)" stroke="#6f3516" stroke-width="8" stroke-linejoin="round"/>
+    <use href="#paper" fill="none" stroke="#b66a2c" stroke-width="2" stroke-linejoin="round"/>
+    <g clip-path="url(#shape)">
+      <rect width="600" height="600" filter="url(#fibres)" opacity=".7"/>
+      <ellipse cx="368" cy="12" rx="56" ry="61" fill="url(#scorch)"/><ellipse cx="588" cy="456" rx="74" ry="52" fill="url(#scorch)"/><ellipse cx="386" cy="588" rx="51" ry="65" fill="url(#scorch)"/><ellipse cx="12" cy="141" rx="59" ry="60" fill="url(#scorch)"/>
+    </g>
+  </g>
+</svg>

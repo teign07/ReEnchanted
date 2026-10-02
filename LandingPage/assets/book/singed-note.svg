@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240" viewBox="0 0 600 240">
+  <defs>
+    <path id="paper" d="M18 22 37 17 59 20 78 14 108 19 143 15 181 19 210 15 249 19 288 16 327 20 363 14 400 18 434 14 471 18 494 13 512 22 525 16 541 25 555 21 575 32 581 51 575 70 583 91 578 113 583 138 576 158 581 178 572 196 578 211 553 218 533 212 517 221 485 216 451 224 418 219 384 223 348 218 311 224 275 219 240 223 207 218 176 222 143 216 116 222 96 215 77 220 68 209 51 215 44 200 28 203 24 182 17 169 23 149 16 126 22 106 16 83 22 63 15 43Z"/>
+    <linearGradient id="stock" x2=".15" y2="1">
+      <stop stop-color="#ddbc7d"/><stop offset=".24" stop-color="#f1deb3"/><stop offset=".7" stop-color="#e9cd96"/><stop offset="1" stop-color="#c69551"/>
+    </linearGradient>
+    <radialGradient id="scorch" r=".72">
+      <stop offset=".72" stop-color="#7c3b13" stop-opacity="0"/><stop offset=".88" stop-color="#784219" stop-opacity=".12"/><stop offset=".97" stop-color="#542209" stop-opacity=".45"/><stop offset="1" stop-color="#26150d"/>
+    </radialGradient>
+    <filter id="rough" x="-5%" y="-10%" width="110%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency=".13" numOctaves="3" seed="12" result="grain"/>
+      <feDisplacementMap in="SourceGraphic" in2="grain" scale="5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="fibres">
+      <feTurbulence type="fractalNoise" baseFrequency=".6" numOctaves="3" seed="9"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .27 0 0 0 0 .12 0 0 0 0 .04 0 0 0 .18 0"/>
+    </filter>
+    <clipPath id="shape"><use href="#paper"/></clipPath>
+  </defs>
+  <g filter="url(#rough)">
+    <use href="#paper" fill="url(#stock)" stroke="#1d100b" stroke-width="17" stroke-linejoin="round"/>
+    <use href="#paper" fill="url(#stock)" stroke="#6f3516" stroke-width="7" stroke-linejoin="round"/>
+    <use href="#paper" fill="url(#scorch)"/>
+    <g clip-path="url(#shape)">
+      <rect width="600" height="240" filter="url(#fibres)" opacity=".7"/>
+      <ellipse cx="535" cy="12" rx="64" ry="42" fill="url(#scorch)"/>
+      <ellipse cx="36" cy="217" rx="56" ry="42" fill="url(#scorch)"/>
+      <path d="m20 57 13 5-8 12 5 9-11 7m555 101-15-4 9-9-7-8 17-5" fill="#20100b" opacity=".8"/>
+    </g>
+    <path d="m493 13 18 9 14-6m-481 184 7 15 17-6m487-188 20 11" fill="none" stroke="#c56223" stroke-width="1.5" opacity=".75"/>
+    <path d="m496 15 13 6m-463 181 6 11" fill="none" stroke="#f8bb64" stroke-width=".65" opacity=".8"/>
+  </g>
+</svg>

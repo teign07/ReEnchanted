@@ -1,7 +1,7 @@
 /* The opening knows the hour locally. Weather is an explicit, one-time choice. */
 (() => {
   'use strict';
-  let weatherLine='',pending=false;
+  let weatherLine='',skyKind='',pending=false;
   function clockLine(date=new Date()){
     const hour=date.getHours();
     if(hour<5)return 'It’s late where you are. The next day has arrived, but you needn’t answer it yet.';
@@ -21,11 +21,18 @@
     if(code<=86)return 'There are snow showers near you. A few more loose Pages coming down.';
     return 'There’s a thunderstorm near you. The sky has found its loud voice.';
   }
+  // A coarse kind of sky, for pages that want to react without being handed a forecast.
+  function kindOf(code){
+    if(code===0)return 'clear';if(code<=3)return 'cloud';if(code<=48)return 'fog';if(code<=67)return 'rain';
+    if(code<=77)return 'snow';if(code<=82)return 'rain';if(code<=86)return 'snow';return 'storm';
+  }
+  window.PublicSky={kind:()=>skyKind};
   function render(){
     document.querySelectorAll('#hero-opener').forEach(el=>el.textContent=weatherLine||clockLine());
     // The sky page shows the reader's own weather, and only once they ask.
     document.querySelectorAll('[data-sky-line]').forEach(el=>{el.textContent=weatherLine;el.hidden=!weatherLine;});
-    document.querySelectorAll('[data-read-sky]').forEach(button=>{button.disabled=pending;button.textContent=weatherLine?'Read the weather again':'Let this Page read my weather';});
+    document.querySelectorAll('[data-read-sky]').forEach(button=>{button.disabled=pending;button.textContent=weatherLine?'Read the weather again':(button.dataset.skyLabel||'Let this Page read my weather');});
+    document.querySelectorAll('[data-sky-once]').forEach(el=>{el.hidden=!!weatherLine;});
   }
   function status(text){document.querySelectorAll('[data-sky-status]').forEach(el=>el.textContent=text);}
   document.addEventListener('click',async event=>{
@@ -40,7 +47,7 @@
       if(!response.ok)throw new Error('weather');
       const data=await response.json(),code=data?.current?.weather_code;
       if(!Number.isInteger(code)||code<0||code>99)throw new Error('weather');
-      weatherLine=skyLine(code);status('Current weather from Open-Meteo. Location used once, not stored.');
+      weatherLine=skyLine(code);skyKind=kindOf(code);document.dispatchEvent(new Event('public-sky'));status('Current weather from Open-Meteo. Location used once, not stored.');
     }catch{status('I couldn’t read the sky. You can keep reading, or try again.');}
     finally{pending=false;render();}
   });

@@ -15,6 +15,7 @@
   const anchors = new Map();
   const sheetIDs = new Set(['contents','invitation','glow','capture','body','place','radio-player']);
   let pager = null, current = 0, active = false, rebuilding = false;
+  let audibleIndex = 0;
   let lastWidth = 0, resizeTimer, dialogReturnFocus = null;
   let closingDialog = null, navigationRunning = false, queuedNavigation = null, finishTurn = null, isRiffling = false;
   const dialog = document.createElement('dialog');
@@ -24,6 +25,44 @@
   document.body.append(dialog);
   const dialogBody = dialog.querySelector('.dialog-body');
   let borrowed = null, borrowedPlace = null;
+  let sheetEmbers = null, emberBurst = 0;
+
+  function clearSheetEmbers() {
+    sheetEmbers?.remove();
+    sheetEmbers = null;
+  }
+  function shedSheetLetters(id) {
+    clearSheetEmbers();
+    if (reducedMotion.matches || document.hidden || ![...document.querySelectorAll('.binding-tabs a')].some(link => link.hash === '#'+id)) return;
+    const embers = document.createElement('div');
+    embers.className = 'sheet-embers';
+    embers.setAttribute('aria-hidden', 'true');
+    sheetEmbers = embers;
+    const alphabet = (dialog.querySelector('h2')?.textContent || id).toUpperCase().replace(/[^A-Z]/g, '') || 'INK';
+    const seed = [...id].reduce((sum, character) => sum + character.charCodeAt(0), 0) + emberBurst++ * 17;
+    const narrow = innerWidth <= 600;
+    for (let i = 0; i < (narrow ? 8 : 12); i++) {
+      const letter = document.createElement('span');
+      const edge = i % 3; // Top, left, right: the letters escape away from the reading area.
+      letter.textContent = alphabet[(seed + i * 7) % alphabet.length];
+      letter.style.setProperty('--ember-x', `${edge === 0 ? 12 + (seed + i * 23) % 68 : edge === 1 ? 3 : 97}%`);
+      letter.style.setProperty('--ember-y', `${edge === 0 ? 2 : 18 + (seed + i * 19) % 68}%`);
+      letter.style.setProperty('--ember-size', `${12 + (seed + i * 3) % 8}px`);
+      letter.style.setProperty('--ember-drift', `${edge === 0 ? -16 + (seed + i * 11) % 33 : (edge === 1 ? -1 : 1) * (narrow ? 8 : 24)}px`);
+      letter.style.setProperty('--ember-rise', `${-55 - (seed + i * 13) % 40}px`);
+      letter.style.setProperty('--ember-turn', `${-55 + (seed + i * 17) % 110}deg`);
+      letter.style.setProperty('--ember-time', `${1800 + (seed + i * 97) % 550}ms`);
+      letter.style.setProperty('--ember-delay', `${180 + (seed + i * 37) % 240}ms`);
+      letter.addEventListener('animationend', () => {
+        letter.remove();
+        if (!embers.childElementCount && sheetEmbers === embers) clearSheetEmbers();
+      }, { once: true });
+      embers.append(letter);
+    }
+    dialog.append(embers);
+  }
+  reducedMotion.addEventListener('change', clearSheetEmbers);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) clearSheetEmbers(); });
 
   function restoreSheet() {
     if (borrowed) { borrowedPlace.replaceWith(borrowed); borrowed = null; }
@@ -33,7 +72,7 @@
     const rect=stage.getBoundingClientRect();
     const width=Math.min(dialog.classList.contains('is-glow')?370:440,innerWidth-28);
     const left=Math.max(14,Math.min(innerWidth-width-14,rect.right-width+24));
-    const top=Math.max(20,Math.min(rect.top+12,innerHeight-340));
+    const top=dialog.dataset.sheet==='invitation' ? 24 : Math.max(20,Math.min(rect.top+12,innerHeight-340));
     dialog.style.setProperty('--sheet-left',left+'px');
     dialog.style.setProperty('--sheet-top',top+'px');
     dialog.style.setProperty('--sheet-width',width+'px');
@@ -42,6 +81,8 @@
   function closeDialog() {
     if(closingDialog) return closingDialog;
     if(!dialog.open) return Promise.resolve();
+    clearSheetEmbers();
+    window.BookSounds?.play('close');
     closingDialog=(async()=>{
       if(dialog.classList.contains('binding-dialog') && !reducedMotion.matches){
         const animation=dialog.animate([{transform:'translateX(0)',opacity:1},{transform:'translateX(42px)',opacity:1,offset:.3},{transform:'translateX(var(--tucked-x)) scale(.96)',opacity:0}],{duration:390,easing:'ease-in-out',fill:'forwards'});
@@ -57,11 +98,12 @@
   dialog.addEventListener('click', event => { if (event.target === dialog && (event.clientX < dialog.getBoundingClientRect().left || event.clientX > dialog.getBoundingClientRect().right || event.clientY < dialog.getBoundingClientRect().top || event.clientY > dialog.getBoundingClientRect().bottom)) closeDialog(); });
   dialog.addEventListener('close', () => {
     if (dialog.open) return;
+    clearSheetEmbers();
     restoreSheet();
     document.body.style.overflow = '';
     dialogReturnFocus?.focus({ preventScroll: true });
   });
-  async function openSheet(id) {
+  async function openSheet(id, sound = true) {
     const source = document.getElementById(id);
     if (!source) return false;
     if (dialog.open) await closeDialog();
@@ -72,13 +114,17 @@
     dialogBody.replaceChildren(source);
     dialog.classList.add('binding-dialog');
     dialog.classList.toggle('is-glow',id==='glow');
+    dialog.dataset.sheet = id;
     positionSheet();
     document.querySelectorAll('.binding-tabs a').forEach(link=>link.setAttribute('aria-expanded',String(link.hash==='#'+id)));
     dialog.setAttribute('aria-label', source.querySelector('h2')?.textContent || 'Notes in the Book');
     dialog.showModal();
+    if(sound) window.BookSounds?.play(id==='glow'?'glowopen':'peek');
     window.PublicEdition?.hydrate(dialog);
     if(!reducedMotion.matches) dialog.animate([{transform:'translateX(var(--tucked-x)) scale(.96)',opacity:0},{transform:'translateX(56px)',opacity:1,offset:.65},{transform:'translateX(0)',opacity:1}],{duration:560,easing:'cubic-bezier(.2,.7,.2,1)'});
+    shedSheetLetters(id);
     dialog.scrollTop = 0;
+    dialogBody.scrollTop = 0;
     document.body.style.overflow = 'hidden';
     return true;
   }
@@ -88,12 +134,14 @@
     if (!source) return;
     if (dialog.open) await closeDialog();
     dialog.classList.remove('binding-dialog','is-glow');
+    delete dialog.dataset.sheet;
     dialogReturnFocus = document.activeElement;
     const figure = document.createElement('figure'); figure.className='enlarged-plate';
     const img=source.cloneNode();img.loading='eager';figure.append(img);
     const caption=document.createElement('figcaption');caption.textContent=source.alt;figure.append(caption);
     dialogBody.replaceChildren(figure);dialog.setAttribute('aria-label',source.alt);
     dialog.showModal();document.body.style.overflow='hidden';
+    window.BookSounds?.play('peek');
   }
 
   // Blocks are semantic units, not screenshots. Paragraph splits preserve inline links.
@@ -266,10 +314,18 @@
       });
     } finally { measure.remove(); }
   }
+  function voiceNavigation(from, to) {
+    if(to===audibleIndex) return;
+    audibleIndex=to;
+    if(pages[from]?.classList.contains('is-cover')) window.BookSounds?.play('open');
+    else if(pages[to]?.classList.contains('is-cover')) window.BookSounds?.play('close');
+    else window.BookSounds?.turn(to>from);
+  }
   function updateState(index, writeHistory = true) {
-    current=Math.max(0,Math.min(pages.length-1,index));
+    const destination=Math.max(0,Math.min(pages.length-1,index));
+    current=destination;
     previous.disabled=current===0; next.disabled=current===pages.length-1;
-    next.setAttribute('aria-label',pages[current].dataset.chapter==='first-parting'?'Continue into the complete information chapters':'Next page');
+    next.setAttribute('aria-label',pages[current].dataset.chapter==='first-parting'?'Keep wandering through the binding':'Next page');
     stage.classList.toggle('is-closed',pages[current].classList.contains('is-cover'));
     document.querySelector('#turn-hint').textContent=pages[current].classList.contains('is-cover')?'Open the cover. There’s a Book inside.':'Drag a page corner, or use the arrows.';
     // Everything that isn't the reference appendix is the first reading —
@@ -278,7 +334,7 @@
     const inReference=pages[current].dataset.reference==='true';
     position.textContent=pages[current].dataset.title+' · '+(inReference?'The complete chapters':String(current+1).padStart(2,'0')+' / '+firstCount);
     const returnLink=document.querySelector('.reading-return');
-    if(returnLink){returnLink.hidden=!inReference;returnLink.href='#'+(window.PublicEdition?.readingBookmark||'first-arrival');}
+    if(returnLink){returnLink.hidden=!inReference;returnLink.href='#'+(window.PublicEdition?.readingBookmark||'about');}
     if(pages[current].dataset.reading)window.PublicEdition.readingBookmark=pages[current].dataset.chapter;
     if(!isRiffling) window.PublicEdition?.visit(pages[current],current);
     pages.forEach((page,i) => {
@@ -321,6 +377,7 @@
     if(!active) return;
     if(navigationRunning){queuedNavigation={index,animate};return;}
     if(index===current) return;
+    voiceNavigation(current,index);
     if(animate && !reducedMotion.matches && (pages[current].classList.contains('is-cover') || pages[index].classList.contains('is-cover'))){
       navigationRunning=true;
       const opening=pages[current].classList.contains('is-cover');
@@ -459,8 +516,8 @@
     const raw=hash.replace(/^#/,'') || 'cover';
     let decoded; try { decoded=decodeURIComponent(raw); } catch { return null; }
     const [id,offsetText]=decoded.split('~');
-    const aliases={top:'cover',book:'first-arrival','encounter-write':'first-write','encounter-mission':'first-mission','encounter-dare':'first-dare','encounter-map':'first-map','encounter-kept':'first-kept','encounter-remembered':'first-remembered'};
-    const key=aliases[id]||id;
+    const aliases={top:'cover',book:'about','encounter-write':'first-write','encounter-mission':'first-mission','encounter-dare':'first-dare','encounter-map':'first-map','encounter-kept':'first-kept','encounter-remembered':'first-remembered'};
+    const key=aliases[id] && anchors.has(aliases[id]) ? aliases[id] : id;
     if(!anchors.has(key)) return null;
     const base=anchors.get(key), offset=Number(offsetText)||0;
     const target=Math.min(pages.length-1,base+Math.max(0,offset));
@@ -479,13 +536,27 @@
     room.hidden=false;
     paginate();
     current=resolveHash(preferredHash)??0;
+    audibleIndex=current;
     folio.replaceChildren(...pages);
     const plainMotion=reducedMotion.matches || !window.St?.PageFlip;
     document.body.classList.toggle('is-reduced-motion',plainMotion);
     if(!plainMotion) {
       pager=new St.PageFlip(folio,{width,height,size:'fixed',usePortrait:true,autoSize:false,startPage:current,drawShadow:true,maxShadowOpacity:.4,flippingTime:850,showCover:false,mobileScrollSupport:true,useMouseEvents:true,showPageCorners:true,disableFlipByClick:true,swipeDistance:35,clickEventForward:true});
       pager.on('flip',event=>{ if(!rebuilding) updateState(event.data); });
-      pager.on('changeState',event=>{if(event.data==='read' && !rebuilding) {updateState(pager.getCurrentPageIndex(),false);finishTurn?.();}});
+      pager.on('changeState',event=>{
+        if(rebuilding)return;
+        // Corner clicks and swipes speak before their animation starts.
+        // go() already speaks for explicit navigation; fold() handles drags.
+        if(event.data==='flipping' && !navigationRunning){
+          const direction=pager.getFlipController().getCalculation()?.getDirection();
+          if(direction!==undefined)voiceNavigation(current,current+(direction===0?1:-1));
+        }
+        if(event.data==='read'){
+          updateState(pager.getCurrentPageIndex(),false);
+          audibleIndex=current; // A cancelled drag can be lifted again.
+          finishTurn?.();
+        }
+      });
       pager.loadFromHTML(pages);
       // Paper, tint and illumination are dealt once the leaves exist.
       window.PublicIlluminationDeck?.illuminateAll(folio);
@@ -511,7 +582,10 @@
         if(onCover()){go(current+1);return;}
         if(pager.getState()==='user_fold'){nativeFold(point);return;}
         if(controller.getDirectionByPoint(pager.getRender().convertToBook(point))===1)go(current-1);
-        else nativeFold(point);
+        else {
+          if(controller.checkDirection(0))voiceNavigation(current,current+1);
+          nativeFold(point);
+        }
       };
       controller.showCorner=point=>{if(!navigationRunning && !onCover() && controller.getDirectionByPoint(pager.getRender().convertToBook(point))!==1)nativeCorner(point);};
       const nativeStop=pager.userStop.bind(pager);
@@ -532,6 +606,7 @@
     updateState(current,false);
   }
   function continuous() {
+    window.BookSounds?.select();
     active=false;room.hidden=true;document.body.classList.remove('book-active');
     modeButton.textContent='Read as a Book';
     const id=pages[current]?.dataset.chapter;
@@ -540,13 +615,19 @@
   previous.addEventListener('click',()=>go(current-1));next.addEventListener('click',()=>go(current+1));
   modeButton.addEventListener('click',()=>{if(active) continuous();else{initialize('#'+(pages[current]?.dataset.chapter||'frontispiece'));stage.focus({preventScroll:true});window.scrollTo(0,0);}});
   document.addEventListener('click',async event=>{
+    if(event.target.closest('.glow-disclosure > summary')) {
+      window.BookSounds?.select();
+      return;
+    }
     const plate=event.target.closest('[data-plate]');
     if(plate){event.preventDefault();openPlate(plate.dataset.plate);return;}
     if(event.target.closest('[data-reading-mode]')){if(dialog.open)await closeDialog();continuous();return;}
     const link=event.target.closest('a[href^="#"]');
     if(!link || !active || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const glowOption = !!link.closest('.glow-submenu');
+    if(glowOption) window.BookSounds?.play('peek');
     const id=link.hash.slice(1);
-    if(sheetIDs.has(id) || id.startsWith('note-')) { event.preventDefault();openSheet(id);return; }
+    if(sheetIDs.has(id) || id.startsWith('note-')) { event.preventDefault();openSheet(id,!glowOption);return; }
     const target=resolveHash(link.hash);
     if(target!==null) { event.preventDefault();if(dialog.open) await closeDialog();go(target);stage.focus({preventScroll:true}); }
     else if(id==='manuscript') { event.preventDefault();stage.focus(); }
@@ -571,7 +652,9 @@
   reducedMotion.addEventListener('change',()=>{if(active) initialize(location.hash);});
 
   async function prepareRadio() {
-    const select=document.querySelector('#station-select');
+    const dial=document.querySelector('#radio-frequency');
+    const readout=document.querySelector('#radio-frequency-readout');
+    const marks=document.querySelector('#radio-station-marks');
     const audio=document.querySelector('#book-audio');
     // Playback survives opening/closing sheets and turning leaves.
     audio.removeAttribute('controls');audio.hidden=true;document.body.append(audio);
@@ -583,58 +666,89 @@
     controls.innerHTML='<label for="radio-seek">Song position <output id="radio-time">0:00</output></label><input id="radio-seek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Song position"><label for="radio-volume">Volume</label><input id="radio-volume" type="range" min="0" max="1" step="0.01" value="0.6">';
     play.parentElement.after(controls);
     const seek=controls.querySelector('#radio-seek'),volume=controls.querySelector('#radio-volume'),time=controls.querySelector('#radio-time');
-    let stations=[],stationIndex=0,trackIndex=0,isBreak=false;
+    let stations=[],stationIndex=-1,trackIndex=0,isBreak=false,powered=false;
     audio.volume=.6;play.disabled=true;skip.disabled=true;
     const format=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
     function announce() {
-      const playing=!audio.paused;
-      play.textContent=playing?'Pause the Radio':audio.src?'Keep listening':'Tune in';
-      play.setAttribute('aria-pressed',String(playing));
-      pocket.hidden=!playing;
+      play.textContent=powered?'Switch the Radio off':'Switch the Radio on';
+      play.setAttribute('aria-pressed',String(powered));
+      pocket.hidden=!powered;
       pocket.querySelector('span').textContent=stations[stationIndex]?.name || 'Radio';
-      document.querySelector('.tab-radio').classList.toggle('is-playing',playing);
+      document.querySelector('.tab-radio').classList.toggle('is-playing',powered);
+      skip.disabled=stationIndex<0;
+      seek.disabled=stationIndex<0;
     }
     async function listen(item,asBreak=false) {
-      isBreak=asBreak;message.textContent='';
+      isBreak=asBreak;message.textContent=stations[stationIndex]?.hidden?'UNLISTED TRANSMISSION · Signal origin withheld.':'';
+      audio.loop=false;
       audio.src=item.src || item.blessedSrc;
       now.textContent=asBreak?stations[stationIndex].host+' · on air':item.title+' · '+item.artist;
       seek.value=0;time.textContent='0:00';
       tracks.querySelectorAll('button').forEach((button,index)=>{
         if(!asBreak && index===trackIndex)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');
       });
-      try {await audio.play();}catch(error){if(error.name!=='AbortError')message.textContent='The signal couldn’t start. Press play to try again.';}
+      try {await audio.play();}catch(error){if(error.name!=='AbortError'){powered=false;message.textContent='The signal couldn’t start. Switch on to try again.';}}
       announce();
     }
-    function tune(index,resume=false) {
+    function nearestFrequency(frequency) {
+      // The old cabinet's pirate signal lives on one unmarked tenth of FM.
+      const hidden=stations.findIndex(station=>station.hidden && Math.abs(station.freq-frequency)<.051);
+      if(hidden>=0)return hidden;
+      let found=-1,distance=.50001;
+      stations.forEach((station,index)=>{
+        const gap=Math.abs(station.freq-frequency);
+        if(!station.hidden && gap<distance){found=index;distance=gap;}
+      });
+      return found;
+    }
+    async function staticSignal() {
+      audio.loop=true;isBreak=false;
+      audio.src='./assets/audio/radio-free-margin-static.m4a';
+      try{await audio.play();}catch(error){if(error.name!=='AbortError'){powered=false;message.textContent='Switch the Radio on to hear the signal.';}}
+      announce();
+    }
+    function startSignal() {
+      if(stationIndex<0){staticSignal();return;}
+      const station=stations[stationIndex];
+      const intro=station.banters.find(b=>b.category==='stationID' && !b.conditions);
+      listen(intro || station.tracks[trackIndex],!!intro);
+    }
+    function tuneFrequency() {
+      const frequency=Number(dial.value),index=nearestFrequency(frequency);
+      readout.textContent=frequency.toFixed(1)+' FM';
+      document.querySelector('#station-needle').style.left=((frequency-88)/20*100)+'%';
+      dial.setAttribute('aria-valuetext',frequency.toFixed(1)+' FM · '+(stations[index]?.name || 'Static between stations'));
+      if(index===stationIndex && dial.dataset.ready)return;
+      dial.dataset.ready='true';
       audio.pause();audio.removeAttribute('src');audio.load();
+      audio.loop=false;
       stationIndex=index;trackIndex=0;isBreak=false;
       const station=stations[index];
-      select.value=String(index);description.textContent=station.tagline;
-      document.querySelector('#station-needle').style.left=((station.freq-88)/20*100)+'%';
-      now.textContent=station.freq.toFixed(1)+' FM · '+station.host;message.textContent='';
+      document.querySelector('#radio-player').classList.toggle('is-pirate',!!station?.hidden);
+      description.textContent=station?.tagline || 'Keep turning. Something might be hiding in the noise.';
+      now.textContent=station?station.name+' · '+station.host:'Static between stations.';
+      message.textContent=station?.hidden?'UNLISTED TRANSMISSION · Signal origin withheld.':'';
       seek.value=0;time.textContent='0:00';
-      tracks.replaceChildren(...station.tracks.map((track,idx)=>{
+      tracks.replaceChildren(...(station?.tracks || []).map((track,idx)=>{
         const li=document.createElement('li'),button=document.createElement('button');button.type='button';
-        button.textContent=track.title;button.addEventListener('click',()=>{trackIndex=idx;listen(track);});li.append(button);return li;
+        button.textContent=track.title;button.addEventListener('click',()=>{window.BookSounds?.select();powered=true;trackIndex=idx;listen(track);});li.append(button);return li;
       }));
-      announce();if(resume)listen(station.tracks[0]);
+      announce();if(powered)startSignal();
     }
     function nextSong(){trackIndex=(trackIndex+1)%stations[stationIndex].tracks.length;listen(stations[stationIndex].tracks[trackIndex]);}
-    select.addEventListener('change',()=>tune(Number(select.value),!audio.paused));
+    dial.addEventListener('input',tuneFrequency);
     play.addEventListener('click',async()=>{
-      if(!audio.paused){audio.pause();return;}
-      if(!audio.getAttribute('src')){
-        const station=stations[stationIndex];
-        const intro=station.banters.find(b=>b.category==='stationID' && !b.conditions);
-        listen(intro || station.tracks[trackIndex],!!intro);return;
-      }
-      try{await audio.play();message.textContent='';}catch{message.textContent='The signal couldn’t start. Try another song.';}
+      window.BookSounds?.play('tap');
+      powered=!powered;
+      if(!powered){audio.pause();announce();return;}
+      startSignal();
     });
-    skip.addEventListener('click',()=>{if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
-    audio.addEventListener('ended',()=>{if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
+    skip.addEventListener('click',()=>{window.BookSounds?.select();powered=true;if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
+    audio.addEventListener('ended',()=>{if(!powered || stationIndex<0)return;if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
     audio.addEventListener('play',announce);audio.addEventListener('pause',announce);
-    audio.addEventListener('error',()=>{message.textContent='That recording couldn’t be reached. Try another song.';announce();});
+    audio.addEventListener('error',()=>{powered=false;message.textContent='That recording couldn’t be reached. Try another frequency.';announce();});
     audio.addEventListener('timeupdate',()=>{
+      if(stationIndex<0)return;
       if(Number.isFinite(audio.duration) && audio.duration>0){seek.value=String(audio.currentTime/audio.duration*100);time.textContent=format(audio.currentTime)+' / '+format(audio.duration);}
     });
     seek.addEventListener('input',()=>{if(Number.isFinite(audio.duration))audio.currentTime=Number(seek.value)/100*audio.duration;});
@@ -645,9 +759,13 @@
       stations=await response.json();
       stations=stations.map(station=>({...station,tracks:station.tracks.filter(track=>track.src || track.blessedSrc)})).filter(station=>station.tracks.length);
       if(!stations.length)throw new Error('No recordings');
-      select.replaceChildren(...stations.map((station,index)=>new Option(station.freq.toFixed(1)+' FM · '+station.name,String(index))));
-      play.disabled=false;skip.disabled=false;tune(0);
-    }catch{select.replaceChildren(new Option('Radio unavailable',''));select.disabled=true;message.textContent='The frequencies couldn’t be found. Reload the page to try again.';}
+      marks.replaceChildren(...stations.filter(station=>!station.hidden).map(station=>{
+        const button=document.createElement('button');button.type='button';button.className='reading-option';
+        button.textContent=station.freq.toFixed(1);button.title=station.name;button.setAttribute('aria-label',station.freq.toFixed(1)+' FM · '+station.name);
+        button.addEventListener('click',()=>{dial.value=station.freq;window.BookSounds?.select();tuneFrequency();});return button;
+      }));
+      play.disabled=false;dial.disabled=false;tuneFrequency();
+    }catch{dial.disabled=true;message.textContent='The frequencies couldn’t be found. Reload the page to try again.';}
   }
   async function start() {
     try {
