@@ -1131,7 +1131,16 @@ struct MLXBookBraider: Braider {
         if pointOfView.repaired > 0 {
             appLog.info("Braid returned \(pointOfView.repaired, privacy: .public) of the reader's actions to them")
         }
-        let prose = pointOfView.text
+        // What the Book must never do is taken out here, where it can't be copied.
+        let scrub = BraidTellingScrub.scrubbed(
+            pointOfView.text,
+            readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
+            isHardNight: scenePlan.isHardNight
+        )
+        if !scrub.dropped.isEmpty {
+            appLog.info("Braid scrub took out \(scrub.dropped.count, privacy: .public) sentence(s) that spoke for the reader or made light of a hard night")
+        }
+        let prose = scrub.text
         let tellingText = "\(scenePlan.title())\n\n\(prose)"
         let issues = BraidOutputAudit.issues(
             in: tellingText, for: day, context: judgedContext
@@ -1168,6 +1177,7 @@ struct MLXBookBraider: Braider {
         finalTags += scenePlan.residueTags(surviving: claims)
         if !issues.isEmpty { finalTags.append("braid-audit-best-effort") }
         if pointOfView.repaired > 0 { finalTags.append("braid-pov-returned") }
+        if !scrub.dropped.isEmpty { finalTags.append("braid-scrubbed") }
         var seenFinalTags = Set<String>()
         finalTags = finalTags.filter { seenFinalTags.insert($0).inserted }
 

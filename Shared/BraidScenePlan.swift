@@ -1946,7 +1946,11 @@ enum BraidWornImages {
         " shimmer", " shimmering", " iridescent", " ethereal", " glimmer", " tapestry",
         " mote", " dance", " dances", " dancing", " danced", " trapped", " hazy", " strangely",
         // The brief's own machinery, and an essayist's verbs.
-        " vignette", " subplot", " observed", " remarkable"
+        " vignette", " subplot", " observed", " remarkable",
+        // The words the Mac lab found in nearly every telling (2026-10-02):
+        // "strange" in 35 of 50, "tiny" in 31, "watched" in 49. Masked, the model
+        // reaches for a plainer verb or leaves the sentence alone.
+        " strange", " tiny", " watched", " noticed"
     ]
 
     /// Masked only straight after the word before it: "dust" is a fine word,
@@ -2888,6 +2892,10 @@ extension BraidScenePlan {
         return lines
     }
 
+    /// A night holding something the reader hasn't put down. The world may be
+    /// beside it and may not be about it, and nothing in the telling is funny.
+    var isHardNight: Bool { !mustRemainUnresolved.isEmpty }
+
     func brief() -> String {
         var livedMaterial: [String] = []
         var keptMaterial: [String] = []
@@ -2952,7 +2960,10 @@ extension BraidScenePlan {
             // Rabbit's small output turn used to spend itself walking the
             // reader facts in order, then stop before the later world request.
             // This is one event to weave, not a second outline to execute.
-            lines.append("\(Self.worldLabel) \(joined(worldMaterial))")
+            // The tender register rides inside the label, where the 2B model has
+            // no sentence to copy: it quoted every rule it was given as prose.
+            let label = isHardNight ? Self.hardNightWorldLabel : Self.worldLabel
+            lines.append("\(label) \(joined(worldMaterial))")
             lines.append("Before the first paragraph ends, make at least one concrete detail from that odd thing happen in the story. Do not omit it, list it, or leave it as background information.")
         }
         if !livedMaterial.isEmpty {
@@ -2991,6 +3002,7 @@ extension BraidScenePlan {
     /// in the mode lines, the 2B model wrote the machinery into the story:
     /// "Then the shared world slipped in" in 20 of 50 tellings (2026-09-24).
     static let worldLabel = "Something odd in my world tonight (it must happen in the story):"
+    static let hardNightWorldLabel = "Something odd in my world tonight (it happens quietly, and nobody laughs at it):"
     static let readerDayLabel = "Reader-day material (the reader did these, not me; write them with \"you\"):"
     static let closingInstruction = "Return only the finished story, with no title. Its last sentence begins The Book kept the page: then tells what one object from tonight did, in a few plain words."
 
@@ -3950,4 +3962,110 @@ extension BraidScenePlan {
         "of", "on", "or", "the", "to", "with", "that", "which", "was", "were",
         "is", "are", "had", "has", "have", "it", "its", "my", "your"
     ]
+}
+
+
+// MARK: - The scrub
+
+/// What is taken out of a telling after it is written and before it is kept.
+/// Prompt tweaks only move noise on a 2B model, and a rule written as a
+/// sentence is pasted into the story, so the things the Book must never do are
+/// removed here, where they cannot be copied and cannot fail.
+enum BraidTellingScrub {
+    struct Result: Equatable {
+        var text: String
+        /// Sentences taken out, for the log and the tests.
+        var dropped: [String]
+        var contractions: Int
+    }
+
+    /// The reader's body and feelings, which only the reader gets to report.
+    private static let readerBody = try! NSRegularExpression(
+        pattern: #"\byour (?:hands?|shoulders?|face|eyes?|heart|breath|breathing|fingers?|smile|jaw|voice|stomach|chest|skin|hair|lips|cheeks?|collar|knuckles|brow|forehead|throat|neck|posture)\b|\byou (?:felt|seemed|looked (?:tired|sad|happy|worried|pale)|were (?:nervous|happy|sad|tired|worried|anxious|relieved|scared|afraid|angry))\b|\bagainst you(?:r|\b)|\bon your (?:shoulder|lap|knee|head|arm)\b"#,
+        options: [.caseInsensitive]
+    )
+    /// Nothing on a hard night is amusing.
+    private static let levity = try! NSRegularExpression(
+        pattern: #"\b(?:amusing|amused|funny|giggl\w*|laugh\w*|delight\w*|silly|comical|cheerful|joke\w*|grinn?\w*|smirk\w*|chuckl\w*|playful|mischievous|fun)\b"#,
+        options: [.caseInsensitive]
+    )
+    private static let sentences = try! NSRegularExpression(pattern: #"[^.!?\n]+(?:[.!?]+["”’)]*|$)"#)
+
+    private static let negatives: [(String, String)] = [
+        ("did not", "didn't"), ("does not", "doesn't"), ("do not", "don't"), ("was not", "wasn't"),
+        ("were not", "weren't"), ("had not", "hadn't"), ("would not", "wouldn't"), ("could not", "couldn't"),
+        ("should not", "shouldn't"), ("is not", "isn't"), ("are not", "aren't"), ("has not", "hasn't"),
+        ("have not", "haven't"), ("will not", "won't"), ("cannot", "can't"), ("must not", "mustn't"),
+        ("I would", "I'd"), ("you would", "you'd"), ("it would", "it'd"), ("they would", "they'd"),
+        ("we would", "we'd"), ("she would", "she'd"), ("he would", "he'd"), ("that would", "that'd"),
+        ("I am", "I'm"), ("you are", "you're"), ("it is", "it's"), ("that is", "that's"),
+        ("I will", "I'll")
+    ]
+
+    static func scrubbed(_ prose: String, readerMaterial: String, isHardNight: Bool) -> Result {
+        let material = readerMaterial.lowercased()
+        var dropped: [String] = []
+        let paragraphs = prose.components(separatedBy: "\n\n").map { paragraph -> String in
+            // The page's closing line is the Book's signature; leave it whole.
+            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            let ns = paragraph as NSString
+            var result = paragraph
+            for match in sentences.matches(in: paragraph, range: NSRange(location: 0, length: ns.length)).reversed() {
+                let sentence = ns.substring(with: match.range)
+                let whole = NSRange(location: 0, length: (sentence as NSString).length)
+                var drop = false
+                if let body = readerBody.firstMatch(in: sentence, range: whole) {
+                    // What the reader's own material says, they said.
+                    let phrase = (sentence as NSString).substring(with: body.range).lowercased()
+                    if !material.contains(phrase) { drop = true }
+                }
+                if isHardNight, levity.firstMatch(in: sentence, range: whole) != nil { drop = true }
+                if drop, let range = Range(match.range, in: result) {
+                    dropped.append(sentence.trimmingCharacters(in: .whitespaces))
+                    result.removeSubrange(range)
+                }
+            }
+            return result.trimmingCharacters(in: .whitespaces)
+        }.filter { !$0.isEmpty }
+        var text = paragraphs.joined(separator: "\n\n")
+
+        // A scrub that leaves almost nothing has done the telling's job badly;
+        // let the audit see the original instead.
+        let body = text.components(separatedBy: "\n\n").filter { !$0.hasPrefix("The Book kept the page:") }.joined(separator: " ")
+        let remaining = sentences.numberOfMatches(in: body, range: NSRange(location: 0, length: (body as NSString).length))
+        if !dropped.isEmpty, remaining < 3 {
+            return Result(text: contracted(prose).text, dropped: [], contractions: contracted(prose).count)
+        }
+        let c = contracted(text)
+        text = c.text
+        return Result(text: text, dropped: dropped, contractions: c.count)
+    }
+
+    /// Negatives and the plain pronoun-plus-verb pairs, outside the closing line.
+    static func contracted(_ text: String) -> (text: String, count: Int) {
+        var count = 0
+        let paragraphs = text.components(separatedBy: "\n\n").map { paragraph -> String in
+            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            var result = paragraph
+            for (long, short) in negatives {
+                let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: long) + #"\b"#
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+                let ns = result as NSString
+                for match in regex.matches(in: result, range: NSRange(location: 0, length: ns.length)).reversed() {
+                    let original = ns.substring(with: match.range)
+                    var replacement = short
+                    // Keep a capital where the sentence began with one.
+                    if let first = original.first, first.isUppercase, !short.hasPrefix("I") {
+                        replacement = short.prefix(1).uppercased() + short.dropFirst()
+                    }
+                    if let range = Range(match.range, in: result) {
+                        result.replaceSubrange(range, with: replacement)
+                        count += 1
+                    }
+                }
+            }
+            return result
+        }
+        return (paragraphs.joined(separator: "\n\n"), count)
+    }
 }

@@ -191,11 +191,49 @@ extension BraidBenchTests {
       let context = DeterministicBraidwright.preparedContext(for: night.day, context: night.context)
       var plan = BraidScenePlanBuilder.plan(for: night.day, context: context)
       plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)
-      return ["name": night.name, "brief": plan.brief()]
+      let brief = plan.brief()
+      // The worn images the phone masks for this brief, so the Mac lab can
+      // mask exactly the same tokens.
+      let masked = BraidWornImages.masked(sparing: brief)
+      return [
+        "name": night.name,
+        "brief": brief,
+        "maskWords": masked.words.joined(separator: "|"),
+        "maskPairs": masked.pairs.map { "\($0.after)\u{1}\($0.word)" }.joined(separator: "|"),
+        "readerMaterial": ([plan.title()] + plan.readerDayNarration).joined(separator: " "),
+        "hardNight": plan.isHardNight ? "true" : "false"
+      ]
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
     try encoder.encode(briefs).write(to: URL(fileURLWithPath: path))
     print("Wrote \(briefs.count) device briefs to \(path)")
+  }
+
+  /// Applies the real scrub to tellings the Mac lab wrote, so the lab's numbers
+  /// describe what a reader would see. Without the variables it does nothing.
+  ///
+  ///     BRAID_BRIEFS_IN=/tmp/briefs.json BRAID_TELLINGS_IN=/tmp/tellings.json \
+  ///     BRAID_SCRUBBED_OUT=/tmp/scrubbed.json swift test --filter testScrubTheLabTellingsWhenAsked
+  func testScrubTheLabTellingsWhenAsked() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard let briefsPath = env["BRAID_BRIEFS_IN"], let tellingsPath = env["BRAID_TELLINGS_IN"],
+          let outPath = env["BRAID_SCRUBBED_OUT"] else { return }
+    let briefs = try JSONDecoder().decode([[String: String]].self, from: Data(contentsOf: URL(fileURLWithPath: briefsPath)))
+    var byName: [String: [String: String]] = [:]
+    for brief in briefs { if let name = brief["name"] { byName[name] = brief } }
+    var tellings = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: tellingsPath))) as? [[String: Any]])
+    var totalDropped = 0
+    for index in tellings.indices {
+      guard let name = tellings[index]["night"] as? String, let text = tellings[index]["text"] as? String,
+            let brief = byName[name] else { continue }
+      let scrub = BraidTellingScrub.scrubbed(text, readerMaterial: brief["readerMaterial"] ?? "", isHardNight: brief["hardNight"] == "true")
+      tellings[index]["text"] = scrub.text
+      tellings[index]["dropped"] = scrub.dropped
+      tellings[index]["contractionsAdded"] = scrub.contractions
+      totalDropped += scrub.dropped.count
+    }
+    try JSONSerialization.data(withJSONObject: tellings, options: [.prettyPrinted]).write(to: URL(fileURLWithPath: outPath))
+    print("Scrubbed \(tellings.count) tellings, dropped \(totalDropped) sentences")
   }
 }

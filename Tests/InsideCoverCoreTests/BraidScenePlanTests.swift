@@ -763,7 +763,7 @@ final class BraidScenePlanTests: XCTestCase {
             )
             let brief = plan.brief()
             XCTAssertTrue(
-                brief.contains(BraidScenePlan.worldLabel),
+                brief.contains(plan.isHardNight ? BraidScenePlan.hardNightWorldLabel : BraidScenePlan.worldLabel),
                 "\(night.name) did not hand its world detail to Gemma"
             )
             XCTAssertTrue(
@@ -1176,5 +1176,59 @@ final class BraidScenePlanTests: XCTestCase {
 
     private func date(_ value: String) -> Date {
         ISO8601DateFormatter().date(from: value)!
+    }
+
+    // MARK: The scrub
+
+    func testScrubTakesOutSentencesThatSpeakForTheReader() {
+        let told = "You walked to the corner shop. I watched you leave. A bird landed on your shoulder. I felt a little flutter of worry you had about your sister.\n\nThe Book kept the page: the bird left."
+        let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "You walked to the corner shop.", isHardNight: false)
+        XCTAssertFalse(scrub.text.contains("shoulder"))
+        XCTAssertTrue(scrub.text.contains("I watched you leave."))
+        XCTAssertTrue(scrub.text.hasSuffix("The Book kept the page: the bird left."))
+        XCTAssertEqual(scrub.dropped.count, 1)
+    }
+
+    func testScrubSpareswhatTheReaderSaidAboutThemselves() {
+        let told = "You rubbed your eyes and made tea. I put the kettle on. I liked the quiet in the room. The window was open. The Book kept the page: the kettle sang."
+        let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "You rubbed your eyes and made tea.", isHardNight: false)
+        XCTAssertTrue(scrub.text.contains("your eyes"))
+        XCTAssertTrue(scrub.dropped.isEmpty)
+    }
+
+    func testNothingIsAmusingOnAHardNightButItMayBeOnAnother() {
+        let told = "You sat in the corridor. I found the whole thing quite amusing. The rain stayed in the Stacks. The floor stayed dark. The Book kept the page: the floor stayed dark."
+        XCTAssertFalse(BraidTellingScrub.scrubbed(told, readerMaterial: "You sat in the corridor.", isHardNight: true).text.contains("amusing"))
+        XCTAssertTrue(BraidTellingScrub.scrubbed(told, readerMaterial: "You sat in the corridor.", isHardNight: false).text.contains("amusing"))
+    }
+
+    func testScrubNeverLeavesAShellOfATelling() {
+        let told = "A bird landed on your shoulder. I felt a flutter of worry you had. The Book kept the page: the bird left."
+        let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "", isHardNight: false)
+        XCTAssertTrue(scrub.dropped.isEmpty, "too little would remain, so the audit sees the original")
+        XCTAssertTrue(scrub.text.contains("shoulder"))
+    }
+
+    func testContractionsAreAddedWhereTheBookWouldSayThem() {
+        let told = "It was not raining. I did not mind. You would have laughed. Nobody could not hear it.\n\nThe Book kept the page: it did not stop."
+        let (text, count) = BraidTellingScrub.contracted(told)
+        XCTAssertTrue(text.contains("It wasn't raining."))
+        XCTAssertTrue(text.contains("I didn't mind."))
+        XCTAssertTrue(text.contains("You'd have laughed."))
+        XCTAssertTrue(text.contains("couldn't"))
+        XCTAssertGreaterThanOrEqual(count, 4)
+        XCTAssertTrue(text.hasSuffix("The Book kept the page: it did not stop."), "the signature line is left whole")
+        XCTAssertFalse(BraidTellingScrub.contracted("I have a lamp.").text.contains("I've"), "possession isn't a contraction")
+    }
+
+    func testHardNightsAreTheOnesHoldingSomethingOpen() throws {
+        let hard = try XCTUnwrap(BraidBench.corpus().first { $0.name == "tender-shadow" })
+        let context = DeterministicBraidwright.preparedContext(for: hard.day, context: hard.context)
+        let plan = BraidScenePlanBuilder.plan(for: hard.day, context: context)
+        XCTAssertTrue(plan.isHardNight)
+        XCTAssertTrue(plan.brief().contains(BraidScenePlan.hardNightWorldLabel))
+        let easy = try XCTUnwrap(BraidBench.corpus().first { $0.name == "plain-diary-day" })
+        let easyPlan = BraidScenePlanBuilder.plan(for: easy.day, context: DeterministicBraidwright.preparedContext(for: easy.day, context: easy.context))
+        XCTAssertFalse(easyPlan.isHardNight)
     }
 }
