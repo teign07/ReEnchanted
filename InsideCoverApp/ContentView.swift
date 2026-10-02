@@ -3826,6 +3826,12 @@ struct ContentView: View {
             pressed.append(keepsake)
             vault.data.pressedVolumes = pressed
         }
+        shop.onBoundVolumeRegistry = { registry in
+            var registries = vault.data.volumeRegistries ?? []
+            guard !registries.contains(where: { $0.seed == registry.seed }) else { return }
+            registries.append(registry)
+            vault.data.volumeRegistries = registries
+        }
         shop.onBoundYearChanged = { membership, membershipID in
             vault.mutate {
                 $0.boundYear = membership
@@ -14662,6 +14668,7 @@ struct ContentView: View {
         sheet.onKeepPlainPhoto = { asset in
             keepPlainPage(text: "", media: [asset])
         }
+        sheet.volumeRegistries = vault.data.volumeRegistries ?? []
         sheet.onPageOpened = { openedSurface, openedAt in
             recordMomentaryPageOpened(openedSurface, at: openedAt)
         }

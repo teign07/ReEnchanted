@@ -1382,6 +1382,9 @@ struct CapturePageSheet: View {
     var onSetSeasonalDispatchHeld: (String, Bool) -> String = { _, _ in "" }
     var onOpenSeasonalDispatchAddress: () -> Void = {}
     var onKeepPlainPhoto: (BookPageMediaAsset) -> Void = { _ in }
+    /// Every volume the reader has sent to the press, so a photograph of one
+    /// of its pages can be recognised and kept as such.
+    var volumeRegistries: [BoundVolumeRegistry] = []
     var weatherSignal: WeatherSourceSignal?
     var readerLearning: ReaderLearningModel = ReaderLearningModel()
     var onPageOpened: (SurfacePage, Date) -> Void = { _, _ in }
@@ -1649,6 +1652,8 @@ struct CapturePageSheet: View {
     @State private var pendingCameraPhotoImage: UIImage?
     @State private var pendingCameraPhotoURL: URL?
     @State private var isChoosingCameraEnchantment = false
+    /// Set when the captured photograph is a page of a printed volume.
+    @State private var recognisedPrintedPage: FolioReader.Result?
     #endif
     private var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(PlayerVault.shared.data.tutorSeen)) }
@@ -13396,6 +13401,17 @@ struct CapturePageSheet: View {
                     .bookPhotographArrival(reduceMotion: reduceMotion)
             }
 
+            if let found = recognisedPrintedPage {
+                Text(RuinRecognition.line(volume: found.volume, page: found.page))
+                    .font(.system(.callout, design: .serif).italic())
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .accessibilityLabel("The Book recognises this page")
+            }
+
             if isWorking {
                 scribeWorkCard(
                     isCastingEnchantment ? "camera-enchantment" : "camera-illumination",
@@ -13708,8 +13724,28 @@ struct CapturePageSheet: View {
         pendingCameraPhotoImage = image
         pendingCameraPhotoURL = url
         isChoosingCameraEnchantment = false
+        recognisedPrintedPage = nil
         illuminationMessage = "Choose what the captured photo becomes."
         BookFeedback.play(.select)
+        recogniseCapturedPrintedPage(image)
+    }
+
+    /// A photograph of a printed page announces itself. Vision runs off the
+    /// main actor; a miss leaves the photograph exactly as it was.
+    @MainActor
+    private func recogniseCapturedPrintedPage(_ image: UIImage) {
+        let registries = volumeRegistries
+        guard !registries.isEmpty, let cgImage = image.cgImage else { return }
+        let photoURL = pendingCameraPhotoURL
+        Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                FolioReader.identify(cgImage, among: registries)
+            }.value
+            // The reader may have moved on to another photograph while this ran.
+            guard pendingCameraPhotoURL == photoURL, let found else { return }
+            recognisedPrintedPage = found
+            BookFeedback.play(.knockReply)
+        }
     }
 
     @MainActor
@@ -13717,6 +13753,7 @@ struct CapturePageSheet: View {
         pendingCameraPhotoData = nil
         pendingCameraPhotoImage = nil
         pendingCameraPhotoURL = nil
+        recognisedPrintedPage = nil
         isChoosingCameraEnchantment = false
     }
 
@@ -13734,6 +13771,12 @@ struct CapturePageSheet: View {
         }
         try jpeg.write(to: url, options: [.atomic])
         return url
+    }
+
+    /// What the photograph is, when it is a page of the reader's own printed book.
+    private func printedPageMetadata() -> [String: String] {
+        guard let found = recognisedPrintedPage else { return [:] }
+        return RuinRecognition.metadata(volume: found.volume, page: found.page)
     }
 
     @MainActor
@@ -13759,7 +13802,7 @@ struct CapturePageSheet: View {
                         "plainPhoto": "true",
                         "uneditedPhoto": "true",
                         "cameraSeal": "true"
-                    ]) { current, _ in current }
+                    ].merging(printedPageMetadata()) { current, _ in current }) { current, _ in current }
                 )
                 onKeepPlainPhoto(asset)
                 requestDismiss()

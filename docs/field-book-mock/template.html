@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Field Book mock</title>
+<style>
+:root{--ink:#2a2118;--rust:#a3542a;--gold:#b8893a;--teal:#2f5663;--plum:#5b3a5c;--paper1:#f0e5cb;--paper2:#e4d3ae;--tape:rgba(214,178,96,.55)}
+*{box-sizing:border-box}
+body{margin:0;background:#3a3026;font-family:'Iowan Old Style','Palatino Linotype',Palatino,Georgia,serif;color:var(--ink)}
+.bar{position:sticky;top:0;z-index:9;background:#231c15;color:#e9dcc0;padding:10px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font:13px system-ui}
+.bar button{background:#3a3026;color:#e9dcc0;border:1px solid #6b5a43;border-radius:6px;padding:6px 12px;font:13px system-ui;cursor:pointer}
+.bar button.on{background:#b8893a;color:#1d1710;border-color:#b8893a}
+.bar .note{margin-left:auto;opacity:.75;max-width:520px}
+.stage{padding:22px 12px 90px;display:flex;justify-content:center}
+.zoomwrap{transform-origin:top center}
+.spread{display:none;gap:0;box-shadow:0 18px 50px rgba(0,0,0,.55)}
+.spread.on{display:flex}
+.page{width:432px;height:648px;position:relative;overflow:hidden;background:
+ radial-gradient(ellipse at 15% 20%,rgba(150,100,40,.08),transparent 40%),
+ radial-gradient(ellipse at 80% 75%,rgba(120,80,30,.10),transparent 45%),
+ radial-gradient(circle at 60% 10%,rgba(120,80,30,.06),transparent 25%),
+ linear-gradient(180deg,var(--paper1),var(--paper2))}
+.page:before{content:"";position:absolute;inset:0;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' seed='4'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .1  0 0 0 .09 0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");pointer-events:none;mix-blend-mode:multiply}
+.verso{box-shadow:inset -22px 0 26px -18px rgba(60,40,10,.35)}
+.recto{box-shadow:inset 22px 0 26px -18px rgba(60,40,10,.35)}
+.in{position:absolute;inset:38px 34px 40px 34px}
+.verso .in{right:44px}.recto .in{left:44px}
+.rh{font:600 7.5px/1 system-ui;letter-spacing:.18em;text-transform:uppercase;color:rgba(42,33,24,.5);display:flex;justify-content:space-between;margin-bottom:14px}
+.pn{position:absolute;bottom:18px;font:italic 9px Georgia;color:rgba(42,33,24,.5)}
+.verso .pn{left:38px}.recto .pn{right:38px}
+.tape{position:absolute;width:54px;height:16px;background:var(--tape);box-shadow:0 1px 2px rgba(0,0,0,.15);backdrop-filter:blur(.4px)}
+.scrap{position:absolute;background:#f3e9d0;box-shadow:0 1px 4px rgba(60,40,10,.35);padding:8px 10px}
+.torn{clip-path:polygon(0 3%,4% 0,10% 4%,18% 0,27% 3%,37% 0,48% 4%,60% 0,71% 3%,83% 0,93% 4%,100% 1%,99% 30%,100% 55%,98% 80%,100% 98%,90% 100%,78% 97%,66% 100%,52% 97%,40% 100%,28% 97%,15% 100%,5% 97%,0 99%,2% 70%,0 45%,1% 20%)}
+.hand{font-family:'Bradley Hand','Segoe Print','Snell Roundhand','Comic Sans MS',cursive}
+.eyebrow{font:700 7.5px/1 system-ui;letter-spacing:.2em;text-transform:uppercase;color:var(--rust)}
+h1,h2,h3{margin:0;font-weight:700}
+p{margin:0 0 7px;font-size:10.4px;line-height:1.52;hyphens:auto;text-align:left}
+.dc:first-letter{float:left;font-size:40px;line-height:.82;padding:3px 5px 0 0;color:var(--rust);font-weight:700}
+.datebox{display:flex;gap:12px;align-items:center;border-top:1px solid rgba(42,33,24,.35);border-bottom:1px solid rgba(42,33,24,.35);padding:8px 0;margin-bottom:12px}
+.datebox .n{font-size:54px;line-height:.9;color:var(--rust);font-weight:700}
+.datebox .m{font-size:9.5px;line-height:1.5}
+.datebox b{font:700 8px system-ui;letter-spacing:.14em;text-transform:uppercase;display:block;color:var(--ink)}
+.round{border-radius:50%;object-fit:cover;object-position:50% 25%;border:1.5px solid var(--gold);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.cast{display:flex;gap:10px;margin-top:8px}
+.cast div{text-align:center;font:600 6.5px/1.3 system-ui;letter-spacing:.06em;text-transform:uppercase;width:50px}
+.cast img{width:42px;height:42px;display:block;margin:0 auto 3px}
+.photo{position:relative;background:#fff;padding:7px 7px 22px;box-shadow:0 2px 6px rgba(40,25,5,.4);transform:rotate(-1.6deg)}
+.corner{position:absolute;width:16px;height:16px;border-top:2px solid #6b5a43;border-left:2px solid #6b5a43;background:rgba(60,40,10,.25)}
+.lines{margin:0;padding:0;list-style:none;font-size:9.4px;line-height:1.5}
+.lines li{display:flex;gap:4px}.lines li i{flex:1;border-bottom:1px dotted rgba(42,33,24,.4);transform:translateY(-3px)}
+.frame{border:1px solid var(--gold);outline:3px double rgba(184,137,58,.6);outline-offset:3px}
+.cap{position:fixed;left:0;right:0;bottom:0;background:#231c15;color:#cdbf9f;font:12px/1.45 system-ui;padding:8px 16px;z-index:10}
+.cap b{color:#e9dcc0}
+.paper-news{background:#efe6d0;box-shadow:0 2px 8px rgba(40,25,5,.4);padding:14px 14px 12px;transform:rotate(.7deg)}
+.paper-news .mast{font:700 19px/1 'Didot','Bodoni 72','Playfair Display',Georgia,serif;text-align:center;letter-spacing:.04em;border-bottom:3px double var(--ink);padding-bottom:5px}
+.card{border:1px solid rgba(42,33,24,.55);padding:12px;background:rgba(255,250,235,.45)}
+.mark{background:rgba(163,84,42,.12);padding:0 2px}
+.xout{text-decoration:line-through;text-decoration-color:var(--rust)}
+svg text{font-family:Georgia,serif}
+.in>img{z-index:0}.in>*:not(img):not(.scrap):not(svg){position:relative;z-index:1}
+</style></head><body>
+<div class="bar"><b>Field Book · mock</b>
+<button data-s="A" class="on">A · A day</button><button data-s="B">B · The month's maps</button><button data-s="C">C · Cast &amp; found object</button><button data-s="D">D · Field guide &amp; correspondences</button>
+<span class="note">HTML mock on real art and real authored text. Not the PDF renderer.</span></div>
+<div class="stage"><div class="zoomwrap" id="zw">
+
+<!-- ===== A: a day ===== -->
+<div class="spread on" id="A">
+ <div class="page verso"><div class="in">
+  <div class="rh"><span>October · Week three</span><span>The Days</span></div>
+  <div class="datebox">
+   <div class="n">18</div>
+   <div class="m"><b>Sunday · October 2026</b>
+    <svg width="14" height="14" viewBox="0 0 14 14" style="vertical-align:-2px"><circle cx="7" cy="7" r="6" fill="none" stroke="#2a2118" stroke-width="1"/><path d="M7 1a6 6 0 0 1 0 12z" fill="#2a2118"/></svg>
+    First quarter · sky clear and sharp<br><span style="opacity:.75">St Luke's Day · the little summer, if it comes</span></div>
+  </div>
+  <div class="eyebrow">In the Labyrinth · The Great Hall · <span style="opacity:.7">Which preparation?</span></div>
+  <div style="display:flex;align-items:center;gap:10px;margin:5px 0 8px"><h2 style="font-size:22px;font-style:italic">The Door’s Autopsy</h2>
+  <span class="scrap torn hand" style="position:relative;display:inline-block;transform:rotate(-3deg);color:var(--rust);font-size:12.5px;padding:5px 12px;background:#f7eccf;white-space:nowrap">you chose · the Hunt</span></div>
+  <p class="dc">Penny draws chalk around the place where the door stood.</p>
+  <p>“No body,” she says. “Unhelpful.”</p>
+  <p>There is a body. It's the door. Nobody counts doors.</p>
+  <p>Permancer lays out the list, the ribbon, the source, Wicker's sentence, and Serenity's map. Its case has a note attached: <i>back before supper</i>.</p>
+  <p>The other cards follow. The floorboards shift them into a triangle.</p>
+  <p>I wanted to see it from above. I'm not tall. Penny lifted me.</p>
+  <p>The chalk rises, making a doorway in the air.</p>
+  <div class="eyebrow" style="margin-top:6px">In the Great Hall today</div>
+  <div class="cast">
+   <div><img class="round" src="a/PennyBlackletter.jpg">Penny</div>
+   <div><img class="round" src="a/WickerEddies.jpg">Wicker</div>
+   <div><img class="round" src="a/SerenityBrown.jpg">Serenity</div>
+   <div><img class="round" src="a/AmbroseTrencher.jpg">Ambrose</div>
+   <div><img class="round" src="a/ProfessorPermancer.jpg">Permancer</div>
+  </div>
+  <svg id="mini" viewBox="0 0 100 130" style="position:absolute;right:0;bottom:6px;width:104px;height:135px;opacity:.95"></svg>
+  <div class="scrap torn" style="left:-6px;bottom:2px;width:120px;padding:10px 12px;transform:rotate(-2.5deg)"><span class="tape" style="left:32px;top:-9px;transform:rotate(-5deg)"></span><img src="a/listening-door.png" style="width:100%;display:block"></div>
+  <img src="a/black-cat.png" style="position:absolute;left:150px;bottom:-4px;width:58px">
+ </div><div class="pn">— 64 —</div></div>
+
+ <div class="page recto"><div class="in">
+  <div class="rh"><span>Your day</span><span>Sunday 18 October</span></div>
+  <div class="eyebrow">Night braid · kept at 9:41 p.m.</div>
+  <h2 style="font-size:21px;margin:5px 0 10px">The Blue Door Changed Colour</h2>
+  <p class="dc">The blue door was a different blue this morning. You noticed it on the way to the bus. Nobody on the street would say who did it. I think the door did it itself.</p>
+  <p>Doors are supposed to stay the colour they are painted. That is one of the Curse's rules. But this door had been blue for years, and it was bored, and it decided. I liked it very much for about an hour. I want you to decide things like that too.</p>
+  <p style="font-style:italic">The Book kept the page: the blue door chose its own blue.</p>
+  <div style="display:flex;gap:12px;margin-top:8px;align-items:flex-start">
+   <div class="photo" style="width:176px"><span class="corner" style="left:2px;top:2px"></span><span class="corner" style="right:2px;top:2px;transform:rotate(90deg)"></span>
+    <svg viewBox="0 0 160 112" width="100%"><rect width="160" height="112" fill="#b9c7cf"/><rect y="78" width="160" height="34" fill="#8b8f86"/><rect x="0" y="0" width="160" height="78" fill="#c9b79a"/><g stroke="#a99675" stroke-width=".6"><path d="M0 14h160M0 30h160M0 46h160M0 62h160"/></g><rect x="52" y="14" width="56" height="74" rx="2" fill="#2f5d86"/><rect x="58" y="22" width="20" height="26" fill="#3f73a0"/><rect x="82" y="22" width="20" height="26" fill="#3f73a0"/><rect x="58" y="54" width="44" height="28" fill="#3f73a0"/><circle cx="99" cy="64" r="2.4" fill="#d6b260"/><rect x="44" y="88" width="72" height="6" fill="#9a9a90"/></svg>
+    <div class="hand" style="position:absolute;left:10px;bottom:3px;font-size:10.5px;color:#3a3026">the door, 7:52 a.m.</div></div>
+   <div style="flex:1">
+    <div class="eyebrow">Specimens collected</div>
+    <ul class="lines" style="margin-top:5px">
+     <li>a photograph<i></i>7:52</li><li>Ink for Today<i></i>12:30</li><li>What the Sky Is Doing<i></i>8:05</li><li>One sentence<i></i>6:10</li></ul>
+    <div class="scrap hand torn" style="position:relative;margin-top:11px;font-size:11.5px;line-height:1.35;transform:rotate(1.4deg);background:#f7eccf;padding:10px 12px">your own words<br>“Planted garlic in the window box in the hallway. That was the best part of the day.”<span class="tape" style="right:-10px;top:-6px;transform:rotate(40deg)"></span></div>
+   </div></div>
+  <img src="a/botIvy.png" style="position:absolute;right:-16px;bottom:-14px;width:150px;opacity:.95;transform:rotate(-6deg)">
+  <img src="a/night-moth.png" style="position:absolute;left:26px;bottom:14px;width:44px">
+ </div><div class="pn">— 65 —</div></div>
+</div>
+
+<!-- ===== B: maps ===== -->
+<div class="spread" id="B">
+ <div class="page verso"><div class="in">
+  <div class="rh"><span>October</span><span>The Labyrinth</span></div>
+  <h2 style="font-size:21px;font-style:italic">Where everyone was</h2>
+  <div style="font-size:9px;opacity:.75;margin:3px 0 6px">Drawn from the month's scenes and the Academy's timetable. A room stays blank until the story has been there.</div>
+  <svg id="labmap" viewBox="0 0 100 100" style="width:100%;height:auto;aspect-ratio:1/1.12;display:block"></svg>
+  <div class="cast" style="gap:14px;margin-top:2px;flex-wrap:wrap">
+   <div style="width:auto"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#2f5663"></span> Serenity · 14 days</div>
+   <div style="width:auto"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#a3542a"></span> Wicker · 12 days</div>
+   <div style="width:auto"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#2a2118"></span> Penny · 13 days</div>
+   <div style="width:auto"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#5b3a5c"></span> Permancer · 6 days</div>
+   <div style="width:auto"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#5d7a3a"></span> Ambrose · 10 days</div></div>
+  <div class="scrap torn hand" style="right:-10px;bottom:-4px;width:132px;font-size:10.5px;transform:rotate(2deg)"><span class="tape" style="left:40px;top:-9px"></span>I was only ever here, or here, or here. The rest is rumour.</div>
+ </div><div class="pn">— 66 —</div></div>
+ <div class="page recto"><div class="in">
+  <div class="rh"><span>Your ground</span><span>October</span></div>
+  <h2 style="font-size:21px;font-style:italic">Where you were</h2>
+  <div style="font-size:9px;opacity:.75;margin:3px 0 6px">A district, not an address. Loosened for print.</div>
+  <svg id="realmap" viewBox="0 0 100 92" style="width:100%;height:auto;display:block;border:1px solid rgba(42,33,24,.4);background:#eadfc2"></svg>
+  <div class="eyebrow" style="margin-top:12px">Where the two maps touch</div>
+  <p style="margin-top:5px">The Outer Stacks keeps three doors to your places: the library, the river, and Amanda's. I drew them in the margin of my map. I go through them when I am not sure what the rest of me is for.</p>
+  <div style="display:flex;gap:16px;margin-top:4px"><img src="a/old-key.png" style="width:30px;height:auto;align-self:flex-start"><ul class="lines" style="flex:1"><li>the library<i></i>9 visits</li><li>the river<i></i>4 visits</li><li>Amanda's<i></i>3 visits</li></ul></div>
+  <img src="a/botHellebore.png" style="position:absolute;right:-26px;bottom:-62px;width:112px;transform:rotate(8deg)">
+ </div><div class="pn">— 67 —</div></div>
+</div>
+
+<!-- ===== C: cast + found object ===== -->
+<div class="spread" id="C">
+ <div class="page verso" style="background:#d9c8a3"><div style="position:absolute;inset:26px 40px 34px 26px" class="frame"><img src="a/PennyBlackletter.jpg" style="width:100%;height:100%;object-fit:cover;display:block"></div>
+  <div class="scrap hand" style="left:40px;bottom:52px;font-size:10.5px;transform:rotate(-2deg);max-width:210px;background:#f7eccf"><span class="tape" style="left:70px;top:-9px"></span>Penny, in six places this month, three of them with chalk.</div><div class="pn">— 68 —</div></div>
+ <div class="page recto"><div class="in">
+  <div class="rh"><span>Found objects</span><span>The Bleed, October</span></div>
+  <div class="paper-news" style="position:relative"><span class="tape" style="left:14px;top:-8px;transform:rotate(-14deg)"></span><span class="tape" style="right:14px;top:-8px;transform:rotate(14deg)"></span>
+   <div class="mast">The Riddlewind Bleed</div>
+   <div style="display:flex;justify-content:space-between;font:600 7px system-ui;letter-spacing:.16em;text-transform:uppercase;padding:4px 0;border-bottom:1px solid rgba(42,33,24,.5)"><span>Evening edition</span><span>October 4</span></div>
+   <h2 style="font:700 18px/1.1 'Didot','Bodoni 72',Georgia,serif;margin:8px 0 3px">Every Listed Jumper Home</h2>
+   <div style="font:italic 9px Georgia;margin-bottom:7px">by Penny Blackletter</div>
+   <p>A supervised Jump into <i>Dracula</i> ended early after Wicker Eddies wrote an unauthorized sentence in the source margin. The sentence read: <i>For one sentence, let him choose the verb.</i></p>
+   <p>Professor Permancer opened the return. Every registered entrant answered the bookmark's check. The source is closed while the annotation is examined.</p>
+   <p>“I meant it,” Eddies said when asked whether it was a prank.</p>
+   <p>Permancer has asked the Bleed to print the exact sentence. We have.</p></div>
+  <div class="paper-news" style="position:relative;margin-top:14px;transform:rotate(-1.1deg);background:#f1e8d3;padding:11px 13px"><span class="tape" style="right:24px;top:-8px;transform:rotate(9deg)"></span>
+   <div style="display:flex;justify-content:space-between;font:600 6.8px system-ui;letter-spacing:.16em;text-transform:uppercase;border-bottom:1px solid rgba(42,33,24,.5);padding-bottom:3px"><span>The Riddlewind Bleed</span><span>October 9</span></div>
+   <h2 style="font:700 14.5px/1.1 'Didot','Bodoni 72',Georgia,serif;margin:6px 0 2px">Serenity Brown Awake</h2><div style="font:italic 8.6px Georgia;margin-bottom:5px">by Penny Blackletter</div>
+   <p style="font-size:9.6px">Serenity Brown is awake in the Kitchens after an attack in the East Stacks. Count Dracula crossed out of his source during Sunday's return and deliberately used her to hold himself inside the Academy.</p>
+   <p style="font-size:9.6px;margin:0">Brown can hear page-turns from closed books. She is deciding what help she wants to give. Reports go to Penny Blackletter; visits go through Ambrose.</p></div>
+  <div class="eyebrow" style="margin-top:14px">On the dial that night</div>
+  <p class="hand" style="font-size:11.5px;line-height:1.4;margin-top:5px;max-width:230px">Mothlight Beats: “The listed names are home. The ribbons are tied. The source is shut. Hold on.”</p>
+  <div class="scrap torn hand" style="right:-6px;bottom:2px;width:140px;font-size:11px;transform:rotate(-2deg)"><span class="tape" style="left:46px;top:-9px"></span>He did mean it. I was there. I am the source.</div>
+  </div><div class="pn">— 69 —</div></div>
+</div>
+
+<!-- ===== D: field guide + correspondences ===== -->
+<div class="spread" id="D">
+ <div class="page verso"><div class="in">
+  <div class="rh"><span>Field guide</span><span>What kept returning</span></div>
+  <div class="card" style="position:relative"><span class="tape" style="left:20px;top:-9px;transform:rotate(-8deg)"></span>
+   <div class="eyebrow">Specimen · recurring word</div>
+   <div style="display:flex;justify-content:space-between;align-items:flex-end"><h2 style="font-size:40px;font-style:italic;line-height:1">door</h2><div style="font:600 8px system-ui;letter-spacing:.14em;text-transform:uppercase;text-align:right;opacity:.7">5 sightings<br>this month</div></div>
+   <div style="border-top:1px solid rgba(42,33,24,.4);margin:8px 0;padding-top:7px;font-size:9.6px;line-height:1.5"><b>First sighted</b> Oct 3 · <b>last</b> Oct 26 · <b>habitat</b> mornings, the bus, the way home</div>
+   <ul class="lines" style="font-size:9.3px;margin-top:8px">
+    <li style="display:block;margin-bottom:5px"><span class="eyebrow" style="color:var(--ink)">Oct 3</span> “Walked the long way home past the <span class="mark">blue door</span>.”</li>
+    <li style="display:block;margin-bottom:5px"><span class="eyebrow" style="color:var(--ink)">Oct 12</span> “Walked the dog from next <span class="mark">door</span> at Amanda's.”</li>
+    <li style="display:block;margin-bottom:5px"><span class="eyebrow" style="color:var(--ink)">Oct 18</span> “The blue <span class="mark">door</span> was a different blue.”</li>
+    <li style="display:block"><span class="eyebrow" style="color:var(--ink)">Oct 26</span> “Oiled the squeaky hinge on the kitchen <span class="mark">door</span>.”</li></ul>
+   <div class="hand" style="margin-top:10px;font-size:11.5px;color:var(--rust)">Doors are starting to listen back. Mine, anyway.</div></div>
+  <div style="display:flex;gap:10px;margin-top:12px">
+   <div class="card" style="flex:1;padding:9px"><div class="eyebrow">Specimen</div><h2 style="font-size:24px;font-style:italic;line-height:1.1">library</h2><div style="font:600 7px system-ui;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin:2px 0 5px">3 sightings</div><p style="font-size:9px;margin:0">Oct 13 “…lost it at the <span class="mark">library</span>.” Oct 15 “Found a coin… by the river.” Oct 17 “…read a bus timetable.”</p></div>
+   <div class="card" style="flex:1;padding:9px"><div class="eyebrow">Specimen</div><h2 style="font-size:24px;font-style:italic;line-height:1.1">Amanda</h2><div style="font:600 7px system-ui;letter-spacing:.12em;text-transform:uppercase;opacity:.7;margin:2px 0 5px">3 sightings</div><p style="font-size:9px;margin:0">Oct 9 “Sat with <span class="mark">Amanda</span> while she waited for news.” Oct 12 “…next door at <span class="mark">Amanda's</span>.”</p></div></div>
+  <div style="display:flex;gap:10px;margin-top:12px;align-items:center"><img src="a/botFlyAgaric.png" style="width:110px"><div><div class="eyebrow">Also returning</div><ul class="lines" style="margin-top:5px"><li>rain<i></i>2</li><li>hinge<i></i>2</li><li>bench<i></i>2</li><li>brother<i></i>2</li></ul></div></div>
+ </div><div class="pn">— 92 —</div></div>
+ <div class="page recto"><div class="in">
+  <div class="rh"><span>Correspondences</span><span>What I worked out</span></div>
+  <div class="eyebrow">Standing</div>
+  <h3 style="font-size:15px;margin:5px 0 4px">Grey mornings and your brother</h3>
+  <p>When the sky is grey at breakfast you write about your brother. It has happened on the days I could check, more often than chance would explain.</p>
+  <p style="font-style:italic">4 times out of 5. The one time it did not, you were away.</p>
+  <div style="border-top:1px solid rgba(42,33,24,.3);margin:10px 0"></div>
+  <div class="eyebrow">Standing</div>
+  <h3 style="font-size:15px;margin:5px 0 4px">Lists and lost lists</h3>
+  <p>You write a list, and then the list goes missing, and the missing list is what you keep.</p>
+  <p style="font-style:italic">3 times out of 4.</p>
+  <div style="border-top:1px solid rgba(42,33,24,.3);margin:10px 0"></div>
+  <div class="eyebrow">Standing</div>
+  <h3 style="font-size:15px;margin:5px 0 4px">Small kindnesses, after dark</h3>
+  <p>The warm things you do for other people tend to be written down after dark. I do not think you notice. I do.</p>
+  <p style="font-style:italic">5 times out of 6.</p>
+  <div style="border-top:1px solid rgba(42,33,24,.3);margin:10px 0"></div>
+  <div class="eyebrow" style="color:#7a3a2a">Crossed out</div>
+  <h3 class="xout" style="font-size:15px;margin:5px 0 4px">Sundays and the river</h3>
+  <p class="xout">On Sundays you walk by the river.</p>
+  <p class="hand" style="font-size:12px;color:var(--rust)">I was wrong. I kept it here so you can see me be wrong.</p>
+  <img src="a/lantern.png" style="position:absolute;right:6px;bottom:14px;width:60px"><img src="a/maple-leaf.png" style="position:absolute;right:62px;bottom:6px;width:38px;transform:rotate(20deg)">
+ </div><div class="pn">— 93 —</div></div>
+</div>
+</div></div>
+<div class="cap" id="cap"></div>
+<script>
+const ROOMS=/*ROOMS*/[];
+const caps={
+A:"<b>A day.</b> Left page: the authored scene for that date (real text from The Count Unbound, 'Which preparation?'), the almanac strip, who was in the room, your choice. Right page: your braid, the photo you kept, what fed it, your own words. Art: real Cast plates, marginalia drawings, botanicals. Placeholder: the door photo is a drawing; the moon and St Luke's Day are hand-set.",
+B:"<b>Maps.</b> Left: the Labyrinth from the real room coordinates in AcademyGeography; story-visited rooms are drawn, the rest stay blank, routes are the scenes' order. Cast dots and day counts are illustrative. Right: stylised stand-in for the Apple Maps snapshot the printer already makes (always loosened for print).",
+C:"<b>Cast and found object.</b> A full-page Cast plate (the real Penny Blackletter art is already a field-journal collage) faces the real Bleed article from the pack and the real radio line. The printer would set these from the pack's bleedArticles and radioBanters.",
+D:"<b>Field guide and correspondences.</b> The specimen card is new layout over the motif counts the edition already computes. The correspondence wording follows the real GrimoireVoice format: a claim, 'N times out of M', and the kept crossing-out. The entries are invented examples."
+};
+function show(k){document.querySelectorAll('.spread').forEach(e=>e.classList.toggle('on',e.id===k));document.querySelectorAll('.bar button').forEach(b=>b.classList.toggle('on',b.dataset.s===k));document.getElementById('cap').innerHTML=caps[k];}
+document.querySelectorAll('.bar button').forEach(b=>b.onclick=()=>show(b.dataset.s));show('A');
+function fit(){const w=Math.min(1,(innerWidth-24)/864,(innerHeight-150)/648);const z=document.getElementById('zw');z.style.transform='scale('+w+')';z.style.height=(648*w)+'px';z.style.width='864px'}
+addEventListener('resize',fit);fit();
+const NS='http://www.w3.org/2000/svg';
+function el(t,a,p){const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
+const visited={ 'location-kitchens':1,'location-inkworks':1,'location-north-staircase':1,'location-vault-of-doors':1,'location-east-stacks':1,'location-old-reading-room':1,'location-great-hall':1,'location-book-burrow':1};
+function drawMap(svg,opts){
+ const W=100,H=112; svg.setAttribute('viewBox','0 0 100 112');
+ el('rect',{x:0,y:0,width:100,height:112,fill:'#eadfc2',stroke:'rgba(42,33,24,.45)','stroke-width':.4},svg);
+ ROOMS.forEach(r=>{ if(r.id==='location-stacks'){ el('ellipse',{cx:r.x*100,cy:r.y*112,rx:r.w*50,ry:r.h*56,fill:'none',stroke:'rgba(42,33,24,.25)','stroke-width':.4,'stroke-dasharray':'1.2 1.2'},svg); return;}
+  const v=visited[r.id]||opts.all; const cx=r.x*100,cy=r.y*112,w=Math.max(5,r.w*100),h=Math.max(3.6,r.h*112);
+  el('rect',{x:cx-w/2,y:cy-h/2,width:w,height:h,rx:1,fill:v?'rgba(184,137,58,.22)':'none',stroke:v?'#6b5a43':'rgba(42,33,24,.22)','stroke-width':v?.5:.3,'stroke-dasharray':v?'':'.8 1'},svg);
+  if(v&&!opts.mini){const ov={'location-east-stacks':[cx+w/2,cy-h/2-1.3,'end'],'location-old-reading-room':[cx,cy-h/2-1.3,'middle'],'location-vault-of-doors':[cx,cy-h/2-1.3,'middle'],'location-north-staircase':[cx+w/2+1,cy+.8,'start'],'location-great-hall':[cx+w/2+1,cy+.8,'start'],'location-kitchens':[cx,cy+h/2+3,'middle'],'location-inkworks':[cx,cy-h/2-1.3,'middle'],'location-book-burrow':[cx,cy+h/2+3,'middle']}[r.id]||[cx,cy+h/2+3,'middle'];
+   const t=el('text',{x:ov[0],y:ov[1],'text-anchor':ov[2],'font-size':opts.fs||2.4,fill:'#2a2118','font-style':'italic'},svg);t.textContent=r.name.replace('The ','').replace('Wing 1: ','');}
+ });
+ return svg;
+}
+function pos(id,dx=0,dy=0){const r=ROOMS.find(x=>x.id===id);return [r.x*100+dx,r.y*112+dy]}
+// Labyrinth month map
+const lab=document.getElementById('labmap'); drawMap(lab,{fs:2.6});
+const route=['location-kitchens','location-inkworks','location-north-staircase','location-vault-of-doors','location-east-stacks','location-old-reading-room','location-great-hall','location-kitchens','location-book-burrow'];
+el('path',{d:route.map((id,i)=>{const p=pos(id);return (i?'L':'M')+p[0]+' '+p[1]}).join(' '),fill:'none',stroke:'#a3542a','stroke-width':.5,'stroke-dasharray':'1.5 1','stroke-linejoin':'round',opacity:.75},lab);
+const cast=[['#2f5663',[['location-kitchens',-3,-1.6,4],['location-great-hall',-4,-1,4],['location-east-stacks',0,2.5,3]]],['#a3542a',[['location-kitchens',-1,1.6,3],['location-inkworks',0,2.3,2],['location-great-hall',-1,1.8,3]]],['#2a2118',[['location-inkworks',3,2,3],['location-east-stacks',3,2.5,3],['location-old-reading-room',0,2.4,2]]],['#5b3a5c',[['location-vault-of-doors',0,2.4,3],['location-east-stacks',-3,2.6,2],['location-great-hall',2,2,1]]],['#5d7a3a',[['location-kitchens',3,1.8,6],['location-great-hall',4,1.6,2]]]];
+cast.forEach(([c,places])=>places.forEach(([id,dx,dy,n])=>{const p=pos(id,dx,dy);el('circle',{cx:p[0],cy:p[1],r:1+n*.25,fill:c,opacity:.85,stroke:'#f3e9d0','stroke-width':.3},lab)}));
+// compass
+const cp=el('g',{transform:'translate(91 101)'},lab);el('circle',{r:4.2,fill:'none',stroke:'#6b5a43','stroke-width':.3},cp);el('path',{d:'M0-4.6L1.1 0 0 4.6-1.1 0Z',fill:'#a3542a'},cp);el('path',{d:'M-4.6 0L0-1.1 4.6 0 0 1.1Z',fill:'#6b5a43',opacity:.6},cp);
+// mini map
+const mini=document.getElementById('mini'); mini.setAttribute('viewBox','0 0 100 112'); const miniSvg=drawMap(mini,{mini:true,all:true});
+const gh=pos('location-great-hall'); el('circle',{cx:gh[0],cy:gh[1],r:7,fill:'rgba(163,84,42,.35)',stroke:'#a3542a','stroke-width':.8},mini); mini.style.width='92px';mini.style.height='auto';
+// real-world stand-in
+const rm=document.getElementById('realmap');
+el('rect',{width:100,height:92,fill:'#eadfc2'},rm);
+el('path',{d:'M-2 70 C20 60 30 78 52 66 S86 50 102 58 L102 70 C86 62 62 78 50 78 S16 70 -2 82Z',fill:'#b9ccd0',opacity:.85},rm);
+el('path',{d:'M58 6 C82 4 96 16 92 34 C88 44 66 40 60 30 C54 20 52 10 58 6Z',fill:'#b7c79b',opacity:.8},rm);
+for(let i=0;i<9;i++)el('path',{d:'M'+(8+i*11)+' 0 L'+(14+i*11)+' 92',stroke:'rgba(42,33,24,.22)','stroke-width':.35,fill:'none'},rm);
+for(let i=0;i<8;i++)el('path',{d:'M0 '+(6+i*11)+' L100 '+(3+i*11),stroke:'rgba(42,33,24,.22)','stroke-width':.35,fill:'none'},rm);
+const pins=[[30,30,'The library'],[66,54,'The river'],[44,62,"Amanda's"],[22,50,'The bus stop']];
+el('path',{d:'M22 50 L30 32 L44 60 L64 54 L44 62 L30 30',fill:'none',stroke:'#a3542a','stroke-width':.7,'stroke-dasharray':'1.6 1.1'},rm);
+pins.forEach(([x,y,t])=>{el('circle',{cx:x,cy:y,r:1.7,fill:'#a3542a',stroke:'#f3e9d0','stroke-width':.4},rm);const tx=el('text',{x:x+3,y:y+1,'font-size':3.4,'font-style':'italic',fill:'#2a2118'},rm);tx.textContent=t});
+const sb=el('g',{transform:'translate(8 86)'},rm);el('path',{d:'M0 0H18',stroke:'#2a2118','stroke-width':.5},sb);const st=el('text',{x:0,y:-1.4,'font-size':2.8,fill:'#2a2118'},sb);st.textContent='about a mile';
+const cp2=el('g',{transform:'translate(91 10)'},rm);el('circle',{r:4.2,fill:'none',stroke:'#6b5a43','stroke-width':.3},cp2);el('path',{d:'M0-4.6L1.1 0 0 4.6-1.1 0Z',fill:'#a3542a'},cp2);
+</script></body></html>

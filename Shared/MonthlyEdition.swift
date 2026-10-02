@@ -563,6 +563,24 @@ struct MonthlyEdition: Codable, Equatable {
     /// format keeps its historical spelling until there is a migration to
     /// change it deliberately.
     var firstDoorPublication: InscriptionPublicationMatter? = nil
+    /// The month told day by day: the sky, the story as this reader read it,
+    /// the braid, the photographs. Optional so every edition bound before the
+    /// Field Book decodes and prints exactly as it did.
+    var dayBook: BoundDayBook? = nil
+    /// What the Academy teaches, set beside what happened: coursework, lore
+    /// matched to the reader's own words, dossiers, creatures. Optional so
+    /// every edition bound before the Handbook decodes and prints as before.
+    var handbook: Handbook? = nil
+    /// Why the edition carries the title it does, printed in the colophon.
+    var titleReason: String? = nil
+    /// The thickness the reader chose for this copy. Nil prints the volume at
+    /// its natural length, up to the cap.
+    var pageTier: Int? = nil
+    /// Days a chosen thin tier let go of, so the colophon can say so.
+    var daysLeftOut: Int? = nil
+    /// Names this one binding. Every folio's address is derived from it, so two
+    /// printings of the same month never share a code for different pages.
+    var bindingID: String? = nil
 
     /// How the rest of the codebase refers to the above.
     var inscriptionPublication: InscriptionPublicationMatter? {
@@ -693,6 +711,10 @@ struct AnnualEdition: Codable, Equatable {
     var castConversation: BoundVolumeCastConversation? = nil
     /// Season- or year-scale Reader work, frozen when the volume is composed.
     var playLeaves: [BoundEditionPlayLeaf]? = nil
+    /// Every night of the span, one line each: the date, the title and the
+    /// object the night's closing named. A printed year cannot hold every
+    /// braid in full, so it holds every braid in a line, and says so.
+    var nightsLedger: [BoundNightLine]? = nil
 
     /// The reader's own name for covers, jackets, and spines. The Book-given
     /// role only stands in when an older archive has no usable human name.
@@ -2108,6 +2130,7 @@ enum MonthlyEditionBuilder {
         includePrivateLifeAlmanac: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
         boundTales: [LivingTale] = [],
+        authoredReceipts: AuthoredContentReceiptLedger = .empty,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> AnnualEdition {
@@ -2143,7 +2166,8 @@ enum MonthlyEditionBuilder {
                 // Each chapter filters the ledger to its own month, so the
                 // hardcover's margins carry the Cast all year rather than
                 // falling silent the way the monthly volumes would not.
-                castActs: castActs
+                castActs: castActs,
+                authoredReceipts: authoredReceipts
             )
             if !chapter.isEmpty { chapters.append(Self.asVolumeChapter(chapter)) }
         }
@@ -2187,7 +2211,7 @@ enum MonthlyEditionBuilder {
         )
         let closing = BookForewordWriter.annualClosing(year: year, chapters: chapters)
 
-        return AnnualEdition(
+        var assembled = AnnualEdition(
             title: "Book of You: The \(year) Annual",
             subtitle: "\(readerRole?.fullName ?? readerName): a year, bound",
             year: year,
@@ -2227,6 +2251,8 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             )
         )
+        assembled.nightsLedger = BoundNightLine.ledger(from: chapters)
+        return assembled
     }
 
     /// A season, bound: three month-chapters between one pair of covers.
@@ -2263,6 +2289,7 @@ enum MonthlyEditionBuilder {
         includePrivateLifeAlmanac: Bool = false,
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
         boundTales: [LivingTale] = [],
+        authoredReceipts: AuthoredContentReceiptLedger = .empty,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> AnnualEdition {
@@ -2293,7 +2320,8 @@ enum MonthlyEditionBuilder {
                 includePrivateWeatherSummary: includePrivateLifeAlmanac,
                 academySeason: academySeason,
                 boundTales: boundTales,
-                castActs: castActs
+                castActs: castActs,
+                authoredReceipts: authoredReceipts
             )
             if !chapter.isEmpty { chapters.append(Self.asVolumeChapter(chapter)) }
         }
@@ -2331,7 +2359,7 @@ enum MonthlyEditionBuilder {
         let coverLine = readerNamed ?? proposal?.title ?? spanLine
         let chapterWord = chapters.count == 1 ? "one month" : "\(chapters.count) months"
 
-        return AnnualEdition(
+        var assembled = AnnualEdition(
             title: "Book of You: \(coverLine)",
             subtitle: "\(readerRole?.fullName ?? readerName): \(bindsAnnual ? "a year" : "a season"), bound",
             year: calendar.component(.year, from: seasonStart),
@@ -2395,6 +2423,8 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             )
         )
+        if bindsAnnual { assembled.nightsLedger = BoundNightLine.ledger(from: chapters) }
+        return assembled
     }
 
     /// Inside a bound volume the quiet "nothing arranged itself into a story"
@@ -2439,7 +2469,10 @@ enum MonthlyEditionBuilder {
         academySeason: AcademySeasonEdition.Inputs = AcademySeasonEdition.Inputs(),
         boundTales: [LivingTale] = [],
         castActs: [CastActRecord] = [],
-        grimoire: GrimoireLedger = GrimoireLedger()
+        grimoire: GrimoireLedger = GrimoireLedger(),
+        authoredReceipts: AuthoredContentReceiptLedger = .empty,
+        packTitle: String? = nil,
+        editionName: String? = nil
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -2508,12 +2541,28 @@ enum MonthlyEditionBuilder {
             ? fuelAndInnerWeatherSection(from: pages, calendar: calendar)
             : MonthlyEditionSection(id: "fuel-and-inner-weather", title: "Fuel & Inner Weather", note: "", items: [])
 
-        let title = "Book of You: \(monthTitle(for: startDate, calendar: calendar))"
+        let titled = EditionTitler.monthly(
+            readerNamed: editionName, packTitle: packTitle, role: readerRole, theme: theme,
+            monthTitle: monthTitle(for: startDate, calendar: calendar)
+        )
+        let title = "Book of You: \(titled.line)"
         let subtitle = theme?.name ?? "\(dateLine(startDate, calendar: calendar)): \(dateLine(endDate, calendar: calendar))"
         let tales = boundTales.filter { tale in
             guard let closedAt = tale.closedAt else { return false }
             return closedAt >= startDate && closedAt <= endDate
         }
+        // The month told day by day, from what was kept and what was read.
+        let dayBook = BoundDayBookBuilder.make(
+            pages: boundPages,
+            keepablePages: pages,
+            receipts: authoredReceipts,
+            castActs: castActs,
+            startDate: startDate,
+            endDate: endDate,
+            includesPrivateBody: includePrivateWeatherSummary,
+            calendar: calendar
+        )
+
         // The volume reads as a book, not as a filing cabinet: the month is
         // named, the nights tell their story, the Book makes its claims, the
         // world turns around all of it, something ends, and only then does the
@@ -2647,7 +2696,7 @@ enum MonthlyEditionBuilder {
             return section
         }.filter { !$0.items.isEmpty }
 
-        return MonthlyEdition(
+        var assembled = MonthlyEdition(
             title: title,
             subtitle: subtitle,
             generatedAt: generatedAt,
@@ -2719,6 +2768,18 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             )
         )
+        assembled.dayBook = dayBook
+        assembled.titleReason = titled.reason
+        assembled.handbook = HandbookBuilder.make(
+            pages: pages,
+            castPresence: dayBook?.chart.cast ?? [],
+            terms: [theme?.name ?? "", theme?.line ?? ""] + (theme?.motifs ?? [])
+                + continuity.strongestSignals.prefix(5).map(\.line),
+            seed: monthKey,
+            dayBook: dayBook,
+            dayCount: max(1, calendar.dateComponents([.day], from: startDate, to: endDate).day.map { $0 + 1 } ?? 30)
+        )
+        return assembled
     }
 
     private static func fictionalConsequenceSection(
@@ -3569,7 +3630,7 @@ enum MonthlyEditionBuilder {
         )
     }
 
-    private static func pageItem(_ page: BookPage) -> MonthlyEditionItem {
+    static func pageItem(_ page: BookPage) -> MonthlyEditionItem {
         MonthlyEditionItem(
             id: page.id,
             kind: hasVisualMedia(page) ? .image : .page,
@@ -4398,17 +4459,18 @@ struct PrintSpec: Equatable {
     var maximumPages: Int { coverTreatment == .saddleStitch ? 48 : 800 }
 
     /// The most pages an edition of this kind may print. Premium colour costs
-    /// 13.89c a page, so every edition is bounded: at these caps an à la carte
-    /// copy stays at its price floor, and a Bound Year member-year (three
-    /// seasonal softcovers, the linen annual, four Media Mail parcels) costs
-    /// about $124 against $249. The Worker enforces the same caps
-    /// (EDITION_PAGE_CAPS), so a client cannot order past them.
+    /// 13.89c a page, so every edition is bounded. The Field Book earns its
+    /// pages (the month's story as read, the days, the maps, the Cast), so the
+    /// caps sit where a full month, season and year land: 128, 176 and 256. A
+    /// Bound Year member-year (three seasonal softcovers, the linen annual,
+    /// four parcels) then costs about $162 against $249. The Worker enforces
+    /// the same caps (EDITION_PAGE_CAPS), so a client cannot order past them.
     static func pageCap(for kind: PublicationEditionKind) -> Int {
         switch kind {
         case .weekly: return 48
-        case .monthly: return 92
-        case .seasonal: return 112
-        case .annual, .special: return 208
+        case .monthly: return 128
+        case .seasonal: return 176
+        case .annual, .special: return 256
         }
     }
 
@@ -4947,13 +5009,33 @@ struct WeeklyPublicationMatter: Codable, Equatable {
     /// issue in front of them and argues from its actual evidence. Generated
     /// only when the local writer is available; nil simply omits the leaf.
     var castConversation: BoundVolumeCastConversation? = nil
+    /// The week told day by day, from what was kept and read. Attached at
+    /// binding time; nil prints the issue in its earlier form.
+    var dayBook: BoundDayBook? = nil
+    /// What the Academy teaches, set beside the week. Attached with the days.
+    var handbook: Handbook? = nil
+    /// The thickness the reader chose. A weekly Field Book is a magazine: 32
+    /// pages unless they asked for 24, 40 or 48.
+    var pageTier: Int? = nil
+    /// See `MonthlyEdition.bindingID`.
+    var bindingID: String? = nil
+
+    static let pageTiers = [24, 32, 40, 48]
+    static let defaultPageTier = 32
+
+    var resolvedPageTier: Int {
+        guard let pageTier, Self.pageTiers.contains(pageTier) else { return Self.defaultPageTier }
+        return pageTier
+    }
 
     var coverReaderName: String {
         resolvedCoverReaderName(readerName, role: issue.readerRole)
     }
 
     var preferredPhysicalPageCount: Int {
-        WeeklyPrintEditorialPolicy.preferredPageCount(for: issue)
+        // A week told day by day is bound at the thickness the reader picked.
+        if let dayBook, !dayBook.days.isEmpty { return resolvedPageTier }
+        return WeeklyPrintEditorialPolicy.preferredPageCount(for: issue)
     }
 }
 
@@ -5596,14 +5678,37 @@ enum EditionPrintFitting {
 }
 
 extension MonthlyEdition {
+    static var coverTitleCharacterLimitValue: Int { 72 }
+
     /// One step smaller, or nil when nothing more may be given up.
     func trimmedForPrint() -> MonthlyEdition? {
+        // The Field Book prints the days; once the archive is sampled, the
+        // days give up what they can spare before any other section does.
+        if handbook != nil,
+           !sections.contains(where: { $0.id == "other-kept-pages" && $0.items.count > 0 }),
+           let thinner = handbook?.trimmedOnce() {
+            var copy = self
+            copy.handbook = thinner
+            return copy
+        }
+        if dayBook != nil,
+           !sections.contains(where: { $0.id == "other-kept-pages" && $0.items.count > 0 }),
+           let smaller = dayBook?.trimmedForPrint() {
+            var copy = self
+            copy.dayBook = smaller
+            return copy
+        }
         for (id, floor) in EditionPrintFitting.order {
             guard let index = sections.firstIndex(where: { $0.id == id && $0.items.count > floor }) else { continue }
             var copy = self
             var section = copy.sections[index]
             let keep = max(floor, section.items.count / 2)
             section.items = EditionPrintFitting.evenlySpaced(section.items, keeping: keep)
+            if id == "daily-braids" {
+                // A printed year holds a sampling of its nights in full, and
+                // the ledger holds the rest in a line. Say so.
+                section.note = "A sampling of the nights, spaced across the span. Every night is named in the Ledger of Nights."
+            }
             if id == "other-kept-pages" {
                 // The complete appendix stays in the digital archive. A
                 // sampled printed copy must not call itself complete.
@@ -5617,6 +5722,14 @@ extension MonthlyEdition {
             } else {
                 copy.sections[index] = section
             }
+            return copy
+        }
+        // A thickness the reader asked for outranks the natural length: the
+        // fullest days stay, the lightest go, and the colophon says so.
+        if pageTier != nil, let lighter = dayBook?.droppingLightestDay() {
+            var copy = self
+            copy.dayBook = lighter
+            copy.daysLeftOut = (daysLeftOut ?? 0) + 1
             return copy
         }
         return nil

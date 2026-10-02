@@ -2342,6 +2342,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Volumes the reader has sent away to be printed. Kept so the Book can
     /// press a Page for each one and remember, later, that it let something go.
     var pressedVolumes: [PressedVolumeKeepsake]?
+    /// Each volume the reader sent to the press, by the id its folios print, so
+    /// a photograph of a handled page can be traced back to its book.
+    var volumeRegistries: [BoundVolumeRegistry]?
     /// The Bound Year, if they hold one. Sold on the web, so this is a mirror
     /// of what the Worker knows rather than the record itself.
     var boundYear: BoundYearMembership?

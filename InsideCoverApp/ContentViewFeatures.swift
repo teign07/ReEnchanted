@@ -3498,6 +3498,7 @@ extension ContentView {
             includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
             academySeason: academySeasonInputs,
             boundTales: vault.data.boundTales ?? [],
+            authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
             now: now,
             calendar: calendar
         )
@@ -3553,6 +3554,7 @@ extension ContentView {
             includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
             academySeason: academySeasonInputs,
             boundTales: vault.data.boundTales ?? [],
+            authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
             now: editorialNow,
             calendar: calendar
         )
@@ -3766,7 +3768,23 @@ extension ContentView {
         edition.dedication = issue.dedication
         edition.publicationKind = .weekly
         edition.publicationRecipeID = "weekly-issue-\(issue.number)"
-        edition.weeklyPublication = matter
+        var fieldMatter = matter
+        fieldMatter.dayBook = BoundDayBookBuilder.make(
+            pages: issue.pages,
+            receipts: vault.data.authoredContentReceipts ?? .empty,
+            castActs: (vault.data.castActs ?? .empty).records,
+            startDate: issue.startDate,
+            endDate: issue.endDate
+        )
+        fieldMatter.handbook = HandbookBuilder.make(
+            pages: issue.pages,
+            castPresence: fieldMatter.dayBook?.chart.cast ?? [],
+            terms: [issue.resolvedEditorialTitle] + issue.highlights + [issue.readerRole?.gloss ?? ""],
+            seed: "week-\(issue.number)",
+            dayBook: fieldMatter.dayBook,
+            dayCount: WeeklyIssue.weekDays
+        )
+        edition.weeklyPublication = fieldMatter
         edition.playLeaves = issue.playLeaves
         return edition
     }
@@ -3812,6 +3830,7 @@ extension ContentView {
             includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
             academySeason: academySeasonInputs,
             boundTales: vault.data.boundTales ?? [],
+            authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
             now: now,
             calendar: calendar
         )
@@ -3894,7 +3913,10 @@ extension ContentView {
                 // quotes these; it never paraphrases them.
                 castActs: (vault.data.castActs ?? .empty).records,
                 // The private laws as they stood when this month was bound.
-                grimoire: vault.data.grimoire ?? GrimoireLedger()
+                grimoire: vault.data.grimoire ?? GrimoireLedger(),
+                // What the Book showed them, frozen when it was shown: the
+                // month's story as this reader read it.
+                authoredReceipts: vault.data.authoredContentReceipts ?? .empty
             )
         }
         let bindable = monthlyPublicationCandidates.filter(\.isBindable)
@@ -5964,6 +5986,7 @@ extension ContentView {
                 includePrivateLifeAlmanac: includePrivateWeatherInMonthlyBinding,
                 academySeason: academySeasonInputs,
                 boundTales: vault.data.boundTales ?? [],
+                authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
                 now: Date()
             )
             annual.dedication = dedication

@@ -401,6 +401,7 @@ enum MonthlyEditionPDFWriter {
     ) {
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
+        cursor.addressSeed = addressSeed(for: edition)
         var marginaliaIndex = 0
         let marginalia = marginNotes(for: edition)
         let designRect = CGRect(origin: .zero, size: designSize)
@@ -454,10 +455,12 @@ enum MonthlyEditionPDFWriter {
         drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
         // The charts gather with them, for the reason they gather with each
         // other. A separate maps section would be a category dump.
-        drawIlluminatedPlates(
-            mapPlates.map { IlluminatedPlate(image: $0.image, caption: $0.caption) },
-            style: style, context: context, cursor: &cursor
-        )
+        if edition.dayBook == nil {
+            drawIlluminatedPlates(
+                mapPlates.map { IlluminatedPlate(image: $0.image, caption: $0.caption) },
+                style: style, context: context, cursor: &cursor
+            )
+        }
 
         if let theme = edition.theme {
             beginComposedPage(context, style: style, cursor: &cursor)
@@ -477,7 +480,8 @@ enum MonthlyEditionPDFWriter {
         drawContents(edition, style: style, cursor: &cursor)
 
         if let matter = edition.publicationMatter {
-            if !matter.almanacItems.isEmpty {
+            // The Field Book's almanac page carries these two facts itself.
+            if !matter.almanacItems.isEmpty && edition.dayBook == nil {
                 drawVolumeCabinet(
                     title: "The Month's Little Almanac",
                     note: "Outer weather, ink-time, and private charts only where you opened that drawer. Missing days remain missing.",
@@ -508,10 +512,26 @@ enum MonthlyEditionPDFWriter {
             )
         }
 
+        // The Field Book: the almanac, the charts, the Cast, and the days. It
+        // replaces the flowed braids, souvenirs and images, which the days carry.
+        if let book = edition.dayBook {
+            drawFieldBook(
+                edition, book: book, mapPlates: mapPlates, marginalia: marginalia,
+                style: style, context: context, cursor: &cursor
+            )
+        }
+
         let playLeaves = edition.playLeaves ?? []
         let afterWorldEventLeaves = playLeaves.filter { $0.definition.templateSlot == .afterWorldEvent }
         var placedAfterWorldEvent = false
-        for section in edition.sections where section.id != "the-months-theme" {
+        // The days already print their photographs, clippings and the
+        // sentences set as the reader's own words: the archive leaves those out.
+        let printedInDays = Set(edition.dayBook?.days.flatMap(\.printedPageIDs) ?? [])
+        for var section in edition.sections where section.id != "the-months-theme" && !fieldBookReplaces(section.id, in: edition) {
+            if section.id == "other-kept-pages", !printedInDays.isEmpty {
+                section.items.removeAll { printedInDays.contains($0.id) }
+                if section.items.isEmpty { continue }
+            }
             if section.id == "what-the-cast-did" {
                 drawCastDivider(edition.castLead, style: style, context: context, cursor: &cursor)
             }
@@ -570,6 +590,18 @@ enum MonthlyEditionPDFWriter {
             cursor: &cursor
         )
 
+        // The Handbook closes the volume's matter: the term's coursework, the
+        // Faculty files, the lore set for this reader, the creatures they filed,
+        // the spell sheets, the puzzles, the Examination and the Report Card.
+        if let handbook = edition.handbook, !handbook.isEmpty {
+            drawHandbook(
+                handbook, readerName: edition.coverReaderName,
+                termLabel: "\(edition.monthName) \(Calendar.current.component(.year, from: edition.startDate))",
+                monthNumber: Calendar.current.component(.month, from: edition.startDate),
+                style: style, context: context, cursor: &cursor
+            )
+        }
+
         // The month's conclusion, on its own composted leaf.
         let closing = edition.closing ?? BookForewordWriter.closing(
             monthTitle: edition.monthName,
@@ -591,6 +623,11 @@ enum MonthlyEditionPDFWriter {
             cursor: &cursor
         )
         drawColophon(edition, style: style, context: context, cursor: &cursor)
+    }
+
+    /// The sections the day-by-day volume carries in its days instead.
+    static func fieldBookReplaces(_ sectionID: String, in edition: MonthlyEdition) -> Bool {
+        edition.dayBook != nil && ["daily-braids", "souvenirs", "images"].contains(sectionID)
     }
 
     /// The Inscription is a commissioned threshold book, not a one-day monthly
@@ -687,20 +724,48 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec = .hardcover6x9,
         to url: URL
     ) throws -> Int {
+        // Which pages were built to be handled, kept beside the file.
+        PrintPageMap.reset()
+        defer { PrintPageMap.writeSidecar(for: url) }
         guard edition.publicationKind != .weekly else {
             return try writeUncappedPrintInterior(edition, spec: spec, to: url)
         }
         let cap = PrintSpec.pageCap(for: edition.publicationKind ?? .monthly)
-        var fitting = edition
-        while true {
-            let pages = try writeUncappedPrintInterior(fitting, spec: spec, to: url)
-            guard pages > cap else { return pages }
-            guard let smaller = fitting.trimmedForPrint() else {
-                throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
-                    "This edition needs \(pages) pages even at its leanest; its cap is \(cap)."])
-            }
-            fitting = smaller
+        // A thickness the reader chose is a smaller cap, never a larger one.
+        let target = edition.pageTier.map { min($0, cap) } ?? cap
+        let first = try writeUncappedPrintInterior(edition, spec: spec, to: url)
+        if first <= target { return first }
+
+        // Trimming is cheap and rendering is not. Lay out the whole trim
+        // sequence first, then bisect it for the least-trimmed edition that fits.
+        var steps: [MonthlyEdition] = []
+        var walker = edition
+        while let smaller = walker.trimmedForPrint(), steps.count < 400 {
+            steps.append(smaller)
+            walker = smaller
         }
+        guard !steps.isEmpty else {
+            if first <= cap { return first }
+            throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
+                "This edition needs \(first) pages even at its leanest; its cap is \(cap)."])
+        }
+        var low = 0, high = steps.count - 1   // steps[high] is the leanest
+        var fitted: Int?
+        while low <= high {
+            let mid = (low + high) / 2
+            let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+            if pages <= target { fitted = mid; high = mid - 1 } else { low = mid + 1 }
+        }
+        if let fitted {
+            // The file on disk is from the last probe; render the winner again.
+            return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url)
+        }
+        // Even the leanest is over the target. Under the cap it is simply a
+        // little thicker than asked; over it, it cannot be printed.
+        let leanest = try writeUncappedPrintInterior(steps[steps.count - 1], spec: spec, to: url)
+        if leanest <= cap { return leanest }
+        throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
+            "This edition needs \(leanest) pages even at its leanest; its cap is \(cap)."])
     }
 
     private static func writeUncappedPrintInterior(
@@ -760,8 +825,11 @@ enum MonthlyEditionPDFWriter {
         }
         if target > rawCount {
             for index in 0..<(target - rawCount) {
-                if let blank = blankEndpaper(size: pageBounds.size, style: style, isFirst: index == 0) {
-                    document.insert(blank, at: document.pageCount)
+                if let leaf = fieldPadLeaf(size: pageBounds.size, style: style, index: index,
+                                           monthNumber: Calendar.current.component(.month, from: edition.startDate),
+                                           seed: "\(edition.monthName)-\(edition.chapterNumber)",
+                                           folio: (document.pageCount + 1, addressSeed(for: edition))) {
+                    document.insert(leaf, at: document.pageCount)
                 }
             }
         }
@@ -1321,8 +1389,10 @@ enum MonthlyEditionPDFWriter {
         }
         if target > rawCount {
             for index in 0..<(target - rawCount) {
-                if let blank = blankEndpaper(size: pageBounds.size, style: style, isFirst: index == 0) {
-                    document.insert(blank, at: document.pageCount)
+                if let leaf = fieldPadLeaf(size: pageBounds.size, style: style, index: index,
+                                           monthNumber: Calendar.current.component(.month, from: annual.startDate),
+                                           seed: "volume-\(annual.year)") {
+                    document.insert(leaf, at: document.pageCount)
                 }
             }
         }
@@ -1973,6 +2043,9 @@ enum MonthlyEditionPDFWriter {
             )
         }
 
+        drawVolumeCast(annual.chapters, title: annual.title, style: annualStyle,
+                       limit: annual.publicationKind == .annual ? 6 : 4, context: context, cursor: &cursor)
+
         for chapter in annual.chapters {
             let chapterStyle = EditionStyle.style(for: chapter)
             let marginalia = marginNotes(for: chapter)
@@ -2002,6 +2075,15 @@ enum MonthlyEditionPDFWriter {
                 withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                     drawStarChart(alive, edition: chapter, style: chapterStyle, bounds: designRect)
                 }
+            }
+
+            // The Field Book, at the depth this volume can afford.
+            if let book = chapter.dayBook {
+                drawChapterFieldBook(
+                    chapter, book: book,
+                    depth: annual.publicationKind == .annual ? .annual : .seasonal,
+                    marginalia: marginalia, style: chapterStyle, context: context, cursor: &cursor
+                )
             }
 
             for section in chapter.sections where section.id != "the-months-theme" {
@@ -2036,6 +2118,10 @@ enum MonthlyEditionPDFWriter {
             withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
                 drawAnnualStarChart(named, annual: annual, style: annualStyle, bounds: designRect)
             }
+        }
+
+        if annual.publicationKind == .annual, let ledger = annual.nightsLedger, !ledger.isEmpty {
+            drawNightsLedger(ledger, year: annual.year, style: annualStyle, context: context, cursor: &cursor)
         }
 
         if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
@@ -3662,7 +3748,18 @@ enum MonthlyEditionPDFWriter {
             drawText("The Month, Bound", font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
             drawText("The nightly bindings read as one story.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
         }
-        for section in edition.sections {
+        if edition.dayBook != nil {
+            for (title, note) in [
+                ("The Almanac", "The month's moons, and the nights, scenes and photographs it kept."),
+                ("The Labyrinth", "Where everyone was, and where you were."),
+                ("The Cast", "Who was in the room."),
+                ("The Days", "Each date, the world's side and yours.")
+            ] {
+                drawText(title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
+                drawText(note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+            }
+        }
+        for section in edition.sections where !fieldBookReplaces(section.id, in: edition) {
             drawText(section.title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
             drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
         }
@@ -3676,7 +3773,7 @@ enum MonthlyEditionPDFWriter {
     /// The binding owns the invitation; the finished marks remain on paper.
     /// This renderer never supplies a field, callback, scan code, or completion
     /// receipt that could turn the private leaf back into app state.
-    fileprivate static func drawEditionPlayLeaves(
+    static func drawEditionPlayLeaves(
         _ leaves: [BoundEditionPlayLeaf],
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
@@ -3691,8 +3788,9 @@ enum MonthlyEditionPDFWriter {
                 context.beginPage()
                 cursor.reset()
                 cursor.pageIndex += 1
-                UIColor.white.setFill()
-                UIRectFill(cursor.bounds)
+                drawSpacerPlate(style: style, bounds: cursor.bounds, seed: cursor.pageSeed)
+                drawFolioMark(number: cursor.pageIndex, seed: cursor.addressSeed ?? cursor.seed,
+                              bounds: cursor.bounds, ink: style.palette.ink)
             }
 
             let pageCount = leaf.definition.footprint.pageCount
@@ -3707,6 +3805,11 @@ enum MonthlyEditionPDFWriter {
                     style: style,
                     safeInsets: cursor.margins
                 )
+                // The reverse of a marker leaf stays blank, so ink cannot ghost.
+                if !(leaf.definition.footprint.hasBlankReverse && part == 1) {
+                    drawFolioMark(number: cursor.pageIndex, seed: cursor.addressSeed ?? cursor.seed,
+                                  bounds: cursor.bounds, ink: style.palette.ink)
+                }
             }
         }
     }
@@ -3961,7 +4064,13 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        beginComposedPage(context, style: style, cursor: &cursor)
+        // A short section does not need a leaf to itself: it opens where the
+        // last one left off when there is room for its opener and a few lines.
+        if cursor.y > cursor.margins.top + 1, cursor.bottom - cursor.y > 260 {
+            cursor.y += 30
+        } else {
+            beginComposedPage(context, style: style, cursor: &cursor)
+        }
 
         // Section opener: the title torn from paper and taped across the leaf.
         let labelTop = cursor.y - 14
@@ -4661,6 +4770,26 @@ enum MonthlyEditionPDFWriter {
             )
             cursor.y += 20
         }
+        if let reason = edition.titleReason {
+            drawCentered(
+                reason,
+                font: .serifItalicFont(ofSize: 9),
+                color: style.palette.ink.withAlphaComponent(0.55),
+                y: cursor.y,
+                in: cursor.bounds
+            )
+            cursor.y += 18
+        }
+        if let left = edition.daysLeftOut, left > 0 {
+            drawCentered(
+                "This copy holds the fullest days of the month. \(left) lighter \(left == 1 ? "day stays" : "days stay") in your archive.",
+                font: .serifItalicFont(ofSize: 9),
+                color: style.palette.ink.withAlphaComponent(0.55),
+                y: cursor.y,
+                in: cursor.bounds
+            )
+            cursor.y += 18
+        }
         drawCentered(
             "Bound by the Book itself, which read every page twice.",
             font: .serifItalicFont(ofSize: 10),
@@ -4827,7 +4956,7 @@ enum MonthlyEditionPDFWriter {
     /// convention is centuries old because it works. A short line surrounded by
     /// white space is louder than anything decorated, and this is the one page
     /// the Book had no hand in, so it does not get the Book's ornament either.
-    fileprivate static func drawDedication(
+    static func drawDedication(
         _ dedication: BoundDedication?,
         style: EditionStyle,
         context: UIGraphicsPDFRendererContext,
@@ -4918,7 +5047,7 @@ enum MonthlyEditionPDFWriter {
     /// "RRGGBB" → UIColor. The cast accent hexes live in Shared as plain
     /// strings because InsideCoverCore imports neither SwiftUI nor UIKit; the
     /// SwiftUI twin of this lives on `Color` in BookStatusCards.
-    fileprivate static func castInk(_ hex: String) -> UIColor {
+    static func castInk(_ hex: String) -> UIColor {
         var value: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&value)
         return UIColor(
@@ -4981,13 +5110,13 @@ enum MonthlyEditionPDFWriter {
 
     /// A stable fraction in 0...1 for a seed - the building block of the
     /// deterministic compost (positions, rotations, sizes).
-    fileprivate static func frac(_ seed: String) -> CGFloat {
+    static func frac(_ seed: String) -> CGFloat {
         CGFloat(ConstellationKeeper.stableIndex(for: seed, count: 1000)) / 1000.0
     }
 
     /// Linear blend between two colors, used to tint the cream parchment toward
     /// the month's palette so the paper itself carries the binding.
-    fileprivate static func blend(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {
+    static func blend(_ a: UIColor, _ b: UIColor, _ t: CGFloat) -> UIColor {
         var ar: CGFloat = 0, ag: CGFloat = 0, ab: CGFloat = 0, aa: CGFloat = 0
         var br: CGFloat = 0, bg: CGFloat = 0, bb: CGFloat = 0, ba: CGFloat = 0
         a.getRed(&ar, green: &ag, blue: &ab, alpha: &aa)
@@ -5002,7 +5131,7 @@ enum MonthlyEditionPDFWriter {
 
     /// The warm paper the reading pages are composted onto, tinted a touch
     /// toward the month's accent so no two bindings sit on identical stock.
-    fileprivate static func parchment(for style: EditionStyle) -> (top: UIColor, bottom: UIColor, fiber: UIColor, stain: UIColor) {
+    static func parchment(for style: EditionStyle) -> (top: UIColor, bottom: UIColor, fiber: UIColor, stain: UIColor) {
         let creamTop = UIColor(red: 0.965, green: 0.945, blue: 0.890, alpha: 1)
         let creamBottom = UIColor(red: 0.930, green: 0.900, blue: 0.832, alpha: 1)
         return (
@@ -5015,7 +5144,14 @@ enum MonthlyEditionPDFWriter {
 
     /// Begins a fresh reading page and composts it. Use for every interior text
     /// page; the dark cover/star-chart/divider plates keep their own wash.
-    private static func beginComposedPage(
+    /// What this edition's folio addresses derive from: its binding's own id
+    /// when it has one, otherwise the seed the compost layer already uses.
+    static func addressSeed(for edition: MonthlyEdition) -> String {
+        edition.bindingID
+            ?? "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
+    }
+
+    static func beginComposedPage(
         _ context: UIGraphicsPDFRendererContext,
         style: EditionStyle,
         cursor: inout PDFCursor
@@ -5026,7 +5162,7 @@ enum MonthlyEditionPDFWriter {
         drawComposedBackground(style: style, seed: cursor.pageSeed, in: cursor.bounds)
     }
 
-    fileprivate static func drawComposedBackground(
+    static func drawComposedBackground(
         style: EditionStyle,
         seed: String,
         in bounds: CGRect,
@@ -5126,7 +5262,7 @@ enum MonthlyEditionPDFWriter {
     /// A torn paper fragment: a deckled rounded rect with a soft drop shadow,
     /// rotated about its center. Used for gutter scraps, section labels, and the
     /// conclusion card.
-    fileprivate static func drawTornScrap(
+    static func drawTornScrap(
         in rect: CGRect,
         rotation: CGFloat,
         fill: UIColor,
@@ -5185,7 +5321,7 @@ enum MonthlyEditionPDFWriter {
 
     /// A strip of translucent tape, slightly tinted, with darker edges and a
     /// dab of shine - drawn rotated about its center.
-    fileprivate static func drawTapeStrip(center: CGPoint, length: CGFloat, angle: CGFloat, tint: UIColor) {
+    static func drawTapeStrip(center: CGPoint, length: CGFloat, angle: CGFloat, tint: UIColor) {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
         let height: CGFloat = 13
         cg.saveGState()
@@ -5227,7 +5363,7 @@ enum MonthlyEditionPDFWriter {
         cg.restoreGState()
     }
 
-    fileprivate static func drawOrnamentRow(_ style: EditionStyle, centerY: CGFloat, in bounds: CGRect, color: UIColor) {
+    static func drawOrnamentRow(_ style: EditionStyle, centerY: CGFloat, in bounds: CGRect, color: UIColor) {
         let center = CGPoint(x: bounds.midX, y: centerY)
         color.setFill()
         color.setStroke()
@@ -5345,7 +5481,7 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    fileprivate static func drawText(
+    static func drawText(
         _ text: String,
         font: UIFont,
         color: UIColor = .black,
@@ -5369,7 +5505,7 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
-    fileprivate static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+    static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         let attributes: [NSAttributedString.Key: Any] = [
@@ -5408,7 +5544,7 @@ enum MonthlyEditionPDFWriter {
         cursor.y += max(rectHeight, firstLineOnlyInsetHeight) + spacingAfter
     }
 
-    fileprivate static func drawFramedImage(_ image: UIImage, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
+    static func drawFramedImage(_ image: UIImage, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
         let maxHeight: CGFloat = 210
         let scale = min(cursor.contentWidth / image.size.width, maxHeight / image.size.height)
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -5470,7 +5606,7 @@ enum MonthlyEditionPDFWriter {
         cursor.y = cursor.bottom
     }
 
-    private static func ensureSpace(_ needed: CGFloat, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
+    static func ensureSpace(_ needed: CGFloat, style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
         if cursor.y + needed > cursor.bottom {
             beginComposedPage(context, style: style, cursor: &cursor)
         }
@@ -5490,14 +5626,14 @@ enum MonthlyEditionPDFWriter {
         asset.metadata[mediaPresentationKey] == fullPageMediaPresentation
     }
 
-    fileprivate static func firstImage(from assets: [BookPageMediaAsset]) -> UIImage? {
+    static func firstImage(from assets: [BookPageMediaAsset]) -> UIImage? {
         for asset in assets where asset.sourceID != "authored-marginalia" {
             if let image = image(from: asset) { return image }
         }
         return nil
     }
 
-    private static func image(from asset: BookPageMediaAsset) -> UIImage? {
+    static func image(from asset: BookPageMediaAsset) -> UIImage? {
         switch asset.kind {
         case .renderedImageFile:
             return UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(asset.reference))
@@ -5510,7 +5646,7 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
-    fileprivate static func retainedMarkImage(from assets: [BookPageMediaAsset]) -> UIImage? {
+    static func retainedMarkImage(from assets: [BookPageMediaAsset]) -> UIImage? {
         assets.first(where: { $0.sourceID == "authored-marginalia" }).flatMap(image(from:))
     }
 
@@ -5549,20 +5685,23 @@ enum MonthlyEditionPDFWriter {
         return result
     }
 
-    private static func shortDate(_ date: Date) -> String {
+    static func shortDate(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
         return formatter.string(from: date)
     }
 }
 
-private struct PDFCursor {
+struct PDFCursor {
     let bounds: CGRect
     let margins: UIEdgeInsets
     var y: CGFloat
     /// Seeds the deterministic composting (paper grain, scrap and tape
     /// placement) so a given edition always composts the same way.
     var seed: String = "edition"
+    /// What the folios' addresses derive from, when the binding has an id of
+    /// its own. Nil falls back to `seed`.
+    var addressSeed: String?
     /// Increments on every fresh page so each composted page draws its own
     /// arrangement of fragments rather than repeating one.
     var pageIndex: Int = 0
@@ -7038,8 +7177,7 @@ enum WeeklyIssuePDFWriter {
                 if (leaf.definition.footprint.hasBlankReverse && nextPageNumber.isMultiple(of: 2))
                     || (leaf.definition.footprint.isFacingSpread && !nextPageNumber.isMultiple(of: 2)) {
                     context.beginPage()
-                    UIColor.white.setFill()
-                    UIRectFill(pageBounds)
+                    Monthly.drawSpacerPlate(style: style, bounds: pageBounds, seed: "weekly-spacer-\(pageIndex)")
                     pageIndex += 1
                 }
                 for part in 0..<playPageCount {
@@ -7393,12 +7531,23 @@ enum WeeklyIssuePDFWriter {
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
+        PrintPageMap.reset()
+        defer { PrintPageMap.writeSidecar(for: url) }
         guard spec.coverTreatment == .saddleStitch else {
             throw NSError(
                 domain: "Bindery",
                 code: 5,
                 userInfo: [NSLocalizedDescriptionKey: "A weekly issue needs the saddle-stitch press."]
             )
+        }
+
+        // The week told day by day, when the binding carries its days.
+        if let book = matter.dayBook, !book.days.isEmpty {
+            let count = try Monthly.writeWeeklyFieldBookInterior(
+                matter, book: book, dedication: dedication, spec: spec,
+                style: style(for: matter.issue), to: url
+            )
+            if count > 0 { return count }
         }
 
         var issue = matter.issue
@@ -8384,8 +8533,7 @@ enum WeeklyIssuePDFWriter {
                 if (leaf.definition.footprint.hasBlankReverse && nextPageNumber.isMultiple(of: 2))
                     || (leaf.definition.footprint.isFacingSpread && !nextPageNumber.isMultiple(of: 2)) {
                     context.beginPage()
-                    UIColor.white.setFill()
-                    UIRectFill(pageBounds)
+                    Monthly.drawSpacerPlate(style: style, bounds: pageBounds, seed: "weekly-print-spacer-\(pageNumber)")
                     pageNumber += 1
                 }
                 for part in 0..<playPageCount {

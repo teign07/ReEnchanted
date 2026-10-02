@@ -88,6 +88,7 @@ struct BookShopSheet: View {
     var onRebindWeeklyIssue: (PublicationPeriodID, BoundDedication?) -> Void = { _, _ in }
     /// A volume went away to be printed. The Book presses a Page for it.
     var onPressedVolume: (PressedVolumeKeepsake) -> Void = { _ in }
+    var onBoundVolumeRegistry: (BoundVolumeRegistry) -> Void = { _ in }
     /// The membership, mirrored so the Bindery can show what is standing.
     var boundYear: BoundYearMembership? = nil
     /// Stripe's own id for it, kept out of the archive-facing model.
@@ -205,6 +206,12 @@ struct BookShopSheet: View {
     /// in memory only: it goes into the cover PDF and nowhere else.
     @State private var physicalBookCoverChoice: PhysicalBookCoverChoice = .bookChooses
     @State private var physicalBookBinderyPlateID = PublicationCoverCatalogue.rotating.first?.id ?? "enchanted"
+    /// The thickness the reader chose for a weekly or monthly. Nil prints the
+    /// book at its natural length.
+    @State private var physicalBookPageTier: Int?
+    /// Names the volume being prepared. A new id for every change to the book,
+    /// so the folios' addresses always belong to exactly one set of leaves.
+    @State private var physicalBookBindingID = UUID().uuidString
     @State private var physicalBookCoverPhoto: UIImage?
     @State private var physicalBookCoverFocus: PublicationCoverFocus?
     @State private var physicalBookDedicationText = ""
@@ -2854,14 +2861,58 @@ struct BookShopSheet: View {
         .buttonStyle(.plain)
     }
 
-    private func physicalBookPublicationProofPanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            subsectionLabel("Look Inside")
-            if let weekly = edition.weeklyPublication, preparedPrintInteriorURL == nil {
-                Text("This week aims for \(weekly.preferredPhysicalPageCount) interior pages. Quiet weeks stay slim; 48 is the press's safety ceiling, never a quota to pad toward.")
+    @ViewBuilder
+    private func physicalBookThicknessChooser(edition: MonthlyEdition) -> some View {
+        let kind = PhysicalBookEditionIdentity.kind(for: edition)
+        if kind == .weekly || kind == .monthly {
+            let tiers = PrintThickness.tiers(for: kind)
+            let current = physicalBookPageTier ?? (kind == .weekly ? WeeklyPublicationMatter.defaultPageTier : nil)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("How thick")
+                    .font(.system(.caption, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.8))
+                HStack(spacing: 6) {
+                    ForEach(tiers, id: \.self) { tier in
+                        let chosen = current == tier
+                        Button {
+                            physicalBookPageTier = tier
+                            invalidatePhysicalBookPublication()
+                            BookFeedback.play(.select)
+                        } label: {
+                            VStack(spacing: 1) {
+                                Text(PrintThickness.name(forTier: tier, kind: kind))
+                                    .font(.system(.caption, design: .serif).weight(.semibold))
+                                Text("up to \(tier)")
+                                    .font(.system(.caption2, design: .serif).italic())
+                                    .opacity(0.7)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 7)
+                            .background(
+                                chosen ? BookPalette.violet.opacity(0.15) : BookPalette.paper.opacity(0.52),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(PrintThickness.name(forTier: tier, kind: kind)), up to \(tier) pages")
+                        .accessibilityAddTraits(chosen ? .isSelected : [])
+                    }
+                }
+                Text(kind == .weekly
+                     ? "A weekly is a magazine: 32 pages unless you ask for more or less. The Handbook fills what your week leaves."
+                     : "A thinner book keeps your fullest days and says which it left out. Slim books are the entry price. Nothing is padded to reach a number.")
                     .font(.system(.caption, design: .serif).italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.64))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func physicalBookPublicationProofPanel(edition: MonthlyEdition, spec: PrintSpec) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            subsectionLabel("Look Inside")
+            if preparedPrintInteriorURL == nil {
+                physicalBookThicknessChooser(edition: edition)
             }
             if let interior = preparedPrintInteriorURL, let cover = preparedPrintCoverURL {
                 Text("Set. These are the exact leaves and cover that will go to the press.")
@@ -3422,6 +3473,7 @@ struct BookShopSheet: View {
 
     private func invalidatePhysicalBookPublication() {
         guard pendingPhysicalBookOrder == nil else { return }
+        physicalBookBindingID = UUID().uuidString
         onInvalidatePrintReady()
         physicalBookPrintFileChecksums = nil
         hostedPhysicalBookInteriorURL = ""
@@ -3440,6 +3492,7 @@ struct BookShopSheet: View {
         physicalBookCoverPhoto = nil
         physicalBookCoverFocus = nil
         physicalBookCoverChoice = .bookChooses
+        physicalBookPageTier = nil
     }
 
     private func physicalBookEffectiveCoverImage(for edition: MonthlyEdition) -> UIImage? {
@@ -3474,8 +3527,25 @@ struct BookShopSheet: View {
         }
     }
 
+    /// Only a weekly or a monthly is bound to a chosen thickness: those are
+    /// the books whose length the reader's own days decide.
+    private func physicalBookTieredEdition(_ edition: MonthlyEdition) -> MonthlyEdition {
+        var tiered = edition
+        switch PhysicalBookEditionIdentity.kind(for: edition) {
+        case .weekly:
+            tiered.weeklyPublication?.pageTier = physicalBookPageTier
+            tiered.weeklyPublication?.bindingID = physicalBookBindingID
+        case .monthly:
+            tiered.pageTier = physicalBookPageTier
+            tiered.bindingID = physicalBookBindingID
+        default:
+            break
+        }
+        return tiered
+    }
+
     private func physicalBookEditionWithCoverMetadata(_ edition: MonthlyEdition) -> MonthlyEdition {
-        var prepared = edition
+        var prepared = physicalBookTieredEdition(edition)
         prepared.publicationCoverPlateID = physicalBookSelectedCoverPlateID(for: edition)
         prepared.publicationCoverFocus = physicalBookCoverChoice == .readerPhoto
             ? physicalBookCoverFocus
@@ -3585,7 +3655,7 @@ struct BookShopSheet: View {
            document.pageCount > 0 {
             return document.pageCount
         }
-        return physicalBookEstimatedPageCount(edition: edition, spec: spec)
+        return physicalBookEstimatedPageCount(edition: physicalBookTieredEdition(edition), spec: spec)
     }
 
     private var physicalBookPrintFilesTaskID: String {
@@ -4481,6 +4551,19 @@ struct BookShopSheet: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: ", ")
+        let kind = PhysicalBookEditionIdentity.kind(for: edition)
+        if kind == .weekly || kind == .monthly {
+            onBoundVolumeRegistry(
+                BoundVolumeRegistry(
+                    seed: physicalBookBindingID,
+                    editionID: PhysicalBookEditionIdentity.id(for: edition),
+                    title: edition.title,
+                    boundAt: Date(),
+                    pageCount: physicalBookBoundPageCount(edition: edition, spec: spec),
+                    pageMap: preparedPrintInteriorURL.flatMap { PrintPageMap.read(for: $0) }
+                )
+            )
+        }
         onPressedVolume(
             PressedVolumeKeepsake(
                 id: "\(PhysicalBookEditionIdentity.id(for: edition))-\(PhysicalBookVariant.from(spec).id)",
@@ -5484,8 +5567,12 @@ private enum PhysicalBookEditionIdentity {
 }
 
 private func physicalBookEstimatedPageCount(edition: MonthlyEdition, spec: PrintSpec) -> Int {
-    let rawPages = edition.weeklyPublication?.preferredPhysicalPageCount
+    var rawPages = edition.weeklyPublication?.preferredPhysicalPageCount
         ?? max(edition.pageCount, spec.minimumPages)
+    // A chosen thickness is a ceiling: a thin month does not grow to meet it.
+    if edition.weeklyPublication == nil, let tier = edition.pageTier {
+        rawPages = max(spec.minimumPages, min(rawPages, tier))
+    }
     return PrintGeometry.boundPageCount(rawPages: rawPages, spec: spec)
 }
 
