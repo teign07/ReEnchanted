@@ -454,7 +454,7 @@ extension SurfacePage {
         if let contentID = payload.metadata[MonthlyIssuePageMetadata.contentID]?.nonEmpty,
            let channelRaw = payload.metadata[MonthlyIssuePageMetadata.channel],
            let channel = AuthoredContentChannel(rawValue: channelRaw) {
-            receipts.append(AuthoredContentReceipt(
+            var receipt = AuthoredContentReceipt(
                 contentID: contentID,
                 occurrenceID: payload.metadata[MonthlyIssuePageMetadata.occurrenceID]?.nonEmpty ?? id,
                 channel: channel,
@@ -467,7 +467,9 @@ extension SurfacePage {
                 recordedAt: now,
                 choiceID: choiceID,
                 evidencePageIDs: evidencePageIDs
-            ))
+            )
+            if channel == .storyScene { receipt = freezingWhatWasShown(in: receipt, choiceID: choiceID) }
+            receipts.append(receipt)
         }
         receipts += AuthoredContentSurfaceAttachments
             .decoded(payload.metadata[AuthoredContentSurfaceAttachments.metadataKey])
@@ -486,6 +488,32 @@ extension SurfacePage {
         var seen = Set<String>()
         return receipts.filter { seen.insert($0.id).inserted }
     }
+
+    /// Writes down what the reader was shown, in the receipt, at the moment it
+    /// is written. The monthly pack retires when the month turns; the bound
+    /// volume still has to be able to print the scene they read.
+    private func freezingWhatWasShown(
+        in receipt: AuthoredContentReceipt,
+        choiceID: String?
+    ) -> AuthoredContentReceipt {
+        var frozen = receipt
+        let body = payload.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !body.isEmpty { frozen.printedBody = String(body.prefix(Self.printedBodyLimit)) }
+        frozen.printedTitle = payload.headline.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        if let choiceID,
+           let raw = payload.metadata[AuthoredStoryScenePageAdapter.choicesMetadataKey],
+           let data = raw.data(using: .utf8),
+           let choices = try? JSONDecoder().decode([AuthoredStorySceneChoice].self, from: data) {
+            frozen.printedChoiceLabel = choices.first { $0.id == choiceID }?.title.nonEmpty
+        }
+        frozen.roomID = payload.metadata[AcademyScene.roomKey]?.nonEmpty
+        let cast = (payload.metadata[AcademyScene.castKey] ?? "")
+            .split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        frozen.castIDs = cast.isEmpty ? nil : cast
+        return frozen
+    }
+
+    private static var printedBodyLimit: Int { 9_000 }
 }
 
 // MARK: - Native Story Page adapter
@@ -1748,9 +1776,12 @@ enum MonthlyIssueCatchUp {
             guard !dependency.isSatisfied(in: inputs.authoredContentReceipts, currentScope: scope, now: now),
                   let text = report(for: dependency, manifest: manifest, scenes: inputs.authoredStoryScenes,
                     snapshot: snapshot, ledger: inputs.authoredContentReceipts, now: now) else { return nil }
+            let scene = manifest.content.first { $0.id == dependency.contentID }
+                .flatMap { atom in inputs.authoredStoryScenes.first { $0.id == atom.reference.id } }
             return AuthoredContentReceipt(contentID: dependency.contentID,
                 occurrenceID: "report:\(manifest.id):\(scope.runID ?? ""):\(dependency.contentID)",
-                channel: .storyScene, scope: scope, state: .reported, recordedAt: now, storyText: text)
+                channel: .storyScene, scope: scope, state: .reported, recordedAt: now, storyText: text,
+                printedTitle: scene?.title, printedBody: text, roomID: scene?.roomID, castIDs: scene?.castIDs)
         }
         guard !receipts.isEmpty else { return page }
         var metadata = page.payload.metadata

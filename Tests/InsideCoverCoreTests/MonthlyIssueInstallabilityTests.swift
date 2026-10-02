@@ -1,3 +1,4 @@
+import ImageIO
 import XCTest
 @testable import InsideCoverCore
 
@@ -14,9 +15,22 @@ final class MonthlyIssueInstallabilityTests: XCTestCase {
         var scope: MonthlyIssueDeliveryAssetScope?
     }
 
+    private struct MediaRule: Decodable {
+        var prefix: String
+        var directory: String
+        var suffix: String
+    }
+
+    private struct AudioRule: Decodable {
+        var directory: String
+        var files: [String: String]
+    }
+
     private struct Issue: Decodable {
         var issueID: String
         var files: [IssueFile]
+        var media: [MediaRule]?
+        var audio: AudioRule?
     }
 
     private var contentPacks: URL {
@@ -45,6 +59,60 @@ final class MonthlyIssueInstallabilityTests: XCTestCase {
                 )
             }
         }
+    }
+
+    /// Marks are files on the reader's phone, decoded by the same ImageIO call
+    /// `BookMarginaliaImage` makes. A pack can pass every JSON check and still
+    /// ship a mark that is empty, truncated, or not an image, and the reader
+    /// sees a blank tile with nothing to say why. This holds every issue folder
+    /// that exists, so a new month is covered the day its folder appears.
+    func testEveryShippedMarkDecodesAndEveryReferenceResolves() throws {
+        let folders = try FileManager.default.contentsOfDirectory(at: contentPacks, includingPropertiesForKeys: nil)
+        var checked = 0
+        for folder in folders {
+            let issueURL = folder.appendingPathComponent("issue.json")
+            guard FileManager.default.fileExists(atPath: issueURL.path) else { continue }
+            let issue = try JSONDecoder().decode(Issue.self, from: Data(contentsOf: issueURL))
+            var declared = Set(issue.files.map(\.id))
+            for rule in issue.media ?? [] {
+                let directory = folder.appendingPathComponent(rule.directory)
+                let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+                for name in names where name.hasSuffix(rule.suffix) {
+                    let id = rule.prefix + String(name.dropLast(rule.suffix.count))
+                    declared.insert(id)
+                    guard ["png", "jpg", "jpeg"].contains(rule.suffix.dropFirst().lowercased()) else { continue }
+                    let url = directory.appendingPathComponent(name)
+                    let image = CGImageSourceCreateWithURL(url as CFURL, nil).flatMap {
+                        CGImageSourceCreateThumbnailAtIndex($0, 0, [
+                            kCGImageSourceCreateThumbnailFromImageAlways: true,
+                            kCGImageSourceThumbnailMaxPixelSize: 1_536
+                        ] as CFDictionary)
+                    }
+                    XCTAssertNotNil(image, "\(issue.issueID): \(id) is not an image the app can decode")
+                    XCTAssertGreaterThan(image?.width ?? 0, 8, "\(issue.issueID): \(id) decodes to a speck")
+                    checked += 1
+                }
+            }
+            if let audio = issue.audio {
+                for (id, file) in audio.files {
+                    declared.insert(id)
+                    XCTAssertTrue(
+                        FileManager.default.fileExists(atPath: folder.appendingPathComponent(audio.directory).appendingPathComponent(file).path),
+                        "\(issue.issueID): \(id) names a recording that is not in the folder")
+                }
+            }
+            for file in issue.files {
+                let text = try String(contentsOf: folder.appendingPathComponent(file.source), encoding: .utf8)
+                let refs = try NSRegularExpression(pattern: #"\{\{asset-path:([^}]+)\}\}"#)
+                    .matches(in: text, range: NSRange(text.startIndex..., in: text))
+                    .compactMap { Range($0.range(at: 1), in: text).map { String(text[$0]) } }
+                for ref in refs {
+                    XCTAssertTrue(declared.contains(ref),
+                                  "\(issue.issueID): \(file.source) points at \(ref), which the issue never ships")
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 0, "no mark images were found; the folder layout changed")
     }
 
     /// Authors leave defaulted fields out. That has to decode.

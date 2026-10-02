@@ -1423,9 +1423,11 @@ struct FolioMonthlyCoverView: View {
                         .opacity(0.98)
                         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 } else {
+                    // Keep the full cover illustration, including October's
+                    // ornamental border, inside the folio's dimensions.
                     Image(artwork)
                         .resizable()
-                        .scaledToFill()
+                        .scaledToFit()
                         .saturation(0.76)
                         .contrast(1.10)
                         .overlay {

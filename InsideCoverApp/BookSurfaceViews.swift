@@ -14575,6 +14575,7 @@ struct OnboardingFlowView: View {
             generatedAt: now,
             calendar: calendar
         )
+        edition.dayBook = nil  // the threshold chapbook has its own press form
         edition.title = "Book of You: The Inscription"
         edition.subtitle = "\(readerName): bound at the threshold"
         edition.publicationKind = .special
@@ -20309,36 +20310,52 @@ struct BookMarginaliaImage: View {
         cache.totalCostLimit = 24 * 1_024 * 1_024
         return cache
     }()
+    /// Stands in for a file-backed mark until it decodes. The view must always
+    /// have something to draw: while it was an empty `if let`, SwiftUI never
+    /// ran `.task` on it (a modifier on an empty view has nothing to attach to,
+    /// including a task hung off a background), so downloaded monthly marks
+    /// waited for a load nothing had asked for and stayed blank forever.
+    private static let clearPlaceholder = UIImage()
+
+    init(assetName: String) {
+        self.assetName = assetName
+        if assetName.hasPrefix("/") {
+            _fileImage = State(initialValue: Self.images.object(forKey: assetName as NSString))
+        }
+    }
 
     var body: some View {
         Group {
             if assetName.hasPrefix("/") {
-                if let fileImage { Image(uiImage: fileImage).resizable() }
+                Image(uiImage: fileImage ?? Self.clearPlaceholder).resizable()
             } else {
                 Image(assetName).resizable()
             }
         }
-        .task(id: assetName) {
-            guard assetName.hasPrefix("/") else { return }
-            if let cached = Self.images.object(forKey: assetName as NSString) {
-                fileImage = cached
-                return
-            }
-            let path = assetName
-            let decoded = await Task.detached(priority: .utility) { () -> UIImage? in
-                guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
-                      let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                        kCGImageSourceCreateThumbnailFromImageAlways: true,
-                        kCGImageSourceThumbnailMaxPixelSize: 1_536,
-                        kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceShouldCacheImmediately: true
-                      ] as CFDictionary) else { return nil }
-                return UIImage(cgImage: cgImage)
-            }.value
-            guard !Task.isCancelled, let decoded else { return }
-            Self.images.setObject(decoded, forKey: path as NSString,
-                cost: (decoded.cgImage?.bytesPerRow ?? 0) * (decoded.cgImage?.height ?? 0))
-            fileImage = decoded
+        .task(id: assetName) { await loadFileImage() }
+    }
+
+    private func loadFileImage() async {
+        guard assetName.hasPrefix("/") else { return }
+        if let cached = Self.images.object(forKey: assetName as NSString) {
+            fileImage = cached
+            return
         }
+        fileImage = nil
+        let path = assetName
+        let decoded = await Task.detached(priority: .utility) { () -> UIImage? in
+            guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: path) as CFURL, nil),
+                  let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceThumbnailMaxPixelSize: 1_536,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceShouldCacheImmediately: true
+                  ] as CFDictionary) else { return nil }
+            return UIImage(cgImage: cgImage)
+        }.value
+        guard !Task.isCancelled, let decoded else { return }
+        Self.images.setObject(decoded, forKey: path as NSString,
+            cost: (decoded.cgImage?.bytesPerRow ?? 0) * (decoded.cgImage?.height ?? 0))
+        fileImage = decoded
     }
 }

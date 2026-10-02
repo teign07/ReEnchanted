@@ -1482,7 +1482,10 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             let occurrenceID = repeats
                 ? "radio-\(banter.id)-\(UUID().uuidString)"
                 : resolved.occurrenceID
-            let receipt = resolved.content.receipt(occurrenceID: occurrenceID, state: state, at: Date())
+            var receipt = resolved.content.receipt(occurrenceID: occurrenceID, state: state, at: Date())
+            // Frozen as it played, so a bound day can print what the dial said.
+            receipt.printedBody = banter.caption
+            receipt.printedTitle = "\(station.displayFrequency) \(station.title)"
             PlayerVault.shared.data.authoredContentReceipts =
                 (PlayerVault.shared.data.authoredContentReceipts ?? .empty).recording(receipt)
             if !repeats {

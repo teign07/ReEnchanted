@@ -87,6 +87,18 @@ struct AuthoredContentReceipt: Codable, Identifiable, Equatable {
     var hasFrozenRoute: Bool? = nil
     /// Frozen authored text, never treated as real-life reader evidence.
     var storyText: String? = nil
+    /// What the reader was actually shown, frozen when the leaf was shown so a
+    /// bound volume can print the story as they read it after the month's
+    /// temporary pack has retired. These are Book-authored words, never reader
+    /// evidence; any sentence of the reader's own set into the scene is already
+    /// inside `printedBody` exactly as they saw it.
+    var printedTitle: String? = nil
+    var printedBody: String? = nil
+    /// The title of the choice taken, once one was.
+    var printedChoiceLabel: String? = nil
+    /// The Academy room and Cast the scene was set among.
+    var roomID: String? = nil
+    var castIDs: [String]? = nil
 
     init(
         contentID: String,
@@ -100,12 +112,22 @@ struct AuthoredContentReceipt: Codable, Identifiable, Equatable {
         nodeID: String? = nil,
         storyText: String? = nil,
         nextNodeID: String? = nil,
-        hasFrozenRoute: Bool? = nil
+        hasFrozenRoute: Bool? = nil,
+        printedTitle: String? = nil,
+        printedBody: String? = nil,
+        printedChoiceLabel: String? = nil,
+        roomID: String? = nil,
+        castIDs: [String]? = nil
     ) {
         self.nodeID = nodeID
         self.nextNodeID = nextNodeID
         self.hasFrozenRoute = hasFrozenRoute
         self.storyText = storyText
+        self.printedTitle = printedTitle
+        self.printedBody = printedBody
+        self.printedChoiceLabel = printedChoiceLabel
+        self.roomID = roomID
+        self.castIDs = castIDs
         self.id = Self.receiptID(
             contentID: contentID,
             occurrenceID: occurrenceID,
@@ -195,14 +217,29 @@ struct AuthoredContentReceiptLedger: Codable, Equatable {
             let evidence = Array(Set(existing.evidencePageIDs + receipt.evidencePageIDs)).sorted()
             let choice = existing.choiceID ?? receipt.choiceID
             let recordedAt = min(existing.recordedAt, receipt.recordedAt)
+            let printedBody = existing.printedBody ?? receipt.printedBody
+            let printedTitle = existing.printedTitle ?? receipt.printedTitle
+            let printedChoice = existing.printedChoiceLabel ?? receipt.printedChoiceLabel
+            let roomID = existing.roomID ?? receipt.roomID
+            let castIDs = existing.castIDs ?? receipt.castIDs
             guard evidence != existing.evidencePageIDs
                     || choice != existing.choiceID
-                    || recordedAt != existing.recordedAt else {
+                    || recordedAt != existing.recordedAt
+                    || printedBody != existing.printedBody
+                    || printedTitle != existing.printedTitle
+                    || printedChoice != existing.printedChoiceLabel
+                    || roomID != existing.roomID
+                    || castIDs != existing.castIDs else {
                 return self
             }
             copy.receipts[index].evidencePageIDs = evidence
             copy.receipts[index].choiceID = choice
             copy.receipts[index].recordedAt = recordedAt
+            copy.receipts[index].printedBody = printedBody
+            copy.receipts[index].printedTitle = printedTitle
+            copy.receipts[index].printedChoiceLabel = printedChoice
+            copy.receipts[index].roomID = roomID
+            copy.receipts[index].castIDs = castIDs
         } else {
             copy.receipts.append(receipt)
             copy.receipts.sort {

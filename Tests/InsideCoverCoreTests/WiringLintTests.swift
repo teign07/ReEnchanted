@@ -204,4 +204,21 @@ final class WiringLintTests: XCTestCase {
             """
         )
     }
+
+    /// A downloaded mark is drawn by a view that loads its file in `.task`.
+    /// SwiftUI never runs a task on a view with nothing in it, so a body that
+    /// draws nothing until the file decodes waits forever on a load nothing
+    /// asked for. Every monthly mark (October's, and every month after) was
+    /// blank for exactly that reason, and no test could see it because the
+    /// view lives in the app target. The body must always have something to draw.
+    func testFileBackedMarkViewAlwaysDrawsSomethingWhileItLoads() throws {
+        let sources = try productionSources()
+        let host = try XCTUnwrap(sources.first { $0.value.contains("struct BookMarginaliaImage: View") })
+        let body = try XCTUnwrap(matches(#"(struct BookMarginaliaImage: View \{.*?\n\}\n)"#, in: host.value).first)
+        XCTAssertFalse(
+            body.contains("if let fileImage"),
+            "BookMarginaliaImage draws nothing until its file decodes, so its .task never runs and downloaded marks stay blank. Draw a clear placeholder instead.")
+        XCTAssertTrue(body.contains("fileImage ?? "), "the unloaded state must still draw an Image")
+        XCTAssertTrue(body.contains(".task(id: assetName)"), "file-backed marks need their load")
+    }
 }
