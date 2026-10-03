@@ -9897,12 +9897,11 @@ struct ContentView: View {
         return LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
     }
 
-    /// A fresh variation every app open: rotating epigraph, time-of-day
-    /// light wash, tonight's actual moon stamped in the corner, and sometimes
-    /// a cast member visiting the margin.
+    /// A fresh variation every app open: time-of-day light wash, tonight's
+    /// actual moon stamped in the corner, and sometimes a cast member visiting
+    /// the margin. The day's headline lives on the shelf header, not here.
     var topBanner: some View {
         let edition = bookTodayEdition
-        let epigraph = edition.headline
         let cameo = bannerSeed % 5 < 2
             ? Self.bannerCameos[bannerSeed % Self.bannerCameos.count]
             : nil
@@ -9933,30 +9932,6 @@ struct ContentView: View {
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(MaterialInk.gilt.opacity(0.28), lineWidth: 1)
-            }
-
-            .overlay(alignment: .bottom) {
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        BookPalette.nightPanel.opacity(0.56)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .allowsHitTesting(false)
-            }
-            .overlay(alignment: .bottomLeading) {
-                Text("“\(epigraph)”")
-                    .font(.system(.caption, design: .serif).italic().weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .shadow(color: .black.opacity(0.7), radius: 3, x: 0, y: 1)
-                    .lineLimit(2)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 10)
-                    .padding(.trailing, cameo == nil ? 12 : 64)
             }
             .overlay(alignment: .topTrailing) {
                 VStack(spacing: 6) {
@@ -19531,6 +19506,7 @@ struct ContentView: View {
                 )
             }.value
             braidContext.authoredStoryReceipts = authoredMatter
+            braidContext.trashedScenes = BookSulk.trashed(from: vault.data.authoredContentReceipts ?? .empty, now: braidMoment)
             braidContext.radioNarrativeEcho = RadioStationRegistry.narrativeEcho(
                 receipt: vault.data.lastRadioTrackPlay,
                 unlockedPackIDs: Set(vault.data.ownedPacks ?? [])

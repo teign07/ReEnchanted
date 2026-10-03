@@ -16131,6 +16131,9 @@ enum BraidPromptBuilder {
         /// Only encountered, frozen monthly outcomes selected for this night.
         /// Kept separately from real-life evidence and current phase packets.
         var authoredStoryReceipts: [AuthoredContentReceipt] = []
+        /// Story scenes the reader put in the Trash lately, newest first. The
+        /// Book may sulk about one (see `BookSulk`); the story never changes.
+        var trashedScenes: [BookSulk.Trashed] = []
         /// Business the Cast started for its own reasons and is halfway through.
         /// A source of world beats: the world moving without reference to
         /// anybody's evening, which is what `independent` mode is for.

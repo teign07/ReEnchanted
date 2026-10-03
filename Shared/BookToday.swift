@@ -199,8 +199,8 @@ enum BookTodayProjector {
         )
     }
 
-    /// The headline is shown twice (shelf subtitle and banner epigraph), both
-    /// line-clipped, so it never carries the weather. The At the Windows beat
+    /// The headline is the shelf subtitle, line-clipped, so it never carries
+    /// the weather. The At the Windows beat
     /// is the one place the forecast is written out in full.
     private static func headline(
         intention: BookSessionIntention?,

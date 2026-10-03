@@ -207,6 +207,15 @@ extension BraidBenchTests {
     let briefs = BraidBench.corpus().map { night -> [String: String] in
       var night = night
       if let liveEvent { night.context.activeWorldEvents = [liveEvent] }
+      // BRAID_TRASHED="The Roster" runs every night as if that scene had just
+      // been put in the Trash, so the lab shows how Gemma carries a sulk.
+      if let title = ProcessInfo.processInfo.environment["BRAID_TRASHED"] {
+        let at = night.day.date.addingTimeInterval(-3_600)
+        let id = (0..<60).map { "lab-\($0)" }.first {
+          BookSulk.pick(trashed: [.init(id: $0, title: title, at: at)], recentDays: [], on: night.day.date, hardNight: false) != nil
+        } ?? "lab-0"
+        night.context.trashedScenes = [BookSulk.Trashed(id: id, title: title, at: at)]
+      }
       let context = DeterministicBraidwright.preparedContext(for: night.day, context: night.context)
       var plan = BraidScenePlanBuilder.plan(for: night.day, context: context)
       plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)

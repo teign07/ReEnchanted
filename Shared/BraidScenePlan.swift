@@ -951,7 +951,12 @@ enum BraidScenePlanBuilder {
                 continuedElsewhere: plan.answering?.advancedWorldThread
             )
         }
-        plan.bookBusiness = BookBusiness.pick(on: day.date, hardNight: plan.isHardNight)
+        plan.bookBusiness = BookSulk.pick(
+            trashed: context.trashedScenes,
+            recentDays: archive.isEmpty ? context.recentDays : archive,
+            on: day.date,
+            hardNight: plan.isHardNight
+        ) ?? BookBusiness.pick(on: day.date, hardNight: plan.isHardNight)
         return plan
     }
 

@@ -1316,4 +1316,102 @@ final class BraidScenePlanTests: XCTestCase {
         let authored = SceneWorldCanon.facts.map(\.text) + BookBusiness.playful.map(\.text) + BookBusiness.quiet.map(\.text)
         for text in authored { XCTAssertFalse(text.lowercased().contains("hinge"), text) }
     }
+
+    // MARK: The Book's sulks
+
+    private func trashReceipt(_ id: String, title: String?, at: Date, occurrence: String? = nil) -> AuthoredContentReceipt {
+        var receipt = AuthoredContentReceipt(
+            contentID: "count-unbound.scene.\(id)", occurrenceID: occurrence ?? "occ-\(id)", channel: .storyScene,
+            state: .dismissed, recordedAt: at)
+        receipt.printedTitle = title
+        return receipt
+    }
+
+    func testSulksAreFondFunnyAndNeverTheReadersFault() {
+        XCTAssertGreaterThanOrEqual(BookSulk.titled.count, 24)
+        XCTAssertGreaterThanOrEqual(BookSulk.untitled.count, 6)
+        let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
+        let uncontracted = ["do not", "does not", "is not", "are not", "it is ", "i am ", "i will ", "would not", "cannot", "did not"]
+        for template in BookSulk.titled + BookSulk.untitled {
+            let rendered = template.replacingOccurrences(of: "{title}", with: "The Chair That Gets There First")
+            let lower = rendered.lowercased()
+            let words = Set(lower.split { !$0.isLetter && $0 != "'" }.map(String.init))
+            XCTAssertFalse(words.contains("sulk") || words.contains("sulking") || lower.contains("i'm feeling") || lower.contains("i feel "), "announces a mood: \(template)")
+            XCTAssertTrue(words.isDisjoint(with: ["you", "your", "yours", "you're", "you've"]), "blames or addresses the reader: \(template)")
+            for word in masked { XCTAssertFalse(words.contains(word), "\(template) uses \"\(word)\"") }
+            for phrase in uncontracted { XCTAssertFalse(lower.contains(phrase), "\(template): \(phrase)") }
+            XCTAssertFalse(lower.contains(", which") || lower.contains("curse") || lower.contains("hinge"), template)
+            XCTAssertLessThanOrEqual(rendered.split(separator: " ").count, 42, template)
+        }
+        for template in BookSulk.titled { XCTAssertEqual(template.components(separatedBy: "{title}").count, 2, "exactly one title: \(template)") }
+        for template in BookSulk.untitled { XCTAssertFalse(template.contains("{title}")) }
+    }
+
+    func testOnlyARecentRealTrashIsRemembered() {
+        let now = date("2026-10-10T20:00:00Z")
+        let day = 86_400.0
+        let ledger = AuthoredContentReceiptLedger(receipts: [
+            trashReceipt("fresh", title: "Fresh", at: now.addingTimeInterval(-day)),
+            trashReceipt("older", title: "Older", at: now.addingTimeInterval(-3 * day)),
+            trashReceipt("stale", title: "Stale", at: now.addingTimeInterval(-6 * day)),
+            trashReceipt("left", title: "Left", at: now.addingTimeInterval(-day), occurrence: "left-episode:jump:run"),
+            { var r = trashReceipt("kept", title: "Kept", at: now.addingTimeInterval(-day)); r.state = .kept; return r }()
+        ])
+        let trashed = BookSulk.trashed(from: ledger, now: now)
+        XCTAssertEqual(trashed.map(\.title), ["Fresh", "Older"], "newest first; stale, left and kept scenes are not a Trash")
+    }
+
+    func testTheBookSulksAboutTwoTrashesInThreeAndNeverOnAHardNight() {
+        let now = date("2026-10-10T20:00:00Z")
+        var sulked = 0
+        for i in 0..<60 {
+            let trashed = [BookSulk.Trashed(id: "t\(i)", title: "Scene \(i)", at: now.addingTimeInterval(-3_600))]
+            let line = BookSulk.pick(trashed: trashed, recentDays: [], on: now, hardNight: false)
+            if let line {
+                sulked += 1
+                XCTAssertTrue(line.id.hasPrefix(BookSulk.idPrefix))
+                XCTAssertTrue(line.text.contains("Scene \(i)"), "names the page: \(line.text)")
+                XCTAssertEqual(line, BookSulk.pick(trashed: trashed, recentDays: [], on: now, hardNight: false), "deterministic")
+            }
+            XCTAssertNil(BookSulk.pick(trashed: trashed, recentDays: [], on: now, hardNight: true), "never on a hard night")
+        }
+        XCTAssertTrue((30...50).contains(sulked), "about two in three, got \(sulked) of 60")
+    }
+
+    func testNeverTwiceInAWeekAndAnUntitledTrashStillGetsAGrumble() throws {
+        let now = date("2026-10-10T20:00:00Z")
+        let id = try XCTUnwrap((0..<30).map { "u\($0)" }.first {
+            BookSulk.pick(trashed: [.init(id: $0, title: nil, at: now.addingTimeInterval(-60))], recentDays: [], on: now, hardNight: false) != nil
+        })
+        let trashed = [BookSulk.Trashed(id: id, title: nil, at: now.addingTimeInterval(-60))]
+        let plain = try XCTUnwrap(BookSulk.pick(trashed: trashed, recentDays: [], on: now, hardNight: false))
+        XCTAssertTrue(BookSulk.untitled.contains(plain.text))
+
+        var recent = keptBraidWithTags([BookSulk.tagPrefix + "12345"])
+        recent.date = now.addingTimeInterval(-3 * 86_400)
+        XCTAssertNil(BookSulk.pick(trashed: trashed, recentDays: [recent], on: now, hardNight: false), "it sulked 3 days ago")
+        recent.date = now.addingTimeInterval(-8 * 86_400)
+        XCTAssertNotNil(BookSulk.pick(trashed: trashed, recentDays: [recent], on: now, hardNight: false), "a week has passed")
+    }
+
+    func testASulkRidesInTheBriefAsTheBooksBusinessOnlyOnAnEasyNight() throws {
+        let easy = try XCTUnwrap(BraidBench.corpus().first { $0.name == "plain-diary-day" })
+        var easyContext = DeterministicBraidwright.preparedContext(for: easy.day, context: easy.context)
+        let id = try XCTUnwrap((0..<30).map { "p\($0)" }.first {
+            BookSulk.pick(trashed: [.init(id: $0, title: "The Roster", at: easy.day.date.addingTimeInterval(-3_600))], recentDays: [], on: easy.day.date, hardNight: false) != nil
+        })
+        easyContext.trashedScenes = [BookSulk.Trashed(id: id, title: "The Roster", at: easy.day.date.addingTimeInterval(-3_600))]
+        let plan = BraidScenePlanBuilder.plan(for: easy.day, context: easyContext)
+        XCTAssertTrue(plan.bookBusiness?.id.hasPrefix(BookSulk.idPrefix) == true, plan.summary)
+        XCTAssertTrue(plan.brief().contains("The Roster"))
+        XCTAssertTrue(plan.summary.contains("business sulk:"))
+
+        let hard = try XCTUnwrap(BraidBench.corpus().first { $0.name == "tender-shadow" })
+        var hardContext = DeterministicBraidwright.preparedContext(for: hard.day, context: hard.context)
+        hardContext.trashedScenes = [BookSulk.Trashed(id: id, title: "The Roster", at: hard.day.date.addingTimeInterval(-3_600))]
+        let hardPlan = BraidScenePlanBuilder.plan(for: hard.day, context: hardContext)
+        XCTAssertTrue(hardPlan.isHardNight)
+        XCTAssertFalse(hardPlan.brief().contains("The Roster"), "no sulking on a hard night")
+        XCTAssertTrue(BookBusiness.quiet.contains { $0.id == hardPlan.bookBusiness?.id })
+    }
 }
