@@ -866,7 +866,7 @@ enum FieldBookFixture {
                     weatherTags: skies[dayNumber % skies.count])
             }
         }
-        for (article, day) in zip(issue.bleedArticles ?? [], [4, 9, 29, 30]) {
+        for (article, day) in zip(issue.bleedArticles ?? [], [4, 9, 29, 30, 11, 18, 25, 31]) {
             add(BookPage(type: .theBleed, createdAt: SyntheticReaderYear.date(2026, 10, day, hour: 18),
                          promptText: "\(article.title)\n\n\(article.body)", origin: .generated), day: day)
         }

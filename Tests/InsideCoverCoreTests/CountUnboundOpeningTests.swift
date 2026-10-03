@@ -29,7 +29,10 @@ final class CountUnboundOpeningTests: XCTestCase {
         XCTAssertTrue(event.phases.allSatisfy { $0.scene?.contains("Use only encountered authored scenes") == false })
         XCTAssertFalse(event.packet.logline.contains("leaves something unaccounted for"))
         XCTAssertEqual(p.storyScenes?.count, 22)
-        XCTAssertEqual(p.bleedArticles?.count, 4)
+        XCTAssertEqual(p.bleedArticles?.count, 8, "four news items and four weekly recaps")
+        let recaps = (p.bleedArticles ?? []).filter { $0.tags.contains("weekly-recap") }
+        XCTAssertEqual(recaps.count, 4)
+        XCTAssertTrue(recaps.allSatisfy { $0.byline == "Penny Blackletter" && !$0.body.lowercased().contains("hinge") })
         XCTAssertEqual(event.beats?.filter { $0.pageType == .letter }.count, 2)
         XCTAssertEqual(event.beats?.filter { $0.pageType == .academyClass }.count, 4)
         XCTAssertEqual(event.beats?.filter { $0.resolvedLifecycleStage == .residue }.count, 2)
@@ -1159,5 +1162,54 @@ final class CountUnboundOpeningTests: XCTestCase {
             // Either a pulse said quietly, or the phase's own narration; never a pulse said loudly.
             XCTAssertTrue(tenders.contains(beat.fact) || beat.fact == phase.scene, beat.fact)
         }
+    }
+
+    private func liveWindow(_ atom: MonthlyIssueContentAtom) -> (first: Int, last: Int)? {
+        for predicate in atom.gate.allOf {
+            if case .worldEvent(let query) = predicate, let first = query.minimumLiveDay, let last = query.maximumLiveDay {
+                return (first, last)
+            }
+        }
+        return nil
+    }
+
+    /// The weekly recaps appear on the Sundays after each week, while the event
+    /// is live and in the phase they were written for, and each stands alone for
+    /// someone who missed everything before it.
+    func testWeeklyRecapsLandOnTheirOwnDaysInTheirOwnPhases() throws {
+        let p = try pack()
+        let event = try XCTUnwrap(p.events.first)
+        let manifest = try XCTUnwrap(p.authoringManifests?.first)
+        let recapAtoms = manifest.content.filter { $0.id.hasPrefix("count-unbound.bleed.recap-") }
+        XCTAssertEqual(recapAtoms.count, 4)
+        for atom in recapAtoms {
+            let window = try XCTUnwrap(liveWindow(atom), atom.id)
+            XCTAssertEqual(atom.occurrence.kind, .oncePerRun)
+            for day in window.first...window.last {
+                // Live days count from zero: October 1 is live day 0.
+                let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+                    packID: p.id, event: event, now: date(day + 1), calendar: calendar), "\(atom.id) live day \(day)")
+                XCTAssertEqual(snapshot.stage, WorldEventLifecycleStage.live, "\(atom.id) live day \(day)")
+                XCTAssertEqual(snapshot.phaseID, atom.placement.phaseID, "\(atom.id) live day \(day) is in the wrong phase")
+                XCTAssertEqual(snapshot.liveDay, day, "\(atom.id)")
+                // The first day of every window except the last is a Sunday: the recap is the Sunday paper.
+                if day == window.first, atom.id != "count-unbound.bleed.recap-month" {
+                    let weekday = calendar.component(.weekday, from: date(day + 1))
+                    XCTAssertEqual(weekday, 1, "\(atom.id) should open on a Sunday")
+                }
+            }
+        }
+        // Each recap names who and what, so a reader who missed the rest can follow.
+        let recaps = (p.bleedArticles ?? []).filter { $0.tags.contains("weekly-recap") }
+        for recap in recaps {
+            XCTAssertTrue(recap.body.contains("Serenity") || recap.body.contains("Count"), recap.id)
+            XCTAssertLessThanOrEqual(recap.body.split(separator: " ").count, 150, "\(recap.id) is a recap, not a chapter")
+            XCTAssertFalse(recap.body.contains("you "), "a public report never claims what the reader did: \(recap.id)")
+        }
+        // The first recap lands after the Sunday Jump it describes, never before it.
+        let jumpAtom = try XCTUnwrap(manifest.content.first(where: { $0.id == "count-unbound.bleed.jump-complete" }))
+        let jump = try XCTUnwrap(liveWindow(jumpAtom)).first
+        let firstRecap = try XCTUnwrap(recapAtoms.compactMap { liveWindow($0)?.first }.min())
+        XCTAssertGreaterThan(firstRecap, jump)
     }
 }

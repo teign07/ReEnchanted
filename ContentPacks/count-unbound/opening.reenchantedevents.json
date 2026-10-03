@@ -3663,6 +3663,214 @@
             "count-unbound",
             "opening-slice"
           ]
+        },
+        {
+          "id": "count-unbound.bleed.recap-week-one",
+          "title": "The Week, With Corrections",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.recap-week-one"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 10,
+                  "maximumLiveDay": 12
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed",
+            "weekly-recap"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.recap-week-two",
+          "title": "Two Weeks In, Briefly",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.recap-week-two"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "uninvited",
+            "phaseRole": "buildup"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 17,
+                  "maximumLiveDay": 19
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed",
+            "weekly-recap"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.recap-week-three",
+          "title": "Where Things Are Now",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.recap-week-three"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "reciprocal",
+            "phaseRole": "climax"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 24,
+                  "maximumLiveDay": 26
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed",
+            "weekly-recap"
+          ]
+        },
+        {
+          "id": "count-unbound.bleed.recap-month",
+          "title": "October, Corrected",
+          "reference": {
+            "kind": "bleedArticle",
+            "id": "count-unbound.bleed.recap-month"
+          },
+          "channel": "bleedArticle",
+          "placement": {
+            "lifecycleStage": "live",
+            "phaseID": "nightbound",
+            "phaseRole": "aftermath"
+          },
+          "audience": "everyone",
+          "voice": "publicReport",
+          "interaction": "none",
+          "priority": "featured",
+          "gate": {
+            "allOf": [
+              {
+                "kind": "worldEvent",
+                "worldEvent": {
+                  "eventIDs": [
+                    "count-unbound"
+                  ],
+                  "runIDs": [],
+                  "phaseIDs": [],
+                  "phaseRoles": [],
+                  "lifecycleStages": [
+                    "live"
+                  ],
+                  "activationModes": [],
+                  "minimumLiveDay": 29,
+                  "maximumLiveDay": 30
+                }
+              }
+            ],
+            "anyOf": [],
+            "noneOf": []
+          },
+          "occurrence": {
+            "kind": "oncePerRun"
+          },
+          "dependencies": [],
+          "productionStatus": "ready",
+          "isRequired": false,
+          "tags": [
+            "count-unbound",
+            "monthly-bleed",
+            "weekly-recap"
+          ]
         }
       ],
       "coverageRequirements": [
@@ -3757,10 +3965,10 @@
         },
         {
           "id": "bleed-reports",
-          "label": "Count Bleed reports",
+          "label": "Count Bleed reports (4 news items + 4 weekly recaps)",
           "channel": "bleedArticle",
           "minimumReady": 4,
-          "maximumReady": 4,
+          "maximumReady": 8,
           "priorities": [],
           "interactions": [],
           "tagsAll": []
@@ -5657,6 +5865,74 @@
       "tags": [
         "count-unbound",
         "monthly-bleed"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.recap-week-one",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "The Week, With Corrections",
+      "byline": "Penny Blackletter",
+      "body": "For anyone who missed it, and the Bleed has noticed that several readers did: a supervised Jump into *Dracula* ended early after Wicker Eddies wrote one unauthorized sentence in the source margin. Every listed jumper came home. Count Dracula had crossed out of his book during the return, and he used Serenity Brown to hold himself inside the Academy.\n\nThe East Stacks are shut. Serenity is awake in the Kitchens and can hear page-turns from closed books. Professor Permancer opened the return invitation, and Eddies altered the source. Both are helping with the investigation, and both have been asked to stop saying technically.\n\nAmbrose is feeding everyone. The Quillquarium still splashes uphill. That is the entire weather.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed",
+        "weekly-recap"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.recap-week-two",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Two Weeks In, Briefly",
+      "byline": "Penny Blackletter",
+      "body": "The story so far: the Count is out of his book, the East Stacks are shut, and Serenity Brown is deciding what help she wants to give.\n\nThis week the Academy did paperwork, which is how it fights. Professor Villanelle put Wicker Eddies's sentence on the board, and nobody laughed. Permancer has been in the Vault since before breakfast. This reporter went round the back of the chalk door to see what's there. It has a back. Permancer followed. We both came out again.\n\nSerenity's map still moves when nobody touches it. It keeps pointing at the East Stacks. It isn't subtle.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed",
+        "weekly-recap"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.recap-week-three",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "Where Things Are Now",
+      "byline": "Penny Blackletter",
+      "body": "If one column gets read this week, make it this one. The Academy has company.\n\nA composite castle has grown through the East Stacks, which remain shut. A drawbridge now crosses the Quillquarium. It's real, it's polite, and it is closed to visitors. A window from a neighbouring book's nursery has appeared in a corridor. Please don't take it home. A stair has opened between the supper tables, going up to a hall nobody was invited to. The soup is warm up there. Do not follow the soup.\n\nSending everything home takes three things: the source, the invitation, and Serenity Brown's withdrawal of the living claim. Serenity has agreed. The last condition is hers.",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed",
+        "weekly-recap"
+      ]
+    },
+    {
+      "id": "count-unbound.bleed.recap-month",
+      "packID": "count-unbound-october-2026",
+      "eventID": "count-unbound",
+      "title": "October, Corrected",
+      "byline": "Penny Blackletter",
+      "body": "The month, for the record. A Jump went wrong on a Sunday, the Count came out of his book, and the East Stacks shut. A composite castle, a drawbridge and a nursery window moved in. All of them are home now, and so is he.\n\nSerenity Brown still hears the crossings. She has named the change Nightbound and asked us to print it. We have. Professor Permancer has pinned a return list to the Vault door and written on both sides of it, in case one side lies. Ordinary teaching Jumps are suspended while the safeguards are fitted.\n\nEddies helped close the breach. The annotation stays in the record: *For one sentence, let him choose the verb.*",
+      "editionKinds": [
+        "morning",
+        "evening"
+      ],
+      "tags": [
+        "count-unbound",
+        "monthly-bleed",
+        "weekly-recap"
       ]
     }
   ]
