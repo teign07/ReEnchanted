@@ -162,6 +162,20 @@ enum WorldEventPhaseRole: String, Codable, Equatable, CaseIterable {
     case aftermath
 }
 
+/// One small thing the world does on a day of a phase: a line of the month's
+/// Tale that needs no choice and no kept page. Pulses are the Tale's heartbeat;
+/// every night of the event has one to offer the braid, so the story is present
+/// even when the reader has kept no scene.
+struct WorldEventPulse: Codable, Identifiable, Equatable {
+    var id: String
+    /// Sayable on its own, in the Book's world. No reader in it, no incident
+    /// advanced: the phase's own rules about what may be claimed still hold.
+    var text: String
+    /// The same pulse, quietly, for a night that is holding something hard.
+    /// A pulse without one is not offered on such a night.
+    var tender: String? = nil
+}
+
 struct WorldEventPhase: Codable, Identifiable, Equatable {
     var id: String
     var title: String
@@ -185,6 +199,8 @@ struct WorldEventPhase: Codable, Identifiable, Equatable {
     var roomNotes: [AcademyStagedNote]? = nil
     /// Rooms out of other books that push into the Academy during this phase.
     var borrowedRooms: [AcademyBorrowedRoom]? = nil
+    /// The Tale's daily heartbeat for this phase (see `WorldEventPulse`).
+    var pulses: [WorldEventPulse]? = nil
 }
 
 struct WorldEventBeat: Codable, Identifiable, Equatable {

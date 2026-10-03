@@ -89,6 +89,48 @@
               "roomID": "location-quillquarium",
               "note": "The water's learned to splash uphill. The pens think it's funny."
             }
+          ],
+          "pulses": [
+            {
+              "id": "sh-coats",
+              "text": "Every coat in the Great Hall is wet on one side only, the side that faces the East Stacks.",
+              "tender": "The coats in the Great Hall have all dried facing the same way."
+            },
+            {
+              "id": "sh-quillquarium",
+              "text": "The Quillquarium splashed a first-year from the far end this morning, uphill, and apologised in bubbles.",
+              "tender": "The Quillquarium has gone quiet this morning and stayed that way."
+            },
+            {
+              "id": "sh-bowls",
+              "text": "Ambrose has put out a bowl for every chair in the Kitchens, and one more for the chair nobody sits in.",
+              "tender": "Ambrose put out one more bowl than he needed and left it where it was."
+            },
+            {
+              "id": "sh-timetable",
+              "text": "The timetable on the Great Hall door lists a lesson in a room that isn't on the map. Three people went looking, came back early, and wouldn't say.",
+              "tender": "The timetable lists a room that isn't on the map. Nobody has gone looking."
+            },
+            {
+              "id": "sh-bookmarks",
+              "text": "Professor Permancer's bookmarks hang in a row by the Vault door. Each one lifts when its name is said in the corridor.",
+              "tender": "The bookmarks by the Vault door hang still."
+            },
+            {
+              "id": "sh-castle-margins",
+              "text": "Someone has drawn a castle in the margin of every third book in the common room. The ink is fresh and nobody owns the pen.",
+              "tender": "A castle keeps turning up in the margins of the common-room books, in a hand nobody knows."
+            },
+            {
+              "id": "sh-warm-room",
+              "text": "The Old Reading Room has been warmer than the rest of the building all week. People go in to get warm and come out thinking about something else.",
+              "tender": "The Old Reading Room is warm this week, and people sit in it a while."
+            },
+            {
+              "id": "sh-north-rain",
+              "text": "It's raining on the north staircase and nowhere else. The stairs are taking it well.",
+              "tender": "It's raining on the north staircase, softly, and nowhere else."
+            }
           ]
         },
         {
@@ -158,6 +200,78 @@
               "roomID": "location-old-reading-room",
               "note": "The door's open now. It never used to be.",
               "fromDay": 14
+            }
+          ],
+          "pulses": [
+            {
+              "id": "un-notice",
+              "text": "The door to the East Stacks has a notice on it in Professor Permancer's handwriting. It was longer yesterday.",
+              "tender": "The East Stacks door has a notice on it in Professor Permancer's handwriting. People read it twice."
+            },
+            {
+              "id": "un-map",
+              "text": "Serenity's map moves on the Kitchen table when nobody touches it. It keeps pointing toward the East Stacks and then correcting itself.",
+              "tender": "Serenity's map lies on the Kitchen table. Now and then it turns toward the East Stacks."
+            },
+            {
+              "id": "un-knock",
+              "text": "Something knocks twice on the inside of the East Stacks door at the end of each afternoon, and waits politely to be answered.",
+              "tender": "At the end of each afternoon there are two knocks from the far side of the East Stacks door, and then quiet."
+            },
+            {
+              "id": "un-bread",
+              "text": "Ambrose leaves the kitchen door open at night. Whatever comes in never touches the bread, and he finds that worse.",
+              "tender": "Ambrose leaves the kitchen door open at night, and sits up with the bread."
+            },
+            {
+              "id": "un-penny-ink",
+              "text": "Penny is writing the Bleed with the window shut for the first time this term. Her ink won't dry until someone reads it.",
+              "tender": "Penny is writing the Bleed with the window shut. Her ink dries slowly this week."
+            },
+            {
+              "id": "un-lamps",
+              "text": "The lamps along the corridor to the East Stacks lean away from the door, like people stepping round a puddle.",
+              "tender": "The lamps along the corridor to the East Stacks burn low."
+            },
+            {
+              "id": "un-clocks",
+              "text": "Every clock near the East Stacks has stopped at a different time. Soren says they aren't broken, only undecided.",
+              "tender": "The clocks near the East Stacks have stopped, each at its own hour."
+            },
+            {
+              "id": "un-villanelle",
+              "text": "Professor Villanelle has started every lesson this week by asking the class to put their pens down and listen to the walls.",
+              "tender": "Professor Villanelle begins each lesson this week by asking for a minute of quiet."
+            },
+            {
+              "id": "un-bell",
+              "text": "The bell in the east tower has rung once each night this week, at an hour the clock beneath it doesn't have.",
+              "tender": "The east tower bell rings once each night, late, and then it's still."
+            },
+            {
+              "id": "un-loaf",
+              "text": "The loaf on the Kitchen table has a row of small round holes along one side. Ambrose has counted them twice and won't say the number.",
+              "tender": "Ambrose has put a cloth over the loaf on the Kitchen table."
+            },
+            {
+              "id": "un-new-door",
+              "text": "The Vault of Doors put up a new door overnight. It looks like the others and opens onto the same hallway, only later in the day.",
+              "tender": "There's a new door in the Vault of Doors. Nobody has opened it."
+            },
+            {
+              "id": "un-cloths",
+              "text": "The East Stacks are shut, and every morning there are damp cloths outside the door, as if someone had been dusting.",
+              "tender": "The East Stacks are shut. In the morning there are cloths outside the door, folded."
+            },
+            {
+              "id": "un-wicker-pencils",
+              "text": "Wicker's been seen with a pencil behind each ear. Neither is his, and both are warm.",
+              "tender": "Wicker is quieter this week, and keeps his pencils in his pocket."
+            },
+            {
+              "id": "un-kitchen-smell",
+              "text": "The Kitchens smell of bay leaf and wet stone. Ambrose says that's the stone's fault.",
+              "tender": "The Kitchens smell of bay leaf and wet stone."
             }
           ]
         },
@@ -289,6 +403,48 @@
               "roomID": "borrowed-wrong-castle",
               "note": "Penny's pinned a notice to it: THE EAST STACKS ARE SEVERAL PLACES. PLEASE USE ONE AT A TIME."
             }
+          ],
+          "pulses": [
+            {
+              "id": "rc-drawbridge",
+              "text": "A drawbridge has come down across the Quillquarium. It's polite, and it creaks.",
+              "tender": "A drawbridge has come down across the Quillquarium and stayed down."
+            },
+            {
+              "id": "rc-supper-stair",
+              "text": "There's a stair between the supper tables, going up to a hall nobody was invited to. The soup is warm up there.",
+              "tender": "There's a stair between the supper tables that wasn't there before. The soup goes up it and doesn't come back."
+            },
+            {
+              "id": "rc-moon",
+              "text": "I've caught a loose moon in my ribbon. It's heavier than it looks, and it hums.",
+              "tender": "I've caught a loose moon in my ribbon. It hums, and I hold still for it."
+            },
+            {
+              "id": "rc-wing",
+              "text": "The Wrong Castle has put its east wing through the wall of the East Stacks. It apologised in Latin.",
+              "tender": "A wing of the Wrong Castle has come through the wall of the East Stacks and stopped there."
+            },
+            {
+              "id": "rc-leaning-rooms",
+              "text": "Rooms that belong in other books lean in at the windows to see how the Academy does things.",
+              "tender": "Rooms that belong in other books stand at the windows and look in."
+            },
+            {
+              "id": "rc-two-ceilings",
+              "text": "The corridor outside the Vault has two ceilings now. The upper one has weather.",
+              "tender": "The corridor outside the Vault has a second ceiling above the first. It's grey and quiet."
+            },
+            {
+              "id": "rc-cold-pantry",
+              "text": "A door in the Great Hall opens onto a pantry that belongs somewhere colder. Ambrose has been in twice for salt.",
+              "tender": "A door in the Great Hall opens onto a cold pantry. Ambrose goes in for salt and comes out quickly."
+            },
+            {
+              "id": "rc-harpsichord",
+              "text": "Somebody is playing a slow tune on a harpsichord in a room that isn't on the map. The Academy hums along and loses its place.",
+              "tender": "A slow tune comes from a room that isn't on the map. Nobody goes to find it."
+            }
           ]
         },
         {
@@ -324,6 +480,28 @@
             {
               "roomID": "location-kitchens",
               "note": "Serenity's toast tower's got buttresses now."
+            }
+          ],
+          "pulses": [
+            {
+              "id": "nb-tables",
+              "text": "The tables are back where they belong. The crumbs aren't, and are being tactful about it.",
+              "tender": "The tables are back where they belong. The Great Hall is quiet."
+            },
+            {
+              "id": "nb-breathing",
+              "text": "Serenity says she can hear the East Stacks now. It's breathing out, like someone who's put something down.",
+              "tender": "Serenity says she can hear the East Stacks breathing out, slowly."
+            },
+            {
+              "id": "nb-stitch",
+              "text": "There's a loose stitch in my spine. Penny says to stop poking it. I'm going to poke it later.",
+              "tender": "There's a loose stitch in my spine. I'm leaving it alone."
+            },
+            {
+              "id": "nb-notice",
+              "text": "Professor Permancer has pinned a new notice to the Vault door and written on both sides, in case one side lies.",
+              "tender": "Professor Permancer has pinned a new notice to the Vault door and written on both sides."
             }
           ]
         }

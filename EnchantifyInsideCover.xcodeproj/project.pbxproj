@@ -56,6 +56,7 @@
 		0200000000000000000002FF /* PageAddress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FF /* PageAddress.swift */; };
 		0200000000000000000003F1 /* RuinPrompts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F0 /* RuinPrompts.swift */; };
 		0200000000000000000003F3 /* RuinRecognition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F2 /* RuinRecognition.swift */; };
+		0200000000000000000003F5 /* WorldCanonLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F4 /* WorldCanonLibrary.swift */; };
 		0200000000000000000002FE /* HandbookWorkbook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FE /* HandbookWorkbook.swift */; };
 		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
 		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
@@ -238,6 +239,7 @@
 		0200000000000000000001FF /* PageAddress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageAddress.swift; sourceTree = "<group>"; };
 		0200000000000000000003F0 /* RuinPrompts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuinPrompts.swift; sourceTree = "<group>"; };
 		0200000000000000000003F2 /* RuinRecognition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuinRecognition.swift; sourceTree = "<group>"; };
+		0200000000000000000003F4 /* WorldCanonLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldCanonLibrary.swift; sourceTree = "<group>"; };
 		0200000000000000000001FE /* HandbookWorkbook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookWorkbook.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
@@ -499,6 +501,7 @@
 				0200000000000000000001FF /* PageAddress.swift */,
 				0200000000000000000003F0 /* RuinPrompts.swift */,
 				0200000000000000000003F2 /* RuinRecognition.swift */,
+				0200000000000000000003F4 /* WorldCanonLibrary.swift */,
 				0200000000000000000001FE /* HandbookWorkbook.swift */,
 				0200000000000000000001F1 /* BindingRevelations.swift */,
 				0200000000000000000001F2 /* BookClaimTier.swift */,
@@ -823,6 +826,7 @@
 				0200000000000000000002FF /* PageAddress.swift in Sources */,
 				0200000000000000000003F1 /* RuinPrompts.swift in Sources */,
 				0200000000000000000003F3 /* RuinRecognition.swift in Sources */,
+				0200000000000000000003F5 /* WorldCanonLibrary.swift in Sources */,
 				0200000000000000000002F1 /* BindingRevelations.swift in Sources */,
 				0200000000000000000002F2 /* BookClaimTier.swift in Sources */,
 				0200000000000000000002F3 /* Daybook.swift in Sources */,

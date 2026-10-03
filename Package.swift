@@ -65,6 +65,7 @@ let package = Package(
                 "PageAddress.swift",
                 "RuinPrompts.swift",
                 "RuinRecognition.swift",
+                "WorldCanonLibrary.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "EditionMarginalia.swift",

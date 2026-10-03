@@ -985,7 +985,14 @@ final class BraidScenePlanTests: XCTestCase {
         let worn = BraidWornImages.words.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
             + BraidWornImages.pairs.map { "\($0.after)\($0.word)".trimmingCharacters(in: .whitespaces).lowercased() }
         for night in BraidBench.corpus() {
-            let brief = BraidScenePlanBuilder.plan(for: night.day, context: night.context).brief().lowercased()
+            // Only the Book's own scaffolding is held to this. The reader's words,
+            // the world's lines and the kept pages are content, and a reader who
+            // "had fun" is allowed to have had it (the mask spares carried words).
+            let contentLabels = ["Something odd", "Reader-day material", "Kept-page material", "Tonight includes protected", "Passage "]
+            let brief = BraidScenePlanBuilder.plan(for: night.day, context: night.context).brief()
+                .components(separatedBy: "\n")
+                .filter { line in !contentLabels.contains { line.hasPrefix($0) } }
+                .joined(separator: "\n").lowercased()
             for image in worn {
                 XCTAssertNil(
                     brief.range(of: "\\b\(image)\\b", options: .regularExpression),
@@ -1230,5 +1237,31 @@ final class BraidScenePlanTests: XCTestCase {
         let easy = try XCTUnwrap(BraidBench.corpus().first { $0.name == "plain-diary-day" })
         let easyPlan = BraidScenePlanBuilder.plan(for: easy.day, context: DeterministicBraidwright.preparedContext(for: easy.day, context: easy.context))
         XCTAssertFalse(easyPlan.isHardNight)
+    }
+
+    // MARK: The wider canon
+
+    func testTheCanonIsWideEnoughForAMonthWithoutCircling() {
+        let facts = SceneWorldCanon.facts
+        XCTAssertGreaterThanOrEqual(facts.count, 80, "30 nights x 1-2 world beats, with an 8-night rest window")
+        XCTAssertEqual(Set(facts.map(\.id)).count, facts.count)
+        XCTAssertEqual(Set(facts.map(\.threadID)).count, facts.count, "one fact per thread, so the rest rules can spread a month")
+    }
+
+    func testEveryCanonFactIsWrittenToBeLifted() {
+        let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
+        let spoiled = ["little", "just", "quite", "odd", "felt", "thick", "suddenly", "weird", "somehow"]
+        for fact in SceneWorldCanon.extendedFacts {
+            let text = fact.text.lowercased()
+            let words = Set(text.split { !$0.isLetter && $0 != "'" }.map(String.init))
+            XCTAssertFalse(text.contains("\u{1B}") || text.isEmpty, fact.id)
+            XCTAssertTrue(fact.text.hasSuffix("."), "\(fact.id) should end on a full stop")
+            XCTAssertLessThanOrEqual(fact.text.split(separator: " ").count, 34, "\(fact.id) is too long to lift")
+            XCTAssertGreaterThanOrEqual(fact.text.split(separator: " ").count, 9, "\(fact.id) is too thin to be a beat")
+            XCTAssertTrue(words.isDisjoint(with: ["you", "your", "yours", "you're", "you've", "yourself"]), "\(fact.id) speaks to the reader")
+            for word in masked + spoiled { XCTAssertFalse(words.contains(word), "\(fact.id) uses \"\(word)\"") }
+            for banned in ["curse", "ritual", "magic", "grey sameness"] { XCTAssertFalse(text.contains(banned), "\(fact.id) says \"\(banned)\"") }
+            XCTAssertFalse(BraidDraftVerifier.assertsSomethingHappenedToTheReader(fact.text), fact.id)
+        }
     }
 }

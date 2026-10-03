@@ -1067,4 +1067,96 @@ final class CountUnboundOpeningTests: XCTestCase {
         XCTAssertNil(AuthoredJumpReturnRecognition.line(definition: definition, active: nil))
     }
 
+
+    // MARK: The Tale's daily heartbeat
+
+    private func resolved(_ phase: WorldEventPhase, in pack: WorldEventPack) throws -> ResolvedWorldEvent {
+        let event = try XCTUnwrap(pack.events.first)
+        return ResolvedWorldEvent(
+            id: event.id, packID: pack.id, title: event.title, subtitle: event.subtitle, phase: phase,
+            startedAt: date(1), endsAt: date(31), progress: phase.startsAtProgress, playerTouchCount: 0,
+            playerTouchCounts: nil, outcome: nil, effects: [], packet: event.packet)
+    }
+
+    /// The finding: the braid was handed "Do not advance the public incident…"
+    /// as the odd thing that had to happen. The phase's own narration is the
+    /// Book talking about its world, and that is what a night should get.
+    func testAnEventNightGetsTheBooksNarrationAndNeverAGuardrail() throws {
+        let p = try pack()
+        for phase in try XCTUnwrap(p.events.first).phases {
+            let facts = SceneWorldCanon.liveFacts(undertakings: [], worldEvents: [try resolved(phase, in: p)])
+            let narration = try XCTUnwrap(phase.scene)
+            XCTAssertTrue(facts.contains { $0.text == narration }, "\(phase.id) lost its narration")
+            XCTAssertFalse(facts.contains { $0.text == phase.packetLine }, "\(phase.id) handed over its guardrail")
+            for fact in facts { XCTAssertFalse(fact.text.contains("Do not"), "\(phase.id): \(fact.text)") }
+        }
+    }
+
+    func testEveryPhaseHasAPulseForEachOfItsDays() throws {
+        let p = try pack()
+        let event = try XCTUnwrap(p.events.first)
+        let days = Double(event.calendar.durationDays)
+        for (index, phase) in event.phases.enumerated() {
+            let end = index + 1 < event.phases.count ? event.phases[index + 1].startsAtProgress : 1.0
+            let phaseDays = Int(((end - phase.startsAtProgress) * days).rounded())
+            XCTAssertGreaterThanOrEqual(phase.pulses?.count ?? 0, phaseDays, "\(phase.id) would repeat a pulse within its own days")
+            XCTAssertTrue((phase.pulses ?? []).allSatisfy { $0.tender != nil }, "\(phase.id) has a pulse with no quiet version")
+        }
+    }
+
+    func testPulsesAreWrittenToBeLiftedAndKeepTheirPhaseRules() throws {
+        let p = try pack()
+        let event = try XCTUnwrap(p.events.first)
+        let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
+        let spoiled = ["little", "just", "quite", "odd", "felt", "thick", "suddenly", "weird", "somehow", "very", "really"]
+        let levity = ["funny", "amusing", "laugh", "giggle", "delight", "silly", "joke", "grin", "smug", "glee", "mischievous"]
+        var ids = Set<String>()
+        for phase in event.phases {
+            for pulse in phase.pulses ?? [] {
+                XCTAssertTrue(ids.insert(pulse.id).inserted, "duplicate pulse id \(pulse.id)")
+                for (label, text) in [("text", pulse.text), ("tender", pulse.tender ?? "")] {
+                    let lower = text.lowercased()
+                    let words = Set(lower.split { !$0.isLetter && $0 != "'" }.map(String.init))
+                    XCTAssertTrue(text.hasSuffix("."), "\(pulse.id) \(label) should end on a full stop")
+                    XCTAssertLessThanOrEqual(text.split(separator: " ").count, 40, "\(pulse.id) \(label) is too long to lift")
+                    XCTAssertTrue(words.isDisjoint(with: ["you", "your", "yours", "you're", "you've"]), "\(pulse.id) \(label) speaks to the reader")
+                    for word in masked + spoiled { XCTAssertFalse(words.contains(word), "\(pulse.id) \(label) uses \"\(word)\"") }
+                    XCTAssertFalse(lower.contains(", which"), "\(pulse.id) \(label) has an appositive aside")
+                    XCTAssertFalse(lower.contains("curse"), pulse.id)
+                    if label == "tender" { for word in levity { XCTAssertFalse(lower.contains(word), "\(pulse.id) tender is light: \(word)") } }
+                }
+                XCTAssertNotEqual(pulse.tender, pulse.text, "\(pulse.id) has no quieter way of being said")
+            }
+        }
+    }
+
+    func testConsecutiveEventNightsRotateThroughThePhaseAndTheNarration() throws {
+        let p = try pack()
+        let phase = try XCTUnwrap(p.events.first?.phases.first)
+        let live = SceneWorldCanon.liveFacts(undertakings: [], worldEvents: [try resolved(phase, in: p)])
+        let bench = try XCTUnwrap(BraidBench.corpus().first { $0.name == "plain-diary-day" })
+        let plan = BraidScenePlanBuilder.plan(for: bench.day, context: DeterministicBraidwright.preparedContext(for: bench.day, context: bench.context))
+        var seen = Set<String>()
+        for day in 1...7 {
+            let beat = try XCTUnwrap(SceneWorldCanon.beat(for: plan, recentDays: [], on: date(day), live: live))
+            XCTAssertTrue(beat.id.hasPrefix("world-event:"), "an event night should carry the Tale: \(beat.id)")
+            seen.insert(beat.id)
+        }
+        XCTAssertEqual(seen.count, 7, "a week of nights must not repeat a pulse")
+    }
+
+    func testAHardNightIsOfferedOnlyThePulsesWithAQuietVersionAndSaysItQuietly() throws {
+        let p = try pack()
+        let phase = try XCTUnwrap(p.events.first?.phases.first)
+        let live = SceneWorldCanon.liveFacts(undertakings: [], worldEvents: [try resolved(phase, in: p)])
+        let hard = try XCTUnwrap(BraidBench.corpus().first { $0.name == "tender-shadow" })
+        let plan = BraidScenePlanBuilder.plan(for: hard.day, context: DeterministicBraidwright.preparedContext(for: hard.day, context: hard.context))
+        XCTAssertTrue(plan.isHardNight)
+        let tenders = Set((phase.pulses ?? []).compactMap(\.tender))
+        for day in 1...9 {
+            let beat = try XCTUnwrap(SceneWorldCanon.beat(for: plan, recentDays: [], on: date(day), live: live))
+            // Either a pulse said quietly, or the phase's own narration; never a pulse said loudly.
+            XCTAssertTrue(tenders.contains(beat.fact) || beat.fact == phase.scene, beat.fact)
+        }
+    }
 }

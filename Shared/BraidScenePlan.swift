@@ -1950,7 +1950,15 @@ enum BraidWornImages {
         // The words the Mac lab found in nearly every telling (2026-10-02):
         // "strange" in 35 of 50, "tiny" in 31, "watched" in 49. Masked, the model
         // reaches for a plainer verb or leaves the sentence alone.
-        " strange", " tiny", " watched", " noticed"
+        " strange", " tiny", " watched", " noticed",
+        // The model's stock stance and filler. It likes things ("I liked that
+        // quiet"), finds them funny or weird, and pads with "just" and "little".
+        // Masked, it falls back on the concrete thing (+ cut filler from 3.1 to
+        // 0 per 100 words in the lab). Any word the brief carries is spared, so a
+        // reader who "had fun" is still allowed to have had it.
+        " felt", " weird", " thick", " just", " little", " quite", " suddenly", " seemed",
+        " somehow", " really", " very", " liked", " marvelous", " pleasing", " amusing",
+        " delightful", " lovely", " glee", " giggled", " smiled", " grinned"
     ]
 
     /// Masked only straight after the word before it: "dust" is a fine word,
@@ -3483,9 +3491,11 @@ enum SceneWorldCanon {
         var actorID: String? = nil
         var circumstance: String? = nil
         var trace: String? = nil
+        /// The same beat, quietly, for a night holding something hard.
+        var tender: String? = nil
     }
 
-    static let facts: [Fact] = [
+    static let coreFacts: [Fact] = [
         Fact(id: "moth-borders", threadID: "moth",
              text: "A paper moth has been eating careful holes in the third shelf and leaving the important parts. Show-off."),
         Fact(id: "sideways-step", threadID: "stairs",
@@ -3519,6 +3529,10 @@ enum SceneWorldCanon {
         Fact(id: "corridor-door", threadID: "door",
              text: "A door past the reading room has been opening onto nothing and waiting a little longer each time.")
     ]
+
+    /// The house canon: the first sixteen and the Academy's wider ordinary
+    /// business (`WorldCanonLibrary.swift`).
+    static let facts: [Fact] = coreFacts + extendedFacts
 
 
 
@@ -3623,11 +3637,28 @@ enum SceneWorldCanon {
         }
 
         for event in worldEvents {
-            let text = event.phase.packetLine.nonEmpty
+            // The phase's own narration is the Book speaking about its world
+            // tonight. `packetLine` is a guardrail written for the generator
+            // ("Do not advance the public incident…") and, handed over as the
+            // odd thing that must happen, it was read as story material.
+            let text = event.phase.scene?.nonEmpty
                 ?? event.packet.logline.nonEmpty
                 ?? event.subtitle.nonEmpty
                 ?? event.title.nonEmpty
             guard let text else { continue }
+            for pulse in event.phase.pulses ?? [] where !pulse.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                facts.append(
+                    Fact(
+                        id: "world-event:\(event.id):pulse:\(pulse.id)",
+                        threadID: "world-event:\(event.packID):pulse:\(pulse.id)",
+                        text: pulse.text,
+                        source: .worldEvent,
+                        // A pulse stands on its own: the event's title after it
+                        // would only be one more thing for the telling to quote.
+                        tender: pulse.tender?.trimmingCharacters(in: .whitespaces).nonEmpty
+                    )
+                )
+            }
             facts.append(
                 Fact(
                     id: "world-event:\(event.id)",
@@ -3698,9 +3729,13 @@ enum SceneWorldCanon {
         let freshEvents = live.filter {
             $0.source == .worldEvent && !lastNight.contains($0.id) && $0.id != continuedElsewhere
         }
+        // A night holding something hard is offered only pulses that have a
+        // quiet way of being said; the rest of the Tale waits for a kinder night.
+        let hardNight = !plan.mustRemainUnresolved.isEmpty
+        let eventPool = hardNight ? freshEvents.filter { $0.tender != nil || !$0.id.contains(":pulse:") } : freshEvents
         let pool: [Fact]
-        if !freshEvents.isEmpty {
-            pool = freshEvents
+        if !eventPool.isEmpty {
+            pool = eventPool
         } else if !freshLive.isEmpty {
             pool = freshLive
         } else if !freshCanon.isEmpty {
@@ -3720,7 +3755,7 @@ enum SceneWorldCanon {
         return SceneWorldBeat(
             id: chosen.id,
             mode: mode,
-            fact: chosen.text,
+            fact: (hardNight ? chosen.tender : nil) ?? chosen.text,
             threadID: chosen.threadID,
             crossesEvidenceID: mode == .intersecting
                 ? plan.placements.compactMap { plan.evidence(for: $0.evidenceID) }

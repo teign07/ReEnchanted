@@ -187,7 +187,26 @@ extension BraidBenchTests {
   /// renders the same chat template. Without the variable it does nothing.
   func testWriteTheDeviceBriefsWhenAsked() throws {
     guard let path = ProcessInfo.processInfo.environment["BRAID_BRIEFS_OUT"] else { return }
+    // BRAID_EVENT_DAY=n runs every night with October's Count Unbound live on
+    // its n-th day, so the lab shows what a reader of the month would be told.
+    var liveEvent: ResolvedWorldEvent?
+    if let dayText = ProcessInfo.processInfo.environment["BRAID_EVENT_DAY"], let day = Int(dayText) {
+      let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+      let pack = try ContentPackFileLocator.decoder().decode(
+        WorldEventPack.self,
+        from: Data(contentsOf: root.appendingPathComponent("ContentPacks/count-unbound/opening.reenchantedevents.json")))
+      let event = try XCTUnwrap(pack.events.first)
+      let progress = Double(day - 1) / Double(event.calendar.durationDays)
+      let phase = try XCTUnwrap(event.phases.last { $0.startsAtProgress <= progress })
+      let start = Date(timeIntervalSince1970: 1_790_000_000)
+      liveEvent = ResolvedWorldEvent(
+        id: event.id, packID: pack.id, title: event.title, subtitle: event.subtitle, phase: phase,
+        startedAt: start, endsAt: start.addingTimeInterval(31 * 86_400), progress: progress, playerTouchCount: 0,
+        playerTouchCounts: nil, outcome: nil, effects: [], packet: event.packet)
+    }
     let briefs = BraidBench.corpus().map { night -> [String: String] in
+      var night = night
+      if let liveEvent { night.context.activeWorldEvents = [liveEvent] }
       let context = DeterministicBraidwright.preparedContext(for: night.day, context: night.context)
       var plan = BraidScenePlanBuilder.plan(for: night.day, context: context)
       plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)
