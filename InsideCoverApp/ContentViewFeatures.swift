@@ -6558,7 +6558,15 @@ extension ContentView {
             ? (vault.data.readerStory ?? .empty)
             : ReaderStory.empty
         let weavableDay = BraidPromptBuilder.weavableDay(readingDay, readerStory: readerStory)
-        guard !weavableDay.capturedPages.isEmpty else {
+        // Monthly passages a re-braid carries again (and, for tonight's braid, any
+        // scene kept since it was written, so it appears now and not tomorrow).
+        let retellsTonight = braidDay.id == today.id
+        let authoredMatter = MonthlyIssueBraidMatter.pending(
+            ledger: vault.data.authoredContentReceipts ?? .empty,
+            days: days, replacing: priorPage, now: Date(),
+            includingLateScenes: retellsTonight
+        )
+        guard !weavableDay.capturedPages.isEmpty || !authoredMatter.isEmpty else {
             statusMessage = "Those old bones have no readable receipts left. I left the Page alone."
             BookFeedback.play(.error)
             return
@@ -6635,8 +6643,10 @@ extension ContentView {
                 priorPage: priorPage,
                 choice: choice
             )
+            context.authoredStoryReceipts = authoredMatter
 
             var retold = try await braider.braid(day: weavableDay, context: context)
+            retold = MonthlyIssueBraidMatter.binding(authoredMatter, into: retold)
             // Location, weather and clock belong to the original Page. A
             // retelling edits prose; it must not put today's weather on an old
             // night merely because that is what the device can read now.

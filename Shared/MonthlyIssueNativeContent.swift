@@ -1680,22 +1680,48 @@ enum MonthlyIssueBraidMatter {
         })
     }
 
+    /// The passages tonight's braid should carry.
+    ///
+    /// - A first braid takes whatever no braid has carried yet.
+    /// - A re-braid replaces a page, so the passages that page carried are free
+    ///   to be carried again, and a scene the reader kept *after* it was written
+    ///   comes in with them: that late scene is the reason to re-braid, and it
+    ///   goes first when there isn't room for everything. Passages another braid
+    ///   already carries stay where they are.
+    /// - Whatever doesn't fit stays pending for the night after.
+    /// `includingLateScenes: false` is for re-braiding an old night: it may
+    /// carry again what that night carried, and nothing the reader kept since.
     static func pending(ledger: AuthoredContentReceiptLedger, days: [BookDay],
-                        replacing: BookPage?, now: Date) -> [AuthoredContentReceipt] {
+                        replacing: BookPage?, now: Date,
+                        includingLateScenes: Bool = true) -> [AuthoredContentReceipt] {
         let originalIDs = replacing.map(receiptIDs) ?? []
-        var covered = Set<String>()
+        var carriedElsewhere = Set<String>()
         for day in days {
-            for page in day.pages where page.type == .bookOfYou {
-                covered.formUnion(receiptIDs(in: page))
+            for page in day.pages where page.type == .bookOfYou && page.id != replacing?.id {
+                carriedElsewhere.formUnion(receiptIDs(in: page))
             }
         }
         let eligible = ledger.receipts.filter {
             $0.recordedAt <= now && $0.storyText?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 && [.nodeCompleted, .completed, .reported].contains($0.state)
-                && (replacing != nil ? originalIDs.contains($0.id) : !covered.contains($0.id))
+                && !carriedElsewhere.contains($0.id)
+                && (includingLateScenes || replacing == nil || originalIDs.contains($0.id))
         }
-        // Bound prompt and publication work. Remaining receipts stay pending.
-        return Array(ordered(eligible).prefix(passagesPerNight))
+        let late = ordered(eligible.filter { !originalIDs.contains($0.id) })
+        let earlier = ordered(eligible.filter { originalIDs.contains($0.id) })
+        // Bound prompt and publication work, late scenes first; the page reads
+        // in the order things happened.
+        return ordered(Array((late + earlier).prefix(passagesPerNight)))
+    }
+
+    /// Whether a scene the reader kept is waiting to be woven into a braid that
+    /// has already been written today, so the Braiding Table can say so.
+    static func hasLateScene(ledger: AuthoredContentReceiptLedger, days: [BookDay],
+                             braid: BookPage?, now: Date) -> Bool {
+        guard let braid else { return false }
+        let carried = receiptIDs(in: braid)
+        return pending(ledger: ledger, days: days, replacing: braid, now: now)
+            .contains { !carried.contains($0.id) }
     }
 
     static func passage(_ receipts: [AuthoredContentReceipt]) -> String {

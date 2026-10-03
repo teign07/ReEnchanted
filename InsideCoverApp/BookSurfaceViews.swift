@@ -4205,6 +4205,8 @@ struct PageSourceCard: View {
 struct BraidingTableSheet: View {
     let fragmentCount: Int
     let braidCount: Int
+    /// A scene the reader kept after tonight's braid was written is waiting.
+    var hasLateScene: Bool = false
     let onBraidNew: () -> Void
     let onReBraidLast: () -> Void
     let onOpenLatest: () -> Void
@@ -4249,7 +4251,9 @@ struct BraidingTableSheet: View {
                         } else {
                             actionCard(
                                 title: "Re-braid the last",
-                                subtitle: "Unravel the most recent braid and weave today's fragments again.",
+                                subtitle: hasLateScene
+                                    ? "You kept a scene since this braid was written. Weave it in now, or I'll save it for the next one."
+                                    : "Unravel the most recent braid and weave today's fragments again.",
                                 systemImage: "arrow.triangle.2.circlepath",
                                 enabled: canBraid
                             ) { dismiss(); onReBraidLast() }

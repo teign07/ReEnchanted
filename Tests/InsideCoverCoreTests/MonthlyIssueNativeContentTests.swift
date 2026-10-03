@@ -119,6 +119,78 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         XCTAssertTrue(braid.userInput.contains("fictional stair"))
     }
 
+    private func sceneReceipt(_ id: String, at: Date, text: String) -> AuthoredContentReceipt {
+        AuthoredContentReceipt(contentID: "scene-\(id)", occurrenceID: id, channel: .storyScene,
+            state: .nodeCompleted, recordedAt: at, nodeID: "end", storyText: text)
+    }
+
+    private func boundBraid(_ receipts: [AuthoredContentReceipt], id: String, at: Date) -> BookPage {
+        var page = BookPage(id: id, type: .bookOfYou, createdAt: at, promptText: "Tonight",
+            userInput: "A real sentence stayed.\n\nThe Book kept the page: it held.", tags: ["braid"], usedInBookOfYou: true)
+        page = MonthlyIssueBraidMatter.binding(receipts, into: page)
+        return page
+    }
+
+    /// bj's rule: a scene kept after the braid is written appears in the next
+    /// braid, or in a re-braid of tonight's if the reader asks, and then not
+    /// again the night after.
+    func testASceneKeptAfterTheBraidJoinsTheReBraidAndIsNotRepeatedTomorrow() {
+        let evening = date(2027, 9, 2, 21)
+        let early = sceneReceipt("early", at: evening.addingTimeInterval(-3_600), text: "The fictional stair opened its eye.")
+        let late = sceneReceipt("late", at: evening.addingTimeInterval(1_800), text: "The kettle asked a question.")
+        let now = evening.addingTimeInterval(3_600)
+        let ledger = AuthoredContentReceiptLedger.empty.recording(early).recording(late)
+        let tonight = boundBraid([early], id: "braid-1", at: evening)
+        let day = BookDay(id: "2027-09-02", date: evening, pages: [tonight])
+
+        // Without a re-braid, the late scene waits for the next braid.
+        XCTAssertEqual(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: nil, now: now).map(\.id), [late.id])
+        XCTAssertTrue(MonthlyIssueBraidMatter.hasLateScene(ledger: ledger, days: [day], braid: tonight, now: now))
+
+        // A re-braid of tonight carries both, in the order they happened.
+        let rebraid = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: tonight, now: now)
+        XCTAssertEqual(rebraid.map(\.id), [early.id, late.id])
+
+        // Once the new page replaces the old, nothing is left for tomorrow.
+        let replaced = boundBraid(rebraid, id: "braid-1", at: evening.addingTimeInterval(7_200))
+        let after = BookDay(id: "2027-09-02", date: evening, pages: [replaced])
+        XCTAssertTrue(MonthlyIssueBraidMatter.pending(ledger: ledger, days: [after], replacing: nil, now: now).isEmpty)
+        XCTAssertFalse(MonthlyIssueBraidMatter.hasLateScene(ledger: ledger, days: [after], braid: replaced, now: now))
+        XCTAssertTrue(replaced.userInput.contains("kettle asked a question"))
+    }
+
+    func testWhenThereIsNotRoomTheLateSceneGoesFirstAndTheRestWaitForTomorrow() {
+        let evening = date(2027, 9, 2, 21)
+        let a = sceneReceipt("a", at: evening.addingTimeInterval(-7_200), text: "Passage A.")
+        let b = sceneReceipt("b", at: evening.addingTimeInterval(-3_600), text: "Passage B.")
+        let late = sceneReceipt("late", at: evening.addingTimeInterval(600), text: "Passage Late.")
+        let ledger = AuthoredContentReceiptLedger.empty.recording(a).recording(b).recording(late)
+        let tonight = boundBraid([a, b], id: "braid-1", at: evening)
+        let day = BookDay(id: "d", date: evening, pages: [tonight])
+        let now = evening.addingTimeInterval(3_600)
+        let rebraid = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: tonight, now: now)
+        XCTAssertEqual(rebraid.count, MonthlyIssueBraidMatter.passagesPerNight)
+        XCTAssertTrue(rebraid.contains { $0.id == late.id }, "the scene that prompted the re-braid is not the one cut")
+        XCTAssertEqual(rebraid.map(\.recordedAt), rebraid.map(\.recordedAt).sorted(), "the page reads in the order things happened")
+        // What didn't fit is still pending for the next braid.
+        let replaced = boundBraid(rebraid, id: "braid-1", at: now)
+        let next = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [BookDay(id: "d", date: evening, pages: [replaced])], replacing: nil, now: now)
+        XCTAssertEqual(Set(next.map(\.id)), Set([a, b, late].map(\.id)).subtracting(rebraid.map(\.id)))
+    }
+
+    func testAReBraidNeverStealsWhatAnotherBraidCarries() {
+        let evening = date(2027, 9, 2, 21)
+        let a = sceneReceipt("a", at: evening.addingTimeInterval(-3_600), text: "Passage A.")
+        let b = sceneReceipt("b", at: evening.addingTimeInterval(-1_800), text: "Passage B.")
+        let ledger = AuthoredContentReceiptLedger.empty.recording(a).recording(b)
+        let first = boundBraid([a], id: "braid-1", at: evening)
+        let second = boundBraid([b], id: "braid-2", at: evening.addingTimeInterval(60))
+        let day = BookDay(id: "d", date: evening, pages: [first, second])
+        let rebraid = MonthlyIssueBraidMatter.pending(ledger: ledger, days: [day], replacing: second, now: evening.addingTimeInterval(3_600))
+        XCTAssertEqual(rebraid.map(\.id), [b.id])
+        XCTAssertFalse(MonthlyIssueBraidMatter.hasLateScene(ledger: ledger, days: [day], braid: second, now: evening.addingTimeInterval(3_600)))
+    }
+
     func testBraidCoverageChecksEverySavedBraidInOneDay() {
         let now = date(2027, 9, 2, 22)
         let firstReceipt = AuthoredContentReceipt(contentID: "scene", occurrenceID: "first", channel: .storyScene,

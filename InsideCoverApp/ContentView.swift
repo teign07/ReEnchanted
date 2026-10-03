@@ -3651,6 +3651,9 @@ struct ContentView: View {
                     BraidingTableSheet(
                         fragmentCount: today.capturedPages.count,
                         braidCount: today.pages.filter { $0.type == .bookOfYou }.count,
+                        hasLateScene: MonthlyIssueBraidMatter.hasLateScene(
+                            ledger: vault.data.authoredContentReceipts ?? .empty,
+                            days: days, braid: today.bookOfYou, now: Date()),
                         onBraidNew: { Task { await braidToday(openWhenComplete: true) } },
                         onReBraidLast: { Task { await reBraidLast() } },
                         onOpenLatest: { if let braid = today.bookOfYou { openKeptPage(braid) } }
@@ -10008,7 +10011,7 @@ struct ContentView: View {
             }
             .modifier(BookNightShadow(color: .black.opacity(0.3), radius: 18, y: 12))
 
-            .accessibilityLabel("The Book today. \(epigraph)")
+            .accessibilityLabel("The Book today.")
             .accessibilityHint("The cover can be knocked on.")
     }
 
