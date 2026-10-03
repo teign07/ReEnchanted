@@ -1178,6 +1178,11 @@ struct MLXBookBraider: Braider {
         if !issues.isEmpty { finalTags.append("braid-audit-best-effort") }
         if pointOfView.repaired > 0 { finalTags.append("braid-pov-returned") }
         if !scrub.dropped.isEmpty { finalTags.append("braid-scrubbed") }
+        // A braid that carried a step of the Book's running game says which, so
+        // tomorrow's can carry the next.
+        if let business = scenePlan.bookBusiness, business.id.hasPrefix(BookThreads.idPrefix) {
+            finalTags.append(BookThreads.tagPrefix + business.id.dropFirst(BookThreads.idPrefix.count))
+        }
         // A braid that carried a sulk says so, so the next week's nights rest it.
         if let business = scenePlan.bookBusiness, business.id.hasPrefix(BookSulk.idPrefix) {
             finalTags.append(BookSulk.tagPrefix + business.id.dropFirst(BookSulk.idPrefix.count))

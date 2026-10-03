@@ -68,6 +68,7 @@ let package = Package(
                 "WorldCanonLibrary.swift",
                 "BookBusiness.swift",
                 "BookSulk.swift",
+                "BookThreads.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "EditionMarginalia.swift",

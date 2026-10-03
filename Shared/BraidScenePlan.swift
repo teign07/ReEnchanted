@@ -956,6 +956,10 @@ enum BraidScenePlanBuilder {
             recentDays: archive.isEmpty ? context.recentDays : archive,
             on: day.date,
             hardNight: plan.isHardNight
+        ) ?? BookThreads.pick(
+            recentDays: archive.isEmpty ? context.recentDays : archive,
+            on: day.date,
+            hardNight: plan.isHardNight
         ) ?? BookBusiness.pick(on: day.date, hardNight: plan.isHardNight)
         return plan
     }

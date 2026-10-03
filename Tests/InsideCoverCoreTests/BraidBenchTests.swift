@@ -207,6 +207,14 @@ extension BraidBenchTests {
     let briefs = BraidBench.corpus().map { night -> [String: String] in
       var night = night
       if let liveEvent { night.context.activeWorldEvents = [liveEvent] }
+      // BRAID_THREAD_TAG="teacup:2" runs every night as if last night's braid had
+      // carried that step of the Book's running game, so tonight is its next.
+      if let tag = ProcessInfo.processInfo.environment["BRAID_THREAD_TAG"] {
+        let at = night.day.date.addingTimeInterval(-86_400)
+        let page = BookPage(id: "lab-thread", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                            userInput: "A Night\n\nSomething.", tags: [BookThreads.tagPrefix + tag], origin: .generated)
+        night.context.recentDays = [BookDay(id: "lab-prev", date: at, pages: [page])]
+      }
       // BRAID_TRASHED="The Roster" runs every night as if that scene had just
       // been put in the Trash, so the lab shows how Gemma carries a sulk.
       if let title = ProcessInfo.processInfo.environment["BRAID_TRASHED"] {

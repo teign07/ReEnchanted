@@ -1268,7 +1268,7 @@ final class BraidScenePlanTests: XCTestCase {
     // MARK: The Book's own business
 
     func testTheBooksBusinessIsPlayfulPlainAndNeverAboutTheReader() {
-        XCTAssertGreaterThanOrEqual(BookBusiness.playful.count, 50)
+        XCTAssertGreaterThanOrEqual(BookBusiness.playful.count, 36, "eleven openings moved into running threads")
         let all = BookBusiness.playful + BookBusiness.quiet
         XCTAssertEqual(Set(all.map(\.id)).count, all.count)
         let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
@@ -1413,5 +1413,105 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(hardPlan.isHardNight)
         XCTAssertFalse(hardPlan.brief().contains("The Roster"), "no sulking on a hard night")
         XCTAssertTrue(BookBusiness.quiet.contains { $0.id == hardPlan.bookBusiness?.id })
+    }
+
+    // MARK: Running threads
+
+    private var utc: Calendar { var c = Calendar(identifier: .gregorian); c.timeZone = TimeZone(secondsFromGMT: 0)!; return c }
+
+    private func braidDay(_ date: Date, tags: [String] = []) -> BookDay {
+        let at = utc.startOfDay(for: date).addingTimeInterval(21 * 3_600)
+        return BookDay(id: "d\(Int(at.timeIntervalSince1970))", date: at, pages: [
+            BookPage(id: "b\(Int(at.timeIntervalSince1970))", type: .bookOfYou, createdAt: at, promptText: "Book of You",
+                     userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.", tags: tags, origin: .generated)])
+    }
+
+    func testEveryThreadIsFourFondNightsThatPayOff() {
+        XCTAssertGreaterThanOrEqual(BookThreads.all.count, 12)
+        XCTAssertEqual(Set(BookThreads.all.map(\.id)).count, BookThreads.all.count)
+        let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
+        let uncontracted = ["do not", "does not", "is not", "are not", "it is ", "i am ", "i will ", "would not", "cannot", "did not"]
+        for thread in BookThreads.all {
+            XCTAssertEqual(thread.steps.count, 4, thread.id)
+            for text in thread.steps {
+                let lower = text.lowercased()
+                let words = Set(lower.split { !$0.isLetter && $0 != "'" }.map(String.init))
+                XCTAssertTrue(text.hasSuffix("."), "\(thread.id): \(text)")
+                XCTAssertLessThanOrEqual(text.split(separator: " ").count, 30, "\(thread.id) is too long to lift")
+                XCTAssertTrue(words.isDisjoint(with: ["you", "your", "yours", "you're", "you've"]), "\(thread.id) speaks to the reader")
+                for word in masked { XCTAssertFalse(words.contains(word), "\(thread.id) uses \"\(word)\"") }
+                for phrase in uncontracted + ["i'm feeling", "i feel "] { XCTAssertFalse(lower.contains(phrase), "\(thread.id): \(phrase)") }
+                XCTAssertFalse(lower.contains(", which") || lower.contains("curse") || lower.contains("hinge"), text)
+            }
+        }
+    }
+
+    func testAThreadCarriesOnFromTheNightBeforeAndStopsAtItsLastStep() throws {
+        let today = date("2026-10-10T20:00:00Z"), yesterday = today.addingTimeInterval(-86_400)
+        let line = try XCTUnwrap(BookThreads.pick(recentDays: [braidDay(yesterday, tags: ["braid-thread:teacup:0"])], on: today, hardNight: false, calendar: utc))
+        XCTAssertEqual(line.id, "thread:teacup:1")
+        XCTAssertEqual(line.text, BookThreads.all.first { $0.id == "teacup" }?.steps[1])
+        let after = BookThreads.pick(recentDays: [braidDay(yesterday, tags: ["braid-thread:teacup:3"])], on: today, hardNight: false, calendar: utc)
+        XCTAssertFalse(after?.id.hasPrefix("thread:teacup") == true, "the payoff is the end of the game")
+    }
+
+    func testAThreadWaitsOutAHardNightAndIsLetGoAfterSixDays() throws {
+        let today = date("2026-10-10T20:00:00Z")
+        let tagged = braidDay(today.addingTimeInterval(-86_400), tags: ["braid-thread:dragon:1"])
+        XCTAssertNil(BookThreads.pick(recentDays: [tagged], on: today, hardNight: true, calendar: utc), "no game on a hard night")
+        // The next easy night picks it up where it was left, not further along.
+        let nextEasy = today.addingTimeInterval(86_400)
+        let resumed = try XCTUnwrap(BookThreads.pick(recentDays: [tagged], on: nextEasy, hardNight: false, calendar: utc))
+        XCTAssertEqual(resumed.id, "thread:dragon:2")
+        // Left alone for a week, it is let go.
+        let old = braidDay(today.addingTimeInterval(-8 * 86_400), tags: ["braid-thread:dragon:1"])
+        XCTAssertFalse(BookThreads.pick(recentDays: [old], on: today, hardNight: false, calendar: utc)?.id.hasPrefix("thread:dragon:2") == true)
+    }
+
+    func testAReBraidOfTonightRepeatsTonightsStepAndDoesNotAdvance() throws {
+        let today = date("2026-10-10T20:00:00Z")
+        let yesterday = braidDay(today.addingTimeInterval(-86_400), tags: ["braid-thread:whistle:0"])
+        let tonightsFirstBraid = braidDay(today, tags: ["braid-thread:whistle:1"])
+        let first = try XCTUnwrap(BookThreads.pick(recentDays: [yesterday], on: today, hardNight: false, calendar: utc))
+        let again = try XCTUnwrap(BookThreads.pick(recentDays: [yesterday, tonightsFirstBraid], on: today, hardNight: false, calendar: utc))
+        XCTAssertEqual(first.id, "thread:whistle:1")
+        XCTAssertEqual(again.id, first.id)
+    }
+
+    /// A reader who braids every night for two months: games start about three
+    /// nights in five, each runs its four steps on four consecutive nights and
+    /// pays off, and none returns within a fortnight.
+    func testTwoMonthsOfNightsRunWholeGamesWithoutRepeating() {
+        var days: [BookDay] = []
+        let start = date("2026-10-01T20:00:00Z")
+        var picked: [(day: Int, id: String)] = []
+        for n in 0..<60 {
+            let when = start.addingTimeInterval(Double(n) * 86_400)
+            let line = BookThreads.pick(recentDays: days, on: when, hardNight: false, calendar: utc)
+            if let line { picked.append((n, line.id)) }
+            days.append(braidDay(when, tags: line.map { [BookThreads.tagPrefix + $0.id.dropFirst(BookThreads.idPrefix.count)] } ?? []))
+        }
+        let starts = picked.filter { $0.id.hasSuffix(":0") }
+        XCTAssertGreaterThanOrEqual(starts.count, 8, "games should start regularly: \(picked)")
+        for begun in starts {
+            let thread = String(begun.id.dropFirst(BookThreads.idPrefix.count).split(separator: ":")[0])
+            let steps = picked.filter { $0.id.hasPrefix(BookThreads.idPrefix + thread + ":") && $0.day >= begun.day && $0.day < begun.day + 4 }
+            if begun.day + 3 < 60 {
+                XCTAssertEqual(steps.map(\.id), (0..<4).map { "\(BookThreads.idPrefix)\(thread):\($0)" }, "\(thread) should run its whole game from night \(begun.day)")
+            }
+            let again = starts.filter { $0.id == begun.id && $0.day != begun.day && abs($0.day - begun.day) < BookThreads.restDays }
+            XCTAssertTrue(again.isEmpty, "\(thread) came back inside a fortnight")
+        }
+    }
+
+    func testAThreadStepRidesInTheBriefAndIsStampedForTomorrow() throws {
+        let easy = try XCTUnwrap(BraidBench.corpus().first { $0.name == "plain-diary-day" })
+        var context = DeterministicBraidwright.preparedContext(for: easy.day, context: easy.context)
+        context.trashedScenes = []
+        let day = easy.day.date
+        context.recentDays = [braidDay(day.addingTimeInterval(-86_400), tags: ["braid-thread:teacup:1"])]
+        let plan = BraidScenePlanBuilder.plan(for: easy.day, context: context)
+        XCTAssertEqual(plan.bookBusiness?.id, "thread:teacup:2", plan.summary)
+        XCTAssertTrue(plan.brief().contains(BookThreads.all.first { $0.id == "teacup" }!.steps[2]))
     }
 }
