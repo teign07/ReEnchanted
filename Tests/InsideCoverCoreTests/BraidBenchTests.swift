@@ -272,4 +272,61 @@ extension BraidBenchTests {
     try JSONSerialization.data(withJSONObject: tellings, options: [.prettyPrinted]).write(to: URL(fileURLWithPath: outPath))
     print("Scrubbed \(tellings.count) tellings, dropped \(totalDropped) sentences")
   }
+
+  /// Writes the device brief for one real day, so the Mac Gemma can braid it.
+  /// The file is JSON: {"date":"2026-10-02","pages":[{"time":"08:07","type":"diary","text":"..."}]}
+  /// where "type" is a BookPageType raw value (diary, souvenir, plainPage, mood...).
+  /// The Count Unbound is live on that date, as it would have been for the reader.
+  ///
+  ///     BRAID_REAL_DAY=/path/day.json BRAID_BRIEFS_OUT=/tmp/real-briefs.json \
+  ///     swift test --filter testWriteTheBriefForARealDayWhenAsked
+  func testWriteTheBriefForARealDayWhenAsked() throws {
+    let env = ProcessInfo.processInfo.environment
+    guard let dayPath = env["BRAID_REAL_DAY"], let outPath = env["BRAID_BRIEFS_OUT"] else { return }
+    struct RealPage: Decodable { var time: String; var type: String; var text: String }
+    struct RealDay: Decodable { var date: String; var pages: [RealPage] }
+    let real = try JSONDecoder().decode(RealDay.self, from: Data(contentsOf: URL(fileURLWithPath: dayPath)))
+    let formatter = ISO8601DateFormatter()
+    let pages = try real.pages.enumerated().map { index, page -> BookPage in
+      let type = try XCTUnwrap(BookPageType(rawValue: page.type), "unknown page type \(page.type)")
+      let at = try XCTUnwrap(formatter.date(from: "\(real.date)T\(page.time):00Z"))
+      return BookPage(id: "real-\(index)", type: type, createdAt: at, promptText: "One true thing",
+                      userInput: page.text, origin: .userAuthored)
+    }
+    let dayDate = try XCTUnwrap(formatter.date(from: "\(real.date)T21:00:00Z"))
+    let day = BookDay(id: real.date, date: dayDate, pages: pages)
+
+    // The month's Tale on that date, if the date falls inside The Count Unbound.
+    var context = BraidPromptBuilder.Context.empty
+    let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    let pack = try ContentPackFileLocator.decoder().decode(
+      WorldEventPack.self,
+      from: Data(contentsOf: root.appendingPathComponent("ContentPacks/count-unbound/opening.reenchantedevents.json")))
+    let event = try XCTUnwrap(pack.events.first)
+    var utc = Calendar(identifier: .gregorian); utc.timeZone = TimeZone(secondsFromGMT: 0)!
+    let liveDay = utc.component(.day, from: dayDate) - 1
+    if utc.component(.month, from: dayDate) == 10, (0..<event.calendar.durationDays).contains(liveDay) {
+      let progress = Double(liveDay) / Double(event.calendar.durationDays)
+      let phase = try XCTUnwrap(event.phases.last { $0.startsAtProgress <= progress })
+      context.activeWorldEvents = [ResolvedWorldEvent(
+        id: event.id, packID: pack.id, title: event.title, subtitle: event.subtitle, phase: phase,
+        startedAt: dayDate.addingTimeInterval(-Double(liveDay) * 86_400),
+        endsAt: dayDate.addingTimeInterval(Double(event.calendar.durationDays - liveDay) * 86_400),
+        progress: progress, playerTouchCount: 0, playerTouchCounts: nil, outcome: nil, effects: [], packet: event.packet)]
+    }
+    let prepared = DeterministicBraidwright.preparedContext(for: day, context: context)
+    var plan = BraidScenePlanBuilder.plan(for: day, context: prepared)
+    plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)
+    let brief = plan.brief()
+    let masked = BraidWornImages.masked(sparing: brief)
+    let night: [String: String] = [
+      "name": "real-day", "brief": brief,
+      "maskWords": masked.words.joined(separator: "|"),
+      "maskPairs": masked.pairs.map { "\($0.after)\u{1}\($0.word)" }.joined(separator: "|"),
+      "readerMaterial": ([plan.title()] + plan.readerDayNarration).joined(separator: " "),
+      "hardNight": plan.isHardNight ? "true" : "false"
+    ]
+    try JSONEncoder().encode([night]).write(to: URL(fileURLWithPath: outPath))
+    print("Wrote the brief for \(real.date): \(pages.count) pages, hard night: \(plan.isHardNight), business: \(plan.bookBusiness?.id ?? "none")")
+  }
 }
