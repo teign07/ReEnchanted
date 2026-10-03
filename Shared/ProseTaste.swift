@@ -99,7 +99,7 @@ enum ProseTaste {
         "kettle", "door", "cup", "mug", "sock", "socks", "lamp", "stair", "stairs",
         "charger", "fridge", "rain", "chair", "coat", "key", "keys", "clock",
         "curtain", "kitchen", "gate", "book", "letter", "spoon", "bowl",
-        "window", "lock", "shoe", "shoes", "bell", "ribbon", "hinge", "kerb",
+        "window", "lock", "shoe", "shoes", "bell", "ribbon", "kerb",
         "bus", "bike", "towel", "plate", "bread", "milk", "post", "phone"
     ]
 

@@ -672,7 +672,7 @@ enum BookJumpEngine {
             title: "The Adventures of Sherlock Holmes",
             author: "Arthur Conan Doyle",
             gutenbergID: "1661",
-            world: "a gaslit city of clues, habits, disguises, and rooms where one overlooked detail holds the hinge",
+            world: "a gaslit city of clues, habits, disguises, and rooms where one overlooked detail holds the key",
             arrival: "You arrive near a window with rain on it and a problem pretending to be ordinary.",
             nothing: "The Rut of Routine hides in assumptions so tidy they stop the eye from looking again.",
             rules: ["Observe before explaining.", "The small detail is often the loudest witness.", "The Spine hides in the fact that does not fit."],
@@ -6655,7 +6655,7 @@ enum CharacterLetterPageGenerator {
             """
             - \($0.promptEvidenceLine)
             - Selection basis: \($0.reason)
-            - Let this be the letter's concrete hinge only if it belongs in this sender's voice. \($0.mayQuoteAsReaderWords ? "Quote at most one short phrase." : "Do not quote it or call the observation the reader's words.") Never say you searched, ranked, analyzed, or opened an archive.
+            - Let this be the letter's concrete detail only if it belongs in this sender's voice. \($0.mayQuoteAsReaderWords ? "Quote at most one short phrase." : "Do not quote it or call the observation the reader's words.") Never say you searched, ranked, analyzed, or opened an archive.
             """
         } ?? "No reader passage strongly fits this letter. Do not force a callback."
         return """
@@ -7710,7 +7710,7 @@ enum WickerDareRegistry {
         WickerDare(
             id: "admire-the-repair",
             title: "Praise the Invisible Work",
-            challenge: "Thank one person for a specific piece of work people usually pass over. The clean table. The careful shelf. The fixed hinge. Name the work, not their smile.",
+            challenge: "Thank one person for a specific piece of work people usually pass over. The clean table. The careful shelf. The fixed latch. Name the work, not their smile.",
             proofPrompt: "Tell me what work you named.",
             tags: ["wicker-dare", "social", "kindness", "consent", "public", "comfort-edge"]
         ),
@@ -9794,7 +9794,7 @@ enum StoryFormRegistry {
         recipe("door-that-was-not-there", "The Door That Was Not There", weight: 14, requirements: [], mode: .environmental,
             premise: "A door stands in the corridor tonight that was not there this morning: polite, unlocked, and very slightly warm.",
             beats: ["Show the door plainly: its wood, its handle, the way the corridor pretends nothing has changed around it.", "After the chosen response, the door opens, waits, or withdraws, and the corridor keeps one permanent trace of what was decided."],
-            turn: turn(.factLearned, want: "to learn what the new door is for before it decides on its own", obstacle: "doors that ask politely are the ones with the oldest rules", statement: "By the end, the door has been opened, tested, refused, or given terms, and one true thing about it is known.", slice: "The door is left unopened tonight, and approves of the restraint.", progress: "What is learned about the door opens {{thread}} by one hinge.", surprise: "The door is not an entrance. It is an exit: from somewhere else."),
+            turn: turn(.factLearned, want: "to learn what the new door is for before it decides on its own", obstacle: "doors that ask politely are the ones with the oldest rules", statement: "By the end, the door has been opened, tested, refused, or given terms, and one true thing about it is known.", slice: "The door is left unopened tonight, and approves of the restraint.", progress: "What is learned about the door opens {{thread}} by one notch.", surprise: "The door is not an entrance. It is an exit: from somewhere else."),
             tags: ["world-led", "threshold", "night", "wonder"], forms: ["threshold-crossing", "nocturne"], genres: ["threshold-gothic", "gentle-horror"],
             grounding: "Use the real hour or weather as the corridor's mood, nothing more. The door is the whole subject; the reader's pages are not in this scene.",
             tone: "Courteous danger. The dread resolves toward wonder, never punishment; the door has manners and expects them back.",
@@ -9861,7 +9861,7 @@ enum StoryFormRegistry {
             continuation: "The patient's change is canon; follow what the cured thing does next. Never re-brew the same remedy for the same ailment."),
         recipe("mending-basket", "The Mending Basket", weight: 12, requirements: [.groundedSource, .character], mode: .balanced,
             premise: "{{lead}} sets the mending basket between you: one worn thing from {{thread}} needs repair tonight, and the damage has {{grounding}} worked into its weave.",
-            beats: ["Show the worn thing plainly (the tear, the bent feather, the cracked hinge) and let the first stitch reveal something hidden under the wear.", "After the chosen response, the mend holds (invisible, honored, or taught to keep itself) and what the wear was hiding is in the open."],
+            beats: ["Show the worn thing plainly (the tear, the bent feather, the cracked handle) and let the first stitch reveal something hidden under the wear.", "After the chosen response, the mend holds (invisible, honored, or taught to keep itself) and what the wear was hiding is in the open."],
             turn: turn(.realNoticing, want: "to mend one worn thing so it can go on being used", obstacle: "the damage is load-bearing; something true is woven into the fraying", statement: "By the end, the worn thing is mended (seamlessly, visibly, or by learning to hold itself) and what the wear concealed has been seen.", slice: "The mending becomes the evening; small stitches, long quiet.", progress: "What the repair uncovers gives {{thread}} one new thread to pull.", surprise: "The previous mender left a message in the stitches, waiting for the next pair of hands."),
             tags: ["care", "objects", "memory", "quiet"], forms: ["small-mystery", "correspondence"], genres: ["pastoral", "kindly-ghost"],
             grounding: "Make the grounded detail physically present in the damage or the repair: a stain shaped like it, a thread the same color, the reason this object wore out here. The wear tells the truth; the mend answers it.",
@@ -10892,7 +10892,7 @@ enum WonderSparkRegistry {
         // Wide-mode wonders: fit nearly anywhere.
         spark("almost-said", "I wonder what the last thing this room almost heard somebody say was?", [.closeToHome, .vibe, .obscure]),
         spark("future-fossil", "I wonder which object near me would make the best fossil for future archaeologists?", [.closeToHome, .scavenger, .obscure]),
-        spark("secret-effort", "I wonder what nearby is working hard while looking effortless: a hinge, a stem, a seam?", [.closeToHome, .recovery, .scavenger]),
+        spark("secret-effort", "I wonder what nearby is working hard while looking effortless: a latch, a stem, a seam?", [.closeToHome, .recovery, .scavenger]),
         spark("first-visitor", "I wonder what visited my street this morning before anyone was awake?", [.obscure, .vibe], ["morning"]),
         spark("rain-instruments", "I wonder which surfaces outside play the rain best: what's the percussion section?", [.vibe, .obscure], ["rain"]),
         spark("wind-errands", "I wonder what the wind is moving around the neighborhood right now, and where it's taking it?", [.vibe, .obscure], ["wind"]),

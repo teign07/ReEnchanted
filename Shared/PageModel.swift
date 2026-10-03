@@ -1810,7 +1810,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "before events",
-            note: "Real calendar hinges, folded into the margins before they arrive."
+            note: "Real calendar dates, folded into the margins before they arrive."
         ),
         BookPageSource(
             id: "help-and-tips",

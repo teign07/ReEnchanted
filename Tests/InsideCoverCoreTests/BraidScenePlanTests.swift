@@ -1307,4 +1307,13 @@ final class BraidScenePlanTests: XCTestCase {
             XCTAssertEqual(BookBusiness.quiet.contains { $0.id == business.id }, plan.isHardNight, night.name)
         }
     }
+
+    /// bj can't stand it. Gemma may not write it (masked), and nothing authored
+    /// for the braid may carry it.
+    func testNoHingeInTheBraidsMaterialAndGemmaCannotWriteOne() throws {
+        let masked = BraidWornImages.words.map { $0.trimmingCharacters(in: .whitespaces) }
+        XCTAssertTrue(masked.contains("hinge") && masked.contains("hinges"))
+        let authored = SceneWorldCanon.facts.map(\.text) + BookBusiness.playful.map(\.text) + BookBusiness.quiet.map(\.text)
+        for text in authored { XCTAssertFalse(text.lowercased().contains("hinge"), text) }
+    }
 }

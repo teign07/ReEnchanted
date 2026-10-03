@@ -15875,7 +15875,7 @@ enum BraidPromptBuilder {
             case .livedFirst:
                 return "Open inside the lived world. Let fiction or the relational lens enter only after the reader is standing in one exact real detail."
             case .connectionFirst:
-                return "Open at the surprising hinge between two supplied parts of the score, then ground it immediately in the lived receipt that makes it true."
+                return "Open at the surprising join between two supplied parts of the score, then ground it immediately in the lived receipt that makes it true."
             }
         }
     }
@@ -18151,7 +18151,7 @@ enum BraidPromptBuilder {
         MEANINGFUL PASSAGE COMPASS:
         \(passages)
 
-        PASSAGE-COMPASS RULE: (These are the day's most relevant, specific reader-authored passages, selected from inside the keeps rather than from their openings.) Choose one as the braid's main hinge unless the required Souvenir Spine is stronger; the others may support it, but do not force them all into the prose. (The complete kept-page evidence below still governs the facts and the day's clock. This compass chooses emphasis; it does not erase the other pages.) Quote at most one short phrase and never mention selection, scoring, embeddings, or an archive.
+        PASSAGE-COMPASS RULE: (These are the day's most relevant, specific reader-authored passages, selected from inside the keeps rather than from their openings.) Choose one as the braid's main turn unless the required Souvenir Spine is stronger; the others may support it, but do not force them all into the prose. (The complete kept-page evidence below still governs the facts and the day's clock. This compass chooses emphasis; it does not erase the other pages.) Quote at most one short phrase and never mention selection, scoring, embeddings, or an archive.
         """
     }
 

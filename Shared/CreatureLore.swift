@@ -188,7 +188,7 @@ enum CreatureLore {
 
         row("bat", "Bat", "the wrong bird, at the right hour",
             "Filed with birds until Linnaeus",
-            "Bats were filed with the birds for centuries and were never birds. They come out at the exact hinge of the day, which is the hour everything gets a reputation. The bat has never bothered to defend itself and I respect that."),
+            "Bats were filed with the birds for centuries and were never birds. They come out at the exact edge of the day, which is the hour everything gets a reputation. The bat has never bothered to defend itself and I respect that."),
 
         row("bee", "Bee", "told first, or they leave",
             "English and Welsh custom, still practised into the last century",

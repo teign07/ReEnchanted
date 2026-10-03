@@ -1513,7 +1513,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-pages-wonder-morning", category: .news,
                     assetName: "DJ_faefi_pages_wonder_morning_01",
-                    caption: "Morning bulletin: the Wonder Compass is bright enough to annoy the furniture. If you kept one of its pages, congratulations. The day now has a suspiciously useful hinge.",
+                    caption: "Morning bulletin: the Wonder Compass is bright enough to annoy the furniture. If you kept one of its pages, congratulations. The day now has a suspiciously useful handle.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dawn", "day"],
                         pageTypes: [.wonderCompass],
@@ -1851,7 +1851,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-psa-bleed-editions", category: .news,
                     assetName: "DJ_faefi_psa_bleed_editions_01",
-                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell (weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four) tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
+                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell (weather, the day's plans, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four) tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
                     conditions: nil,
                     weight: nil
                 ),
@@ -7864,7 +7864,7 @@ enum PactTerritoryRegistry {
 
     static let integrations: [PactTerritory] = [
         PactTerritory(id: "integ-calendar", front: .integration, name: "The Calendar Door",
-                      blurb: "The hinges of your real day: events I fold corners around.", pageTypes: []),
+                      blurb: "The plans of your real day: events I fold corners around.", pageTypes: []),
         PactTerritory(id: "integ-notifications", front: .integration, name: "The Whisper Channel",
                       blurb: "My voice, reaching you when the app is closed.", pageTypes: []),
         PactTerritory(id: "integ-health", front: .integration, name: "The Body Margin",
@@ -8466,7 +8466,7 @@ enum PactReadings {
         if !readerAuthored {
             switch talismanID {
             case "ember-seal":
-                return "The Book authored \(it). You chose to keep it. Read that choice as a hand on the hinge, not a claim that you wrote the Page."
+                return "The Book authored \(it). You chose to keep it. Read that choice as a hand on the door, not a claim that you wrote the Page."
             case "moss-clasp":
                 return "\(it) came from the Book and you let it stay. Read it as something received, without pretending its events happened outside the covers."
             case "tide-glass":
@@ -12809,7 +12809,7 @@ enum KeepMarginalia {
                 "The archive is one true thing heavier tonight.",
                 "I gave this one four labels, then took three off. Some things want to stay a little unsolved.",
                 "Filed by scent, weather, and motive. The third category was necessary.",
-                "I saved the small hinge. That is usually where the whole day swings."
+                "I saved the small thing. That is usually where the whole day turns."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} goes on its own card. It earned it.",
@@ -12836,7 +12836,7 @@ enum KeepMarginalia {
             wordLines: [
                 "\u{201C}{word}\u{201D} arrived before the feeling did. That is the good order.",
                 "We can leave \u{201C}{word}\u{201D} in the room with the lamp on.",
-                "\u{201C}{word}\u{201D} may be the handle. The door knows its hinge. Leave it shut today.",
+                "\u{201C}{word}\u{201D} may be the handle. The door knows its own weight. Leave it shut today.",
                 "I heard \u{201C}{word}\u{201D} lower its voice. That is often when it starts telling the truth."
             ]
         ),
@@ -13164,12 +13164,12 @@ enum KeepMarginalia {
             return [
                 ReactionTemplate(id: "own-card", move: .recognition, line: "I put \(quote) on its own card. The detail inside it is holding up the rest of the page."),
                 ReactionTemplate(id: "quiet-drawer", move: .witness, line: "\(quote) goes in the quiet drawer. It is the sort of exact thing the whole day might need later."),
-                ReactionTemplate(id: "small-hinge", move: .question, line: "I indexed \(quote), then found the small hinge inside it. I am leaving that hinge a little unsolved.")
+                ReactionTemplate(id: "small-hinge", move: .question, line: "I indexed \(quote), then found the small turn inside it. I am leaving that turn a little unsolved.")
             ]
         case "dr-inkrest":
             return [
                 ReactionTemplate(id: "chair-beside", move: .witness, line: "I left a chair beside \(quote). It does not need explaining past what you actually wrote."),
-                ReactionTemplate(id: "mark-breath", move: .question, line: "The quiet hinge is \(quote). I will not pry it open; I am only marking where the page breathed."),
+                ReactionTemplate(id: "mark-breath", move: .question, line: "The quiet turn is \(quote). I will not pry it open; I am only marking where the page breathed."),
                 ReactionTemplate(id: "room-around", move: .protection, line: "I kept the room around \(quote). Nothing in your sentence asked to be diagnosed, only witnessed.")
             ]
         case "zara-finch":
@@ -13192,7 +13192,7 @@ enum KeepMarginalia {
             ]
         case "wicker-eddies":
             return [
-                ReactionTemplate(id: "bit-hinge", move: .objection, line: "I bit the hinge in \(quote). It held, which is inconvenient evidence in its favor."),
+                ReactionTemplate(id: "bit-hinge", move: .objection, line: "I bit down on \(quote). It held, which is inconvenient evidence in its favor."),
                 ReactionTemplate(id: "looked-for-trick", move: .recognition, line: "I looked for the trick in \(quote). Found the nerve instead. Annoyingly respectable."),
                 ReactionTemplate(id: "cross-examination", move: .question, line: "\(quote) survived cross-examination without becoming neat. Fine. The untidy part may stay.")
             ]
@@ -15157,7 +15157,7 @@ extension PeopleOfTheBook {
                     id: "edge-of-room",
                     title: { name, _ in "Ask \(name) about the edge of the room" },
                     body: { name, _ in "Ask what first made \(name) stop watching this community from the edge and take part." },
-                    proof: { _, _ in "Keep the hinge between watching and belonging." }
+                    proof: { _, _ in "Keep the door between watching and belonging." }
                 ),
                 InvitationTemplate(
                     id: "teach-forward",

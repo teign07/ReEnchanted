@@ -765,7 +765,7 @@ enum CastUndertakingRegistry {
             stages: [
                 stage(
                     "first-entry",
-                    "Entry one: the hinge on the east door that has never once needed oil.",
+                    "Entry one: the east door, ninety years without a drop of oil.",
                     "A ledger begun in a hand too neat for its subject.",
                     ["objects", "ordinary", "record"],
                     scene: """
@@ -775,13 +775,13 @@ enum CastUndertakingRegistry {
 
                         "It's ninety years old and it has never been oiled." She swings it again. It makes no sound whatsoever. "There's no oil in the log. There's no oil in any log. Somebody would have written it down."
 
-                        She takes out a new ledger, rules a margin, and writes at the top, in handwriting far too good for the subject: ENTRY ONE. HINGE, EAST DOOR.
+                        She takes out a new ledger, rules a margin, and writes at the top, in handwriting far too good for the subject: ENTRY ONE. EAST DOOR.
                         """,
-                    deniability: "It's a hinge. I'm aware that it's a hinge.",
+                    deniability: "It's a door. I'm aware that it's a door.",
                     door: door(
                         "lydia-never-broken",
                         "Entry One, Your Building",
-                        "Something near you has worked every single day for years and has never once been mended, oiled, replaced, or thanked. A catch, a hinge, a tap, a stair. Lydia is keeping an inventory of these and yours is not in it.",
+                        "Something near you has worked every single day for years and has never once been mended, oiled, replaced, or thanked. A catch, a latch, a tap, a stair. Lydia is keeping an inventory of these and yours is not in it.",
                         "What is it, and how long has it been getting away with that?",
                         ["undertaking-door", "objects", "ordinary", "anywhere", "immediate"]
                     )
@@ -796,7 +796,7 @@ enum CastUndertakingRegistry {
 
                         "Nothing's been maintained."
 
-                        "Then it's a well-made hinge."
+                        "Then it's a well-made door."
 
                         "Made by whom?"
 
@@ -827,13 +827,13 @@ enum CastUndertakingRegistry {
                 ),
                 stage(
                     "lost-page",
-                    "The page on the hinge goes missing. The hinge stops working the same week.",
+                    "The page on the east door goes missing. The door stops working the same week.",
                     "A gap in a numbered ledger, and a door that now creaks.",
                     ["strange", "loss", "objects"],
                     scene: """
                         Entry one is gone.
 
-                        Not torn out — the ledger is sewn, and the stitching is whole, and the numbering runs one, two, three without interruption in her own handwriting. There is simply no hinge in it.
+                        Not torn out — the ledger is sewn, and the stitching is whole, and the numbering runs one, two, three without interruption in her own handwriting. There is simply no door in it.
 
                         Lydia walks to the east door and opens it.
 

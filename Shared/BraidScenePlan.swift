@@ -1956,6 +1956,8 @@ enum BraidWornImages {
         // "strange" in 35 of 50, "tiny" in 31, "watched" in 49. Masked, the model
         // reaches for a plainer verb or leaves the sentence alone.
         " strange", " tiny", " watched", " noticed",
+        // bj: the hinge is the model's favourite metaphor and he can't stand it.
+        " hinge", " hinges", " hinged",
         // Filler and clichés only. The Book's voice is a child's, so its delight,
         // its opinions and its "weird" and "little" are left alone: the lab showed
         // these words are not the problem, repetition and padding are. Any word

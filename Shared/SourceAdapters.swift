@@ -11221,7 +11221,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
         let isStorySpark = packet.blueprint?.recipeID == "souvenir-door"
         let previewBody: String
         if isStorySpark {
-            previewBody = "One sentence you kept has found a hinge. Open the Page. I’ll tell the scene, then you decide what the little door costs to keep."
+            previewBody = "One sentence you kept has found a crack. Open the Page. I’ll tell the scene, then you decide what the little door costs to keep."
         } else if let blueprint = packet.blueprint {
             let cast = [blueprint.leadName, blueprint.companionName]
                 .compactMap { $0?.nonEmpty }
@@ -16580,11 +16580,11 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
                 intent: .reflect,
                 renderStyle: .loreLetter,
                 score: 70,
-                reason: "The day already has \(todays.count) hinge\(todays.count == 1 ? "" : "s") inked.",
-                prompt: "Today's Hinges",
+                reason: "The day already has \(todays.count) plan\(todays.count == 1 ? "" : "s") inked.",
+                prompt: "Today's Plans",
                 detail: "\(todays.count) inked hour\(todays.count == 1 ? "" : "s") ahead.",
                 payload: BookPagePayload(
-                    headline: "Today's Hinges",
+                    headline: "Today's Plans",
                     body: "The day turns on these hours:\n\n\(lines)\n\nEverything between them is margin: yours.",
                     metadata: [
                         "source": source.id,
@@ -16611,13 +16611,13 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: "Bellkeeper Elian is offering to open the Calendar Doorway before the wider game fully unfolds.",
             prompt: "The Calendar Door is waiting.",
-            detail: "Let me read today's hinges: appointments, deadlines, departures, and returns stay on this device.",
+            detail: "Let me read today's plans: appointments, deadlines, departures, and returns stay on this device.",
             payload: BookPagePayload(
                 headline: "A Door Marked Today",
                 body: """
                 Bellkeeper Elian has found a narrow brass door in the colophon and dragged it into the light.
 
-                Open it, and I may read your upcoming Calendar events on this device. They stay here. I want the hinges: meetings before they pounce, appointments after they land, departures, returns. The morning paper can print the day's posted turns instead of pretending time is a blank hallway.
+                Open it, and I may read your upcoming Calendar events on this device. They stay here. I want the plans: meetings before they pounce, appointments after they land, departures, returns. The morning paper can print the day's posted turns instead of pretending time is a blank hallway.
 
                 Leave the brass door shut and I keep working. Open it and I get better at arriving before the hour does.
                 """,
@@ -16655,7 +16655,7 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             tags = "calendar,hour-page,after-event,one-sentence-souvenir,real-day"
         } else {
             placeholder = "Before this hour, I want to remember..."
-            detail = "A calendar hinge is near. I've got one question and one small support spell."
+            detail = "A calendar date is near. I've got one question and one small support spell."
             tags = "calendar,hour-page,before-event,hinge,real-day"
         }
 

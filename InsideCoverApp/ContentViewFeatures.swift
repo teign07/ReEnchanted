@@ -5935,7 +5935,7 @@ extension ContentView {
         let lines = [
             BoundVolumeCastLine(id: "volume-dialogue-fallback-0", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "I've put \(firstEvidence.title.lowercased()) on its own card. \(firstDetail)"),
             BoundVolumeCastLine(id: "volume-dialogue-fallback-1", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "A card is not an argument, Blackletter. It is barely furniture."),
-            BoundVolumeCastLine(id: "volume-dialogue-fallback-2", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "Then explain \(secondEvidence.title.lowercased()). \(secondDetail) That is a hinge, and you know it."),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-2", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "Then explain \(secondEvidence.title.lowercased()). \(secondDetail) That is a turn, and you know it."),
             BoundVolumeCastLine(id: "volume-dialogue-fallback-3", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "I know only that \(annual.resolvedCoverLine()) has survived binding with its evidence intact. Irritatingly, that will do.")
         ]
         return BoundVolumeCastConversation(
@@ -8923,7 +8923,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "three-book-jumps", "A Door You Made",
-            "I didn't give you this door. You made it, opened it, and brought back the hinge.",
+            "I didn't give you this door. You made it, opened it, and brought back the key.",
             "Without waiting for me to ask, make a ritual, detour, quest, or bit of magic and bring back proof.",
             .longGameEvidence(
                 capacity: .selfAuthoredAction,

@@ -34,7 +34,7 @@ enum BleedEditionKind: String, Codable, Equatable, CaseIterable {
     var announcementLine: String {
         switch self {
         case .morning:
-            return "Hot off the press: Penny Blackletter has put the Morning Edition to bed. Weather, the day's hinges, what the Book noticed overnight, and a column on one of your own shelves."
+            return "Hot off the press: Penny Blackletter has put the Morning Edition to bed. Weather, the day's plans, what the Book noticed overnight, and a column on one of your own shelves."
         case .evening:
             return "The Evening Edition is set in type. Tomorrow's shape, tonight's margins, the latest from the Book, and a fresh column from your own shelf of interests."
         }
@@ -400,7 +400,7 @@ enum TheBleedEditionBuilder {
         let pressure = count >= 4
             ? "A crowded board. The clerk advises guarding one unclaimed hour the way one guards a window seat."
             : "A reasonable board, by Registry standards."
-        return "\(dayWord)'s hinges, as posted:\n\(lines)\n\(pressure)"
+        return "\(dayWord)'s plans, as posted:\n\(lines)\n\(pressure)"
     }
 
     static func refreshingAlmanacBriefs(

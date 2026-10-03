@@ -1123,6 +1123,7 @@ final class CountUnboundOpeningTests: XCTestCase {
                     for word in masked + spoiled { XCTAssertFalse(words.contains(word), "\(pulse.id) \(label) uses \"\(word)\"") }
                     XCTAssertFalse(lower.contains(", which"), "\(pulse.id) \(label) has an appositive aside")
                     XCTAssertFalse(lower.contains("curse"), pulse.id)
+                    XCTAssertFalse(lower.contains("hinge"), "\(pulse.id) has a hinge")
                     if label == "tender" { for word in levity { XCTAssertFalse(lower.contains(word), "\(pulse.id) tender is light: \(word)") } }
                 }
                 XCTAssertNotEqual(pulse.tender, pulse.text, "\(pulse.id) has no quieter way of being said")

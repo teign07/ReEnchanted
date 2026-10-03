@@ -2792,7 +2792,7 @@ struct FakeCharacterLetterWriter: CharacterLetterWriting {
 
         What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
 
-        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its hinges.
+        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its handles.
 
         Yours from the margins,
         \(sender)
@@ -5829,7 +5829,7 @@ struct CharacterLetterWriter {
 
         What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
 
-        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its hinges.
+        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its handles.
 
         Yours from the margins,
         \(sender)

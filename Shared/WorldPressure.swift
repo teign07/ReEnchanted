@@ -207,7 +207,7 @@ enum WorldPressureEngine {
             "words": ["A dictionary missing exactly one definition. Priced accordingly.",
                       "Loose punctuation, mixed, by weight."],
             "threshold": ["A doorstop with a strong opinion about doors.",
-                          "One hinge, barely used, no questions."],
+                          "One latch, barely used, no questions."],
             "food": ["A cooking pot that has been listened to.",
                      "Half a jar of something that was labelled once."],
             "objects": ["An inventory tag with nothing left attached to it.",

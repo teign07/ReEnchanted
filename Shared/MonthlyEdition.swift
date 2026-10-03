@@ -5373,7 +5373,7 @@ enum BindingStoryPromptBuilder {
             READER-AUTHORED PASSAGE COMPASS:
             \(lines)
 
-            COMPASS RULE: (These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.) Let at least one passage become a hinge, image, or consequence in the chosen architecture. Use the others only when they genuinely connect. (The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it does not authorize invention or require every passage.) Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
+            COMPASS RULE: (These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.) Let at least one passage become a turn, image, or consequence in the chosen architecture. Use the others only when they genuinely connect. (The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it does not authorize invention or require every passage.) Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
             """
         }
         return """

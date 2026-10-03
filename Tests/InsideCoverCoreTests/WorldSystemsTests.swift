@@ -3094,7 +3094,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(preview?.type, .calendar)
         XCTAssertEqual(preview?.payload.metadata["calendarDoorPreview"], "true")
         XCTAssertEqual(preview?.payload.metadata["requiresCalendarPermission"], "true")
-        XCTAssertTrue(preview?.payload.body.contains("I want the hinges") == true)
+        XCTAssertTrue(preview?.payload.body.contains("I want the plans") == true)
         XCTAssertTrue(preview?.payload.body.contains("meetings before they pounce") == true)
     }
 

@@ -10196,7 +10196,7 @@ struct OnboardingFlowView: View {
         OnboardingChoice(id: "oddities", title: "Funny little oddities", detail: "The stranger the better.", symbol: "sparkles")
     ]
     private let comfortChoices = [
-        OnboardingChoice(id: "gentle", title: "Invite me", detail: "Show me doors. If I say no, leave the hinges alone.", symbol: "leaf"),
+        OnboardingChoice(id: "gentle", title: "Invite me", detail: "Show me doors. If I say no, leave the doors alone.", symbol: "leaf"),
         OnboardingChoice(id: "balanced", title: "Nudge me", detail: "Remind me, return things, and challenge routine a little.", symbol: "scalemass"),
         OnboardingChoice(id: "strange", title: "Call me on my nonsense", detail: "Cajole me. Provoke me. If I say no, go bother the furniture.", symbol: "eye")
     ]
@@ -14033,7 +14033,7 @@ struct OnboardingFlowView: View {
 
             Text(
                 inscriptionCoverChoiceID.isEmpty
-                    ? "\"The little door keeps its own hinges. Good.\""
+                    ? "\"The little door keeps its own counsel. Good.\""
                     : "\"That coat. Hold still while I get ink on it.\""
             )
                 .font(.system(.caption, design: .serif).italic())
@@ -14671,7 +14671,7 @@ struct OnboardingFlowView: View {
         let bookNote = """
         \(readerName),
 
-        I was blank at this door. Then you gave me \(firstDetail), and look what it has done to my hinges.
+        I was blank at this door. Then you gave me \(firstDetail), and look what it has done to my pages.
 
         This copy is not a portrait of you. Portraits sit still and pretend they have finished. This is the first thing we made while watching each other: one ordinary detail, one choice, one argument, one bite mark, one thing returned.
 
@@ -14695,7 +14695,7 @@ struct OnboardingFlowView: View {
                     speakerID: "zara-finch",
                     speakerName: "Zara Finch",
                     glyph: nil,
-                    words: "Open it at the hinge. \(firstDetail) is doing the real work. Small enough to be missed, specific enough to hold."
+                    words: "Open it at the seam. \(firstDetail) is doing the real work. Small enough to be missed, specific enough to hold."
                 ),
                 .init(
                     id: "first-door-wicker-bite",

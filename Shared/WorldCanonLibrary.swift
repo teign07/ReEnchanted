@@ -32,7 +32,7 @@ extension SceneWorldCanon {
         Fact(id: "humming-gutters", threadID: "gutters",
              text: "The gutters along the north wall have hummed one low note since the rain. They stop when anyone stands underneath."),
         Fact(id: "backwards-pantry-door", threadID: "pantry-door",
-             text: "The pantry door has been opening the other way, toward its own hinge. The hinge has decided not to mention it."),
+             text: "The pantry door has started opening the wrong way, and the pantry has decided not to mention it."),
         Fact(id: "shrinking-pencils", threadID: "pencils",
              text: "Every pencil in the Stacks is shorter than it was yesterday, and nobody has sharpened one."),
         Fact(id: "adding-window", threadID: "window",

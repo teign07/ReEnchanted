@@ -12282,7 +12282,7 @@ struct ContentView: View {
                             Text("Calendar Doorway")
                                 .font(.caption.weight(.bold))
                                 .foregroundStyle(MaterialInk.text.opacity(0.86))
-                            Text("I read the day's hinges and fold a corner before each one. Events stay on this device.")
+                            Text("I read the day's plans and fold a corner before each one. Events stay on this device.")
                                 .font(.caption2)
                                 .foregroundStyle(MaterialInk.text.opacity(0.58))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -12297,7 +12297,7 @@ struct ContentView: View {
                                 calendarEvents = await CalendarDoorway.upcomingEvents()
                                 surfaceRefreshDate = Date()
                                 statusMessage = calendarEvents.isEmpty
-                                    ? "The Calendar Doorway is open, but no hinges are inked yet."
+                                    ? "The Calendar Doorway is open, but no plans are inked yet."
                                     : "I can see \(calendarEvents.count) inked hour\(calendarEvents.count == 1 ? "" : "s") ahead."
                             }
                         } else {
@@ -18346,7 +18346,7 @@ struct ContentView: View {
         let status = library.authorizationStatus()
         let finalStatus: PHAuthorizationStatus
         if status == .notDetermined {
-            statusMessage = "The photo door is locked. Open it before Penny starts picking the hinges."
+            statusMessage = "The photo door is locked. Open it before Penny starts picking the plans."
             finalStatus = await library.requestAuthorization()
         } else {
             finalStatus = status
@@ -20968,7 +20968,7 @@ struct ContentView: View {
             replaceDismissedSurfaceInCache(surface, now: now, outcome: .acted)
         }
         statusMessage = events.isEmpty
-            ? "The Calendar Doorway is open, but no hinges are inked yet."
+            ? "The Calendar Doorway is open, but no plans are inked yet."
             : "I can see \(events.count) inked hour\(events.count == 1 ? "" : "s") ahead."
     }
 

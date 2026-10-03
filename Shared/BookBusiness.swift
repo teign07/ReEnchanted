@@ -21,7 +21,7 @@ enum BookBusiness {
     static let label = "My own business tonight (a thread I may follow if I like):"
 
     static let playful: [Line] = [
-        Line(id: "hinges", text: "Tonight I'm counting everything with a hinge. So far it's eleven, and one of them is a cat."),
+        Line(id: "lids", text: "Tonight I'm counting everything with a lid. So far it's eleven, and one of them is a cat."),
         Line(id: "spoons", text: "I've decided to be suspicious of every spoon."),
         Line(id: "round-things", text: "I'm collecting round things. A button, a coin and the moon are winning."),
         Line(id: "blue", text: "Tonight I'm only allowed to look at things that are blue."),

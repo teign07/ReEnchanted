@@ -483,7 +483,7 @@ enum SyntheticReaderYear {
         "Changed the bulb in the bathroom", "Ate lunch on a bench facing the wrong way", "Planted garlic in the window box",
         "Untangled a necklace for twenty minutes", "Found my old sketchbook", "Gave the plant by the window a new pot",
         "Watched rain run down the bus window", "Bought flowers for no one in particular", "Learned the name of the bakery cat",
-        "Oiled the squeaky hinge on the kitchen door", "Counted the steps to the post box", "Wore odd socks all day",
+        "Oiled the squeaky kitchen door", "Counted the steps to the post box", "Wore odd socks all day",
         "Sat with Amanda while she waited for news", "Tidied the shelf of things I never use", "Tried a new route to work",
         "Wrote my brother a postcard",
     ]

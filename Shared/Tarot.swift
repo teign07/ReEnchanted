@@ -272,7 +272,7 @@ enum TarotLocalInterpreter {
         case .weather:
             positionLine = "\(card.name) makes the weather around this question: \(card.lightMeaning.lowercasedFirst)"
         case .door:
-            positionLine = "\(card.name) does not promise an outcome; it offers a hinge: \(card.lightMeaning.lowercasedFirst)"
+            positionLine = "\(card.name) does not promise an outcome; it offers a turn: \(card.lightMeaning.lowercasedFirst)"
         }
         let relationshipLine: String
         if let neighbor = neighborNames.first {
