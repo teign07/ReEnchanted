@@ -115,7 +115,7 @@ function referrerSignal() {
   })();
   const source = tagged || host;
   if (!source) return null;
-  if (/github/.test(source)) return "You came from the place where my hinges show. I'm not shy about the hinges. I'm proud of them.";
+  if (/github/.test(source)) return "You came from the place where my seams show. I'm not shy about the seams. I'm proud of them.";
   if (/patreon/.test(source)) return "You came in by the helping hand. I felt the page lift.";
   if (/bsky|bluesky/.test(source)) return "You came in on a little blue wind. It dropped a feather in my margin and left.";
   if (/x\.com|twitter/.test(source)) return "You came out of a noisy square. Come closer. I'm quieter than that.";
@@ -1368,7 +1368,7 @@ function openBook() {
   nav.hidden = false;
   index = 0;
   render();
-  earnGlow("opened-book", 2, "The cover opened. Glow gathers at the hinge.");
+  earnGlow("opened-book", 2, "The cover opened. Glow gathers at the spine.");
   loadLocationDaypart(); // best-effort and user-triggered, so the page doesn't call location services on load
 }
 
@@ -1449,7 +1449,7 @@ function buildBraid() {
   if (kept(RADIO_INDEX)) {
     const stationTurns = {
       "fae-fi": "Fae-Fi put green sparks in the rafters, and every shelf began remembering summer at once.",
-      mothlight: "Mothlight lowered its voice until the hinges smelled of lavender and turned without waking the dust.",
+      mothlight: "Mothlight lowered its voice until the doors smelled of lavender and turned without waking the dust.",
       thornwave: "Thornwave struck a black match under the floorboards; even doubt acquired a bassline and followed along.",
     };
     world.push(stationTurns[selectedStationId] || "A nameless station found the rafters and gave the journey a pulse.");
@@ -1517,7 +1517,7 @@ function buildBraid() {
   } else if (!keptIndices.length) {
     ending = "By dark, you had kept nothing. Good. An honest empty page is stronger than a crowded lie. I left one lamp burning in the margin. It wants another look at you.";
   } else {
-    ending = `By dark, you carried ${keptIndices.length === 1 ? "one Page" : `${keptIndices.length} Pages`} back across the hinge. Routine counted fewer things than it had that morning. It hates when that happens.`;
+    ending = `By dark, you carried ${keptIndices.length === 1 ? "one Page" : `${keptIndices.length} Pages`} back across the spine. Routine counted fewer things than it had that morning. It hates when that happens.`;
   }
   paragraphs.push(ending);
 
@@ -1814,7 +1814,7 @@ function bindingPages() {
       paragraphs: [
         "I didn't make personality labels. These are the stars I used to navigate this small binding: repeated textures, Page-types, and kinds of attention that showed up while you turned me.",
         ...data.words.map((w) => `${w.label} - ${w.count} sighting${w.count === 1 ? "" : "s"}`),
-        "Give me a real month and this sky grows stranger and more useful. Weather leans toward music. Fuel sits beside rest. One sentence becomes the hinge that explains why a whole week kept opening to the same question."
+        "Give me a real month and this sky grows stranger and more useful. Weather leans toward music. Fuel sits beside rest. One sentence becomes the turn that explains why a whole week kept opening to the same question."
       ],
     });
   }
@@ -2453,7 +2453,7 @@ const BOOK_STATIONS = [
   { id: "fae-fi", name: "Fae-Fi", introLabel: "Penny intro", track: "Folktronica", intro: "fae-fi-penny-intro-folktronica.m4a", src: "fae-fi-folktronica.m4a",
     braid: "Fae-Fi flickered through Penny's grin; folktronica put green sparks in the rafters and made the afternoon taste of clover soda." },
   { id: "mothlight", name: "Mothlight", introLabel: "Euphony ID", track: "Afternoon Chapters", intro: "mothlight-euphony-id-01.m4a", src: "mothlight-afternoon-chapters.m4a",
-    braid: "Mothlight lowered its voice until the shelves breathed paper-dust and lavender; even the hinges turned pages more softly." },
+    braid: "Mothlight lowered its voice until the shelves breathed paper-dust and lavender; even the doors turned pages more softly." },
   { id: "thornwave", name: "Thornwave", introLabel: "Wicker ID", track: "Magic Margins", intro: "thornwave-wicker-id-01.m4a", src: "thornwave-magic-margins.m4a",
     braid: "Wicker's Thornwave ID struck black and sharp; bass gathered under the floorboards and gave doubt a velvet back." },
 ];
@@ -3314,7 +3314,7 @@ render();
   } else if (daysAway === 1) {
     greeting = pick([
       "One day. Your place was still warm. Sit down.",
-      "There you are. Yesterday tried to shut me. The hinge refused.",
+      "There you are. Yesterday tried to shut me. The cover refused.",
       "Back already. Good. A day will vanish if nobody gives it a name.",
     ], 17);
   } else if (visitCount === 7 || visitCount === 13 || visitCount === 21) {

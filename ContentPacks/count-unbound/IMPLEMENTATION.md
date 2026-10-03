@@ -55,7 +55,7 @@ gates passed; open Reader experience checks below remain follow-up work.
   the own-evening-only entry, walk-home second choice, terminal leaf, receipts,
   and retirement passed in isolated QA.
 - [x] Ruse relic app route: an earlier kept finding and completed Ruse ending
-  opened The Paper Hinge; Terms and Rule relics stayed hidden. Keep saved its
+  opened The Paper Fold; Terms and Rule relics stayed hidden. Keep saved its
   terminal receipts and retired the offer.
 - [x] Terms and Rule relic app routes: completed matching endings and the earlier
   kept finding opened The Turned-Down Place Card and The Two-Sided Bookmark.

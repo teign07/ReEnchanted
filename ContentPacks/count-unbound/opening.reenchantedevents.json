@@ -3563,7 +3563,7 @@
         },
         {
           "id": "count-unbound.relic.paper-hinge",
-          "title": "The Paper Hinge",
+          "title": "The Paper Fold",
           "reference": {
             "kind": "storyScene",
             "id": "count-unbound.relic.paper-hinge"
@@ -4236,7 +4236,7 @@
         {
           "id": "count-unbound.scene.east-stacks.after",
           "title": "The East Stacks Incident",
-          "body": "“His fingers were coming apart,” she says. “I told him he shouldn't be here.”\n\nShe looks at the cloth in Ambrose's hand.\n\n“He said he'd found a way to stay.”\n\nWicker sets the water down. A little spills. He wipes it with his sleeve before anyone can ask.\n\nSerenity sees him.\n\n“What did you write?”\n\nHe tells her. The exact sentence. I keep it too.\n\nShe shuts her eyes again.\n\nWicker reaches towards her hand, then puts his own flat on the floor.\n\n“Get my map,” she says to Ambrose.\n\nThe Kitchens door appears at the end of the aisle. It has come a long way and left its hinges behind.\n\nAmbrose lifts her. She keeps the map.\n\nA black line travels across its sea, through a mountain, and into the north margin.\n\nSerenity turns her head.\n\n“He's there.”\n\nPermancer takes a step towards the wall.\n\n“Tomorrow,” she says.\n\nHe stops.\n\n“Yes. Tomorrow.”\n\nWicker holds the Kitchens door. Serenity goes through without looking at him.\n\nHe stays with the handle long after Ambrose has put her down.\n\nYou're still here. I checked twice.\n\nI don't like this aisle now. I'm going to remember where it is, so we never come back to it by accident.",
+          "body": "“His fingers were coming apart,” she says. “I told him he shouldn't be here.”\n\nShe looks at the cloth in Ambrose's hand.\n\n“He said he'd found a way to stay.”\n\nWicker sets the water down. A little spills. He wipes it with his sleeve before anyone can ask.\n\nSerenity sees him.\n\n“What did you write?”\n\nHe tells her. The exact sentence. I keep it too.\n\nShe shuts her eyes again.\n\nWicker reaches towards her hand, then puts his own flat on the floor.\n\n“Get my map,” she says to Ambrose.\n\nThe Kitchens door appears at the end of the aisle. It has come a long way and left its wall behind.\n\nAmbrose lifts her. She keeps the map.\n\nA black line travels across its sea, through a mountain, and into the north margin.\n\nSerenity turns her head.\n\n“He's there.”\n\nPermancer takes a step towards the wall.\n\n“Tomorrow,” she says.\n\nHe stops.\n\n“Yes. Tomorrow.”\n\nWicker holds the Kitchens door. Serenity goes through without looking at him.\n\nHe stays with the handle long after Ambrose has put her down.\n\nYou're still here. I checked twice.\n\nI don't like this aisle now. I'm going to remember where it is, so we never come back to it by accident.",
           "prompt": "Keep this leaf.",
           "choices": [],
           "braidText": "Ambrose carried Serenity to the Kitchens. She kept her map. Wicker held the door; she passed without looking at him. I remembered the aisle."
@@ -4741,7 +4741,7 @@
         {
           "id": "count-unbound.strategy.gambit.after",
           "title": "A Room Made of Paper",
-          "body": "Behind the window is an unwritten night.\n\nWicker runs a paper hinge from the floor into *Dracula*.\n\n“When he enters, we fold it back.”\n\n“Wait for me,” Serenity says.\n\nHe tests the hinge, then leaves the last fold open.\n\nI watched where he left it. I'll know that fold again.\n\nShe watches his hands.\n\nFar away, a closed book stops turning its pages.\n\nSerenity's map pulls towards the room.\n\n“He's noticed.”\n\n{other-side}",
+          "body": "Behind the window is an unwritten night.\n\nWicker runs a paper fold from the floor into *Dracula*.\n\n“When he enters, we fold it back.”\n\n“Wait for me,” Serenity says.\n\nHe tests the crease, then leaves the last fold open.\n\nI watched where he left it. I'll know that fold again.\n\nShe watches his hands.\n\nFar away, a closed book stops turning its pages.\n\nSerenity's map pulls towards the room.\n\n“He's noticed.”\n\n{other-side}",
           "prompt": "Keep this leaf.",
           "choices": [],
           "braidText": "Wicker made the paper room. Serenity told him to wait for her. He left the last fold open.",
@@ -4814,13 +4814,13 @@
               "id": "ruse",
               "title": "Return by Ruse",
               "prompt": "Return by Ruse",
-              "result": "Wicker takes hold of the paper hinge.",
+              "result": "Wicker takes hold of the paper fold.",
               "effectLine": "",
               "consequenceTags": [
                 "count-unbound:return-by-ruse"
               ],
               "nextNodeID": "count-unbound.scene.future-tense.ruse",
-              "braidText": "You chose to send the Count back by a trick. Wicker took hold of the paper hinge."
+              "braidText": "You chose to send the Count back by a trick. Wicker took hold of the paper fold."
             }
           ],
           "carryForward": {
@@ -4881,7 +4881,7 @@
         {
           "id": "count-unbound.scene.future-tense.ruse",
           "title": "Return by Ruse",
-          "body": "Dracula looks through the little window.\n\n“Unwritten.”\n\nWicker stands beside the fold.\n\n“Mostly.”\n\n“You expect me to trust another gift?”\n\n“I expect you to want the window.”\n\nWicker isn't lying. It's still a trap.\n\nThe Count enters. Wicker pulls the first hinge.\n\nThe window becomes a margin. The floor tilts into a page. Dracula reaches for the door, but its handle is already ink.\n\nI know that tilt. That's a book taking somebody back.\n\nSerenity steps to the final edge.\n\n“Wait.”\n\nWicker holds the fold. His knuckles whiten.\n\nHe waits.",
+          "body": "Dracula looks through the little window.\n\n“Unwritten.”\n\nWicker stands beside the fold.\n\n“Mostly.”\n\n“You expect me to trust another gift?”\n\n“I expect you to want the window.”\n\nWicker isn't lying. It's still a trap.\n\nThe Count enters. Wicker pulls the first fold.\n\nThe window becomes a margin. The floor tilts into a page. Dracula reaches for the door, but its handle is already ink.\n\nI know that tilt. That's a book taking somebody back.\n\nSerenity steps to the final edge.\n\n“Wait.”\n\nWicker holds the fold. His knuckles whiten.\n\nHe waits.",
           "prompt": "Keep this leaf.",
           "choices": [],
           "nextNodeID": "count-unbound.scene.future-tense.ruse.withdrawal",
@@ -4897,7 +4897,7 @@
         }
       ],
       "reportAfterLiveDay": 27,
-      "report": "The Count was returned to his source. Ambrose brought the terms, Permancer opened the book, Penny checked the threshold, and Wicker held the hinge. Serenity withdrew the living claim herself. The borrowed rooms fell back into words. The Book lost a stitch holding the source open.",
+      "report": "The Count was returned to his source. Ambrose brought the terms, Permancer opened the book, Penny checked the threshold, and Wicker held the fold. Serenity withdrew the living claim herself. The borrowed rooms fell back into words. The Book lost a stitch holding the source open.",
       "roomID": "location-great-hall",
       "castIDs": [
         "serenity-brown",
@@ -5346,7 +5346,7 @@
       "id": "count-unbound.relic.paper-hinge",
       "packID": "count-unbound-october-2026",
       "eventID": "count-unbound",
-      "title": "The Paper Hinge",
+      "title": "The Paper Fold",
       "opening": "One fold stayed out when the room went home. There is a bit of window on it, and a thumb mark where Wicker waited. Hold it up. The paper still remembers how to bend.",
       "prompt": "Keep this trace.",
       "detail": "The Count Unbound · October 2026",
@@ -5362,11 +5362,11 @@
       "nodes": [
         {
           "id": "count-unbound.relic.paper-hinge.leaf",
-          "title": "The Paper Hinge",
+          "title": "The Paper Fold",
           "body": "One fold stayed out when the room went home. There is a bit of window on it, and a thumb mark where Wicker waited. Hold it up. The paper still remembers how to bend.",
           "prompt": "Keep this trace.",
           "choices": [],
-          "braidText": "I kept the fold of paper hinge that stayed out when Wicker's room went home, beside your October sentence."
+          "braidText": "I kept the paper fold that stayed out when Wicker's room went home, beside your October sentence."
         }
       ]
     }

@@ -1513,7 +1513,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-pages-wonder-morning", category: .news,
                     assetName: "DJ_faefi_pages_wonder_morning_01",
-                    caption: "Morning bulletin: the Wonder Compass is bright enough to annoy the furniture. If you kept one of its pages, congratulations. The day now has a suspiciously useful handle.",
+                    caption: "Morning bulletin: the Wonder Compass is bright enough to annoy the furniture. If you kept one of its pages, congratulations. The day now has a suspiciously useful hinge.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dawn", "day"],
                         pageTypes: [.wonderCompass],
@@ -1851,7 +1851,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-psa-bleed-editions", category: .news,
                     assetName: "DJ_faefi_psa_bleed_editions_01",
-                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell (weather, the day's plans, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four) tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
+                    caption: "Reminder from your editor, which is me: The Bleed runs two editions. The Morning paper lands before one bell (weather, the day's hinges, what the Book noticed overnight, and a column off one of your own shelves. The Evening edition sets after four) tomorrow's shape, tonight's margins, a fresh column. The quiet afternoon between them belongs to you. That part's intentional. Read both. There may be a quiz. There won't be. But there could be.",
                     conditions: nil,
                     weight: nil
                 ),

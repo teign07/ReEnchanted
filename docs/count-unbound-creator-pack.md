@@ -1026,7 +1026,7 @@ He folds the sill to the right height.
 
 Behind the window is an unwritten night.
 
-Wicker runs a paper hinge from the floor into *Dracula*.
+Wicker runs a paper fold from the floor into *Dracula*.
 
 “When he enters, we fold it back.”
 
@@ -1148,7 +1148,7 @@ He waits.
 
 **Read**
 
-Ambrose brought the signed terms. Permancer opened the source and named the returning traveller. Penny checked the threshold from both sides. Wicker held the paper hinge.
+Ambrose brought the signed terms. Permancer opened the source and named the returning traveller. Penny checked the threshold from both sides. Wicker held the paper fold.
 
 Serenity came to the final edge when she chose.
 
@@ -1437,7 +1437,7 @@ An eligible return-method relic requires a pre-climax lived October finding, a c
 
 **Read:** The Vault made this from the brass round the old doorway. IN at one end. OUT at the other. Penny checked both. Then she checked what happened when she turned it over.
 
-### The Paper Hinge
+### The Paper Fold
 
 **Direction:** `count-unbound.relic.paper-hinge`; outcome `return-by-ruse`.
 
