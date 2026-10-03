@@ -1863,14 +1863,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "local-brain-awake",
             type: .welcome,
-            title: "I Think Again",
+            title: "I Can Think Now",
             shortTitle: "Awake",
             symbolName: "brain.head.profile",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "after local brain install",
-            note: "I notice when my local brain is installed and say so with relief."
+            note: "The first time I can think, and I say so out loud."
         ),
         BookPageSource(
             id: "pack-page",

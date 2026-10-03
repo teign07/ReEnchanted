@@ -1374,6 +1374,7 @@ struct ContentView: View {
         inputs.preparedLetterSurface = generation.preparedLetterSurface
         inputs.userPhotoIlluminationFallbackAllowed = userPhotoIlluminationFallbackAllowed
         inputs.localBrainIsReady = modelReport.state == .ready
+        inputs.localBrainDownloadLabel = LocalModelManager.preferredModel.approximateDownloadLabel
         inputs.selfFacts = selfFacts
         inputs.facultyEntries = facultyEntries
         // Read the ledger once rather than once per cast member.
@@ -10843,11 +10844,11 @@ struct ContentView: View {
             actions.append(
                 FolioLeafAction(
                     kind: .wakeTheBrain,
-                    title: isInstallingModel ? "Waking her up…" : "Wake the private mind",
+                    title: isInstallingModel ? "Fetching the brain…" : "Wake the private mind",
                     systemImage: "brain.head.profile",
                     detail: isInstallingModel
-                        ? (installMessage.nonEmpty ?? "Fetching the private mind…")
-                        : "Gemma downloads onto this device and stays here.",
+                        ? (installMessage.nonEmpty ?? "Fetching the brain…")
+                        : "Gemma is \(LocalModelManager.preferredModel.approximateDownloadLabel), and it stays on this phone.",
                     isBusy: isInstallingModel,
                     progress: installProgress
                 )
@@ -21000,7 +21001,7 @@ struct ContentView: View {
 
         didHandleBleedCalendarDoorway = true
         bookCalendarEnabled = true
-        statusMessage = "Bellkeeper Elian is opening the Calendar Doorway..."
+        statusMessage = "Opening the door to your Calendar..."
         let events = await CalendarDoorway.upcomingEvents()
         calendarEvents = events
         let now = Date()
@@ -21240,7 +21241,7 @@ struct ContentView: View {
     func installModel() async {
         guard !isInstallingModel else { return }
         isInstallingModel = true
-        installMessage = "Preparing model download..."
+        installMessage = "Fetching the brain. This is the long part."
         installProgress = nil
         appLog.info("Gemma install requested")
 
@@ -21262,25 +21263,29 @@ struct ContentView: View {
         }
 
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLMHFAPI)
+        var isCheckingTheBrain = false
         do {
             let model = LocalModelManager.preferredModel
             let modelID = model.modelID
             appLog.info("Starting streaming Hugging Face download for \(modelID, privacy: .public)")
             let directory = LocalModelManager.modelDirectory(for: modelID)
-            installMessage = "Clearing old local models before downloading \(model.label)..."
+            installMessage = "Clearing out the old brain to make room."
             LocalModelManager.removeKnownLocalModels()
             try await LocalModelStreamingInstaller.download(
                 modelID: modelID,
                 revision: model.revision,
                 to: directory
             ) { progress in
-                let percent = Int(progress.fraction * 100)
                 installProgress = progress.fraction
-                installMessage = "Downloading \(model.label)... \(percent)%"
+                installMessage = BrainFeedingNarration.message(
+                    completedBytes: progress.completedBytes,
+                    totalBytes: progress.totalBytes
+                )
             }
             #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
             installProgress = nil
-            installMessage = "Checking that \(model.label) can read and write before it wakes..."
+            isCheckingTheBrain = true
+            installMessage = "It's here. Now I'm making it read something and write something."
             try await LocalModelInstallValidator.validate(
                 directory: directory,
                 requiresVision: LocalModelManager.modelSupportsVision(modelID: modelID)
@@ -21293,14 +21298,16 @@ struct ContentView: View {
             LocalModelManager.removeSupersededModels(for: modelID, preserving: directory)
             appLog.info("Gemma install completed at \(directory.path, privacy: .private)")
             installProgress = 1
-            installMessage = "\(model.label) is installed. The old local model was cleared if it was still on the shelf."
+            installMessage = "It passed. The brain's awake."
             modelReport = LocalModelManager.report()
             surfaceRefreshDate = Date()
             rebuildSurfaceCache()
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .private)")
             installProgress = nil
-            installMessage = "The private mind downloaded, but it could not pass my wake-up check. Nothing was marked ready; try the download again after updating the app."
+            installMessage = isCheckingTheBrain
+                ? "The brain came, but it failed my test, so I haven't woken it. Press the button and we'll go again."
+                : "The brain didn't make it all the way here. Check your connection and press the button, and we'll go again."
         }
         #else
         installProgress = nil

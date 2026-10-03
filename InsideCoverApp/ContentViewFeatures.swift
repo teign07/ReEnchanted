@@ -6558,7 +6558,7 @@ extension ContentView {
         } else {
             readingDay = NightlyBraidWindow.readingDay(
                 for: braidDay,
-                pageIDs: sourcePageIDs,
+                pageIDs: sourcePageIDs.union(laterKeepIDs),
                 previousDays: archiveThroughBraid
             )
         }
@@ -6703,10 +6703,22 @@ extension ContentView {
             }
             var updatedDay = days[liveDayIndex]
             updatedDay.pages[livePageIndex] = retold
-            persist(
-                day: updatedDay,
-                message: "A new telling took the old Page's place. Its receipts stayed put."
-            )
+            if laterKeepIDs.isEmpty {
+                persist(
+                    day: updatedDay,
+                    message: "A new telling took the old Page's place. Its receipts stayed put."
+                )
+            } else {
+                // What was kept since is woven in now, so tomorrow's braid must
+                // not carry it a second time.
+                persistBraidArchive(
+                    BraidRecoveryState.daysByMarkingPagesUsed(
+                        BookStore.upsert(updatedDay, in: days),
+                        pageIDs: usedPageIDs
+                    ),
+                    message: "I wove in what you kept since. Tomorrow's braid starts clean."
+                )
+            }
             surfaceRefreshDate = Date()
             BookFeedback.play(.braidComplete, fill: true)
             modelReport = LocalModelManager.report()

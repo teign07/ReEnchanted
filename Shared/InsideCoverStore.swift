@@ -406,6 +406,11 @@ enum LocalModelManager {
         var reason: String
         var revision: String = "main"
         var supersedes: [String] = []
+
+        /// Weight of the checkpoint on disk, as the Welcome says it.
+        var approximateDownloadLabel: String {
+            BrainFeedingNarration.downloadLabel(forModelID: modelID)
+        }
     }
 
     static let compactModel = ModelChoice(

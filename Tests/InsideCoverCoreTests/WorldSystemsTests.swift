@@ -3094,8 +3094,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(preview?.type, .calendar)
         XCTAssertEqual(preview?.payload.metadata["calendarDoorPreview"], "true")
         XCTAssertEqual(preview?.payload.metadata["requiresCalendarPermission"], "true")
-        XCTAssertTrue(preview?.payload.body.contains("I want the plans") == true)
-        XCTAssertTrue(preview?.payload.body.contains("meetings before they pounce") == true)
+        XCTAssertTrue(preview?.payload.body.contains("I want to see what's coming") == true)
+        XCTAssertTrue(preview?.payload.body.contains("A meeting before it pounces") == true)
     }
 
     func testCalendarDoorPreviewDoesNotInterruptExistingCalendarEvents() {
@@ -3889,14 +3889,14 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(welcome?.type, .welcome)
         XCTAssertEqual(welcome?.payload.metadata["playerName"], "Beej")
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
-        XCTAssertTrue(welcome?.payload.body.contains("I have your name now") == true)
-        // The invitation to wake the local brain, which the Book now offers as
-        // something of its own asleep in the Colophon rather than as a missing
-        // feature it apologises for.
-        XCTAssertTrue(welcome?.payload.body.contains("asleep in the Colophon") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("wake the small private mind named Gemma") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("downloads onto this device") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("I want to see what your Tuesdays are hiding") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("Beej") == true)
+        // The reader meets the Book object, the Curse pact, and the one ask:
+        // wake the sleeping brain, with the install checked before it counts.
+        XCTAssertTrue(welcome?.payload.body.contains("This is the real me") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("we fight the Curse together") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("its name is Gemma") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("comes to live inside this phone") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("I'll test it") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("colophon") == true)
         XCTAssertGreaterThan(welcome?.score ?? 0, 80)
@@ -3916,8 +3916,54 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         ).first
 
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
-        XCTAssertTrue(welcome?.payload.body.contains("asleep in the Colophon") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("its name is Gemma") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
+    }
+
+    func testWelcomeNamesTheDownloadSizeAndTheProgressNarrationKeepsMoving() {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.localBrainDownloadLabel = BrainFeedingNarration.downloadLabel(
+            forModelID: "mlx-community/gemma-4-e2b-it-4bit"
+        )
+        let welcome = LabyrinthWelcomePageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        ).first
+        XCTAssertTrue(welcome?.payload.body.contains("about 3.6 GB") == true)
+
+        // One line per tenth, so ten distinct lines across a download.
+        let seen = Set(stride(from: 0.0, through: 1.0, by: 0.05).map(BrainFeedingNarration.line(for:)))
+        XCTAssertEqual(seen.count, BrainFeedingNarration.lines.count)
+        XCTAssertEqual(
+            BrainFeedingNarration.message(completedBytes: 1_400_000_000, totalBytes: 3_600_000_000)
+                .components(separatedBy: "\n").last,
+            "1.4 of 3.6 GB · 38%"
+        )
+        XCTAssertEqual(
+            BrainFeedingNarration.message(completedBytes: 0, totalBytes: 0),
+            BrainFeedingNarration.lines[0]
+        )
+    }
+
+    func testFirstMissionIsTheBooksOwnVoiceWithNoCastMemberOrPortrait() throws {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = ["source:labyrinth-welcome"]
+        inputs.localBrainIsReady = true
+        inputs.calendarIntegrationEnabled = true
+        let mission = try XCTUnwrap(FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        ))
+        XCTAssertEqual(mission.payload.metadata["firstRunStep"], "first-mission")
+        XCTAssertNil(mission.payload.metadata["portraitAsset"])
+        XCTAssertFalse(mission.payload.body.contains("Pippa"))
+        XCTAssertTrue(mission.payload.body.contains("Capture seal"))
     }
 
     func testWelcomePageDoesNotRepeatAfterBeingServed() {
@@ -4138,7 +4184,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(enchantment?.type, .enchantment)
         XCTAssertEqual(enchantment?.sourceID, FirstRunPageSequence.enchantmentIntroSourceID)
         XCTAssertEqual(enchantment?.payload.metadata["firstRunStep"], "enchantment-intro")
-        XCTAssertTrue(enchantment?.payload.body.contains("Enchantment") == true)
+        XCTAssertTrue(enchantment?.payload.body.contains("A little spell") == true)
 
         inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.enchantmentIntroSourceID)")
         inputs.calendarIntegrationEnabled = true
@@ -4149,8 +4195,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             now: Date()
         )
         XCTAssertEqual(afterEnchantment?.sourceID, FirstRunPageSequence.compassIntroductionSourceID)
-        XCTAssertTrue(afterEnchantment?.payload.body.contains("North · Notice") == true)
-        XCTAssertTrue(afterEnchantment?.payload.body.contains("Center · Rest") == true)
+        // The idea comes first; the directions belong to the run page after it.
+        XCTAssertTrue(afterEnchantment?.payload.body.contains("mailbox") == true)
+        XCTAssertFalse(afterEnchantment?.payload.body.contains("North · Notice") == true)
 
     }
 
@@ -4300,9 +4347,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
         XCTAssertEqual(introduction?.sourceID, FirstRunPageSequence.compassIntroductionSourceID)
         XCTAssertEqual(introduction?.payload.metadata["firstRunStep"], "compass-introduction")
-        XCTAssertTrue(introduction?.payload.body.contains("not a map app") == true)
-        XCTAssertTrue(introduction?.payload.body.contains("time and energy") == true)
-        XCTAssertTrue(introduction?.payload.body.contains("before wonder turns into homework") == true)
+        XCTAssertTrue(introduction?.payload.body.contains("one small adventure you can really do") == true)
+        XCTAssertTrue(introduction?.payload.body.contains("mailbox") == true)
+        XCTAssertTrue(introduction?.payload.body.contains("lowercase one") == true)
 
         inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.compassIntroductionSourceID)")
         let run = FirstRunPageSequence.guidedRider(
@@ -4324,6 +4371,44 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             now: brainShownAt.addingTimeInterval(60 * 60)
         )
         XCTAssertNil(afterCompass)
+    }
+
+    func testCompassRunIntroExplainsTheWholeLoopFromChapterFive() throws {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.localBrainIsReady = true
+        inputs.calendarIntegrationEnabled = true
+        inputs.firstRunEngagedKeys = [
+            "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:labyrinth-welcome",
+            "source:local-brain-awake",
+            "source:\(FirstRunPageSequence.enchantmentIntroSourceID)",
+            "source:\(FirstRunPageSequence.compassIntroductionSourceID)"
+        ]
+        let run = try XCTUnwrap(FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        ))
+        XCTAssertEqual(run.sourceID, FirstRunPageSequence.compassRunIntroSourceID)
+        let body = run.payload.body
+        // The six intake questions, the four steps with the 3 D's, and the Center.
+        for needle in ["six little questions", "North · Notice", "East · Embark", "Destination",
+                       "Delight", "Definition", "South · Sense", "West · Write",
+                       "Center · Rest", "Sixty seconds"] {
+            XCTAssertTrue(body.contains(needle), needle)
+        }
+    }
+
+    func testTheBrainSetupCardNamesTheSizeAndPointsAtItsOwnButton() throws {
+        var inputs = BookSourceInputs.empty
+        inputs.localBrainDownloadLabel = "about 3.6 GB"
+        inputs.firstRunEngagedKeys = ["source:\(FirstRunPageSequence.firstMissionSourceID)"]
+        let card = try XCTUnwrap(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs))
+        XCTAssertTrue(card.payload.body.contains("about 3.6 GB"))
+        XCTAssertFalse(card.payload.body.contains("Colophon"))
+        XCTAssertTrue(card.talksAboutTheLocalBrain)
     }
 
     func testCompassRunConstraintQuestionsHaveOneCompleteOrderedPass() {

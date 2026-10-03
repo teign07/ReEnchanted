@@ -2312,7 +2312,7 @@ struct CapturePageSheet: View {
         return value.isEmpty ? nil : value
     }
 
-    /// A small signed-letter portrait (e.g. Pippa on the First Mission), driven
+    /// A small signed-letter portrait for a cast member's own letter, driven
     /// purely by metadata so any lore letter can claim a face.
     private var letterPortraitAssetName: String? {
         surface.payload.metadata["portraitAsset"]?.nonEmpty
@@ -5786,12 +5786,7 @@ struct CapturePageSheet: View {
                     BookFeedback.play(.openPage)
                     onInstallLocalBrain()
                 } label: {
-                    Label(
-                        isWelcomeIntroductionPage
-                            ? "Download Gemma · Wake My Brain"
-                            : "Download the private mind",
-                        systemImage: "brain.head.profile"
-                    )
+                    Label("Download Gemma · Wake My Brain", systemImage: "brain.head.profile")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)

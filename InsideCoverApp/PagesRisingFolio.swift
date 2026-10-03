@@ -7099,7 +7099,7 @@ private struct FolioLeafPage: View {
                                 Text(detail)
                                     .font(.caption2)
                                     .foregroundStyle(BookPalette.ink.opacity(0.62))
-                                    .lineLimit(2)
+                                    .lineLimit(3)
                                     .multilineTextAlignment(.center)
                             }
                         }

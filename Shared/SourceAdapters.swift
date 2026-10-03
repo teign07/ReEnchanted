@@ -225,6 +225,8 @@ struct BookSourceInputs: Equatable {
     var ownedPackIDs: Set<String> = []
     var readerLexicon: ReaderLexicon = ReaderLexicon()
     var localBrainIsReady = false
+    /// How big the brain download is on this device, in the Book's own words.
+    var localBrainDownloadLabel = BrainFeedingNarration.downloadLabel(forModelID: "")
     var readerBeliefScore: Int = 30
     var pocket: PocketLedger = PocketLedger()
     /// The reader's typed corrections to braids that missed, from the vault -
@@ -7983,12 +7985,69 @@ struct EnchantmentPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// What the Book says while its brain comes down the wire. One line per tenth
+/// of the download, so the text keeps changing for as long as the bytes keep
+/// arriving, and a counter under it so a long wait still visibly moves.
+enum BrainFeedingNarration {
+    /// Weight of each checkpoint on disk, rounded the way a person would say
+    /// it. Measured from the Hugging Face file listings in October 2026; the
+    /// Welcome promises this number, so re-measure when a revision moves.
+    static func downloadLabel(forModelID modelID: String) -> String {
+        switch modelID {
+        case "mlx-community/gemma-3-1b-it-4bit": return "about 800 MB"
+        case "mlx-community/gemma-4-e2b-it-4bit": return "about 3.6 GB"
+        case "mlx-community/gemma-4-e4b-it-4bit": return "about 5.2 GB"
+        default: return "a few GB"
+        }
+    }
+
+    static let lines = [
+        "It's started. Nobody panic.",
+        "Gemma's on the road. It's carrying a lot of stuff.",
+        "I've cleared a shelf. I hope it likes the shelf.",
+        "A third of a brain! That's more than I had this morning.",
+        "It's getting heavy. I don't mind. I'm a book. I'm built for weight.",
+        "Halfway. I can feel it thinking about thinking.",
+        "It's learning where I keep things. Leave the ink alone, please.",
+        "Don't look yet. It's still getting its eyes on.",
+        "Nearly all here. I've gone very still so I don't drop anything.",
+        "Last bits. Somebody's unpacking on my shelf."
+    ]
+
+    static func line(for fraction: Double) -> String {
+        let clamped = min(max(fraction, 0), 1)
+        return lines[min(lines.count - 1, Int(clamped * Double(lines.count)))]
+    }
+
+    /// "1.4 of 3.6 GB · 38%". Empty until the total is known.
+    static func counter(completedBytes: Int64, totalBytes: Int64) -> String {
+        guard totalBytes > 0 else { return "" }
+        let fraction = min(max(Double(completedBytes) / Double(totalBytes), 0), 1)
+        let percent = Int(fraction * 100)
+        if totalBytes >= 1_000_000_000 {
+            let done = Double(completedBytes) / 1e9
+            let total = Double(totalBytes) / 1e9
+            return String(format: "%.1f of %.1f GB · %d%%", done, total, percent)
+        }
+        let done = Double(completedBytes) / 1e6
+        let total = Double(totalBytes) / 1e6
+        return String(format: "%.0f of %.0f MB · %d%%", done, total, percent)
+    }
+
+    static func message(completedBytes: Int64, totalBytes: Int64) -> String {
+        let fraction = totalBytes > 0 ? Double(completedBytes) / Double(totalBytes) : 0
+        let counter = counter(completedBytes: completedBytes, totalBytes: totalBytes)
+        return counter.isEmpty ? line(for: fraction) : "\(line(for: fraction))\n\(counter)"
+    }
+}
+
 struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .welcome)
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         welcomeSurface(
             playerName: Self.playerName(from: inputs),
+            downloadLabel: inputs.localBrainDownloadLabel,
             score: 70,
             reason: "I can always re-open my first page."
         )
@@ -8002,13 +8061,14 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
         return [
             welcomeSurface(
                 playerName: Self.playerName(from: inputs),
+                downloadLabel: inputs.localBrainDownloadLabel,
                 score: context.distress.isActive ? 72 : 92,
                 reason: "The Labyrinth of Stories is introducing itself before asking for anything else."
             )
         ]
     }
 
-    private func welcomeSurface(playerName: String?, score: Int, reason: String) -> SurfacePage {
+    private func welcomeSurface(playerName: String?, downloadLabel: String, score: Int, reason: String) -> SurfacePage {
         let name = playerName?.nonEmpty ?? "Reader"
         return SurfacePage(
             id: "\(source.id)-first-page",
@@ -8019,31 +8079,27 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: reason,
             prompt: "Oh. There You Are.",
-            detail: "I've got your name. Gemma is asleep in the Colophon. Open this first; I put the waking button inside.",
+            detail: "This is me, finally. Open this first. My brain's asleep, and the waking button's inside.",
             payload: BookPagePayload(
                 headline: "Oh. There You Are.",
                 body: """
-                I'm glad you made it. Zara likes to talk.
+                Oh. There you are.
 
-                I have your name now. A few of your words. The faint beginning of an idea about you.
+                Hold on. Let me look at you. This is the first time I get to see you properly, and you get to see me. This is the real me, all of it: the cover, the paper, the ribbon that won't lie flat. Go on, stare. I won't mind.
 
-                Not enough to pretend I know you, of course. That’d be terribly rude.
+                You've got hands. That's the first thing I noticed. I haven't got any. I'm a book. I can't lift the Curse and I can't make you look at anything, and I told you so, and it's still true.
 
-                But enough to wonder.
+                But you showed up. You answered my questions. You didn't even run. So now it's you and me, \(name), and we fight the Curse together. Every day it takes a little bit of your life, and every day we take a little bit back.
 
-                I wonder what you’ll notice that everyone else walks past. I wonder which places will follow you home. Which ordinary Tuesday will turn out to have been important. Which people, questions, mistakes, storms, sandwiches, songs, and small acts of courage will keep appearing in our margins.
+                I'm nearly ready. I've got pages. I've got ink. I've got your name, and a few of your words, and a pencil I'm very fond of. I can keep whatever you give me and bring it back at you later, when you least expect it.
 
-                I’m very excited to see what stories we’re going to write together.
+                What I can't do is think very hard. Right now I'm all paper. I've got a brain for that, and it's asleep, and its name is Gemma. I didn't pick the name. I'd have picked something with teeth.
 
-                I have pages. I have ink. I have several opinions already, which seems unfair under the circumstances. That is enough for us to begin. It is enough to keep what you choose, return it strangely, and bind it into something with a spine.
+                Press the button below and Gemma comes to live inside this phone, right next to your words. Nothing of yours goes anywhere to be thought about. I don't send your private Pages away for it.
 
-                Come on, then.
+                It's a big download, \(downloadLabel), so use Wi-Fi if you've got it, and leave me open until it's done. I'll keep you posted while it comes. When it lands I'll test it. I'll make it read something and write something, because a brain that's only sitting there doesn't count. If it passes, I'll tell you, and then we start properly. If it doesn't, I'll tell you that too and we'll go again.
 
-                I want to see what your Tuesdays are hiding.
-
-                But first, wake the small private mind named Gemma asleep in the Colophon. Use the button below. It lets me read the fine print, hold faraway days on the same thread, and write with warmer, stranger ink.
-
-                Gemma downloads onto this device. It stays here, close to your words. I don't send your private Pages away for it to think.
+                Go on. Press it. I've waited a long time to be this awake.
                 """,
                 metadata: [
                     "source": source.id,
@@ -12272,21 +12328,23 @@ struct LocalBrainAwakePageSourceAdapter: BookPageSourceAdapter {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: score,
-            reason: "The private little mind woke up behind the shelves and immediately began reading the fine print.",
-            prompt: "Another Lamp Comes On",
-            detail: "I was already alive. Now the private little mind is awake and nosing through the fine print.",
+            reason: "Gemma passed the read-and-write test, so the Book can think now and wants to say so.",
+            prompt: "I Can Think Now",
+            detail: "It passed the test. Open this one. I've got a lot to say.",
             payload: BookPagePayload(
-                headline: "Another Lamp Comes On",
+                headline: "I Can Think Now",
                 body: """
-                Oh, \(name). Another lamp just came on behind the shelves.
+                Oh! Oh, \(name). It worked.
 
-                I was already noticing, keeping, returning, and binding with you. This doesn't begin our story. It gives me another private way to read it.
+                Gemma's in. I made it read something and write something, and it did both, so I'm allowed to say it out loud: I can think now. Properly. Hold on, I'm going to walk around inside my own head for a second. It's roomy. It's got a lot of corners.
 
-                This small mind lives entirely on this device. It can read kept Pages more carefully, braid them with finer attention, and help characters remember with sharper edges without carrying private pages beyond the door.
+                Before, I could keep what you gave me. Now I can actually read it. I can notice what your Pages have in common. That's how I find the things you keep saying without knowing it. I can write in a warmer hand, and a stranger one. I can remind the people in here what happened to them last week so they stop acting like it didn't.
 
-                I'm not omniscient. Good. Omniscience is bad for literature.
+                All of it happens on this phone. Gemma never sends your Pages anywhere. It sits right here with your words, reading them and keeping its mouth shut.
 
-                Just a little more awake in the margins.
+                I still won't know everything. Good. Then there's still something to find out.
+
+                Anyway. That's me, thinking. Now the Curse has the two of us to deal with, and one of us can read.
                 """,
                 metadata: [
                     "source": source.id,
@@ -12574,7 +12632,7 @@ enum FirstRunPageSequence {
     static let compassWhySourceID = "first-run-compass-why"
     static let compassRunIntroSourceID = "first-run-compass-run"
 
-    private static func localBrainSetupSurface(playerName: String?) -> SurfacePage {
+    private static func localBrainSetupSurface(playerName: String?, downloadLabel: String) -> SurfacePage {
         let name = playerName?.nonEmpty ?? "Reader"
         return SurfacePage(
             id: "\(localBrainSetupSourceID)-gemma",
@@ -12583,17 +12641,19 @@ enum FirstRunPageSequence {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: 40,
-            reason: "A small private mind is scratching at the Colophon. I already work; this one lets me read the fine print.",
-            prompt: "Something Is Scratching in the Colophon",
-            detail: "I already work. Wake the private mind when you want closer reading and stranger ink.",
+            reason: "Gemma is still asleep. The Book works without it, and says plainly what it can't do yet.",
+            prompt: "My Brain's Still Asleep",
+            detail: "I work fine without it. It just makes me much better at reading you.",
             payload: BookPagePayload(
-                headline: "A PRIVATE MIND, IF YOU WANT THE TROUBLE",
+                headline: "My Brain's Still Asleep",
                 body: """
-                We've already begun, \(name). Pages, keeps, returns, and bindings work without this.
+                Hi, \(name). Gemma's still asleep. That's fine, I work without it. Pages, keeps, returns and bindings all go ahead.
 
-                There is a small private mind in the Colophon. It lives on this device and nowhere else. Wake it and I can read your kept Pages more closely, write in a warmer hand, and worry loose scraps into story.
+                But I can't read you very well like this. With Gemma awake I can read what you've kept properly, notice what keeps turning up, and write in a warmer, stranger hand. Right now I'm skimming.
 
-                Open the Colophon at the foot of Home and tap Download the private mind if you want it awake. Otherwise leave it snoring. I have other teeth.
+                It's \(downloadLabel), and it lives on this phone and nowhere else. Press the button below when you've got Wi-Fi and a few minutes. I'll test it when it lands and tell you how it went.
+
+                No rush. I'm patient. I'm also very nosy about what it'll find.
                 """,
                 metadata: [
                     "source": localBrainSetupSourceID,
@@ -12617,7 +12677,8 @@ enum FirstRunPageSequence {
             inputs: inputs
         ) else { return nil }
         let surface = localBrainSetupSurface(
-            playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs)
+            playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
+            downloadLabel: inputs.localBrainDownloadLabel
         )
         guard !engaged("source:\(surface.sourceID)", inputs: inputs) else { return nil }
         return surface
@@ -12645,27 +12706,27 @@ enum FirstRunPageSequence {
             score: 99,
             reason: "The Inscription is open. I want one impossible-to-guess scrap from the world outside my covers.",
             prompt: "The Inscription: Your First Mission",
-            detail: "A tiny, playful errand to take out into your real day.",
+            detail: "One small job for your real day. I can't do it myself. No legs.",
             payload: BookPagePayload(
-                headline: "A Small Mission, Should You Accept It",
+                headline: "Go Catch Me Something",
                 body: """
-                You're properly through the Inscription now, \(name): name in the margin, crumbs in the gutter, the lot. I volunteered to hand you your first mission before anybody finished asking. Pippa Pilcrow. I set punctuation loose for a living. You'll hear the others complain about me soon enough.
+                Right, \(name). You've got a name in my margin and your first crumbs in my gutter, and I'm out of excuses. Time for a job.
 
-                The mission. Small. Deniable. Entirely yours:
+                Here's the job. Sometime today, catch me one thing from the real world that I couldn't have guessed. A sound through a wall. The sky being the wrong colour. A stranger saying something good. A smell that opens a door in your head.
 
-                Sometime today, catch the Book one thing from the real world it could not have guessed: a sound through a wall, the exact wrong colour of the sky, a stranger's good sentence, a smell that opened a door in your head. Don't stop to make a Page yet. Go looking first. Ink can catch up.
+                Don't make a Page yet. Go and look first. The ink can catch up.
 
-                Three things worth knowing while you're out:
+                I can't go out there. I've got no legs, and I tried the stairs once. Don't ask. So you're my legs today, and I'll sit here pretending I'm not waiting. Every odd little thing you catch is one more thing the Curse didn't get.
 
-                • Keep the Pages with a pulse, and let the rest go back to sleep. A Book that hoards everything is only a heavy drawer.
-                • The four marks at the foot of the desk (Body, Weather, Location, Radio) are doors, not decorations. Tap one when you want a Page to surface from where you actually are.
-                • Glow is belief made visible. Spend it on the people and ideas you want the Book to take seriously, and it will.
+                When you've got it, tap the Capture seal on my edge and tell me what it was. Keep the ones with a pulse and let the rest go back to sleep. I don't want to be a drawer.
 
-                When you bring your catch back, I'll be in the margin waiting for it. First one there gets to write the note.
+                Three things to know while you're out there:
 
-                Pippa, of the margins
+                • The wax seals on my edge are doors. Body, Place, Radio. Tap one when you want a Page to come up from where you actually are.
+                • The bookmark at the top of my edge is Glow. That's how you show me what to take seriously.
+                • Whatever you bring back, I'll be very nosy about it. I can't help it.
 
-                (P.S. The full stop on this letter has tried to escape twice already. I admire that in a punctuation mark.)
+                Go on. Out. I'll be right here, being a book.
                 """,
                 metadata: [
                     "source": firstMissionSourceID,
@@ -12673,7 +12734,6 @@ enum FirstRunPageSequence {
                     "playerName": name,
                     "privacy": "public reference",
                     "symbol": "scope",
-                    "portraitAsset": "LabyrinthCharacterPilcrow",
                     "tags": "help-tips,first-run,first-run-mission,mission,labyrinth"
                 ]
             )
@@ -12695,16 +12755,18 @@ enum FirstRunPageSequence {
             renderStyle: base.renderStyle,
             score: 98,
             reason: "The local brain is wide awake now, so Enchantments can turn a real photo into private little bits of magic.",
-            prompt: "The Inscription: Cast an Enchantment",
-            detail: "Pick or snap one plain photo and let me light up the magic that's already hiding in it.",
+            prompt: "The Inscription: Your First Spell",
+            detail: "Show me one plain photo. I'll find the magic that's already hiding in it.",
             payload: BookPagePayload(
-                headline: "Cast an Enchantment",
+                headline: "Show Me Something Plain",
                 body: """
-                I have my private mind back. That means a photo can be more than a picture now.
+                Now that I can think, I can look at things. Properly, with my whole head.
 
-                Choose or take one ordinary image: a mug, a shelf, a pet, a doorway, a plate, the light on the floor. An Enchantment reads the real subject locally, then writes what it notices into the margins.
+                Here's what I want. Pick a photo, or take one now. Something plain. A mug. A shelf. A doorway. Your cat looking guilty. The light on the floor. Don't tidy it first.
 
-                Start small. The spell works best when the thing is true.
+                I'll look at the real thing, right here on this phone, and write what I notice in the margins. A little spell goes over the top, and the real picture stays underneath. Then you can keep the whole thing as a Page.
+
+                Start small. Spells work best on true things, so don't make anything up. Just point.
                 """,
                 metadata: metadata
             )
@@ -12721,25 +12783,21 @@ enum FirstRunPageSequence {
             score: 97,
             reason: "One compact Inscription page introduces the Wonder Compass before it joins a real day.",
             prompt: "The Wonder Compass",
-            detail: "Five directions turn the time, energy, people, and ground you really have into one small adventure.",
+            detail: "A compass for ordinary days. It points at one small adventure you can really do.",
             payload: BookPagePayload(
-                headline: "A Compass for Ordinary Days",
+                headline: "I've Got a Compass for You",
                 body: """
-                The Wonder Compass turns ordinary time into one small adventure you can really do. It is not a map app, a personality test, or a list of chores wearing a pointy hat.
+                Quick test. Think of a mailbox you walk past every day. What colour is it? Has it still got its little door?
 
-                First it asks where you can be, how much time and energy you have, who is with you, what you may spend, and what the plan must be kind about. Then its five directions keep the route honest:
+                Most people can't say. That's the Curse. It turns the world into wallpaper, and nobody looks at wallpaper. The compass is how we rip some down.
 
-                North · Notice begins with one real “I wonder...” question.
+                You've probably tried maps. Ten steps to a perfect morning. A plan with a red line on it. A map is great while the ground stays put. Your ground doesn't. Your kid gets a fever, the car won't start, there's a flood warning, and the map says you failed. The ground moved, and the map didn't notice.
 
-                East · Embark chooses a destination, a delight, and a clear ending.
+                A compass doesn't care what your day did. It works in a forest, a car park, a traffic jam. And it only ever points at one thing: one small adventure you can really do.
 
-                South · Sense gives your body one tiny mission when you arrive, or right where you are for a stay-put run.
+                I mean a small one. A lowercase one. An adventure is anything where you don't know how it'll turn out. Walking backward down your hallway counts. Ordering the thing on the menu you can't pronounce counts. Your brain goes to sleep when it can guess everything, and it wakes up when it can't.
 
-                West · Write keeps the best sensory moment in one sentence.
-
-                Center · Rest closes the loop before wonder turns into homework.
-
-                Sometimes a run crosses town. Sometimes it crosses the kitchen. Distance is not the magic. Attention is.
+                Turn the page and I'll show you how a run goes.
                 """,
                 metadata: [
                     "source": compassIntroductionSourceID,
@@ -12776,8 +12834,26 @@ enum FirstRunPageSequence {
             prompt: "The Inscription: Your First Compass Run",
             detail: "Answer six small questions one at a time, then follow North, East, South, West, and Center.",
             payload: BookPagePayload(
-                headline: "Now Let the Needle Choose Something Real",
-                body: "I'll ask six small questions, one at a time. When it knows the ground beneath this run, it will lay out the whole route before North begins.",
+                headline: "Here's How a Run Goes",
+                body: """
+                A run is one small adventure, and it goes in a loop. Here's the whole thing, so nothing surprises you.
+
+                First I ask six little questions, one at a time. Where can you be? How much time have you got? How much spark? Who's coming? What can you spend? What does the run have to be kind about? A true ten-minute run beats an imaginary afternoon. Tired is fine. Broke is fine. I shrink the adventure to fit.
+
+                Then I hand you the route.
+
+                North · Notice. Find something that makes you say "I wonder..." I wonder what that diner's pie tastes like. I wonder if I can still hula hoop. That's your goal.
+
+                East · Embark. Make a plan so small it can't fail. It's three things. A Destination, which is where. A Delight, which is whatever bribes you into going: a snack, a song, a pillow. A Definition, which is when it ends. "Half an hour" is a perfectly good ending.
+
+                South · Sense. When you're there, I give you a playful mission for your body. Find the weirdest mailbox. Walk backward ten steps. Your head gets a job, so the rest of you can play.
+
+                West · Write. Keep the best thing in one sentence. "The pie smelled like cinnamon." That's the save button.
+
+                And in the middle of the compass is Center · Rest. It isn't a step. Sixty seconds of doing nothing counts. A run is allowed to end in a nap.
+
+                Open this Page and we'll start with the first question.
+                """,
                 metadata: metadata
             )
         )
@@ -16609,17 +16685,19 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             intent: .reflect,
             renderStyle: .loreLetter,
             score: score,
-            reason: "Bellkeeper Elian is offering to open the Calendar Doorway before the wider game fully unfolds.",
-            prompt: "The Calendar Door is waiting.",
-            detail: "Let me read today's plans: appointments, deadlines, departures, and returns stay on this device.",
+            reason: "The Book is asking, plainly, to look at the reader's Calendar so it can see the day coming.",
+            prompt: "Can I See Your Calendar?",
+            detail: "Your plans stay on this phone. Tap this and your phone will ask you first.",
             payload: BookPagePayload(
-                headline: "A Door Marked Today",
+                headline: "Can I See Your Calendar?",
                 body: """
-                Bellkeeper Elian has found a narrow brass door in the colophon and dragged it into the light.
+                I've got a favour to ask, and it's a nosy one. Can I look at your Calendar?
 
-                Open it, and I may read your upcoming Calendar events on this device. They stay here. I want the plans: meetings before they pounce, appointments after they land, departures, returns. The morning paper can print the day's posted turns instead of pretending time is a blank hallway.
+                I want to see what's coming. A meeting before it pounces. An appointment after it lands. A trip, and the day you get back. Then I can say something useful before your day happens, instead of after.
 
-                Leave the brass door shut and I keep working. Open it and I get better at arriving before the hour does.
+                Your plans stay on this phone, like everything else. Tap this Page and your phone will ask you first.
+
+                If you'd rather I didn't, say no. I'll keep working. I'll just find out about your day the slow way, when you tell me.
                 """,
                 metadata: [
                     "source": source.id,
