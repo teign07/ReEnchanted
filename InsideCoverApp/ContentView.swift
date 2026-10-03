@@ -722,6 +722,7 @@ struct ContentView: View {
     @AppStorage("lastCoarseLocationContextLabel") var currentLocationLabel = ""
     @AppStorage("lastDeclinedFamiliarPlaceNamingAt") var lastDeclinedFamiliarPlaceNamingAt = 0.0
     @AppStorage("dismissedBookOfYouHeroPageID") var dismissedBookOfYouHeroPageID = ""
+    @AppStorage("dismissedRebraidOfferKey") var dismissedRebraidOfferKey = ""
     var vault: PlayerVault { PlayerVault.shared }
     var anchorLedgerData: String {
         get {
@@ -1108,6 +1109,19 @@ struct ContentView: View {
             .max { $0.createdAt < $1.createdAt }
     }
 
+    /// Something kept since tonight's braid was written: pages, or a story
+    /// scene. The key changes whenever the set does, so a dismissal is only for
+    /// the things the reader has already seen offered.
+    var laterKeepsWaiting: (pages: Int, hasScene: Bool, key: String)? {
+        guard let braid = today.bookOfYou, !generation.isBraiding else { return nil }
+        let now = Date()
+        let pending = NightlyBraidWindow.pendingPages(for: today, previousDays: days, now: now)
+        let hasScene = MonthlyIssueBraidMatter.hasLateScene(
+            ledger: vault.data.authoredContentReceipts ?? .empty, days: days, braid: braid, now: now)
+        guard !pending.isEmpty || hasScene else { return nil }
+        return (pending.count, hasScene, braid.id + "|" + pending.map(\.id).sorted().joined(separator: ",") + (hasScene ? "|scene" : ""))
+    }
+
     var bookOfYouHeroPage: BookPage? {
         guard let latest = latestBookOfYouPage,
               latest.id != dismissedBookOfYouHeroPageID,
@@ -1115,6 +1129,52 @@ struct ContentView: View {
             return nil
         }
         return latest
+    }
+
+    /// Offered the moment something is kept after the night's braid is written.
+    /// Weaving it in is the reader's choice; "tomorrow's fine" costs nothing.
+    @ViewBuilder
+    func rebraidOfferCard(_ waiting: (pages: Int, hasScene: Bool, key: String)) -> some View {
+        let what = waiting.hasScene && waiting.pages == 0
+            ? "a scene"
+            : (waiting.pages == 1 && !waiting.hasScene ? "a page" : "some pages")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("I'd already written tonight's page when you kept \(what).")
+                .font(.system(.callout, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.ink)
+            Text("I can weave \(what == "a page" || what == "a scene" ? "it" : "them") in now, or save \(what == "a page" || what == "a scene" ? "it" : "them") for tomorrow's.")
+                .font(.system(.footnote, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.7))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 10) {
+                Button {
+                    BookFeedback.play(.braidStart)
+                    Task { await reBraidLast() }
+                } label: {
+                    Label("Weave it in", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.violet)
+                .disabled(!workBlockingState.canStartBraid)
+
+                Button {
+                    BookFeedback.play(.select)
+                    dismissedRebraidOfferKey = waiting.key
+                } label: {
+                    Text("Tomorrow's fine")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .modifier(BookInsetPanel(horizontalPadding: 14, stroke: BookPalette.lampGold))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("The Book offers to weave something you kept into tonight's page")
     }
 
     var workBlockingState: WorkBlockingState {
@@ -3651,9 +3711,7 @@ struct ContentView: View {
                     BraidingTableSheet(
                         fragmentCount: today.capturedPages.count,
                         braidCount: today.pages.filter { $0.type == .bookOfYou }.count,
-                        hasLateScene: MonthlyIssueBraidMatter.hasLateScene(
-                            ledger: vault.data.authoredContentReceipts ?? .empty,
-                            days: days, braid: today.bookOfYou, now: Date()),
+                        hasLaterKeeps: laterKeepsWaiting != nil,
                         onBraidNew: { Task { await braidToday(openWhenComplete: true) } },
                         onReBraidLast: { Task { await reBraidLast() } },
                         onOpenLatest: { if let braid = today.bookOfYou { openKeptPage(braid) } }
@@ -8619,7 +8677,7 @@ struct ContentView: View {
             await braidToday(openWhenComplete: true)
             return
         }
-        await retellBraid(pageID: braid.id, choice: .sameBones)
+        await retellBraid(pageID: braid.id, choice: .sameBones, includingLaterKeeps: true)
     }
 
     func localBrainIssueSurface(type: BookPageType, title: String, action: String) -> SurfacePage {
@@ -10104,6 +10162,11 @@ struct ContentView: View {
                     dismissBookOfYouHero(bookPage)
                 }
                 .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
+            }
+
+            if let waiting = laterKeepsWaiting, waiting.key != dismissedRebraidOfferKey {
+                rebraidOfferCard(waiting)
+                    .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
             }
 
         }

@@ -128,6 +128,39 @@ final class BraidRecoveryStateTests: XCTestCase {
         XCTAssertEqual(pending.map(\.id), ["after-braid", "this-morning"])
     }
 
+    /// The offer to weave in what was kept after the braid: the pages kept since
+    /// are the ones a widened re-braid reads, and once it has, none are left to
+    /// turn up in tomorrow's braid a second time.
+    func testWeavingInWhatWasKeptSinceLeavesNothingForTomorrow() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let braidAt = date("2026-06-06T21:30:00Z")
+        let early = page(id: "early", type: .diary, createdAt: date("2026-06-06T10:00:00Z"), usedInBookOfYou: true)
+        let braid = BraidPageDetails.withSourcePages(
+            page(id: "tonight", type: .bookOfYou, createdAt: braidAt, usedInBookOfYou: true), pageIDs: ["early"])
+        let later = page(id: "later", type: .souvenir, createdAt: date("2026-06-06T22:05:00Z"), usedInBookOfYou: false)
+        let today = BookDay(id: "2026-06-06", date: date("2026-06-06T00:00:00Z"), pages: [early, braid, later])
+        let now = date("2026-06-06T22:30:00Z")
+
+        // The offer exists: a braid is on the day and a page was kept after it.
+        let waiting = NightlyBraidWindow.pendingPages(for: today, previousDays: [], now: now, calendar: calendar)
+        XCTAssertEqual(waiting.map(\.id), ["later"])
+
+        // "Weave it in": the original sources plus what was kept since.
+        let sources = BraidPageDetails.sourcePageIDs(in: braid)
+        XCTAssertEqual(sources, ["early"])
+        let widened = NightlyBraidWindow.readingDay(for: today, pageIDs: sources.union(waiting.map(\.id)), previousDays: [])
+        XCTAssertEqual(widened.capturedPages.map(\.id), ["early", "later"])
+
+        // Once the new telling replaced the old and its pages are used, there is
+        // nothing left waiting: neither an offer, nor tomorrow's braid.
+        let after = BraidRecoveryState.daysByMarkingPagesUsed([today], pageIDs: Set(widened.capturedPages.map(\.id)))
+        XCTAssertTrue(NightlyBraidWindow.pendingPages(for: after[0], previousDays: [], now: now, calendar: calendar).isEmpty)
+        // And a plain retelling, without the offer, leaves the later page for tomorrow as before.
+        let plain = NightlyBraidWindow.readingDay(for: today, pageIDs: sources, previousDays: [])
+        XCTAssertEqual(plain.capturedPages.map(\.id), ["early"])
+    }
+
     func testNightlyReadingDayPreservesRealDatesAcrossMidnight() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

@@ -6518,7 +6518,12 @@ extension ContentView {
     /// The Page keeps its identity and date, so archive links and publication
     /// selections continue to point at the reader's chosen telling.
     @MainActor
-    func retellBraid(pageID: String, choice: BraidRetellingChoice) async {
+    /// - Parameter includingLaterKeeps: tonight's "re-braid" widens the reading
+    ///   day to whatever was kept after the braid was written, and those pages
+    ///   are then used, so they don't turn up in tomorrow's braid as well. A
+    ///   retelling of an older night, or "same bones" from a Page's own menu,
+    ///   stays on its original sources.
+    func retellBraid(pageID: String, choice: BraidRetellingChoice, includingLaterKeeps: Bool = false) async {
         guard !generation.isBraiding else {
             statusMessage = "One telling is already wriggling under my hand. Let it finish first."
             BookFeedback.play(.error)
@@ -6543,6 +6548,9 @@ extension ContentView {
             $0.id == braidDay.id || $0.date <= braidDay.date
         }
         let sourcePageIDs = BraidPageDetails.sourcePageIDs(in: priorPage)
+        let laterKeepIDs: Set<String> = (includingLaterKeeps && braidDay.id == today.id && !sourcePageIDs.isEmpty)
+            ? Set(NightlyBraidWindow.pendingPages(for: braidDay, previousDays: archiveThroughBraid, now: Date()).map(\.id))
+            : []
         let readingDay: BookDay
         if sourcePageIDs.isEmpty {
             // Compatibility for Pages made before source receipts were stamped.
