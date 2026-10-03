@@ -1264,4 +1264,47 @@ final class BraidScenePlanTests: XCTestCase {
             XCTAssertFalse(BraidDraftVerifier.assertsSomethingHappenedToTheReader(fact.text), fact.id)
         }
     }
+
+    // MARK: The Book's own business
+
+    func testTheBooksBusinessIsPlayfulPlainAndNeverAboutTheReader() {
+        XCTAssertGreaterThanOrEqual(BookBusiness.playful.count, 50)
+        let all = BookBusiness.playful + BookBusiness.quiet
+        XCTAssertEqual(Set(all.map(\.id)).count, all.count)
+        let masked = (BraidWornImages.words + [" strange", " tiny", " watched", " noticed"]).map { $0.trimmingCharacters(in: .whitespaces) }
+        let uncontracted = ["do not", "does not", "is not", "are not", "it is ", "i am ", "i will ", "would not", "cannot"]
+        let mooddeclaring = ["i'm feeling", "i am feeling", "my mood", "i feel "]
+        for line in all {
+            let lower = line.text.lowercased()
+            let words = Set(lower.split { !$0.isLetter && $0 != "'" }.map(String.init))
+            XCTAssertTrue(line.text.hasSuffix("."), line.id)
+            XCTAssertLessThanOrEqual(line.text.split(separator: " ").count, 26, "\(line.id) is too long to lift")
+            XCTAssertTrue(words.isDisjoint(with: ["you", "your", "yours", "you're", "you've"]), "\(line.id) speaks to the reader")
+            for word in masked { XCTAssertFalse(words.contains(word), "\(line.id) uses \"\(word)\"") }
+            for phrase in uncontracted + mooddeclaring { XCTAssertFalse(lower.contains(phrase), "\(line.id): \(phrase)") }
+            XCTAssertFalse(lower.contains(", which"), line.id)
+            XCTAssertFalse(lower.contains("curse") || lower.contains("ritual"), line.id)
+        }
+    }
+
+    func testTheBooksBusinessDoesNotRepeatWithinAMonthAndHardNightsGetTheQuietSet() {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: 12))!
+        let month = (0..<31).map { calendar.date(byAdding: .day, value: $0, to: start)! }
+        let lines = month.map { BookBusiness.pick(on: $0, hardNight: false, calendar: calendar).id }
+        XCTAssertEqual(Set(lines).count, 31, "no line returns inside a month")
+        for (a, b) in zip(lines, lines.dropFirst()) { XCTAssertNotEqual(a, b) }
+        XCTAssertEqual(lines, month.map { BookBusiness.pick(on: $0, hardNight: false, calendar: calendar).id }, "deterministic")
+        let quiet = Set(BookBusiness.quiet.map(\.id))
+        for date in month { XCTAssertTrue(quiet.contains(BookBusiness.pick(on: date, hardNight: true, calendar: calendar).id)) }
+    }
+
+    func testEveryBriefOffersTheBooksBusinessAndAHardNightsIsQuiet() throws {
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: DeterministicBraidwright.preparedContext(for: night.day, context: night.context))
+            let business = try XCTUnwrap(plan.bookBusiness, night.name)
+            XCTAssertTrue(plan.brief().contains("\(BookBusiness.label) \(business.text)"), night.name)
+            XCTAssertEqual(BookBusiness.quiet.contains { $0.id == business.id }, plan.isHardNight, night.name)
+        }
+    }
 }

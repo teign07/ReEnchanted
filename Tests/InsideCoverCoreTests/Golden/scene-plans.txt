@@ -6,6 +6,7 @@ earned 60-102 words
 anchor bowl#0.0
   anchor      bowl#0.0  [writtenLine]
 world independent · indoor-rain
+business rude-letter
 
 ===== plain-diary-day =====
 day 2026-08-10
@@ -17,6 +18,7 @@ anchor walk#0.0
   anchor      walk#0.0  [writtenLine]
   line        walk#0.0+desk#0.0  [acrossTheDay]
 world independent · index-off-shelf
+business turned-back
 
 ===== multi-beat-day =====
 day 2026-08-11
@@ -27,6 +29,7 @@ anchor soup#0.0
   witness     screw#0.0  [writtenLine]
   anchor      soup#0.0  [writtenLine]
 world independent · turned-shelves
+business next-door
 
 ===== labyrinth-only =====
 day 2026-08-12
@@ -36,6 +39,7 @@ earned 60-102 words
 anchor door#0.0
   anchor      door#0.0  [keptFiction]
 world intersecting · lying-doors
+business crumb
 
 ===== crossing =====
 day 2026-08-13
@@ -47,6 +51,7 @@ anchor lamp#0.0
   anchor      lamp#0.0  [writtenLine]
   cross       lamp#0.0+fox#0.0
 world intersecting · thinking-lamps
+business teacup-sentence
 
 ===== matched-subjects =====
 day 2026-08-14
@@ -58,6 +63,7 @@ anchor blue-door#0.0
   disturbance brass-door#0.0  [keptFiction]
   cross       blue-door#0.0+brass-door#0.0  [door]
 world intersecting · corridor-door
+business blue
 
 ===== cast-member =====
 day 2026-08-15
@@ -69,6 +75,7 @@ anchor bread#0.0
   disturbance wicker#0.0  [keptFiction]
   cross       bread#0.0+wicker#0.0
 world intersecting · kettle-new-name
+business trading
 
 ===== grief-day =====
 day 2026-08-16
@@ -80,6 +87,7 @@ anchor shop#0.0
   anchor      shop#0.0  [writtenLine]
 world counterpoint · stair-count
 unresolved call#0.0
+business q-listening
 
 ===== tender-shadow =====
 day 2026-08-17
@@ -91,6 +99,7 @@ anchor garden#0.0
   witness     hospital#0.0  [writtenLine]
 world counterpoint · homesick-ink
 unresolved hospital#0.0
+business q-kettle
 
 ===== arc-deepened =====
 day 2026-08-18
@@ -100,6 +109,7 @@ earned 61-103 words
 anchor run#0.0
   anchor      run#0.0  [writtenLine]
 world independent · coat-hook-scores
+business turn-of-evening
 
 ===== relational-lens =====
 day 2026-08-19
@@ -109,6 +119,7 @@ earned 59-100 words
 anchor rain-note#0.0
   anchor      rain-note#0.0  [writtenLine]
 world independent · fast-clock
+business crooked
 
 ===== full-braid =====
 day 2026-08-20
@@ -125,6 +136,7 @@ anchor swim#0.0
   line        market#0.0+cook#0.0  [sharedThing: plums]
   cross       swim#0.0+crow#0.0
 world intersecting · warm-shelf
+business day-finishing
 
 ===== supporting-logs-only =====
 day 2026-08-21
@@ -135,6 +147,7 @@ anchor weather#0.0
   witness     body#0.0  [writtenLine]
   anchor      weather#0.0  [writtenLine]
 world independent · polite-mirror
+business round-things
 
 ===== empty-day =====
 day 2026-08-22
@@ -142,6 +155,7 @@ form vigil · motion vigil · pressure witness · scale glimpse
 transformation none
 earned 90-150 words
 world quiet · key-ring-grows + going-around-draught
+business window
 
 ===== reader-answer =====
 day 2026-08-23
@@ -153,6 +167,7 @@ anchor keys#0.0
   disturbance parley#0.0  [keptFiction]
   cross       keys#0.0+parley#0.0
 world intersecting · backwards-pantry-door
+business smallest-door
 
 ===== long-rambling-receipt =====
 day 2026-08-24
@@ -162,6 +177,7 @@ earned 88-149 words
 anchor ramble#0.0
   anchor      ramble#0.0  [writtenLine]
 world independent · shrinking-pencils
+business knock
 
 ===== terse-fragments =====
 day 2026-08-25
@@ -175,6 +191,7 @@ anchor terse-a#0.0
   witness     terse-b#0.1  [writtenLine]
   line        terse-a#0.0+terse-b#0.0  [acrossTheDay]
 world independent · adding-window
+business hidden-word
 
 ===== plural-anchor =====
 day 2026-08-26
@@ -184,6 +201,7 @@ earned 60-102 words
 anchor keys#0.0
   anchor      keys#0.0  [writtenLine]
 world independent · sweet-lamp-oil
+business lamps-thinking
 
 ===== quoted-speech =====
 day 2026-08-27
@@ -193,6 +211,7 @@ earned 62-105 words
 anchor quote#0.0
   anchor      quote#0.0  [writtenLine]
 world independent · sleeping-dog-floor
+business tasting-words
 
 ===== unpunctuated =====
 day 2026-08-28
@@ -202,6 +221,7 @@ earned 60-102 words
 anchor scrawl#0.0
   anchor      scrawl#0.0  [writtenLine]
 world independent · damp-chair
+business spoons
 
 ===== souvenir-anchored =====
 day 2026-08-29
@@ -213,6 +233,7 @@ anchor souvenir#0.0
   anchor      souvenir#0.0  [writtenLine]
   line        errand#0.0+souvenir#0.0  [acrossTheDay]
 world independent · lending-shelf
+business lost-tuesday
 
 ===== named-reader-with-theme =====
 day 2026-08-30
@@ -224,6 +245,7 @@ anchor letter#0.0
   witness     window#0.0  [writtenLine]
   line        window#0.0+letter#0.0  [acrossTheDay]
 world independent · growing-bell-rope
+business best-words
 
 ===== long-kept-subject =====
 day 2026-08-31
@@ -233,6 +255,7 @@ earned 60-102 words
 anchor river#0.0
   anchor      river#0.0  [writtenLine]
 world independent · steam-word
+business draughts
 
 ===== rich-mixed-night =====
 day 2026-09-01
@@ -250,6 +273,7 @@ anchor mug#0.0
   line        mug#0.0+call#0.0  [acrossTheDay]
   cross       moody#0.0+air#0.0  [diner]
 world intersecting · extra-umbrella
+business ink-dreams
 
 ===== open-tale-night =====
 day 2026-09-10
@@ -261,3 +285,4 @@ anchor paint#0.0
   anchor      paint#0.0  [writtenLine]
   line        boxes#0.0+paint#0.0  [acrossTheDay]
 world independent · refused-salt
+business spare-seat

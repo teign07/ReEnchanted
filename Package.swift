@@ -66,6 +66,7 @@ let package = Package(
                 "RuinPrompts.swift",
                 "RuinRecognition.swift",
                 "WorldCanonLibrary.swift",
+                "BookBusiness.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "EditionMarginalia.swift",

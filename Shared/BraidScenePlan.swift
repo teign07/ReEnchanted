@@ -474,6 +474,9 @@ struct BraidScenePlan: Equatable, Codable {
     /// Optional for previously serialized plans. These protected passages are
     /// composed into the page after generation, never treated as lived atoms.
     var authoredStoryReceipts: [AuthoredContentReceipt]? = nil
+    /// The Book's own game for tonight, offered to Gemma as something to play
+    /// with (see `BookBusiness`).
+    var bookBusiness: BookBusiness.Line? = nil
     /// Something of the reader's own from weeks ago, on a night they kept
     /// nothing. The Book rereads itself when it has nothing new to read.
     var rememberedEvidenceID: String?
@@ -745,6 +748,7 @@ struct BraidScenePlan: Equatable, Codable {
         if !mustRemainUnresolved.isEmpty {
             lines.append("unresolved \(mustRemainUnresolved.sorted().joined(separator: " "))")
         }
+        if let bookBusiness { lines.append("business \(bookBusiness.id)") }
         return lines.joined(separator: "\n")
     }
 }
@@ -947,6 +951,7 @@ enum BraidScenePlanBuilder {
                 continuedElsewhere: plan.answering?.advancedWorldThread
             )
         }
+        plan.bookBusiness = BookBusiness.pick(on: day.date, hardNight: plan.isHardNight)
         return plan
     }
 
@@ -1951,14 +1956,11 @@ enum BraidWornImages {
         // "strange" in 35 of 50, "tiny" in 31, "watched" in 49. Masked, the model
         // reaches for a plainer verb or leaves the sentence alone.
         " strange", " tiny", " watched", " noticed",
-        // The model's stock stance and filler. It likes things ("I liked that
-        // quiet"), finds them funny or weird, and pads with "just" and "little".
-        // Masked, it falls back on the concrete thing (+ cut filler from 3.1 to
-        // 0 per 100 words in the lab). Any word the brief carries is spared, so a
-        // reader who "had fun" is still allowed to have had it.
-        " felt", " weird", " thick", " just", " little", " quite", " suddenly", " seemed",
-        " somehow", " really", " very", " liked", " marvelous", " pleasing", " amusing",
-        " delightful", " lovely", " glee", " giggled", " smiled", " grinned"
+        // Filler and clichés only. The Book's voice is a child's, so its delight,
+        // its opinions and its "weird" and "little" are left alone: the lab showed
+        // these words are not the problem, repetition and padding are. Any word
+        // the brief carries is still spared.
+        " silver", " silvery", " felt", " thick", " just", " quite", " suddenly", " seemed", " somehow", " really", " very"
     ]
 
     /// Masked only straight after the word before it: "dust" is a fine word,
@@ -2985,6 +2987,9 @@ extension BraidScenePlan {
         }
         if !keptMaterial.isEmpty {
             lines.append("Kept-page material. These words belong to the source page, not the reader. Paraphrase them: \(joined(keptMaterial))")
+        }
+        if let business = bookBusiness {
+            lines.append("\(BookBusiness.label) \(business.text)")
         }
         if let worldBeat {
             lines.append(worldModeInstruction(worldBeat.mode))
