@@ -60,6 +60,7 @@
 		0200000000000000000003F7 /* BookBusiness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F6 /* BookBusiness.swift */; };
 		0200000000000000000003F9 /* BookSulk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F8 /* BookSulk.swift */; };
 		0200000000000000000003FB /* BookThreads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FA /* BookThreads.swift */; };
+		0200000000000000000003FD /* BraidCrossing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FC /* BraidCrossing.swift */; };
 		0200000000000000000002FE /* HandbookWorkbook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FE /* HandbookWorkbook.swift */; };
 		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
 		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
@@ -246,6 +247,7 @@
 		0200000000000000000003F6 /* BookBusiness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookBusiness.swift; sourceTree = "<group>"; };
 		0200000000000000000003F8 /* BookSulk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSulk.swift; sourceTree = "<group>"; };
 		0200000000000000000003FA /* BookThreads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookThreads.swift; sourceTree = "<group>"; };
+		0200000000000000000003FC /* BraidCrossing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidCrossing.swift; sourceTree = "<group>"; };
 		0200000000000000000001FE /* HandbookWorkbook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookWorkbook.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
@@ -511,6 +513,7 @@
 				0200000000000000000003F6 /* BookBusiness.swift */,
 				0200000000000000000003F8 /* BookSulk.swift */,
 				0200000000000000000003FA /* BookThreads.swift */,
+				0200000000000000000003FC /* BraidCrossing.swift */,
 				0200000000000000000001FE /* HandbookWorkbook.swift */,
 				0200000000000000000001F1 /* BindingRevelations.swift */,
 				0200000000000000000001F2 /* BookClaimTier.swift */,
@@ -839,6 +842,7 @@
 				0200000000000000000003F7 /* BookBusiness.swift in Sources */,
 				0200000000000000000003F9 /* BookSulk.swift in Sources */,
 				0200000000000000000003FB /* BookThreads.swift in Sources */,
+				0200000000000000000003FD /* BraidCrossing.swift in Sources */,
 				0200000000000000000002F1 /* BindingRevelations.swift in Sources */,
 				0200000000000000000002F2 /* BookClaimTier.swift in Sources */,
 				0200000000000000000002F3 /* Daybook.swift in Sources */,

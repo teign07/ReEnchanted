@@ -988,7 +988,7 @@ final class BraidScenePlanTests: XCTestCase {
             // Only the Book's own scaffolding is held to this. The reader's words,
             // the world's lines and the kept pages are content, and a reader who
             // "had fun" is allowed to have had it (the mask spares carried words).
-            let contentLabels = ["Something odd", "Reader-day material", "Kept-page material", "Tonight includes protected", "Passage "]
+            let contentLabels = ["Something odd", "Reader-day material", "Kept-page material", "Tonight includes protected", "Passage ", BraidCrossing.linePrefix, "My own business"]
             let brief = BraidScenePlanBuilder.plan(for: night.day, context: night.context).brief()
                 .components(separatedBy: "\n")
                 .filter { line in !contentLabels.contains { line.hasPrefix($0) } }
@@ -1513,5 +1513,61 @@ final class BraidScenePlanTests: XCTestCase {
         let plan = BraidScenePlanBuilder.plan(for: easy.day, context: context)
         XCTAssertEqual(plan.bookBusiness?.id, "thread:teacup:2", plan.summary)
         XCTAssertTrue(plan.brief().contains(BookThreads.all.first { $0.id == "teacup" }!.steps[2]))
+    }
+
+    // MARK: The crossing, handed over
+
+    func testClausesAreShortCompleteAndQuotable() {
+        XCTAssertEqual(BraidCrossing.clause("You walked to the corner shop for bread and it started raining."), "You walked to the corner shop for bread")
+        XCTAssertEqual(BraidCrossing.clause("The lamps along the corridor to the East Stacks lean away from the door, like people stepping round a puddle."),
+                       "The lamps along the corridor to the East Stacks lean away from the door")
+        XCTAssertEqual(BraidCrossing.clause("You read forty pages standing up in the hallway because you forgot to sit down."), "You read forty pages standing up in the hallway")
+        XCTAssertNil(BraidCrossing.clause("Rain, mostly."), "too little to cross")
+        XCTAssertNil(BraidCrossing.clause("   "))
+        let long = BraidCrossing.clause("You carried one very large and extremely heavy wooden crate of apples all the way up the stairs without stopping once")
+        XCTAssertLessThanOrEqual(long?.split(separator: " ").count ?? 99, 14)
+    }
+
+    func testTheFourBridgesJoinBothClausesInOneSentenceWithoutExplainingEither() {
+        let lived = "You walked to the corner shop for bread", world = "The lamps along the corridor lean away from the door"
+        let bridges = (0..<4).map { BraidCrossing.bridge(lived: lived, world: world, index: $0) }
+        XCTAssertEqual(Set(bridges).count, 4)
+        for bridge in bridges {
+            XCTAssertEqual(bridge.filter { ".!?".contains($0) }.count, 1, "one sentence: \(bridge)")
+            XCTAssertTrue(bridge.lowercased().contains("walked to the corner shop for bread"), bridge)
+            XCTAssertTrue(bridge.lowercased().contains("lamps along the corridor lean away from the door"), bridge)
+            for explaining in ["because", "so that", "therefore", "meant", "which is why", "as if"] {
+                XCTAssertFalse(bridge.lowercased().contains(explaining), "a crossing is adjacency: \(bridge)")
+            }
+        }
+        XCTAssertEqual(bridges[0], "While you walked to the corner shop for bread, the lamps along the corridor lean away from the door.")
+        XCTAssertEqual(BraidCrossing.bridge(lived: "You rewired the brass lamp", world: "Penny is writing the Bleed", index: 3),
+                       "Penny is writing the Bleed, and you rewired the brass lamp anyway.", "names keep their capitals")
+    }
+
+    func testEveryEasyNightWithAWorldBeatHandsOverItsCrossingAndHardNightsNever() throws {
+        var handed = 0
+        for night in BraidBench.corpus() {
+            let plan = BraidScenePlanBuilder.plan(for: night.day, context: DeterministicBraidwright.preparedContext(for: night.day, context: night.context))
+            let line = plan.brief().components(separatedBy: "\n").first { $0.hasPrefix(BraidCrossing.linePrefix) }
+            if plan.isHardNight || plan.worldBeat == nil {
+                XCTAssertNil(line, "\(night.name): no crossing on a hard night or a quiet day")
+            } else if let line {
+                handed += 1
+                XCTAssertTrue(line.contains("For example:"), night.name)
+                XCTAssertTrue(plan.brief().contains(BraidCrossing.linePrefix), night.name)
+            }
+        }
+        XCTAssertGreaterThanOrEqual(handed, 12, "most bench nights have a day and a world to cross")
+    }
+
+    func testTheBridgeRotatesAcrossNightsAndIsStableForOneNight() {
+        let lines = (0..<40).compactMap { BraidCrossing.handoff(lived: "You walked to the corner shop for bread", world: "The bell rang under the floor of the reading room", seed: "night-\($0)") }
+        XCTAssertEqual(lines.count, 40)
+        XCTAssertGreaterThanOrEqual(Set(lines.map { $0.components(separatedBy: "For example: ")[1] }).count, 4)
+        XCTAssertEqual(BraidCrossing.handoff(lived: "You walked to the corner shop for bread", world: "The bell rang under the floor", seed: "x"),
+                       BraidCrossing.handoff(lived: "You walked to the corner shop for bread", world: "The bell rang under the floor", seed: "x"))
+        XCTAssertNil(BraidCrossing.handoff(lived: nil, world: "The bell rang under the floor", seed: "x"))
+        XCTAssertNil(BraidCrossing.handoff(lived: "You walked to the corner shop for bread", world: nil, seed: "x"))
     }
 }

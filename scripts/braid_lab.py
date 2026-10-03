@@ -41,6 +41,31 @@ SENSATION = re.compile(r"\b(?:I|my \w+) (?:felt|sensed)\b|\b(?:air|silence|room|
 WATCHED = re.compile(r"\bI (?:watched|noticed|saw)\b")
 POV_SLIP = re.compile(r"\bI (?:found|went|walked|made|had|sat|opened|read|wrote|took)\b")
 
+CROSS_STOP = set("the a an and or but of to in on at for with from by as is are was were be been it its this that these those you your i my me we our they them he she his her not no so if then than when while where which who what into out up down over under again once each every one two just have has had do does did will would could should can may might about after before through across along around beyond near".split())
+
+def _words(t):
+    return {w for w in re.findall(r"[a-z']+", t.lower()) if len(w) >= 4 and w not in CROSS_STOP}
+
+def crossing_pair(brief: str):
+    """The two clauses the brief handed over to be put in one sentence, if any."""
+    for line in brief.split("\n"):
+        if line.startswith("Put these two in one sentence"):
+            quoted = re.findall(r"\u201c([^\u201d]+)\u201d", line)
+            if len(quoted) >= 2:
+                return quoted[0], quoted[1]
+    return None
+
+def crossed(pair, text: str):
+    """True when some sentence carries words from both handed clauses."""
+    if not pair:
+        return None
+    a, b = _words(pair[0]), _words(pair[1])
+    shared = a & b
+    a, b = a - shared, b - shared
+    if not a or not b:
+        return None
+    return any((_words(s) & a) and (_words(s) & b) for s in re.split(r"(?<=[.!?])\s+", text))
+
 def score(text: str) -> dict:
     words = re.findall(r"[A-Za-z']+", text)
     n = max(1, len(words))
@@ -72,6 +97,7 @@ def report(results):
           f"invented reader {sum(1 for r in results if r['score']['inventedReader'])}/{n}; "
           f"strange/odd {sum(1 for r in results if r['score']['strangeOdd'])}/{n}; "
           f"I watched/noticed/saw {sum(1 for r in results if r['score']['watched'])}/{n}; "
+          f"crossing {sum(1 for r in results if r.get('crossed'))}/{sum(1 for r in results if r.get('crossed') is not None)}; "
           f"filler/100w {sum(r['score']['fillerPer100'] for r in results) / n:.1f}; "
           f"sensation-telling {sum(1 for r in results if r['score']['sensation'])}/{n}; "
           f"'Then,' opener {sum(1 for r in results if r['score']['thenOpener'])}/{n}; "
@@ -94,6 +120,7 @@ def main():
         results = json.loads(Path(args.rescore).read_text())
         for r in results:
             r["score"] = score(r["text"])
+            r["crossed"] = crossed(tuple(r["crossingPair"]) if r.get("crossingPair") else None, r["text"])
         report(results)
         return
 
@@ -148,7 +175,9 @@ def main():
                                         logits_processors=[processor_for(night)]):
                 text += resp.text; last = resp
             text = text.strip()
+            pair = crossing_pair(night["brief"])
             results.append({"night": night["name"], "take": k + 1, "text": text, "score": score(text),
+                            "crossingPair": pair, "crossed": crossed(pair, text),
                             "tokens": getattr(last, "generation_tokens", None),
                             "finish": getattr(last, "finish_reason", None)})
             print(f"[{len(results)}/{len(nights) * args.per_night}] {night['name']} take {k + 1}: "

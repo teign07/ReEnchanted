@@ -2938,6 +2938,8 @@ extension BraidScenePlan {
             }
         }
 
+        // The reader's own detail for the crossing, before any older detail joins.
+        let crossingLived = livedMaterial.first
         if let rememberedEvidenceID, let remembered = evidence(for: rememberedEvidenceID) {
             livedMaterial.append(
                 "An older detail may return: \(BraidSceneWriter.secondPerson(remembered.text))"
@@ -3011,6 +3013,12 @@ extension BraidScenePlan {
             lines.append("An earlier page left something open. Leave it open.")
         }
         lines.append("Use these as ingredients, not as an outline or a list. Let sentences lead into each other instead of repeating each item and commenting on it.")
+        // The crossing, handed over (see `BraidCrossing`). Never on a hard night,
+        // and only when a world beat is actually in the story.
+        if !isHardNight, let worldBeat,
+           let handoff = BraidCrossing.handoff(lived: crossingLived, world: worldBeat.fact, seed: dayID + worldBeat.id) {
+            lines.append(handoff)
+        }
         lines.append("Write \(earnedWords.lowerBound)-\(earnedWords.upperBound) words in 2-4 natural paragraphs.")
         // Asked for "one concrete sentence beginning "The Book kept the
         // page:"", Rabbit's Gemma wrote the quoted words and stopped, 23 of 24

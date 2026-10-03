@@ -69,6 +69,7 @@ let package = Package(
                 "BookBusiness.swift",
                 "BookSulk.swift",
                 "BookThreads.swift",
+                "BraidCrossing.swift",
                 "ReferenceLibrary.swift",
                 "Illumination.swift",
                 "EditionMarginalia.swift",
