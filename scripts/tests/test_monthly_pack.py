@@ -139,11 +139,13 @@ class PreflightTests(unittest.TestCase):
             self.assertEqual(asset['leafTraits']['aspectRatio'], 1.0)
             slug = asset['id'].removeprefix('october_2026_').replace('_', '-')
             self.assertEqual(asset['assetName'],
-                             '{{asset-path:count-unbound.seasonal.' + slug + '}}')
+                             '{{asset-path:count-unbound.seasonal.v2.' + slug + '}}')
             image = (root / 'seasonal-marginalia' / (slug + '.png')).read_bytes()
             self.assertTrue(image.startswith(b'\x89PNG'))
             seasonal_bytes += len(image)
-        self.assertLess(seasonal_bytes, 512 * 1024)
+        # Twenty original-resolution ink-and-wash cutouts retain their generated alpha.
+        # Bound the art payload well below the 350 MiB installed-issue ceiling.
+        self.assertLess(seasonal_bytes, 64 * 1024 * 1024)
         # A radio atom is ready only once its recording is in the pack, under
         # the filename the release stager maps its media ID to.
         spec = importlib.util.spec_from_file_location('count_release_draft', root / 'stage_release_draft.py')

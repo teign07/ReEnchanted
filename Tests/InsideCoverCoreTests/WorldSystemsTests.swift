@@ -3739,7 +3739,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(binding?.payload.metadata["bindingOathLine"], ceremony.oathLine)
         XCTAssertEqual(binding?.payload.metadata["bindingInvitationLine"], ceremony.invitationLine)
         XCTAssertEqual(binding?.payload.metadata["bindingAftermathLine"], ceremony.aftermathLine)
-        XCTAssertTrue(binding?.payload.body.contains("The seal does not stop at naming you") == true)
+        XCTAssertTrue(binding?.payload.body.contains("The seal doesn't stop at naming you") == true)
         XCTAssertTrue(binding?.payload.body.contains(ceremony.invitationLine) == true)
 
         inputs.selfFacts.append(fact("chapter-binding", tags: ["chapter"]))
@@ -5359,7 +5359,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(surface.payload.metadata["activeCount"], "0")
         XCTAssertEqual(surface.payload.headline, "Your Unfinished Things")
         XCTAssertTrue(surface.payload.body.hasPrefix(
-            "This is where I keep the things you chose but have not finished."
+            "This is where I keep the things you chose but haven't finished."
         ))
         XCTAssertTrue(surface.detail.contains("paper can breathe"))
         XCTAssertFalse(surface.payload.body.contains("Chosen notes"))
@@ -5530,7 +5530,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
         XCTAssertTrue(surface.payload.body.contains("Five fit."))
         XCTAssertTrue(surface.payload.body.contains("sentence, photograph, or place proof"))
-        XCTAssertTrue(surface.payload.body.contains("They do not take one of the five note places."))
+        XCTAssertTrue(surface.payload.body.contains("They don't take one of the five note places."))
         XCTAssertTrue(surface.payload.body.contains("Notes you chose:"))
         XCTAssertTrue(surface.payload.body.contains("Open elsewhere:"))
         for elective in ledger.electives {
@@ -6012,5 +6012,84 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             "academyActivityTitle": "Score the Room",
             "academyActivityOutcome": "   "
         ]))
+    }
+}
+
+/// A month's pages download one signed piece at a time. The reader gets a card
+/// with the Book narrating it, but only for downloads that really happen.
+final class ShelfFetchProgressTests: XCTestCase {
+    private func plan(_ ids: [String], data: Data) -> MonthlyIssueDeliveryPlan {
+        let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        return MonthlyIssueDeliveryPlan(
+            generatedAt: Date(timeIntervalSince1970: 40),
+            assets: ids.map { id in
+                MonthlyIssuePlannedAsset(
+                    issueID: "test-2027",
+                    allowedHosts: ["cdn.reenchanted.app"],
+                    asset: MonthlyIssueDeliveryAsset(
+                        id: id, kind: .media, scope: .publication,
+                        remoteURL: URL(string: "https://cdn.reenchanted.app/\(id).json")!,
+                        fileName: "\(id).png", sha256: hash, byteCount: data.count
+                    )
+                )
+            }
+        )
+    }
+
+    func testInstallerReportsOnlyWhatItReallyFetchesAndThenFinishes() async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent("shelf-progress-\(UUID().uuidString)")
+        defer { try? fileManager.removeItem(at: root) }
+        let documents = root.appendingPathComponent("Documents")
+        let stateURL = root.appendingPathComponent("Support/state.json")
+        let data = Data("one signed piece".utf8)
+
+        final class Log: @unchecked Sendable {
+            var updates: [MonthlyIssueInstallProgress] = []
+        }
+        let log = Log()
+        _ = try await MonthlyIssueAssetInstaller.install(
+            plan: plan(["count-unbound.runtime.v5", "count-unbound.audio.protocols"], data: data),
+            documentsURL: documents, stateURL: stateURL, fileManager: fileManager,
+            progress: { log.updates.append($0) },
+            fetch: { _ in data }
+        )
+        XCTAssertEqual(log.updates.map(\.index), [1, 2, 2])
+        XCTAssertEqual(log.updates.map(\.total), [2, 2, 2])
+        XCTAssertEqual(log.updates.last?.isFinished, true)
+        XCTAssertEqual(log.updates.last?.completedBytes, log.updates.last?.totalBytes)
+
+        // Everything's already on the shelf: no download, so no card.
+        log.updates = []
+        _ = try await MonthlyIssueAssetInstaller.install(
+            plan: plan(["count-unbound.runtime.v5", "count-unbound.audio.protocols"], data: data),
+            documentsURL: documents, stateURL: stateURL, fileManager: fileManager,
+            progress: { log.updates.append($0) },
+            fetch: { _ in XCTFail("nothing should be fetched"); return data }
+        )
+        XCTAssertTrue(log.updates.isEmpty)
+    }
+
+    func testTheBookNarratesWhatItIsFetchingInItsOwnVoice() {
+        func p(_ id: String, _ index: Int = 1, finished: Bool = false) -> MonthlyIssueInstallProgress {
+            MonthlyIssueInstallProgress(assetID: id, index: index, total: 9,
+                completedBytes: 4_200_000, totalBytes: 61_000_000, isFinished: finished)
+        }
+        XCTAssertEqual(ShelfFetchNarration.kind(ofAssetID: "count-unbound.runtime.v5"), .story)
+        XCTAssertEqual(ShelfFetchNarration.kind(ofAssetID: "count-unbound.audio.protocols"), .radio)
+        XCTAssertEqual(ShelfFetchNarration.kind(ofAssetID: "count-unbound.seasonal.v2.crow"), .seasonal)
+        XCTAssertEqual(ShelfFetchNarration.kind(ofAssetID: "count-unbound.mark.three-books"), .drawing)
+        XCTAssertTrue(ShelfFetchNarration.line(for: p("count-unbound.audio.protocols")).contains("radio"))
+        XCTAssertNotEqual(
+            ShelfFetchNarration.line(for: p("count-unbound.mark.a", 1)),
+            ShelfFetchNarration.line(for: p("count-unbound.mark.b", 2)),
+            "the text keeps moving even for the same kind of piece"
+        )
+        XCTAssertEqual(ShelfFetchNarration.line(for: p("x", finished: true)), ShelfFetchNarration.sealingLine)
+        XCTAssertEqual(ShelfFetchNarration.counter(for: p("x", 3)), "3 of 9 · 4.2 of 61.0 MB")
+        // Contracted, and never the machinery's own words.
+        let all = [ShelfFetchNarration.doneLine, ShelfFetchNarration.failedLine, ShelfFetchNarration.sealingLine,
+                   ShelfFetchNarration.headline]
+        for line in all { XCTAssertFalse(line.contains(" is not "), line) }
     }
 }

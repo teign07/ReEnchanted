@@ -1,5 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { expectedStripeLivemode } from './checkout-mode.mjs';
+import { acceptedBoundYearPriceIDs } from './bound-year-prices.mjs';
 
 const BUNDLE_ID = 'com.openclaw.enchantify.insidecover';
 const PRODUCTS = new Set(['monthly', 'annual', 'weekly'].map(period => `${BUNDLE_ID}.pass.standing-order.${period}`));
@@ -124,7 +125,7 @@ export async function issueMonthlySession(body, env, installationHash, readMembe
       const owner = await readMonthlyMembershipOwner(env, body.membershipID);
       if (owner === installationHash) {
         const membership = await readMembership(body.membershipID);
-        const prices = new Set([env.STRIPE_BOUND_YEAR_MONTHLY_PRICE, env.STRIPE_BOUND_YEAR_ANNUAL_PRICE].filter(Boolean));
+        const prices = new Set([...acceptedBoundYearPriceIDs(env, 'monthly'), ...acceptedBoundYearPriceIDs(env, 'annual')]);
         const priceMatches = (membership.items?.data ?? []).some(item => prices.has(item.price?.id));
         const periodEnd = Number(membership.current_period_end) * 1000;
         const invoice = membership.latest_invoice;

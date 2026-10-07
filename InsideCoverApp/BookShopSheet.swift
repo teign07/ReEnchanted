@@ -144,6 +144,9 @@ struct BookShopSheet: View {
     @State private var haggleDiscounts: [String: Int] = [:]
     @State private var haggledWareIDs: Set<String> = []
     @State private var selectedPrintStudioEditionID: String?
+    /// A weekly issue on a thin week asks once, before anything is paid, whether the reader means it.
+    @State private var thinWeekWarning: WeeklyThinness.Assessment?
+    @State private var thinWeekAcknowledged = Set<String>()
     @State private var selectedBinderyWeeklyPeriodID: PublicationPeriodID?
     @State private var selectedBinderyMonthPeriodID: PublicationPeriodID?
     @State private var selectedBinderySeasonPeriodID: PublicationPeriodID?
@@ -185,6 +188,7 @@ struct BookShopSheet: View {
     @State private var pendingBoundYearPurchase = BookGiftClaimStore.pendingMembership
     @State private var boundYearEnrollmentCadence: BoundYearMembership.Cadence?
     @State private var isPrintStudioPresented = false
+    @State private var isBoundYearAsidePresented = false
     @State private var isGiftSheetPresented = false
     @State private var isSendingPhysicalBookAsGift = false
     @State private var doorwayPublicationEditions: [MonthlyEdition] = []
@@ -895,17 +899,42 @@ struct BookShopSheet: View {
         }
     }
 
+    private func leavePrintStudioEdition() {
+        BookFeedback.play(.dismissPage)
+        if availablePrintStudioEditions.count > 1 {
+            resetPhysicalBookStudioForEditionSwitch()
+            selectedPrintStudioEditionID = nil
+        } else {
+            dismiss()
+        }
+    }
+
+    /// Once per issue per visit: a week with little kept is named before the reader goes any further.
+    private func askAboutAThinWeek(_ edition: MonthlyEdition) {
+        guard edition.publicationKind == .weekly, let matter = edition.weeklyPublication else { return }
+        let id = PhysicalBookEditionIdentity.id(for: edition)
+        guard !thinWeekAcknowledged.contains(id) else { return }
+        thinWeekAcknowledged.insert(id)
+        let keptDays = matter.dayBook.map { book in book.days.filter { !$0.keeps.isEmpty || !$0.braids.isEmpty }.count }
+        thinWeekWarning = WeeklyThinness.assess(keptPages: matter.issue.keptCount, keptDays: keptDays)
+    }
+
     private func printStudioEditionScreen(_ edition: MonthlyEdition) -> some View {
         physicalBookStudioScreen(edition: edition) {
-            BookFeedback.play(.dismissPage)
-            if availablePrintStudioEditions.count > 1 {
-                resetPhysicalBookStudioForEditionSwitch()
-                selectedPrintStudioEditionID = nil
-            } else {
-                dismiss()
-            }
+            leavePrintStudioEdition()
+        }
+        .alert(
+            thinWeekWarning?.title ?? "A quiet week",
+            isPresented: Binding(get: { thinWeekWarning != nil }, set: { if !$0 { thinWeekWarning = nil } }),
+            presenting: thinWeekWarning
+        ) { _ in
+            Button("Order anyway") {}
+            Button("Not now", role: .cancel) { leavePrintStudioEdition() }
+        } message: { warning in
+            Text(warning.message)
         }
         .onAppear {
+            askAboutAThinWeek(edition)
             let variants = PrintSpec.printableVariants(for: edition)
             let editionKind = PhysicalBookEditionIdentity.kind(for: edition)
             if let claimedVariantID = BookGiftClaimStore.claims.first(where: {
@@ -2446,9 +2475,31 @@ struct BookShopSheet: View {
                             .disabled(pendingPhysicalBookOrder != nil)
                             physicalBookPublicationProofPanel(edition: edition, spec: selectedPrintSpec)
                             physicalBookStudioCheckoutPanel(edition: edition, spec: selectedPrintSpec)
+                            // Below the checkout, never above it: the single
+                            // book stays the thing on the table.
+                            if boundYear?.isCurrent != true, !isSendingPhysicalBookAsGift {
+                                EditionBoundYearAside(
+                                    cadence: PhysicalBookEditionIdentity.kind(for: edition)
+                                ) {
+                                    isBoundYearAsidePresented = true
+                                }
+                            }
                         }
                     }
                     .padding(18)
+                }
+            }
+            .sheet(isPresented: $isBoundYearAsidePresented) {
+                NavigationStack {
+                    ZStack {
+                        BookBackground()
+                        boundYearDestinationContent
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { isBoundYearAsidePresented = false }
+                        }
+                    }
                 }
             }
             .navigationTitle("Book of You")
@@ -9014,8 +9065,37 @@ private struct MonthlyEditionPDFView: UIViewRepresentable {
 /// The in-app reading of a bound monthly edition: the real PDF between covers,
 /// with the month's name in the bar and the share mark where the weekly reader
 /// keeps its own.
+/// The quiet second door under a single order: the Bound Year, in one line.
+/// It never replaces the order button and never appears for a member.
+struct EditionBoundYearAside: View {
+    let cadence: PublicationEditionKind
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            BookFeedback.play(.select)
+            action()
+        } label: {
+            HStack(spacing: 6) {
+                Text(EditionOfferCopy.asideLine(for: cadence))
+                    .font(.footnote)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(BookPalette.ink.opacity(0.62))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct MonthlyEditionReaderSheet: View {
     let reader: MonthlyEditionReader
+    var onOrderPrint: (() -> Void)? = nil
+    var showsBoundYearAside = false
+    var onOpenBoundYear: () -> Void = {}
     var onRebind: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
 
@@ -9050,7 +9130,46 @@ struct MonthlyEditionReaderSheet: View {
                         }
                     }
                 }
+                .safeAreaInset(edge: .bottom) {
+                    if let onOrderPrint {
+                        EditionOrderBar(
+                            title: "Order this month in print",
+                            cadence: .monthly,
+                            showsBoundYearAside: showsBoundYearAside,
+                            onOrderPrint: { dismiss(); onOrderPrint() },
+                            onOpenBoundYear: { dismiss(); onOpenBoundYear() }
+                        )
+                    }
+                }
         }
+    }
+}
+
+/// The bottom bar of a monthly or annual reader: one clear button for paper,
+/// and underneath it, if it applies, the Bound Year's single line.
+struct EditionOrderBar: View {
+    let title: String
+    let cadence: PublicationEditionKind
+    let showsBoundYearAside: Bool
+    let onOrderPrint: () -> Void
+    let onOpenBoundYear: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Button(action: onOrderPrint) {
+                Label(title, systemImage: "book.closed")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(BookPalette.gold)
+            if showsBoundYearAside {
+                EditionBoundYearAside(cadence: cadence, action: onOpenBoundYear)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(.ultraThinMaterial)
     }
 }
 
@@ -9058,6 +9177,9 @@ struct MonthlyEditionReaderSheet: View {
 /// PDF on screen is the exact file that Share sends.
 struct AnnualEditionReaderSheet: View {
     let reader: AnnualEditionReader
+    var onOrderPrint: (() -> Void)? = nil
+    var showsBoundYearAside = false
+    var onOpenBoundYear: () -> Void = {}
     var onRebind: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
 
@@ -9087,6 +9209,19 @@ struct AnnualEditionReaderSheet: View {
                         .accessibilityLabel("Re-bind this annual")
                     }
                 }
+                .safeAreaInset(edge: .bottom) {
+                    if let onOrderPrint {
+                        EditionOrderBar(
+                            title: reader.periodID.recipe.cadence == .seasonal
+                                ? "Order this season in print"
+                                : "Order this year in print",
+                            cadence: reader.periodID.recipe.cadence,
+                            showsBoundYearAside: showsBoundYearAside,
+                            onOrderPrint: { dismiss(); onOrderPrint() },
+                            onOpenBoundYear: { dismiss(); onOpenBoundYear() }
+                        )
+                    }
+                }
         }
     }
 }
@@ -9098,6 +9233,8 @@ struct WeeklyIssueReaderSheet: View {
     /// Whether the on-device brain is installed, so re-binding can offer to
     /// rewrite the issue in the Book's own words rather than just re-stamp it.
     var brainReady: Bool = false
+    var showsBoundYearAside = false
+    var onOpenBoundYear: () -> Void = {}
     var onRebind: () -> Void = {}
     var onOrderPrint: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
@@ -9332,6 +9469,13 @@ struct WeeklyIssueReaderSheet: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(BookPalette.gold)
+
+            if showsBoundYearAside {
+                EditionBoundYearAside(cadence: .weekly) {
+                    dismiss()
+                    onOpenBoundYear()
+                }
+            }
 
             HStack(spacing: 12) {
                 ShareLink(item: reader.cardURL) {

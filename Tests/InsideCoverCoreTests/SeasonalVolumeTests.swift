@@ -264,7 +264,7 @@ final class SeasonalVolumeTests: XCTestCase {
             boundAt: boundAt,
             calendar: calendar
         )
-        XCTAssertTrue(opened.resolvedCoverSubline.contains("a season I would call this"))
+        XCTAssertTrue(opened.resolvedCoverSubline.contains("a season I'd call this"))
         let renamed = SeasonalDispatchWindow.rename(opened, to: "The Door in the Rain")
         XCTAssertTrue(renamed.resolvedCoverSubline.contains("the season you named"))
     }

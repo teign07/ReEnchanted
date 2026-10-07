@@ -340,13 +340,202 @@ enum FieldBotanicals {
         12: ["BotanicalHolly", "BotanicalRosemary", "BotanicalIvy"]
     ]
 
-    /// A drawing for this month, chosen by the seed so a given leaf always
-    /// wears the same one.
+    static func names(month: Int) -> [String] { byMonth[month] ?? [] }
+
+    /// The next margin drawing for this book: dealt from the book's deck (the month's own marginalia
+    /// first, the regular marginalia and the herbarium after, nothing twice until the deck runs out).
+    /// Every margin in a book asks here, so the handbook's dossiers and the pad leaves share the deck.
     static func image(month: Int, seed: String) -> UIImage? {
+        MarginaliaDealer.next(month: month) ?? hashed(month: month, seed: seed)
+    }
+
+    /// A drawing for this month, chosen by the seed so a given leaf always wears the same one.
+    /// The fallback when the deck has nothing to give.
+    private static func hashed(month: Int, seed: String) -> UIImage? {
         let names = byMonth[month] ?? byMonth[10] ?? []
         guard !names.isEmpty else { return nil }
         let index = ConstellationKeeper.stableIndex(for: "botanical-\(seed)", count: names.count)
         return UIImage(named: names[index]) ?? names.lazy.compactMap { UIImage(named: $0) }.first
+    }
+}
+
+/// Images at the resolution the page can use.
+///
+/// A printed drawing 130 points across has no use for 1,254 pixels: at 300 dpi it needs about 540.
+/// The October pack's twenty drawings are 2.4 MB each as delivered, and a weekly that draws a dozen of
+/// them was a 16 MB file. Resampling when a drawing is placed leaves the art and the download alone
+/// and costs the printed page nothing.
+enum PrintImage {
+    /// The image resampled to `dpi` for the size it will be drawn at, or the image itself when it is
+    /// already close to that.
+    static func fitted(_ image: UIImage, drawnPoints size: CGSize, dpi: CGFloat = 300) -> UIImage {
+        let wantW = size.width * dpi / 72, wantH = size.height * dpi / 72
+        let haveW = image.size.width * image.scale, haveH = image.size.height * image.scale
+        guard haveW > wantW * 1.2 || haveH > wantH * 1.2, haveW > 0, haveH > 0 else { return image }
+        let factor = min(wantW / haveW, wantH / haveH)
+        let target = CGSize(width: max(1, (haveW * factor).rounded()), height: max(1, (haveH * factor).rounded()))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+    }
+
+    /// Line art on white, embedded as one grey channel instead of three colour ones plus alpha: a
+    /// full-page colouring leaf drops from 2.3 MB to a few hundred kilobytes.
+    static func greyscale(_ image: UIImage) -> UIImage {
+        guard let source = image.cgImage else { return image }
+        let width = source.width, height = source.height
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
+        ) else { return image }
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.draw(source, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let flat = context.makeImage() else { return image }
+        return UIImage(cgImage: flat, scale: 1, orientation: .up)
+    }
+}
+
+/// Deals the drawings that fill one book's margins.
+///
+/// The month's own art leads: the drawings its pack delivered (October's cat, lantern, key,
+/// moth) and that month's botanicals. Its neighbours' botanicals come next and the whole
+/// herbarium after, so a book is never only the month and never only flowers. Every drawing
+/// is dealt once before any is dealt twice, and the deck is shuffled by the book's own
+/// seed so the same binding always looks the same.
+/// Deals the lined-space prompts for one book: a monthly pack's own first, then the bundled ones,
+/// and the same prompt is not asked twice in a book. Reset with the marginalia deck.
+enum NotePromptDealer {
+    private static var used = Set<String>()
+    private static var delivered: [NotePrompts.Delivered]?
+    private static var retiring = Set<String>()
+
+    static func reset() {
+        used = []
+        delivered = nil
+        retiring = []
+    }
+
+    static func next(_ kind: NotePrompts.Kind, seed: String) -> String? {
+        if delivered == nil {
+            let packs = WorldEventRegistry.enabledPacks()
+            delivered = packs.flatMap { $0.notePrompts ?? [] }
+            retiring = Set(packs.flatMap { $0.retiredNotePromptIDs ?? [] })
+        }
+        guard let row = NotePrompts.pick(kind: kind, seed: seed, avoiding: used, delivered: delivered ?? [], retiring: retiring) else { return nil }
+        used.insert(row.id)
+        return row.text
+    }
+}
+
+final class MarginaliaDealer {
+    private struct Drawing {
+        let id: String
+        let weight: Double
+        let load: () -> UIImage?
+    }
+
+    private static var current: MarginaliaDealer?
+
+    /// A new book starts a new deck. Called at the top of every interior render.
+    static func reset() {
+        current = nil
+        NotePromptDealer.reset()
+    }
+
+    #if DEBUG
+    /// A proof can ask to see another month's margins (the October art on a September week).
+    static var forcedMonth: Int?
+    #endif
+
+    static func next(month requested: Int) -> UIImage? {
+        var month = requested
+        #if DEBUG
+        month = forcedMonth ?? requested
+        #endif
+        if current?.month != month { current = MarginaliaDealer(month: month) }
+        return current?.deal()
+    }
+
+    private let month: Int
+    private let pool: [Drawing]
+    private var deck: [Drawing] = []
+    private var round = 0
+
+    private init(month: Int) {
+        self.month = month
+        self.pool = Self.pool(month: month)
+    }
+
+    private func deal() -> UIImage? {
+        guard !pool.isEmpty else { return nil }
+        for _ in 0...pool.count {
+            if deck.isEmpty { refill() }
+            if let image = deck.removeFirst().load() { return image }
+        }
+        return nil
+    }
+
+    private func refill() {
+        round += 1
+        let byID = Dictionary(uniqueKeysWithValues: pool.map { ($0.id, $0) })
+        deck = MarginaliaDeck.order(pool.map { ($0.id, $0.weight) }, seed: "margins-\(month)-\(round)").compactMap { byID[$0] }
+    }
+
+    private static func pool(month: Int) -> [Drawing] {
+        var drawings: [Drawing] = []
+        var seen = Set<String>()
+        func add(_ id: String, _ weight: Double, _ load: @escaping () -> UIImage?) {
+            if seen.insert(id).inserted { drawings.append(Drawing(id: id, weight: weight, load: load)) }
+        }
+        // The month's own marginalia lead: the drawings its pack delivered (October's cat, lantern,
+        // key, moth), and the month's botanicals.
+        let packArt = installedSeasonalArt()
+        for art in packArt where art.month == month {
+            add("pack:\(art.month ?? 0):\(art.name)", 3.0) { UIImage(contentsOfFile: art.path) }
+        }
+        // The app's regular marginalia: the goblins, the compass, the quill.
+        for name in MarginaliaDeck.regular { add("margin:\(name)", 2.2) { UIImage(named: name) } }
+        for name in FieldBotanicals.names(month: month) { add("botanical:\(name)", 2.0) { UIImage(named: name) } }
+        // Not only this month: another month's pack art that is still installed, a neighbour's
+        // botanicals, and the rest of the herbarium, each lightly.
+        for art in packArt where art.month != month {
+            add("pack:\(art.month ?? 0):\(art.name)", 0.8) { UIImage(contentsOfFile: art.path) }
+        }
+        for neighbour in [month == 1 ? 12 : month - 1, month == 12 ? 1 : month + 1] {
+            for name in FieldBotanicals.names(month: neighbour) { add("botanical:\(name)", 1.0) { UIImage(named: name) } }
+        }
+        for other in 1...12 {
+            for name in FieldBotanicals.names(month: other) { add("botanical:\(name)", 0.35) { UIImage(named: name) } }
+        }
+        return drawings
+    }
+
+    /// Every seasonal drawing a monthly pack delivered that is still installed on this device, with
+    /// the month it was made for. A reissued drawing (`seasonal.v2.`) replaces the first of its name.
+    private static func installedSeasonalArt() -> [(name: String, path: String, month: Int?)] {
+        guard let directory = MonthlyIssueDeliveryPolicy.managedContentDirectory(),
+              let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return [] }
+        var found: [String: (path: String, month: Int?, name: String, reissued: Bool)] = [:]
+        for url in files where url.pathExtension.lowercased() == "png" {
+            let file = url.lastPathComponent
+            guard file.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix),
+                  let marker = file.range(of: ".seasonal.") else { continue }
+            let before = String(file[..<marker.lowerBound])
+            var month: Int?
+            if let range = before.range(of: "-\\d{4}-\\d{2}-", options: .regularExpression) {
+                month = Int(before[range].dropLast().suffix(2))
+            }
+            var name = String(file[marker.upperBound...]).replacingOccurrences(of: ".png", with: "")
+            let reissued = name.hasPrefix("v2.")
+            if reissued { name = String(name.dropFirst(3)) }
+            let key = "\(month ?? 0):\(name)"
+            if found[key] == nil || (reissued && found[key]?.reissued == false) { found[key] = (url.path, month, name, reissued) }
+        }
+        return found.keys.sorted().compactMap { found[$0].map { ($0.name, $0.path, $0.month) } }
     }
 }
 
@@ -689,10 +878,11 @@ extension MonthlyEditionPDFWriter {
         let scale = min(rect.width / image.size.width, rect.height / image.size.height, honest / image.size.width)
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
         let origin = CGPoint(x: alignRight ? rect.maxX - size.width : rect.minX, y: rect.maxY - size.height)
+        let ready = PrintImage.fitted(image, drawnPoints: size)
         cg.saveGState()
         cg.translateBy(x: origin.x + size.width / 2, y: origin.y + size.height / 2)
         cg.rotate(by: rotation)
-        image.draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
+        ready.draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
         cg.restoreGState()
     }
 
@@ -831,6 +1021,8 @@ extension MonthlyEditionPDFWriter {
         monthNumber: Int,
         calendar: Calendar,
         style: EditionStyle,
+        bookMargin: String? = nil,
+        meanwhile: String? = nil,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
@@ -938,22 +1130,84 @@ extension MonthlyEditionPDFWriter {
         let extras = day.photos.filter { $0.id != photo?.1.id }.compactMap { item -> UIImage? in firstImage(from: item.mediaAssets) }
         if !extras.isEmpty, leaf.bottom - leaf.y > 90 {
             var x = leaf.left
-            for image in extras.prefix(3) {
-                let w: CGFloat = min(96, (leaf.contentWidth - 24) / 3)
+            let shown = Array(extras.prefix(3))
+            // As large as the room allows: a second photograph is not a postage stamp beside the first.
+            let roomy = leaf.bottom - leaf.y > (bookMargin == nil ? 190 : 250)
+            let w: CGFloat = min(roomy ? 150 : 96, (leaf.contentWidth - 12 * CGFloat(shown.count - 1)) / CGFloat(shown.count))
+            let h: CGFloat = roomy ? 118 : 84
+            for image in shown {
                 drawPressedPhoto(image, caption: nil, style: style,
-                                 in: CGRect(x: x, y: leaf.y, width: w, height: min(84, leaf.bottom - leaf.y)),
+                                 in: CGRect(x: x, y: leaf.y, width: w, height: min(h, leaf.bottom - leaf.y)),
                                  rotation: frac("extra-\(day.id)-\(x)") > 0.5 ? 0.03 : -0.03)
                 x += w + 12
             }
-            leaf.y += 92
+            leaf.y += h + 8
+        }
+
+        // The Book's own margin: one line it wrote for something the reader kept.
+        if let bookMargin, leaf.bottom - leaf.y > 96 {
+            let text = "in the Book's margin\n" + bookMargin
+            let height = slipHeight(text, width: leaf.contentWidth * 0.78, fontSize: 10.6)
+            if leaf.y + height + 6 < leaf.bottom {
+                drawHandSlip(text, style: style,
+                             in: CGRect(x: leaf.left + leaf.contentWidth * 0.2, y: leaf.y + 4, width: leaf.contentWidth * 0.78, height: height),
+                             rotation: -0.02, seed: "book-margin-\(day.id)", fontSize: 10.6)
+                leaf.y += height + 14
+            }
+        }
+
+        // A leaf with room left is given what the day held that the reader did not write: what the
+        // Labyrinth was doing that night (the authored beat the braid carried) and the sky.
+        if leaf.bottom - leaf.y > 150 {
+            let bodyFont = UIFont.fbSerif(ofSize: 10.4, weight: .regular)
+            if let meanwhile {
+                let height = FieldText.height(meanwhile, font: UIFont.fbSerifItalic(ofSize: 10.4), width: leaf.contentWidth, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                if leaf.y + height + 40 < leaf.bottom {
+                    leaf.y += 8
+                    drawEyebrow("Meanwhile, in the Labyrinth", style: style, leaf: &leaf)
+                    _ = FieldText.flow(meanwhile, font: UIFont.fbSerifItalic(ofSize: 10.4), color: style.palette.ink.withAlphaComponent(0.82),
+                                       in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: height + 4),
+                                       lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                    leaf.y += height + 14
+                }
+            }
+            var sky: [String] = [day.almanac.moonName]
+            sky += day.almanac.skyWords.prefix(3)
+            if let feast = day.almanac.feast?.trimmingCharacters(in: .whitespaces), !feast.isEmpty { sky.append(feast) }
+            let line = sky.filter { !$0.isEmpty }.joined(separator: " · ")
+            if !line.isEmpty, leaf.bottom - leaf.y > 90 {
+                leaf.y += 4
+                drawEyebrow("The sky that day", style: style, leaf: &leaf)
+                let height = FieldText.height(line, font: bodyFont, width: leaf.contentWidth, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                _ = FieldText.flow(line, font: bodyFont, color: style.palette.ink.withAlphaComponent(0.78),
+                                   in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: height + 4),
+                                   lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                leaf.y += height + 12
+            }
         }
 
         let remaining = leaf.bottom - leaf.y
-        if remaining > 80 {
+        if remaining > 100, let prompt = NotePromptDealer.next(.day, seed: day.id) {
+            drawNotesBlock(prompt, in: CGRect(x: leaf.left, y: leaf.y + 2, width: leaf.contentWidth, height: min(remaining - 6, 190)), style: style)
+        } else if remaining > 80 {
             drawBotanical(month: monthNumber, seed: day.id + "-yours",
                           in: CGRect(x: leaf.left, y: leaf.bottom - min(remaining + 18, 130), width: 110, height: min(remaining + 18, 130)),
                           alignRight: false, rotation: 0.08)
         }
+    }
+
+    /// A small invitation and lined space under it, filling `rect`: somewhere for the reader to write.
+    static func drawNotesBlock(_ prompt: String, in rect: CGRect, style: EditionStyle) {
+        let ink = style.palette.ink
+        let title = "WRITE HERE" as NSString
+        title.draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                   withAttributes: [.font: smallCaps(7), .foregroundColor: style.palette.accent, .kern: 1.4])
+        let promptFont = UIFont.fbSerifItalic(ofSize: 10.4)
+        let height = FieldText.height(prompt, font: promptFont, width: rect.width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+        _ = FieldText.flow(prompt, font: promptFont, color: ink.withAlphaComponent(0.72),
+                           in: CGRect(x: rect.minX, y: rect.minY + 13, width: rect.width, height: height + 4),
+                           lineSpacing: 2, paragraphSpacing: 0, justified: false)
+        hbRules(from: rect.minY + 13 + height + 6, to: rect.maxY, left: rect.minX, right: rect.maxX, spacing: 23, style: style)
     }
 
     private static func clockString(_ date: Date, calendar: Calendar) -> String {
@@ -961,6 +1215,46 @@ extension MonthlyEditionPDFWriter {
         let hour = parts.hour ?? 0
         let twelve = hour % 12 == 0 ? 12 : hour % 12
         return String(format: "%d:%02d %@", twelve, parts.minute ?? 0, hour < 12 ? "a.m." : "p.m.")
+    }
+
+    // MARK: The Labyrinth, this week
+
+    /// What the world was doing on the nights the Book braided: the authored beat each
+    /// braid carried. Set on the rest of the leaf the bound story left, or a leaf of its own.
+    static func drawLabyrinthNotes(
+        _ notes: [WeeklyCuration.LabyrinthNote],
+        calendar: Calendar,
+        style: EditionStyle,
+        after leaf: PDFCursor?,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        guard notes.count >= 2 else { return }
+        let ink = style.palette.ink
+        var current: PDFCursor
+        if let leaf, leaf.bottom - leaf.y > 190 {
+            current = leaf
+            current.y += 10
+        } else {
+            current = fieldLeaf(&cursor, style: style, context: context, headLeft: "The Labyrinth", headRight: "this week")
+        }
+        drawEyebrow("What the world was doing on the nights I braided", style: style, leaf: &current)
+        current.y += 4
+        let font = UIFont.fbSerif(ofSize: 10.8, weight: .regular)
+        for note in notes {
+            let height = FieldText.height(note.text, font: font, width: current.contentWidth, lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+            if current.y + height + 34 > current.bottom {
+                current = fieldLeaf(&cursor, style: style, context: context, headLeft: "The Labyrinth", headRight: "this week, continued")
+            }
+            drawTracked("\(weekdayFormatter.string(from: note.date)) · \(note.title)".uppercased(),
+                        at: CGPoint(x: current.left, y: current.y), font: smallCaps(6.8, weight: .semibold),
+                        color: style.palette.accent, tracking: 1.2)
+            current.y += 13
+            _ = FieldText.flow(note.text, font: font, color: ink.withAlphaComponent(0.9),
+                               in: CGRect(x: current.left, y: current.y, width: current.contentWidth, height: height + 4),
+                               lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+            current.y += height + 16
+        }
     }
 
     // MARK: A week opens
@@ -971,13 +1265,19 @@ extension MonthlyEditionPDFWriter {
         monthNumber: Int,
         calendar: Calendar,
         style: EditionStyle,
+        window: (start: Date, end: Date)? = nil,
+        eyebrow: String? = nil,
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: monthFormatter.string(from: week.start), headRight: "A week opens")
+        // A weekly issue is exactly seven days from its own first day, not from the first
+        // day anything was kept: the range, the moons and the index all say so.
+        let weekStart = window?.start ?? week.start
+        let weekEnd = window?.end ?? week.end
+        var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: monthFormatter.string(from: weekStart), headRight: "A week opens")
         leaf.y += 14
-        drawEyebrow("Week \(week.index + 1)", style: style, leaf: &leaf)
-        let title = "\(shortMonthDay.string(from: week.start)) – \(shortMonthDay.string(from: week.end))"
+        drawEyebrow(eyebrow ?? "Week \(week.index + 1)", style: style, leaf: &leaf)
+        let title = "\(shortMonthDay.string(from: weekStart)) – \(shortMonthDay.string(from: weekEnd))"
         (title as NSString).draw(at: CGPoint(x: leaf.left, y: leaf.y),
                                  withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 30), .foregroundColor: style.palette.ink])
         leaf.y += 44
@@ -985,7 +1285,7 @@ extension MonthlyEditionPDFWriter {
         // Seven small moons: the week at a glance.
         let cell = leaf.contentWidth / 7
         for offset in 0..<7 {
-            guard let date = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: week.start)) else { continue }
+            guard let date = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: weekStart)) else { continue }
             let moon = MoonPhaseCalendar.phase(on: calendar.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date)
             let cx = leaf.left + cell * (CGFloat(offset) + 0.5)
             FieldMoon.draw(center: CGPoint(x: cx, y: leaf.y + 8), radius: 6.5, illuminated: moon.illuminatedFraction,
@@ -1019,7 +1319,7 @@ extension MonthlyEditionPDFWriter {
         // The week, day by day: what each date holds, in a line.
         let members = book.days.filter {
             let offset = max(0, calendar.dateComponents([.day], from: calendar.startOfDay(for: book.days.first?.date ?? week.start), to: $0.date).day ?? 0)
-            return $0.date >= calendar.startOfDay(for: week.start) && $0.date <= week.end.addingTimeInterval(86_399) && offset >= 0
+            return $0.date >= calendar.startOfDay(for: weekStart) && $0.date <= weekEnd.addingTimeInterval(86_399) && offset >= 0
         }
         if !members.isEmpty {
             drawEyebrow("The week, day by day", style: style, leaf: &leaf)
@@ -1028,8 +1328,13 @@ extension MonthlyEditionPDFWriter {
                 var held: [String] = []
                 if let braid = day.braids.first { held.append(braid.title) }
                 for scene in day.scenes.prefix(2) where !held.contains(scene.title) { held.append(scene.title) }
+                // What else the day held, by name: a Cast turn, a Tale, a quotation. "Kept 0 small
+                // things" was printed on a day that held a Cast turn and a Tale.
+                for keep in day.keeps.prefix(2) where !held.contains(keep.title) { held.append(keep.title) }
                 if !day.photos.isEmpty { held.append(day.photos.count == 1 ? "a photograph" : "\(day.photos.count) photographs") }
-                if held.isEmpty { held.append("kept \(day.specimens.count) small \(day.specimens.count == 1 ? "thing" : "things")") }
+                if held.isEmpty, !day.castLines.isEmpty { held.append("the Cast, in the margins") }
+                if held.isEmpty, day.specimens.count > 0 { held.append("kept \(day.specimens.count) small \(day.specimens.count == 1 ? "thing" : "things")") }
+                if held.isEmpty { held.append("the Labyrinth kept its own counsel") }
                 let label = "\(weekdayFormatter.string(from: day.date).prefix(3)) \(calendar.component(.day, from: day.date))"
                 drawTracked(label, at: CGPoint(x: leaf.left, y: leaf.y + 2), font: smallCaps(6.8), color: style.palette.accent, tracking: 1)
                 let line = held.joined(separator: " · ")
@@ -1303,9 +1608,13 @@ extension MonthlyEditionPDFWriter {
         calendar: Calendar,
         style: EditionStyle,
         marginalia: [BoundMarginNote],
+        weekWindow: (start: Date, end: Date)? = nil,
+        weekEyebrow: String? = nil,
+        dayNotes: [Date: String] = [:],
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
+        var usedWonder = Set<String>()
         var openedWeeks = Set<Int>()
         let weekByIndex = Dictionary(uniqueKeysWithValues: book.weeks.map { ($0.index, $0) })
         let first = calendar.startOfDay(for: start)
@@ -1323,7 +1632,8 @@ extension MonthlyEditionPDFWriter {
             let index = weekIndex(of: day)
             currentWeek = index
             if openedWeeks.insert(index).inserted, let week = weekByIndex[index] {
-                drawWeekLeaf(week, book: book, monthNumber: monthNumber, calendar: calendar, style: style, context: context, cursor: &cursor)
+                drawWeekLeaf(week, book: book, monthNumber: monthNumber, calendar: calendar, style: style,
+                             window: weekWindow, eyebrow: weekEyebrow, context: context, cursor: &cursor)
             }
             if day.hasWorldSide {
                 drawWorldSide(day, monthNumber: monthNumber, calendar: calendar, style: style, marginalia: marginalia, context: context, cursor: &cursor)
@@ -1331,7 +1641,19 @@ extension MonthlyEditionPDFWriter {
             if day.isThinYourSide {
                 pendingThin.append(day)
             } else if day.hasYourSide {
-                drawYourSide(day, monthNumber: monthNumber, calendar: calendar, style: style, context: context, cursor: &cursor)
+                // A weekly issue's margins carry a line the Book wrote for the thing the reader
+                // kept (the kettle that was mid-sentence), once, never the same line twice.
+                var bookMargin: String?
+                if weekWindow != nil, !day.words.isEmpty {
+                    let parts = calendar.dateComponents([.year, .month, .day], from: day.date)
+                    let key = String(format: "%04d-%02d-%02d", parts.year ?? 1970, parts.month ?? 1, parts.day ?? 1)
+                    if let line = WonderBraid.pick(text: day.words.joined(separator: " "), dateKey: key, excluding: usedWonder) {
+                        usedWonder.insert(line.id)
+                        bookMargin = line.text
+                    }
+                }
+                drawYourSide(day, monthNumber: monthNumber, calendar: calendar, style: style, bookMargin: bookMargin,
+                             meanwhile: dayNotes[calendar.startOfDay(for: day.date)], context: context, cursor: &cursor)
             }
         }
         flushThin()
@@ -1977,6 +2299,10 @@ extension MonthlyEditionPDFWriter {
         to url: URL
     ) throws -> Int {
         let issue = matter.issue
+        // Each pass of the fit loop deals the same deck from the top, so a rebind looks the same.
+        // The deck is not reset when the pass ends: the pad leaves made after it carry on from
+        // where the book left off instead of dealing the cover's drawing a second time.
+        MarginaliaDealer.reset()
         let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
         let pageBounds = CGRect(x: 0, y: 0, width: fullBleed.width * PrintSpec.pointsPerInch, height: fullBleed.height * PrintSpec.pointsPerInch)
         let m = spec.interiorMarginsPoints
@@ -2033,6 +2359,7 @@ extension MonthlyEditionPDFWriter {
             }
 
             // The week, bound: the binding story, when the Book wrote one.
+            var storyLeaf: PDFCursor?
             if let story = issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
                 var rest = FieldMarked(parsing: story)
                 var passes = 0
@@ -2048,15 +2375,45 @@ extension MonthlyEditionPDFWriter {
                                               dropCap: first ? style.palette.accent : nil)
                     first = false
                     guard flow.usedHeight > 0 else { break }
+                    leaf.y += flow.usedHeight + 10
                     rest = flow.rest
                     if !rest.isEmpty {
                         leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: "The week, bound", headRight: "continued")
                     }
                 }
+                storyLeaf = leaf
             }
 
+            // The reader's own best lines of the week, then what the world did on the nights the Book
+            // braided, under the bound story so a light week's first leaf is never mostly paper.
+            let labyrinthNotes = WeeklyCuration.labyrinthNotes(from: issue.pages)
+            if let leaf = storyLeaf, issue.highlights.count > 0, leaf.bottom - leaf.y > 150 {
+                var shelf = leaf
+                shelf.y += 8
+                drawEyebrow("Lines I kept from your week", style: style, leaf: &shelf)
+                let lineFont = UIFont.fbSerifItalic(ofSize: 11.2)
+                for line in issue.highlights.prefix(3) {
+                    let quoted = "\u{201C}\(line.trimmingCharacters(in: CharacterSet(charactersIn: ".")))\u{201D}"
+                    let height = FieldText.height(quoted, font: lineFont, width: shelf.contentWidth - 14, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                    guard shelf.y + height + 70 < shelf.bottom else { break }
+                    _ = FieldText.flow(quoted, font: lineFont, color: ink.withAlphaComponent(0.88),
+                                       in: CGRect(x: shelf.left + 14, y: shelf.y, width: shelf.contentWidth - 14, height: height + 4),
+                                       lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                    shelf.y += height + 10
+                }
+                storyLeaf = shelf
+            }
+            drawLabyrinthNotes(labyrinthNotes, calendar: calendar, style: style,
+                               after: storyLeaf, context: context, cursor: &cursor)
+            var notesByDay: [Date: String] = [:]
+            for note in labyrinthNotes where notesByDay[calendar.startOfDay(for: note.date)] == nil {
+                notesByDay[calendar.startOfDay(for: note.date)] = note.text
+            }
+
+            let lastDay = calendar.date(byAdding: .day, value: -1, to: issue.endDate) ?? issue.endDate
             drawDays(start: issue.startDate, book: book, monthNumber: monthNumber, calendar: calendar,
-                     style: style, marginalia: marginalia, context: context, cursor: &cursor)
+                     style: style, marginalia: marginalia, weekWindow: (issue.startDate, lastDay),
+                     weekEyebrow: "Issue No. \(issue.number)", dayNotes: notesByDay, context: context, cursor: &cursor)
 
             if let handbook, !handbook.isEmpty {
                 drawHandbook(handbook, readerName: matter.coverReaderName,

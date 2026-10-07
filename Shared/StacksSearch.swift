@@ -281,7 +281,7 @@ enum AskTheBookAnswerGrounder {
         }
         guard !memory.evidence.isEmpty else {
             return """
-            I opened every permitted shelf I could search, but I couldn't find a strong matching record for that yet. I don't want to make up a memory just because the empty space looks inviting.
+            I looked on every shelf I'm allowed to. I couldn't find that one yet, and I'm not going to make a memory up just to fill the gap.
             """
         }
 
@@ -302,10 +302,16 @@ enum AskTheBookAnswerGrounder {
         let strongest = memory.evidence[0]
         guard !visiblyUses(strongest, in: answer) else { return answer }
         let sourceLine: String
-        if strongest.mayQuote {
+        let readerOwned = strongest.authority == .readerWords
+            || strongest.authority == .priorConversation
+            || strongest.authority == .importedEvidence
+        if strongest.mayQuote && !readerOwned {
             sourceLine = """
             I opened “\(strongest.result.title)”\(datedSuffix(strongest.result.dateLabel)). \(strongest.result.snippet)
             """
+        } else if readerOwned {
+            // They wrote it; they know what it says. Name the leaf and stop.
+            sourceLine = "I opened “\(strongest.result.title)”\(datedSuffix(strongest.result.dateLabel))."
         } else {
             sourceLine = """
             I opened “\(strongest.result.title)”\(datedSuffix(strongest.result.dateLabel)) and held it as quiet context rather than pretending I remembered from nowhere.
@@ -404,6 +410,14 @@ enum AskTheBookMemoryRetriever {
         limit: Int = 8,
         semanticScorer: StacksSemanticScoring? = StacksSearchEngine.defaultSemanticScorer()
     ) -> AskTheBookMemoryPacket {
+        if LetsChatRouter.isPortraitRequest(query) {
+            return portrait(
+                query: query,
+                previousTurns: previousTurns,
+                from: sourceDataset,
+                limit: min(limit, 7)
+            )
+        }
         let inquiryKind = classify(query)
         let dataset = conversationalDataset(from: sourceDataset, query: query)
         let extraTerms = followUpTerms(for: query, previousTurns: previousTurns)
@@ -433,9 +447,18 @@ enum AskTheBookMemoryRetriever {
                 evidence.result.score + evidence.authority.rankingBoost
             ))
         }
+        // Whatever the reader has said in *this* chat is already in front of
+        // the Book. Letting it back in as a record is how the second reply
+        // came to read the reader's entry back to them: the follow-up search
+        // matched their own earlier words, which then ranked first.
+        let sessionMessages = [query] + previousTurns.map(\.prompt)
         for result in results {
             guard !seen.contains(result.id),
                   let evidence = evidence(for: result, in: dataset) else { continue }
+            if (evidence.authority == .priorConversation || evidence.authority == .readerWords),
+               LetsChatEchoGuard.isEcho(evidenceText: evidence.fullText, ofSession: sessionMessages) {
+                continue
+            }
             seen.insert(result.id)
             ranked.append((evidence, result.score + evidence.authority.rankingBoost))
         }
@@ -457,6 +480,83 @@ enum AskTheBookMemoryRetriever {
         return AskTheBookMemoryPacket(
             inquiryKind: inquiryKind,
             evidence: selected,
+            searchedRecordCount: searchableRecordCount(in: dataset),
+            searchedWholeBook: true
+        )
+    }
+
+    /// "What do you think about me?" has no words to search for, and a keyword
+    /// search on "think" finds nothing useful. What the Book should answer from
+    /// is a spread of what the reader has actually told it: a few recorded
+    /// facts, and recent pages in their own words, one or two per kind so a run
+    /// of the same page does not stand for the whole person. Permissions are
+    /// the ordinary conversational ones, so support material stays out.
+    static func portrait(
+        query: String,
+        previousTurns: [AskTheBookTurn],
+        from sourceDataset: StacksSearchDataset,
+        limit: Int = 7
+    ) -> AskTheBookMemoryPacket {
+        let dataset = conversationalDataset(from: sourceDataset, query: query)
+        let sessionMessages = [query] + previousTurns.map(\.prompt)
+        var results: [StacksSearchResult] = []
+
+        let facts = dataset.selfFacts
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(3)
+        for fact in facts {
+            results.append(StacksSearchResult(
+                id: "self-fact-\(fact.id)",
+                kind: .selfFact,
+                title: fact.question,
+                snippet: String(fact.bookTranslation.prefix(130)),
+                dateLabel: "",
+                score: 40,
+                referenceID: fact.id
+            ))
+        }
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        var perType: [BookPageType: Int] = [:]
+        let readerPages = dataset.days
+            .flatMap(\.pages)
+            .filter {
+                $0.origin == .userAuthored
+                    && $0.type != .askTheBook
+                    && $0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).count >= 20
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+        var chosenPages: [BookPage] = []
+        for page in readerPages {
+            guard perType[page.type, default: 0] < 2 else { continue }
+            perType[page.type, default: 0] += 1
+            chosenPages.append(page)
+            if chosenPages.count >= max(0, limit - results.count) { break }
+        }
+        for page in chosenPages {
+            results.append(StacksSearchResult(
+                id: "page-\(page.id)",
+                kind: .keptPage,
+                title: page.type.title,
+                snippet: String(page.userInput.prefix(130)),
+                dateLabel: formatter.string(from: page.createdAt),
+                score: 30,
+                referenceID: page.id
+            ))
+        }
+
+        let evidence = results.compactMap { result -> AskTheBookEvidence? in
+            guard let item = Self.evidence(for: result, in: dataset) else { return nil }
+            if item.authority == .readerWords || item.authority == .priorConversation,
+               LetsChatEchoGuard.isEcho(evidenceText: item.fullText, ofSession: sessionMessages) {
+                return nil
+            }
+            return item
+        }
+        return AskTheBookMemoryPacket(
+            inquiryKind: .pattern,
+            evidence: evidence,
             searchedRecordCount: searchableRecordCount(in: dataset),
             searchedWholeBook: true
         )

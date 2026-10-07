@@ -588,3 +588,39 @@ enum EditionMarginalia {
         Double(abs((seed + "|u\(salt)").stableHash) % 1000) / 1000
     }
 }
+
+
+/// The order a book's margin drawings are dealt in.
+///
+/// A deck, not a hash: every drawing comes up once before any comes up twice, and a heavier
+/// drawing tends to come up earlier. The print weekly and monthly used to pick each botanical by
+/// hashing the page against three to five names, which repeated drawings inside one book and
+/// never reached the month's own art. Weighted sampling without replacement (a key of u^(1/weight)
+/// per drawing) keeps the favouring soft: the month's drawings lead, the rest still turn up.
+enum MarginaliaDeck {
+    static func order(_ items: [(id: String, weight: Double)], seed: String) -> [String] {
+        items.map { item -> (id: String, key: Double) in
+            let u = (Double(WonderBraid.stableHash(seed + "|" + item.id) % 1_000_003) + 0.5) / 1_000_003
+            return (item.id, pow(u, 1 / max(item.weight, 0.01)))
+        }
+        .sorted { $0.key != $1.key ? $0.key > $1.key : $0.id < $1.id }
+        .map(\.id)
+    }
+
+    /// The app's own marginalia, standalone drawings that suit a leaf's margin. The anatomical
+    /// parts of the goblin portrait (ears, noses, faces, hands, feet) are for composing him, not for corners,
+    /// and the scrap is paper rather than a drawing. Left out for their art: the lavender (a wax-seal
+    /// fragment is cut into its edge) and the comma and exclamation mark (a few dozen points tall).
+    /// `MarginaliaDeckTests` checks each name has art.
+    static let regular: [String] = [
+        "MarginaliaCompass", "MarginaliaFeather", "MarginaliaSeal", "MarginaliaShell",
+        "MarginaliaStamp", "MarginaliaStar",
+        "MarginaliaGoblinBlueInk", "MarginaliaGoblinCornerFlourish", "MarginaliaGoblinCrownedNote",
+        "MarginaliaGoblinCrumpledNote", "MarginaliaGoblinGreenInk",
+        "MarginaliaGoblinIlluminatedScroll", "MarginaliaGoblinInkCarrier", "MarginaliaGoblinOpenBook",
+        "MarginaliaGoblinPageHiding", "MarginaliaGoblinQuestion", "MarginaliaGoblinQuestioning", "MarginaliaGoblinQuill",
+        "MarginaliaGoblinQuillStanding", "MarginaliaGoblinReading", "MarginaliaGoblinRedRibbon",
+        "MarginaliaGoblinRoyalWaxSeal", "MarginaliaGoblinSatchel", "MarginaliaGoblinSealedNote", "MarginaliaGoblinShushing",
+        "MarginaliaGoblinSleeping", "MarginaliaGoblinTiedScroll", "MarginaliaGoblinWritingCrouched"
+    ]
+}

@@ -426,7 +426,7 @@ final class CountUnboundOpeningTests: XCTestCase {
         let p = try pack()
         let event = try XCTUnwrap(p.events.first)
         let authored = try XCTUnwrap(event.record)
-        XCTAssertEqual(authored.entries.count, 7, "six crossings and the Threshold Protocols")
+        XCTAssertEqual(authored.entries.count, 15, "the month in dated entries, from the first lunch to the clasp")
         XCTAssertFalse(authored.historySentence.isEmpty)
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().deletingLastPathComponent()
@@ -951,6 +951,118 @@ final class CountUnboundOpeningTests: XCTestCase {
             initialContentLedger: first.finalContentLedger, initialLifecycleLedger: first.finalLifecycleLedger,
             initialJumpState: first.finalJumpState, initialBraidDays: first.braidDays)
         XCTAssertNil(later.finalJumpState.active)
+    }
+
+    // MARK: Story beats surface, resurface, give way
+
+    private func beatOffers(on now: Date, inputs: BookSourceInputs, issue: WorldEventPack) throws -> [SurfacePage] {
+        let manifest = try XCTUnwrap(issue.authoringManifests?.first)
+        let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
+        let snapshot = try XCTUnwrap(WorldEventResolver.lifecycleSnapshot(
+            packID: issue.id, event: try XCTUnwrap(issue.events.first), now: now, calendar: calendar))
+        let native = AuthoredStoryScenePageAdapter.candidates(
+            for: day, inputs: inputs, now: now, lifecycleOverride: [snapshot])
+        return MonthlyIssuePageCuration.preparing(
+            native, manifests: [manifest], day: day, inputs: inputs, now: now, lifecycleOverride: [snapshot])
+    }
+
+    private func sceneInputs(_ issue: WorldEventPack) throws -> BookSourceInputs {
+        var inputs = BookSourceInputs.empty
+        inputs.monthlyIssueAuthoringManifests = try XCTUnwrap(issue.authoringManifests)
+        inputs.authoredStoryScenes = try XCTUnwrap(issue.storyScenes)
+        return inputs
+    }
+
+    /// The next beat replaces the one before it, and a recap closes what it told.
+    func testANewerBeatReplacesTheUnresolvedOneBeforeIt() throws {
+        let issue = try pack()
+        let manifest = try XCTUnwrap(issue.authoringManifests?.first)
+        func superseded(onLiveDay day: Int) -> Set<String> { manifest.supersededStoryBeatIDs(atLiveDay: day) }
+        XCTAssertEqual(superseded(onLiveDay: 0), [])
+        XCTAssertEqual(superseded(onLiveDay: 1), ["academy.school.chair-first"])
+        XCTAssertEqual(superseded(onLiveDay: 2), ["academy.school.chair-first", "academy.school.sentence-coat"])
+        XCTAssertTrue(superseded(onLiveDay: 3).isSuperset(of: [
+            "academy.school.chair-first", "academy.school.sentence-coat", "academy.school.wrong-way"]))
+        XCTAssertFalse(superseded(onLiveDay: 3).contains(jumpID))
+        XCTAssertFalse(superseded(onLiveDay: 3).contains("count-unbound.mission.hold-place"),
+                       "a mission offer keeps its own offer")
+        XCTAssertNil(manifest.supersededStoryBeatIDs(atLiveDay: nil).first)
+    }
+
+    func testAFollowOnBeatNeverReplacesTheBeatItFollows() throws {
+        let manifest = try XCTUnwrap(try pack().authoringManifests?.first)
+        // map-room opens on live day 9 and follows East Stacks.
+        XCTAssertFalse(manifest.supersededStoryBeatIDs(atLiveDay: 9).contains("count-unbound.scene.east-stacks"))
+    }
+
+    /// A recap closes what the reader was not following; the beat that continues
+    /// a story they opened stays theirs.
+    func testARecapDoesNotTakeTheContinuationOfAStoryTheReaderOpened() throws {
+        let issue = try pack()
+        let manifest = try XCTUnwrap(issue.authoringManifests?.first)
+        let scope = AuthoredContentScope(scopeID: manifest.id, runID: "count-unbound:2026")
+        let opened = AuthoredContentReceipt(contentID: "count-unbound.scene.sunday-jump", occurrenceID: "o",
+            channel: .storyScene, scope: scope, state: .opened, recordedAt: date(5))
+        let ledger = AuthoredContentReceiptLedger.empty.recording(opened)
+        XCTAssertTrue(manifest.supersededStoryBeatIDs(atLiveDay: 10, scope: scope)
+            .contains("count-unbound.scene.east-stacks"))
+        XCTAssertFalse(manifest.supersededStoryBeatIDs(atLiveDay: 10, ledger: ledger, scope: scope, now: date(11))
+            .contains("count-unbound.scene.east-stacks"), "East Stacks follows the Jump they opened")
+    }
+
+    func testARecapDayClosesTheBeatsItTold() throws {
+        let issue = try pack()
+        let manifest = try XCTUnwrap(issue.authoringManifests?.first)
+        XCTAssertFalse(manifest.supersededStoryBeatIDs(atLiveDay: 9).contains("count-unbound.scene.east-stacks"))
+        let recapDay = manifest.supersededStoryBeatIDs(atLiveDay: 10)
+        XCTAssertTrue(recapDay.contains("count-unbound.scene.east-stacks"))
+        XCTAssertFalse(recapDay.contains("count-unbound.scene.man-reading-himself"), "that beat opens after the recap")
+        let inputs = try sceneInputs(issue)
+        let before = try beatOffers(on: date(10), inputs: inputs, issue: issue)   // live day 9
+        let after = try beatOffers(on: date(11), inputs: inputs, issue: issue)    // live day 10
+        func ids(_ pages: [SurfacePage]) -> Set<String> {
+            Set(pages.compactMap { $0.payload.metadata[MonthlyIssuePageMetadata.contentID] })
+        }
+        XCTAssertTrue(ids(before).contains("count-unbound.scene.east-stacks"))
+        XCTAssertFalse(ids(after).contains("count-unbound.scene.east-stacks"))
+    }
+
+    func testTheOfferedBeatIsTheLatestOneOpenOnEachDay() throws {
+        let issue = try pack()
+        let inputs = try sceneInputs(issue)
+        func headlines(_ day: Int) throws -> [String] {
+            try beatOffers(on: date(day), inputs: inputs, issue: issue)
+                .compactMap { $0.payload.metadata[MonthlyIssuePageMetadata.contentID] }
+                .filter { $0.hasPrefix("academy.school.") || $0 == jumpID }
+        }
+        XCTAssertEqual(try headlines(1), ["academy.school.chair-first"])
+        XCTAssertEqual(try headlines(2), ["academy.school.sentence-coat"])
+        XCTAssertEqual(try headlines(3), ["academy.school.wrong-way"])
+        XCTAssertEqual(try headlines(4), [jumpID])
+    }
+
+    /// A beat the reader leafed past comes back the same day once a few hours
+    /// have gone, and not before.
+    func testALeafedPastBeatComesBackAfterAFewHours() throws {
+        let issue = try pack()
+        let inputs = try sceneInputs(issue)
+        func at(_ hour: Int) -> Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: 1, hour: hour))! }
+        func offer(_ hour: Int) throws -> SurfacePage {
+            try XCTUnwrap(try beatOffers(on: at(hour), inputs: inputs, issue: issue).first)
+        }
+        let morning = try offer(7)
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(morning, history: [:], preferences: .none, now: at(7)))
+        var history: [String: SurfaceHistoryRecord] = [:]
+        // The desk served it three times in the first slot, which used to push it out for days.
+        for _ in 0..<3 {
+            history = CuratorVarietyGovernor.recordingServed(keys: morning.curatorServedHistoryKeys, into: history, now: at(7))
+        }
+        XCTAssertFalse(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            try offer(9), history: history, preferences: .none, now: at(9)), "same six-hour slot")
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            try offer(12), history: history, preferences: .none, now: at(12)), "the next slot")
+        XCTAssertTrue(CuratorNoveltyPolicy.allowsAutomaticSurface(
+            try offer(19), history: history, preferences: .none, now: at(19)))
     }
 
     func testDismissalRetiresInvitationButUnresolvedInvitationRemainsEligible() throws {

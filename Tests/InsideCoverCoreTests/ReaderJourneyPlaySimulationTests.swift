@@ -769,7 +769,6 @@ final class ReaderJourneyPlaySimulationTests: XCTestCase {
                 let owed = EarnedReaderTracePolicy.owedEvidencePage(
                     day: today,
                     inputs: inputs,
-                    distressActive: false,
                     now: now
                 )
                 let remembered = BookRememberedPageSourceAdapter().candidates(

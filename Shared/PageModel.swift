@@ -285,7 +285,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookOfYou:
             return "Braid"
         case .askTheBook:
-            return "Closer"
+            return "Chat"
         case .inkrestOfficeHours:
             return "Office Hours"
         case .faeBargain:
@@ -560,7 +560,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookOfYou:
             return ("What I missed", "Tell me what happened differently.")
         case .askTheBook:
-            return ("Your words", "Ask me, argue, or start in the middle. I can follow.")
+            return ("Your words", "Tell me things, ask me things, argue, or start in the middle. I can follow.")
         case .inkrestOfficeHours:
             return ("Your answer", "Tell Inkrest how it went. He'll pretend not to care.")
         case .faeBargain:
@@ -580,7 +580,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .twoReadings:
             return ("Your ruling", "Who read the line right? Point to the words that prove it.")
         case .castBond:
-            return ("Your reading", "Name what changed between them. Or what they are hiding.")
+            return ("Your reading", "Name what changed between them. Or what they're hiding.")
         case .todaysSky:
             return ("What you saw", "What did you see in the sky?")
         case .radio:
@@ -630,7 +630,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return ("This scrap", "What does it remind you of?")
         case .frontMatter:
-            return ("Correct me", "Write what I got wrong. I will keep your correction with this Page.")
+            return ("Correct me", "Write what I got wrong. I'll keep your correction with this Page.")
         case .plainPage:
             return ("Write", "Anything at all. Nobody asked you for this one.")
         }
@@ -706,7 +706,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookOfYou:
             return ("I plait today from what you kept.", "Check the braid. Tug the bit I got wrong.")
         case .askTheBook:
-            return ("Ask me.", "I rummage only where I'm allowed. I leave the Pages I used sticking out.")
+            return ("Let's talk.", "About anything. If it's about you, I only look where I'm allowed, and I leave the Pages I used sticking out.")
         case .inkrestOfficeHours:
             return ("Dr. Inkrest has left the lamp on.", "He asks one question. He can wait.")
         case .faeBargain:
@@ -736,7 +736,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .enchantment:
             return ("A photograph wants a spell.", "Choose one. Give me the picture. Stand back.")
         case .anchor:
-            return ("A real place with a room caught behind it.", "I look at where you are once, when you tap. Stand near enough and the room opens.")
+            return ("A real place with a room caught behind it.", "I look at where you're once, when you tap. Stand near enough and the room opens.")
         case .academyClass:
             return ("The bell is real. The class is now.", "Go in. Do what they set. Leave when it ends.")
         case .elective:
@@ -967,7 +967,7 @@ struct BookPageSource: Codable, Identifiable, Equatable {
         case "grey-page-threat":
             return ("The Grey eats what you stop seeing.", "It can pull a Page from my living memory. It can't touch the raw Page in Stacks.")
         case "world-event-door":
-            return ("Sometimes the whole Book changes its rules.", "When it does, the door appears here. Today it is shut.")
+            return ("Sometimes the whole Book changes its rules.", "When it does, the door appears here. Today it's shut.")
         case "quillquarium-choosing":
             return ("Pens choose back in the Quillquarium.", "Mine is watching your hand. It'll jump when it knows how to disagree with you.")
         default:
@@ -1097,13 +1097,13 @@ enum BookPageSourceRegistry {
             id: "ask-the-book",
             type: .askTheBook,
             title: "Let’s Chat",
-            shortTitle: "Closer",
+            shortTitle: "Chat",
             symbolName: "text.bubble",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
             cadence: "manual",
-            note: "Start a private conversation with me."
+            note: "Talk with me about anything. It stays on your phone."
         ),
         BookPageSource(
             id: "cast-enchantment",
@@ -1163,7 +1163,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when two different things keep meeting",
-            note: "Two kept Pages, the exact line I see, and the evidence underneath. A word repeating itself does not count."
+            note: "Two kept Pages, the exact line I see, and the evidence underneath. A word repeating itself doesn't count."
         ),
         BookPageSource(
             id: "the-book-remembered",
@@ -1202,7 +1202,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "rarely, and only once a thing has happened enough times to be worth saying",
-            note: "The private laws I have worked out about your life, with the days they rest on and what would make me take them back."
+            note: "The private laws I've worked out about your life, with the days they rest on and what would make me take them back."
         ),
         // Same rule as "the-grimoire" above: after "the-book-notices", or it
         // silently steals the Notices adapter's own source.
@@ -1216,7 +1216,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "when something turns up for the first time, comes back, stops coming, or I want you to go and find one",
-            note: "Everything alive I have found in your photographs, what people have always said about it, and the occasional errand."
+            note: "Everything alive I've found in your photographs, what people have always said about it, and the occasional errand."
         ),
         // Same rule again: after "the-book-notices". This one is the Book
         // reading its own paper rather than the reader's life, and it is the
@@ -1230,7 +1230,7 @@ enum BookPageSourceRegistry {
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "when a fold parts, a spine takes a shape, a worn part of me goes quiet, or I want you somewhere you have never been",
+            cadence: "when a fold parts, a spine takes a shape, a worn part of me goes quiet, or I want you somewhere you've never been",
             note: "The marks your own reading leaves on me: which gatherings you have cut open, which ones you keep going back to, and which are still folded shut."
         ),
         // Still after "the-book-notices". This one looks at the map rather than
@@ -1306,7 +1306,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "seldom; when enough of you has been written down",
-            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you: your name in the story, what you are owed, what a finished tale left behind. If I have any of it wrong, write over me."
+            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you: your name in the story, what you're owed, what a finished tale left behind. If I have any of it wrong, write over me."
         ),
         BookPageSource(
             id: "tale-bound",
@@ -1654,7 +1654,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "mornings, mostly",
-            note: "Small believings in my own voice. Some ask for a countersigned agreement: an 'I will,' kept."
+            note: "Small believings in my own voice. Some ask you to countersign a tiny agreement: an 'I'll,' kept."
         ),
         BookPageSource(
             id: "about-you",
@@ -2193,6 +2193,38 @@ struct BookPageMediaAsset: Codable, Identifiable, Equatable {
 }
 
 extension BookPageMediaAsset {
+    /// The images a braid may show for a day: every kept image from that day's pages, once each,
+    /// and never one whose file is no longer there. A braid that points at a missing file shows a
+    /// broken picture, so a file that cannot be found (even after the app's folder has moved) is left
+    /// out and the rest are shown. Library photos are kept as they are; the library finds them.
+    static func displayable(
+        _ assets: [BookPageMediaAsset],
+        limit: Int = 8,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> [BookPageMediaAsset] {
+        var seen = Set<String>()
+        var shown: [BookPageMediaAsset] = []
+        for asset in assets {
+            var asset = asset
+            switch asset.kind {
+            case .renderedImageFile:
+                let resolved = MonthlyIssueMediaPath.relocatingMissing(asset.reference)
+                guard fileExists(resolved) else { continue }
+                asset.reference = resolved
+            case .audioFile:
+                continue
+            case .bundledImage, .photoLibraryAsset:
+                break
+            }
+            guard seen.insert("\(asset.kind.rawValue)|\(asset.reference)").inserted else { continue }
+            shown.append(asset)
+            if shown.count == limit { break }
+        }
+        return shown
+    }
+}
+
+extension BookPageMediaAsset {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         id = try values.decode(String.self, forKey: .id)
@@ -2242,7 +2274,7 @@ enum BookObservationStatus: String, Codable, Equatable {
         case .notQuite, .questioned:
             return "Crooked reading. I lifted the pencil. I'll watch for a truer shape."
         case .doNotRead, .forbidden:
-            return "That path is shut. I will not read you that way again. The pencil is chewing a different corner."
+            return "That path is shut. I won't read you that way again. The pencil is chewing a different corner."
         case .asked:
             return "The question is still open. The pencil is waiting. It hates waiting."
         }
@@ -4365,7 +4397,22 @@ extension BookPage {
         // header; bound, the title heads the leaf and the body is the prose.
         if type == .bookOfYou, let body = BraidPageDetails.details(for: self).body
             .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-            return body
+            // The "Tags:" header is the page's metadata line, shown on the Page itself.
+            // Printed in a binding it read as a sentence somebody had said.
+            let prose = body.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix(BraidPageDetails.headerPrefix) }
+                .joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return prose.nonEmpty ?? body
+        }
+        // A kept quote holds the quote in its prompt and only the author in its
+        // body; bound by the body alone it printed as one name. Never a word lost.
+        if type == .quotes {
+            let quote = promptText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let author = (userInput.isEmpty ? playerReply : userInput).trimmingCharacters(in: .whitespacesAndNewlines)
+            if !quote.isEmpty {
+                return author.isEmpty ? "\u{201C}\(quote)\u{201D}" : "\u{201C}\(quote)\u{201D} \u{2014} \(author)"
+            }
         }
         if type == .plainPage,
            let evidence = primaryReaderReadableEvidence?.text.nonEmpty {
@@ -4387,7 +4434,10 @@ extension BookPage {
     var bindingDisplayTitle: String {
         // Each night's telling has its own name; "Book of You" over every
         // braid in a month read like a filing label.
-        if type == .bookOfYou { return BraidPageDetails.details(for: self).title }
+        if type == .bookOfYou {
+            let title = BraidPageDetails.details(for: self).title
+            return title == "Book of You" ? "The Night's Braid" : title
+        }
         guard type == .plainPage else { return type.title }
         if hasReaderAudioRecording { return "Voice Note" }
         if hasReaderPhotograph { return "Photograph" }

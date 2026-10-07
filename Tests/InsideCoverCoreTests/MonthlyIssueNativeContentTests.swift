@@ -602,7 +602,7 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
 
             let plain = surface(id: "ordinary-leaf", type: .plainPage)
             let dressed = MonthlyIssueMarginaliaDresser.dressing(
-                [plain], day: day, inputs: inputs, now: now, distressActive: false
+                [plain], day: day, inputs: inputs, now: now
             )
             XCTAssertEqual(dressed[0].payload.metadata["authoredMarginaliaAssetID"], mark.assetID)
             let recipe = LeafDecorationLibrary.recipe(

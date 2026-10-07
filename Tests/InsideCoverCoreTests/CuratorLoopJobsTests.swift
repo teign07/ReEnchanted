@@ -126,8 +126,8 @@ final class CuratorLoopJobsTests: XCTestCase {
         XCTAssertFalse(pages.contains { $0.type == .wonderCompass })
     }
 
-    /// A hard day is not the moment to send anybody anywhere.
-    func testTheWayOutStandsDownUnderDistress() {
+    /// A hard day does not excuse the loop: the way out is still owed.
+    func testTheWayOutStillTurnsUnderDistress() {
         let candidates = [
             candidate(.body, score: 99),
             candidate(.letter, score: 98),
@@ -141,7 +141,7 @@ final class CuratorLoopJobsTests: XCTestCase {
             from: candidates, limit: 3, mood: mood, now: now
         ).map(\.page)
 
-        XCTAssertFalse(pages.contains { $0.deskJob == .errand })
+        XCTAssertTrue(pages.contains { $0.deskJob == .errand })
     }
 
     // MARK: - Spice
@@ -537,9 +537,8 @@ final class CuratorLoopJobsTests: XCTestCase {
         )
     }
 
-    /// A hard day is never the moment to hand somebody a map of themselves. The
-    /// debt is deferred, not cancelled.
-    func testTheReturnBeatDefersUnderDistress() {
+    /// The return beat is owed on a hard day as on any other.
+    func testTheReturnBeatStillPaysUnderDistress() {
         let candidates = deskWithNoReasonToReturn()
         var mood = moodWithTheMirrorFloorSatisfied()
         mood.distressActive = true
@@ -549,7 +548,7 @@ final class CuratorLoopJobsTests: XCTestCase {
             from: candidates, limit: 3, mood: mood, now: now
         ).map(\.page)
 
-        XCTAssertFalse(pages.contains { $0.deskJob == .reprise })
+        XCTAssertTrue(pages.contains { $0.deskJob == .reprise })
     }
 
     // MARK: - Turning through the block

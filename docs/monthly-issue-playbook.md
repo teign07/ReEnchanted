@@ -27,6 +27,13 @@ The pack format and the placement contract are in
 references use `{{asset-path:<id>}}` and resolve through the `media` rules and the
 `audio.files` recording sheet in `issue.json`.
 
+The story happens to the Cast, so write down what each of them carries away:
+`castMemories` on scenes, nodes, choices and dated record entries, and
+`recalls` where a later scene should remember an earlier month. Every Cast
+member on a scene's `castIDs` needs at least one memory from it.
+[cast-story-memory.md](cast-story-memory.md) has the contract, and
+`CastStoryMemoryTests` holds a pack to it.
+
 ## 3. Rehearse the whole shelf
 
 ```bash

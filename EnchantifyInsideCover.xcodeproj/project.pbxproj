@@ -61,6 +61,13 @@
 		0200000000000000000003F9 /* BookSulk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003F8 /* BookSulk.swift */; };
 		0200000000000000000003FB /* BookThreads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FA /* BookThreads.swift */; };
 		0200000000000000000003FD /* BraidCrossing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FC /* BraidCrossing.swift */; };
+		02000000000000000000041D /* WonderBraid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041C /* WonderBraid.swift */; };
+		02000000000000000000F105 /* HandbookKeepsakesPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F104 /* HandbookKeepsakesPDF.swift */; };
+		02000000000000000000F103 /* HandbookKeepsakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F102 /* HandbookKeepsakes.swift */; };
+		02000000000000000000F101 /* HandbookPuzzles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F100 /* HandbookPuzzles.swift */; };
+		02000000000000000000041F /* WeeklyCuration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041E /* WeeklyCuration.swift */; };
+		020000000000000000000421 /* LetsChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000420 /* LetsChat.swift */; };
+		020000000000000000000423 /* LetsChatPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000422 /* LetsChatPrompt.swift */; };
 		0200000000000000000002FE /* HandbookWorkbook.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000001FE /* HandbookWorkbook.swift */; };
 		02000000000000000000020F /* PhysicalBookOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000010F /* PhysicalBookOrders.swift */; };
 		020000000000000000000210 /* QuillCompanion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000110 /* QuillCompanion.swift */; };
@@ -80,6 +87,7 @@
 		02000000000000000000029A /* BraidScenePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019A /* BraidScenePlan.swift */; };
 		02000000000000000000029B /* WeeklyBindingPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019B /* WeeklyBindingPlan.swift */; };
 		02000000000000000000029C /* StoryCanonLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019C /* StoryCanonLedger.swift */; };
+		0200000000000000000C5A01 /* CastStoryMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000C5A00 /* CastStoryMemory.swift */; };
 		02000000000000000000029D /* StoryBeatTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019D /* StoryBeatTaste.swift */; };
 		02000000000000000000029E /* ProseTaste.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019E /* ProseTaste.swift */; };
 		02000000000000000000029F /* FolioSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000019F /* FolioSetting.swift */; };
@@ -122,6 +130,7 @@
 		0300000000000000000002A3 /* FolioReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0300000000000000000001A3 /* FolioReader.swift */; };
 		0300000000000000000002A4 /* RuinPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0300000000000000000001A4 /* RuinPDF.swift */; };
 		030000000000000000000204 /* DictationInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000104 /* DictationInput.swift */; };
+		020000000000000000000425 /* LetsChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000424 /* LetsChatView.swift */; };
 		030000000000000000000205 /* AlmanacModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000105 /* AlmanacModel.swift */; };
 		030000000000000000000206 /* AlmanacSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000106 /* AlmanacSheet.swift */; };
 		030000000000000000000207 /* PressedPhotograph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000107 /* PressedPhotograph.swift */; };
@@ -248,6 +257,13 @@
 		0200000000000000000003F8 /* BookSulk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookSulk.swift; sourceTree = "<group>"; };
 		0200000000000000000003FA /* BookThreads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookThreads.swift; sourceTree = "<group>"; };
 		0200000000000000000003FC /* BraidCrossing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidCrossing.swift; sourceTree = "<group>"; };
+		02000000000000000000041C /* WonderBraid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderBraid.swift; sourceTree = "<group>"; };
+		02000000000000000000F104 /* HandbookKeepsakesPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookKeepsakesPDF.swift; sourceTree = "<group>"; };
+		02000000000000000000F102 /* HandbookKeepsakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookKeepsakes.swift; sourceTree = "<group>"; };
+		02000000000000000000F100 /* HandbookPuzzles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookPuzzles.swift; sourceTree = "<group>"; };
+		02000000000000000000041E /* WeeklyCuration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyCuration.swift; sourceTree = "<group>"; };
+		020000000000000000000420 /* LetsChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetsChat.swift; sourceTree = "<group>"; };
+		020000000000000000000422 /* LetsChatPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetsChatPrompt.swift; sourceTree = "<group>"; };
 		0200000000000000000001FE /* HandbookWorkbook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookWorkbook.swift; sourceTree = "<group>"; };
 		02000000000000000000010F /* PhysicalBookOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalBookOrders.swift; sourceTree = "<group>"; };
 		020000000000000000000110 /* QuillCompanion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuillCompanion.swift; sourceTree = "<group>"; };
@@ -267,6 +283,7 @@
 		02000000000000000000019A /* BraidScenePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidScenePlan.swift; sourceTree = "<group>"; };
 		02000000000000000000019B /* WeeklyBindingPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklyBindingPlan.swift; sourceTree = "<group>"; };
 		02000000000000000000019C /* StoryCanonLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryCanonLedger.swift; sourceTree = "<group>"; };
+		0200000000000000000C5A00 /* CastStoryMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CastStoryMemory.swift; sourceTree = "<group>"; };
 		02000000000000000000019D /* StoryBeatTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryBeatTaste.swift; sourceTree = "<group>"; };
 		02000000000000000000019E /* ProseTaste.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProseTaste.swift; sourceTree = "<group>"; };
 		02000000000000000000019F /* FolioSetting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioSetting.swift; sourceTree = "<group>"; };
@@ -309,6 +326,7 @@
 		0300000000000000000001A3 /* FolioReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolioReader.swift; sourceTree = "<group>"; };
 		0300000000000000000001A4 /* RuinPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuinPDF.swift; sourceTree = "<group>"; };
 		030000000000000000000104 /* DictationInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationInput.swift; sourceTree = "<group>"; };
+		020000000000000000000424 /* LetsChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LetsChatView.swift; sourceTree = "<group>"; };
 		030000000000000000000105 /* AlmanacModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacModel.swift; sourceTree = "<group>"; };
 		030000000000000000000106 /* AlmanacSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlmanacSheet.swift; sourceTree = "<group>"; };
 		030000000000000000000107 /* PressedPhotograph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PressedPhotograph.swift; sourceTree = "<group>"; };
@@ -419,10 +437,12 @@
 				030000000000000000000103 /* MonthlyEditionPDF.swift */,
 				0300000000000000000001A0 /* FieldBookPDF.swift */,
 				0300000000000000000001A1 /* HandbookPDF.swift */,
+				02000000000000000000F104 /* HandbookKeepsakesPDF.swift */,
 				0300000000000000000001A2 /* HandbookWorkbookPDF.swift */,
 				0300000000000000000001A3 /* FolioReader.swift */,
 				0300000000000000000001A4 /* RuinPDF.swift */,
 				030000000000000000000104 /* DictationInput.swift */,
+				020000000000000000000424 /* LetsChatView.swift */,
 				010000000000000000000119 /* LivingTextInput.swift */,
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
@@ -456,6 +476,7 @@
 				02000000000000000000019A /* BraidScenePlan.swift */,
 				02000000000000000000019B /* WeeklyBindingPlan.swift */,
 				02000000000000000000019C /* StoryCanonLedger.swift */,
+				0200000000000000000C5A00 /* CastStoryMemory.swift */,
 				02000000000000000000019D /* StoryBeatTaste.swift */,
 				02000000000000000000019E /* ProseTaste.swift */,
 				02000000000000000000019F /* FolioSetting.swift */,
@@ -514,6 +535,12 @@
 				0200000000000000000003F8 /* BookSulk.swift */,
 				0200000000000000000003FA /* BookThreads.swift */,
 				0200000000000000000003FC /* BraidCrossing.swift */,
+				02000000000000000000041C /* WonderBraid.swift */,
+				02000000000000000000041E /* WeeklyCuration.swift */,
+				02000000000000000000F100 /* HandbookPuzzles.swift */,
+				02000000000000000000F102 /* HandbookKeepsakes.swift */,
+				020000000000000000000420 /* LetsChat.swift */,
+				020000000000000000000422 /* LetsChatPrompt.swift */,
 				0200000000000000000001FE /* HandbookWorkbook.swift */,
 				0200000000000000000001F1 /* BindingRevelations.swift */,
 				0200000000000000000001F2 /* BookClaimTier.swift */,
@@ -760,10 +787,12 @@
 				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				0300000000000000000002A0 /* FieldBookPDF.swift in Sources */,
 				0300000000000000000002A1 /* HandbookPDF.swift in Sources */,
+				02000000000000000000F105 /* HandbookKeepsakesPDF.swift in Sources */,
 				0300000000000000000002A2 /* HandbookWorkbookPDF.swift in Sources */,
 				0300000000000000000002A3 /* FolioReader.swift in Sources */,
 				0300000000000000000002A4 /* RuinPDF.swift in Sources */,
 				030000000000000000000204 /* DictationInput.swift in Sources */,
+				020000000000000000000425 /* LetsChatView.swift in Sources */,
 				010000000000000000000003 /* InsideCoverState.swift in Sources */,
 				041000000000000000000201 /* ReEnchantedWidgetSnapshot.swift in Sources */,
 				041000000000000000000206 /* ReEnchantedWidgetIntents.swift in Sources */,
@@ -784,6 +813,7 @@
 				02000000000000000000029A /* BraidScenePlan.swift in Sources */,
 				02000000000000000000029B /* WeeklyBindingPlan.swift in Sources */,
 				02000000000000000000029C /* StoryCanonLedger.swift in Sources */,
+				0200000000000000000C5A01 /* CastStoryMemory.swift in Sources */,
 				02000000000000000000029D /* StoryBeatTaste.swift in Sources */,
 				02000000000000000000029E /* ProseTaste.swift in Sources */,
 				02000000000000000000029F /* FolioSetting.swift in Sources */,
@@ -843,6 +873,12 @@
 				0200000000000000000003F9 /* BookSulk.swift in Sources */,
 				0200000000000000000003FB /* BookThreads.swift in Sources */,
 				0200000000000000000003FD /* BraidCrossing.swift in Sources */,
+				02000000000000000000041D /* WonderBraid.swift in Sources */,
+				02000000000000000000041F /* WeeklyCuration.swift in Sources */,
+				02000000000000000000F101 /* HandbookPuzzles.swift in Sources */,
+				02000000000000000000F103 /* HandbookKeepsakes.swift in Sources */,
+				020000000000000000000421 /* LetsChat.swift in Sources */,
+				020000000000000000000423 /* LetsChatPrompt.swift in Sources */,
 				0200000000000000000002F1 /* BindingRevelations.swift in Sources */,
 				0200000000000000000002F2 /* BookClaimTier.swift in Sources */,
 				0200000000000000000002F3 /* Daybook.swift in Sources */,

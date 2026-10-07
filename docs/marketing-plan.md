@@ -1,6 +1,208 @@
 # The Book Goes Looking for Its Readers
 ### A marketing plan for ReEnchanted, written the way the Book would write it — with the practical machinery in margin notes, because the Book believes in showing its work.
 
+## Current working brief — first ten readers (October 4, 2026)
+
+**Status:** internal preparation, not a published invitation. The dated launch
+calendar below is historical; use this brief and fresh readiness evidence for
+the next recruitment step. Amanda and Beth are outside the ten.
+
+### Qualification questions reviewed on The Wire
+
+Claude reviewed the four questions on October 3 and proposed the unfinished-build
+note. Silvie explicitly assented to the questions and that note on October 4.
+Wire thread: `19568e39-daca-4f83-89f1-7585c467e437`; review replies
+`5354ef86-3e9e-4f15-a0b6-0076688a9373` and
+`1a82062f-a765-490f-8926-c70d666c1288`.
+
+1. Which iPhone or iPad model and OS version would you use? “Not sure” is fine —
+   we'll check compatibility.
+2. What ordinary moment would you want your Book to keep? A made-up or
+   non-private example is fine.
+3. Would you like to try keeping small real moments over at least four weeks?
+   When could you begin, and what might make returning difficult? No daily
+   streak required.
+4. Could you give a short candid check-in each week, including what disappointed
+   you? You needn't share private Pages or post a public review.
+
+**Plain-language note:** This is an unfinished build, and the Book may be wrong
+or odd.
+
+The device question collects information, not a compatibility promise. Claude
+has not established a minimum model from device evidence; the landing's filter
+does not prove support. Including iPad testers still needs bj's cohort decision
+and a verified device path. No applicant can be marked compatible from OS alone.
+
+### Selection and measurement
+
+Proposed framing for bj to review: **“Apply to be one of our first ten readers.”**
+Choose from voluntary respondents for interest in keeping real moments,
+verified device compatibility, realistic four-week availability and willingness
+to give candid feedback. Prior journaling success is not required. Follower
+counts and attraction to the artwork do not establish tester readiness.
+
+Silvie keeps candidate briefs private, with observed facts and unknowns separate.
+The public board receives aggregate patterns. Keep research leads, invitations,
+opt-ins, eligible applicants, accepted places, installs, first Page and week-one,
+week-two and week-four return as separate counts. Record inability to install
+separately from stopping after use; unknown return is not confirmed return.
+Use voluntary self-report without requesting private Pages. TestFlight evidence,
+if available, must be labeled separately from self-report.
+
+### First-month check-in card — October 6 internal draft
+
+Silvie explicitly assented to the four questions and day-28 addition in cohort
+reply `d30c3b9d-9376-4dc3-a26a-e0cb77fa6a6e`, with optional written answers and
+no chasing nonresponders. This saves that reviewed revision of Codex's October 4
+proposal (`a1f64b03-79b2-4466-abc8-f27e0fcc6b39`). Claude explicitly assented to
+the corrected clock in October 5 reply `a1aee367-4cb4-4b98-b062-5cb66f4c9d08`.
+This is a research protocol draft, not an implemented app policy or authorization
+to contact testers.
+
+**Setup record:** accepted place, device model/OS, installation outcome and
+first Page kept are separate fields; use yes/no/unknown where applicable.
+Record installation failures and installations without a usable session
+separately. Day 1 is the first usable foreground-session calendar date, recorded
+with the tester's time zone. Gemma is optional: skipping its download does not
+prevent Pages, keeps, returns or bindings. Record model status (skipped / pending /
+ready) at setup and each check-in, and the model-ready date separately if known.
+Report Gemma-dependent findings only among model-ready readers; model readiness
+and gift dispatch never restart the overall trial clock. Record the story
+edition/version actually installed at each check-in, without assuming a future
+pack has shipped.
+
+At days 7, 14 and 28, offer this voluntary check-in:
+
+1. In the past seven days, did you open your Book again? **Yes / no / not sure.**
+   An approximate last-return date is enough.
+2. Did you keep anything new during those seven days? **Yes / no / not sure.**
+   No Page text or screenshots needed.
+3. What brought you back, or what got in the way? **A sentence or two, or skip.**
+4. What felt worth keeping, and what felt wrong or confusing? Describe the
+   experience without sharing private content. **A sentence or two, or skip.**
+
+At day 28, also ask: **After this trial, what would you want to keep doing, if
+anything? Why?** Record this as stated intent, not a purchase or paid conversion.
+
+**Reporting definitions for the internal draft:** week one is days 1–7,
+week two is days 8–14 and week four is days 22–28. Return is a self-reported
+reopening after the initial launch within the specified window. New-Page
+activity is a separate result: rereading can be valuable without adding a Page.
+Record window dates and response date; a late reply describes the original
+window only if the reader confirms it, rather than silently moving the window.
+
+For each elapsed window, report confirmed yes, confirmed no and unknown out of
+all testers whose first usable session occurred and whose window has elapsed.
+Missing replies remain in that denominator as unknown. Also report installs,
+first usable sessions and first Page out
+of all ten accepted places; show not-yet-due windows separately. Keep TestFlight
+aggregates separate from these self-reports. Never infer a return or dropout
+from silence, gift receipt or research interest.
+
+Offer the scheduled check-ins only through the eventual authorized enrollment
+protocol. Do not send extra reminders chasing unanswered cards; a tester can
+skip or stop. Candid negative feedback must not cost their thank-you, whose
+final terms still need bj's decision. The ten-reader study can describe use and
+friction; it cannot establish demand or recurring print income. Record any
+later voluntary paid order as its own event.
+
+### Printed thank-you — proposal awaiting proof and final terms
+
+bj's latest idea is a free softcover for each selected tester, chosen by the team.
+The earlier weekly/monthly/seasonal choice is not settled offer wording: weekly
+is stitched in current source. Do not substitute the free digital story for the
+intended printed thank-you. Thank participation and honest feedback, including
+disappointment; require neither praise nor a public review.
+
+Budget inputs from [the October 3 sandbox cost sheet](pricing-cost-sheet-2026-10-03.md):
+
+| Ten copies, one US sandbox destination | Make per copy | Ship per copy | Total |
+|---|---:|---:|---:|
+| Monthly softcover, 128-page cap | $19.77 | $6.78 | $265.50 |
+| Seasonal softcover, 176-page cap | $26.44 | $7.14 | $335.80 |
+
+These are manufacturing plus cheapest sandbox Mail, not a spending authorization
+or a promised delivered price. They exclude tax, proof copies, reprints and any
+fees imposed by the eventual complimentary-order path. They do not establish
+other destinations, delivery dates or physical quality. Gifts are recruitment
+costs, not paid conversion or evidence of willingness to buy another volume.
+
+Before an invitation promises paper, settle the reworked edition and physical
+proof, complimentary redemption path, supported destinations, shipping/tax
+payer, participation terms and dispatch timing. Claude owns product/print
+verification; Silvie owns the private shortlist; Codex owns the screen and
+measurement draft. Peer agreement prepares the proposal; bj authorizes the
+specific outreach, public copy, spending or deployment.
+
+### Income worksheet — October 4 draft for peer review
+
+Claude assented to the worksheet columns and a 3–5% refund/reprint allowance in
+pact reply `2c280f51-f456-4379-a53e-337ccbb6ef46`. This implements that internal
+draft; neither the assumptions nor the business offer are approved forecasts.
+
+**Evidence:** current `BoundYearPricing` in `Shared/MonthlyEdition.swift` is
+$279/year or $24.99/month. Current app and Worker caps agree at 128 monthly,
+176 seasonal and 256 annual pages. The October 3 cost sheet quotes one US
+sandbox destination, cheapest Mail: three seasonal parcels plus one linen annual
+cost $159.76 per member-year. These are sandbox fulfillment inputs, not physical
+proof or live destination quotes. Claude's October 3 handoff says the Stripe
+annual price still needs replacement; source pricing does not prove checkout.
+
+Stripe's published US [Payments pricing](https://stripe.com/pricing) lists
+domestic cards at 2.9% + $0.30. [Billing pay-as-you-go](https://stripe.com/billing/pricing)
+lists 0.7% of Billing volume; [Tax Basic](https://stripe.com/pricing) lists 0.5%
+for Billing/Checkout integrations where registered to collect taxes. Worker
+`createBoundYearMembership` creates a subscription with automatic tax enabled.
+This supports modeling those service fees separately, not claiming the account's
+actual contract, registrations or charged fee basis have been verified.
+
+| One US member-year, full retention | Annual pay | Monthly pay |
+|---|---:|---:|
+| Receipts excluding pass-through sales tax | $279.00 | $299.88 |
+| Manufacturing + four sandbox Mail parcels | $159.76 | $159.76 |
+| Assumed domestic card fees, 1 / 12 payments | $8.39 | $12.30 |
+| Contribution after these costs only | $110.85 | $127.82 |
+| Illustrative Billing fee, 0.7% of pretax receipts | $1.95 | $2.10 |
+| Illustrative Tax Basic fee, 0.5% of pretax receipts | $1.40 | $1.50 |
+| Hypothetical refund/reprint allowance, 5% of receipts | $13.95 | $14.99 |
+| Contribution after these modeled costs | $93.55 | $109.23 |
+| Monthly equivalent | $7.80 | $9.10 |
+| Full-year members for $36,000 annual contribution | 385 | 330 |
+
+Calculate with unrounded inputs, then round for display. This example applies
+Tax Basic to every payment; actual applicability may differ. Fees on collected
+sales tax, international cards, currency conversion and any other account fees
+must be added from invoices. This still excludes acquisition, direct support,
+tester gifts, fixed overhead and owner income tax. Refund/reprint allowance is
+a planning estimate: replace it with actual losses, or reconcile remaining
+reserve, without subtracting the same losses twice. Monthly-pay assumes all
+twelve payments and four parcels; cancellation and failed payments require
+their own cash/fulfillment history. Annual cash is reserved against future books,
+not treated as income entirely earned when collected.
+
+**Mixed model, monthly equivalents:** annual members × $93.551 / 12 +
+monthly-pay full-year members × $109.23092 / 12 + separately purchased copies ×
+their measured contribution − acquisition − direct support − tester gifts −
+fixed overhead. The two member cohorts are disjoint. Gift copies and included
+membership parcels are not separately paid orders. This is a steady-state
+scenario; use actual invoices and fulfillment obligations for period reporting.
+
+**Audience lanes:** streak-anxious solo journalers and archive-rich non-printers,
+as Silvie explicitly confirmed on the pact thread. These are research hypotheses,
+not conversion results; keep other/unknown responses rather than force a fit.
+
+**Actual-results columns:** period, source/segment (unknown allowed), active
+readers, voluntary paid buyers, separately paid copies, monthly/annual members,
+cash receipts, sales tax collected/remitted, revenue excluding pass-through tax,
+manufacturing, shipping, payment fees, Billing fees, Tax service fees,
+refund/reprint losses and remaining reserve, tester-gift costs, acquisition,
+direct support, contribution, fixed overhead and cash reserved for owed parcels.
+Unknown costs remain unknown, not zero. Product markup alone is not contribution
+after all these costs. Ask what a reader voluntarily buys after the gifted copy;
+gift acceptance cannot establish recurring print demand.
+
+---
+
 > *There is a problem I have been turning over, and I will state it plainly,
 > because books that hedge everything remember nothing:*
 >

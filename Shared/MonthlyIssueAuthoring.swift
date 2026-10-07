@@ -281,6 +281,109 @@ struct MonthlyIssueAuthoringManifest: Codable, Identifiable, Equatable {
     }
 }
 
+// MARK: - Story beats give way to the next beat and to the recap
+
+extension MonthlyIssueContentAtom {
+    private var worldEventQueries: [AuthoredContentWorldEventQuery] {
+        gate.allOf.compactMap { predicate in
+            if case .worldEvent(let query) = predicate { return query }
+            return nil
+        }
+    }
+
+    /// The live day this atom's own window opens on.
+    var firstLiveDay: Int? { worldEventQueries.compactMap(\.minimumLiveDay).min() }
+    var lastLiveDay: Int? { worldEventQueries.compactMap(\.maximumLiveDay).max() }
+
+    var isWeeklyRecap: Bool { channel == .bleedArticle && tags.contains("weekly-recap") }
+
+    /// A story beat the reader can be handed and leaf past. Field missions and
+    /// the returns they open keep their own offers, and are never replaced.
+    var isStoryBeat: Bool {
+        channel == .storyScene
+            && occurrence.kind == .untilResolved
+            && interaction != .fieldMission
+            && interaction != .readerEvidence
+            && missionReturn == nil
+            && placement.lifecycleStage == .live
+    }
+}
+
+extension MonthlyIssueAuthoringManifest {
+    /// Story beats that no longer surface on this live day, because
+    /// - a later beat's window has opened and it can actually be offered (it
+    ///   neither follows from this one nor waits on anything), or
+    /// - a weekly recap day has arrived, and the beat opened before it: the
+    ///   recap has told that part of the story.
+    /// An unfinished multi-part story keeps its own continuation window and is
+    /// never retired here; callers check that against the ledger.
+    func supersededStoryBeatIDs(
+        atLiveDay liveDay: Int?,
+        ledger: AuthoredContentReceiptLedger = .empty,
+        scope: AuthoredContentScope = AuthoredContentScope(scopeID: nil, runID: nil),
+        now: Date = Date()
+    ) -> Set<String> {
+        guard let liveDay else { return [] }
+        let beats = content.filter(\.isStoryBeat)
+        let recapDays = content.filter(\.isWeeklyRecap).compactMap(\.firstLiveDay).filter { $0 <= liveDay }
+
+        func follows(_ later: MonthlyIssueContentAtom, from earlier: MonthlyIssueContentAtom) -> Bool {
+            var seen = Set<String>()
+            var stack = later.dependencies.map(\.contentID)
+            while let next = stack.popLast() {
+                guard seen.insert(next).inserted else { continue }
+                if next == earlier.id { return true }
+                stack.append(contentsOf: content.first { $0.id == next }?.dependencies.map(\.contentID) ?? [])
+            }
+            return false
+        }
+
+        var superseded = Set<String>()
+        for beat in beats {
+            guard let opens = beat.firstLiveDay else { continue }
+            if recapDays.contains(where: { opens < $0 }) {
+                superseded.insert(beat.id)
+                continue
+            }
+            let replacedByLater = beats.contains { later in
+                guard later.id != beat.id,
+                      let laterOpens = later.firstLiveDay, laterOpens > opens, laterOpens <= liveDay,
+                      later.lastLiveDay.map({ $0 >= liveDay }) ?? true,
+                      !later.dependencies.contains(where: { $0.failurePolicy == .wait }),
+                      !follows(later, from: beat) else { return false }
+                return true
+            }
+            if replacedByLater { superseded.insert(beat.id) }
+        }
+        // A story the reader is partway through is never taken from them, and
+        // neither is the beat that continues one they opened: a recap closes
+        // what they were not following.
+        let inProgress = Set(content.filter {
+            $0.hasOpenStoryProgress(scope: scope, ledger: ledger, now: now)
+        }.map(\.id))
+        let opened = Set(ledger.receipts.filter {
+            $0.state == .opened && $0.scope.scopeID == scope.scopeID && $0.scope.runID == scope.runID
+                && $0.recordedAt <= now
+        }.map(\.contentID))
+        guard !inProgress.isEmpty || !opened.isEmpty else { return superseded }
+        return superseded.filter { id in
+            guard let beat = content.first(where: { $0.id == id }) else { return true }
+            return !inProgress.contains(id) && !dependsOnAny(of: opened, beat)
+        }
+    }
+
+    private func dependsOnAny(of earlier: Set<String>, _ later: MonthlyIssueContentAtom) -> Bool {
+        var seen = Set<String>()
+        var stack = later.dependencies.map(\.contentID)
+        while let next = stack.popLast() {
+            guard seen.insert(next).inserted else { continue }
+            if earlier.contains(next) { return true }
+            stack.append(contentsOf: content.first { $0.id == next }?.dependencies.map(\.contentID) ?? [])
+        }
+        return false
+    }
+}
+
 // MARK: - Authoring validation
 
 enum MonthlyIssueAuthoringValidationMode: String, Codable, Equatable {
@@ -694,6 +797,19 @@ enum MonthlyIssueAuthoringValidator {
                         if let source = choice.requiresFindingContentID, !known.contains(source) {
                             add(.invalidContentReference, "Finding choice \(choice.id) names an unknown finding.", atom.id, .error)
                         }
+                    }
+                }
+            }
+            if scene.nodes?.contains(where: { !($0.recalls ?? []).isEmpty }) == true {
+                if (pack.minimumRuntimeVersion ?? 1) < 11 {
+                    add(.invalidContentReference, "Cast recalls require runtime version 11.", atom.id, .error)
+                }
+                for node in scene.nodes ?? [] {
+                    for recall in node.recalls ?? [] where recall.marker.isEmpty
+                        || node.body.components(separatedBy: recall.marker).count != 2
+                        || recall.options.isEmpty
+                        || recall.options.contains(where: { isBlank($0.key) || isBlank($0.line) }) {
+                        add(.invalidContentReference, "Recall \(recall.marker) in \(node.id) needs one marker in the body and complete options.", atom.id, .error)
                     }
                 }
             }
@@ -1228,6 +1344,9 @@ enum MonthlyIssuePageMetadata {
     static let mayReserve = "authoredIssueMayReserve"
     static let claimHistoryKey = "authoredIssueClaimHistoryKey"
 
+    /// Story beats are offered again after a few hours rather than once a day.
+    static let storyBeatSlotHours = 6
+
     static func dailyClaimHistoryKey(issueID: String, dayID: String) -> String {
         "authored-issue-claim:\(issueID):\(dayID)"
     }
@@ -1381,7 +1500,12 @@ enum MonthlyIssuePageCuration {
                 receiptLedger: inputs.authoredContentReceipts,
                 contentScope: scope
             )
+            let supersededBeat = atom.isStoryBeat
+                && manifest.supersededStoryBeatIDs(
+                    atLiveDay: snapshot.liveDay, ledger: inputs.authoredContentReceipts,
+                    scope: scope, now: now).contains(atom.id)
             guard !atom.isClosed(scope: scope, ledger: inputs.authoredContentReceipts, now: now),
+                  !supersededBeat,
                   atom.gate.allows(in: gateContext, contentID: atom.id),
                   atom.occurrence.allows(
                       contentID: atom.id,
@@ -1453,6 +1577,9 @@ enum MonthlyIssuePageCuration {
         let mayReserve = (snapshot.stage == .live
             && (atom.priority == .spine || atom.priority == .milestone))
             || isFirstShowing
+            // The month's story beats are what the issue is for: whichever is
+            // current owns a chair, however its priority was authored.
+            || (snapshot.stage == .live && atom.isStoryBeat)
         var metadata = page.payload.metadata
         metadata[MonthlyIssuePageMetadata.issueID] = manifest.id
         metadata[MonthlyIssuePageMetadata.issueNumber] = "\(manifest.issueNumber)"
@@ -1474,10 +1601,13 @@ enum MonthlyIssuePageCuration {
         // current node one automatic offer per day until the manifest's own
         // window or final disposition closes it. Advancing a node can still
         // continue in the same sitting.
+        // A story beat the reader leafed away from comes back: one automatic
+        // offer per six-hour slot. The slot, not the time since the desk last
+        // held the page, decides it, so opening the app often cannot starve it.
         if atom.channel == .storyScene, atom.occurrence.kind == .untilResolved {
             let node = metadata["authoredStoryNodeID"] ?? "leaf"
             metadata["automaticRecurrenceSlot"] =
-                "authored:\(manifest.id):\(snapshot.runID):\(atom.id):\(node):\(day.id)"
+                "authored:\(manifest.id):\(snapshot.runID):\(atom.id):\(node):\(SurfaceCadence.slotID(for: now, hours: MonthlyIssuePageMetadata.storyBeatSlotHours))"
         }
         let missionOffer = atom.missionReturn != nil && atom.interaction == .fieldMission
         metadata["authoredMissionOffer"] = missionOffer ? "true" : "false"
@@ -1492,8 +1622,10 @@ enum MonthlyIssuePageCuration {
         metadata[MonthlyIssuePageMetadata.narrativeVoice] = atom.voice.rawValue
         if mayReserve {
             metadata[MonthlyIssuePageMetadata.mayReserve] = "true"
-            metadata[MonthlyIssuePageMetadata.claimHistoryKey] =
-                MonthlyIssuePageMetadata.dailyClaimHistoryKey(
+            metadata[MonthlyIssuePageMetadata.claimHistoryKey] = atom.isStoryBeat
+                ? MonthlyIssuePageMetadata.dailyClaimHistoryKey(issueID: manifest.id, dayID: day.id)
+                    + ":beat:" + SurfaceCadence.slotID(for: now, hours: MonthlyIssuePageMetadata.storyBeatSlotHours)
+                : MonthlyIssuePageMetadata.dailyClaimHistoryKey(
                     issueID: manifest.id,
                     dayID: day.id
                 )

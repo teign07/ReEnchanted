@@ -8,7 +8,7 @@
   "marginaliaPack": {
     "id": "count-unbound-margins",
     "displayName": "October 2026 · The Count Unbound",
-    "version": "1.1",
+    "version": "1.2",
     "author": "The Book",
     "availability": "userImported",
     "supportedTemplates": [
@@ -329,7 +329,7 @@
       },
       {
         "id": "october_2026_bat_in_flight",
-        "assetName": "{{asset-path:count-unbound.seasonal.bat-in-flight}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.bat-in-flight}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -379,7 +379,7 @@
       },
       {
         "id": "october_2026_black_cat",
-        "assetName": "{{asset-path:count-unbound.seasonal.black-cat}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.black-cat}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -429,7 +429,7 @@
       },
       {
         "id": "october_2026_witch_hat",
-        "assetName": "{{asset-path:count-unbound.seasonal.witch-hat}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.witch-hat}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -479,7 +479,7 @@
       },
       {
         "id": "october_2026_harvest_pumpkin",
-        "assetName": "{{asset-path:count-unbound.seasonal.harvest-pumpkin}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.harvest-pumpkin}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -527,7 +527,7 @@
       },
       {
         "id": "october_2026_jack_o_lantern",
-        "assetName": "{{asset-path:count-unbound.seasonal.jack-o-lantern}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.jack-o-lantern}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -574,7 +574,7 @@
       },
       {
         "id": "october_2026_lantern",
-        "assetName": "{{asset-path:count-unbound.seasonal.lantern}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.lantern}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -624,7 +624,7 @@
       },
       {
         "id": "october_2026_broom",
-        "assetName": "{{asset-path:count-unbound.seasonal.broom}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.broom}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -671,7 +671,7 @@
       },
       {
         "id": "october_2026_cauldron",
-        "assetName": "{{asset-path:count-unbound.seasonal.cauldron}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.cauldron}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -718,7 +718,7 @@
       },
       {
         "id": "october_2026_spiderweb",
-        "assetName": "{{asset-path:count-unbound.seasonal.spiderweb}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.spiderweb}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -765,7 +765,7 @@
       },
       {
         "id": "october_2026_candle",
-        "assetName": "{{asset-path:count-unbound.seasonal.candle}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.candle}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -815,7 +815,7 @@
       },
       {
         "id": "october_2026_old_key",
-        "assetName": "{{asset-path:count-unbound.seasonal.old-key}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.old-key}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -864,7 +864,7 @@
       },
       {
         "id": "october_2026_crow",
-        "assetName": "{{asset-path:count-unbound.seasonal.crow}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.crow}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -913,7 +913,7 @@
       },
       {
         "id": "october_2026_night_moth",
-        "assetName": "{{asset-path:count-unbound.seasonal.night-moth}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.night-moth}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -962,7 +962,7 @@
       },
       {
         "id": "october_2026_crescent_moon",
-        "assetName": "{{asset-path:count-unbound.seasonal.crescent-moon}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.crescent-moon}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1009,7 +1009,7 @@
       },
       {
         "id": "october_2026_oak_leaf",
-        "assetName": "{{asset-path:count-unbound.seasonal.oak-leaf}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.oak-leaf}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1056,7 +1056,7 @@
       },
       {
         "id": "october_2026_maple_leaf",
-        "assetName": "{{asset-path:count-unbound.seasonal.maple-leaf}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.maple-leaf}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1105,7 +1105,7 @@
       },
       {
         "id": "october_2026_acorn",
-        "assetName": "{{asset-path:count-unbound.seasonal.acorn}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.acorn}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1154,7 +1154,7 @@
       },
       {
         "id": "october_2026_apple",
-        "assetName": "{{asset-path:count-unbound.seasonal.apple}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.apple}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1201,7 +1201,7 @@
       },
       {
         "id": "october_2026_mushroom",
-        "assetName": "{{asset-path:count-unbound.seasonal.mushroom}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.mushroom}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",
@@ -1248,7 +1248,7 @@
       },
       {
         "id": "october_2026_marigold",
-        "assetName": "{{asset-path:count-unbound.seasonal.marigold}}",
+        "assetName": "{{asset-path:count-unbound.seasonal.v2.marigold}}",
         "kind": "doodle",
         "tags": [
           "monthly-content",

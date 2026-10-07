@@ -84,3 +84,40 @@ final class LeafInvitationTests: XCTestCase {
         }
     }
 }
+
+/// Long authored scenes with a choice are read on the opened Page, where the
+/// choices are. The leaves carry a short taste and say that a choice waits.
+final class AuthoredChoiceEnticementTests: XCTestCase {
+    private func scene(words: Int, interaction: MonthlyIssueInteractionKind) -> SurfacePage {
+        let paragraph = (0..<20).map { "word\($0)" }.joined(separator: " ") + "."
+        let body = (0..<(words / 20)).map { _ in paragraph }.joined(separator: "\n\n")
+        return SurfacePage(
+            id: "probe-scene",
+            type: .narrativeOS,
+            sourceID: "probe",
+            score: 10,
+            prompt: "probe",
+            detail: "probe",
+            payload: BookPagePayload(headline: "probe", body: body, metadata: [
+                MonthlyIssuePageMetadata.authoredStoryScene: "true",
+                MonthlyIssuePageMetadata.interaction: interaction.rawValue
+            ])
+        )
+    }
+
+    func testALongSceneWithAChoiceShowsATasteAndSaysAChoiceWaits() throws {
+        let page = scene(words: 800, interaction: .choice)
+        let taste = try XCTUnwrap(page.authoredChoiceEnticement)
+        XCTAssertLessThan(taste.split(whereSeparator: \.isWhitespace).count, 160)
+        XCTAssertTrue(taste.hasPrefix(page.payload.body.components(separatedBy: "\n\n")[0]))
+        XCTAssertTrue(taste.hasSuffix("Open the page to read on."))
+        XCTAssertTrue(taste.contains("a choice waits"))
+        XCTAssertEqual(page.leafInvitation?.title, "Read on, then choose")
+    }
+
+    func testAShortSceneOrOneWithoutAChoiceReadsWholeOnTheLeaves() {
+        XCTAssertNil(scene(words: 100, interaction: .choice).authoredChoiceEnticement)
+        XCTAssertNil(scene(words: 800, interaction: .none).authoredChoiceEnticement)
+        XCTAssertEqual(scene(words: 100, interaction: .choice).leafInvitation?.title, "Make the choice")
+    }
+}

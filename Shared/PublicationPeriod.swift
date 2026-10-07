@@ -596,3 +596,229 @@ enum PublicationPeriodCatalog {
             || page.sourceID == "annual-edition"
     }
 }
+
+// MARK: - Mentioning paper
+
+/// When the Book brings up a printed edition, and what it says.
+///
+/// Every mention is attached to something the reader was just handed for free
+/// (an issue, a month, a season, a year), so it reads as the Book wanting to
+/// be a real object, never as a gate. The single edition is always the first
+/// thing offered; the Bound Year is the second sentence, not the headline.
+/// Weeklies and months stay small. Seasons and years are the big moments, and
+/// a year outranks the season that closes with it so the reader is never
+/// asked twice in the same week.
+enum EditionOfferPolicy {
+    /// Days after a season closes that the Book still brings it up.
+    static let seasonWindowDays = 10
+    /// Days after a year closes. Longer: January is when people look back.
+    static let annualWindowDays = 21
+    /// A season shorter than this is a few weeks of a reader who just began.
+    static let seasonMinimumPages = 24
+    /// A year shorter than this is a season with a bigger name.
+    static let annualMinimumPages = 80
+
+    struct Offer: Equatable {
+        var cadence: PublicationEditionKind
+        var candidate: PublicationCandidate
+        /// "October to December" or "2026".
+        var label: String
+        var pageCount: Int
+        /// The first instant the Book may mention it.
+        var opensAt: Date
+
+        var periodRawValue: String { candidate.period.id.rawValue }
+    }
+
+    /// The closed season or year worth talking about today, if there is one.
+    /// A year wins over the season that closes with it.
+    static func current(
+        days: [BookDay],
+        today: BookDay? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Offer? {
+        annual(days: days, today: today, now: now, calendar: calendar)
+            ?? season(days: days, today: today, now: now, calendar: calendar)
+    }
+
+    static func season(
+        days: [BookDay],
+        today: BookDay? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Offer? {
+        let candidates = PublicationPeriodCatalog.calendarSeasons(
+            days: days, today: today, now: now, calendar: calendar
+        )
+        guard let candidate = latestInWindow(
+            candidates,
+            windowDays: seasonWindowDays,
+            minimumPages: seasonMinimumPages,
+            now: now,
+            calendar: calendar
+        ) else { return nil }
+        // The year closes with its last season. When the year is itself
+        // worth mentioning, it does the talking.
+        if let year = annual(days: days, today: today, now: now, calendar: calendar),
+           year.candidate.period.endDate == candidate.period.endDate {
+            return nil
+        }
+        let last = calendar.date(byAdding: .second, value: -1, to: candidate.period.endDate)
+            ?? candidate.period.endDate
+        return Offer(
+            cadence: .seasonal,
+            candidate: candidate,
+            label: "\(monthName(candidate.period.startDate, calendar: calendar)) to \(monthName(last, calendar: calendar))",
+            pageCount: candidate.eligiblePageCount,
+            opensAt: candidate.period.endDate
+        )
+    }
+
+    static func annual(
+        days: [BookDay],
+        today: BookDay? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Offer? {
+        let candidates = PublicationPeriodCatalog.calendarYears(
+            days: days, today: today, now: now, calendar: calendar
+        )
+        guard let candidate = latestInWindow(
+            candidates,
+            windowDays: annualWindowDays,
+            minimumPages: annualMinimumPages,
+            now: now,
+            calendar: calendar
+        ) else { return nil }
+        return Offer(
+            cadence: .annual,
+            candidate: candidate,
+            label: "\(calendar.component(.year, from: candidate.period.startDate))",
+            pageCount: candidate.eligiblePageCount,
+            opensAt: candidate.period.endDate
+        )
+    }
+
+    /// Whether the month-close Page should step aside because a season or a
+    /// year closed with that month and has its own, bigger, Page.
+    static func monthStepsAside(
+        days: [BookDay],
+        today: BookDay? = nil,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        current(days: days, today: today, now: now, calendar: calendar) != nil
+    }
+
+    private static func latestInWindow(
+        _ candidates: [PublicationCandidate],
+        windowDays: Int,
+        minimumPages: Int,
+        now: Date,
+        calendar: Calendar
+    ) -> PublicationCandidate? {
+        candidates
+            .filter { candidate in
+                guard candidate.isCompleted,
+                      candidate.eligiblePageCount >= minimumPages,
+                      let close = calendar.date(
+                        byAdding: .day, value: windowDays, to: candidate.period.endDate
+                      ) else { return false }
+                return now >= candidate.period.endDate && now < close
+            }
+            .max { $0.period.endDate < $1.period.endDate }
+    }
+
+    private static func monthName(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMMM"
+        return formatter.string(from: date)
+    }
+}
+
+/// What the Book says. Held to the Book's voice: contractions, short, an
+/// object that wants things. The Book has no hands, so the press and the
+/// Bindery do the making. Prices are the Bound Year's own constants, so the
+/// words can't drift from the till.
+enum EditionOfferCopy {
+    static func seasonHeadline(label: String) -> String {
+        "\(label) Wants a Spine"
+    }
+
+    static func seasonBody(label: String, pageCount: Int, isMember: Bool) -> String {
+        let finished = """
+        \(label) is finished. That's \(pageCount) pages across three months: the weather you wrote down, the small things that kept turning up, the days you almost let go.
+
+        I'd like to be a real book for this one. Thick paper, a spine, your name on it. It's the biggest I get short of the whole year.
+        """
+        if isMember {
+            return finished + "\n\nThe Bound Year's already posting you the books it owes. If you want this one as an extra, or for somebody else, the Bindery will print it."
+        }
+        return finished + """
+
+
+        You can order just this one. Or start the Bound Year and I'll post you four a year without being asked: three seasons and a hardcover to close the year. It counts from the first of the month you join, so the sooner you start, the more of your year goes in. \(BoundYearPricing.annualDisplayPrice) a year, or \(BoundYearPricing.monthlyDisplayPrice) a month.
+        """
+    }
+
+    static func annualHeadline(label: String) -> String {
+        "\(label) Wants Real Boards"
+    }
+
+    static func annualBody(label: String, pageCount: Int, isMember: Bool) -> String {
+        let finished = """
+        \(label) is finished, and it's \(pageCount) pages thick. A whole year of you, in order, from the first thing you kept to the last.
+
+        This is the one I most want to be real. Hardcover, sewn, the year on the spine. It'd sit on a shelf as if it had always lived there.
+        """
+        if isMember {
+            return finished + "\n\nYour Bound Year's hardcover comes in its own time. If you want this calendar year as well, or one for somebody else, the Bindery will print it."
+        }
+        return finished + """
+
+
+        Order just \(label) if that's all you want. Or start a Bound Year and I'll post you the next four: three seasons, then the hardcover. \(BoundYearPricing.annualDisplayPrice) for the year, or \(BoundYearPricing.monthlyDisplayPrice) a month.
+        """
+    }
+
+    /// Appended to the month-close Page. The month stays the headline.
+    static func monthlyAddendum(joinMonth: String, isMember: Bool) -> String {
+        if isMember {
+            return "\n\nWant it on paper too? The press will print it. It's yours either way."
+        }
+        return "\n\nWant it on paper? The press will print it. Or start the Bound Year instead: four books a year, counted from the first of the month you join, so \(joinMonth) would go in the first one. \(BoundYearPricing.monthlyDisplayPrice) a month or \(BoundYearPricing.annualDisplayPrice) a year."
+    }
+
+    /// The weekly Page's closing paragraph: the month as a book in progress.
+    /// Small on purpose. It sells nothing; it makes the month visible.
+    static func weeklySpineLine(monthName: String, monthPageCount: Int) -> String {
+        "\(monthName)'s book is \(monthPageCount) \(monthPageCount == 1 ? "page" : "pages") thick so far. It closes on the 1st, and then it can be paper."
+    }
+
+    /// The quiet line under a single order. A door, not a banner.
+    static func asideLine(for cadence: PublicationEditionKind) -> String {
+        switch cadence {
+        case .weekly:
+            return "Four books a year instead of one at a time? The Bound Year starts at \(BoundYearPricing.monthlyDisplayPrice) a month."
+        case .monthly:
+            return "Rather not do this every month? The Bound Year posts four books a year, from \(BoundYearPricing.monthlyDisplayPrice) a month."
+        case .seasonal:
+            return "Want the next three seasons posted without asking? That's the Bound Year, \(BoundYearPricing.annualDisplayPrice) a year."
+        case .annual, .special:
+            return "Want next year's four books posted without asking? That's the Bound Year, \(BoundYearPricing.annualDisplayPrice) a year."
+        }
+    }
+}
+
+extension PublicationPeriodID {
+    /// The inverse of `rawValue`, so a Page can carry a period in its
+    /// metadata and the app can find it again.
+    init?(rawValue: String) {
+        let parts = rawValue.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 3, let recipe = PublicationPeriodRecipe(rawValue: parts[0]) else { return nil }
+        self.init(recipe: recipe, startDayID: parts[1], endDayID: parts[2])
+    }
+}

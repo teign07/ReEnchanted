@@ -112,7 +112,7 @@ async function fixture(t) {
     sub.latest_invoice = { id: sub.latest_invoice.id, subscription: id, paid: true, status: "paid", amount_paid: 100,
       payment_intent: { client_secret: "pi_test_secret", status: "succeeded", latest_charge: { paid: true, amount: 100, amount_refunded: 0, refunded: false, disputed: false } } };
   }
-  return { send, pay, kv, storage, posts, customers, subscriptions, restart: () => objects.clear(),
+  return { env, send, pay, kv, storage, posts, customers, subscriptions, restart: () => objects.clear(),
     failKV: prefix => { failKV = prefix; }, loseResponse: path => { loseResponse = path; }, failReceipt: key => { failReceipt = key; },
     paymentWinsVoid: () => { paymentWinsVoid = true; } };
 }
@@ -210,6 +210,25 @@ test("gift claims require a settled payment for the correct subscription and pri
   const claimed = await f.send(path);
   assert.equal(claimed.status, 200);
   assert.equal(claimed.body.membershipID, id);
+});
+test("a price change charges new annual buyers the current price and preserves settled legacy gifts", async t => {
+  const f = await fixture(t);
+  const oldGift = await f.send("/gifts/bound-year", { ...purchase, senderName: "Sender", recipientName: "Recipient" });
+  const oldID = oldGift.body.membership.membershipID;
+  f.pay(oldID);
+  f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_year_new";
+  f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = "price_year";
+  const opened = await f.send("/memberships", purchase);
+  assert.equal(opened.status, 201);
+  assert.equal(f.subscriptions.get(opened.body.membershipID).items.data[0].price.id, "price_year_new");
+  const path = `/gifts/${oldGift.body.gift.claimToken}/claim`;
+  f.subscriptions.get(oldID).latest_invoice.payment_intent.latest_charge.refunded = true;
+  assert.equal((await f.send(path)).status, 402);
+  f.subscriptions.get(oldID).latest_invoice.payment_intent.latest_charge.refunded = false;
+  delete f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY;
+  assert.equal((await f.send(path)).status, 402);
+  f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = "price_year";
+  assert.equal((await f.send(path)).status, 200);
 });
 
 test("concurrent changed details cannot receive the original checkout response", async t => {

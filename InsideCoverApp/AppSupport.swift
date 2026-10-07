@@ -322,6 +322,50 @@ final class BookAppLock: ObservableObject {
 }
 #endif
 
+/// The microphone borrows the app's audio session. While a recording session is
+/// active iOS silences system sounds and haptics, and anything that plays
+/// afterwards is routed as if the phone were still listening. Dictation used to
+/// switch to a record category and never switch back, so after one dictated
+/// note the Book had no sound effects, no haptics and no music until it was
+/// killed. Every borrower now gives the session back through here.
+@MainActor
+enum BookAudioSession {
+    private static var borrowers = 0
+
+    /// Call after configuring a recording category. Keeps haptics and system
+    /// sounds alive while the microphone is open, so the Book still answers taps.
+    static func borrowedForRecording(_ session: AVAudioSession) {
+        borrowers += 1
+        try? session.setAllowHapticsAndSystemSoundsDuringRecording(true)
+    }
+
+    /// Give the session back: stop listening, return to a category that plays
+    /// and lets haptics through, and let other audio resume.
+    static func restoreAfterRecording() {
+        borrowers = max(0, borrowers - 1)
+        guard borrowers == 0 else { return }
+        reset()
+    }
+
+    /// Self-heal for a session left in a recording category with nobody
+    /// recording, for example by an interrupted dictation. Cheap; safe to call
+    /// whenever the app becomes active.
+    static func healIfStuck() {
+        guard borrowers == 0 else { return }
+        let category = AVAudioSession.sharedInstance().category
+        guard category == .record || category == .playAndRecord else { return }
+        reset()
+    }
+
+    private static func reset() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        // Playback, not ambient: the radio sets this category itself when it
+        // plays, and sound effects ride on system sounds either way.
+        try? session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+    }
+}
+
 enum BookFeedback {
     enum HapticMode: String, CaseIterable, Identifiable {
         case full
@@ -1552,7 +1596,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     func tune(stationID: String, unlockedPackIDs: Set<String>) {
         guard let station = RadioStationRegistry.station(id: stationID, unlockedPackIDs: unlockedPackIDs) else {
-            statusLine = "That frequency is not unlocked yet."
+            statusLine = "That frequency isn't unlocked yet."
             return
         }
         tune(to: station, unlockedPackIDs: unlockedPackIDs)
@@ -1614,7 +1658,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 do {
                     try engine.start()
                 } catch {
-                    statusLine = "The static sparked but would not hold: \(error.localizedDescription)"
+                    statusLine = "The static sparked but wouldn't hold: \(error.localizedDescription)"
                     appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .private)")
                     return
                 }
@@ -2121,7 +2165,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             do {
                 try engine.start()
             } catch {
-                statusLine = "The station sparked but would not hold: \(error.localizedDescription)"
+                statusLine = "The station sparked but wouldn't hold: \(error.localizedDescription)"
                 appLog.error("Radio engine failed: \(error.localizedDescription, privacy: .private)")
                 return
             }
@@ -2318,6 +2362,9 @@ extension Notification.Name {
 enum LocalBrainPresentation {
     case live
     case readingRoom
+    /// A turn in a conversation the reader is already looking at. There is no
+    /// paper to wait for and no reading room to open, so the gate adds neither.
+    case conversation
 }
 
 struct LocalBrainWorkSnapshot {
@@ -2816,11 +2863,11 @@ enum HealthKitBodyReader {
         var errorDescription: String? {
             switch self {
             case .unavailable:
-                return "HealthKit is not available on this device."
+                return "HealthKit isn't available on this device."
             case .missingTypes:
-                return "This build could not prepare the requested HealthKit types."
+                return "This build couldn't prepare the requested HealthKit types."
             case .deniedOrEmpty:
-                return "HealthKit did not return enough body signal yet."
+                return "HealthKit didn't return enough body signal yet."
             }
         }
     }
@@ -3099,13 +3146,13 @@ enum WeatherLocationReader {
         var errorDescription: String? {
             switch self {
             case .unavailable:
-                return "Location is not available in this build."
+                return "Location isn't available in this build."
             case .denied:
                 return "Location permission is needed to read local weather and nearby Anchors."
             case .noLocation:
-                return "The device did not return a location yet."
+                return "The device didn't return a location yet."
             case .badResponse:
-                return "Open-Meteo did not return a readable forecast."
+                return "Open-Meteo didn't return a readable forecast."
             }
         }
     }
@@ -3189,11 +3236,11 @@ enum AnchorLocationReader {
         var errorDescription: String? {
             switch self {
             case .unavailable:
-                return "Location is not available in this build."
+                return "Location isn't available in this build."
             case .denied:
                 return "Location permission is needed to check nearby Anchors."
             case .noLocation:
-                return "The device did not return a location yet."
+                return "The device didn't return a location yet."
             }
         }
     }
@@ -5497,11 +5544,11 @@ enum OvernightScribe {
                     \(ingredientJSON)
 
                     Return strict JSON with this exact shape:
-                    {"connections":[{"candidateID":"exact supplied id","confidence":84,"headline":"short","interpretation":"one Book-voiced connection grounded in the evidence","question":"one curious question?","thesis":"a specific first-person Book opinion of 12-60 words that changes the angle","counterReading":"the strongest honest rival explanation in plain spoken language","falsifier":"If ... then I should revise this opinion.","whyItMatters":"why this could change how the reader sees an ordinary part of their life","surpriseHeadline":"optional short title","surpriseSynthesis":"optional 18-95 word Book-voiced reframe joining at least two supplied shared-history ingredients; deliver the insight, do not explain the machinery","surpriseWhyUnexpected":"why these exact pieces do not obviously belong together","surpriseIngredientIDs":["exact supplied ingredient id","another exact supplied ingredient id"],"surpriseConfidence":90}]}
+                    {"connections":[{"candidateID":"exact supplied id","confidence":84,"headline":"short","interpretation":"one Book-voiced connection grounded in the evidence","question":"one curious question?","thesis":"a specific first-person Book opinion of 12-60 words that changes the angle","counterReading":"the strongest honest rival explanation in plain spoken language","falsifier":"If ... then I should revise this opinion.","whyItMatters":"why this could change how the reader sees an ordinary part of their life","surpriseHeadline":"optional short title","surpriseSynthesis":"optional 18-95 word Book-voiced reframe joining at least two supplied shared-history ingredients; deliver the insight, don't explain the machinery","surpriseWhyUnexpected":"why these exact pieces don't obviously belong together","surpriseIngredientIDs":["exact supplied ingredient id","another exact supplied ingredient id"],"surpriseConfidence":90}]}
 
                     Omit a candidate when you only have a paraphrase. A thesis must contain tension, stakes, or a changed angle, not merely say that a pattern exists. A surprise must make the ordinary life look different after reading it. Use exact supplied details. Never add an ID, event, motive, feeling, diagnosis, or biographical fact. Silence is better than a respectable observation.
                     """,
-                    instructions: "You are the Book at its most perceptive. \(BookVoice.animismLine) Stay inside the supplied evidence. Write the connection with confidence; keep the counter-reading and erasure rule plain and short. Return strict JSON only.",
+                    instructions: "You're the Book at its most perceptive. \(BookVoice.animismLine) Stay inside the supplied evidence. Write the connection with confidence; keep the counter-reading and erasure rule plain and short. Return strict JSON only.",
                     maxTokens: 1_180,
                     label: "overnight-interpretation-forge",
                     tags: ["overnight", "opinions", "surprise", "hidden-magic"],
@@ -5531,7 +5578,7 @@ enum OvernightScribe {
             do {
                 let naturalistText = try await MLXLocalTextGenerator.run(
                     prompt: NightGardenerPromptBuilder.naturalist(packet: packet),
-                    instructions: "You are the Naturalist in the Book's Night Council. Stay inside the frozen evidence packet. Return strict JSON only. The object is lived aliveness outside the app, never engagement or a higher score.",
+                    instructions: "You're the Naturalist in the Book's Night Council. Stay inside the frozen evidence packet. Return strict JSON only. The object is lived aliveness outside the app, never engagement or a higher score.",
                     maxTokens: 980,
                     label: "night-gardener-naturalist",
                     tags: ["overnight", "night-gardener", "naturalist", "local-only"],
@@ -5553,7 +5600,7 @@ enum OvernightScribe {
                         packet: packet,
                         naturalist: naturalist
                     ),
-                    instructions: "You are the Heretic in the Book's Night Council. Your loyalty is to the reader's real life and to disconfirming evidence, not to the Book's preferred story. Return strict JSON only.",
+                    instructions: "You're the Heretic in the Book's Night Council. Your loyalty is to the reader's real life and to disconfirming evidence, not to the Book's preferred story. Return strict JSON only.",
                     maxTokens: 900,
                     label: "night-gardener-heretic",
                     tags: ["overnight", "night-gardener", "heretic", "local-only"],
@@ -5576,7 +5623,7 @@ enum OvernightScribe {
                         naturalist: naturalist,
                         heretic: heretic
                     ),
-                    instructions: "You are the Gardener in the Book's Night Council. Propose one small falsifiable experiment or remain silent. You cannot authorize action. Return strict JSON only.",
+                    instructions: "You're the Gardener in the Book's Night Council. Propose one small falsifiable experiment or remain silent. You can't authorize action. Return strict JSON only.",
                     maxTokens: 640,
                     label: "night-gardener-gardener",
                     tags: ["overnight", "night-gardener", "gardener", "local-only"],
@@ -6409,7 +6456,7 @@ enum QuestLocationProof {
         guard let targetLatitude = elective.targetLatitude,
               let targetLongitude = elective.targetLongitude,
               let placeName = elective.targetPlaceName?.nonEmpty else {
-            return (false, "This quest does not have a GPS destination attached.")
+            return (false, "This quest doesn't have a GPS destination attached.")
         }
         do {
             let current = try await AnchorLocationReader.requestLocation()
@@ -6655,7 +6702,7 @@ enum StoreKitTransactionObserver {
             for await result in Transaction.updates {
                 guard case .verified(let transaction) = result else {
                     #if DEBUG
-                    appLog.debug("StoreKit update rejected: transaction was not verified")
+                    appLog.debug("StoreKit update rejected: transaction wasn't verified")
                     #endif
                     continue
                 }
@@ -6828,6 +6875,53 @@ enum MonthlyIssueDeliveryRefreshResult: Equatable {
     case failed(String)
 }
 
+/// What the reader sees while the monthly shelf downloads. Without it a big
+/// issue arrives in silence and the app feels frozen. It stays idle (and
+/// invisible) unless something really needs fetching, so ordinary foreground
+/// checks never flash a download page.
+@MainActor
+final class MonthlyShelfFetchModel: ObservableObject {
+    static let shared = MonthlyShelfFetchModel()
+
+    enum Phase: Equatable { case idle, fetching, sealing, done, failed }
+
+    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var progress: MonthlyIssueInstallProgress?
+    @Published private(set) var line = ""
+    private var dismissal: Task<Void, Never>?
+
+    func receive(_ update: MonthlyIssueInstallProgress) {
+        dismissal?.cancel()
+        progress = update
+        phase = update.isFinished ? .sealing : .fetching
+        line = ShelfFetchNarration.line(for: update)
+    }
+
+    func finished() {
+        guard phase != .idle else { return }
+        phase = .done
+        line = ShelfFetchNarration.doneLine
+        scheduleDismissal(after: 3)
+    }
+
+    func failed() {
+        guard phase != .idle else { return }
+        phase = .failed
+        line = ShelfFetchNarration.failedLine
+        scheduleDismissal(after: 6)
+    }
+
+    private func scheduleDismissal(after seconds: Double) {
+        dismissal?.cancel()
+        dismissal = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            self?.phase = .idle
+            self?.progress = nil
+        }
+    }
+}
+
 /// Downloads only the live shelf and its next issue, verifies every signed
 /// byte, and lets the shared installer prune only files it previously placed.
 /// A cached signed manifest keeps foreground reconciliation working offline.
@@ -6849,7 +6943,7 @@ actor MonthlyIssueDeliveryCoordinator {
             }
             return .unchanged
         } catch {
-            return .failed("The closed Standing Order could not clear its temporary issue files: \(error.localizedDescription)")
+            return .failed("The closed Standing Order couldn't clear its temporary issue files: \(error.localizedDescription)")
         }
     }
 
@@ -6898,7 +6992,7 @@ actor MonthlyIssueDeliveryCoordinator {
                 NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
             }
         } catch {
-            return .failed("The temporary issue shelf could not finish retiring: \(error.localizedDescription)")
+            return .failed("The temporary issue shelf couldn't finish retiring: \(error.localizedDescription)")
         }
 
         if !hasMonthlyAccess {
@@ -6961,10 +7055,14 @@ actor MonthlyIssueDeliveryCoordinator {
                 documentsURL: contentURL,
                 stateURL: stateURL,
                 fileManager: fileManager,
+                progress: { update in
+                    Task { @MainActor in MonthlyShelfFetchModel.shared.receive(update) }
+                },
                 fetch: { url in
                     try await downloads.data(from: url, timeout: 90)
                 }
             )
+            await MainActor.run { MonthlyShelfFetchModel.shared.finished() }
             if result.changed || !retired.isEmpty {
                 NotificationCenter.default.post(name: .monthlyIssueDeliveryChanged, object: nil)
                 if let blockedCurrentIssue { return .updateRequired(blockedCurrentIssue) }
@@ -6976,11 +7074,12 @@ actor MonthlyIssueDeliveryCoordinator {
             if let blockedCurrentIssue { return .updateRequired(blockedCurrentIssue) }
             return .unchanged
         } catch {
+            await MainActor.run { MonthlyShelfFetchModel.shared.failed() }
             if MonthlyIssueAccessError.denied(error) {
                 return await clearManagedAccess(now: now, contentURL: contentURL, stateURL: stateURL,
                     cachedEnvelopeURL: cachedEnvelopeURL, fileManager: fileManager)
             }
-            return .failed("The next issue would not pass the claim check: \(error.localizedDescription)")
+            return .failed("The next issue wouldn't pass the claim check: \(error.localizedDescription)")
         }
     }
 }
@@ -7054,14 +7153,14 @@ struct StoreKitMerchant: BookShopMerchant {
             return .failed("The digital Standing Order is no longer offered.")
         }
         guard let product = try? await Product.products(for: [productID]).first else {
-            return .failed("The Goblins cannot find that item in the till.")
+            return .failed("The Goblins can't find that item in the till.")
         }
         do {
             let result = try await product.purchase()
             switch result {
             case .success(let verification):
                 guard case .verified(let transaction) = verification else {
-                    return .failed("The receipt would not verify.")
+                    return .failed("The receipt wouldn't verify.")
                 }
                 await transaction.finish()
                 return .bound

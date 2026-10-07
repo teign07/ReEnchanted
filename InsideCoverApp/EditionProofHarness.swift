@@ -2,7 +2,7 @@ import Foundation
 import UIKit
 import PDFKit
 
-#if DEBUG && targetEnvironment(simulator)
+#if DEBUG
 /// Print proofs of every publication from one synthetic Reader year.
 ///
 /// Launch the simulator app with `--smoke-edition-proofs`. It builds a plausible
@@ -21,6 +21,10 @@ enum EditionProofHarness {
     static let flag = "--smoke-edition-proofs"
 
     static func runIfRequested() {
+        if ProcessInfo.processInfo.arguments.contains(WeeklyIssueSixProof.flag) {
+            WeeklyIssueSixProof.run()
+            return
+        }
         guard ProcessInfo.processInfo.arguments.contains(flag) else { return }
         let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("edition-proofs", isDirectory: true)
@@ -40,9 +44,18 @@ enum EditionProofHarness {
             }
         }
         var status: [String] = []
+        // `--proof-only=monthly` runs just the steps whose name starts with that.
+        let only = ProcessInfo.processInfo.arguments.compactMap { $0.hasPrefix("--proof-only=") ? String($0.dropFirst(13)) : nil }.first
         func step(_ name: String, _ work: () throws -> String) {
-            do { status.append("OK \(name): \(try work())") }
-            catch { status.append("FAILED \(name): \(error)") }
+            if let only, !name.hasPrefix(only) { return }
+            status.append("RUNNING \(name)")
+            try? status.joined(separator: "\n").write(to: directory.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+            let started = Date()
+            var outcome: String
+            do { outcome = try work() } catch { outcome = "FAILED: \(error)" }
+            status.removeLast()
+            status.append("\(outcome.hasPrefix("FAILED") ? "FAILED" : "OK") \(name) (\(Int(Date().timeIntervalSince(started)))s): \(outcome)")
+            try? status.joined(separator: "\n").write(to: directory.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
         }
 
         let calendar = SyntheticReaderYear.calendar
@@ -238,6 +251,24 @@ enum EditionProofHarness {
             let reports = book?.scenes.filter(\.isReport).count ?? 0
             let radio = book?.days.reduce(0) { $0 + $1.radio.count } ?? 0
             return "heavy: \(edition.pageCount) kept, \(book?.days.count ?? 0) days, \(book?.braidCount ?? 0) nights, scenes \(book?.scenes.count ?? 0) (\(reports) reports), radio \(radio), keeps [\(mixLine)], \(pages) print pages (cap \(PrintSpec.pageCap(for: .monthly))), sparse: \(sparse.isEmpty ? "none" : sparse.map(String.init).joined(separator: ","))"
+        }
+
+        // A shorter month with photographs and room to spare: where the keepsakes show whole.
+        step("monthly-photos") {
+            let fieldDays = try FieldBookFixture.heavy(days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar),
+                                                       directory: directory, calendar: calendar)
+                .filter { calendar.component(.day, from: $0.date) <= 14 && calendar.component(.month, from: $0.date) == 10 }
+            let edition = MonthlyEditionBuilder.edition(
+                from: fieldDays, readerName: reader,
+                startDate: SyntheticReaderYear.date(2026, 10, 1),
+                endDate: SyntheticReaderYear.date(2026, 10, 14).addingTimeInterval(86_399),
+                generatedAt: SyntheticReaderYear.date(2026, 10, 15), calendar: calendar,
+                authoredReceipts: try FieldBookFixture.heavyReceipts(calendar: calendar), packTitle: "Count Unbound"
+            )
+            let interior = directory.appendingPathComponent("monthly-photos-interior.pdf")
+            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: interior)
+            let k = edition.handbook?.keepsakes
+            return "photos month: \(pages) print pages, photos \(k?.photos?.shots.count ?? 0), superlatives \(k?.superlatives?.awards.count ?? 0), poem \(k?.poem != nil), passport \(k?.passport != nil)"
         }
 
         // The same heavy month at the thicknesses a reader can choose.
@@ -630,11 +661,14 @@ enum FieldBookFixture {
     ]
 
     static func pack() throws -> WorldEventPack {
+        // On the phone the Mac's source tree is not there: the pack is sent over to Documents/edition-proof-input.
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("edition-proof-input/opening.reenchantedevents.json")
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        return try ContentPackFileLocator.decoder().decode(
-            WorldEventPack.self,
-            from: Data(contentsOf: root.appendingPathComponent("ContentPacks/count-unbound/opening.reenchantedevents.json"))
-        )
+        let url = FileManager.default.fileExists(atPath: documents.path)
+            ? documents
+            : root.appendingPathComponent("ContentPacks/count-unbound/opening.reenchantedevents.json")
+        return try ContentPackFileLocator.decoder().decode(WorldEventPack.self, from: Data(contentsOf: url))
     }
 
     static func receipts(calendar: Calendar) throws -> AuthoredContentReceiptLedger {
@@ -730,6 +764,17 @@ enum FieldBookFixture {
             UIColor(red: 0.20, green: 0.30, blue: 0.40, alpha: 1).setFill(); cg.fill(CGRect(origin: .zero, size: size))
             UIColor(red: 0.85, green: 0.88, blue: 0.80, alpha: 1).setFill(); cg.fill(CGRect(x: size.width * 0.3, y: size.height * 0.15, width: size.width * 0.4, height: size.height * 0.6))
         }
+        // Two more distinct photographs: a month of the same two pictures is not a month of photographs.
+        let dusk = try image("dusk") { cg, size in
+            let colors = [UIColor(red: 0.30, green: 0.22, blue: 0.45, alpha: 1).cgColor, UIColor(red: 0.95, green: 0.55, blue: 0.35, alpha: 1).cgColor]
+            if let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: [0, 1]) {
+                cg.drawLinearGradient(g, start: .zero, end: CGPoint(x: 0, y: size.height), options: [])
+            }
+        }
+        let garden = try image("garden") { cg, size in
+            UIColor(red: 0.28, green: 0.45, blue: 0.30, alpha: 1).setFill(); cg.fill(CGRect(origin: .zero, size: size))
+            UIColor(red: 0.80, green: 0.35, blue: 0.30, alpha: 1).setFill(); cg.fillEllipse(in: CGRect(x: size.width * 0.35, y: size.height * 0.3, width: size.width * 0.3, height: size.height * 0.4))
+        }
         func asset(_ url: URL, _ caption: String) -> BookPageMediaAsset {
             BookPageMediaAsset(kind: .renderedImageFile, reference: url.path, caption: caption, sourceID: "fixture")
         }
@@ -802,7 +847,7 @@ enum FieldBookFixture {
         add(page(.illuminatedPhoto, 9, 17, prompt: "The window, illuminated", body: "The window at dusk, with the whole street in it.", media: [asset(cool, "The window at dusk")]), day: 9)
         add(page(.illuminatedPhoto, 19, 17, prompt: "The lamp, illuminated", body: "The lamp I did not turn off.", media: [asset(warm, "The lamp")]), day: 19)
         add(page(.illuminatedPhoto, 27, 17, prompt: "The window again", body: "Same window. Different grey.", media: [asset(cool, "The window again")]), day: 27)
-        for (day, caption, url) in [(2, "morning, the tap", warm), (4, "the lamp, lit", warm), (12, "grey over the roofs", cool), (16, "the long way home", cool), (21, "the table, set for one", warm), (26, "last light", warm)] {
+        for (day, caption, url) in [(2, "morning, the tap", warm), (4, "the lamp, lit", dusk), (12, "grey over the roofs", cool), (16, "the long way home", garden), (21, "the table, set for one", dusk), (26, "last light", garden)] {
             var diary = page(.diary, day, 9, prompt: "Write one true thing about today.", body: caption, media: [asset(url, caption)])
             diary.tags = ["diary", "photo"]
             add(diary, day: day)
@@ -924,4 +969,136 @@ enum PrintPageLint {
     }
 }
 
+#endif
+
+
+#if DEBUG
+/// A week shaped like Issue 6 (Sep 23-29, nine kept pages), set through the real
+/// weekly builder and writer. Launch with `--proof-weekly-issue6`; the reading
+/// copy lands in Documents/weekly-issue6-proof/issue6.pdf. Invented here, never
+/// saved, no vault touched. It exists so the page can be looked at.
+enum WeeklyIssueSixProof {
+    static let flag = "--proof-weekly-issue6"
+
+    /// Called from launch. Runs once, off the main thread, only with the flag.
+    static func runIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains(flag) else { return }
+        DispatchQueue.global(qos: .utility).async { run() }
+    }
+
+    static func run() {
+        if ProcessInfo.processInfo.arguments.contains("--proof-october-margins") { MarginaliaDealer.forcedMonth = 10 }
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("weekly-issue6-proof", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var status: [String] = []
+        do {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "America/New_York")!
+            func at(_ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+                calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
+            }
+            func photo(_ name: String, _ top: UIColor, _ bottom: UIColor) -> BookPageMediaAsset {
+                let url = folder.appendingPathComponent("\(name).jpg")
+                let image = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 700)).image { context in
+                    let colors = [top.cgColor, bottom.cgColor] as CFArray
+                    let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+                    context.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: 0, y: 700), options: [])
+                    (name as NSString).draw(at: CGPoint(x: 40, y: 40), withAttributes: [.font: UIFont.boldSystemFont(ofSize: 56), .foregroundColor: UIColor.white])
+                }
+                try? image.jpegData(compressionQuality: 0.85)?.write(to: url)
+                return BookPageMediaAsset(kind: .renderedImageFile, reference: url.path, caption: "", sourceID: "",
+                                          metadata: ["proofImagePath": url.path])
+            }
+            func world(_ id: String, _ fact: String) -> String {
+                BraidContributionReceipt(beat: SceneWorldBeat(id: id, mode: .independent, fact: fact, source: .worldEvent,
+                                                              subject: "The Dictionary Rebellion")).encodedTag ?? ""
+            }
+            let header = "Tags: Time 9:43 PM \u{00B7} Location Current place \u{00B7} Weather not recorded \u{00B7} Moon Full Moon \u{00B7} Fuel not logged \u{00B7} Inner weather not logged"
+            let pages: [BookPage] = [
+                BookPage(id: "anchor", type: .diary, createdAt: at(8, 19, 9), promptText: "Ink", userInput: "The first page of the Book.", origin: .userAuthored),
+                BookPage(id: "souvenir", type: .souvenir, createdAt: at(9, 25, 21, 39), promptText: "One true sentence",
+                         userInput: "The plastic lemon seltzer bottle is regal right now; and bubbly.", origin: .userAuthored),
+                BookPage(id: "photo-1", type: .plainPage, createdAt: at(9, 25, 18, 5), promptText: "Photograph",
+                         userInput: "The lemon seltzer on the sill before work.", origin: .userAuthored,
+                         mediaAssets: [photo("seltzer on the sill", .systemTeal, .systemYellow)]),
+                BookPage(id: "photo-2", type: .plainPage, createdAt: at(9, 25, 18, 12), promptText: "Photograph",
+                         userInput: "The same bottle, on the porch.", origin: .userAuthored,
+                         mediaAssets: [photo("porch", .systemOrange, .systemIndigo)]),
+                BookPage(id: "photo-3", type: .plainPage, createdAt: at(9, 28, 12, 30), promptText: "Photograph",
+                         userInput: "Fog on the road to work.", origin: .userAuthored,
+                         mediaAssets: [photo("fog", .systemGray, .white)]),
+                BookPage(id: "braid-fri", type: .bookOfYou, createdAt: at(9, 25, 21, 43), promptText: "Book of You",
+                         userInput: "The plastic lemon seltzer bottle\n\n\(header)\n\nThe plastic lemon seltzer bottle was cool in my hand, and the fizz was sharp against my fingers. I noticed the door, the one that led to the quiet room, was still stuck halfway open, a little gap where the dark came through.\n\nThe Book kept the page: the bottle fizzed.",
+                         tags: [world("w:coats", "Every coat in the Great Hall is wet on one side only, the side that faces the East Stacks.")],
+                         origin: .generated),
+                BookPage(id: "cast", type: .castBond, createdAt: at(9, 26, 12, 58), promptText: "A Turn in the Cast",
+                         userInput: "You entered, and the Quillquarium did not settle. Pens schooled through the air like minnows, their glinting nibs flashing across the high shelves, while predatory quills patrolled the upper reaches. Somewhere, a pencil pretended to sleep, still and inert. Instruments waited there for years, the keepers had told you, because a pen could hold its breath longer than a person could. Penny watched from the ladder and wrote none of it down.",
+                         origin: .generated),
+                BookPage(id: "tale", type: .taleBound, createdAt: at(9, 26, 13, 3), promptText: "A Tale, Bound",
+                         userInput: "The coffee kept turning up in your pages. I kept count. I didn't say anything until I could see how it came out.\n\nOnce upon a time, there was a coffee.\nOn August 23 you wrote: \"3 coffees\"\n\nThen the coffee came back.\nOn August 27 you wrote: \"2 Bud Lights, Greek chicken salad, coffee, lemon seltzer\"\n\nIn the end, the coffee was still there.",
+                         origin: .generated),
+                BookPage(id: "compass", type: .wonderCompass, createdAt: at(9, 28, 6, 57), promptText: "Wonder Compass",
+                         userInput: "I'm about to go to work, and Amanda hasn't woken up yet; she's off today.", origin: .userAuthored),
+                BookPage(id: "bleed", type: .theBleed, createdAt: at(9, 28, 7, 23), promptText: "The Bleed",
+                         userInput: "THE BLEED - MORNING EDITION\nIssue #2 \u{00B7} Monday, September 28, 2026\nWhere the Labyrinth meets the page. Where the page bleeds into the world.\n\n\u{2014} CASEMENT WEATHER \u{2014}\nfrom the window ledge, attested\n\nThe window ledge files the following, sworn and stamped: Current: drizzle, 55\u{00B0} | Forecast: rain, high 60\u{00B0}, low 54\u{00B0}.\n\n\u{2014} TODAY AT THE ACADEMY \u{2014}\nSomething happened in the Kitchens.",
+                         origin: .generated),
+                BookPage(id: "quote", type: .quotes, createdAt: at(9, 28, 7, 40), promptText: "The wound is the place where the Light enters you.",
+                         userInput: "Rumi", origin: .userAuthored),
+                BookPage(id: "amanda", type: .plainPage, createdAt: at(9, 28, 7, 41), promptText: "Note", userInput: "Amanda", origin: .userAuthored),
+                BookPage(id: "weather", type: .weather, createdAt: at(9, 29, 20, 57), promptText: "What the Sky Is Doing",
+                         userInput: "The rain is tap-tap-tapping on the window like it wants to come in and read with you.\n\nThe moon is giving its light back now, a little each night.\n\nWeather: Now: 57\u{00B0} | Forecast: rain, high 61\u{00B0}, low 56\u{00B0} \u{00B7} Waning Gibbous",
+                         origin: .generated),
+                BookPage(id: "braid-tue", type: .bookOfYou, createdAt: at(9, 29, 20, 58), promptText: "Book of You",
+                         userInput: "Amanda\n\n\(header)\n\nYou were about to go to work, and Amanda hadn't woken up yet; she was off today. Sentence Salamander leaned near, a shadow stitching itself to the pale light.",
+                         tags: [world("w:bowls", "Ambrose has put out a bowl for every chair in the Kitchens, and one more for the chair nobody sits in.")],
+                         origin: .generated)
+            ]
+            var byDay: [Date: [BookPage]] = [:]
+            for page in pages { byDay[calendar.startOfDay(for: page.createdAt), default: []].append(page) }
+            let days = byDay.keys.sorted().map { BookDay(id: BookDay.id(for: $0, calendar: calendar), date: $0, pages: byDay[$0]!) }
+            let now = at(10, 3, 12)
+            guard let candidate = PublicationPeriodCatalog.readerWeeks(days: days, now: now, calendar: calendar)
+                .first(where: { $0.period.ordinal == 6 }),
+                  var issue = WeeklyIssue.issue(for: candidate.period, days: days, now: now, calendar: calendar) else {
+                throw NSError(domain: "proof", code: 1, userInfo: [NSLocalizedDescriptionKey: "no Issue 6"])
+            }
+            // `--proof-issue=9` prints this same week as another issue, to see a different mix of puzzles.
+            if let override = ProcessInfo.processInfo.arguments.compactMap({ $0.hasPrefix("--proof-issue=") ? Int($0.dropFirst(14)) : nil }).first {
+                issue.number = override
+            }
+            // The floor, as the app falls back to it; the model's own story is not run here.
+            issue.bindingStory = WeeklyBindingWriter.issue(for: WeeklyBindingPlanner.plan(for: issue, calendar: calendar))
+            status.append("issue \(issue.number) \(issue.dateRange), \(issue.keptCount) kept, \(issue.pages.count) pages")
+            status.append("highlights: \(issue.highlights)")
+            status.append("refrain: \(WeeklyCuration.refrain(from: issue.pages))")
+            status.append("binding story:\n\(issue.bindingStory ?? "none")")
+            let card = WeeklyIssueShareCard.make(issue: issue)
+            try WeeklyIssuePDFWriter.write(issue, readerName: "Proof Reader", shareCard: card,
+                                           to: folder.appendingPathComponent("issue6.pdf"))
+            status.append("reading copy written")
+            // The print weekly, exactly as the bindery builds it: the day book, the handbook, the press spec.
+            PrintFeatureFlags.ruinPagesEnabled = false
+            var matter = WeeklyPublicationMatter(issue: issue, card: card, readerName: "Proof Reader",
+                                                 editorialNote: nil, closingNote: nil)
+            matter.dayBook = BoundDayBookBuilder.make(
+                pages: issue.pages, receipts: .empty, castActs: [],
+                startDate: issue.startDate, endDate: issue.endDate, calendar: calendar)
+            matter.handbook = HandbookBuilder.make(
+                pages: issue.pages, castPresence: matter.dayBook?.chart.cast ?? [],
+                terms: [issue.resolvedEditorialTitle] + issue.highlights, seed: "week-\(issue.number)",
+                dayBook: matter.dayBook, dayCount: 7)
+            matter.bindingID = "proof-binding-issue6"
+            let printPages = try WeeklyIssuePDFWriter.writePrintInterior(
+                matter, dedication: nil, spec: .saddleStitchedWeekly6x9,
+                to: folder.appendingPathComponent("issue6-print.pdf"))
+            status.append("print interior written: \(printPages) pages")
+            status.append("DONE")
+        } catch {
+            status.append("FAILED: \(error)")
+        }
+        try? status.joined(separator: "\n").write(to: folder.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+    }
+}
 #endif

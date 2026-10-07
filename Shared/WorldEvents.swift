@@ -36,6 +36,17 @@ struct WorldEventPack: Codable, Identifiable, Equatable {
     var radioBanters: [AuthoredRadioBanter]? = nil
     var bleedArticles: [AuthoredBleedArticle]? = nil
     var marginalia: [AuthoredMarginaliaMark]? = nil
+    /// New wonder for the nightly braid (see `WonderBraid`): what an ordinary
+    /// thing wanted or did, keyed to the nouns the month is about. Optional, so
+    /// older packs and older apps both ignore it. A line with a bundled id
+    /// replaces it; `retiredWonderLineIDs` takes lines out of the library.
+    var wonderLines: [WonderBraid.Delivered]? = nil
+    var retiredWonderLineIDs: [String]? = nil
+    /// Lined-space prompts for the printed books ("one sentence about today..."), see
+    /// `NotePrompts`. A pack's own are dealt before the bundled ones; the same id replaces,
+    /// `retiredNotePromptIDs` retires. Optional: older packs and apps ignore both.
+    var notePrompts: [NotePrompts.Delivered]? = nil
+    var retiredNotePromptIDs: [String]? = nil
     var minimumRuntimeVersion: Int? = nil
 }
 
@@ -59,6 +70,83 @@ struct WorldEvent: Codable, Identifiable, Equatable {
     /// The Academy's own account of the run, third person and safe for a Reader
     /// who was never there. It binds into the month's edition as The Record.
     var record: WorldEventPublicRecord? = nil
+    /// "The story so far", told in the Book's voice at fixed days of the run so
+    /// a reader who arrives late, or drifts away, can be caught up from one
+    /// paragraph. Cumulative, never a diff: each rung stands on its own.
+    /// Authored, not generated: a recap that invents a fact is worse than none.
+    var catchUp: [WorldEventCatchUpRung]? = nil
+
+    /// The rung that tells the run as it stands on a live day (0 is the first).
+    /// Past the live month the last rung keeps telling the finished story.
+    func catchUpRung(liveDay: Int?, stage: WorldEventLifecycleStage) -> WorldEventCatchUpRung? {
+        let rungs = (catchUp ?? []).sorted { $0.fromDay < $1.fromDay }
+        switch stage {
+        case .live:
+            guard let liveDay else { return nil }
+            return rungs.last { $0.fromDay <= liveDay }
+        case .residue:
+            return rungs.last
+        case .foreshadow, .sealed:
+            return nil
+        }
+    }
+}
+
+/// One rung of a run's catch-up ladder. See `WorldEvent.catchUp`.
+struct WorldEventCatchUpRung: Codable, Identifiable, Equatable {
+    var id: String
+    /// The first live day (0 is the first) this is the right thing to tell.
+    /// Nothing in `body` may give away what opens after it.
+    var fromDay: Int
+    var title: String
+    var body: String
+    /// One line: what the reader is walking into.
+    var openQuestion: String? = nil
+    /// The record entries this rung draws on. Every one must already be public
+    /// by `fromDay`; `WorldEventCatchUpAudit` holds the ladder to that.
+    var tells: [String]? = nil
+}
+
+/// The mechanical half of "never spoil": a ladder may only tell what the dated
+/// record says is already public. It can lag the record by a day; it can't lead.
+enum WorldEventCatchUpAudit {
+    static func problems(in event: WorldEvent) -> [String] {
+        guard let ladder = event.catchUp, !ladder.isEmpty else { return [] }
+        var found: [String] = []
+        let entries = event.record?.entries ?? []
+        let byID = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let duration = event.calendar.durationDays
+
+        for entry in entries {
+            guard let on = entry.onDay else {
+                found.append("record entry \(entry.id) has no onDay")
+                continue
+            }
+            if !(0..<duration).contains(on) { found.append("record entry \(entry.id) happens outside the run (day \(on))") }
+            if let known = entry.knownFromDay, known < on {
+                found.append("record entry \(entry.id) is public (day \(known)) before it happens (day \(on))")
+            }
+        }
+        let dated = entries.compactMap(\.onDay)
+        if dated != dated.sorted() { found.append("record entries aren't in order of onDay") }
+
+        if Set(ladder.map(\.id)).count != ladder.count { found.append("catch-up rung ids repeat") }
+        if ladder.map(\.fromDay) != ladder.map(\.fromDay).sorted() { found.append("catch-up rungs aren't in order of fromDay") }
+        if ladder.first?.fromDay != 0 { found.append("the first catch-up rung must start on day 0") }
+
+        for rung in ladder {
+            if !(0...duration).contains(rung.fromDay) { found.append("rung \(rung.id) starts outside the run") }
+            let tells = rung.tells ?? []
+            if tells.isEmpty { found.append("rung \(rung.id) says what it draws on in no record entry") }
+            for id in tells {
+                guard let entry = byID[id] else { found.append("rung \(rung.id) draws on unknown entry \(id)"); continue }
+                if let day = entry.publicFromDay, day > rung.fromDay {
+                    found.append("rung \(rung.id) (day \(rung.fromDay)) tells \(id), which isn't public until day \(day)")
+                }
+            }
+        }
+        return found
+    }
 }
 
 struct WorldEventCalendar: Codable, Equatable {
@@ -299,9 +387,22 @@ struct WorldEventRecordEntry: Codable, Identifiable, Equatable {
     /// Always third-person historical copy. It may say what the Academy did;
     /// it never invents that the reader was present.
     var account: String
-    /// The live day (0 is the first) the entry happened on, for the margin
-    /// ticker under a nightly braid. Nil entries appear only in The Record.
+    /// The live day (0 is the first) the entry happened on. The edition
+    /// dates the item by it. Nil entries appear only in The Record, undated.
     var onDay: Int? = nil
+    /// The first live day a reader can be told this without being spoiled:
+    /// the day after the scene that shows it closes, or the day its public
+    /// report or Bleed article goes out, whichever is earlier. Absent means
+    /// `onDay`. The catch-up ladder and any margin ticker read this, never
+    /// `onDay`, so nobody learns on Thursday what Thursday's scene hasn't
+    /// finished showing.
+    var knownFromDay: Int? = nil
+    /// What the Cast in it carry afterwards, whether or not the reader was
+    /// there. Frozen no earlier than `publicFromDay`.
+    var castMemories: [AuthoredCastMemory]? = nil
+
+    /// When the Book may say it out loud.
+    var publicFromDay: Int? { knownFromDay ?? onDay }
 }
 
 /// What the pack's author wrote down about the run, in the Academy's voice.
@@ -2063,7 +2164,7 @@ enum MonthlyIssueRequestPolicy {
 }
 
 enum MonthlyIssueDeliveryPolicy {
-    static let runtimeVersion = 10
+    static let runtimeVersion = 11
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumPublicationBytes = 2 * 1_024 * 1_024
@@ -2231,8 +2332,24 @@ struct MonthlyIssueInstallationResult: Equatable {
     var changed: Bool { !installedAssetIDs.isEmpty || !removedAssetIDs.isEmpty }
 }
 
+/// Where a shelf download has got to. Only reported for assets that really
+/// need fetching: a refresh that finds everything already on the shelf says
+/// nothing, so nobody sees a download page flash up for no reason.
+struct MonthlyIssueInstallProgress: Equatable, Sendable {
+    var assetID: String
+    /// 1-based position among the assets being fetched.
+    var index: Int
+    /// How many assets actually need fetching this time.
+    var total: Int
+    var completedBytes: Int64
+    var totalBytes: Int64
+    /// True once every asset is fetched and the install is being committed.
+    var isFinished: Bool
+}
+
 enum MonthlyIssueAssetInstaller {
     typealias Fetch = @Sendable (URL) async throws -> Data
+    typealias Progress = @Sendable (MonthlyIssueInstallProgress) -> Void
 
     /// Retirement is independent of downloading the replacement issue. A failed
     /// required download must not keep last month's managed assets installed.
@@ -2300,6 +2417,7 @@ enum MonthlyIssueAssetInstaller {
         documentsURL: URL,
         stateURL: URL,
         fileManager: FileManager = .default,
+        progress: Progress? = nil,
         fetch: Fetch
     ) async throws -> MonthlyIssueInstallationResult {
         try validate(plan: plan)
@@ -2333,6 +2451,20 @@ enum MonthlyIssueAssetInstaller {
         var stagedByID: [String: URL] = [:]
         var installedIDs: [String] = []
         var skipped: [String] = []
+        // What this run will really fetch: the same "already have it" test the
+        // loop uses, so the count a reader sees is the count they get.
+        let pending = plan.assets.filter { planned in
+            guard let target = destinations[planned.asset.id] else { return false }
+            if let old = previousByID[planned.asset.id],
+               old.sourceSHA256.caseInsensitiveCompare(planned.asset.sha256) == .orderedSame,
+               fileManager.fileExists(atPath: target.path) {
+                return false
+            }
+            return true
+        }
+        let pendingTotalBytes = pending.reduce(Int64(0)) { $0 + Int64(max(0, $1.asset.byteCount)) }
+        var fetchedCount = 0
+        var fetchedBytes: Int64 = 0
         for planned in plan.assets {
             let asset = planned.asset
             guard let target = destinations[asset.id] else { continue }
@@ -2345,6 +2477,9 @@ enum MonthlyIssueAssetInstaller {
                 continue
             }
             do {
+                progress?(MonthlyIssueInstallProgress(
+                    assetID: asset.id, index: fetchedCount + 1, total: pending.count,
+                    completedBytes: fetchedBytes, totalBytes: pendingTotalBytes, isFinished: false))
                 let sourceData = try await fetch(asset.remoteURL)
                 guard sourceData.count == asset.byteCount else {
                     throw MonthlyIssueDeliveryError.invalidByteCount(asset.id)
@@ -2373,9 +2508,12 @@ enum MonthlyIssueAssetInstaller {
                     retiresAt: planned.retiresAt
                 ))
                 installedIDs.append(asset.id)
+                fetchedCount += 1
+                fetchedBytes += Int64(max(0, asset.byteCount))
             } catch {
                 if asset.isRequired { throw error }
                 skipped.append(asset.id)
+                fetchedCount += 1
                 if let old = previousByID[asset.id] {
                     let oldTarget = documentsURL.appendingPathComponent(old.fileName, isDirectory: false)
                     if isManagedTarget(oldTarget, inside: documentsURL),
@@ -2441,6 +2579,11 @@ enum MonthlyIssueAssetInstaller {
                 .filter { !desiredIDs.contains($0.id) }
                 .map(\.id)
                 .sorted()
+            if !pending.isEmpty {
+                progress?(MonthlyIssueInstallProgress(
+                    assetID: pending.last?.asset.id ?? "", index: pending.count, total: pending.count,
+                    completedBytes: pendingTotalBytes, totalBytes: pendingTotalBytes, isFinished: true))
+            }
             return MonthlyIssueInstallationResult(
                 state: next,
                 installedAssetIDs: installedIDs.sorted(),
@@ -2608,6 +2751,40 @@ enum MonthlyIssueMediaPath {
     /// monthly directories into the current sandbox; never follow a saved
     /// container path into another app or let traversal escape these roots.
     static func resolving(_ path: String, supportDirectory: URL? = nil) -> String {
+        let known = resolvingKnownRoots(path, supportDirectory: supportDirectory)
+        if known != path { return known }
+        return relocatingMissing(path, supportDirectory: supportDirectory)
+    }
+
+    /// A file this app saved by absolute path (a weekly cover, a rendered plate) stops being found when
+    /// iOS moves the sandbox, and a braid that wants to show it shows a broken image. If the stored
+    /// path no longer exists, look for the same file under the same folder in today's sandbox. Only
+    /// our own Application Support, Documents and Caches are ever searched, and only for a path that
+    /// cannot escape them.
+    static func relocatingMissing(_ path: String, supportDirectory: URL? = nil, fileManager: FileManager = .default) -> String {
+        guard path.hasPrefix("/"), !fileManager.fileExists(atPath: path) else { return path }
+        let roots: [(marker: String, directory: FileManager.SearchPathDirectory)] = [
+            ("/Library/Application Support/", .applicationSupportDirectory),
+            ("/Documents/", .documentDirectory),
+            ("/Library/Caches/", .cachesDirectory)
+        ]
+        for (marker, directory) in roots {
+            guard let range = path.range(of: marker, options: .backwards) else { continue }
+            let suffix = String(path[range.upperBound...])
+            let parts = suffix.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+                  let base = directory == .applicationSupportDirectory
+                    ? (supportDirectory ?? fileManager.urls(for: directory, in: .userDomainMask).first)
+                    : fileManager.urls(for: directory, in: .userDomainMask).first else { continue }
+            let root = base.resolvingSymlinksInPath().standardizedFileURL
+            let target = parts.reduce(root) { $0.appendingPathComponent($1) }.resolvingSymlinksInPath().standardizedFileURL
+            guard target.path.hasPrefix(root.path + "/"), fileManager.fileExists(atPath: target.path) else { continue }
+            return target.path
+        }
+        return path
+    }
+
+    private static func resolvingKnownRoots(_ path: String, supportDirectory: URL? = nil) -> String {
         guard path.hasPrefix("/"),
               let marker = path.range(of: "/Library/Application Support/", options: .backwards),
               let support = supportDirectory ?? FileManager.default.urls(

@@ -614,7 +614,10 @@ actor LocalBrainInferenceGate {
         switch presentation {
         case .live:
             waitsForPaperArrival = true
-        case .readingRoom:
+        case .readingRoom, .conversation:
+            // Nothing is arriving that Gemma must not race. In a chat the
+            // reader's own words are already on screen, and the old 560 ms
+            // paper wait was paid on every reply.
             waitsForPaperArrival = false
         }
         try await enter(
@@ -1106,50 +1109,74 @@ struct MLXBookBraider: Braider {
             )
         }
 
+        // The wonder braid first: small jobs, authored lines for ordinary things,
+        // no template closing. It declines (hard nights, nothing to braid) or
+        // fails its own checks and trust audit, and then the plain braid below
+        // runs exactly as it always has.
+        let wonder = try await wonderTelling(scenePlan: scenePlan, day: day, context: context, judgedContext: judgedContext)
+
         // One plan. One telling. Gemma's only job is prose. The deterministic
         // plan and the source-Page stamps retain provenance; the narrow audit
         // below keeps the reader-trust boundary without turning literary taste
         // into another generation attempt.
-        let told = try await tell()
-        if told.reachedCeiling {
-            appLog.error("Braid telling reached the output ceiling; cut back to its last finished sentence")
+        var reachedCeiling = false
+        var povRepaired = 0
+        var scrubDropped: [String] = []
+        let prose: String
+        if let wonder {
+            let scrub = BraidTellingScrub.scrubbed(
+                wonder.prose,
+                readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
+                isHardNight: false
+            )
+            scrubDropped = scrub.dropped
+            prose = scrub.text
+        } else {
+            let told = try await tell()
+            reachedCeiling = told.reachedCeiling
+            if told.reachedCeiling {
+                appLog.error("Braid telling reached the output ceiling; cut back to its last finished sentence")
+            }
+            let finishedProse = BraidNarrativeOutput.finished(
+                told.text,
+                reachedCeiling: told.reachedCeiling,
+                keeperColophon: BraidSceneWriter.keeperColophon(for: scenePlan)
+            )
+            guard !finishedProse.isEmpty else {
+                throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
+            }
+            // "I found the missing library card": the reader's actions, handed
+            // back to them before anything is judged or kept.
+            let pointOfView = BraidPointOfView.returningTheReadersActions(
+                in: finishedProse,
+                readerDay: scenePlan.readerDayNarration
+            )
+            povRepaired = pointOfView.repaired
+            if pointOfView.repaired > 0 {
+                appLog.info("Braid returned \(pointOfView.repaired, privacy: .public) of the reader's actions to them")
+            }
+            // What the Book must never do is taken out here, where it can't be copied.
+            let scrub = BraidTellingScrub.scrubbed(
+                pointOfView.text,
+                readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
+                isHardNight: scenePlan.isHardNight
+            )
+            scrubDropped = scrub.dropped
+            prose = scrub.text
         }
-        let finishedProse = BraidNarrativeOutput.finished(
-            told.text,
-            reachedCeiling: told.reachedCeiling,
-            keeperColophon: BraidSceneWriter.keeperColophon(for: scenePlan)
-        )
-        guard !finishedProse.isEmpty else {
-            throw BraidScenePlanRefusalError(refusals: [.emptyDraft])
+        if !scrubDropped.isEmpty {
+            appLog.info("Braid scrub took out \(scrubDropped.count, privacy: .public) sentence(s) that spoke for the reader or made light of a hard night")
         }
-        // "I found the missing library card": the reader's actions, handed
-        // back to them before anything is judged or kept.
-        let pointOfView = BraidPointOfView.returningTheReadersActions(
-            in: finishedProse,
-            readerDay: scenePlan.readerDayNarration
-        )
-        if pointOfView.repaired > 0 {
-            appLog.info("Braid returned \(pointOfView.repaired, privacy: .public) of the reader's actions to them")
-        }
-        // What the Book must never do is taken out here, where it can't be copied.
-        let scrub = BraidTellingScrub.scrubbed(
-            pointOfView.text,
-            readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
-            isHardNight: scenePlan.isHardNight
-        )
-        if !scrub.dropped.isEmpty {
-            appLog.info("Braid scrub took out \(scrub.dropped.count, privacy: .public) sentence(s) that spoke for the reader or made light of a hard night")
-        }
-        let prose = scrub.text
         let tellingText = "\(scenePlan.title())\n\n\(prose)"
+        // The wonder braid has no template closing line, so a missing one is not a finding.
         let issues = BraidOutputAudit.issues(
             in: tellingText, for: day, context: judgedContext
-        )
+        ).filter { wonder == nil || $0 != .missingRitualEnding }
         let trustFailures = issues.filter(\.isReaderTrustFailure)
         guard trustFailures.isEmpty else {
             throw BraidReaderTrustError(issues: trustFailures)
         }
-        if told.reachedCeiling {
+        if reachedCeiling {
             let missingMaterial = issues.filter(\.isCutoffAnchorFailure)
             guard missingMaterial.isEmpty else {
                 throw BraidIncompleteTellingError(issues: missingMaterial)
@@ -1170,14 +1197,20 @@ struct MLXBookBraider: Braider {
         if scenePlan.authoredStoryReceipts?.isEmpty == false {
             finalTags.append(MonthlyIssueBraidMatter.interludeTag)
         }
+        if let wonder {
+            finalTags.append("braid-wonder")
+            // The library lines this night used, so the next weeks rest them.
+            finalTags += wonder.lineIDs.map { WonderBraidHistory.tagPrefix + $0 }
+            if wonder.jobsFellBack > 0 { finalTags.append("braid-wonder-fallback") }
+        }
         finalTags += claims.flatMap { claim in
             claim.sourceIDs.map { "braid-claim:\(claim.realm.rawValue):\($0)" }
         }
         finalTags += scenePlan.contributionTags
         finalTags += scenePlan.residueTags(surviving: claims)
         if !issues.isEmpty { finalTags.append("braid-audit-best-effort") }
-        if pointOfView.repaired > 0 { finalTags.append("braid-pov-returned") }
-        if !scrub.dropped.isEmpty { finalTags.append("braid-scrubbed") }
+        if povRepaired > 0 { finalTags.append("braid-pov-returned") }
+        if !scrubDropped.isEmpty { finalTags.append("braid-scrubbed") }
         // A braid that carried a step of the Book's running game says which, so
         // tomorrow's can carry the next.
         if let business = scenePlan.bookBusiness, business.id.hasPrefix(BookThreads.idPrefix) {
@@ -1197,6 +1230,89 @@ struct MLXBookBraider: Braider {
             tags: finalTags,
             usedInBookOfYou: true
         )
+    }
+
+    /// The wonder braid (see `WonderBraid`), or nil when the night is not for it
+    /// or it could not make a telling the reader can trust. Hard nights never
+    /// come here; the tender path keeps them. Switch it off for a device with
+    /// `defaults write ... wonderBraidDisabled -bool YES` while testing.
+    ///
+    /// A busy or briefly refusing model is waited for (a re-braid usually follows
+    /// a keep, and that keep's margin reply may still hold the gate). If Gemma
+    /// never answers this throws: the plain braid needs Gemma too, and a night
+    /// assembled without it must not be published as a telling.
+    func wonderTelling(
+        scenePlan: BraidScenePlan,
+        day: BookDay,
+        context: BraidPromptBuilder.Context,
+        judgedContext: BraidPromptBuilder.Context
+    ) async throws -> WonderBraid.Output? {
+        guard mode == .bookOfYou, !scenePlan.isHardNight,
+              !UserDefaults.standard.bool(forKey: "wonderBraidDisabled") else { return nil }
+        let details = scenePlan.readerDayNarration
+        guard !details.isEmpty else { return nil }
+
+        let keptFiction = scenePlan.placements
+            .compactMap { scenePlan.evidence(for: $0.evidenceID) }
+            .filter { $0.kind == .keptFiction }
+            .map(\.text)
+        let weatherWord = day.capturedPages
+            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap(\.context)
+            .flatMap(\.weatherTags)
+            .first
+        // Lines delivered by the month's installed packs join the library.
+        let installedPacks = WorldEventRegistry.enabledPacks()
+        let input = WonderBraid.Input(
+            details: details,
+            dateKey: WonderBraidHistory.dateKey(for: day),
+            tale: scenePlan.worldBeat?.fact,
+            business: scenePlan.bookBusiness?.text,
+            weather: WonderBraid.weatherLine(
+                weather: weatherWord,
+                place: UserDefaults.standard.string(forKey: "lastCoarseLocationContextLabel"),
+                moonPhaseName: MoonPhaseCalendar.phase(on: day.date).name
+            ),
+            bookLines: WonderBraid.bookLines(from: keptFiction.flatMap(WonderBraid.sentences)),
+            resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date),
+            delivered: installedPacks.flatMap { $0.wonderLines ?? [] },
+            retiring: Set(installedPacks.flatMap { $0.retiredWonderLineIDs ?? [] })
+        )
+        let tell: WonderBraid.Teller = { system, user, temperature, topP, maxTokens in
+            try await MLXLocalTextGenerator.run(
+                prompt: user,
+                instructions: system,
+                maxTokens: maxTokens,
+                label: "braid-wonder",
+                tags: ["braid", "book-of-you", "braid-wonder"],
+                temperature: temperature,
+                topP: topP,
+                maxKVSize: 2_048,
+                readerFacingBraidPreview: false,
+                masksWornImages: true
+            )
+        }
+        let output: WonderBraid.Output?
+        do {
+            output = try await WonderBraid.write(input, tell: tell)
+        } catch let unavailable as WonderBraid.ModelUnavailable {
+            appLog.error("Wonder braid could not reach Gemma: \(unavailable.localizedDescription, privacy: .public)")
+            throw unavailable.underlying
+        }
+        guard let output else { return nil }
+        // A stub is not a telling.
+        guard output.prose.split(whereSeparator: \.isWhitespace).count >= 45 else {
+            appLog.info("Wonder braid came out too short; the plain braid will run")
+            return nil
+        }
+        let trust = BraidOutputAudit.issues(in: "\(scenePlan.title())\n\n\(output.prose)", for: day, context: judgedContext)
+            .filter(\.isReaderTrustFailure)
+        guard trust.isEmpty else {
+            appLog.error("Wonder braid failed the reader-trust audit (\(trust.map { $0.rawValue }.joined(separator: ","), privacy: .public)); the plain braid will run")
+            return nil
+        }
+        appLog.info("Wonder braid: \(output.paragraphs.count, privacy: .public) paragraphs, \(output.jobsFellBack, privacy: .public) plain, thin \(output.thin, privacy: .public), weather \(output.weather.rawValue, privacy: .public)")
+        return output
     }
 
     /// The polisher trims repetition, but it works by deleting whole sentences,
@@ -1355,7 +1471,9 @@ enum MLXLocalTextGenerator {
         readerFacingBraidPreview: Bool = false,
         iPhone15OutputCeiling: Int = 420,
         masksWornImages: Bool = false,
-        completion: ((GenerateCompletionInfo?) -> Void)? = nil
+        completion: ((GenerateCompletionInfo?) -> Void)? = nil,
+        onPartial: (@Sendable (String) -> Void)? = nil,
+        onStage: (@Sendable (LetsChatStage) -> Void)? = nil
     ) async throws -> String {
         guard let modelDirectory = LocalModelManager.activeModelDirectory else {
             throw LocalModelError.missingModel(LocalModelManager.report())
@@ -1374,7 +1492,14 @@ enum MLXLocalTextGenerator {
             presentation: presentation
         ) {
             try await Device.withDefaultDevice(.gpu) {
+                // Say so when the weights have to come back from storage: it is
+                // the longest wait in a reply, and only happens cold.
+                if let onStage,
+                   !(await LocalBrainModelCache.shared.warmMatches(kind: .llm, path: modelDirectory.path)) {
+                    onStage(.waking)
+                }
                 let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
+                onStage?(.reading)
                 var components = GenerationComponents()
                 if masksWornImages {
                     let tokens = await WornImageMask.tokens(for: container, sparing: prompt)
@@ -1400,6 +1525,7 @@ enum MLXLocalTextGenerator {
                         var generatedCharacterCount = 0
                         var lastPostedCharacterCount = 0
                         var lastPostedAt = Date.distantPast
+                        var lastPartialAt = Date.distantPast
                         var completionInfo: GenerateCompletionInfo?
                         if publishesProgress {
                             postProgress(
@@ -1427,6 +1553,18 @@ enum MLXLocalTextGenerator {
                             switch generation {
                             case .chunk(let chunk):
                                 output += chunk
+                                // The text so far, for a surface that wants to
+                                // show a reply as it is written. Throttled to
+                                // roughly twenty updates a second: the screen
+                                // cannot use more, and each one is a hop to
+                                // the main actor.
+                                if let onPartial {
+                                    let now = Date()
+                                    if now.timeIntervalSince(lastPartialAt) >= 0.05 {
+                                        lastPartialAt = now
+                                        onPartial(output)
+                                    }
+                                }
                                 guard publishesProgress else { continue }
                                 generatedCharacterCount += chunk.count
                                 appendProgressChunk(chunk, to: &progressPreview)
@@ -1462,6 +1600,7 @@ enum MLXLocalTextGenerator {
                         }
 
                         completion?(completionInfo)
+                        onPartial?(output)
                         if publishesProgress, completionInfo == nil {
                             postProgress(
                                 label: label,
@@ -1604,19 +1743,13 @@ enum MLXBraidLegacyTaskRunner {
     }
 }
 
+/// Let's Chat's voice. Sizing, prompt and the echo check live in the package
+/// (`LetsChatRouter`, `LetsChatPrompt`, `LetsChatEchoGuard`) where they can be
+/// tested; this is the part that needs the model.
 struct MLXAskTheBookAnswerer: AskTheBookAnswering {
-    var maxTokens = 520
+    static let instructions = LetsChatPrompt.instructions
 
-    /// Hoisted out of the `run` call so the prompt budget below is charged
-    /// against the same instructions the model is actually given. Budgeting
-    /// against a different string than the one sent is how a prompt ends up
-    /// over its window while the estimate says it fits.
-    static let instructions = """
-    You are a magical Book inside ReEnchanted, speaking with your reader. Stay inside the character, relationship, evidence, and boundary packet in the task prompt.
-    \(BookVoice.animismLine)
-    Answer what the reader actually said. Warmth comes from listening, remembering, and taking an interest. A greeting can simply be a greeting. Do not turn each reply into an errand or an object joke.
-    """
-
+    /// Protocol entry point: routes the message itself and does not stream.
     func answer(
         prompt: String,
         day: BookDay,
@@ -1627,189 +1760,114 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         interior: BookInteriorState = .unawakened,
         bookVoicePatina: BookVoicePatina = .unwritten
     ) async throws -> String {
-        // Chat was the one generation in the app with no budget on its prompt:
-        // it grew with the knowledge packet, six turns of history and everything
-        // the archive search returned, then asked for a KV cache to match. On
-        // Rabbit that reached 29,959 characters — about 10,379 tokens into a
-        // 4,096-token rotating cache, three times over — costing 2,924,840,736
-        // and running the device to 13,594,120 bytes free.
-        //
-        // The obvious repair, handing the finished prompt to `fit`, is wrong
-        // here. `fit` keeps the head, the canon and the tail, and drops the
-        // middle — and the middle of *this* prompt is the relationship, the
-        // Book's mood, and the RULES that balance "feral" with "warm". The
-        // instructions, which are the harsh half of the character, travel
-        // separately and are never trimmed. So the trim removed the manners and
-        // kept the teeth: a reader said "how are you today?" and was told to
-        // spit it out.
-        //
-        // Compose within the budget instead. Drop whole ingredients, weakest
-        // first, so every section that survives arrives intact and the voice
-        // never pays for the memory.
+        try await answer(
+            prompt: prompt,
+            route: LetsChatRouter.route(prompt, previousTurns: previousTurns),
+            day: day,
+            previousTurns: previousTurns,
+            readerLexicon: readerLexicon,
+            memory: memory,
+            relationship: relationship,
+            interior: interior,
+            bookVoicePatina: bookVoicePatina,
+            onPartial: nil
+        )
+    }
+
+    func answer(
+        prompt: String,
+        route: LetsChatRoute,
+        day: BookDay,
+        previousTurns: [AskTheBookTurn],
+        readerLexicon: ReaderLexicon,
+        memory: AskTheBookMemoryPacket,
+        relationship: BookRelationshipSnapshot,
+        interior: BookInteriorState,
+        bookVoicePatina: BookVoicePatina,
+        onPartial: (@Sendable (String) -> Void)?,
+        onStage: (@Sendable (LetsChatStage) -> Void)? = nil,
+        onMyMind: LetsChatOnMyMind? = nil
+    ) async throws -> String {
+        // The prompt grew with the knowledge packet, six turns of history and
+        // everything the archive search returned, then asked for a KV cache to
+        // match: on Rabbit that was 29,959 characters into a 4,096-token
+        // window. It is now sized by what the message is for, composed from
+        // whole ingredients weakest-first (never clipped across the middle,
+        // which once removed the manners and kept the teeth), and rendered a
+        // few times rather than twenty.
+        let maxTokens = route.maxReplyTokens
         let inputBudgetTokens = max(
             256,
             LocalBrainPromptBudget.contextWindowTokens - maxTokens - LocalBrainPromptBudget.safetyTokens
         )
-        func assemble(_ budget: LocalModelManager.AskTheBookPromptBudget) -> String {
-            LocalModelManager.askTheBookPrompt(
-                prompt: prompt,
-                day: day,
-                previousTurns: previousTurns,
-                readerLexicon: readerLexicon,
-                memory: memory,
-                relationship: relationship,
-                interior: interior,
-                bookVoicePatina: bookVoicePatina,
-                budget: budget
-            )
-        }
-        func fits(_ candidate: String) -> Bool {
-            LocalBrainPromptBudget.estimatedTokens(for: Self.instructions + "\n" + candidate) <= inputBudgetTokens
-        }
-
-        let fullPrompt = assemble(.unbounded)
-
-        // Measure this turn's incompressible cost — the prompt with every
-        // scalable ingredient at zero — and share what is left between them.
-        // Doing this per message rather than from fixed limits is the point:
-        // how much interior, lore and evidence a reply can afford depends on
-        // how much the search returned and how long the reader wrote, and that
-        // is different every time.
-        let floorBudget = LocalModelManager.AskTheBookPromptBudget(
-            historyTurns: 0,
-            evidenceCount: 0,
-            knowledgeLimit: 0,
-            interiorCharacterLimit: 0,
-            includesFullVoiceBlock: false,
-            usesCompactCharacterSpec: true
+        let recentPages = memory.searchedWholeBook
+            ? []
+            : Array(LocalModelManager.braidEvidenceLines(for: day, characterLimit: 260).prefix(4))
+        let inputs = LetsChatPrompt.Inputs(
+            message: prompt,
+            route: route,
+            previousTurns: previousTurns,
+            memory: memory,
+            relationship: relationship,
+            interior: interior,
+            patina: bookVoicePatina,
+            lexicon: readerLexicon,
+            recentPages: recentPages,
+            knowledgeNotes: BookKnowledgePromptBuilder.relevantNotes(for: prompt, limit: route.knowledgeLimit),
+            onMyMind: onMyMind
         )
-        let budgetCharacters = inputBudgetTokens * 3
-        let fixedCost = assemble(floorBudget).count + Self.instructions.count
-        let spendable = max(0, budgetCharacters - fixedCost)
-
-        // Shares of what remains. Evidence leads because a question about the
-        // reader's own archive is unanswerable without its records; the Book's
-        // interior comes next so its mood reaches the reply it is colouring;
-        // lore and small talk take what is left.
-        var chosen = LocalModelManager.AskTheBookPromptBudget(
-            historyTurns: 0,
-            evidenceCount: 0,
-            knowledgeLimit: 0,
-            interiorCharacterLimit: max(0, spendable * 30 / 100),
-            includesFullVoiceBlock: false,
-            usesCompactCharacterSpec: true
-        )
-        let evidenceShare = spendable * 40 / 100
-        let knowledgeShare = spendable * 20 / 100
-        let historyShare = spendable - (spendable * 30 / 100) - evidenceShare - knowledgeShare
-
-        // Turn each share into a count by growing the ingredient until its slice
-        // is spent, so a packet of short records is not charged the same as a
-        // packet of long ones.
-        // An ingredient may spend up to its share, but the *first* unit of it is
-        // judged against the whole budget instead. Without that exception the
-        // allocator was all-or-nothing at exactly the wrong place: one archive
-        // record is longer than its own slice, so a search that found something
-        // contributed nothing, and the Book answered from character while its
-        // findings sat unused. A reply carrying one long record beats a reply
-        // carrying none.
-        func widen<T>(
-            _ candidates: [T],
-            within share: Int,
-            apply: (T) -> LocalModelManager.AskTheBookPromptBudget
-        ) -> LocalModelManager.AskTheBookPromptBudget? {
-            var best: LocalModelManager.AskTheBookPromptBudget?
-            let baseline = assemble(chosen).count
-            for (index, candidate) in candidates.enumerated() {
-                let widened = apply(candidate)
-                let assembled = assemble(widened)
-                let added = assembled.count - baseline
-                let affordable = index == 0
-                    ? fits(assembled)
-                    : added <= share
-                guard affordable else { break }
-                best = widened
-            }
-            return best
-        }
-
-        if let widened = widen(Array(1...max(1, memory.evidence.count)), within: evidenceShare, apply: {
-            var next = chosen; next.evidenceCount = $0; return next
-        }) { chosen = widened }
-
-        if let widened = widen([2, 4, 6, 8, 10], within: knowledgeShare, apply: {
-            var next = chosen; next.knowledgeLimit = $0; return next
-        }) { chosen = widened }
-
-        if let widened = widen([1, 2, 3, 4, 5, 6], within: historyShare, apply: {
-            var next = chosen; next.historyTurns = $0; return next
-        }) { chosen = widened }
-
-        var taskPrompt = assemble(chosen)
-        // Shares are computed from a conservative estimate, so confirm against
-        // the real thing and give ground in reverse order of priority.
-        if !fits(taskPrompt) {
-            for relief in [4, 2, 1, 0] {
-                chosen.historyTurns = min(chosen.historyTurns, relief)
-                taskPrompt = assemble(chosen)
-                if fits(taskPrompt) { break }
-            }
-        }
-        if !fits(taskPrompt) {
-            for relief in [6, 4, 2, 0] {
-                chosen.knowledgeLimit = min(chosen.knowledgeLimit ?? relief, relief)
-                taskPrompt = assemble(chosen)
-                if fits(taskPrompt) { break }
-            }
-        }
-        if !fits(taskPrompt) {
-            for relief in [3, 2, 1] {
-                chosen.evidenceCount = min(chosen.evidenceCount, relief)
-                taskPrompt = assemble(chosen)
-                if fits(taskPrompt) { break }
-            }
-        }
-
-        // Only if dropping every ingredient still overruns do we clip, and then
-        // the character canon is what `fit` is told to protect.
-        var finalPrompt = taskPrompt
+        let composed = LetsChatPrompt.compose(inputs, maxCharacters: inputBudgetTokens * 3)
+        var finalPrompt = composed.prompt
         var wasClipped = false
-        if !fits(taskPrompt) {
+        if !composed.fits {
             let clipped = LocalBrainPromptBudget.fit(
-                prompt: taskPrompt,
+                prompt: composed.prompt,
                 instructions: Self.instructions,
                 maxOutputTokens: maxTokens
             )
             finalPrompt = clipped.prompt
             wasClipped = clipped.wasCompacted
-            appLog.info(
-                "Chat with the Book clipped its prompt after trimming every ingredient; character canon preserved: \(clipped.preservedCharacterCanon, privacy: .public)"
-            )
         }
         AppMemoryLedger.record(
-            "ask-the-book-prompt; characters: \(fullPrompt.count); composed: \(finalPrompt.count); fixed: \(fixedCost); spendable: \(spendable); turns: \(chosen.historyTurns); evidence: \(chosen.evidenceCount); knowledge: \(chosen.knowledgeLimit ?? -1); interior: \(chosen.interiorCharacterLimit ?? -1); clipped: \(wasClipped); budget-tokens: \(inputBudgetTokens)"
-        )
-        // Which ingredient is actually spending the budget. The ladder above
-        // dropped every turn and all but one record and the prompt still
-        // overran, so the weight is in the fixed scaffolding — and guessing
-        // which part has been wrong often enough today to be worth one reading.
-        AppMemoryLedger.record(
-            "ask-the-book-sections; canon: \(BookCharacterCanon.prompt.count); animism: \(BookVoice.animism.count); relationship: \(relationship.promptSection.count); interior: \(interior.promptSection.count); patina: \(bookVoicePatina.promptSection.count); knowledge: \(BookKnowledgePromptBuilder.trainingPacket(for: prompt, limit: 10).count); memory: \(memory.promptSection.count); lexicon: \(readerLexicon.languageLawSection().count)"
+            "lets-chat-prompt; intent: \(route.intent.rawValue); characters: \(finalPrompt.count); turns: \(composed.budget.historyTurns); evidence: \(composed.budget.evidenceCount); notes: \(composed.budget.knowledgeNotes); interior: \(composed.budget.interiorCharacters); clipped: \(wasClipped); budget-tokens: \(inputBudgetTokens)"
         )
 
-        return try await MLXLocalTextGenerator.run(
-            prompt: finalPrompt,
-            instructions: Self.instructions,
-            maxTokens: maxTokens,
-            label: "ask-the-book",
-            tags: ["ask-the-book"],
-            temperature: 0.8,
-            topP: 0.94,
-            // Whole-Book evidence and fictional continuity packets are larger
-            // than the old recent-pages prompt. Keep their authority rules in
-            // context instead of rotating them out before the reply begins.
-            maxKVSize: 4_096
-        )
+        func generate(_ text: String, temperature: Float) async throws -> String {
+            try await MLXLocalTextGenerator.run(
+                prompt: text,
+                instructions: Self.instructions,
+                maxTokens: maxTokens,
+                label: "ask-the-book",
+                tags: ["ask-the-book"],
+                temperature: temperature,
+                topP: 0.94,
+                // The knowledge and record sections carry authority rules; keep
+                // them in context rather than rotating them out mid-reply.
+                maxKVSize: 4_096,
+                // Chat draws its own bubble from `onPartial`, so the global
+                // scribe card has nothing to add.
+                presentation: .conversation,
+                publishesProgress: false,
+                iPhone15OutputCeiling: maxTokens,
+                onPartial: onPartial,
+                onStage: onStage
+            )
+        }
+
+        func repeatsSomeone(_ reply: String) -> Bool {
+            LetsChatEchoGuard.repeats(reader: prompt, in: reply)
+                || LetsChatEchoGuard.repeats(earlier: previousTurns.suffix(2).map(\.answer), in: reply)
+        }
+
+        var reply = try await generate(finalPrompt, temperature: 0.8)
+        if repeatsSomeone(reply) {
+            appLog.info("Let's Chat reply repeated the reader or the Book; retrying once.")
+            onPartial?("")
+            onStage?(.retrying)
+            let nudged = finalPrompt + "\n\nYour last try just said their words (or yours) back. Say something new this time: react, add something, or ask."
+            reply = try await generate(nudged, temperature: 0.95)
+        }
+        return LetsChatEchoGuard.removingEcho(from: reply, reader: prompt)
     }
 }
 

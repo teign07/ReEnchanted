@@ -377,6 +377,28 @@ private final class ManualPagePreparationCache {
     }
 }
 
+/// The next Explore deeper pull, decided before the tap so the folio can lay
+/// its leaves out while the reader is still on the last Page. It is served only
+/// while the binding and the bench it was drawn from are unchanged.
+private final class PreparedDeeperPull {
+    private var signature: Int?
+    private var pages: [SurfacePage] = []
+
+    func store(_ pages: [SurfacePage], signature: Int) {
+        self.pages = pages
+        self.signature = signature
+    }
+
+    func pages(for signature: Int) -> [SurfacePage]? {
+        self.signature == signature ? pages : nil
+    }
+
+    func clear() {
+        signature = nil
+        pages = []
+    }
+}
+
 private enum PreparedPageOpeningKind {
     case manual(BookPageType)
     case almanac
@@ -580,6 +602,7 @@ struct ContentView: View {
     @State private var manualPageOpeningTicket = 0
     @State private var stagedReadingSurfaceID: String?
     @State private var manualPagePreparationCache = ManualPagePreparationCache()
+    @State private var preparedDeeperPull = PreparedDeeperPull()
     @State private var pagesRisingFolioInsertions: [PagesRisingFolioInsertion] = []
     @State private var pagesRisingDeeperSurfaces: [SurfacePage] = []
     @State private var pagesRisingDismissedPersistentDocumentIDs: Set<String> = []
@@ -675,6 +698,8 @@ struct ContentView: View {
     /// a deliberate keep/swipe can refill its exact slot without rebuilding the
     /// whole archive while the reader waits.
     @State private var curatedSurfaceBench: [SurfacePage] = []
+    /// A background curation is already topping up the Explore-deeper bench.
+    @State private var isReplenishingDeeperBench = false
     @State private var monthlyMaintenanceDay: Date?
     @State private var monthlyRuntimeCatalogLoaded = false
     @State private var monthlyRuntimeCatalog = MonthlyIssueRuntimeCatalog(packs: [])
@@ -912,10 +937,10 @@ struct ContentView: View {
         : "This room has no HealthKit doorway."
     @State var weatherMessage = WeatherLocationReader.isAvailable
         ? "Lend me your place and I can translate the sky without naming the watcher."
-        : "This room cannot hear the local sky yet."
+        : "This room can't hear the local sky yet."
     @State var anchorMessage = AnchorLocationReader.isAvailable
         ? "I can check nearby known Anchors and open the right Outer Stacks room."
-        : "This room cannot hear the nearby ley line yet."
+        : "This room can't hear the nearby ley line yet."
     @State var braidingQuipIndex = 0
     @State var localBrainTelemetry = LocalBrainTelemetryState()
     @State var localBrainProgress = LocalBrainProgressViewState()
@@ -1258,6 +1283,7 @@ struct ContentView: View {
         inputs.castActs = vault.data.castActs ?? .empty
         inputs.pressedVolumes = vault.data.pressedVolumes ?? []
         inputs.seasonalDispatches = vault.data.seasonalDispatches ?? []
+        inputs.holdsBoundYear = vault.data.boundYear?.isCurrent == true
         inputs.publicationEpoch = vault.data.publicationEpoch
         inputs.worldPressures = WorldPressureEngine.active(vault.data.worldPressures ?? [], now: Date())
         inputs.placeStates = vault.data.placeStates ?? [:]
@@ -1267,6 +1293,7 @@ struct ContentView: View {
         inputs.radio = vault.data.radio ?? .off
         inputs.worldEventLifecycle = vault.data.worldEventLifecycle ?? .empty
         inputs.authoredContentReceipts = vault.data.authoredContentReceipts ?? .empty
+        inputs.castStoryMemories = vault.data.castStoryMemories ?? .empty
         inputs.openWorldEventArchive = vault.data.openWorldEventArchive
         inputs.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         inputs.hemisphere = Hemisphere.from(latitude: lastAnchorReadingLatitude)
@@ -1385,7 +1412,13 @@ struct ContentView: View {
             adjusted.baseBelief = currentGlow
             return adjusted
         }
-        inputs.narrative = cachedNarrativeSourceSnapshot
+        var narrative = cachedNarrativeSourceSnapshot
+        // The month's story happened to the Cast. Letters, notes and Story
+        // Pages read their memories here, so October reaches them without any
+        // of them learning a second store.
+        narrative.entityMemories = CastStoryMemoryProjection.merged(
+            narrative.entityMemories, ledger: vault.data.castStoryMemories)
+        inputs.narrative = narrative
         return inputs
     }
 
@@ -1439,7 +1472,8 @@ struct ContentView: View {
             var knownIDs = Set(pages.map(\.id))
             for fallback in BookEvergreenPlayReserve.pages(
                 now: surfaceRefreshDate,
-                keptPageCount: keptPageCount
+                keptPageCount: keptPageCount,
+                history: vault.data.surfaceHistory ?? [:]
             ) where knownIDs.insert(fallback.id).inserted {
                 pages.append(fallback)
                 if pages.count == BookDeskRound.reserveCapacity { break }
@@ -1647,38 +1681,12 @@ struct ContentView: View {
     /// or route through Contents.
     @MainActor
     func deepenPagesRising() -> String? {
-        let knownDocumentIDs = Set(pagesRisingFolioSurfaces.map {
-            pagesRisingDocumentID(for: $0)
-        })
-        var next: [SurfacePage] = []
-        var acceptedDocumentIDs: Set<String> = []
-
-        for candidate in curatedSurfaceBench {
-            let documentID = pagesRisingDocumentID(for: candidate)
-            guard !knownDocumentIDs.contains(documentID),
-                  acceptedDocumentIDs.insert(documentID).inserted else { continue }
-            next.append(candidate)
-            if next.count == BookDeskRound.reserveCapacity { break }
-        }
-
-        if next.count < BookDeskRound.reserveCapacity {
-            let generation = max(1, pagesRisingDeeperSurfaces.count / BookDeskRound.reserveCapacity + 1)
-            for candidate in BookEvergreenPlayReserve.pages(
-                now: surfaceRefreshDate,
-                generation: generation,
-                keptPageCount: keptPageCount
-            ) {
-                let documentID = pagesRisingDocumentID(for: candidate)
-                guard !knownDocumentIDs.contains(documentID),
-                      acceptedDocumentIDs.insert(documentID).inserted else { continue }
-                next.append(candidate)
-                if next.count == BookDeskRound.reserveCapacity { break }
-            }
-        }
-
-        // Space the pull the same way the opening block is spaced. The first
-        // Page is the one the reader is carried to, so it stays put.
-        next = BookCurator.readingArc(next)
+        // The folio usually asked for this pull while the reader was on the
+        // last Page, and has already laid its leaves out. Serving that same
+        // pull is what lets the riffle bind them without measuring anything.
+        let next = preparedDeeperPull.pages(for: pagesRisingDeeperPullSignature)
+            ?? nextPagesRisingDeeperPull()
+        preparedDeeperPull.clear()
 
         guard let first = next.first else {
             BookFeedback.play(.tap)
@@ -1704,9 +1712,103 @@ struct ContentView: View {
         let servedAt = Date()
         DispatchQueue.main.async {
             recordServedSurfaces(servedPages, now: servedAt)
+            replenishDeeperBenchIfNeeded()
         }
         BookFeedback.pageRising(rarity: first.score)
         return pagesRisingDocumentID(for: first)
+    }
+
+    /// Decides the next Explore deeper pull ahead of the tap and keeps it, so
+    /// the folio can lay out exactly the leaves the tap will bind.
+    @MainActor
+    func preparePagesRisingDeeperPull() -> [SurfacePage] {
+        let signature = pagesRisingDeeperPullSignature
+        if let prepared = preparedDeeperPull.pages(for: signature) { return prepared }
+        let pages = nextPagesRisingDeeperPull()
+        preparedDeeperPull.store(pages, signature: signature)
+        return pages
+    }
+
+    /// Everything a pull is drawn from that can change between preparing it
+    /// and the tap: the bench, the binding, and how deep the reader has gone.
+    private var pagesRisingDeeperPullSignature: Int {
+        var hasher = Hasher()
+        hasher.combine(curatedSurfaceBench.map(\.id))
+        hasher.combine(pagesRisingFolioSurfaces.map { pagesRisingDocumentID(for: $0) })
+        hasher.combine(pagesRisingDeeperSurfaces.count)
+        hasher.combine(surfaceRefreshDate)
+        return hasher.finalize()
+    }
+
+    @MainActor
+    private func nextPagesRisingDeeperPull() -> [SurfacePage] {
+        let served = vault.data.surfaceHistory ?? [:]
+        // One generation per Page already pulled, not per nine: a pull that
+        // came back short must not reuse the next pull's ids.
+        let generation = pagesRisingDeeperSurfaces.count + 1
+        let next = BookCurator.deeperPull(
+            bench: curatedSurfaceBench,
+            alreadyShown: pagesRisingFolioSurfaces,
+            history: served,
+            now: Date(),
+            limit: BookDeskRound.reserveCapacity
+        ) { variants, restsFixedSeeds, tier in
+            BookEvergreenPlayReserve.pages(
+                now: surfaceRefreshDate,
+                generation: generation * 10 + tier,
+                keptPageCount: keptPageCount,
+                history: served,
+                variantsPerCatalogue: variants,
+                restsFixedSeeds: restsFixedSeeds
+            )
+        }
+
+        // Space the pull the same way the opening block is spaced. The first
+        // Page is the one the reader is carried to, so it stays put.
+        return BookCurator.readingArc(next)
+    }
+
+    /// Keeps "Explore deeper" supplied with the Curator's own Pages rather than
+    /// the cupboard's, in rounds.
+    ///
+    /// A round is one curation of `candidateBenchCapacity` Pages. The folio
+    /// opens nine of it and each pull opens nine more. When no more than one
+    /// pull's worth is left unseen, the next round is curated in the
+    /// background, so it is ready before it is needed and the bench never runs
+    /// dry. It is told which round it is and what the folio has already shown:
+    /// a deeper round skips the type cooldown (a reader turning pages is
+    /// already kept varied by one-Page-per-type on each block), draws more
+    /// widely from the Book's catalogues, and is curated by the same Curator
+    /// as the first one, so the aliveness ranking still decides what comes
+    /// first.
+    @MainActor
+    func replenishDeeperBenchIfNeeded() {
+        guard !isReplenishingDeeperBench else { return }
+        let shownPages = pagesRisingFolioSurfaces
+        let shown = Set(shownPages.map(\.curatorContentNoveltyKey))
+        let fresh = curatedSurfaceBench.filter { !shown.contains($0.curatorContentNoveltyKey) }
+        guard fresh.count <= BookDeskRound.reserveCapacity else { return }
+        let round = pagesRisingDeeperSurfaces.count / BookDeskRound.reserveCapacity + 1
+        isReplenishingDeeperBench = true
+        Task { @MainActor in
+            defer { isReplenishingDeeperBench = false }
+            var request = makeSurfaceBuildRequest(
+                now: Date(),
+                surfaceLimit: BookDeskRound.candidateBenchCapacity
+            )
+            request.inputs.deckRound = round
+            request.inputs.shownContentKeys = shown
+            let built = await ContentView.computeSurfaceBuild(
+                request,
+                performsHeavyEnrichment: false,
+                priority: .utility
+            )
+            guard !Task.isCancelled else { return }
+            var known = Set(curatedSurfaceBench.map(\.id))
+            let additions = built.surfaces.filter { known.insert($0.id).inserted }
+            guard !additions.isEmpty else { return }
+            curatedSurfaceBench.append(contentsOf: additions)
+        }
     }
 
     func isPagesRisingGeneratedSurface(_ surface: SurfacePage) -> Bool {
@@ -2975,7 +3077,8 @@ struct ContentView: View {
                                 },
                                 onClose: closeGlowMenu,
                                 onSelectAction: handleGlowMenuAction,
-                                readerRole: ReaderRoleRegistry.currentRole(from: selfFacts)
+                                readerRole: ReaderRoleRegistry.currentRole(from: selfFacts),
+                                storySoFarTitle: StorySoFarPageSourceAdapter.menuTitle(now: Date())
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .ignoresSafeArea()
@@ -3033,6 +3136,8 @@ struct ContentView: View {
             }
             .task(id: scenePhase) {
                 guard scenePhase == .active else { return }
+                // A recording session left behind mutes every sound and haptic.
+                BookAudioSession.healIfStuck()
                 await waitForLaunchStateHydration()
                 while !Task.isCancelled, scenePhase == .active {
                     let now = Date()
@@ -3235,6 +3340,8 @@ struct ContentView: View {
     private var chromeSignalRoot: AnyView {
         AnyView(
             chromeLifecycleRoot
+            // New pages downloading: a small card says so, in the Book's voice.
+            .overlay(alignment: .top) { ShelfFetchOverlay() }
             .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
                 handlePendingWidgetDeepLink()
                 handlePendingSiriCommand()
@@ -3446,6 +3553,8 @@ struct ContentView: View {
                 WeeklyIssueReaderSheet(
                     reader: reader,
                     brainReady: LocalModelManager.report().isReady,
+                    showsBoundYearAside: vault.data.boundYear?.isCurrent != true,
+                    onOpenBoundYear: { openBoundYearRoom() },
                     onRebind: {
                         // Re-bind: drop the cached copy and rebuild from scratch,
                         // asking the Book to rewrite it if the local brain is ready.
@@ -3490,6 +3599,17 @@ struct ContentView: View {
             .sheet(item: $monthlyEditionReader) { reader in
                 MonthlyEditionReaderSheet(
                     reader: reader,
+                    onOrderPrint: reader.periodID.map { periodID in
+                        {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                                if !openEditionOffer(periodRaw: periodID.rawValue, cadenceRaw: PublicationEditionKind.monthly.rawValue) {
+                                    statusMessage = "The press couldn't find that month just now."
+                                }
+                            }
+                        }
+                    },
+                    showsBoundYearAside: vault.data.boundYear?.isCurrent != true,
+                    onOpenBoundYear: { openBoundYearRoom() },
                     onRebind: reader.periodID == nil ? nil : {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                             rebindEditionReader(reader)
@@ -3502,6 +3622,15 @@ struct ContentView: View {
             .sheet(item: $annualEditionReader) { reader in
                 AnnualEditionReaderSheet(
                     reader: reader,
+                    onOrderPrint: {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                            if !openEditionOffer(periodRaw: reader.periodID.rawValue, cadenceRaw: reader.periodID.recipe.cadence.rawValue) {
+                                statusMessage = "The press couldn't find that year just now."
+                            }
+                        }
+                    },
+                    showsBoundYearAside: vault.data.boundYear?.isCurrent != true,
+                    onOpenBoundYear: { openBoundYearRoom() },
                     onRebind: {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                             exportAnnualEdition(
@@ -5403,6 +5532,23 @@ struct ContentView: View {
                         guard !isCallingGeneratedInk else { return current }
                         return BookDeskRound.refreshingSurvivor(current, with: refreshedBySlot[current.deskSlotKey])
                     }
+                    // A monthly story scene that has come due again (or whose
+                    // successor is due) takes the front. Other cards stay put.
+                    let beingRead = Set(surfacedPages.filter { page in
+                        let documentID = pagesRisingDocumentID(for: page)
+                        return page.id == selectedSurface?.id
+                            || deskRound.resolutions[page.deskSlotKey] == .opened
+                            || pagesRisingGenerationParentDocumentIDs.contains(documentID)
+                            || pagesRisingFolioInsertions.contains { $0.parentDocumentID == documentID }
+                    }.map(\.id))
+                    let renewed = BookDeskRound.renewingStoryScene(
+                        in: surfacedPages, from: result.surfaces, protecting: beingRead)
+                    if renewed != surfacedPages {
+                        let previousIDs = Set(surfacedPages.map(\.id))
+                        surfacedPages = renewed
+                        deskRound.reconcilePublished(with: renewed)
+                        markSurfaceArrivals(Set(renewed.map(\.id)).subtracting(previousIDs))
+                    }
                 }
             } else {
                 surfacedPages = BookCurator.stabilizedDeskOrder(
@@ -5924,7 +6070,8 @@ struct ContentView: View {
             surfaces = BookEvergreenPlayReserve.pages(
                 now: request.now,
                 generation: request.preferences.dismissedSurfaceIDs.count,
-                keptPageCount: request.inputs.keptPageCount
+                keptPageCount: request.inputs.keptPageCount,
+                history: request.inputs.surfaceHistory
             )
         }
         let patinaSurfaces = surfaces.map { bookVoicePatina.applying(to: $0) }
@@ -6076,7 +6223,8 @@ struct ContentView: View {
             let evergreen = BookEvergreenPlayReserve.pages(
                 now: now,
                 generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
-                keptPageCount: keptPageCount
+                keptPageCount: keptPageCount,
+                history: vault.data.surfaceHistory ?? [:]
             ).filter { page in
                 preferences.allows(page)
                     && !candidates.contains(where: { $0.id == page.id })
@@ -6190,7 +6338,8 @@ struct ContentView: View {
                 candidates.append(contentsOf: BookEvergreenPlayReserve.pages(
                     now: now,
                     generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
-                    keptPageCount: keptPageCount
+                    keptPageCount: keptPageCount,
+                    history: vault.data.surfaceHistory ?? [:]
                 ).filter {
                     preferences.allows($0)
                 })
@@ -7096,7 +7245,7 @@ struct ContentView: View {
                             && $0.id != surface.id
                     }
                 continuation = MonthlyIssueMarginaliaDresser.dressing(prepared,
-                    day: today, inputs: inputs, now: now, distressActive: false)
+                    day: today, inputs: inputs, now: now)
                     .compactMap { monthlyRuntimePage($0, now: now) }.first
                 #if DEBUG
                 appLog.debug("Authored continuation prepared: \(continuation != nil)")
@@ -7403,6 +7552,14 @@ struct ContentView: View {
                     )
                 }
             }
+        case .openStorySoFar:
+            dismissGlowMenuThenPresent {
+                if let surface = StorySoFarPageSourceAdapter.askedSurface(inputs: sourceInputs, now: Date()) {
+                    selectedSurface = surface
+                } else {
+                    statusMessage = "Nothing's running right now, so there's nothing to catch up on."
+                }
+            }
         case .openPlayfulMission:
             dismissGlowMenuThenPresent {
                 Task {
@@ -7529,6 +7686,7 @@ struct ContentView: View {
             movements: vault.data.castAgency?.recentMovements ?? [],
             authoredRelationships: NarrativePackRegistry.relationships,
             relationshipField: vault.data.relationshipField ?? [:],
+            storyMemories: (vault.data.castStoryMemories ?? .empty).memories(of: entity.id),
             now: now
         )
         selectedSurface = CastIllustrationPageSourceAdapter().surface(
@@ -7794,7 +7952,7 @@ struct ContentView: View {
             closeGlowMenu()
             return member.id
         } catch {
-            statusMessage = "The new Cast Member would not settle yet: \(error.localizedDescription)"
+            statusMessage = "The new Cast Member wouldn't settle yet: \(error.localizedDescription)"
             return nil
         }
     }
@@ -8682,7 +8840,7 @@ struct ContentView: View {
     }
 
     func localBrainIssueSurface(type: BookPageType, title: String, action: String) -> SurfacePage {
-        let detail = localBrainTelemetry.lastError ?? localBrainTelemetry.currentWorkStatus ?? "The local model did not return a page."
+        let detail = localBrainTelemetry.lastError ?? localBrainTelemetry.currentWorkStatus ?? "The local model didn't return a page."
         return SurfacePage(
             id: "local-brain-issue-\(type.rawValue)-\(Int(Date().timeIntervalSince1970))",
             type: type,
@@ -8690,12 +8848,12 @@ struct ContentView: View {
             intent: .reflect,
             renderStyle: .promptCard,
             score: 1,
-            reason: "The local model did not finish this generated Page.",
-            prompt: "\(title) could not be generated yet.",
+            reason: "The local model didn't finish this generated Page.",
+            prompt: "\(title) couldn't be generated yet.",
             detail: detail,
             payload: BookPagePayload(
                 headline: "\(title) Still Waking",
-                body: "Gemma tried to \(action), but did not finish.\n\n\(detail)",
+                body: "Gemma tried to \(action), but didn't finish.\n\n\(detail)",
                 metadata: [
                     "source": "local-brain",
                     "status": "failed",
@@ -8713,7 +8871,7 @@ struct ContentView: View {
                 sourceID: "wonder-compass",
                 title: "The Wonder Compass",
                 prompt: "Read the source text.",
-                body: "The Wonder Compass text is not bundled in this build.",
+                body: "The Wonder Compass text isn't bundled in this build.",
                 tags: ["wonder-compass"]
             )
         return WonderCompassPageSourceAdapter().readingSurface(for: snippet)
@@ -9026,7 +9184,7 @@ struct ContentView: View {
         latestBraidSharePageID = page.id
         latestBraidShareCardURL = await BookOfYouShareCardRenderer.renderInBackground(artifact: artifact)
         latestBraidShareMessage = latestBraidShareCardURL == nil
-            ? "The page did not finish pressing. Text sharing still works."
+            ? "The page didn't finish pressing. Text sharing still works."
             : "Ready to share. The full braid stays private."
         if force, latestBraidShareCardURL != nil {
             BookFeedback.play(.braidComplete)
@@ -9054,7 +9212,7 @@ struct ContentView: View {
 
         latestBraidRevealVideoURL = await BookOfYouPageRevealVideoRenderer.render(artifact: artifact)
         latestBraidShareMessage = latestBraidRevealVideoURL == nil
-            ? "The reveal did not finish pressing. The still page is ready to share."
+            ? "The reveal didn't finish pressing. The still page is ready to share."
             : "Reveal ready. The full braid stays private."
         if latestBraidRevealVideoURL != nil {
             BookFeedback.play(.braidComplete)
@@ -9078,7 +9236,7 @@ struct ContentView: View {
 
         latestBraidPDFURL = BookOfYouPDFRenderer.render(page: page, surface: surface)
         latestBraidShareMessage = latestBraidPDFURL == nil
-            ? "The PDF did not finish binding. Text sharing still works."
+            ? "The PDF didn't finish binding. Text sharing still works."
             : "Full braid PDF ready. Share it only where you mean to."
         if latestBraidPDFURL != nil {
             BookFeedback.play(.braidComplete, fill: true)
@@ -9239,7 +9397,7 @@ struct ContentView: View {
                 id: "page:\(missingID)",
                 kind: .keptPage,
                 title: "A kept Page",
-                detail: "Its original leaf is not available on this device.",
+                detail: "Its original leaf isn't available on this device.",
                 destination: nil,
                 pageID: nil
             ))
@@ -9402,7 +9560,7 @@ struct ContentView: View {
             evidence = "Reader confirmed this Book Notices reading."
         case .notQuite:
             action = .missed
-            evidence = "Reader said this Book Notices reading was not quite right."
+            evidence = "Reader said this Book Notices reading wasn't quite right."
         case .doNotReadThisWay:
             action = .dismissed
             evidence = "Reader asked the Book not to read them this way."
@@ -9487,7 +9645,7 @@ struct ContentView: View {
                 return "A thread for \(name) is already in my keeping."
             case .opened(let name):
                 recordReaderLearning(surface: surface, action: .loved, evidence: "Reader opened a thread for a recurring name.")
-                return "A thread for \(name) is open. I will keep their pages the way I keep your places. If you ever want them in the story too, that door is yours."
+                return "A thread for \(name) is open. I'll keep their pages the way I keep your places. If you ever want them in the story too, that door is yours."
             }
         case .confirmPersonContext:
             let slug = surface.payload.metadata["personSlug"] ?? ""
@@ -9552,7 +9710,7 @@ struct ContentView: View {
             }
             vault.data.people = ledger
             vault.save()
-            return "The name can rest. I won't bring it up again. Reopening it is yours to do."
+            return "The name can rest. I won't bring it up again. Reopening it's yours to do."
         case .restPersonThread:
             let slug = surface.payload.metadata["personSlug"] ?? ""
             var ledger = vault.data.people ?? PeopleLedger()
@@ -9633,7 +9791,7 @@ struct ContentView: View {
             startingGlow: 30
         )
         guard let castID = saveCustomCastMember(draft) else {
-            return "The Cast page would not take the name yet: try again in a moment."
+            return "The Cast page wouldn't take the name yet: try again in a moment."
         }
         ledger.threads[index] = PeopleOfTheBook.invitedIntoStory(thread, castMemberID: castID, onDay: today.id)
         vault.data.people = ledger
@@ -9743,7 +9901,7 @@ struct ContentView: View {
         vault.data.people = ledger
         vault.save()
         surfaceRefreshDate = Date()
-        return "\(trimmed) is in your book now. I will keep their pages, and if you want them in the story, that door is yours."
+        return "\(trimmed) is in your book now. I'll keep their pages, and if you want them in the story, that door is yours."
     }
 
     /// Un-decline a name the reader had let rest, so the Book may suggest it
@@ -10983,6 +11141,7 @@ struct ContentView: View {
             onLiftRibbon: liftPagesRisingRibbon,
             onOpenGlow: openGlowFromBook,
             onExploreDeeper: deepenPagesRising,
+            onPrepareDeeper: preparePagesRisingDeeperPull,
             onSelectOfficialCover: selectPagesRisingOfficialCover
         )
         .transition(.opacity.combined(with: .move(edge: .bottom)))
@@ -11090,6 +11249,9 @@ struct ContentView: View {
                 pactVerdictSurface = surface
             } else if surface.type == .pactErrand {
                 pactErrandSurface = surface
+            } else if let periodRaw = surface.payload.metadata["editionOfferPeriod"],
+                      openEditionOffer(periodRaw: periodRaw, cadenceRaw: surface.payload.metadata["editionOfferCadence"]) {
+                // The season or year Page opens its own volume at the press.
             } else if surface.payload.metadata["opensBookShop"] == "true" {
                 currentStall = buildGoblinStall()
                 isBookShopPresented = true
@@ -11230,6 +11392,11 @@ struct ContentView: View {
         var metadata = surface.payload.metadata
         if !trimmed.isEmpty {
             metadata["pagesRisingLeafDraft"] = trimmed
+            // A line chosen on the Let's Chat leaf is something the reader
+            // said. It is sent when the chat opens, not left in a box.
+            if surface.type == .askTheBook {
+                metadata["pagesRisingLeafAutoSend"] = "true"
+            }
         }
         if let encodedMedia = BookPageMediaAsset.encodedForSurfaceMetadata(
             surface.mediaAssets + leafMedia
@@ -11985,7 +12152,7 @@ struct ContentView: View {
                     )
                 }
             } else {
-                Text("Filed the way Gwendolyn Mythwright files things, which is to say completely seriously.")
+                Text("Filed the way Gwendolyn Mythwright files things: completely seriously.")
                     .font(.system(size: 12, design: .serif))
                     .italic()
                     .foregroundStyle(MaterialInk.gilt.opacity(0.72))
@@ -12233,7 +12400,7 @@ struct ContentView: View {
                                     isChangingAppLock = false
                                     statusMessage = authorized
                                         ? "The cover will now ask for your device key when I open."
-                                        : "The cover lock was not enabled."
+                                        : "The cover lock wasn't enabled."
                                 }
                             } else {
                                 bookAppLockEnabled = false
@@ -13422,6 +13589,7 @@ struct ContentView: View {
         // cast note), never a first-friend claim, thread milestone, spark,
         // or festival gift.
         var semanticUpgradeEligible = false
+        var storyAsideID: String?
         let afterglowLine = BookAfterglow.line(for: readerKeptInput, pageType: page.type, pageID: page.id)
         if readerKeptInput.isEmpty, !page.readerFictionChoices.isEmpty {
             keepNote = KeepMarginalia.fictionChoiceNote(for: page.readerFictionChoices)
@@ -13450,6 +13618,10 @@ struct ContentView: View {
                       let echo = KeepEcho.find(for: readerKeptInput, pageID: page.id, in: days) {
                 keepNote = KeepEcho.note(from: echo)
                 semanticUpgradeEligible = true
+            } else if let remembered = castStoryAsideNote(for: page, surface: surface, at: keptAt) {
+                // Somebody from the month's story says what happened to them.
+                keepNote = remembered.note
+                storyAsideID = remembered.memoryID
             } else if let quill = vault.data.chosenQuill,
                       let quillNote = QuillChoosing.marginNote(quill: quill, for: keepReactionInput, pageType: page.type, pageID: page.id) {
                 // The chosen quill takes roughly one margin in five for itself;
@@ -13489,11 +13661,18 @@ struct ContentView: View {
             keepNote = authoredResponse
             livingReactionReceipt = nil
             semanticUpgradeEligible = false
+            storyAsideID = nil
         }
         if let spellAnswer = SpellOffering.keepNote(for: surface, hasReaderContribution: page.hasReaderContribution) {
             keepNote = spellAnswer
             livingReactionReceipt = nil
             semanticUpgradeEligible = false
+            storyAsideID = nil
+        }
+        if let storyAsideID, keepNote != nil {
+            // Said once. The ledger remembers it was said, so it isn't again.
+            vault.data.castStoryMemories = (vault.data.castStoryMemories ?? .empty)
+                .markingSpoken(storyAsideID, at: keptAt)
         }
         if var note = keepNote {
             note.rippleLine = rippleLine
@@ -14648,7 +14827,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 _ = markBraidMissedMe(pageID: pageID)
             }
-            return "I heard you. This teaches the next Page; it does not replace this one."
+            return "I heard you. This teaches the next Page; it doesn't replace this one."
         }
         sheet.onImproveNextBraid = { pageID in
             await improveNextBraidFromMiss(pageID: pageID)
@@ -14730,6 +14909,9 @@ struct ContentView: View {
             )
             packet.standingLaws = standingLaws
             return packet
+        }
+        sheet.onRememberFromChat = { text, rememberedAt in
+            saveChatRemembered(text, at: rememberedAt)
         }
         sheet.onBookInitiativeAnswered = { initiativeID, readerLine, answeredAt in
             recordBookInitiativeAnswered(
@@ -14966,6 +15148,7 @@ struct ContentView: View {
         // are enqueued before the desk rebuild the keep schedules, so the next
         // desk still sees everything they wrote.
         DispatchQueue.main.async {
+            tendCastStoryMemories()
             tendArc()
             tendTales()
             tendRole()
@@ -14975,6 +15158,58 @@ struct ContentView: View {
             tendPact()
             tendConstellations()
         }
+    }
+
+    /// A Cast member's aside about something that happened to them in the
+    /// month's story, for this Keep's margin, or nil. Never on the scene being
+    /// kept (it has just spoken for itself), never on a hard day.
+    func castStoryAsideNote(
+        for page: BookPage,
+        surface: SurfacePage,
+        at moment: Date
+    ) -> (note: KeepMarginalia.Note, memoryID: String)? {
+        guard let ledger = vault.data.castStoryMemories, !ledger.memories.isEmpty,
+              surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] != "true" else { return nil }
+        let cast = NarrativePackRegistry.entities.filter { $0.kind == .character }
+        guard let remembered = CastStoryAside.pick(
+            ledger: ledger,
+            now: moment,
+            speakers: Set(cast.map(\.id)),
+            preferring: RelationshipFieldEngine.entityIDs(fromTags: page.tags)
+        ), let line = remembered.aside,
+              !DistressSignals.evaluate(day: today).isActive else { return nil }
+        let voice = KeepMarginalia.voices.first { $0.slug == remembered.entityID }
+        let name = voice?.name ?? cast.first { $0.id == remembered.entityID }?.name ?? remembered.entityID
+        return (
+            KeepMarginalia.Note(
+                castSlug: remembered.entityID,
+                castName: name,
+                assetName: voice?.asset ?? CastStoryAside.plateAssetName(for: remembered.entityID),
+                line: line
+            ),
+            remembered.id
+        )
+    }
+
+    /// Freezes what the Cast now remember from the month's story: the moments
+    /// the reader was there for, and the record's news once it's public. Runs
+    /// after a Keep and whenever the catalog loads (at least daily), and
+    /// writes only when something new has stuck.
+    @MainActor
+    func tendCastStoryMemories(now: Date = Date()) {
+        let source = monthlyRuntimeCatalog.castMemorySource
+        guard !source.isEmpty else { return }
+        let harvested = CastStoryMemoryHarvest.memories(
+            source: source,
+            receipts: vault.data.authoredContentReceipts ?? .empty,
+            lifecycle: vault.data.worldEventLifecycle ?? .empty,
+            now: now
+        )
+        let current = vault.data.castStoryMemories ?? .empty
+        let next = current.absorbing(harvested)
+        guard next != current else { return }
+        vault.mutate { $0.castStoryMemories = next }
+        vault.save()
     }
 
     func storyConsequenceWorldSnapshot() -> StoryConsequenceWorldSnapshot {
@@ -15198,7 +15433,7 @@ struct ContentView: View {
                 questionID: existing.questionID,
                 question: existing.question,
                 answer: successor.name,
-                bookTranslation: "The reader outgrew \(current.name) and is now \(successor.name). \(successor.gloss) Use the new name. The old one is not a mistake: it was true, and then it stopped being.",
+                bookTranslation: "The reader outgrew \(current.name) and is now \(successor.name). \(successor.gloss) Use the new name. The old one isn't a mistake: it was true, and then it stopped being.",
                 sensitivity: existing.sensitivity,
                 usePermission: existing.usePermission,
                 tags: existing.tags.filter { !$0.hasPrefix("role:") } + ["role:\(successor.id)", "outgrown:\(current.id)"],
@@ -15293,7 +15528,7 @@ struct ContentView: View {
             signals.roleMarks.append(TaleSignals.Mark(
                 id: "role-refused-\(refused.id)",
                 kind: "role-refused",
-                line: "I called you \(refused.answer) and you said that is not me.",
+                line: "I called you \(refused.answer) and you said that isn't me.",
                 at: refused.createdAt,
                 tags: ["role", "role-refused", "naming"]
             ))
@@ -15837,6 +16072,7 @@ struct ContentView: View {
             monthlyRuntimeCatalogLoaded = true
             monthlyRuntimeInputs = sourceInputs
             tendMonthlyRuntime(now: Date())
+            tendCastStoryMemories()
             refreshRadioWorld()
         }
     }
@@ -16010,7 +16246,7 @@ struct ContentView: View {
         )
         statusMessage = ok
             ? "The next Goblin Market is marked on your calendar (new moon)."
-            : "The market could not be added (check Calendar permission in Settings)."
+            : "The market couldn't be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
 
@@ -16645,7 +16881,7 @@ struct ContentView: View {
                         note: "\(actorName) took \(taken) Belief from \(source.title) Pages."
                     )
                     if let slotID {
-                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: taken, line: "\(actorName) said something unkind about \(source.title) Pages and did not take it back.", createdAt: now))
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: taken, line: "\(actorName) said something unkind about \(source.title) Pages and didn't take it back.", createdAt: now))
                     }
                     appliedCount += 1
                 }
@@ -16902,16 +17138,16 @@ struct ContentView: View {
         let fae = vault.data.fae ?? FaePlayerState()
         let stall = currentStall ?? buildGoblinStall(now: now)
         let prompt = """
-        You are a Marginalia Goblin clerk running the BookShop inside ReEnchanted: mercantile, precise, dryly funny, a little unpredictable. Speak ONE or TWO sentences directly to the reader, in character. No quotes, no headings.
+        You're a Marginalia Goblin clerk running the BookShop inside ReEnchanted: mercantile, precise, dryly funny, a little unpredictable. Speak ONE or TWO sentences directly to the reader, in character. No quotes, no headings.
 
         Tonight: \(stall.moodLine)
         \(stall.windowLine)
         The reader holds \(fae.attention) Attention, \(beliefScore) Belief, and \(fae.warmth(for: .goblin)) Warmth with you.
-        React to their standing and the night. Do not invent specific wares or prices. Be brief and characterful.
+        React to their standing and the night. Don't invent specific wares or prices. Be brief and characterful.
         """
         let line = await LocalBrainProse.write(
             prompt: prompt,
-            instructions: "You are a Marginalia Goblin shopkeeper. One or two sentences, in character, prose only.",
+            instructions: "You're a Marginalia Goblin shopkeeper. One or two sentences, in character, prose only.",
             maxTokens: 120,
             sourceID: "goblin-clerk",
             tags: ["goblin-market", "clerk", "fae"]
@@ -17135,6 +17371,34 @@ struct ContentView: View {
             selfFacts = (try? BookDatabase.selfFacts()) ?? (selfFacts.filter { $0.id != fact.id } + [fact])
         } catch {
             appLog.error("Feast naming save failed: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    /// Something the reader asked the Book to remember in Let's Chat, after
+    /// they confirmed it. They said it on purpose and asked for it back, so it
+    /// is stored where every other self fact lives and may be quoted to them.
+    @MainActor
+    func saveChatRemembered(_ text: String, at now: Date) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let fact = SelfFact(
+            id: "chat-remembered:\(UUID().uuidString)",
+            questionID: "chat-remembered",
+            question: "Something you asked me to remember",
+            answer: trimmed,
+            bookTranslation: "They asked me to remember this: \(trimmed)",
+            sensitivity: .delight,
+            usePermission: .quoteAllowed,
+            tags: ["chat", "remembered", "reader-words"],
+            createdAt: now,
+            updatedAt: now
+        )
+        do {
+            try BookDatabase.upsertSelfFact(fact)
+            selfFacts = (try? BookDatabase.selfFacts()) ?? (selfFacts + [fact])
+            Task { await AskTheBookArchiveMemoryReader.shared.invalidate() }
+        } catch {
+            appLog.error("Chat remember save failed: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -17494,7 +17758,7 @@ struct ContentView: View {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + kind.cost)
         }
-        statusMessage = "The \(kind.title) did not finish, so its Belief returned to your Glow."
+        statusMessage = "The \(kind.title) didn't finish, so its Belief returned to your Glow."
     }
 
     @MainActor
@@ -17882,8 +18146,8 @@ struct ContentView: View {
                 action: returnsToAcademy ? "return the fieldwork to the class" : "fold the mechanic result back into the story"
             ), after: folioParent)
             statusMessage = returnsToAcademy
-                ? "The class could not receive the fieldwork yet."
-                : "The Story Page could not fold the mechanic result yet."
+                ? "The class couldn't receive the fieldwork yet."
+                : "The Story Page couldn't fold the mechanic result yet."
         }
     }
 
@@ -17908,7 +18172,7 @@ struct ContentView: View {
         else { outcomeTier = "unresolved" }
         let source = BookPageSourceRegistry.source(for: returnsToAcademy ? .academyClass : .narrativeOS)
         let priorContext = returnsToAcademy
-            ? "The original \(metadata["academyReturn_lessonTitle"] ?? "lesson") scene and its demonstration have already been read. Do not replay or paraphrase them."
+            ? "The original \(metadata["academyReturn_lessonTitle"] ?? "lesson") scene and its demonstration have already been read. Don't replay or paraphrase them."
             : "Previous scene:\n\(priorScene)"
         let continuation = """
         \(returnsToAcademy ? "An Academy session assigned a field practice, and the reader has now completed it." : "A Story Page choice asked for \(mechanic).")
@@ -18053,7 +18317,7 @@ struct ContentView: View {
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
             let isAside = surface.type == .bookAside
             statusMessage = isAside
-                ? "I am finding the place where I nearly interrupted you..."
+                ? "I'm finding the place where I nearly interrupted you..."
                 : "The Gossip Page is waking the whisper engine..."
             let succeeded = await prepareGossipPageIfPossible(force: true, preferredType: surface.type)
             if !succeeded, let kind = reservation.kind {
@@ -18396,7 +18660,7 @@ struct ContentView: View {
 
         guard finalStatus == .authorized || finalStatus == .limited else {
             if finalStatus == .denied || finalStatus == .restricted {
-                statusMessage = "Penny cannot choose from Photos yet. Choose one by hand, or open Photos access in Settings."
+                statusMessage = "Penny can't choose from Photos yet. Choose one by hand, or open Photos access in Settings."
                 userPhotoIlluminationFallbackAllowed = true
             }
             return false
@@ -18443,7 +18707,7 @@ struct ContentView: View {
             )
             let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
             guard let renderedURL else {
-                statusMessage = "Penny found a photo, but the illuminated plate did not finish drying."
+                statusMessage = "Penny found a photo, but the illuminated plate didn't finish drying."
                 userPhotoIlluminationFallbackAllowed = true
                 return false
             }
@@ -18463,7 +18727,7 @@ struct ContentView: View {
             userPhotoIlluminationFallbackAllowed = false
             surfaceRefreshDate = Date()
             localBrainTelemetry.clearError()
-            statusMessage = "Penny prepared an illuminated photo page. It is ready if the curator lets it rise."
+            statusMessage = "Penny prepared an illuminated photo page. It's ready if the curator lets it rise."
             return true
         } catch {
             appLog.error("Automatic illuminated page preparation failed: \(error.localizedDescription, privacy: .private)")
@@ -18532,7 +18796,7 @@ struct ContentView: View {
             localBrainTelemetry.recordError("story page: \(error.localizedDescription)")
             generation.preparedStoryPageSurface = nil
             generation.storyPageRecovery.recordFailure()
-            statusMessage = "The Story Page did not finish drying. I'll try again later."
+            statusMessage = "The Story Page didn't finish drying. I'll try again later."
             return false
         }
     }
@@ -18675,8 +18939,8 @@ struct ContentView: View {
             generation.gossipPageRecovery.recordSuccess()
             localBrainTelemetry.clearError()
             statusMessage = draft.type == .bookAside
-                ? "There. That is what I was trying not to interrupt you with."
-                : "A Gossip Page has dried. The margins are pretending they did not gossip."
+                ? "There. That's what I was trying not to interrupt you with."
+                : "A Gossip Page has dried. The margins are pretending they didn't gossip."
             return true
         } catch {
             appLog.error("Prepared Gossip Page failed: \(error.localizedDescription, privacy: .private)")
@@ -19597,7 +19861,9 @@ struct ContentView: View {
             braid = BraidPageDetails.withSourcePages(braid, pageIDs: usedPageIDs)
             braid = BraidPageDetails.withPromiseEcho(braid, line: BraidEmber.keptPromiseLine(for: weavableDay))
             braid = BraidPageDetails.withBackwardQuestion(braid, question: askBackwardQuestionIfEarned(day: weavableDay))
-            braid.mediaAssets = weavableDay.capturedPages.flatMap(\.mediaAssets).filter { $0.metadata["authoredMark"] == nil }
+            braid.mediaAssets = BookPageMediaAsset.displayable(
+                weavableDay.capturedPages.flatMap(\.mediaAssets).filter { $0.metadata["authoredMark"] == nil }
+            )
             if braid.context == nil {
                 braid.context = pageContextSnapshot(at: braid.createdAt)
             }
@@ -19625,7 +19891,7 @@ struct ContentView: View {
                 // plainly rather than swapping a better page out from under them.
                 persistBraidArchive(updatedArchive, message: "I wrote another and it didn't beat the one you have. I kept the better page.")
             } else if usedLocalModelFallback {
-                persistBraidArchive(updatedArchive, message: "I kept this page in my handcrafted fallback. The local brain did not finish this braid.")
+                persistBraidArchive(updatedArchive, message: "I kept this page in my handcrafted fallback. The local brain didn't finish this braid.")
             } else if braid.tags.contains("mlx-hook") {
                 persistBraidArchive(updatedArchive, message: "The model doorway answered. On your device, the braid will be local.")
             } else {
@@ -19943,7 +20209,7 @@ struct ContentView: View {
                     .filter { $0.payload.metadata[MonthlyIssuePageMetadata.issueID] == issueID
                         && $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == requested }
                 let dressed = MonthlyIssueMarginaliaDresser.dressing(prepared, day: today,
-                    inputs: inputs, now: now, distressActive: false)
+                    inputs: inputs, now: now)
                 // A local draft must pass the same access and lifecycle gate as
                 // its subsequent choice and Keep. Otherwise the rehearsal can
                 // open a page that disappears on its first interaction.
@@ -20025,9 +20291,9 @@ struct ContentView: View {
                     details and complete the scene rather than summarizing it.
                     """,
                     instructions: """
-                    You are the Book inside ReEnchanted. Be concrete, concise,
+                    You're the Book inside ReEnchanted. Be concrete, concise,
                     and a little feral. This is a local device stress probe:
-                    return prose only and do not refer to the probe.
+                    return prose only and don't refer to the probe.
                     """,
                     maxTokens: 360,
                     label: "e2b-smoothness-smoke",
@@ -20182,7 +20448,7 @@ struct ContentView: View {
 
             I found the spoon you thought was lost. It was under the rosemary pot, silver side down, listening to the roots.
 
-            I have put it back in the drawer, but not in its old place. Lost things dislike being returned too neatly.
+            I've put it back in the drawer, but not in its old place. Lost things dislike being returned too neatly.
 
             Yours from the narrow shelf,
             The Book
@@ -20489,7 +20755,7 @@ struct ContentView: View {
                 days = previousDays
                 storeReport = BookStore.report(for: previousDays)
                 databaseReport = BookDatabase.report(for: previousDays)
-                statusMessage = "The page would not settle yet: \(error.localizedDescription)"
+                statusMessage = "The page wouldn't settle yet: \(error.localizedDescription)"
                 continuityCacheSignature = ""
                 scheduleSurfaceCacheRebuildAfterPersistence()
                 writeWidgetSnapshot()
@@ -20540,7 +20806,7 @@ struct ContentView: View {
                 days = previousDays
                 storeReport = BookStore.report(for: previousDays)
                 databaseReport = BookDatabase.report(for: previousDays)
-                statusMessage = "The braid would not settle yet: \(error.localizedDescription)"
+                statusMessage = "The braid wouldn't settle yet: \(error.localizedDescription)"
                 continuityCacheSignature = ""
                 scheduleSurfaceCacheRebuildAfterPersistence()
                 writeWidgetSnapshot()
@@ -20627,7 +20893,7 @@ struct ContentView: View {
             // A denied or unavailable reading never rolls back a Keep. The page
             // retains its time, chart references, and any already-known coarse
             // context, while the next Keep will make a fresh attempt.
-            appLog.info("Keep context: fresh location was not available: \(error.localizedDescription, privacy: .private)")
+            appLog.info("Keep context: fresh location wasn't available: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -20827,7 +21093,7 @@ struct ContentView: View {
             days = previousDays
             continuityCacheSignature = ""
             rebuildSurfaceCache()
-            appLog.error("Sensory Loom archive enrichment did not settle: \(error.localizedDescription, privacy: .private)")
+            appLog.error("Sensory Loom archive enrichment didn't settle: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -20921,7 +21187,7 @@ struct ContentView: View {
         guard !isCheckingAnchors else { return false }
         guard AnchorLocationReader.isAvailable else {
             if isUserInitiated {
-                anchorMessage = "This device cannot check for nearby Anchors yet."
+                anchorMessage = "This device can't check for nearby Anchors yet."
             }
             return false
         }
@@ -20995,7 +21261,7 @@ struct ContentView: View {
     @MainActor
     func openCalendarDoorway(from surface: SurfacePage? = nil) async {
         guard CalendarDoorway.isAvailable else {
-            statusMessage = "This build cannot open the Calendar Doorway."
+            statusMessage = "This build can't open the Calendar Doorway."
             return
         }
 
@@ -21111,7 +21377,7 @@ struct ContentView: View {
             if isUserInitiated {
                 weatherPageSignal = nil
                 enchantedWeather = nil
-                weatherMessage = "The sky would not come through yet: \(error.localizedDescription)"
+                weatherMessage = "The sky wouldn't come through yet: \(error.localizedDescription)"
             }
             return false
         }
@@ -21139,7 +21405,7 @@ struct ContentView: View {
             return true
         } catch {
             localBrainTelemetry.recordError("weather page: \(error.localizedDescription)")
-            statusMessage = "The Weather Page could not finish translating yet."
+            statusMessage = "The Weather Page couldn't finish translating yet."
             return false
         }
     }
@@ -21311,7 +21577,7 @@ struct ContentView: View {
         }
         #else
         installProgress = nil
-        installMessage = "The Hugging Face downloader is not linked in this build."
+        installMessage = "The Hugging Face downloader isn't linked in this build."
         #endif
     }
 }
@@ -22017,7 +22283,7 @@ private struct AtlasMapView: View {
             if layers.isEmpty {
                 EmptyBookCard(
                     title: "Nothing to draw yet",
-                    message: "Name somewhere, and I'll start the chart. It fills in as you go, which is the only way a map like this was ever made."
+                    message: "Name somewhere, and I'll start the chart. It fills in as you go. That's the only way a map like this was ever made."
                 )
             } else {
                 chart

@@ -238,7 +238,7 @@ final class WeeklyIssueTests: XCTestCase {
         XCTAssertTrue(body.contains("The week looked up"))
         XCTAssertTrue(body.contains("I tried to hold it carefully"))
         XCTAssertTrue(body.contains("the year are still gathering their coats"))
-        XCTAssertTrue(body.contains("I will shelve it where it can hum to itself"))
+        XCTAssertTrue(body.contains("I'll shelve it where it can hum to itself"))
     }
 
     func testAdapterUsesBookOfYouResidueAsIssueMemory() {
@@ -332,7 +332,7 @@ final class WeeklyIssueTests: XCTestCase {
         XCTAssertEqual(decoded.weeklyIssueArtifact?.pdfPath, "/archive/issue-1.pdf")
     }
 
-    func testDefersDuringDistress() {
+    func testStillArrivesOnAHardDay() {
         let hardDay = BookDay(id: "today", date: at(7, hour: 10), pages: [
             BookPage(type: .mood, createdAt: at(7, hour: 9), promptText: "Mood",
                      userInput: "a hard one", tags: ["distress"])
@@ -341,6 +341,6 @@ final class WeeklyIssueTests: XCTestCase {
         inputs.days = days(firstWeekPages())
         let distressed = CuratorContext.make(for: hardDay)
         XCTAssertTrue(distressed.distress.isActive)
-        XCTAssertTrue(adapter.candidates(for: hardDay, context: distressed, inputs: inputs, now: at(7, hour: 10)).isEmpty)
+        XCTAssertFalse(adapter.candidates(for: hardDay, context: distressed, inputs: inputs, now: at(7, hour: 10)).isEmpty)
     }
 }

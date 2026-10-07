@@ -8,13 +8,71 @@ import hashlib
 import json
 from pathlib import Path
 
-RUNTIME_VERSION = 10
+RUNTIME_VERSION = 11
 CHANNELS = {'storyScene': 'storyScenes', 'radioBanter': 'radioBanters',
             'bleedArticle': 'bleedArticles', 'marginalia': 'marginalia'}
 
 
-def check(pack, release=False):
+WONDER_BANNED = ('hinge', 'ritual')
+
+
+def check_wonder_lines(pack):
+    """The month's additions to the braid's wonder library. Same promises as the bundled lines:
+    one short plain sentence or two about a thing; never the banned words; never 'I'."""
     errors = []
+    items = pack.get('wonderLines', [])
+    ids = [x.get('id', '') for x in items]
+    if len(set(ids)) != len(ids):
+        errors.append('wonderLines: duplicate ids')
+    for item in items:
+        name = item.get('id') or '(no id)'
+        text = (item.get('line') or '').strip()
+        if not item.get('id'):
+            errors.append('wonderLines: missing id')
+        if not item.get('nouns') or any(not str(n).strip() for n in item['nouns']):
+            errors.append(f'{name}: needs at least one noun')
+        if not text.endswith(('.', '!')) or len(text.split()) > 32:
+            errors.append(f'{name}: one or two short sentences, ending properly (max 32 words)')
+        if any(word in text.lower() for word in WONDER_BANNED):
+            errors.append(f'{name}: uses a banned word')
+        if any(w in ('I', "I'm", "I've", "I'd", "I'll", 'my', 'me') for w in text.replace(',', ' ').split()):
+            errors.append(f'{name}: the world speaks here, not the Book (no I / my / me)')
+    retired = pack.get('retiredWonderLineIDs', [])
+    if len(set(retired)) != len(retired):
+        errors.append('retiredWonderLineIDs: duplicates')
+    return errors
+
+
+NOTE_KINDS = ('day', 'puzzle', 'margin', 'any')
+
+
+def check_note_prompts(pack):
+    """The month's lined-space prompts for the printed books. One short line that invites the reader to
+    write; never the banned words. `kind` is day, puzzle or any (the default)."""
+    errors = []
+    items = pack.get('notePrompts', [])
+    ids = [x.get('id', '') for x in items]
+    if len(set(ids)) != len(ids):
+        errors.append('notePrompts: duplicate ids')
+    for item in items:
+        name = item.get('id') or '(no id)'
+        text = (item.get('text') or '').strip()
+        if not item.get('id'):
+            errors.append('notePrompts: missing id')
+        if item.get('kind', 'any') not in NOTE_KINDS:
+            errors.append(f'{name}: kind must be one of {", ".join(NOTE_KINDS)}')
+        if len(text) < 12 or not text.endswith(('.', '?', '!')) or len(text.split()) > 24:
+            errors.append(f'{name}: one short line (12+ characters, max 24 words) ending in . ? or !')
+        if any(word in text.lower() for word in WONDER_BANNED):
+            errors.append(f'{name}: uses a banned word')
+    retired = pack.get('retiredNotePromptIDs', [])
+    if len(set(retired)) != len(retired):
+        errors.append('retiredNotePromptIDs: duplicates')
+    return errors
+
+
+def check(pack, release=False):
+    errors = check_wonder_lines(pack) + check_note_prompts(pack)
     if not pack.get('id'):
         errors.append('pack: missing id')
     if pack.get('minimumRuntimeVersion', 1) > RUNTIME_VERSION:
@@ -98,6 +156,13 @@ def check(pack, release=False):
                         errors.append(f'{name}/{node["id"]}: duplicate choices')
                     if not node.get('body', '').strip():
                         errors.append(f'{name}/{node["id"]}: empty body')
+                    for recall in node.get('recalls') or []:
+                        if pack.get('minimumRuntimeVersion', 1) < 11:
+                            errors.append(f'{name}/{node["id"]}: cast recalls require runtime 11')
+                        marker = recall.get('marker', '')
+                        if not marker or node.get('body', '').count(marker) != 1 or not recall.get('options') \
+                                or any(not o.get('key') or not o.get('line') for o in recall['options']):
+                            errors.append(f'{name}/{node["id"]}: recall needs one marker in the body and complete options')
                     for choice in choices:
                         finding = choice.get('requiresFindingContentID')
                         if finding is not None and (finding not in allowed_dependencies

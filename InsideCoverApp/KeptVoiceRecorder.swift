@@ -37,9 +37,13 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
             let session = AVAudioSession.sharedInstance()
             try session.setCategory(.playAndRecord, mode: .default, options: .duckOthers)
             try session.setActive(true, options: .notifyOthersOnDeactivation)
+            BookAudioSession.borrowedForRecording(session)
             let recorder = try AVAudioRecorder(url: url, settings: settings)
             recorder.isMeteringEnabled = true
-            guard recorder.record() else { return false }
+            guard recorder.record() else {
+                BookAudioSession.restoreAfterRecording()
+                return false
+            }
             self.recorder = recorder
             self.currentURL = url
             self.lastCadenceReceipt = nil
@@ -56,6 +60,7 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
             }
             return true
         } catch {
+            BookAudioSession.restoreAfterRecording()
             return false
         }
     }
@@ -81,7 +86,7 @@ final class KeptVoiceRecorder: NSObject, ObservableObject {
         )
         self.recorder = nil
         isRecording = false
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        BookAudioSession.restoreAfterRecording()
         return currentURL
     }
 

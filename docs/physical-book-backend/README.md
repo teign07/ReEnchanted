@@ -160,6 +160,15 @@ The health report's `boundYearTestReady` additionally requires both membership
 price IDs; `testReady` alone only describes the general print infrastructure.
 Price presence still needs verification against the actual Stripe test catalogue.
 
+New annual Bound Year purchases use the $279/year price in
+`STRIPE_BOUND_YEAR_ANNUAL_PRICE`. When replacing a price, retain previous price
+IDs in the comma-separated `STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY` variable
+(or `STRIPE_BOUND_YEAR_MONTHLY_PRICE_LEGACY` for monthly prices). These IDs
+preserve existing memberships' payment verification, recovery, and earned
+parcels; checkout always selects the current price. Deploy configuration changes
+with `npm run deploy`. Do not migrate existing subscriptions just to change the
+price offered to new buyers.
+
 Checkout has a separate launch switch and environment lock:
 
 ```toml

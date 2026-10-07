@@ -140,7 +140,8 @@ enum WeeklyBindingPlanner {
             id: page.id,
             date: page.createdAt,
             title: details.title,
-            body: details.body,
+            // The page's own metadata line is not what the night said.
+            body: WeeklyCuration.cleaned(details.body),
             spine: value(spinePrefix),
             form: value(formPrefix),
             returnedAfterDays: returned?.0,
@@ -513,39 +514,78 @@ enum WeeklyBindingWriter {
     static func write(_ plan: WeeklyBindingPlan) -> [WeeklyClaim] {
         guard !plan.nights.isEmpty else { return [] }
         var claims: [WeeklyClaim] = []
+        // Nothing is said twice. On a light week the same strongest sentence is the
+        // cover, a night's spine and a night's body, and printing it three ways
+        // read as a stutter (Issue 6 said one sentence seven times in ten pages).
+        var said: [String] = []
+        func appendClaim(_ claim: WeeklyClaim) {
+            guard !WeeklyCuration.repeats(claim.text, of: said) else { return }
+            said.append(claim.text)
+            claims.append(claim)
+        }
 
         if let cover = plan.cover {
-            claims.append(
-                WeeklyClaim(
-                    realm: .night, nightIDs: [cover.id],
-                    text: BraidSceneWriter.secondPerson(cover.spine ?? cover.title)))
-            claims.append(
-                WeeklyClaim(realm: .editor, nightIDs: [], text: coverFraming(cover)))
+            let coverText = cover.spine?.nonEmpty.map(BraidSceneWriter.secondPerson)
+                ?? distinctSentence(from: cover.body, avoiding: [])
+                ?? BraidSceneWriter.secondPerson(cover.title)
+            appendClaim(WeeklyClaim(realm: .night, nightIDs: [cover.id], text: coverText))
+            if let framing = coverFraming(cover) {
+                appendClaim(WeeklyClaim(realm: .editor, nightIDs: [], text: framing))
+            }
         }
-        for night in plan.nights.sorted(by: { $0.date < $1.date }) where night.id != plan.coverNightID {
-            guard let line = night.spine ?? night.body.nonEmpty else { continue }
-            claims.append(
-                WeeklyClaim(
+        let others = plan.nights.sorted(by: { $0.date < $1.date }).filter { $0.id != plan.coverNightID }
+        for night in others {
+            if let spine = night.spine?.nonEmpty {
+                // The reader's own sentence, handed back to them.
+                appendClaim(WeeklyClaim(
                     realm: .night, nightIDs: [night.id],
-                    text: BraidSceneWriter.secondPerson(String(line.prefix(180)))))
+                    text: BraidSceneWriter.secondPerson(String(spine.prefix(180)))))
+            } else if let sentence = distinctSentence(from: night.body, avoiding: said) {
+                // A night from before spines were kept: the Book's own sentence about it,
+                // whole (never a 180-character cut), in the Book's own voice.
+                appendClaim(WeeklyClaim(realm: .night, nightIDs: [night.id], text: sentence))
+            }
+        }
+        // A thin week has few spines. The nights' own braids still hold the Book's
+        // sentences about them, which the verifier already accepts as that night's.
+        if claims.count < 4 {
+            for night in plan.nights.sorted(by: { $0.date < $1.date }) {
+                guard let sentence = distinctSentence(from: night.body, avoiding: said) else { continue }
+                appendClaim(WeeklyClaim(realm: .night, nightIDs: [night.id], text: sentence))
+                if claims.count >= 6 { break }
+            }
         }
         for entry in plan.returns {
-            claims.append(
-                WeeklyClaim(realm: .week, nightIDs: entry.nightIDs, text: returnLine(entry)))
+            appendClaim(WeeklyClaim(realm: .week, nightIDs: entry.nightIDs, text: returnLine(entry)))
         }
         claims.append(
             WeeklyClaim(realm: .colophon, nightIDs: [], text: colophon(for: plan)))
         return claims
     }
 
+    /// One sentence of a night's braid that adds something the issue has not
+    /// said: plain length, no cliche, nothing about the Book's body.
+    static func distinctSentence(from body: String, avoiding said: [String]) -> String? {
+        for sentence in WonderBraid.sentences(WeeklyCuration.cleaned(body)) {
+            let count = sentence.split(whereSeparator: \.isWhitespace).count
+            guard (6...28).contains(count) else { continue }
+            guard !sentence.hasPrefix("The Book kept the page") else { continue }
+            if WonderBraid.stockPattern.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) != nil { continue }
+            if sentence.range(of: "\\b(felt|smell\\w*|tast\\w*|my (?:fingers?|hands?|eyes?|skin|heart))\\b",
+                              options: [.regularExpression, .caseInsensitive]) != nil { continue }
+            guard !WeeklyCuration.repeats(sentence, of: said) else { continue }
+            return sentence
+        }
+        return nil
+    }
+
     /// The issue saying what it is doing. Kept in the editor's realm rather than
     /// the night's, because it adds words the night never wrote - and a night
-    /// claim may not add.
-    private static func coverFraming(_ night: WeekNight) -> String {
-        if let days = night.returnedAfterDays {
-            return "It had been \(days) days, and it came back inside the same week. This issue is built around that."
-        }
-        return "This issue is built around that one."
+    /// claim may not add. It speaks only when there is something to say: a stock
+    /// "built around that one" after every cover said nothing, every week.
+    private static func coverFraming(_ night: WeekNight) -> String? {
+        guard let days = night.returnedAfterDays else { return nil }
+        return "It had been \(days) days, and it came back inside the same week. This issue is built around that."
     }
 
     private static func returnLine(_ entry: WeekReturn) -> String {
@@ -554,14 +594,23 @@ enum WeeklyBindingWriter {
             : "The \(entry.pivot) is in this week twice, \(entry.daysApart) days apart."
     }
 
+    /// The closing line, one of a few so four issues do not end in the same words.
     private static func colophon(for plan: WeeklyBindingPlan) -> String {
+        let options: [String]
         if !plan.stillOpenIDs.isEmpty {
-            return "The Book bound the week: some of it is still going."
+            options = ["The Book bound the week: some of it is still going.",
+                       "The Book bound the week and left a door ajar.",
+                       "The Book bound the week; a few threads stayed loose."]
+        } else if !plan.returns.isEmpty {
+            options = ["The Book bound the week: the same things kept arriving.",
+                       "The Book bound the week, and what came back is in it twice.",
+                       "The Book bound the week, repeats and all."]
+        } else {
+            options = ["The Book bound the week: seven days, kept as they came.",
+                       "The Book bound the week, plainly, in the order it happened.",
+                       "The Book bound the week and kept the receipts."]
         }
-        if !plan.returns.isEmpty {
-            return "The Book bound the week: the same things kept arriving."
-        }
-        return "The Book bound the week: seven days, kept as they came."
+        return options[abs(plan.issueNumber) % options.count]
     }
 
     /// The finished prose, paragraphed by realm the way a night's page is.

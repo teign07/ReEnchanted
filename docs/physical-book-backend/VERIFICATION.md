@@ -1004,3 +1004,66 @@ wrangler.jsonc and its exact .gitignore additions were removed. A deployments-li
 check for e-nchanted returned no deployments. The successful backend retry used
 the explicit backend working directory and installed Wrangler. No recovery flag
 was enabled. Commits retain the complete authorized worktree scope.
+
+## Annual price deployment — 2026-10-03
+
+Created Stripe test price `price_1UMZMCE80ArNx7J9LVxqR2Df` for the existing
+Bound Year product: USD 279/year, exclusive tax, lookup key
+`reenchanted_bound_year_annual_sandbox_v2`. Updated the current annual binding
+and retained `price_1UDBjrE80ArNx7J9JEGVlZ08` in the explicit legacy binding.
+The catalogue had no $279 test price before this change. One active test gift
+still uses the old $249 price; its Stripe subscription was not modified.
+
+Legacy prices remain accepted for settled gift claims, owned monthly access,
+membership recovery, earned parcels, and refund support. New purchases use only
+the current price. Passed 72 Node tests for checkout, recovery contact, monthly
+issues, and parcel support, plus the membership and dispatch scripts and
+`git diff --check`. Added regressions for the new checkout price and retained
+legacy access, including refund and unknown-price rejection. No app build ran.
+
+Deployed `reenchanted-physical-books` as version
+`d60e5bdb-b5b9-4fe8-8223-a2ca6ca6e44f`. A synthetic annual checkout through the
+deployed Worker created `sub_1UMZPvE80ArNx7J9JzO9kU8f`. Stripe readback confirmed
+the new price ID and `unit_amount: 27900`, USD, annual interval. Immediately
+closed the unpaid checkout; Stripe readback confirmed `incomplete_expired` and
+invoice `void`. No payment was confirmed and no print job was submitted.
+
+The Worker remains in aligned Stripe test / Lulu sandbox mode with live Bound
+Year sales disabled. Health returns `ok: true`, but overall `testReady` is false
+because the alert email destination is unconfigured. Stripe Tax and the customs
+encryption key also remain unconfigured; this price deployment does not establish
+production readiness.
+
+## Live Bound Year catalogue and tax setup — 2026-10-04
+
+Authorized live setup in Stripe account `acct_1QBQ8IE80ArNx7J9`
+(William Liverseidge). Created and read back active live product
+`prod_VNlSYl6tXvpa0B`, **ReEnchanted — The Bound Year**, with the printed-books
+tax code `txcd_35010000` and these exclusive-tax recurring USD prices:
+
+| Cadence | Amount | Live price ID | Lookup key |
+| --- | --- | --- | --- |
+| Monthly | $24.99 | `price_1UMzw0E80ArNx7J9NAQFMsiZ` | `reenchanted_bound_year_monthly_live_v1` |
+| Annual | $279 | `price_1UMzvqE80ArNx7J98TFV09ZW` | `reenchanted_bound_year_annual_live_v1` |
+
+The annual price is the product's default price. No customer subscription or
+charge was created. The existing enabled live webhook
+`we_1U2DYFE80ArNx7J9LfbKogIS` points to the Worker's `/stripe/webhook` and
+subscribes to PaymentIntent succeeded, failed, and canceled events.
+
+Stripe Tax onboarding was started in the signed-in Dashboard. API readback
+confirmed `status: active` and the complete operator-authorized head-office
+address; the private address is deliberately omitted from this record. The
+account-wide default category remains the pre-existing software category; the
+Bound Year product has its own printed-books category. The live registration
+list was empty. Activating Tax settings does not register the merchant with a
+tax authority or establish tax collection in any jurisdiction.
+
+The deployed Worker still reports `checkoutMode: test`, aligned sandbox
+providers, `boundYearLiveSalesEnabled: false`, and `productionReady: false`.
+Its tax flag, customs encryption key, and alert-email destination remain
+unconfigured. Production Stripe/Lulu credential acceptance, live webhook-secret
+alignment, the app's live publishable key/mode, and required tax registration
+remain prerequisites for the coordinated cutover. Live IDs are recorded as
+comments in `wrangler.toml`; active test bindings were not replaced prematurely.
+No backend deployment, app build, payment, or manufacturing job occurred.

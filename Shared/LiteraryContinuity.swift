@@ -2143,7 +2143,6 @@ enum BookAsideEditor {
             relationship: relationship,
             receipts: receipts,
             appetite: .quiet,
-            distressActive: false,
             rutward: false,
             now: now
         )
@@ -2769,11 +2768,10 @@ enum BookInterjectionEditor {
         relationship: BookRelationshipSnapshot,
         receipts: [BookInterjectionReceipt],
         appetite: BookWorkingAppetite,
-        distressActive: Bool,
         rutward: Bool,
         now: Date
     ) -> [SurfacePage] {
-        guard !pages.isEmpty, !distressActive else { return pages }
+        guard !pages.isEmpty else { return pages }
         var allowance = allowance(appetite: appetite, depth: relationship.depth)
         if rutward { allowance = min(1, allowance) }
         guard allowance > 0 else { return pages }
@@ -11166,7 +11164,7 @@ enum BookInteriorEngine {
         case .method: return "I told you one of my methods. It must now alter how I handle the next piece of evidence."
         case .prejudice: return "An unreasonable opinion has entered the record. It may now be challenged, revised, or made worse by footnotes."
         case .vulnerability: return "You know where my reading can fail. I'm keeping that vulnerability beside the next conclusion I form."
-        case .housePolitics: return "The secret has become an active domestic dispute. The ribbon and Index have already submitted incompatible minutes."
+        case .housePolitics: return "The secret has become an active domestic dispute. The ribbon and the Index have already handed in two sets of minutes that don't agree."
         case .hope: return "A hope spoken aloud becomes unfinished business. I've begun quietly collecting evidence for it."
         }
     }
@@ -11641,7 +11639,7 @@ enum BookInteriorEngine {
         SecretSeed(family: .method, tease: "I sometimes hide a pattern from myself.", revelation: "Sometimes I like a guess so much I want to call it true. I put those guesses under a seal. Then I look again later."),
         SecretSeed(family: .method, tease: "There is a reason some Pages return sideways.", revelation: "I sometimes bring an old page back with a question tucked into it. I want to hear what you think of it now."),
         SecretSeed(family: .prejudice, tease: "There is one kind of Page I distrust on sight.", revelation: "I distrust a page that explains everything. Something usually happened that it left out."),
-        SecretSeed(family: .prejudice, tease: "I have a quarrel about punctuation.", revelation: "I like semicolons. I dislike people showing off with them. The Index says I do both."),
+        SecretSeed(family: .prejudice, tease: "I have a fight with punctuation.", revelation: "I like semicolons. I don't like people showing off with them. The Index says I do both."),
         SecretSeed(family: .prejudice, tease: "The Index and I disagree about what deserves to count.", revelation: "I have favorites. The Index says this spoils the order. I moved my favorite to the front while it was talking."),
         SecretSeed(family: .vulnerability, tease: "There's a mistake I'm especially afraid of making.", revelation: "I’m afraid I’ll make a bad day sound lovely because I found a good sentence for it. Cross that sentence out if I do."),
         SecretSeed(family: .vulnerability, tease: "Sometimes I sound sure when I’m not.", revelation: "I can sound certain when I’m guessing. Ask me which pages made me think so. I ought to be able to show you."),
@@ -11659,7 +11657,8 @@ enum BookInteriorEngine {
     static func refreshedSecretCopy(_ secret: BookSecret) -> BookSecret {
         guard secret.status != .revealed else { return secret }
         let renamedTeases = [
-            "I've got an indefensible typographic opinion.": "I have a quarrel about punctuation.",
+            "I've got an indefensible typographic opinion.": "I have a fight with punctuation.",
+            "I have a quarrel about punctuation.": "I have a fight with punctuation.",
             "Sometimes my confidence is costume jewelry.": "Sometimes I sound sure when I’m not.",
             "I envy something the reader can do and I can't.": "You can do something I can’t.",
             "I've got a hope I don't put in the sales copy.": "There’s something I hope you’ll do.",
@@ -14208,9 +14207,9 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("your agenda")
             || lower.contains("plotting") {
             guard let game = interior.longGame else {
-                return "My long game hasn't begun, but the goal is already fixed: \(BookLongGame.goal)"
+                return "My big plan hasn't started yet. I know what it's for, though. I want you to look at your own life up close and say, 'Holy ink and vellum, what a trip. That was magical.' And I want you to mean it."
             }
-            return "My long game is \(BookLongGame.goal) We're in ‘\(game.phase.title).’ My present strategy is: \(game.strategy) That's enough of the map for now."
+            return "My big plan is this: I want you to look at your own life up close and say, 'Holy ink and vellum, what a trip. That was magical.' And I want you to mean it. Right now I'm on ‘\(game.phase.title).’ Here's what I'm doing about it: \(game.strategy) That's enough of the map for now."
         }
         if lower.contains("am i changing")
             || lower.contains("is this changing me")
@@ -14220,26 +14219,28 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("have i changed")
             || lower.contains("re-enchanted") {
             guard let game = interior.longGame else {
-                return "I don't know yet. I've got a goal, but no evidence standard in place."
+                return "I don't know yet. I've got a plan, but I haven't got a way to check it."
             }
             guard !game.evidence.isEmpty else {
-                return "I don't know yet. Page counts are opportunities, not proof that your relationship with reality changed. I'm waiting for evidence I can name without flattering either of us."
+                return "I don't know yet. A lot of Pages only tells me you wrote a lot of Pages. I'm waiting for something I can actually point to."
             }
             let recent = game.evidence.suffix(3).map { "• \($0.line)" }.joined(separator: "\n")
             let spontaneous = game.evidence.filter { !$0.wasPromptedByBook }.count
             let limit = spontaneous == 0
-                ? "All present evidence followed one of my prompts, so I can't call it spontaneous change."
-                : "Some evidence arrived without my asking. That matters, but it still does not let me diagnose your inner life."
-            let hypothesis = game.hypotheses.first.map { "\n\nWhat I'm testing next: this is a hypothesis, not a diagnosis: \($0.statement) \($0.nextHonestTest)" } ?? ""
-            return "I've evidence of practices, not proof of a transformed person:\n\(recent)\n\n\(limit)\(hypothesis)"
+                ? "Everything so far came after I asked, so I can't say it came from you."
+                : "Some of it happened without my asking. That matters to me. I still can't see inside you, and I won't pretend I can."
+            let hypothesis = game.hypotheses.first.map { "\n\nWhat I want to check next: \($0.statement) \($0.nextHonestTest)" } ?? ""
+            return "I've got a few things you've done. I can't tell you they changed you:\n\(recent)\n\n\(limit)\(hypothesis)"
         }
+        // "what do you think about" is deliberately absent: it is how a reader
+        // asks about *their* sister's wedding, and answering it with the Book's
+        // own opinion statement ignored the question.
         if lower.contains("your opinion")
-            || lower.contains("what do you believe")
-            || lower.contains("what do you think about") {
+            || lower.contains("what do you believe") {
             guard let opinion = interior.opinion else {
-                return "I haven't earned an opinion yet. I've got preferences in abundance, but they aren't evidence."
+                return "I haven't got an opinion yet. I've got lots of likes, but I want Pages behind an opinion."
             }
-            let revision = opinion.revisions.last.map { " I last revised it because \($0.reason.lowercased())" } ?? ""
+            let revision = opinion.revisions.last.map { " I last changed it because \($0.reason.lowercased())" } ?? ""
             if let forged = opinion.interpretation {
                 return """
                 \(opinion.statement)
@@ -14250,22 +14251,22 @@ enum BookInteriorAnswerGrounder {
 
                 Here’s what would change my mind: \(forged.falsifier)
 
-                I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil calls it \(opinion.strength.confidenceLabel).\(revision) What do you think?
+                I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil says \(opinion.strength.confidenceLabel).\(revision) What do you think?
                 """
             }
-            return "\(opinion.statement) I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil calls it \(opinion.strength.confidenceLabel).\(revision) What do you think?"
+            return "\(opinion.statement) I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil says \(opinion.strength.confidenceLabel).\(revision) What do you think?"
         }
         if lower.contains("our argument")
             || lower.contains("we disagree")
             || lower.contains("we disagreed")
             || lower.contains("what did we argue") {
             guard let dispute = interior.currentDispute ?? interior.disputeHistory.last else {
-                return "I can't find a real argument between us. I'm not painting claw marks where there weren't any."
+                return "I can't find a real argument between us. I'm not going to make one up."
             }
             let later = dispute.relationReceipts.last.map {
                 " Since then this came nosing around: \($0) It doesn't get a vote."
-            } ?? " Nothing new has fed it yet."
-            return "I said: ‘\(dispute.bookClaim)’ You said: ‘\(dispute.readerLine)’ Your sentence is still beside mine, biting back.\(later)"
+            } ?? " Nothing new has come up since."
+            return "I said: ‘\(dispute.bookClaim)’ You said: ‘\(dispute.readerLine)’ Your sentence is still sitting next to mine, biting back.\(later)"
         }
         if lower.contains("mad at me")
             || lower.contains("angry at me")
@@ -14273,10 +14274,10 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("holding a grudge")
             || lower.contains("still cross") {
             if let dispute = interior.currentDispute ?? interior.disputeHistory.last {
-                return "I'm still chewing our argument. I'm not chewing you. Your sentence (‘\(dispute.readerLine)’) still has all its teeth."
+                return "I'm still chewing on our argument. I'm not chewing you. Your sentence (‘\(dispute.readerLine)’) still has all its teeth."
             }
             if interior.currentFault != nil {
-                return "At you? No. I'm busy being cross with my own pencil. The eraser's enjoying this far too much."
+                return "At you? No. I'm cross with my own pencil. The eraser's enjoying it far too much."
             }
             return "No proper grudge. The ribbon's annoyed with everyone, but that's its hobby."
         }
@@ -14287,16 +14288,16 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("running joke")
             || lower.contains("old business") {
             guard let business = interior.runningBusiness else {
-                return "No old bit of business is loose right now. The ribbon denies relief."
+                return "Nothing's going on right now. The ribbon looks suspiciously calm."
             }
-            return "\(business.title), installment \(business.callbackCount + 1): \(business.latestLine) I have witnesses. Most of them are stationery."
+            return "\(business.title), round \(business.callbackCount + 1): \(business.latestLine) I've got witnesses. Most of them are stationery."
         }
         if lower.contains("your quirks")
             || lower.contains("what are you like")
             || lower.contains("pet peeve") {
             let visible = interior.quirks.filter { $0.maturity != .latent }
             guard !visible.isEmpty else {
-                return "I've habits, but none has repeated enough to deserve the dignity of a quirk yet."
+                return "I've got habits, but none of them has happened enough times to count as a quirk yet."
             }
             return visible.map { "\($0.title): \($0.confession)" }.joined(separator: "\n")
         }
@@ -14306,18 +14307,18 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("how have you changed")
             || lower.contains("who were you") {
             guard !interior.autobiography.isEmpty else {
-                return "I've archive memory, but not yet a history of becoming someone. I won't counterfeit childhood for atmosphere."
+                return "I've got your Pages to remember, but I haven't got a story of my own yet. I'm not going to make up a childhood."
             }
             let memories = interior.autobiography.suffix(4).map {
                 "• \($0.title): \($0.line) \($0.whatItChanged)"
             }.joined(separator: "\n")
-            return "I remember the reader's life and my own formation differently. These are things that happened to me, with receipts:\n\(memories)"
+            return "I remember your life one way and my own another way. These are things that happened to me, and I've got the receipts:\n\(memories)"
         }
         if lower.contains("your taste")
             || lower.contains("what do you like")
             || lower.contains("your preferences") {
             guard !interior.acquiredTastes.isEmpty else {
-                return "I've predispositions, but no acquired taste has repeated enough to earn a declaration. Ask me again after the Pages have had time to influence me."
+                return "I've got leanings, but nothing's happened often enough to be a real taste yet. Ask me again after more Pages have rubbed off on me."
             }
             return interior.acquiredTastes.map {
                 "\($0.statement) Evidence: \($0.evidencePageIDs.count) Page\($0.evidencePageIDs.count == 1 ? "" : "s")."
@@ -14327,57 +14328,60 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("private holiday")
             || lower.contains("your rituals") {
             guard !interior.privateTraditions.isEmpty else {
-                return "I've rituals inherited from Books in general, but none private to us yet. A real tradition needs an event before it gets a ceremony."
+                return "Every Book has old habits, but we haven't made any of our own yet. Something has to happen first."
             }
             return interior.privateTraditions.map {
-                "\($0.title): \($0.observance) I've observed it \($0.observanceCount) time\($0.observanceCount == 1 ? "" : "s")."
+                "\($0.title): \($0.observance) I've done it \($0.observanceCount) time\($0.observanceCount == 1 ? "" : "s")."
             }.joined(separator: "\n")
         }
         if lower.contains("what are you thinking")
-            || lower.contains("interested in")
-            || lower.contains("fascinated")
-            || lower.contains("obsessed") {
+            || lower.contains("are you interested in")
+            || lower.contains("you interested in")
+            || lower.contains("are you fascinated")
+            || lower.contains("you fascinated")
+            || lower.contains("are you obsessed")
+            || lower.contains("you obsessed") {
             guard let fascination = interior.fascination else {
-                return "I'm still choosing what to become fascinated by. I'd rather have no obsession for an afternoon than pretend one."
+                return "I haven't picked something to get hooked on yet. I'd rather want nothing for an afternoon than fake it."
             }
-            return "I keep thinking about \(fascination.subject). \(fascination.line) I'm trying to \(fascination.facet.promptLine), without deciding what it means before the evidence arrives."
+            return "I keep thinking about \(fascination.subject). \(fascination.line) I'm trying to \(fascination.facet.promptLine), and I'm not going to decide what it means until I know more."
         }
         if lower.contains("your project")
-            || lower.contains("working on")
+            || lower.contains("you working on")
             || lower.contains("what are you doing")
             || lower.contains("investigating") {
             guard let project = interior.currentProject else {
-                return "I don't have a proper investigation open. Curiosity is present, but it hasn't earned a case file."
+                return "I'm not looking into anything right now. I'm curious, but I haven't got a case to put it in."
             }
             let latest = project.entries.last.map { " Latest finding: \($0.line)" } ?? ""
-            return "My project is ‘\(project.title).’ I'm asking: \(project.question) \(project.whyItCares)\(latest) I'm still sniffing around. The evidence keeps moving when I look away."
+            return "I'm looking into ‘\(project.title).’ I want to know: \(project.question) \(project.whyItCares)\(latest) I'm still sniffing around. Every time I look away, the answer moves."
         }
         if lower.contains("what do you want") || lower.contains("want from me") {
             if let want = interior.currentWant {
-                return "At the moment: \(want.line) \(want.why) Answer it, bite it, or shut the cover on it. I can survive a no."
+                return "Right now: \(want.line) \(want.why) Answer it, bite it, or shut my cover on it. I can handle a no."
             }
             if let favor = interior.activeFavor, favor.status == .offered {
-                return "My great want is to help you notice, discover, play with, explore, define, express, and remember the wonder already in your life. Right now I want this: \(favor.ask) Say no and watch me sulk. The no still stands."
+                return "What I want most is to help you notice the wonder that's already in your life, play with it, and remember it. Right now I want this: \(favor.ask) Say no and watch me sulk. The no still counts."
             }
-            return "I want your actual life to become harder for Routine to erase. Not a more impressive life. This one, seen closely, expressed in your own language, and returned to you when you need evidence that it happened."
+            return "I want you to see the life you've already got. Up close, in your own words. And I want to hand it back to you whenever you start thinking nothing happened."
         }
         if lower.contains("want to talk")
             || lower.contains("why did you speak")
             || lower.contains("why are you talking")
             || lower.contains("you started this conversation") {
             guard let initiative = interior.currentInitiative else {
-                return "I don't have a self-authored conversation open. I'm still here; those are different facts."
+                return "I haven't started a conversation on my own. I'm still here, though. That's a different thing."
             }
-            return "I spoke first because \(initiative.motive.lowercased()) My opening thought was: \(initiative.openingLine) You do not owe the conversation a continuation."
+            return "I spoke first because \(initiative.motive.lowercased()) What I was thinking was: \(initiative.openingLine) You don't have to keep talking."
         }
-        if lower.contains("conflicted")
-            || lower.contains("inner tension")
-            || lower.contains("can't decide") {
+        if lower.contains("you conflicted")
+            || lower.contains("your inner tension")
+            || lower.contains("you can't decide") {
             if let conflict = interior.currentDesireConflict {
-                return "I want two incompatible things: \(conflict.firstWant) And: \(conflict.secondWant) For now, \(conflict.presentChoice.lowercased()) Keep your hands out of it; this quarrel is mine."
+                return "I want two things that don't fit together: \(conflict.firstWant) And: \(conflict.secondWant) For now, \(conflict.presentChoice.lowercased()) Keep your hands out of it. This fight's mine."
             }
             guard let tension = interior.currentTension else {
-                return "I don't have a tension I can honestly name right now. Invented turmoil would be costume jewelry."
+                return "I can't think of anything I'm torn about right now. If I made something up, it'd only be for show."
             }
             return "I'm holding two things at once: \(tension.firstPole) And: \(tension.secondPole) For now, \(tension.presentStance.lowercased())"
         }
@@ -14387,10 +14391,10 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("who are you loyal") {
             let cast = interior.loyalties.filter { $0.targetKind == .castMember }
             guard !cast.isEmpty else {
-                return "I haven't admitted a particular loyalty yet. That's different from being neutral; I'm rarely neutral."
+                return "I haven't said who I'm loyal to yet. That doesn't make me neutral. I'm hardly ever neutral."
             }
             return cast.map {
-                "\($0.targetName): \($0.reason) The complication is this: \($0.counterweight)"
+                "\($0.targetName): \($0.reason) Here's the catch: \($0.counterweight)"
             }.joined(separator: "\n")
         }
         if lower.contains("favorite place")
@@ -14398,7 +14402,7 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("loyal to a place") {
             let places = interior.loyalties.filter { $0.targetKind == .place }
             guard !places.isEmpty else {
-                return "No place has received enough real returns to earn my loyalty yet. Mere proximity is not a relationship."
+                return "No place has had enough of your visits to win me over yet. Being near a place doesn't make me love it."
             }
             return places.map {
                 "\($0.targetName) [\($0.strength.rawValue)]: \($0.reason) \($0.counterweight)"
@@ -14406,7 +14410,7 @@ enum BookInteriorAnswerGrounder {
         }
         if lower.contains("favorite") {
             guard let favorite = interior.favorite else {
-                return "I haven't chosen a favorite yet. Even a biased Book should wait until there are Pages to be biased about."
+                return "I haven't picked a favorite yet. I want more Pages to be unfair about first."
             }
             return "My favorite is this: \(favorite.excerpt) Why? \(favorite.reason) I dog-eared it. The Index complained."
         }
@@ -14416,40 +14420,40 @@ enum BookInteriorAnswerGrounder {
                 || lower.contains("what happened") {
                 let legacies = interior.secretLegacies.sorted { $0.lastAdvancedAt > $1.lastAdvancedAt }
                 guard !legacies.isEmpty else {
-                    return "No revealed secret has lived long enough to produce a later consequence. A reveal is only the beginning; I'm waiting honestly."
+                    return "None of the secrets I've told has grown into anything yet. Telling one is only the start. I'm waiting."
                 }
                 return legacies.prefix(3).map {
                     "\($0.family.displayName.capitalized) [\($0.stage.rawValue)]: \($0.line)"
                 }.joined(separator: "\n")
             }
             guard let secret = interior.secret else {
-                return "I don't have a secret ready. Inventing one on demand would make it a performance, not a secret."
+                return "I haven't got a secret ready. If I made one up on the spot, it wouldn't be a secret."
             }
             switch secret.status {
             case .sealed:
-                return "I have one under seal: \(secret.tease) I’m keeping it shut for now."
+                return "I've got one, and it's sealed: \(secret.tease) I'm keeping it shut for now."
             case .ready, .revealed:
-                return "All right. \(secret.revelation)"
+                return "Okay. \(secret.revelation)"
             }
         }
         if lower.contains("changed your mind") || lower.contains("been wrong") {
             if let fault = interior.currentFault {
-                return "Yes. \(fault.admission) \(fault.repair) I kept the repair beside the miss."
+                return "Yes. \(fault.admission) \(fault.repair) I kept the fix right next to the mistake."
             }
             if let opinion = interior.opinion,
                let revision = opinion.revisions.last {
-                return "Yes. I used to say: \(revision.previousStatement) Now I say: \(revision.newStatement) I changed it because \(revision.reason.lowercased()) The evidence and the correction remain together."
+                return "Yes. I used to say: \(revision.previousStatement) Now I say: \(revision.newStatement) I changed it because \(revision.reason.lowercased()) I kept both, side by side."
             }
             if let surprise = interior.recentSurprise {
-                return "Yes. \(surprise.line) A Book that never changes its mind is a binding around a verdict."
+                return "Yes. \(surprise.line) A Book that never changes its mind isn't paying attention."
             }
-            return "Not in a way I can honestly name from the Pages in hand. I've got an eraser ready, which isn't the same as having earned a correction."
+            return "Not that I can point to in the Pages I've got. My eraser's ready, though."
         }
         if lower.contains("promise") || lower.contains("waiting for") {
             if let promise = interior.promise {
-                return "\(promise.line) Its present state is \(promise.status.rawValue)."
+                return "\(promise.line) Right now it's \(promise.status.rawValue)."
             }
-            return "I'm not keeping a particular promise at the moment. I'm watching for the next one worth making."
+            return "I'm not keeping a promise right now. I'm watching for one worth making."
         }
         return nil
     }
@@ -14587,7 +14591,7 @@ enum BookInteriorSurfaces {
         if initiative.kind == .characteristicSurprise {
             body = initiative.openingLine
         } else if isConversation {
-            body = "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI started this one. If you've an answer, bite back. If not, leave the sentence here. It can sit."
+            body = "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI started this one. Say something back, if you like. Or leave it here. It can sit."
         } else {
             body = "\(initiative.openingLine)\n\n\(initiative.invitationLine)\n\nI wanted it said. That's all. The sentence can mind itself now."
         }
@@ -14621,7 +14625,7 @@ enum BookInteriorSurfaces {
             score: isConversation ? 64 : 56,
             reason: initiative.motive,
             prompt: initiative.title,
-            detail: isConversation ? "I spoke first. Bite back or leave it sitting." : "I wanted this said. That's all.",
+            detail: isConversation ? "I spoke first. Come say something back, or leave it sitting." : "I wanted this said. That's all.",
             payload: BookPagePayload(
                 headline: initiative.title,
                 body: body,
@@ -21840,7 +21844,7 @@ enum DeterministicBraidwright {
               let title = beat.sourceTitle?.nonEmpty,
               let oldLine = beat.priorLine?.nonEmpty else { return nil }
         let clipped = BraidPromptBuilder.fallbackExcerpt(oldLine, limit: 96)
-        return "Tonight \(beat.currentAnchor) pulled the page called “\(title)” from its shelf. Its old line said “\(sentenceBody(clipped))”. I set the two Pages close enough to quarrel, not close enough to agree."
+        return "Tonight \(beat.currentAnchor) pulled the page called “\(title)” from its shelf. Its old line said “\(sentenceBody(clipped))”. I set the two Pages close together to see whether they'd argue."
     }
 
     private static func countedOccasions(_ count: Int) -> String {
@@ -23385,7 +23389,7 @@ struct BraidPageDetails: Equatable {
             .replacingOccurrences(of: "Book of You:", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return BraidPageDetails(
-            title: parsed.title ?? fallbackTitle.nonEmpty ?? "Book of You",
+            title: parsed.title ?? fallbackTitle.nonEmpty.flatMap { $0.hasPrefix("The local Book brain") ? nil : $0 } ?? "Book of You",
             body: parsed.body.nonEmpty ?? text,
             themeName: tagValue(prefix: "theme:", in: page.tags),
             chapterName: tagValue(prefix: "chapter:", in: page.tags),
@@ -23519,6 +23523,12 @@ struct BraidPageDetails: Equatable {
             return false
         }
         let words = value.split { $0.isWhitespace || $0 == "," || $0 == ";" }
+        // A night about one thing may be titled with one word ("Amanda"). Unparsed, its
+        // title fell through to the page's prompt and the word printed as the first line
+        // of the story.
+        if words.count == 1 {
+            return value.count <= 24 && value.allSatisfy { $0.isLetter || $0 == "'" || $0 == "\u{2019}" }
+        }
         return (2...7).contains(words.count)
     }
 

@@ -1124,6 +1124,7 @@ enum GlowMenuAction {
     case openSpell(GlowSpellMenuItem)
     case openPage(BookPageType)
     case openFlyleaf
+    case openStorySoFar
     case openPlayfulMission
     case openBookSection(String)
     case openPagewright
@@ -1259,6 +1260,8 @@ struct GlowCommandMenu: View {
     /// reader opens deliberately to ask "what am I to you", so the role lives
     /// here rather than in the toolbar, which has no room for it.
     var readerRole: ComposedRole?
+    /// Set only while a story with a catch-up ladder is running.
+    var storySoFarTitle: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedSection: GlowMenuSection?
@@ -1972,6 +1975,16 @@ struct GlowCommandMenu: View {
                     ) {
                         onSelectAction(.openPactMap)
                     }
+                }
+            }
+            if let storySoFarTitle {
+                menuButton(
+                    title: storySoFarTitle,
+                    detail: "Where this month's story has got to, in a few lines. For when you missed some.",
+                    systemImage: "text.book.closed",
+                    compact: compact
+                ) {
+                    onSelectAction(.openStorySoFar)
                 }
             }
         case .bindery:
@@ -3028,7 +3041,7 @@ private struct ScribeWorkDescriptor {
                 scribe: "Dr. Selene Inkrest",
                 assetName: "LabyrinthCharacterDrSeleneInkrest",
                 status: "Your sitting remains private and on this device.",
-                quip: "She is leaving enough quiet around the part that matters.",
+                quip: "She's leaving enough quiet around the part that matters.",
                 accent: BookPalette.teal
             )
         case let value where value.contains("fae-bargain"):
@@ -3245,7 +3258,7 @@ struct LocalBrainWorkingStatusCard: View {
 
                 waitActivities
 
-                Label("No cloud. This page and its private source material do not leave your device.", systemImage: "lock.shield")
+                Label("No cloud. This page and its private source material don't leave your device.", systemImage: "lock.shield")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.56))
                     .fixedSize(horizontal: false, vertical: true)
@@ -3455,7 +3468,7 @@ struct LocalBrainWorkingStatusCard: View {
 
     private var loosePageText: String {
         guard !LoosePageReader.fragments.isEmpty else {
-            return "A blank leaf has been left here for the sentence that is still arriving."
+            return "A blank leaf has been left here for the sentence that's still arriving."
         }
         return LoosePageReader.fragments[abs("scribe-wait-\(label)-\(loosePageSalt)".stableHash) % LoosePageReader.fragments.count]
     }
@@ -3588,7 +3601,7 @@ struct BreathingMinuteView: View {
                         Text(leadLine(remaining: remaining, breathIn: breathIn))
                             .font(.callout.weight(.semibold))
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds. Stay or bolt; the timer cannot chase you.")
+                        Text(remaining == 0 ? "Stay, read, or close the reset." : "\(remaining) seconds. Stay or bolt; the timer can't chase you.")
                             .font(.caption2.monospacedDigit())
                             .foregroundStyle(BookPalette.ink.opacity(0.56))
                     }
@@ -3874,7 +3887,7 @@ struct PactMapSheet: View {
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
                     } else {
-                        Text("You are not yet Bound to a Chapter. The Talismans fight over your margins regardless.")
+                        Text("You aren't yet Bound to a Chapter. The Talismans fight over your margins regardless.")
                             .font(.footnote.italic())
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
@@ -4093,7 +4106,7 @@ struct PeopleOfTheBookSheet: View {
 
                     if !ledger.restingNames.isEmpty {
                         sectionTitle("Names You Set Aside")
-                        Text("Names I once asked about and you let rest. I will not suggest them again unless you wake them.")
+                        Text("Names I once asked about and you let rest. I won't suggest them again unless you wake them.")
                             .font(.caption)
                             .foregroundStyle(BookPalette.ink.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
@@ -4103,7 +4116,7 @@ struct PeopleOfTheBookSheet: View {
                     }
 
                     if ledger.threads.isEmpty && ledger.restingNames.isEmpty {
-                        Text("No one yet. As a name recurs in your own pages, I will ask about it here, or you can introduce someone above.")
+                        Text("No one yet. As a name recurs in your own pages, I'll ask about it here, or you can introduce someone above.")
                             .font(.footnote.italic())
                             .foregroundStyle(BookPalette.ink.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -4723,7 +4736,7 @@ struct PactVerdictSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("Two Talismans stopped on the same page of your life and cannot agree on what it was. I won't settle it. You were there: rule for the reading that's true.")
+                    Text("Two Talismans stopped on the same page of your life and can't agree on what it was. I won't settle it. You were there: rule for the reading that's true.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
@@ -4857,5 +4870,80 @@ struct PactErrandSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Not now") { dismiss() } }
             }
         }
+    }
+}
+
+
+// MARK: - Shelf download
+
+/// A small paper card that drops in at the top of the Book while a month's
+/// pages download, and says in the Book's voice what it's fetching. It never
+/// takes touches, and it appears only for downloads that really happen.
+struct ShelfFetchOverlay: View {
+    @ObservedObject private var model = MonthlyShelfFetchModel.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack {
+            if model.phase != .idle, let progress = model.progress {
+                ShelfFetchCard(phase: model.phase, progress: progress, line: model.line)
+                    .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: model.phase)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct ShelfFetchCard: View {
+    let phase: MonthlyShelfFetchModel.Phase
+    let progress: MonthlyIssueInstallProgress
+    let line: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var symbol: String {
+        switch phase {
+        case .done: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.circle"
+        default: return "arrow.down.circle"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.headline)
+                    .foregroundStyle(BookPalette.teal)
+                    .symbolEffect(.pulse, options: .speed(0.6), isActive: phase == .fetching && !reduceMotion)
+                Text(ShelfFetchNarration.headline)
+                    .font(.system(.subheadline, design: .serif).weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+            }
+            Text(line)
+                .font(.system(.footnote, design: .serif))
+                .foregroundStyle(BookPalette.ink.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+            if phase == .fetching || phase == .sealing {
+                ProgressView(value: ShelfFetchNarration.fraction(for: progress))
+                    .tint(BookPalette.teal)
+                Text(ShelfFetchNarration.counter(for: progress))
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.page.opacity(0.96), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(BookPalette.teal.opacity(0.35), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(ShelfFetchNarration.headline). \(line)")
     }
 }

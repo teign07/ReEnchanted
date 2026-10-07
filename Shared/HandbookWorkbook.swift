@@ -221,6 +221,11 @@ struct HandbookWorkbook: Codable, Equatable {
     var ordering: HandbookOrdering?
     var exam: HandbookExam?
     var reportCard: HandbookReportCard?
+    var cloze: HandbookCloze?
+    var anagrams: HandbookAnagrams?
+    var vowels: HandbookVowels?
+    var sudoku: HandbookSudoku?
+    var oddOne: HandbookOddOne?
 }
 
 // MARK: - Builder
@@ -243,7 +248,7 @@ enum HandbookWorkbookBuilder {
         searchWords += cast.compactMap { $0.name.split(separator: " ").first.map(String.init) }
         searchWords += ["Labyrinth", "Margin", "Lantern", "Threshold", "Ember", "Hawthorn"]
 
-        return HandbookWorkbook(
+        var workbook = HandbookWorkbook(
             wordSearch: HandbookWordSearch.make(candidates: searchWords, seed: seed),
             maze: HandbookMaze.make(seed: seed),
             cipher: cipher(days: days, seed: seed),
@@ -251,8 +256,17 @@ enum HandbookWorkbookBuilder {
             ordering: ordering(days: days, seed: seed),
             exam: exam(dayBook: dayBook, seed: seed),
             reportCard: reportCard(pages: pages, dayBook: dayBook, dayCount: dayCount,
-                                   proctorSlug: proctorSlug, onLeave: onLeave)
+                                   proctorSlug: proctorSlug, onLeave: onLeave),
+            cloze: cloze(days: days, seed: seed),
+            anagrams: anagrams(terms: terms, dayBook: dayBook, seed: seed),
+            vowels: vowels(dayBook: dayBook, seed: seed),
+            sudoku: sudoku(terms: terms, dayBook: dayBook, seed: seed),
+            oddOne: oddOne(dayBook: dayBook, seed: seed)
         )
+        // A week is rotated at its slice (the level decides what a thin week may carry); a month
+        // keeps most of the pool, but not all of it, so two months never read the same.
+        if dayCount > 10 { workbook.rotate(seed: seed, keep: 5) }
+        return workbook
     }
 
     // MARK: Cipher
@@ -438,7 +452,7 @@ enum HandbookWorkbookBuilder {
                     errand: "Sit one class you haven't sat, and bring the worksheet back filled in.",
                     count: sat),
             Subject(id: "deeds", name: "Deeds", unit: "errands and dares answered", target: 3 * scale,
-                    errand: "Answer one errand the Academy sets. Small is fine. Unfinished is not an answer.",
+                    errand: "Answer one errand the Academy sets. Small is fine. Unfinished isn't an answer.",
                     count: deeds)
         ]
 

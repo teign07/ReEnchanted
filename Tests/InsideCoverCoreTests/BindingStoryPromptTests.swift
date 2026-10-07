@@ -218,10 +218,10 @@ final class BindingStoryPromptTests: XCTestCase {
         XCTAssertFalse(prompt.contains("SENTINEL RAW FUEL"))
         XCTAssertTrue(prompt.contains("binding of bindings"))
         XCTAssertTrue(prompt.contains("choose the truest architecture"))
-        XCTAssertTrue(prompt.contains("do not force the week into one continuous plot"))
-        XCTAssertTrue(prompt.contains("Hardship without explicit Rut influence is not a Rut battle"))
-        XCTAssertTrue(prompt.contains("do not produce a day-by-day recap"))
-        XCTAssertTrue(prompt.contains("Do not invent events"))
+        XCTAssertTrue(prompt.contains("don't force the week into one continuous plot"))
+        XCTAssertTrue(prompt.contains("Hardship without explicit Rut influence isn't a Rut battle"))
+        XCTAssertTrue(prompt.contains("don't produce a day-by-day recap"))
+        XCTAssertTrue(prompt.contains("Don't invent events"))
         XCTAssertEqual(spec.sourceID, "weekly-binding-story")
     }
 
@@ -322,8 +322,8 @@ final class BindingStoryPromptTests: XCTestCase {
         XCTAssertTrue(spec.prompt.contains("Story-form mix: mosaic 1"))
         XCTAssertTrue(spec.prompt.contains("Rut-influence mix: mixed 1"))
         XCTAssertTrue(spec.prompt.contains("Register mix: fierce 1"))
-        XCTAssertTrue(spec.prompt.contains("do not force the year into one continuous plot"))
-        XCTAssertTrue(spec.prompt.contains("hardship without explicit Rut influence is not a Rut battle"))
+        XCTAssertTrue(spec.prompt.contains("don't force the year into one continuous plot"))
+        XCTAssertTrue(spec.prompt.contains("hardship without explicit Rut influence isn't a Rut battle"))
         XCTAssertEqual(spec.sourceID, "annual-binding-story")
     }
 

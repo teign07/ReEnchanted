@@ -41,6 +41,20 @@ test('membership ID alone grants nothing and does not query Stripe',async()=>{
   await rejects(()=>issueMonthlySession(body,env(),'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>{calls++;return membership();},now),403);
   assert.equal(calls,0);
 });
+test('paid legacy annual memberships retain the monthly shelf after a price change',async()=>{
+  const e=env(),owner='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  e.STRIPE_BOUND_YEAR_ANNUAL_PRICE='price_annual_new';
+  e.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY='price_annual_old';
+  await recordMonthlyMembershipOwner(e,'sub_owned',owner);
+  const m=membership();m.items.data[0].price.id='price_annual_old';
+  const s=await issueMonthlySession(body,e,owner,async()=>m,now);
+  await requireMonthlySession(request(s.token),e,owner,now);
+  m.latest_invoice.payment_intent.latest_charge.refunded=true;
+  await rejects(()=>issueMonthlySession(body,e,owner,async()=>m,now),403);
+  m.latest_invoice.payment_intent.latest_charge.refunded=false;
+  delete e.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY;
+  await rejects(()=>issueMonthlySession(body,e,owner,async()=>m,now),403);
+});
 test('a checkout mode that is neither test nor live accepts no Stripe livemode',async()=>{
   const owner='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   for(const mode of [' Test ','LIVE']){const e=env();e.CHECKOUT_MODE=mode;await recordMonthlyMembershipOwner(e,'sub_owned',owner);

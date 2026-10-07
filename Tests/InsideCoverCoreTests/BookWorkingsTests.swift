@@ -287,9 +287,9 @@ final class BookWorkingsTests: XCTestCase {
         XCTAssertEqual(invitationCandidates(inputs: matureInvitationInputs()).count, 1)
     }
 
-    func testInvitationYieldsAfterPactOrDuringDistress() {
+    func testInvitationYieldsAfterPactButNotOnAHardDay() {
         var inputs = matureInvitationInputs()
-        XCTAssertTrue(invitationCandidates(inputs: inputs, distress: true).isEmpty)
+        XCTAssertEqual(invitationCandidates(inputs: inputs, distress: true).count, 1)
 
         inputs.bookWorkings = openLedger()
         XCTAssertTrue(invitationCandidates(inputs: inputs).isEmpty)
@@ -404,7 +404,7 @@ final class BookWorkingsTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["bookWorkingID"], "returned-working")
         XCTAssertEqual(surface.payload.metadata["bookWorkingGroundingPageID"], sourcePage.id)
         XCTAssertTrue(surface.payload.body.contains(sourcePage.userInput))
-        XCTAssertTrue(surface.detail.contains("not random"))
+        XCTAssertTrue(surface.detail.contains("wasn't random"))
 
         inputs.days = []
         let withdrawnSurface = try XCTUnwrap(BookWorkingReturnPageSourceAdapter().candidates(

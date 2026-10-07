@@ -27,7 +27,7 @@ final class InkbonesNarrativeConsequenceTests: XCTestCase {
         XCTAssertTrue(section.contains("Belief roll: 97 against 62"))
         XCTAssertTrue(section.contains("Mara receives the key"))
         XCTAssertTrue(section.contains("spent, broken, owed, or overheard"))
-        XCTAssertTrue(section.contains("Do not mention dice, rolls, thresholds"))
+        XCTAssertTrue(section.contains("Don't mention dice, rolls, thresholds"))
     }
 
     func testFallbackPreservesPreparedResultLandingAndBandConsequenceWithoutBecomingARollLabel() {

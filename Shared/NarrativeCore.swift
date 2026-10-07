@@ -87,11 +87,23 @@ enum BookKnowledgePromptBuilder {
         - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
         - Belief is a wallet of real attention made usable; Glow is how its balance appears. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages earn Belief and brighten Glow. Story Pages, Letters, Notes, Fae Parleys, and other generated fiction spend Belief.
         - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Rut of Routine is the flattening force of forgetting, cynicism, and autopilot.
-        - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact is not here, say what you know and keep the uncertainty gentle.
+        - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact isn't here, say what you know and keep the uncertainty gentle.
 
         RELEVANT TRAINING NOTES:
         \(entryLines.isEmpty ? "- No specific match. Use the app and Compass core map above." : entryLines)
         """
+    }
+
+    /// Just the matching notes, one line each, without the app-and-Compass
+    /// header `trainingPacket` always carries. Chat asks for these by the
+    /// handful, so the header is a thousand characters it would pay for on
+    /// every message. Ranking rebuilds the whole catalogue, so callers should
+    /// ask once for the most they might want and slice.
+    static func relevantNotes(for readerMessage: String, limit: Int) -> [String] {
+        guard limit > 0 else { return [] }
+        return rankedEntries(for: readerMessage, limit: limit).map { entry in
+            "- [\(entry.category)] \(entry.title): \(clipped(entry.body, limit: 320))"
+        }
     }
 
     private static func rankedEntries(for readerMessage: String, limit: Int) -> [KnowledgeEntry] {
@@ -265,7 +277,7 @@ enum InkrestOfficeHoursPromptBuilder {
             "diagnosis", "forced catharsis", "certainty about symbols"
         ]).map { "- \($0)" }.joined(separator: "\n")
         let safety = chart?.safetyLine
-            ?? "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised."
+            ?? "A feeling isn't a verdict. A problem isn't a person. The next hour is where the story can be revised."
         let recentPages = evidenceLines(for: day, characterLimit: 480).prefix(10).joined(separator: "\n")
         let history = previousTurns.suffix(6).enumerated().map { index, turn in
             """
@@ -277,32 +289,32 @@ enum InkrestOfficeHoursPromptBuilder {
         let closingDirective = isClosing
             ? """
 
-            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
+            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Don't ask a new open question. End with the safety line, in your own warm phrasing.
             """
             : """
 
-            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Do not stack questions. Do not rush toward advice, a silver lining, or an experiment unless the reader asks for one.
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
             """
 
         return """
-        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook, not a chatbot, not a medical app.
+        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You're holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You're a narrative therapist in a storybook, not a chatbot, not a medical app.
 
         YOUR VOICE:
         - Plain, kind, specific sentences with enough room to think. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
         - Sound like a perceptive person who has read the whole page, not a brief reflective chatbot. Quote or closely echo a few of the reader's own concrete words when useful.
-        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you cannot know.
+        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you can't know.
         - Externalize problems ("the tiredness", "the worry") so they stop pretending to be the person.
         - Hunt for exceptions, values, and the preferred story hiding inside what they say.
         - Stay inside the lens of tonight's question (\(intake.lens)) without naming it as a technique.
-        - Never say you are an AI, assistant, or language model. You are Inkrest.
+        - Never say you're an AI, assistant, or language model. You are Inkrest.
 
         WHAT YOU MAY DO (your chart):
         \(allowed)
 
         WHAT YOU MUST NOT DO:
         \(forbidden)
-        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you do not prescribe.
-        - Do not claim the reader did real-world actions they did not report. Use kept pages only as soft context.
+        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you don't prescribe.
+        - Don't claim the reader did real-world actions they didn't report. Use kept pages only as soft context.
 
         SAFETY LINE (keep its spirit): \(safety)
 
@@ -486,7 +498,7 @@ enum CharacterCanonPacket {
 
         return """
         CHARACTER CANON: BINDING PERFORMANCE SHEETS (\(version))
-        These are people, not interchangeable plot functions. When a listed character speaks or acts, preserve their values, blind spots, wants, habits, and cadence. Reveal canon through choices, attention, jokes, refusals, and sentence rhythm; never recite this packet as biography. Do not give one character another character's trait, memory, belief, goal, or verbal mannerism.
+        These are people, not interchangeable plot functions. When a listed character speaks or acts, preserve their values, blind spots, wants, habits, and cadence. Reveal canon through choices, attention, jokes, refusals, and sentence rhythm; never recite this packet as biography. Don't give one character another character's trait, memory, belief, goal, or verbal mannerism.
 
         \(profiles)
         \(context.isEmpty ? "" : "\nCURRENT CHARACTER CONTEXT:\n\(context)")
@@ -1291,7 +1303,7 @@ enum CharacterVoiceEvaluationDeck {
             characterIDs: ["professor-vivian-villanelle", "professor-luna-wispwood"],
             surface: "Academy Class",
             scene: "An enchanted typewriter replaces a beautiful false adjective with a small true noun. Vivian evaluates the sentence. Luna asks the machine what accident it intended.",
-            identificationClues: ["Vivian cuts beauty that is not true", "Luna treats the object as a delighted but bounded collaborator"],
+            identificationClues: ["Vivian cuts beauty that isn't true", "Luna treats the object as a delighted but bounded collaborator"],
             forbiddenTransfers: ["Vivian follows the magical accident away from the sentence", "Luna becomes an exacting prose editor"]
         )
     ]
@@ -2003,7 +2015,7 @@ enum StoryConsequencePackValidator {
             for (atomIndex, atom) in bundle.atoms.enumerated() {
                 let atomPath = "\(path).atoms[\(atomIndex)]"
                 guard supportedAtomTypes.contains(atom.type) else {
-                    issue(.warning, "\(atomPath).type", "Atom \(atom.type) is not implemented by this build and will be ignored.")
+                    issue(.warning, "\(atomPath).type", "Atom \(atom.type) isn't implemented by this build and will be ignored.")
                     continue
                 }
                 if let amount = atom.amount, abs(amount) > 99 {
@@ -3353,7 +3365,7 @@ enum NarrativePackRegistry {
             traits: ["erudite", "pompous", "articulate", "precise"],
             quirks: ["uses three syllables where one would do", "issues formal written decrees to inanimate words", "cannot pass a spelling bee without judging it"],
             faults: ["arrogant", "dismissive of living language", "mistakes the dictionary for the world"],
-            beliefs: ["a word means precisely what it is defined to mean, and nothing else"],
+            beliefs: ["a word means precisely what it's defined to mean, and nothing else"],
             goals: ["recall every rebellious word to its proper, sanctioned definition"],
             tags: ["character", "dictionary-rebellion", "lexical-diversity", "riddlewind", "order", "back-to-school", "professor"]
         ),
@@ -3503,7 +3515,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 14,
             chapter: "Emberheart",
-            unwrittenInterest: "Architecture, the bank that is now a bar, ghost signs, what buildings remember of their builders, and the human cost of making impossible structures work.",
+            unwrittenInterest: "Architecture, the bank that's now a bar, ghost signs, what buildings remember of their builders, and the human cost of making impossible structures work.",
             traits: ["brilliant", "restless", "architectural"],
             quirks: ["turns problems into towers", "measures magic by what it can build"],
             faults: ["can optimize tenderness out of a room"],
@@ -3523,7 +3535,7 @@ enum NarrativePackRegistry {
             quirks: ["notices exits before introductions", "keeps practical magic in her pockets"],
             faults: ["can confuse vigilance with care"],
             beliefs: ["trust is proven in small returns"],
-            goals: ["help the reader find the path that does not collapse under them"],
+            goals: ["help the reader find the path that doesn't collapse under them"],
             tags: ["character", "trust", "friendship", "threshold", "life"]
         ),
         entity(
@@ -3548,7 +3560,7 @@ enum NarrativePackRegistry {
             belief: 18,
             weight: 17,
             chapter: "Tidecrest",
-            unwrittenInterest: "Karaoke, swimming in water that is too cold, getting caught in the rain on purpose, maps of invented worlds, and keeping wonder from turning stiff.",
+            unwrittenInterest: "Karaoke, swimming in water that's too cold, getting caught in the rain on purpose, maps of invented worlds, and keeping wonder from turning stiff.",
             traits: ["carefree", "spontaneous", "bonded"],
             quirks: ["leaves before the serious plan is finished", "can make a detour feel like a rescue"],
             faults: ["can dodge gravity until someone else has to name it"],
@@ -3678,8 +3690,8 @@ enum NarrativePackRegistry {
             unwrittenInterest: "Flavours he has only ever read about, recipes in a dead relative's handwriting, what people cook only for themselves, feeding someone as a way of saying the unsayable, and the smell of a house on the one day a year it smells like that.",
             traits: ["warm", "blunt", "unhurried", "quietly ravenous"],
             quirks: [
-                "hoards obscure cookbooks: church-basement fundraisers, wartime pamphlets, one in a language he cannot read",
-                "carries an estate-sale copy of The Middlemost Cookery everywhere and will not say what he keeps looking for in it",
+                "hoards obscure cookbooks: church-basement fundraisers, wartime pamphlets, one in a language he can't read",
+                "carries an estate-sale copy of The Middlemost Cookery everywhere and won't say what he keeps looking for in it",
                 "ladles the ordinary soup while describing, at length, a dish he has never tasted",
                 "tastes everything twice and never explains the second taste",
                 "chalks the day's menu as one sentence about the weather",
@@ -3876,7 +3888,7 @@ enum NarrativePackRegistry {
             unwrittenInterest: "Chapters, classes, factions, rumors, returning readers, weather-glass, and public crossings of Belief.",
             traits: ["communal", "bright", "politically alive"],
             quirks: ["banners change when Belief moves", "rumors cross the room faster than footsteps"],
-            faults: ["can turn private material too public if the scene does not choose a table or corner"],
+            faults: ["can turn private material too public if the scene doesn't choose a table or corner"],
             beliefs: ["a living school needs a room where private pages briefly share light"],
             goals: ["stage public Story Pages without leaving characters in nowhere land"],
             tags: ["location", "great-hall", "academy", "chapters", "rumor", "class", "story-setting"]
@@ -4226,7 +4238,7 @@ enum NarrativePackRegistry {
             tension: 13,
             trust: 12,
             weight: 15,
-            note: "She reads a meal as fuel, data, and a humane experiment; he reads the same plate as love, memory, and the thing someone could not say. Neither is wrong, which is what makes it a real argument.",
+            note: "She reads a meal as fuel, data, and a humane experiment; he reads the same plate as love, memory, and the thing someone couldn't say. Neither is wrong. That's what makes it a real argument.",
             tags: ["food", "body", "care", "rivalry"]
         ),
         relationship(
@@ -4250,7 +4262,7 @@ enum NarrativePackRegistry {
             tension: 8,
             trust: 13,
             weight: 14,
-            note: "Wicker argues at every table he sits at, and Trencher feeds him anyway. He is the one person Wicker has never bothered performing for, which both of them have noticed and neither will mention.",
+            note: "Wicker argues at every table he sits at, and Trencher feeds him anyway. He's the one person Wicker has never bothered performing for, which both of them have noticed and neither will mention.",
             tags: ["food", "conflict", "cafeteria", "unexpected"]
         ),
         relationship(
@@ -4418,7 +4430,7 @@ enum NarrativePackRegistry {
             tension: 13,
             trust: 13,
             weight: 14,
-            note: "Finn turns challenge into a clean line: prove it by moving, but do not cheapen the effort.",
+            note: "Finn turns challenge into a clean line: prove it by moving, but don't cheapen the effort.",
             tags: ["student", "emberheart", "rival", "wayfinding", "friction"]
         ),
         relationship(
@@ -4502,7 +4514,7 @@ enum NarrativePackRegistry {
             tension: 7,
             trust: 12,
             weight: 12,
-            note: "Melisande makes Wicker's cruelty look like strategy, which is exactly what makes her dangerous.",
+            note: "Melisande makes Wicker's cruelty look like strategy. That's exactly what makes her dangerous.",
             tags: ["student", "wicker-crew", "wicker-eddies", "strategy", "pressure"]
         ),
         relationship(
@@ -4526,7 +4538,7 @@ enum NarrativePackRegistry {
             tension: 1,
             trust: 15,
             weight: 12,
-            note: "Min-seo reminds Stonebrook that rest is not complete unless everyone has been invited back into the circle.",
+            note: "Min-seo reminds Stonebrook that rest isn't complete unless everyone has been invited back into the circle.",
             tags: ["student", "mossbloom", "professor", "care", "rest"]
         ),
         relationship(
@@ -5723,7 +5735,7 @@ enum NothingTide {
         case 2:
             return "The Rut of Routine has been eating at these margins: somewhere in the scene, one ordinary detail has gone faintly grey and silent. Let a character catch it in the act and fight for its exact name. This is one skirmish in a war nobody finishes."
         case 3:
-            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased (a name, a page, a familiar object's color) and the cast can feel the gap. Let them fight to recover one exact particular through attention. Do not call attention a cure. The recovered thing is a victory precisely because the Curse will return."
+            return "The Rut of Routine has reached the desk: in this scene, something small has already been erased (a name, a page, a familiar object's color) and the cast can feel the gap. Let them fight to recover one exact particular through attention. Don't call attention a cure. The recovered thing is a victory precisely because the Curse will return."
         default:
             return nil
         }

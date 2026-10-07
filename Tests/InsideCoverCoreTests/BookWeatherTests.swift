@@ -326,7 +326,7 @@ final class BookWeatherTests: XCTestCase {
                     baselineStance: .curious
                 ),
                 days: [], selfFacts: [], relationship: snapshot(mood), receipts: [],
-                appetite: .unruly, distressActive: false, rutward: false, now: now
+                appetite: .unruly, rutward: false, now: now
             )
             .compactMap { $0.payload.metadata["bookInterjectionSubjectKey"] }
             .first
@@ -514,7 +514,7 @@ final class BookWeatherTests: XCTestCase {
                 desk,
                 interior: BookInteriorState(awakenedAt: now.addingTimeInterval(-200 * 86_400)),
                 days: [], selfFacts: [], relationship: relationship, receipts: [],
-                appetite: .unruly, distressActive: false, rutward: false, now: now
+                appetite: .unruly, rutward: false, now: now
             ).compactMap { $0.payload.metadata["bookInterjectionSubjectKey"] }
         }
         let guarding = BookMood(

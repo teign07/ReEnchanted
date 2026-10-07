@@ -360,7 +360,7 @@ enum BookTodayProjector {
                 )
             } else {
                 lines.append(
-                    "\(position.holderName) still will not answer “\(subject)” The refusal has acquired underlining."
+                    "\(position.holderName) still won't answer “\(subject)” The refusal has acquired underlining."
                 )
             }
         }
@@ -764,7 +764,7 @@ enum BookTodayCensusProjector {
             symbol: "photo.on.rectangle.angled",
             lines: [
                 "\(mediaCount) \(word(mediaCount, one: "piece", many: "pieces")) of the outside world are pressed between these Pages.",
-                "I have \(mediaCount) scraps that are not made only of ink."
+                "I have \(mediaCount) scraps that aren't made only of ink."
             ]
         )
 
@@ -1019,7 +1019,7 @@ enum BookTodayCensusProjector {
             symbol: "sparkles",
             lines: [
                 "\(livingConstellations) recurring \(word(livingConstellations, one: "thing has", many: "things have")) gathered enough evidence to become a constellation.",
-                "I am keeping watch over \(livingConstellations) returning \(word(livingConstellations, one: "pattern", many: "patterns"))."
+                "I'm keeping watch over \(livingConstellations) returning \(word(livingConstellations, one: "pattern", many: "patterns"))."
             ]
         )
 
@@ -1076,7 +1076,7 @@ enum BookTodayCensusProjector {
             symbol: "seal.fill",
             lines: [
                 "I have risked my dignity on \(inputs.wagers.count) \(word(inputs.wagers.count, one: "wager", many: "wagers")).",
-                "The sealed margin contains \(inputs.wagers.count) \(word(inputs.wagers.count, one: "bet", many: "bets")) I was not certain I could win."
+                "The sealed margin contains \(inputs.wagers.count) \(word(inputs.wagers.count, one: "bet", many: "bets")) I wasn't certain I could win."
             ]
         )
 
@@ -1099,7 +1099,7 @@ enum BookTodayCensusProjector {
             value: admittedFaults,
             symbol: "bandage.fill",
             lines: [
-                "I have had to repair \(admittedFaults) of my own \(word(admittedFaults, one: "mistake", many: "mistakes")).",
+                "I've had to repair \(admittedFaults) of my own \(word(admittedFaults, one: "mistake", many: "mistakes")).",
                 "\(admittedFaults) of my grand conclusions required a bandage."
             ]
         )
@@ -1158,7 +1158,7 @@ enum BookTodayCensusProjector {
             symbol: "quote.bubble.fill",
             lines: [
                 "We've got \(disputes) \(word(disputes, one: "argument", many: "arguments")) going, and neither of us has given in.",
-                "There are \(disputes) honest \(word(disputes, one: "disagreement", many: "disagreements")) in the margins. I did not eat yours."
+                "There are \(disputes) honest \(word(disputes, one: "disagreement", many: "disagreements")) in the margins. I didn't eat yours."
             ]
         )
 
@@ -1240,7 +1240,7 @@ enum BookTodayCensusProjector {
             value: inputs.readerLexicon.redefinedEntries.count,
             symbol: "character.book.closed.fill",
             lines: [
-                "\(inputs.readerLexicon.redefinedEntries.count) \(word(inputs.readerLexicon.redefinedEntries.count, one: "word now means", many: "words now mean")) something the Dictionary did not authorize.",
+                "\(inputs.readerLexicon.redefinedEntries.count) \(word(inputs.readerLexicon.redefinedEntries.count, one: "word now means", many: "words now mean")) something the Dictionary didn't authorize.",
                 "You gave \(inputs.readerLexicon.redefinedEntries.count) old \(word(inputs.readerLexicon.redefinedEntries.count, one: "word", many: "words")) new work."
             ]
         )
@@ -1410,7 +1410,7 @@ enum BookTodayCensusProjector {
             if let news = returnNews(from: inputs) {
                 return variant([
                     "\(greeting) \(news) Can you believe it? Kept your place anyway.",
-                    "\(greeting) Listen: \(news) I have been sitting on this. Kept your place.",
+                    "\(greeting) Listen: \(news) I've been sitting on this. Kept your place.",
                     "\(greeting) While you were out: \(news) I knew you would want to know. Kept your place anyway."
                 ], key: "\(selectionSeed)|quiet-news-closing")
             }

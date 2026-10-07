@@ -1,17 +1,17 @@
 import { expectedStripeLivemode } from './checkout-mode.mjs';
+import { acceptedBoundYearPriceIDs } from './bound-year-prices.mjs';
 import { MembershipOwnershipError } from './membership-ownership.mjs';
 const deny = () => { throw new MembershipOwnershipError(403, 'membership_recovery_unavailable'); };
 // Reads only. Email ownership is proved by redemption, never by the request.
 export async function verifiedRecoveryContact(env, membershipID, readSubscription, readCustomer) {
   const subscription = await readSubscription(membershipID);
   const metadata = subscription?.metadata;
-  const price = metadata?.reenchanted_cadence === 'annual' ? env.STRIPE_BOUND_YEAR_ANNUAL_PRICE
-    : metadata?.reenchanted_cadence === 'monthly' ? env.STRIPE_BOUND_YEAR_MONTHLY_PRICE : null;
-  if (subscription?.id !== membershipID || !price
+  const prices = acceptedBoundYearPriceIDs(env, metadata?.reenchanted_cadence);
+  if (subscription?.id !== membershipID || !prices.size
       || subscription.livemode !== expectedStripeLivemode(env)
       || metadata?.reenchanted_physical_fulfillment !== 'accepted'
       || (metadata.reenchanted_gift != null && metadata.reenchanted_gift !== 'false')
-      || !subscription.items?.data?.some(item => item.price?.id === price)
+      || !subscription.items?.data?.some(item => prices.has(item.price?.id))
       || typeof subscription.customer !== 'string' || !/^cus_[A-Za-z0-9]+$/.test(subscription.customer)) deny();
   const customer = await readCustomer(subscription.customer);
   if (customer?.id !== subscription.customer || customer.deleted

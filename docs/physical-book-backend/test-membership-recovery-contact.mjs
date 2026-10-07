@@ -8,7 +8,7 @@ function fixture() {
  items: { data: [{ price: { id: 'price_month' } }] } };
  const customer = { id: 'cus_one', livemode: false, email: 'reader@example.com' };
  let reads = 0;
- return { sub, customer, reads: () => reads, run: () => verifiedRecoveryContact(env, 'sub_one', async () => sub,
+ return { env, sub, customer, reads: () => reads, run: () => verifiedRecoveryContact(env, 'sub_one', async () => sub,
  async id => { reads++; assert.equal(id, 'cus_one'); return customer; }) };
 }
 test('recipient comes from the subscription customer, including cancelled memberships', async () => {
@@ -22,6 +22,16 @@ test('gift provenance and unknown products fail before customer lookup', async (
  const f = fixture(); mutate(f);
  await assert.rejects(f.run(), { code: 'membership_recovery_unavailable' }); assert.equal(f.reads(), 0);
  }
+});
+test('explicit legacy annual memberships remain recoverable after a price change', async () => {
+ const f = fixture();
+ f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE = 'price_year_new';
+ f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = 'price_year_old';
+ f.sub.metadata.reenchanted_cadence = 'annual';
+ f.sub.items.data[0].price.id = 'price_year_old';
+ assert.equal(await f.run(), 'reader@example.com');
+ delete f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY;
+ await assert.rejects(f.run(), { code: 'membership_recovery_unavailable' });
 });
 test('deleted, mismatched and invalid customer contacts cannot receive codes', async () => {
  for (const mutate of [f => f.customer.deleted = true, f => f.customer.id = 'cus_other',

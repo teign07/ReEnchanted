@@ -47,7 +47,7 @@ const separateSet = minimumProductPriceCentsPerCopy(softcover, "seasonal") * 3
   + minimumProductPriceCentsPerCopy(cloth, "annual");
 check(separateSet === 30996, "three seasonal softcovers and annual cloth book total $309.96");
 check(separateSet > 2499 * 12, "monthly Bound Year remains cheaper than four separate books");
-check(separateSet > 24900, "annual Bound Year remains cheaper than four separate books");
+check(separateSet > 27900, "annual Bound Year remains cheaper than four separate books");
 
 // The Slim monthly: the entry price. Thin books only, and only monthlies.
 const slim = priceBreakdown({ ...request("monthly"), pageCount: 64 }, 0);

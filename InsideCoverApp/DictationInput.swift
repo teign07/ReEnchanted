@@ -18,6 +18,7 @@ final class DictationInputModel: ObservableObject {
     private let audioEngine = AVAudioEngine()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var hasBorrowedSession = false
 
     var isListening: Bool {
         state == .listening
@@ -59,6 +60,10 @@ final class DictationInputModel: ObservableObject {
         task?.cancel()
         task = nil
         request = nil
+        if hasBorrowedSession {
+            hasBorrowedSession = false
+            BookAudioSession.restoreAfterRecording()
+        }
         if case .unavailable = state {
             return
         }
@@ -76,6 +81,8 @@ final class DictationInputModel: ObservableObject {
         let audioSession = AVAudioSession.sharedInstance()
         try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
         try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        hasBorrowedSession = true
+        BookAudioSession.borrowedForRecording(audioSession)
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true

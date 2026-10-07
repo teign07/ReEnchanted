@@ -68,6 +68,17 @@ struct InsideCoverApp: App {
         BookSoundBank.prewarm()
         #if (DEBUG || BRAID_PROOF) && NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
         BraidProofHarness.runIfRequested()
+        #if DEBUG
+        WeeklyIssueSixProof.runIfRequested()
+        // The whole synthetic-year proof also runs on the phone, where the disk is not the Mac's.
+        if ProcessInfo.processInfo.arguments.contains(EditionProofHarness.flag) {
+            // Off the launch path, on a thread with room for a deep layout, so a slow step cannot stall the app.
+            let proof = Thread { EditionProofHarness.runIfRequested() }
+            proof.stackSize = 64 << 20
+            proof.qualityOfService = .userInitiated
+            proof.start()
+        }
+        #endif
         #endif
         #if DEBUG && targetEnvironment(simulator)
         if ProcessInfo.processInfo.arguments.contains("--smoke-observation-pair-pdf") {

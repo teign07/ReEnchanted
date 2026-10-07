@@ -31,6 +31,42 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertEqual(BookDeskRound.refreshingSurvivor(current, with: nil), current)
     }
 
+    private func scene(_ id: String) -> SurfacePage {
+        page("narrative", .narrativeOS, id: id).withMetadata([
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            MonthlyIssuePageMetadata.issueID: "october"
+        ])
+    }
+
+    /// The due scene takes the front and replaces the scene before it; no other
+    /// card is reordered or swapped.
+    func testADueStorySceneReplacesTheOldOneAtTheFront() {
+        let others = (0..<4).map { page("p-\($0)", .weather, id: "p-\($0)") }
+        let desk = [others[0], others[1], scene("old"), others[2], others[3]]
+        let renewed = BookDeskRound.renewingStoryScene(in: desk, from: [others[0], scene("new")])
+        XCTAssertEqual(renewed.map(\.id), ["new", "p-0", "p-1", "p-2", "p-3"])
+    }
+
+    func testAFullDeskGivesUpOnlyItsLastLeaf() {
+        let others = (0..<8).map { page("p-\($0)", .weather, id: "p-\($0)") }
+        let desk = others + [scene("old")]
+        XCTAssertEqual(desk.count, BookDeskRound.reserveCapacity)
+        let withoutScene = BookDeskRound.renewingStoryScene(in: others + [page("last", .fuel)], from: [scene("new")])
+        XCTAssertEqual(withoutScene.count, BookDeskRound.reserveCapacity)
+        XCTAssertEqual(withoutScene.first?.id, "new")
+        XCTAssertEqual(Array(withoutScene.dropFirst()), Array((others + [page("last", .fuel)]).prefix(8)))
+        let swapped = BookDeskRound.renewingStoryScene(in: desk, from: [scene("new")])
+        XCTAssertEqual(swapped.map(\.id), ["new"] + others.map(\.id))
+    }
+
+    func testASceneBeingReadIsNeverReplacedAndNothingChangesWithoutADueScene() {
+        let others = (0..<3).map { page("p-\($0)", .weather, id: "p-\($0)") }
+        let desk = others + [scene("reading")]
+        XCTAssertEqual(BookDeskRound.renewingStoryScene(in: desk, from: [scene("new")], protecting: ["reading"]), desk)
+        XCTAssertEqual(BookDeskRound.renewingStoryScene(in: desk, from: others), desk)
+        XCTAssertEqual(BookDeskRound.renewingStoryScene(in: desk, from: [scene("reading")]), desk)
+    }
+
     func testOpenIsIdempotentAndOutranksPass() {
         var round = BookDeskRound(); let item = page("a")
         round.begin(with: [item]); round.pass(item); round.open(item); round.pass(item)

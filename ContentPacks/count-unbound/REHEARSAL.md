@@ -1162,3 +1162,33 @@ open Reader follow-up. The prior signed empty envelope is retained at
 `~/.reenchanted-publishing/releases/2026-09-23-empty/manifest.envelope.json`
 for rollback; its SHA-256 matched the pre-publication live shelf. Future changed
 asset bytes must use new asset IDs rather than overwrite this release's keys.
+
+
+## October 3: generated seasonal art publication
+
+The twenty month-long October illustrations were replaced with transparent
+1254px ink-and-watercolour cutouts generated from the existing pixie and goblin
+style references. The eight directed handwritten story notes retain their
+original bytes. Prompts are recorded in `seasonal-art-prompts.json`.
+
+The revision changes only the page-archetype asset (`count-unbound.margins.v2`)
+and twenty media IDs (`count-unbound.seasonal.v2.*`). Compared with the live
+prior manifest, the other sixteen asset entries and the issue lifecycle are
+identical. Thirty-six Python authoring/staging/preparation tests passed.
+The signed candidate passed the local Worker lifecycle rehearsal at foreshadow,
+live, residue, and after-residue windows; every delivered file matched.
+
+`scripts/publish_monthly_release.sh` uploaded assets before the signed manifest,
+then verified that the live envelope matched. A separate free Reader session
+verified its Ed25519 signature and the byte count and SHA-256 of all 37 live
+assets, including every replacement illustration. The saved release is
+`~/.reenchanted-publishing/releases/2026-10-03-count-unbound-2026-10-generated-art-candidate/`;
+`published.json` records the check, and `rollback.envelope.json` and
+`rollback.manifest.json` preserve the previously live shelf.
+
+The complete app worktree separately built, installed, and launched on Rabbit,
+with the new art also installed through its existing local user-pack seam.
+That device run does not establish a signed download or rendered marginalia
+inspection on Rabbit. Other readers receive the revision through the normal
+monthly shelf refresh; existing kept Pages preserve the art already bound into
+them. No backend code or landing-page changes were deployed for this release.

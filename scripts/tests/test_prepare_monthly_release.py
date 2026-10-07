@@ -117,6 +117,20 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'asset references'):
             self.run_prepare()
 
+    def test_radio_pack_without_stations_key_rejected(self):
+        radio = dict(id='november-radio', kind='radioStationPack', scope='runtime',
+                     fileName='november.reenchantedradio.json', isRequired=True)
+        self.issue['assets'].append(radio)
+        pack = dict(id='november-radio', displayName='November',
+                    stationEdits=[dict(stationID='fae-fi', removeTrackIDs=['fae-fi-mossy-footsteps'])])
+        target = self.sources / self.issue['id'] / radio['fileName']
+        target.write_text(json.dumps(pack))
+        with self.assertRaisesRegex(ValueError, 'stations'):
+            self.run_prepare()
+        pack['stations'] = []
+        target.write_text(json.dumps(pack))
+        self.run_prepare()
+
     def test_empty_shelf_prepares_retirement_without_deleting_sources(self):
         previous = copy.deepcopy(self.manifest)
         self.manifest['issues'] = []

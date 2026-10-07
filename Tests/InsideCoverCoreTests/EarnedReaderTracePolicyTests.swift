@@ -58,7 +58,6 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
         let owed = EarnedReaderTracePolicy.owedEvidencePage(
             day: currentDay(),
             inputs: inputs,
-            distressActive: false,
             now: date(30, hour: 20)
         )
 
@@ -81,7 +80,6 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
         XCTAssertNil(EarnedReaderTracePolicy.owedEvidencePage(
             day: currentDay(),
             inputs: inputs,
-            distressActive: false,
             now: date(30, hour: 20)
         ))
 
@@ -92,7 +90,6 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
         XCTAssertEqual(EarnedReaderTracePolicy.owedEvidencePage(
             day: currentDay(),
             inputs: inputs,
-            distressActive: false,
             now: date(30, hour: 20)
         )?.id, "evidence-29")
 
@@ -103,7 +100,6 @@ final class EarnedReaderTracePolicyTests: XCTestCase {
         XCTAssertNil(EarnedReaderTracePolicy.owedEvidencePage(
             day: currentDay(),
             inputs: inputs,
-            distressActive: true,
             now: date(30, hour: 20)
         ))
     }

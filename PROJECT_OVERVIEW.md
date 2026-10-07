@@ -5626,17 +5626,38 @@ so kept pages could appear as native Notes-style entities/folders/tags) is
 scaffolded but compiled out behind `#if REENCHANTED_IOS27_APP_SCHEMAS` — not
 yet enabled.
 
-### Ask The Book
+### Let's Chat (formerly "Ask the Book")
 
-Ask the Book is a conversational surface backed by the reader's **whole durable
-archive**, not just the current day or whatever happened to be in memory at app
-launch. `AskTheBookArchiveMemoryReader` builds a current search dataset from the
-archive database, Self Facts, story continuity, prior reader turns, and typed
-local findings before every answer.
+Let's Chat is the reader's conversation with the Book. The reader-facing name is
+**Let's Chat**; the Page type is still `.askTheBook` and many code names keep
+`AskTheBook`, so no archive migration was needed. Rebuilt October 2026; see
+`docs/lets-chat-redesign.md` for the diagnosis (echoing the reader's own entry
+on turn two, a full archive reload and cold model load on every message, no
+streaming).
 
-The retrieval contract is stricter than general Search the Stacks. Each item in
-`AskTheBookMemoryPacket` carries an `AskTheBookEvidenceAuthority` and quotation
-permission:
+How a message travels now:
+
+1. `LetsChatRouter` reads the message and decides what it is for: greeting,
+   small talk, about the Book, about the reader's history, about the world, or
+   an action. Only a history question pays for an archive search.
+2. History questions run `AskTheBookArchiveMemoryReader` (the archive is cached
+   between turns until the store file changes) and
+   `AskTheBookMemoryRetriever`, which drops any evidence that is only the
+   reader's own words from this chat.
+3. The Book's own state ("what do you want from me?") answers exactly from
+   `BookInteriorAnswerGrounder`, and counts answer from
+   `AskTheBookAnswerGrounder`, both without the model. Everything else goes to
+   `MLXAskTheBookAnswerer`, which builds an intent-sized prompt with
+   `LetsChatPrompt` and streams the reply into the chat bubble.
+4. `LetsChatEchoGuard` catches a reply that repeats the reader or the Book's
+   last answer; the answerer retries once.
+5. "remember that…" and "keep this chat" are recognised by the router and
+   offered back as a choice (`LetsChatOffer`); nothing happens until the
+   reader taps. Remembering writes a `SelfFact` the Book may quote.
+
+The evidence contract is unchanged and is stricter than general Search the
+Stacks. Each item in `AskTheBookMemoryPacket` carries an
+`AskTheBookEvidenceAuthority` and quotation permission:
 
 - reader-authored Pages may be evidence and may be quoted when their privacy
   allows it;
@@ -5651,24 +5672,20 @@ permission:
   coverage limits, not estimates dressed as memory;
 - sensitive support Pages require a relevant, direct question before retrieval.
 
-Pattern answers require independent dated evidence and causal questions are
-worded cautiously. The prompt contract still keeps the answer in the Book's
-voice and bans pretending the reader completed real-world actions, but the
-hidden machinery makes provenance, uncertainty, privacy, and the difference
-between life and story explicit. `BookVoicePatina` also reaches the answer
-prompt, so the Book can sound increasingly at home in this reader's Book while
-the answer remains governed by retrieval evidence and the Book's own canon.
+Residency: devices with 8 GB or more keep the model warm between turns (idle
+eviction after two minutes); 6 GB phones release it after every reply so the
+keyboard has room.
 
 Related pieces:
 
-- `AskTheBookPageSourceAdapter`
-- `AskTheBookTurn`
+- `LetsChatRouter`, `LetsChatEchoGuard`, `LetsChatSuggestions` (Shared/LetsChat.swift)
+- `LetsChatPrompt` (Shared/LetsChatPrompt.swift)
+- `LetsChatView.swift` (bubbles, composer, offers)
+- `AskTheBookPageSourceAdapter`, `AskTheBookTurn`
 - `AskTheBookArchiveMemoryReader`
 - `AskTheBookMemoryRetriever` / `AskTheBookMemoryPacket`
-- `AskTheBookEvidenceAuthority`
-- `AskTheBookAnswering`
-- `MLXAskTheBookAnswerer`
-- `FakeAskTheBookAnswerer`
+- `AskTheBookEvidenceAuthority`, `AskTheBookAnswering`
+- `MLXAskTheBookAnswerer`, `FakeAskTheBookAnswerer`
 
 ### Story Pages
 

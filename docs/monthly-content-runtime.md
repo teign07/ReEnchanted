@@ -169,3 +169,13 @@ An optional `storyContinuation` window on an `untilResolved` node-choice Story P
 ### Runtime 8: directed issue marginalia
 
 `IlluminationAsset.directedOnly` keeps unpublished-story marks out of the general Pagewright cabinet and ordinary random decoration. A ready marginalia atom can direct one of these assets onto a published leaf; its date, story receipt, and once-per-run gates still belong to the issue manifest. A phase-spanning live marginalia atom may omit phase ID and role together, but must be ambient, noninteractive, date-gated, and declare runtime 8. The folio reserves a wider open-paper slot for its text; a kept page retains a private art copy and the monthly print compositor treats it as a note, not a photograph. Count Unbound's signed delivery manifest must use schema 2 so older clients reject both event and art files together.
+
+### Runtime 11: the Cast remember (October 6, 2026)
+
+Scenes, nodes, choices and dated record entries may carry `castMemories`
+(`entityID`, `key`, `memory`, optional `aside`). They're optional keys, so any
+runtime can install a pack that has them; only runtime 11 apps freeze them. A
+node may declare `recalls` (`marker`, optional `entityID`, `options` of
+`key`/`line`, `fallback`): the marker appears exactly once in the body and is
+filled when a Cast member remembers the key, across issues. Recalls require
+`minimumRuntimeVersion: 11`. See [Cast story memory](cast-story-memory.md).

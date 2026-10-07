@@ -81,3 +81,25 @@ final class EvergreenReserveRestTests: XCTestCase {
         XCTAssertEqual(Set(keys).count, keys.count, "two reserve seeds share one identity")
     }
 }
+
+/// A `.note` Page is a note a Cast member writes *to* the reader: it carries no
+/// text of its own and asks to be generated. The cupboard once seated a
+/// reader-written "note to tomorrow" as a `.note`, so the reader was asked to
+/// write, then offered "Let me write", and got a note from Soren Ng.
+final class EvergreenReserveNoteTypeTests: XCTestCase {
+    func testNoCupboardCardIsTypedAsACastWrittenNote() {
+        for hours in stride(from: 0, to: 24 * 6, by: 2) {
+            let now = Date(timeIntervalSince1970: 1_784_000_000 + Double(hours) * 3_600)
+            for page in BookEvergreenPlayReserve.pages(now: now, variantsPerCatalogue: 3, restsFixedSeeds: false) {
+                XCTAssertNotEqual(page.type, .note, "\(page.prompt) would ask for a generated Cast note")
+            }
+        }
+    }
+
+    func testTheNoteToTomorrowIsAReaderWrittenLoosePage() throws {
+        let now = Date(timeIntervalSince1970: 1_784_000_000)
+        let pages = BookEvergreenPlayReserve.pages(now: now, variantsPerCatalogue: 1, restsFixedSeeds: false)
+        let tomorrow = try XCTUnwrap(pages.first { $0.prompt == "Leave A Note Where Tomorrow Can Find It" })
+        XCTAssertEqual(tomorrow.type, .plainPage)
+    }
+}

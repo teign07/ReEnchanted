@@ -141,6 +141,11 @@ def prepare(template, source_root, output, origin, previous=None):
                     closes = date(asset.get('retiresAt') or issue['residueEndsAt'])
                     require(all(date(siblings[ref].get('retiresAt') or issue['residueEndsAt']) >= closes
                                 for ref in refs), f'Referenced media retires before its pack: {asset["id"]}')
+                if asset['kind'] == 'radioStationPack':
+                    # Builds before station edits demand the key; without it one
+                    # radio file would keep the whole month off their shelves.
+                    require(isinstance(pack.get('stations'), list),
+                            f'{asset["id"]} needs a "stations" list, even an empty one, for older apps')
                 if asset['kind'] == 'worldEventPack':
                     require(pack.get('id') == issue['packID'], 'World-event packID does not match issue')
                     errors = check(pack, release=True)

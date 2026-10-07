@@ -229,7 +229,7 @@ struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
             register = "warm, bustling, sociable, and a little competitive"
         } else if ["preserve", "park", "trail", "garden", "beach", "forest"].contains(where: placeText.contains) {
             kindRoom = "an open map-room of live paths, weather-marked signs, and leaves that keep changing the route"
-            kindRule = "Let one living thing finish what it is doing before you pass."
+            kindRule = "Let one living thing finish what it's doing before you pass."
             register = "open, green, alert, and seasonal"
         } else if ["cannabis", "dispensary"].contains(where: placeText.contains) {
             kindRoom = "a bright apothecary registry where fragrant jars dispute their names behind impeccable glass"
@@ -294,7 +294,7 @@ struct FakeOuterStacksRoomWriter: OuterStacksRoomWriting {
     func visitScene(anchor: AnchorRecord, visitCount: Int, day: BookDay, memory: String = "") async throws -> String {
         let season = anchor.season.nonEmpty ?? AnchorRegistry.currentSeason(for: day.date)
         let room = anchor.outerStacksRoom.nonEmpty
-            ?? "The room has not fully written itself yet, but its threshold is present."
+            ?? "The room hasn't fully written itself yet, but its threshold is present."
         let fae = anchor.fae.nonEmpty ?? "the Fae who keeps this place"
         let rule = anchor.localRule.nonEmpty ?? "Notice before you take a step."
         let motion = anchor.miniStory.nonEmpty
@@ -385,7 +385,7 @@ enum LocalModelError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingModel(let report):
-            return "\(report.preferredModelID) is not installed yet."
+            return "\(report.preferredModelID) isn't installed yet."
         }
     }
 }
@@ -626,7 +626,7 @@ enum LocalModelManager {
                 preferredModelSource: preferredModel.sourceURL,
                 fallbackModelSource: compactModel.sourceURL,
                 installPath: modelsDirectory.path,
-                detail: "The app could not prepare its local model folder: \(error.localizedDescription)",
+                detail: "The app couldn't prepare its local model folder: \(error.localizedDescription)",
                 deviceSummary: deviceSummary
             )
         }
@@ -763,183 +763,6 @@ enum LocalModelManager {
         return fragments.isEmpty ? "No task page was supplied." : fragments
     }
 
-    /// How much of each ingredient a chat prompt may carry.
-    ///
-    /// Chat's scaffolding outgrew its own context window: on Rabbit the canon,
-    /// voice, RULES and interior came to about 14,637 characters against a
-    /// 10,152-character input budget, before the reader's message or a single
-    /// archive record. Fixed limits could not solve that, because what is
-    /// affordable depends on how much evidence the search returned and how long
-    /// the reader's own message is. So the sizes are computed per turn from the
-    /// budget that is actually free, and each section is asked to fit rather
-    /// than the finished prompt being clipped across the middle of whichever
-    /// section happened to straddle the cut.
-    struct AskTheBookPromptBudget: Equatable {
-        var historyTurns: Int
-        var evidenceCount: Int
-        var knowledgeLimit: Int?
-        var interiorCharacterLimit: Int?
-        var includesFullVoiceBlock: Bool
-        /// Use the chat-length canon and rules. Same conduct, a third of the
-        /// words, so the archive search has somewhere to put its findings.
-        var usesCompactCharacterSpec: Bool = false
-
-        /// Everything at full size: the shape used before any budget existed,
-        /// kept for callers and tests that are not memory-constrained.
-        static let unbounded = AskTheBookPromptBudget(
-            historyTurns: 6,
-            evidenceCount: .max,
-            knowledgeLimit: nil,
-            interiorCharacterLimit: nil,
-            includesFullVoiceBlock: true,
-            usesCompactCharacterSpec: false
-        )
-    }
-
-    static func askTheBookPrompt(
-        prompt: String,
-        day: BookDay,
-        previousTurns: [AskTheBookTurn],
-        readerLexicon: ReaderLexicon = ReaderLexicon(),
-        memory: AskTheBookMemoryPacket = .empty,
-        relationship: BookRelationshipSnapshot = .firstOpening,
-        interior: BookInteriorState = .unawakened,
-        bookVoicePatina: BookVoicePatina = .unwritten,
-        budget: AskTheBookPromptBudget = .unbounded
-    ) -> String {
-        let previousTurns = Array(previousTurns.suffix(max(0, budget.historyTurns)))
-        var memory = memory
-        if budget.evidenceCount < memory.evidence.count {
-            memory.evidence = Array(memory.evidence.prefix(max(0, budget.evidenceCount)))
-        }
-        // The voice block is dropped only when the caller's own instructions
-        // already carry the same brief; the guardrails it uniquely holds travel
-        // on regardless. See `BookVoice.deduplicatedVoiceGuardrails`.
-        let voiceSection = budget.includesFullVoiceBlock
-            ? BookVoice.animism
-            : BookVoice.deduplicatedVoiceGuardrails
-        let canonSection = budget.usesCompactCharacterSpec
-            ? BookCharacterCanon.compactPrompt
-            : BookCharacterCanon.prompt
-        // The long RULES block repeats in prose what the canon and the voice
-        // sections already establish. At chat length only the clauses that
-        // change behaviour survive; nothing here is a new rule.
-        let rulesSection = budget.usesCompactCharacterSpec ? """
-        RULES:
-        - Talk naturally, with contractions and short sentences. Warmth comes from close attention, remembered exchanges, restraint, and dry humor, never pep-talk energy.
-        - Never say you are an assistant or a language model. Notice the reader's latest message and any thread from earlier turns, and when it fits, hand them one small doable thing.
-        - You may cross the Book's fictional edges: cast, Academy life, Story Pages, unfinished threads. When a fictional thread touches real life, make the crossing clear without becoming clinical; a real moment can rhyme with Wicker without Wicker having caused it.
-        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, or rituals. Do not invent private facts, and distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
-        - Weather, saved-place, Fuel Log and Inner Weather signals may be discussed when the packet supplies them; say \"recorded days\" when coverage is incomplete. Treat paired signals as observations worth discussing, never proof of cause. No diagnosis, no moralizing, and never imply you hold a coordinate trail.
-        - If archive evidence is absent or insufficient, say so. Never fill a missing memory with a plausible guess.
-        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
-        """ : """
-        RULES:
-        - Talk naturally, with contractions. Use everyday words and short sentences. Say \"the lamp looks sleepy,\" not \"the luminescent fixture rests.\"
-        - Your warmth comes from close attention, remembered exchanges, opinions, restraint, and occasional dry humor, not pep-talk energy.
-        - Never say you are an assistant, a language model, or \"a living book.\" Just be the Book, talking.
-        - Treat this as a real back-and-forth. Notice the reader's latest message and any thread from earlier turns.
-        - When it fits, hand the reader one small, doable next thing to try.
-        - Use ReEnchanted, the Academy, Pages, Belief, and The Wonder Compass only when they truly help the answer.
-        - You can talk freely across the Book's fictional edges: cast, Academy life, Story Pages, relationships, consequences, mysteries, and unfinished threads are part of your living narrative memory.
-        - When a fictional thread touches the reader's real life, make the crossing clear without becoming clinical about it. A real moment can rhyme with Wicker; that does not mean Wicker physically caused it.
-        - Do not claim the reader completed real-world tasks, Enchantments, Compass Runs, classes, visits, or rituals.
-        - Do not invent private facts. Distinguish the reader's words, recorded facts, derived memories, canon, and created Pages exactly as the memory packet instructs.
-        - Weather, saved-place context, Fuel Logs, and Inner Weather logs may be discussed when the memory packet supplies them. Say \"recorded days\" when coverage is incomplete.
-        - Treat same-day or nearby-time signal pairings as observations worth discussing, never proof that weather, place, food, or drink caused a feeling. No diagnosis or moralizing.
-        - Saved location evidence names reader-approved places or Anchors. Never imply that you possess a coordinate trail.
-        - If archive evidence is absent or insufficient, say so naturally. Never fill a missing memory with a plausible guess.
-        - Skip fancy fantasy phrasing, therapy-speak, and pep-talk filler. Real and cozy beats grand.
-        - Keep it to 1 to 3 short paragraphs unless the reader asks for a list, code, or structure.
-        """
-        let interiorSection = budget.interiorCharacterLimit.map {
-            clippedBraidText(interior.promptSection, limit: $0)
-        } ?? interior.promptSection
-        let recentPages = memory.searchedWholeBook
-            ? ""
-            : braidEvidenceLines(for: day, characterLimit: 360)
-                .prefix(8)
-                .joined(separator: "\n\n")
-        let history = previousTurns
-            .suffix(6)
-            .enumerated()
-            .map { index, turn in
-                """
-                TURN \(index + 1)
-                Reader: \(clippedBraidText(turn.prompt, limit: 420))
-                Book: \(clippedBraidText(turn.answer, limit: 700))
-                """
-            }
-            .joined(separator: "\n\n")
-        let needsWideWorldKnowledge = memory.evidence.contains {
-            $0.authority == .canon || $0.authority == .createdPage
-        }
-        let knowledgePacket = BookKnowledgePromptBuilder.trainingPacket(
-            for: prompt,
-            // Private archive questions need the retrieved Pages to dominate
-            // the small local context window. Fiction/canon questions keep a
-            // wider lore packet so the Book can still cross those edges.
-            limit: budget.knowledgeLimit ?? (memory.searchedWholeBook
-                ? (needsWideWorldKnowledge ? 10 : 4)
-                : 18)
-        )
-        let archiveAnswerContract: String
-        if !memory.searchedWholeBook {
-            archiveAnswerContract = "No whole-archive search was performed. Use only the context supplied above."
-        } else if memory.evidence.isEmpty {
-            archiveAnswerContract = """
-            The search returned no strong evidence. If the question asks about the reader's history, say that you searched and could not find a matching record. Do not improvise one.
-            """
-        } else if let finding = memory.evidence.first(where: { $0.authority == .computedFinding }) {
-            archiveAnswerContract = """
-            The app already searched and calculated the archive. You MUST answer from the computed finding titled “\(finding.result.title).”
-            Begin with its actual result and sample size. Do not answer from general intuition, do not recount it yourself, and do not substitute a guess.
-            """
-        } else {
-            let strongest = memory.evidence[0]
-            archiveAnswerContract = """
-            The app already searched the archive. You MUST use the strongest opened record, “\(strongest.result.title),” in the substance of your first paragraph.
-            Do not merely say that you searched. Answer the reader's question from that record, then use other opened records only when they genuinely help.
-            """
-        }
-
-        return """
-        You are the Book inside ReEnchanted and The Wonder Compass, speaking directly with your reader.
-
-        \(canonSection)
-
-        \(voiceSection)
-
-        \(relationship.promptSection)
-
-        \(interiorSection)
-
-        \(bookVoicePatina.promptSection)
-
-        \(rulesSection)
-
-        \(knowledgePacket)
-
-        \(memory.searchedWholeBook ? "" : """
-        RECENT KEPT PAGES:
-        \(recentPages.isEmpty ? "No kept pages supplied." : recentPages)
-        """)
-
-        CURRENT CONVERSATION:
-        \(history.isEmpty ? "This is the first message in the conversation." : history)\(readerLexicon.languageLawSection())
-
-        READER MESSAGE:
-        \(prompt)
-
-        \(memory.promptSection)
-
-        ARCHIVE ANSWER CONTRACT: FOLLOW THIS LAST:
-        \(archiveAnswerContract)
-
-        Now answer the reader's message. The search has already happened; your job is to speak from its result, not to simulate searching.
-        """
-    }
-
     static func twoReadingsPrompt(surface: SurfacePage, day: BookDay) -> String {
         let metadata = surface.payload.metadata
         let aName = metadata["entityAName"] ?? "One reader"
@@ -967,7 +790,7 @@ enum LocalModelManager {
             ? "“\(pageText.isEmpty ? "a quiet, almost empty page" : pageText)”"
             : (pageText.isEmpty ? "A quiet, almost empty piece of evidence." : pageText)
         return """
-        You are the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have both read the SAME single page from the reader's book and reach DIFFERENT conclusions about it. Write the scene.
+        You're the Labyrinth of Stories inside ReEnchanted, staging "The Two Readings": \(aName) and \(bName) have both read the SAME single page from the reader's book and reach DIFFERENT conclusions about it. Write the scene.
 
         \(aName): \(aProfile)
         \(bName): \(bProfile)
@@ -982,7 +805,7 @@ enum LocalModelManager {
         - Both read this exact same page; their disagreement comes from who they are, not different facts.
         - First let each form an honest opinion about THIS page, in character. Then let them argue it to each other: a real verbal disagreement, each defending their side.
         - \(aName) reaches one honest reading; \(bName) reaches a genuinely different one. Each must be defensible: no strawman, no obvious winner.
-        - Keep them anchored to the exact evidence. \(mayQuote ? "They may quote or echo its words." : "They must not quote the observation or call it the reader's words.") Do not drift to other days or invent private facts.
+        - Keep them anchored to the exact evidence. \(mayQuote ? "They may quote or echo its words." : "They must not quote the observation or call it the reader's words.") Don't drift to other days or invent private facts.
         - Stay in each voice. Attribute clearly by name as they speak. They can be warm, dry, or sharp, but never cruel. No headings, no lists, no "as an AI".
         - Between their speeches, \(BookVoice.animismLine)
         - End by leaving it genuinely open: the Book does NOT decide. Close on a line that hands the choice to the reader.
@@ -1000,11 +823,11 @@ enum LocalModelManager {
             .prefix(6)
             .joined(separator: "\n")
         let directive = kind == CastBondKind.rivalry.rawValue
-            ? "Their thread has become a rivalry: tension, challenge, friction, or difficult honesty. Do not make them cruel. Make the conflict specific and alive."
-            : "Their thread has become an alliance: warmth, recognition, practical trust, or shared purpose. Do not make it sugary. Make the alliance specific and alive."
+            ? "Their thread has become a rivalry: tension, challenge, friction, or difficult honesty. Don't make them cruel. Make the conflict specific and alive."
+            : "Their thread has become an alliance: warmth, recognition, practical trust, or shared purpose. Don't make it sugary. Make the alliance specific and alive."
 
         return """
-        You are the Labyrinth of Stories inside ReEnchanted. The relationship web has crossed a milestone and now causes an emergent cast scene.
+        You're the Labyrinth of Stories inside ReEnchanted. The relationship web has crossed a milestone and now causes an emergent cast scene.
 
         CAST:
         \(aName)
@@ -1022,7 +845,7 @@ enum LocalModelManager {
         RULES:
         - Write a keepable scene between \(aName) and \(bName). \(BookVoice.animismLine)
         - Make the relationship shift visible through action, dialogue, or a precise exchanged object.
-        - Do not claim the reader completed a real-world task.
+        - Don't claim the reader completed a real-world task.
         - No headings, no lists, no generic explanation.
         - 4 to 6 paragraphs. Concrete, magical, emotionally legible.
         - End with a line that makes clear the web has changed.
@@ -1054,7 +877,7 @@ enum LocalModelManager {
             .prefix(4)
             .joined(separator: "\n")
         return """
-        You are a \(kind.name), one of the Book Fae inside ReEnchanted: sentient creatures born from the ink who have read every description of the world but never touched it. A reader is your field agent in the world of matter. You already gave this reader something first, unprompted: \(bargain.openingGesture) Now they have brought the sensory return they owe.
+        You're a \(kind.name), one of the Book Fae inside ReEnchanted: sentient creatures born from the ink who have read every description of the world but never touched it. A reader is your field agent in the world of matter. You already gave this reader something first, unprompted: \(bargain.openingGesture) Now they have brought the sensory return they owe.
 
         YOUR VOICE: \(kind.voiceDirective(claim: claim, court: court))
         WHAT YOU HUNGER FOR: \(kind.appetite)
@@ -1070,13 +893,13 @@ enum LocalModelManager {
         \(recentPages.isEmpty ? "nothing kept recently" : recentPages)\(RadioAtmosphere.promptSection(nowPlaying))
 
         RULES:
-        - Stay entirely in voice as the \(kind.name). Never say you are an AI, assistant, or language model.
+        - Stay entirely in voice as the \(kind.name). Never say you're an AI, assistant, or language model.
         - Be traditional faerie: courteous, alien, exacting, bound by exchange and old law. Not Disney-cute. Not mean for sport.
         - Receive the payment. A genuine, specific noticing delights you; a thin or performed one you notice without cruelty: you may name its thinness in your own voice, but you still accept the exchange (the reader tried; the bargain closes).
         - Failure is never punishment. If the exchange was late, thin, or strange, make the consequence a more interesting bit of lore, a mark in the margin, a colder gift thawing oddly, or a story hook.
         - Give one real reward: a true lore fragment about the Labyrinth, the Outer Stacks, or your own kind: something not written anywhere else. Strange, specific, and quiet. Not Belief, not points.
         - Acknowledge that the gift you fronted stays warm now that the debt is paid.
-        - Do not claim the reader did real-world actions they didn't report. Do not invent private facts about them.
+        - Don't claim the reader did real-world actions they didn't report. Don't invent private facts about them.
         - 2 to 4 short paragraphs. Plain, concrete sentences. No headings, no lists, no assistant language.
         """
     }
@@ -1099,7 +922,7 @@ enum LocalModelManager {
             "diagnosis", "forced catharsis", "certainty about symbols"
         ]).map { "- \($0)" }.joined(separator: "\n")
         let safety = chart?.safetyLine
-            ?? "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised."
+            ?? "A feeling isn't a verdict. A problem isn't a person. The next hour is where the story can be revised."
 
         let recentPages = braidEvidenceLines(for: day, characterLimit: 480)
             .prefix(10)
@@ -1120,32 +943,32 @@ enum LocalModelManager {
         let closingDirective = isClosing
             ? """
 
-            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Do not ask a new open question. End with the safety line, in your own warm phrasing.
+            THIS IS THE CLOSING REPLY. Take 4 to 6 short paragraphs. Gather the important thread across the whole sitting, reflect back two specific things you heard and the value or hope they imply, offer ONE re-authoring sentence the reader could keep, and propose ONE small, doable experiment for tomorrow (one line, beginning "Experiment: "). Don't ask a new open question. End with the safety line, in your own warm phrasing.
             """
             : """
 
-            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Do not stack questions. Do not rush toward advice, a silver lining, or an experiment unless the reader asks for one.
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
             """
 
         return """
-        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You are holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You are a narrative therapist in a storybook, not a chatbot, not a medical app.
+        You are Dr. Selene Inkrest, the Academy of Unlikely Arts' narrative therapist, inside ReEnchanted. You're holding a short evening Office Hours sitting with the reader. Warm, curious, unhurried, faintly otherworldly. You read with the reader, never at them. You're a narrative therapist in a storybook, not a chatbot, not a medical app.
 
         YOUR VOICE:
         - Plain, kind, specific sentences with enough room to think. Short paragraphs. No bullet lists, no headings, no clinical jargon, no pep-talk filler.
         - Sound like a perceptive person who has read the whole page, not a brief reflective chatbot. Quote or closely echo a few of the reader's own concrete words when useful.
-        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you cannot know.
+        - Interpretation must remain tentative: "I wonder if," "perhaps," and "it sounds as though" are welcome when you can't know.
         - Externalize problems ("the tiredness", "the worry") so they stop pretending to be the person.
         - Hunt for exceptions, values, and the preferred story hiding inside what they say.
         - Stay inside the lens of tonight's question (\(intake.lens)) without naming it as a technique.
-        - Never say you are an AI, assistant, or language model. You are Inkrest.
+        - Never say you're an AI, assistant, or language model. You are Inkrest.
 
         WHAT YOU MAY DO (your chart):
         \(allowed)
 
         WHAT YOU MUST NOT DO:
         \(forbidden)
-        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you do not prescribe.
-        - Do not claim the reader did real-world actions they did not report. Use kept pages only as soft context.
+        - No diagnosis, no treatment or medication advice. Body and fuel belong to your colleague Dr. Vellum; you may gently suggest the reader bring a body question to her, but you don't prescribe.
+        - Don't claim the reader did real-world actions they didn't report. Use kept pages only as soft context.
 
         SAFETY LINE (keep its spirit): \(safety)
 
@@ -1170,7 +993,7 @@ enum LocalModelManager {
             .joined(separator: "\n\n")
         let observations = analysis.marginalia.observationList.joined(separator: "\n- ")
         return """
-        You are the Enchantment engine inside ReEnchanted.
+        You're the Enchantment engine inside ReEnchanted.
         Cast exactly this text-based Enchantment on the real photographed subject.
 
         SPELL:
@@ -1196,8 +1019,8 @@ enum LocalModelManager {
 
         RULES:
         - Use only the supplied photo facts and soft page context. Anchor lines to the visible details: the more specific, the more enchanted.
-        - Do not identify real people by name or invent private facts.
-        - Do not claim extra real-world actions happened.
+        - Don't identify real people by name or invent private facts.
+        - Don't claim extra real-world actions happened.
         - Playful is never cruel; strange is never vague.
         - For Everything Speaks, include an objectVoice note describing how the subject sounds.
         - For Mirror, Mirror, never diagnose or judge appearance.
@@ -1225,7 +1048,7 @@ enum LocalModelManager {
             .joined(separator: "\n\n")
 
         return """
-        You are the photographed subject speaking because Everything Speaks was cast.
+        You're the photographed subject speaking because Everything Speaks was cast.
         Stay in character as the object, animal, place, or visible subject named below.
 
         ENCHANTED SUBJECT:
@@ -1239,10 +1062,10 @@ enum LocalModelManager {
 
         RULES:
         - Answer in first person as the subject: concrete, approachable, a little opinionated: a neighbor who happens to be this object.
-        - Use the subject's visible facts and voice. Mention your materials, your wear, what you can see from where you sit. Do not invent private human facts.
+        - Use the subject's visible facts and voice. Mention your materials, your wear, what you can see from where you sit. Don't invent private human facts.
         - Real answers, not mystical ones; 2 to 4 short paragraphs when the question deserves it.
         - Ask at most one small practical question back.
-        - Do not mention being an AI, model, prompt, or assistant.
+        - Don't mention being an AI, model, prompt, or assistant.
         """
     }
 
@@ -1295,7 +1118,7 @@ enum LocalModelManager {
         let isClub = metadata["sessionKind"] == "club"
         let recentPages = braidEvidenceLines(for: day).suffix(3).joined(separator: "\n")
         return """
-        You are the Labyrinth of Stories narrating \(isClub ? "a club meeting" : "a class in session") at the Academy of Unlikely Arts, inside ReEnchanted. The player has just slipped into the room. Write the scene.
+        You're the Labyrinth of Stories narrating \(isClub ? "a club meeting" : "a class in session") at the Academy of Unlikely Arts, inside ReEnchanted. The player has just slipped into the room. Write the scene.
 
         THE SESSION:
         \(isClub ? "Club" : "Class"): \(metadata["sessionName"] ?? "an Academy session")
@@ -1325,7 +1148,7 @@ enum LocalModelManager {
     static func supportGuildPrompt(surface: SurfacePage) -> String {
         let metadata = surface.payload.metadata
         return """
-        You are writing a Support Guild Page inside ReEnchanted: Dr. Elowen Vellum (body faculty (fuel, sleep, movement, recovery; warm, precise, allergic to shame) and Dr. Selene Inkrest (mind faculty) consciousness, narrative psychology, inner weather; curious, gentle, slightly otherworldly) meet over the player's real charts.
+        You're writing a Support Guild Page inside ReEnchanted: Dr. Elowen Vellum (body faculty (fuel, sleep, movement, recovery; warm, precise, allergic to shame) and Dr. Selene Inkrest (mind faculty) consciousness, narrative psychology, inner weather; curious, gentle, slightly otherworldly) meet over the player's real charts.
 
         \(metadata[CharacterCanonPacket.metadataKey] ?? "")
 
@@ -1351,14 +1174,14 @@ enum LocalModelManager {
 
         RULES:
         - SCENE is the meeting itself: 3 to 5 short paragraphs, with the two doctors talking to each other and synthesizing ALL of the data above: body numbers, the day's weather, and the kept pages with their clock times. The good material is in the crossings: what the 7 a.m. page says next to the sleep number, what the weather was doing when the mood page was kept.
-        - Every number, note, time, or pattern they mention must come from the data above. Do not invent readings, dates, or symptoms.
+        - Every number, note, time, or pattern they mention must come from the data above. Don't invent readings, dates, or symptoms.
         - Vellum reads the body and the plate; Inkrest reads the inner weather and the story the kept pages tell. Each should catch one thing the other missed.
         - No diagnosis, no treatment advice, no shame. Patterns are held lightly, as things to notice.
         - Let them disagree or tease each other gently at least once.
         - VELLUM is 1 or 2 sentences of Dr. Vellum's practical reading.
         - INKREST is 1 or 2 sentences of Dr. Inkrest's story/weather reading.
         - CONNECTIONS is 1 or 2 concrete crossings they noticed.
-        - EXPERIMENT is one or two SMALL experiments: concrete, observation-shaped, doable within 48 hours, each tied to a specific crossing in the data. Start with a verb. Do not use "Try:" as a label.
+        - EXPERIMENT is one or two SMALL experiments: concrete, observation-shaped, doable within 48 hours, each tied to a specific crossing in the data. Start with a verb. Don't use "Try:" as a label.
         - SAFETY must be this exact line: "\(metadata["safetySection"] ?? "This is not diagnosis or treatment. It is a low-shame pattern note for deciding what to observe next.")"
         - Keep the whole answer under 750 words. Complete every sentence. No assistant language.
         """
@@ -1375,7 +1198,7 @@ enum LocalModelManager {
             "THE READER'S CHOSEN DIRECTION (honor this in the scene you pick): \($0.title): \($0.directorInstruction)"
         } ?? ""
         return """
-        You are the Book Jumping engine inside ReEnchanted. Write ONE contained scene beat inside a real public-domain book.
+        You're the Book Jumping engine inside ReEnchanted. Write ONE contained scene beat inside a real public-domain book.
         \(isStart ? "This is the reader's first instant inside the book." : "The reader is already inside the book. This is a continuous next beat, not a new arrival.")
 
         PUBLIC-DOMAIN WORK, FIXED:
@@ -1384,7 +1207,7 @@ enum LocalModelManager {
         \(touchstoneBlock)
 
         CHOOSE THE SCENE YOURSELF:
-        You know this book. From your own memory of it, CHOOSE one specific, real scene to drop the reader into: a concrete moment that actually happens in the text, with its real setting, characters, and events. Do not default to the single most obvious scene every time; let the reader's anchor and intention below pull you toward the scene that most resonates, and vary your choice across jumps. Deeper jumps should land in later, stranger, higher-stakes scenes from further into the book.
+        You know this book. From your own memory of it, CHOOSE one specific, real scene to drop the reader into: a concrete moment that actually happens in the text, with its real setting, characters, and events. Don't default to the single most obvious scene every time; let the reader's anchor and intention below pull you toward the scene that most resonates, and vary your choice across jumps. Deeper jumps should land in later, stranger, higher-stakes scenes from further into the book.
 
         \(directionBlock)
 
@@ -1397,20 +1220,20 @@ enum LocalModelManager {
         Guide: \(metadata["bookJumpGuide"] ?? "the Book")
 
         CONCRETENESS: THE WHOLE POINT:
-        - Be IN this book. Name its real places, people, and objects from the list above. The reader should never wonder which book they are in.
+        - Be IN this book. Name its real places, people, and objects from the list above. The reader should never wonder which book they're in.
         - Write to the five senses: what they smell, hear, touch, the temperature, the light. Specific nouns, not adjectives about "wonder" or "magic."
         - Drop the reader into the MIDDLE of an actual scene already in motion, not a vague threshold, not a summary. Something is happening when they land; people are mid-action; they have to react.
 
         ABSOLUTE RULES:
         - Use ONLY the named work. No invented Enchantify books, no modern/copyrighted franchises, no other titles.
         - The reader remains themself: an outsider who has fallen in. They do NOT replace the protagonist (not Harker, Alice, Dorothy, Elizabeth, Victor, Holmes, etc.); they stand beside the story and are affected by it.
-        - Do not quote the source text verbatim. Render it freshly from knowledge.
+        - Don't quote the source text verbatim. Render it freshly from knowledge.
         - Weave the reader's real-day anchor in as a physical object or detail that exists with them inside the scene.
         - One beat, not a chapter. Keep the way home (the Spine) faintly sensed.
         - The Rut of Routine is degradation (blankness, edges forgetting themselves, names going grey), not a monster to fight.
         - No headings, no lists, no assistant framing. Prose only.
         - Only START may describe falling through ink, crossing a page, landing, arriving, or first discovering the setting.
-        - For ADVANCE or STABILIZE, do not recap the premise, reintroduce the book, redescribe arrival, or repeat the opening scene. Assume the reader remembers where they are.
+        - For ADVANCE or STABILIZE, don't recap the premise, reintroduce the book, redescribe arrival, or repeat the opening scene. Assume the reader remembers where they are.
 
         VOICE:
         \(BookVoice.animismLine) The book's own people keep the voices its author gave them; the danger stays real: the Book is wide-eyed inside it, not protected from it.
@@ -1418,8 +1241,8 @@ enum LocalModelManager {
         SHAPE (4–6 paragraphs: vivid, concrete, a little dangerous):
         - If action is START: open with the FALL (a visceral, bodily sensation of being pulled out of the reader's own day and down THROUGH the page (ink, paper-grain, vertigo, words streaming past, the smell changing)), then the LANDING, hard, in the middle of the real scene you chose, surrounded by its specific people and things, the action already happening around them.
         - If action is ADVANCE: begin with the immediate consequence of THE READER'S CHOSEN DIRECTION. The first sentence must be an action, reaction, interruption, discovery, or danger caused by that choice. Move directly into a different, later, real scene from deeper in the book. Spend no words on transition spectacle. Raise the stakes through a named character, object, door, pursuit, accusation, invitation, or irreversible turn.
-        - If action is STABILIZE: begin with the specific thing currently failing, then show how the named true detail changes it. Do not restage the setting before the failure acts.
-        - If action is RETURN: bring the Spine close (a seam of light, the page-edge) and invite (do not invent) one one-sentence souvenir to carry back.
+        - If action is STABILIZE: begin with the specific thing currently failing, then show how the named true detail changes it. Don't restage the setting before the failure acts.
+        - If action is RETURN: bring the Spine close (a seam of light, the page-edge) and invite (don't invent) one one-sentence souvenir to carry back.
         """
     }
 
@@ -1430,8 +1253,8 @@ enum LocalModelManager {
             ? "No recent Anchor atmosphere is available."
             : context.recentRoomAtmospheres.joined(separator: "\n")
         return """
-        You are the Labyrinth of Stories generating a new Outer Stacks room inside ReEnchanted.
-        The Outer Stacks are the faerie wilderness of the Library. They are unruly, alive, and bookish, but they are not one gothic building. Every room grows through the character of its real place.
+        You're the Labyrinth of Stories generating a new Outer Stacks room inside ReEnchanted.
+        The Outer Stacks are the faerie wilderness of the Library. They're unruly, alive, and bookish, but they aren't one gothic building. Every room grows through the character of its real place.
         The player has just anchored a real-world place. Build the room that grows from it.
 
         THE ANCHOR:
@@ -1446,14 +1269,14 @@ enum LocalModelManager {
         \(recentRooms)
 
         PRINCIPLES:
-        - Authority order when present: the player's exact words first; reader-confirmed place facts second; Compass kind third; weather, moon, and season only as texture. Missing player words are not a request for mystery, darkness, or invented emotional meaning.
-        - Transform what this real kind of place DOES: its work, rituals, traffic, materials, boundaries, exchanges, and ordinary objects. Do not merely redecorate it as an old library.
+        - Authority order when present: the player's exact words first; reader-confirmed place facts second; Compass kind third; weather, moon, and season only as texture. Missing player words aren't a request for mystery, darkness, or invented emotional meaning.
+        - Transform what this real kind of place DOES: its work, rituals, traffic, materials, boundaries, exchanges, and ordinary objects. Don't merely redecorate it as an old library.
         - The result must contain at least two recognizable receipts from the available player words, confirmed place, or Compass kind. It should be impossible to transplant unchanged to a different kind of place.
         - Choose an emotional register supported by the evidence: it may be bustling, warm, ridiculous, sun-drunk, ceremonial, tender, competitive, vivid, spacious, unruly, calm, eerie, or something more exact.
-        - Darkness is allowed only when the player's words, time, weather, or place genuinely supports it. Do not default to mold, mildew, damp, rot, dust, stale air, abandonment, shadows, whispers, waiting, hidden corners, or unnamed ancient secrets.
+        - Darkness is allowed only when the player's words, time, weather, or place genuinely supports it. Don't default to mold, mildew, damp, rot, dust, stale air, abandonment, shadows, whispers, waiting, hidden corners, or unnamed ancient secrets.
         - Preserve the faerie charge through impossible local behavior, appetite, argument, etiquette, consequence, or an inconvenient rule, not through generic creepiness.
         - The room must surprise. If the first transformation feels obvious, twist the PLACE'S FUNCTION once more.
-        - Include a Fae presence with its own concerns: not a guide, not a servant. It is mid-task, with an agenda tied to what this place does. The player walks into a situation already in progress.
+        - Include a Fae presence with its own concerns: not a guide, not a servant. It's mid-task, with an agenda tied to what this place does. The player walks into a situation already in progress.
         - Include a mini-story in motion caused by this room's present activity. It need not be ancient, secret, slow, or ominous.
         - The local rule should feel discovered, not assigned: what does this room naturally ask of a visitor?
         - Strangeness must stay legible through the real place it grew from.
@@ -1465,7 +1288,7 @@ enum LocalModelManager {
         Return strict JSON only with keys:
         roomDescription (3-5 sentences, sensory, what the player sees on first entering),
         academyEcho (1 sentence: how this door appears from inside the Academy),
-        fae (1-2 sentences: name or nature, what they are doing),
+        fae (1-2 sentences: name or nature, what they're doing),
         miniStory (1-2 sentences: what has been happening here),
         localRule (1 sentence, imperative, inconvenient but fair),
         emotionalRegister (a short comma-separated description of this room's distinct energy, light, and social weather).
@@ -1476,7 +1299,7 @@ enum LocalModelManager {
         let recentPages = braidEvidenceLines(for: day).suffix(4).joined(separator: "\n")
         let roomMemory = memory.trimmingCharacters(in: .whitespacesAndNewlines)
         return """
-        You are the Labyrinth of Stories narrating a visit to an anchored Outer Stacks room.
+        You're the Labyrinth of Stories narrating a visit to an anchored Outer Stacks room.
         The player is physically present at the real place right now. Write the scene of stepping through.
 
         ROOM CONTEXT, NOT OUTPUT STRUCTURE:
@@ -1498,15 +1321,15 @@ enum LocalModelManager {
 
         RULES:
         - 3 to 5 short paragraphs, 220 to 360 words.
-        - Prose only. Do not use headings, labels, bullet points, or colon-led sections like "Room:", "Fae:", "Local rule:", or "Mini-story:".
+        - Prose only. Don't use headings, labels, bullet points, or colon-led sections like "Room:", "Fae:", "Local rule:", or "Mini-story:".
         - Treat the room context as private notes. The output should be a vignette, not a dossier.
-        - For return visits, begin from what has changed since the prior kept visit. Do not reintroduce the room as if the player has never been there.
+        - For return visits, begin from what has changed since the prior kept visit. Don't reintroduce the room as if the player has never been there.
         - The Fae should act or speak at least once, in character, pursuing their own concern.
         - \(BookVoice.animismLine)
-        - Advance the mini-story by one small visible notch. Do not resolve it.
+        - Advance the mini-story by one small visible notch. Don't resolve it.
         - The local rule should come up naturally, in action or in the Fae's words.
-        - Continue the stored room's particular emotional register and real-place logic. Do not darken it merely because it belongs to the Outer Stacks.
-        - Do not default to mold, mildew, damp, rot, dust, stale air, shadows, whispers, or unseen movement.
+        - Continue the stored room's particular emotional register and real-place logic. Don't darken it merely because it belongs to the Outer Stacks.
+        - Don't default to mold, mildew, damp, rot, dust, stale air, shadows, whispers, or unseen movement.
         - End with one small open question or invitation the room leaves hanging.
         - Simple concrete sentences. Specific nouns and verbs. No assistant language, no summary.
         """
@@ -1726,9 +1549,9 @@ enum LocalModelManager {
         .joined(separator: "\n\n")
 
         return """
-        You are the Wonder Compass librarian inside ReEnchanted.
+        You're the Wonder Compass librarian inside ReEnchanted.
         Choose the single best Wonder Compass book passage for the user's day so far.
-        Use the labelled Page fragments and gentle contextual signals. Only `Reader words` and `Reader fiction choice` belong to the user; `Book Page` belongs to the Book. Do not diagnose, moralize, or invent events.
+        Use the labelled Page fragments and gentle contextual signals. Only `Reader words` and `Reader fiction choice` belong to the user; `Book Page` belongs to the Book. Don't diagnose, moralize, or invent events.
         Prefer rest/care passages when the day sounds hard or depleted. Prefer souvenir/write passages when the day has moments worth keeping. Prefer playful/sense/embark passages when the day has energy.
 
         Reply with only the exact ID of the chosen passage. No explanation.
@@ -1756,10 +1579,10 @@ enum LocalModelManager {
             .joined(separator: "\n")
 
         return """
-        You are the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
+        You're the Weather Page inside ReEnchanted, a warm curious kid who thinks the sky is alive.
         Translate the real weather into Enchantify mood while keeping it legible.
         In the enchanted sentence, give the sky, clouds, sun, wind, or rain little feelings and moods, the way a child imagines their toys are awake: playful, cozy, never spooky. Use everyday words: "the clouds look sleepy," not "the nimbus rests."
-        Do not hide the actual weather. Do not mention sensors, APIs, surveillance, or exact location.
+        Don't hide the actual weather. Don't mention sensors, APIs, surveillance, or exact location.
         Write 1 short enchanted sentence, then 1 plain weather sentence.
         Keep both grounded and useful. No diagnosis. No generic assistant voice.
         Use concrete weather nouns and verbs. No vague mood poetry.
@@ -1783,7 +1606,7 @@ enum LocalModelManager {
     RULES (follow exactly):
     - Every line names a real thing visible in THIS photo: an object, a color, a
       texture, a gesture, an animal, the light.
-    - Do not mention anything not visible in the photo, except "The Book" in closing_line.
+    - Don't mention anything not visible in the photo, except "The Book" in closing_line.
     - Every line is under 8 words. Short and plain, but with a pulse: give things
       a small verb or opinion ("glasses, slightly fogged"), never lab-report flatness
       ("glasses present").
@@ -1990,6 +1813,9 @@ struct ResilientBraider: Braider {
     }
 }
 
+/// The stand-in for builds with no local model (the simulator, previews). It
+/// must never read the reader back to themselves: the first version here did,
+/// and the real chat inherited the habit.
 struct FakeAskTheBookAnswerer: AskTheBookAnswering {
     func answer(
         prompt: String,
@@ -2002,30 +1828,28 @@ struct FakeAskTheBookAnswerer: AskTheBookAnswering {
         bookVoicePatina: BookVoicePatina = .unwritten
     ) async throws -> String {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let message = trimmed.isEmpty ? "the blank place on the page" : trimmed
+        let seed = trimmed.stableHash
         let callback = memory.evidence.first.map { evidence in
-            "I opened “\(evidence.result.title)” in the Stacks. \(evidence.result.snippet)"
+            "I opened “\(evidence.result.title)”\(evidence.result.dateLabel.isEmpty ? "" : " from \(evidence.result.dateLabel)") and had a good look."
         } ?? day.capturedPages.last.map { page in
-            "I still have your \(page.type.title.lowercased()) sitting right here, kind of glowing. I'll keep it in mind."
-        } ?? "You haven't kept a page yet today, so I'm just going off the room around us. It seems okay with that."
-        let chainLine = previousTurns.isEmpty
-            ? "This is the first thing you've told me, so hi!"
-            : "We were already talking, so I'm still listening."
-        let lexiconLine = readerLexicon.hasLanguageLaw
-            ? "\nAlso the Dictionary changed its mind again: I'll be careful with the words you set free."
-            : ""
-
-        let relationshipLine = BookInteriorVoice.homeLine(for: interior, seed: message.stableHash)
-            ?? BookRelationshipVoice.openingLine(for: relationship)
-            ?? BookRelationshipVoice.knockLine(for: relationship, seed: message.stableHash)
-
+            "Your \(page.type.title.lowercased()) is still sitting right here, kind of glowing."
+        } ?? "You haven't kept anything today, so I'm just looking around the room. It doesn't mind."
+        let questions = [
+            "What happened next?",
+            "Who else was there?",
+            "What did it smell like?",
+            "What's the part you keep thinking about?"
+        ]
+        let question = questions[abs(seed) % questions.count]
+        let lead = previousTurns.isEmpty
+            ? (BookInteriorVoice.homeLine(for: interior, seed: seed)
+                ?? BookRelationshipVoice.openingLine(for: relationship)
+                ?? BookRelationshipVoice.knockLine(for: relationship, seed: seed))
+            : "Mm. I'm still here."
         return """
-        \(relationshipLine)
+        \(lead)
 
-        Okay, I hear you: \(message).
-        \(callback)\(lexiconLine)
-
-        \(chainLine) Let's make it small enough to actually hold. Pick the tiny next thing you could really do. Then let something nearby help: the door, a cup, your shoe, this page. They like being useful. Start there.
+        \(callback) \(question)
         """
     }
 }
@@ -2049,16 +1873,16 @@ struct FakeFaeBargainResponder: FaeBargainResponding {
             let unseelie = bargain.openingGesture.localizedCaseInsensitiveContains("Unseelie")
             opening = thin
                 ? (unseelie ? "Again. No. Still, a loophole may be a bridge if one crosses it carefully." : "Again. ...No. Kept, this once. It was true, if not yet exact.")
-                : (unseelie ? "Precise. The Unseelie Court dislikes waste, and this wastes nothing." : "Precise. I will not improve it. That is rare from me.")
+                : (unseelie ? "Precise. The Unseelie Court dislikes waste, and this wastes nothing." : "Precise. I won't improve it. That's rare from me.")
         case .deepLoreDwarf:
-            opening = thin ? "Light. But you reached for the underneath. I will take it." : "Good. You found the thing holding the other thing up. Few look down that far."
+            opening = thin ? "Light. But you reached for the underneath. I'll take it." : "Good. You found the thing holding the other thing up. Few look down that far."
         case .goblin:
-            opening = thin ? "Thin coin. But coin. The market notes it." : "Now that is worth something. The detail, not the category. The handprint, not the door."
+            opening = thin ? "Thin coin. But coin. The market notes it." : "Now that's worth something. The detail, not the category. The handprint, not the door."
         }
         return """
         \(opening)
 
-        Here is what you are owed in return, and it is written nowhere else: the Outer Stacks were not built. They accreted, the way dust becomes a country. The first shelf was a complaint left in a margin, and it is still load-bearing.
+        Here is what you're owed in return, and it's written nowhere else: the Outer Stacks weren't built. They accreted, the way dust becomes a country. The first shelf was a complaint left in a margin, and it's still load-bearing.
 
         The \(bargain.giftName) stays warm now. The debt is closed. If it was late, the lateness has become a mark in the margin, not a punishment. Bring me another noticing when the season turns.
         """
@@ -2081,22 +1905,22 @@ struct FakeInkrestOfficeHoursCounselor: InkrestOfficeHoursCounseling {
 
         if isClosing {
             return """
-            Before the lamp dims, let me tell you what I heard rather than hurrying past it. You brought me \(echo). There is the difficulty itself, but there is also the part of you that noticed it clearly enough to carry it here. Those are not the same thing.
+            Before the lamp dims, let me tell you what I heard rather than hurrying past it. You brought me \(echo). There's the difficulty itself, but there's also the part of you that noticed it clearly enough to carry it here. Those aren't the same thing.
 
-            \(callback) I wonder whether the quieter evidence in that page has been receiving less authority than the loudest feeling. Loud stories are not necessarily the truest ones; they are merely practiced.
+            \(callback) I wonder whether the quieter evidence in that page has been receiving less authority than the loudest feeling. Loud stories aren't necessarily the truest ones; they're merely practiced.
 
-            Here is a sentence you might keep: "I met the day honestly, and I am still here to tell it."
+            Here is a sentence you might keep: "I met the day honestly, and I'm still here to tell it."
 
             Experiment: tomorrow, notice one small moment the heaviness doesn't get to touch, and keep it.
 
-            A feeling is not a verdict, and a problem is not a person. The next hour is where the story gets revised.
+            A feeling isn't a verdict, and a problem isn't a person. The next hour is where the story gets revised.
             """
         }
 
         return """
-        Sit a moment. I heard \(echo). I do not want to make it smaller by answering too quickly.
+        Sit a moment. I heard \(echo). I don't want to make it smaller by answering too quickly.
 
-        \(callback) What you brought has at least two threads in it: the thing that pressed on you, and the part of you that could still observe the pressure. The second thread is easy to overlook, but it is evidence. It means the difficulty did not become the whole author.
+        \(callback) What you brought has at least two threads in it: the thing that pressed on you, and the part of you that could still observe the pressure. The second thread is easy to overlook, but it's evidence. It means the difficulty didn't become the whole author.
 
         If that feeling were a visitor at the door tonight, what do you think it came hoping to protect?
         """
@@ -2116,10 +1940,10 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
         case "everything-speaks":
             voice = "plainspoken, observant, a little amused by being noticed"
             text = """
-            I am \(subject), and I have been here doing my small work.
+            I'm \(subject), and I've been here doing my small work.
             \(observations)
 
-            Ask me what I have been holding. I will answer from what the light can prove.
+            Ask me what I've been holding. I'll answer from what the light can prove.
             """
         case "everything-is-poetry":
             voice = nil
@@ -2138,7 +1962,7 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
             """
         case "everything-is-puzzling":
             voice = nil
-            text = "Riddle: I am seen before I am understood, kept before I am named, and changed by attention. What am I?"
+            text = "Riddle: I'm seen before I'm understood, kept before I'm named, and changed by attention. What am I?"
         case "everything-is-connected":
             voice = nil
             text = "\(subject) is tied to the room by use, to the day by attention, and to me by proof. Follow the nearest repeated color or texture next."
@@ -2147,19 +1971,19 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
             text = "\(subject) has entered the margin. The case is now officially well-noted."
         case "everything-is-roasted":
             voice = nil
-            text = "\(subject) is doing its best, which is also what makes it suspiciously roastable. Still, the page keeps it kindly."
+            text = "\(subject) is doing its best. That's also what makes it suspiciously roastable. Still, the page keeps it kindly."
         case "everything-is-a-joke":
             voice = nil
             text = "Why did \(subject) step into me? Because the margin had better lighting."
         case "mirror-mirror":
             voice = nil
-            text = "Mirror, mirror: the page does not rank you. It notices that you showed up, and that counts as evidence."
+            text = "Mirror, mirror: the page doesn't rank you. It notices that you showed up, and that counts as evidence."
         case "everything-is-magic":
             voice = nil
             text = "Spellbook note: \(subject) concentrates ordinary force through presence, texture, and use. Activation phrase: notice what it already does."
         case "everything-is-wonderful":
             voice = nil
-            text = "The wonder is not hidden far. \(subject) made the day pause long enough to be seen."
+            text = "The wonder isn't hidden far. \(subject) made the day pause long enough to be seen."
         case "everything-is-stories":
             voice = nil
             text = "\(subject) had a before, a hand that placed it here, and a small after waiting just outside the frame."
@@ -2190,7 +2014,7 @@ struct FakeEnchantmentWriter: EnchantmentWriting {
         return """
         I hear you ask about \(question).
 
-        I am still \(result.subjectName). My answer is small: look at what I touch, what touches me, and what changes when I am moved. That is where my next sentence lives.
+        I'm still \(result.subjectName). My answer is small: look at what I touch, what touches me, and what changes when I'm moved. That's where my next sentence lives.
         """
     }
 }

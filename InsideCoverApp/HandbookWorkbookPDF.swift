@@ -155,6 +155,14 @@ extension MonthlyEditionPDFWriter {
         let ink = style.palette.ink
         let width = max(220, cursor.contentWidth)
         var items: [StackItem] = []
+        // Puzzles one and two are the word search and the maze; the rest are numbered as they come,
+        // because which of them a week carries changes from issue to issue.
+        let numbers = ["three", "four", "five", "six", "seven", "eight", "nine"]
+        var made = 0
+        func heading(_ name: String) -> String {
+            defer { made += 1 }
+            return "Puzzle \(numbers[min(made, numbers.count - 1)]): \(name)"
+        }
 
         if let cipher = workbook.cipher {
             let cellW: CGFloat = 12.5
@@ -171,8 +179,9 @@ extension MonthlyEditionPDFWriter {
             let introH = FieldText.height("This is a sentence you wrote this month. The Book has scrambled it, one letter for another, always the same swap. Decode it.",
                                          font: .fbSerifItalic(ofSize: 10), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
             let total = 22 + introH + 10 + CGFloat(lines.count) * lineH + 20
+            let title = heading("the Scrambled Line")
             items.append(StackItem(height: total) { rect in
-                ("Puzzle three: the Scrambled Line" as NSString).draw(
+                (title as NSString).draw(
                     at: CGPoint(x: rect.minX, y: rect.minY),
                     withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
                 FieldText.flow("This is a sentence you wrote this month. The Book has scrambled it, one letter for another, always the same swap. Decode it.",
@@ -206,8 +215,9 @@ extension MonthlyEditionPDFWriter {
         if let matching = workbook.matching {
             let rowH: CGFloat = 38
             let total = 22 + CGFloat(matching.lines.count) * rowH + 20 + CGFloat((matching.speakers.count + 1) / 2) * 16
+            let title = heading("Who Said It")
             items.append(StackItem(height: total) { rect in
-                ("Puzzle four: Who Said It" as NSString).draw(
+                (title as NSString).draw(
                     at: CGPoint(x: rect.minX, y: rect.minY),
                     withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
                 var y = rect.minY + 24
@@ -238,8 +248,9 @@ extension MonthlyEditionPDFWriter {
         if let order = workbook.ordering {
             let rowH: CGFloat = 22
             let total = 22 + 30 + CGFloat(order.events.count) * rowH
+            let title = heading("Put the Month in Order")
             items.append(StackItem(height: total) { rect in
-                ("Puzzle five: Put the Month in Order" as NSString).draw(
+                (title as NSString).draw(
                     at: CGPoint(x: rect.minX, y: rect.minY),
                     withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
                 ("Number them 1 to \(order.events.count), earliest first. Dates are the one thing the Book won't tell you." as NSString).draw(
@@ -257,8 +268,186 @@ extension MonthlyEditionPDFWriter {
                 }
             })
         }
+        if let cloze = workbook.cloze {
+            let intro = "Each sentence is one you wrote, with a word taken out. The words are in the box below, and not all of them belong."
+            let introH = FieldText.height(intro, font: .fbSerifItalic(ofSize: 10), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            let sentenceFont = UIFont.fbSerif(ofSize: 10.8, weight: .regular)
+            let heights = cloze.sentences.enumerated().map {
+                FieldText.height("\($0.offset + 1).  \($0.element)", font: sentenceFont, width: width, lineSpacing: 2.4, paragraphSpacing: 0, justified: false)
+            }
+            let bankText = cloze.bank.joined(separator: "     ")
+            let bankH = FieldText.height(bankText, font: .fbSerifItalic(ofSize: 11), width: width - 16, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            let total = 22 + introH + 8 + heights.reduce(0) { $0 + $1 + 10 } + bankH + 16
+            let title = heading("the Missing Words")
+            items.append(StackItem(height: total) { rect in
+                (title as NSString).draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                FieldText.flow(intro, font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.78),
+                               in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: introH + 2),
+                               lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                var y = rect.minY + 22 + introH + 8
+                for (index, sentence) in cloze.sentences.enumerated() {
+                    FieldText.flow("\(index + 1).  \(sentence)", font: sentenceFont, color: ink.withAlphaComponent(0.9),
+                                   in: CGRect(x: rect.minX, y: y, width: width, height: heights[index] + 2),
+                                   lineSpacing: 2.4, paragraphSpacing: 0, justified: false)
+                    y += heights[index] + 10
+                }
+                let box = CGRect(x: rect.minX, y: y, width: width, height: bankH + 12)
+                ink.withAlphaComponent(0.45).setStroke()
+                let frame = UIBezierPath(roundedRect: box, cornerRadius: 3)
+                frame.lineWidth = 0.6; frame.stroke()
+                FieldText.flow(bankText, font: .fbSerifItalic(ofSize: 11), color: style.palette.accent,
+                               in: CGRect(x: box.minX + 8, y: box.minY + 6, width: width - 16, height: bankH + 2),
+                               lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            })
+        }
+
+        if let anagrams = workbook.anagrams {
+            let rowH: CGFloat = 30
+            let total = 22 + 30 + CGFloat(anagrams.items.count) * rowH
+            let title = heading("the Scrambled Cast")
+            items.append(StackItem(height: total) { rect in
+                (title as NSString).draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                ("Each is a word of yours, shaken in a bag. The clue says whose." as NSString).draw(
+                    in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: 14),
+                    withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 10), .foregroundColor: ink.withAlphaComponent(0.78)])
+                var y = rect.minY + 46
+                for item in anagrams.items {
+                    let tiles = item.scrambled.map(String.init).joined(separator: " ")
+                    drawTracked(tiles, at: CGPoint(x: rect.minX, y: y), font: UIFont.fbSerif(ofSize: 12.5, weight: .bold), color: ink.withAlphaComponent(0.92), tracking: 1.6)
+                    (item.clue as NSString).draw(at: CGPoint(x: rect.minX, y: y + 15),
+                        withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 8.8), .foregroundColor: style.palette.accent])
+                    ink.withAlphaComponent(0.4).setStroke()
+                    let rule = UIBezierPath()
+                    rule.move(to: CGPoint(x: rect.minX + width * 0.52, y: y + 14))
+                    rule.addLine(to: CGPoint(x: rect.maxX, y: y + 14))
+                    rule.lineWidth = 0.5; rule.stroke()
+                    y += rowH
+                }
+            })
+        }
+
+        if let vowels = workbook.vowels {
+            let rowH: CGFloat = 36
+            let total = 22 + 30 + CGFloat(vowels.items.count) * rowH
+            let title = heading("Vowels Fled")
+            items.append(StackItem(height: total) { rect in
+                (title as NSString).draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                ("The A, E, I, O and U have gone out for the evening. Put them back." as NSString).draw(
+                    in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: 14),
+                    withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 10), .foregroundColor: ink.withAlphaComponent(0.78)])
+                var y = rect.minY + 46
+                for item in vowels.items {
+                    (item.stripped as NSString).draw(at: CGPoint(x: rect.minX, y: y),
+                        withAttributes: [.font: UIFont.fbSerif(ofSize: 11.5, weight: .semibold), .foregroundColor: ink.withAlphaComponent(0.92), .kern: 1.2])
+                    (item.clue as NSString).draw(at: CGPoint(x: rect.minX, y: y + 17),
+                        withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 8.8), .foregroundColor: style.palette.accent])
+                    ink.withAlphaComponent(0.4).setStroke()
+                    let rule = UIBezierPath()
+                    rule.move(to: CGPoint(x: rect.minX + width * 0.40, y: y + 28))
+                    rule.addLine(to: CGPoint(x: rect.maxX, y: y + 28))
+                    rule.lineWidth = 0.5; rule.stroke()
+                    y += rowH
+                }
+            })
+        }
+
+        if let sudoku = workbook.sudoku {
+            let cell: CGFloat = 42
+            let side = cell * CGFloat(sudoku.size)
+            let intro = "Fill the grid so every row, every column and every box of \(sudoku.boxRows) by \(sudoku.boxCols) holds \(sudoku.symbols.joined(separator: ", ")) exactly once."
+            let introH = FieldText.height(intro, font: .fbSerifItalic(ofSize: 10), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            let total = 22 + introH + 10 + side + 4
+            let title = heading("the Chairs")
+            items.append(StackItem(height: total) { rect in
+                (title as NSString).draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                FieldText.flow(intro, font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.78),
+                               in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: introH + 2),
+                               lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                let origin = CGPoint(x: rect.minX + (width - side) / 2, y: rect.minY + 22 + introH + 10)
+                guard let cg = UIGraphicsGetCurrentContext() else { return }
+                cg.setStrokeColor(ink.withAlphaComponent(0.3).cgColor)
+                cg.setLineWidth(0.5)
+                for i in 0...sudoku.size {
+                    cg.move(to: CGPoint(x: origin.x + CGFloat(i) * cell, y: origin.y))
+                    cg.addLine(to: CGPoint(x: origin.x + CGFloat(i) * cell, y: origin.y + side))
+                    cg.move(to: CGPoint(x: origin.x, y: origin.y + CGFloat(i) * cell))
+                    cg.addLine(to: CGPoint(x: origin.x + side, y: origin.y + CGFloat(i) * cell))
+                }
+                cg.strokePath()
+                cg.setStrokeColor(ink.withAlphaComponent(0.85).cgColor)
+                cg.setLineWidth(1.4)
+                for i in stride(from: 0, through: sudoku.size, by: sudoku.boxCols) {
+                    cg.move(to: CGPoint(x: origin.x + CGFloat(i) * cell, y: origin.y))
+                    cg.addLine(to: CGPoint(x: origin.x + CGFloat(i) * cell, y: origin.y + side))
+                }
+                for i in stride(from: 0, through: sudoku.size, by: sudoku.boxRows) {
+                    cg.move(to: CGPoint(x: origin.x, y: origin.y + CGFloat(i) * cell))
+                    cg.addLine(to: CGPoint(x: origin.x + side, y: origin.y + CGFloat(i) * cell))
+                }
+                cg.strokePath()
+                let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.fbSerif(ofSize: 22, weight: .bold), .foregroundColor: ink.withAlphaComponent(0.92)]
+                for (index, value) in sudoku.given.enumerated() where value >= 0 {
+                    let text = sudoku.symbols[value] as NSString
+                    let size = text.size(withAttributes: attrs)
+                    text.draw(at: CGPoint(x: origin.x + CGFloat(index % sudoku.size) * cell + (cell - size.width) / 2,
+                                          y: origin.y + CGFloat(index / sudoku.size) * cell + (cell - size.height) / 2), withAttributes: attrs)
+                }
+            })
+        }
+
+        if let odd = workbook.oddOne {
+            let rowH: CGFloat = 40
+            let total = 22 + 24 + CGFloat(odd.rounds.count) * rowH
+            let title = heading("Odd One Out")
+            items.append(StackItem(height: total) { rect in
+                (title as NSString).draw(at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                ("Three of each four belong together. Ring the one that does not." as NSString).draw(
+                    in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: 14),
+                    withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 10), .foregroundColor: ink.withAlphaComponent(0.78)])
+                var y = rect.minY + 44
+                let letters = Array("ABCD")
+                for (index, round) in odd.rounds.enumerated() {
+                    ("\(index + 1)" as NSString).draw(at: CGPoint(x: rect.minX, y: y),
+                        withAttributes: [.font: UIFont.fbSerif(ofSize: 12, weight: .bold), .foregroundColor: style.palette.accent])
+                    for (slot, option) in round.options.enumerated() {
+                        let col = slot % 2, row = slot / 2
+                        ("\(letters[slot]).  \(option)" as NSString).draw(
+                            at: CGPoint(x: rect.minX + 18 + CGFloat(col) * ((width - 18) / 2), y: y + CGFloat(row) * 16),
+                            withAttributes: [.font: UIFont.fbSerif(ofSize: 10.5, weight: .medium), .foregroundColor: ink.withAlphaComponent(0.9)])
+                    }
+                    y += rowH
+                }
+            })
+        }
+
+        // A light month earns fewer puzzles of its own. The rest of the leaf is the reader's turn at
+        // making one, which is a puzzle too, rather than a leaf with one cipher and a lot of paper.
+        if items.count < 3 {
+            let promptFont = UIFont.fbSerifItalic(ofSize: 10.4)
+            let prompt = "Scramble a sentence you wrote this week, or hide one of your words in a grid of letters, and leave it for someone to solve. Write your key at the foot, folded under."
+            let promptH = FieldText.height(prompt, font: promptFont, width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            items.append(StackItem(height: 22 + promptH + 10 + 22 * 6) { rect in
+                ("Puzzle: your turn" as NSString).draw(
+                    at: CGPoint(x: rect.minX, y: rect.minY),
+                    withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
+                FieldText.flow(prompt, font: promptFont, color: ink.withAlphaComponent(0.8),
+                               in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: promptH + 4),
+                               lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                hbRules(from: rect.minY + 22 + promptH + 14, to: rect.maxY, left: rect.minX, right: rect.maxX, spacing: 22, style: style)
+            })
+        }
         drawStack(items, head: "Workbook", kicker: "More puzzles", headRight: "Puzzles", style: style,
-                  context: context, cursor: &cursor, gap: 26)
+                  context: context, cursor: &cursor, gap: 26,
+                  fill: { rect in
+                      if let prompt = NotePromptDealer.next(.puzzle, seed: "puzzle-\(items.count)") {
+                          drawNotesBlock(prompt, in: rect, style: style)
+                      }
+                  })
     }
 
     // MARK: Examination
@@ -280,7 +469,7 @@ extension MonthlyEditionPDFWriter {
         let letters = Array("ABCDEFGH")
         for (index, question) in exam.questions.enumerated() {
             let promptH = FieldText.height("\(index + 1).  \(question.prompt)", font: .fbSerif(ofSize: 11.5, weight: .semibold), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
-            let total = promptH + 8 + CGFloat(question.options.count) * 17
+            let total = promptH + 8 + CGFloat(question.options.count) * 15
             items.append(StackItem(height: total) { rect in
                 FieldText.flow("\(index + 1).  \(question.prompt)", font: .fbSerif(ofSize: 11.5, weight: .semibold), color: ink,
                                in: CGRect(x: rect.minX, y: rect.minY, width: width, height: promptH + 2),
@@ -293,21 +482,22 @@ extension MonthlyEditionPDFWriter {
                     ("\(letters[i % letters.count]).  \(option)" as NSString).draw(
                         in: CGRect(x: rect.minX + 32, y: y, width: width - 36, height: 15),
                         withAttributes: [.font: UIFont.fbSerif(ofSize: 10.4, weight: .regular), .foregroundColor: ink.withAlphaComponent(0.9)])
-                    y += 17
+                    y += 15
                 }
             })
         }
         for prompt in exam.shortAnswers {
             let promptH = FieldText.height(prompt, font: .fbSerif(ofSize: 11.5, weight: .semibold), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
-            items.append(StackItem(height: promptH + 6 + 24 * 3) { rect in
+            items.append(StackItem(height: promptH + 6 + 22 * 3) { rect in
                 FieldText.flow(prompt, font: .fbSerif(ofSize: 11.5, weight: .semibold), color: ink,
                                in: CGRect(x: rect.minX, y: rect.minY, width: width, height: promptH + 2),
                                lineSpacing: 2, paragraphSpacing: 0, justified: false)
-                hbRules(from: rect.minY + promptH + 4, to: rect.maxY, left: rect.minX, right: rect.maxX, spacing: 24, style: style)
+                hbRules(from: rect.minY + promptH + 4, to: rect.maxY, left: rect.minX, right: rect.maxX, spacing: 22, style: style)
             })
         }
+        // Tight enough that the examination is one leaf, not a leaf and a single question.
         drawStack(items, head: "Examination", kicker: "The Examination", headRight: "Handbook", style: style,
-                  context: context, cursor: &cursor, gap: 14)
+                  context: context, cursor: &cursor, gap: 9)
     }
 
     // MARK: Report card
@@ -462,6 +652,29 @@ extension MonthlyEditionPDFWriter {
         if let order = workbook.ordering {
             let key = order.rank.enumerated().map { "\(letters[$0.offset % letters.count])\($0.element)" }.joined(separator: "  ")
             hbText("In order (event letter → place): \(key)", font: .fbSerif(ofSize: 10.4, weight: .medium), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
+        }
+        if let cloze = workbook.cloze {
+            let key = cloze.answers.enumerated().map { "\($0.offset + 1) \($0.element)" }.joined(separator: ",  ")
+            hbText("Missing words: \(key)", font: .fbSerif(ofSize: 10.4, weight: .medium), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
+        }
+        if let anagrams = workbook.anagrams {
+            hbText("Scrambled cast: " + anagrams.items.map { $0.answer.capitalized }.joined(separator: ", ") + ".",
+                   font: .fbSerif(ofSize: 10.4, weight: .medium), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
+        }
+        if let vowels = workbook.vowels {
+            hbText("Vowels fled: " + vowels.items.map(\.answer).joined(separator: "; ") + ".",
+                   font: .fbSerif(ofSize: 10.4, weight: .medium), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
+        }
+        if let odd = workbook.oddOne {
+            let key = odd.rounds.enumerated().map { "\($0.offset + 1)\(letters[$0.element.answer % letters.count])" }.joined(separator: "  ")
+            hbText("Odd one out: \(key)", font: .fbSerif(ofSize: 10.4, weight: .medium), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
+        }
+        if let sudoku = workbook.sudoku {
+            let rows = stride(from: 0, to: sudoku.solution.count, by: sudoku.size).map { start in
+                sudoku.solution[start..<(start + sudoku.size)].map { sudoku.symbols[$0] }.joined()
+            }
+            hbText("The chairs, row by row: " + rows.joined(separator: "  "), font: .fbSerif(ofSize: 10.4, weight: .medium),
+                   color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)
         }
         if let cipher = workbook.cipher {
             hbText("The scrambled line: “\(cipher.plain)”", font: .fbSerifItalic(ofSize: 10.4), color: ink.withAlphaComponent(0.9), leaf: &leaf, justified: false, gap: 5)

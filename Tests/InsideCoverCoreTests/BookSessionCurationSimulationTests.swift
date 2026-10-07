@@ -700,21 +700,6 @@ final class BookSessionCurationSimulationTests: XCTestCase {
         XCTAssertLessThan(receipt.propensity, 1)
     }
 
-    func testShelterAndProtectedCeremoniesAreNotMovementExperiments() {
-        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
-        let intention = BookSessionDirector.intention(
-            for: day,
-            inputs: .empty,
-            candidates: [page(.rest, intent: .rest), page(.weather, intent: .capture)],
-            preferences: .none,
-            distressActive: true,
-            now: now
-        )
-
-        XCTAssertEqual(intention.movement, .shelter)
-        XCTAssertNil(intention.causalMovementReceipt)
-    }
-
     func testShelterIsCareRatherThanAnExperiment() {
         let shelter = BookCurator.rankedPages(
             from: [

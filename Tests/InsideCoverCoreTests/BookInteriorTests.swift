@@ -20,7 +20,6 @@ final class BookInteriorTests: XCTestCase {
             relationship: .firstOpening,
             receipts: [],
             appetite: .unruly,
-            distressActive: false,
             rutward: false,
             now: now
         )
@@ -844,9 +843,9 @@ final class BookInteriorTests: XCTestCase {
             interior: evolved
         )
 
-        XCTAssertTrue(answer?.contains("evidence of practices, not proof") == true)
+        XCTAssertTrue(answer?.contains("I can't tell you they changed you") == true)
         XCTAssertTrue(answer?.contains("without my asking") == true)
-        XCTAssertTrue(answer?.contains("not a diagnosis") == true)
+        XCTAssertTrue(answer?.contains("I still can't see inside you") == true)
     }
 
     func testFoundGiftPlanIsOccasionalAndUsesOnlyMissionLanguage() throws {
@@ -2182,7 +2181,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["bookInitiativeGenerationPolicy"], "user-initiated-only")
         XCTAssertEqual(surface.payload.metadata["bookInitiativeOpening"], initiative.openingLine)
         XCTAssertTrue(surface.payload.body.contains("I started this one"))
-        XCTAssertTrue(surface.payload.body.contains("bite back"))
+        XCTAssertTrue(surface.payload.body.contains("Say something back"))
         XCTAssertTrue(surface.payload.body.contains("It can sit"))
         XCTAssertFalse(SurfaceReadinessState(surface: surface).needsLocalBrainToOpen)
 

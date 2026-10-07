@@ -22,7 +22,16 @@ PHYSICAL_BOOK_ORDERING_ENABLED = "true"
 STRIPE_TAX_ENABLED = "false"
 # Stripe test catalogue only, matching BoundYearPricing in the app.
 STRIPE_BOUND_YEAR_MONTHLY_PRICE = "price_1UDBjrE80ArNx7J9p2acRpvE"
-STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_1UDBjrE80ArNx7J9JEGVlZ08"
+STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_1UMZMCE80ArNx7J9LVxqR2Df"
+# Retain access and earned parcels for existing $249/year memberships.
+STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = "price_1UDBjrE80ArNx7J9JEGVlZ08"
+# Verified live catalogue (2026-10-04), product prod_VNlSYl6tXvpa0B.
+# Replace the current price bindings during the coordinated production cutover:
+# monthly: price_1UMzw0E80ArNx7J9NAQFMsiZ ($24.99/month)
+# annual:  price_1UMzvqE80ArNx7J98TFV09ZW ($279/year)
+# Test price IDs are not live legacy prices. Configure live credentials,
+# Stripe Tax registrations, Lulu production, and the app's live publishable key
+# before changing CHECKOUT_MODE or opening BOUND_YEAR_LIVE_SALES_ENABLED.
 # Optional overrides. The defaults are Stripe's Books, Periodicals, and
 # Shipping tax codes.
 # STRIPE_PRINTED_BOOK_TAX_CODE = "txcd_35010000"

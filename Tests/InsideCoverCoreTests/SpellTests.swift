@@ -647,12 +647,12 @@ final class SpellDeskTests: XCTestCase {
         XCTAssertNotEqual(candidate(at: date(hour: 10), inputs: inputs)?.payload.metadata["spellID"], first)
     }
 
-    func testAHardDayGetsNoSpell() {
+    func testAHardDayGetsASpellToo() {
         let when = date(hour: 10)
         let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
         var context = CuratorContext.make(for: day)
         context.distress = DistressSignals(isActive: true, reasons: ["test"])
-        XCTAssertTrue(SpellPageSourceAdapter().candidates(for: day, context: context, inputs: .empty, now: when).isEmpty)
+        XCTAssertFalse(SpellPageSourceAdapter().candidates(for: day, context: context, inputs: .empty, now: when).isEmpty)
     }
 
     func testASpellIsAnErrandThatPointsOutward() {

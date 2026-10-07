@@ -441,7 +441,6 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
         now: Date
     ) -> [SurfacePage] {
         guard source.isActive,
-              !context.distress.isActive,
               inputs.keptPageCount >= EmergentPageMaturity.minimumKeptPages else {
             return []
         }

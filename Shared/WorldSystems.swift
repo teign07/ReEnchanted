@@ -431,7 +431,7 @@ enum RadioNarrativeEchoPrompt {
 
         RECENT SONG TRACE. AUTHORED NON-LYRIC ATMOSPHERE, NOT EVIDENCE:
         \(trace)
-        It may lend at most one image, motion, or cadence only when the lived material already invites it. Never quote or reconstruct lyrics; never name the song, artist, or station; never infer what the reader liked, felt, chose, or did. It cannot own the title, moral, or ending.
+        It may lend at most one image, motion, or cadence only when the lived material already invites it. Never quote or reconstruct lyrics; never name the song, artist, or station; never infer what the reader liked, felt, chose, or did. It can't own the title, moral, or ending.
         """
     }
 }
@@ -587,7 +587,7 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     var readerFacingCaption: String {
         let lowered = caption.lowercased()
         if lowered.contains("unscheduled ") || lowered.contains("audio-backed clip") {
-            return "A local station break is playing. Its words have not been transcribed yet."
+            return "A local station break is playing. Its words haven't been transcribed yet."
         }
         return caption
     }
@@ -947,7 +947,7 @@ enum RadioAtmosphere {
 
         WHAT'S PLAYING:
         \(line)
-        Let the station faintly color the tone, imagery, and rhythm of this page, never as a thesis. Do not name the station or mention a radio unless a kept page already did.
+        Let the station faintly color the tone, imagery, and rhythm of this page, never as a thesis. Don't name the station or mention a radio unless a kept page already did.
         """
     }
 }
@@ -956,6 +956,49 @@ struct RadioStationPack: Codable, Equatable, Identifiable {
     var id: String
     var displayName: String
     var stations: [RadioStation]
+    /// Songs a pack adds to or takes off stations that already exist,
+    /// bundled or delivered. Optional: older packs and apps ignore it.
+    var stationEdits: [RadioStationEdit]? = nil
+}
+
+extension RadioStationPack {
+    /// `stations` may be left out, so a month can ship a pack that only edits.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        displayName = try values.decode(String.self, forKey: .displayName)
+        stations = try values.decodeIfPresent([RadioStation].self, forKey: .stations) ?? []
+        stationEdits = try values.decodeIfPresent([RadioStationEdit].self, forKey: .stationEdits)
+    }
+}
+
+/// One station's songs, changed for as long as the pack carrying this is
+/// installed. A monthly pack retires after residue, and the station goes back
+/// to how it was; to keep a song off the air, the next month repeats the edit.
+struct RadioStationEdit: Codable, Equatable {
+    var stationID: String
+    /// Added after the removals. A track with an id the station already has
+    /// replaces it, so a month can also re-gate or re-weight an existing song.
+    var addTracks: [RadioTrack]? = nil
+    var removeTrackIDs: [String]? = nil
+
+    /// The station with this edit applied. Removals that would leave it with
+    /// no songs at all are ignored: a silent station is worse than a stale one.
+    func applied(to station: RadioStation) -> RadioStation {
+        guard station.id == stationID else { return station }
+        var edited = station
+        let removing = Set(removeTrackIDs ?? [])
+        let kept = station.tracks.filter { !removing.contains($0.id) }
+        edited.tracks = kept.isEmpty && (addTracks ?? []).isEmpty ? station.tracks : kept
+        for track in addTracks ?? [] {
+            if let index = edited.tracks.firstIndex(where: { $0.id == track.id }) {
+                edited.tracks[index] = track
+            } else {
+                edited.tracks.append(track)
+            }
+        }
+        return edited
+    }
 }
 
 /// Accumulated listening for one station: the substrate that lets a station
@@ -3076,7 +3119,16 @@ enum RadioStationRegistry {
     }
 
     private static func availableStations(unlockedPackIDs: Set<String>) -> [RadioStation] {
-        (bundledPacks + userPacks())
+        let delivered = userPacks()
+        let edits = delivered
+            .filter { PackEntitlements.owns($0.id, in: unlockedPackIDs) }
+            .flatMap { $0.stationEdits ?? [] }
+        return catalogStations(in: bundledPacks + delivered, unlockedPackIDs: unlockedPackIDs)
+            .map { station in edits.reduce(station) { $1.applied(to: $0) } }
+    }
+
+    private static func catalogStations(in packs: [RadioStationPack], unlockedPackIDs: Set<String>) -> [RadioStation] {
+        packs
             .flatMap(\.stations)
             .filter { station in
                 station.packID.map { PackEntitlements.owns($0, in: unlockedPackIDs) } ?? true
@@ -3973,7 +4025,7 @@ enum AnchorTurnBuilder {
     static func turn(anchor: AnchorRecord, visitMode: String, slotKey: String) -> StoryTurn {
         let roomName = anchor.storyName.nonEmpty ?? "This Anchor Room"
         let keeper = anchor.fae.nonEmpty ?? roomName
-        let rule = anchor.localRule.nonEmpty ?? "the room will not open further until it is noticed with care"
+        let rule = anchor.localRule.nonEmpty ?? "the room won't open further until it's noticed with care"
         let isFirstVisit = visitMode == "FIRST_VISIT"
         let candidates: [StoryTurnKind] = isFirstVisit
             ? [.revealWant, .factLearned, .realNoticing]
@@ -4462,7 +4514,7 @@ struct AcademyActivityDebrief: Equatable {
         READER'S COMPLETED PRACTICE:
         \(outcome)
 
-        RESPONSE CONTRACT: (Begin after the original classroom scene. Do not restage its entrance, demonstration, lecture, or question.) The leader must respond to at least one exact word, image, choice, or sensory detail from the submitted answer. Quote or name that detail so the reader can tell their answer was read. (Let the lesson advance by applying its concept to that exact detail. Do not merely praise, summarize, or repeat the form labels.) A companion may react, but the reader's submitted answer remains the cause of this new beat.. End with one genuinely new observation or question shaped by the answer. Do not assign the same practice again.
+        RESPONSE CONTRACT: (Begin after the original classroom scene. Don't restage its entrance, demonstration, lecture, or question.) The leader must respond to at least one exact word, image, choice, or sensory detail from the submitted answer. Quote or name that detail so the reader can tell their answer was read. (Let the lesson advance by applying its concept to that exact detail. Don't merely praise, summarize, or repeat the form labels.) A companion may react, but the reader's submitted answer remains the cause of this new beat.. End with one genuinely new observation or question shaped by the answer. Don't assign the same practice again.
         """
     }
 
@@ -4601,7 +4653,7 @@ enum AcademyScheduleRegistry {
             name: "Ink-Binding", leader: "Professor Vivian Villanelle", leaderEntityID: "professor-vivian-villanelle",
             room: "The Inkworks",
             companions: ["Zara Finch", "Ellie Moons"],
-            teaches: "Write (West): distilling an entire experience into a single permanent magical sentence. What is written is kept; what is not written dissolves.",
+            teaches: "Write (West): distilling an entire experience into a single permanent magical sentence. What is written is kept; what isn't written dissolves.",
             style: "exacting, lyrical, kind",
             subjectThreadID: "write-west"
         ),
@@ -4705,8 +4757,8 @@ enum AcademyScheduleRegistry {
             realSubject: "behavioral activation, route design, and intentional movement",
             concept: "A small threshold crossed on purpose changes a stuck pattern more reliably than a dramatic escape.",
             lectureBeats: [
-                "Motion is not the same as arrival.",
-                "A threshold works when it is small enough to cross and specific enough to notice.",
+                "Motion isn't the same as arrival.",
+                "A threshold works when it's small enough to cross and specific enough to notice.",
                 "The first step should reduce friction, not demand a new identity."
             ],
             demonstration: "Professor Momort chalks three doorways on the floor and has students compare an escape route, an errand, and an intentional return.",
@@ -4733,9 +4785,9 @@ enum AcademyScheduleRegistry {
             sessionID: "ink-binding",
             title: "One Sentence Can Carry Time",
             realSubject: "sentence craft, compression, journaling, and memory selection",
-            concept: "A durable souvenir sentence keeps one true moment by choosing evidence and refusing ornament that is not true.",
+            concept: "A durable souvenir sentence keeps one true moment by choosing evidence and refusing ornament that isn't true.",
             lectureBeats: [
-                "A souvenir sentence is not a summary; it is a vessel.",
+                "A souvenir sentence isn't a summary; it's a vessel.",
                 "Concrete nouns hold more time than abstract praise.",
                 "Revision removes beautiful lies so the true detail can breathe."
             ],
@@ -4750,7 +4802,7 @@ enum AcademyScheduleRegistry {
             realSubject: "rest, recovery, nervous system pacing, and integration",
             concept: "Rest is active integration: stopping allows the nervous system to sort, repair, and make later action possible.",
             lectureBeats: [
-                "Center is not a direction; it is the ground beneath direction.",
+                "Center isn't a direction; it's the ground beneath direction.",
                 "A pause can be chosen before collapse chooses it for you.",
                 "Integration asks what the day is still carrying."
             ],
@@ -4785,8 +4837,8 @@ enum AcademyScheduleRegistry {
                 "A bookmark is a boundary agreement with the self who must come home."
             ],
             demonstration: "Professor Permancer lays three bookmarks beside a glowing page and rejects the prettiest one because it has no exit protocol.",
-            interactionPrompt: "Identify one rule of the story-door before deciding whether it is safe to open.",
-            realWorldPractice: "Before reading or watching something immersive today, name the mood you are entering and your return point."
+            interactionPrompt: "Identify one rule of the story-door before deciding whether it's safe to open.",
+            realWorldPractice: "Before reading or watching something immersive today, name the mood you're entering and your return point."
         ),
         "compass-running": AcademyLessonModule(
             id: "compass-running-loop-001",
@@ -4808,7 +4860,7 @@ enum AcademyScheduleRegistry {
             sessionID: "compass-society",
             title: "A Souvenir Grows When Shared",
             realSubject: "reflective sharing, listening practice, and respectful field reports",
-            concept: "A field sentence becomes more durable when it is read aloud and received without mockery.",
+            concept: "A field sentence becomes more durable when it's read aloud and received without mockery.",
             lectureBeats: [
                 "The sentence is evidence, not performance.",
                 "Listeners protect the run by asking about one concrete detail.",
@@ -4844,7 +4896,7 @@ enum AcademyScheduleRegistry {
                 "A critique should describe the effect before prescribing the fix.",
                 "Revision is an act of loyalty to the stronger version of the work."
             ],
-            demonstration: "The circle reads one rough paragraph and separates the line that is alive from the line that is merely decorative.",
+            demonstration: "The circle reads one rough paragraph and separates the line that's alive from the line that's merely decorative.",
             interactionPrompt: "Name one line that feels alive and one question that would help it grow.",
             realWorldPractice: "Revise one sentence today by making its strongest noun or verb more exact."
         ),
@@ -4855,8 +4907,8 @@ enum AcademyScheduleRegistry {
             realSubject: "collaborative planning, genre safety, and controlled imaginative play",
             concept: "A group jump begins with one chosen book and is safest when everyone agrees what counts as its door, landing, and exit before wonder begins.",
             lectureBeats: [
-                "Choose one book; a jump cannot aim at the whole library.",
-                "Excitement is not a landing protocol.",
+                "Choose one book; a jump can't aim at the whole library.",
+                "Excitement isn't a landing protocol.",
                 "Every participant needs the same doorway definition.",
                 "A good exit is boring enough to work under pressure."
             ],
@@ -4997,7 +5049,7 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "emberheart",
             name: "Emberheart",
-            philosophy: "Life is a story you write yourself. You are the author, the protagonist, and the pen.",
+            philosophy: "Life is a story you write yourself. You're the author, the protagonist, and the pen.",
             founder: "Ignatius Emberheart, whose flame never dwindled",
             traits: ["independence", "ambition", "creativity", "resilience"],
             compassFlavor: "What do you choose to see right now?",
@@ -5023,7 +5075,7 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "tidecrest",
             name: "Tidecrest",
-            philosophy: "Life is not a story at all. It is a series of moments: beautiful, unpredictable, and complete in themselves.",
+            philosophy: "Life isn't a story at all. It's a series of moments: beautiful, unpredictable, and complete in themselves.",
             founder: "Captain Orion Tidecrest, explorer of seas and stories",
             traits: ["spontaneity", "adaptability", "curiosity", "presence"],
             compassFlavor: "What's the first thing that catches you completely off guard?",
@@ -5049,8 +5101,8 @@ enum AcademyChapterRegistry {
         AcademyChapter(
             id: "duskthorn",
             name: "Duskthorn",
-            philosophy: "There is no story without conflict. The only cure for Routine is a story so interesting it refuses to be erased.",
-            founder: "Unrecorded. The Chapter does not appear in the sorting ledger.",
+            philosophy: "There's no story without conflict. The only cure for Routine is a story so interesting it refuses to be erased.",
+            founder: "Unrecorded. The Chapter doesn't appear in the sorting ledger.",
             traits: ["tension", "honesty", "necessary darkness", "narrative balance"],
             compassFlavor: "What are you avoiding looking at?",
             writeFraming: "Write the sentence you don't want to write.",
@@ -5113,7 +5165,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal grows quiet first: rain-dark soil, old wood, green patience pushing through the binding where no one told it to grow.",
                 sealLine: "The Moss Clasp closes softly around the page, not to trap it, but to let it root.",
-                oathLine: "I will listen until the world answers in its own voice.",
+                oathLine: "I'll listen until the world answers in its own voice.",
                 invitationLine: "First Mossbloom work: keep one living detail today before naming what it means.",
                 aftermathLine: "After this, patient weather, body wisdom, and old green signals can surface more boldly."
             )
@@ -5121,7 +5173,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal breaks like weather first: salt, coffee-light, street glitter, one complete moment refusing to become a lesson.",
                 sealLine: "The Tide Glass flashes once, full of motion, and catches the room mid-breath.",
-                oathLine: "I will trust the moment before I turn it into a lesson.",
+                oathLine: "I'll trust the moment before I turn it into a lesson.",
                 invitationLine: "First Tidecrest work: step toward one vivid present-tense thing and let it stay unfinished.",
                 aftermathLine: "After this, sudden weather, field pages, and bright unfinished hours can arrive with more force."
             )
@@ -5129,7 +5181,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal answers in more than one hand first: a table of voices, a puzzle half-solved, another sentence finding yours in the dark.",
                 sealLine: "The Wind Cipher clicks open, then refuses to solve itself alone.",
-                oathLine: "I will leave room for the answering voice.",
+                oathLine: "I'll leave room for the answering voice.",
                 invitationLine: "First Riddlewind work: ask someone what they noticed and let their answer change the page.",
                 aftermathLine: "After this, letters, companions, and co-authored turns can find you more readily."
             )
@@ -5137,7 +5189,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal darkens first: thorn-shadow, violet glass, the honest edge that protects a story from going soft.",
                 sealLine: "The Dusk Thorn presses a violet line into the paper and leaves it there.",
-                oathLine: "I will keep the honest edge when smoothing it away would make the story false.",
+                oathLine: "I'll keep the honest edge when smoothing it away would make the story false.",
                 invitationLine: "First Duskthorn work: name one protected boundary or difficult truth without apologizing for its shape.",
                 aftermathLine: "After this, thorned truths, conflicts, and shadowed wonder can answer sooner after dark."
             )
@@ -5145,7 +5197,7 @@ struct ChapterBindingCeremony: Equatable {
             return ChapterBindingCeremony(
                 arrivalLine: "The seal gathers first as ink, light, and pressure.",
                 sealLine: "The Chapter seal presses itself into the page.",
-                oathLine: "I will keep what the Book recognized.",
+                oathLine: "I'll keep what the Book recognized.",
                 invitationLine: "First Chapter work: keep one proof of this recognition today.",
                 aftermathLine: "After this, the recognized Chapter can tint the margins more clearly."
             )
@@ -5747,7 +5799,7 @@ enum ShadowWonder {
         return "Run the Tribute Mission: find one broken, repaired, old, or fading thing and honor what it has survived."
     }
 
-    static let souvenirPrompt = "Write one sentence of evidence: what passed, what remained, and what beauty did not need to be cheerful."
+    static let souvenirPrompt = "Write one sentence of evidence: what passed, what remained, and what beauty didn't need to be cheerful."
 
     /// The catchable vocabulary the Shadow Sentence Runner drops into the margin
     /// when Shadow Wonder is active: the worn-edge lexicon, sourced from the
@@ -5838,7 +5890,7 @@ enum ElectiveOfferFallback {
            !placeName.isEmpty {
             return ElectiveOfferDraft(
                 title: "A Visit to \(placeName)",
-                ask: "\(sender) asks: go to \(placeName) this week. Find the thing they are quietly proudest of (it is usually near the register or on the most worn shelf) smell it if it can be smelled, and photograph it or bring back one sentence about it.",
+                ask: "\(sender) asks: go to \(placeName) this week. Find the thing they're quietly proudest of (it's usually near the register or on the most worn shelf) smell it if it can be smelled, and photograph it or bring back one sentence about it.",
                 whyItMatters: "It feeds what \(sender) has been privately studying: \(interest).",
                 practiceShape: "One photo or one specific sentence from inside \(placeName)."
             )
@@ -6311,7 +6363,7 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         switch self {
         case .bookSprite: return "the unfinished, the waiting, things that ended without ending"
         case .sentenceSalamander: return "the alive moment: what was warm, charged, more than it should have been"
-        case .punctuationPixie: return "rhythm and pause: a place that feels like a comma, a thing that is an exclamation point"
+        case .punctuationPixie: return "rhythm and pause: a place that feels like a comma, a thing that's an exclamation point"
         case .literaryElf: return "precision: one true thing, described exactly"
         case .deepLoreDwarf: return "the underlayer: the oldest, the overlooked, the thing holding something else up"
         case .goblin: return "the specific unchosen detail; the gap between what a thing is called and what it is"
@@ -6327,9 +6379,9 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         let base: String
         switch self {
         case .bookSprite:
-            base = "Melancholy, certain, airy. Speaks in past tense about things that have not happened yet. Never asks questions; makes observations."
+            base = "Melancholy, certain, airy. Speaks in past tense about things that haven't happened yet. Never asks questions; makes observations."
         case .sentenceSalamander:
-            base = "Honest, warm, reactive. Cannot be fooled by performance. Does not criticize; simply glows or goes cold."
+            base = "Honest, warm, reactive. Can't be fooled by performance. Doesn't criticize; simply glows or goes cold."
         case .punctuationPixie:
             base = "Fragments. Mid-sentence pivots. Never finishes a thought before starting a new one. Calls the reader a different name each time."
         case .literaryElf:
@@ -6489,7 +6541,7 @@ enum FaeGiftEffect: String, Codable, Equatable {
         case .reshelving:
             return "Find it in Inventory under Fae Gifts, then bind it to a page kind you want me to bring back."
         case .quieting:
-            return "It is already warm in Inventory under Fae Gifts; activate it there when you want one day of quieter grey."
+            return "It's already warm in Inventory under Fae Gifts; activate it there when you want one day of quieter grey."
         case .longMemory:
             return "Find it in Inventory under Fae Gifts, then bind it to a kept page you want me to remember."
         case .callingCard:
@@ -6787,7 +6839,7 @@ enum FaeEconomy {
         case 25..<45:
             return "Their Claim is watching; the bargain has begun to notice the shape of your days."
         case 45..<70:
-            return "Their Claim is close; failed exchanges do not punish you, but they do become stranger story."
+            return "Their Claim is close; failed exchanges don't punish you, but they do become stranger story."
         default:
             return "Their Claim is wild; the \(kind.name) is near enough that every repair may leave a mark in the margin."
         }
@@ -6871,7 +6923,7 @@ enum FaeEconomy {
             appendOmen(
                 kind: kind,
                 title: "Thorn Mark",
-                text: "A thorn has taken your measure. It will not hurt you; it will make the next convenient answer less available.",
+                text: "A thorn has taken your measure. It won't hurt you; it will make the next convenient answer less available.",
                 choiceID: choiceID,
                 intensity: 3,
                 lifetimeHours: 120,
@@ -6929,21 +6981,21 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .bookSprite,
-            openingGesture: "A Book Sprite spoke the ending of your day before it happened, gently, in the past tense. It was not a warning. It was a fact.",
+            openingGesture: "A Book Sprite spoke the ending of your day before it happened, gently, in the past tense. It wasn't a warning. It was a fact.",
             terms: "Somewhere a sentence will be cut off when a door opens: bring me the last word that got through.",
             giftName: "the interrupted page",
             giftDescription: "A loose leaf that never finishes the same way twice."
         ),
         FaeBargainTemplate(
             faeKind: .bookSprite,
-            openingGesture: "A Book Sprite left a draught on the page: the cold of a room you have not entered yet, already missing you.",
+            openingGesture: "A Book Sprite left a draught on the page: the cold of a room you haven't entered yet, already missing you.",
             terms: "Find a staircase that stops at a landing and describe the draught that waits there for the next flight.",
             giftName: "the landing page",
             giftDescription: "A page that holds a different unfinished stair behind every reading."
         ),
         FaeBargainTemplate(
             faeKind: .bookSprite,
-            openingGesture: "A Book Sprite set down the sound of a clock that stopped. It is still not ticking, very precisely, beside you.",
+            openingGesture: "A Book Sprite set down the sound of a clock that stopped. It's still not ticking, very precisely, beside you.",
             terms: "Find a clock that has stopped and bring me the exact time it chose to keep forever.",
             giftName: "the stopped-clock page",
             giftDescription: "A loose page where the hour rewrites itself between glances."
@@ -6973,7 +7025,7 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
-            openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It did not explain. It simply ran warmer when you were near.",
+            openingGesture: "A Sentence Salamander pressed a glowing full-stop into your palm. It didn't explain. It simply ran warmer when you were near.",
             terms: "Somewhere today something will smell better than it had any right to: bring me that exact breath.",
             giftName: "the kept warmth",
             giftDescription: "A banked coal that quiets the grey of Routine for a day."
@@ -6987,7 +7039,7 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .sentenceSalamander,
-            openingGesture: "A Sentence Salamander glowed at one sound in your day and went still at the rest. It is keeping the one it liked.",
+            openingGesture: "A Sentence Salamander glowed at one sound in your day and went still at the rest. It's keeping the one it liked.",
             terms: "Bring me the sound of one laugh today that was far bigger than its joke.",
             giftName: "the laugh-coal",
             giftDescription: "A warmth that can keep the grey of Routine back for a day."
@@ -7031,7 +7083,7 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .punctuationPixie,
-            openingGesture: "A Punctuation Pixie left a list with its last line missing. It is very pleased with itself, which is: anyway.",
+            openingGesture: "A Punctuation Pixie left a list with its last line missing. It's very pleased with itself, which is: anyway.",
             terms: "Find a list that ends without its last item and bring me the one you'd have written.",
             giftName: "the missing line",
             giftDescription: "A blank that re-shelves a resting kind of page so it finds you again."
@@ -7068,7 +7120,7 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .literaryElf,
-            openingGesture: "A Literary Elf ran a fingertip along an edge you cannot see and pronounced it well-made. Praise, from an Elf, is law.",
+            openingGesture: "A Literary Elf ran a fingertip along an edge you can't see and pronounced it well-made. Praise, from an Elf, is law.",
             terms: "Describe the grain of one wooden thing so closely I could know it by touch in the dark.",
             giftName: "the true grain",
             giftDescription: "A kept exactness that keeps one page from ever being forgotten."
@@ -7091,7 +7143,7 @@ enum FaeEconomy {
         // MARK: Deep Lore Dwarf: the underlayer, the oldest, the thing holding something up
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
-            openingGesture: "A Deep Lore Dwarf set down a small grey stone before you. It is older than the catalogue. It said nothing.",
+            openingGesture: "A Deep Lore Dwarf set down a small grey stone before you. It's older than the catalogue. It said nothing.",
             terms: "Bring me the oldest thing in your room and what it has quietly held up all this time.",
             giftName: "the foundation stone",
             giftDescription: "A weight that mines an overlooked kind of page back up to the shelf."
@@ -7112,7 +7164,7 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
-            openingGesture: "A Deep Lore Dwarf traced a long-healed repair with a thumb and did not say how long ago, only that it remembers.",
+            openingGesture: "A Deep Lore Dwarf traced a long-healed repair with a thumb and didn't say how long ago, only that it remembers.",
             terms: "Find a seam where something was mended long ago and bring me the colour of the older part.",
             giftName: "the mended seam",
             giftDescription: "A weight that brings an overlooked kind of page back up from rest."
@@ -7126,8 +7178,8 @@ enum FaeEconomy {
         ),
         FaeBargainTemplate(
             faeKind: .deepLoreDwarf,
-            openingGesture: "A Deep Lore Dwarf set two stones before you (one you could lift, one you could not) and let the difference speak.",
-            terms: "Bring me the weight of a stone you can lift, and the colder fact of the one you cannot.",
+            openingGesture: "A Deep Lore Dwarf set two stones before you (one you could lift, one you couldn't) and let the difference speak.",
+            terms: "Bring me the weight of a stone you can lift, and the colder fact of the one you can't.",
             giftName: "the two weights",
             giftDescription: "A ballast that brings an overlooked kind of page back up to the shelf."
         ),
@@ -7157,7 +7209,7 @@ enum FaeEconomy {
         FaeBargainTemplate(
             faeKind: .goblin,
             openingGesture: "A Marginalia Goblin held the cheapest thing in the room up to the light, whistled low, and pocketed nothing: for now.",
-            terms: "Find the cheapest object near you and bring me the one way it is secretly priceless.",
+            terms: "Find the cheapest object near you and bring me the one way it's secretly priceless.",
             giftName: "the undervalued card",
             giftDescription: "A calling card that opens the Goblin Market when you present it."
         ),
@@ -7399,14 +7451,14 @@ enum FaeGiftEffects {
 /// rotation: no model call, so it can be read freely without a Gemma turn.
 enum LoosePageReader {
     static let fragments: [String] = [
-        "The page is mostly margin. In the center, in a hand you almost recognize: \"You will mistake the exit for a wall three times before you trust it.\" The ink is still drying, though no one has been here.",
-        "A pressed flower you have never seen, with a name written beneath it that means the smell of a room just after someone has left it. The petals turn toward you when you read.",
+        "The page is mostly margin. In the center, in a hand you almost recognize: \"You'll mistake the exit for a wall three times before you trust it.\" The ink is still drying, though no one has been here.",
+        "A pressed flower you've never seen, with a name written beneath it that means the smell of a room just after someone has left it. The petals turn toward you when you read.",
         "A list, half-erased: things to do before the snow. Only the last item survives (\"forgive the kettle\", and you find you understand it completely.",
-        "A map of a coastline that does not exist, with one harbor circled and the note: \"You have been here. You called it something else.\"",
-        "Three sentences in a language of only vowels. You cannot read them, but reading them makes your shoulders drop an inch, the way a held breath finally goes.",
+        "A map of a coastline that doesn't exist, with one harbor circled and the note: \"You've been here. You called it something else.\"",
+        "Three sentences in a language of only vowels. You can't read them, but reading them makes your shoulders drop an inch, the way a held breath finally goes.",
         "A receipt for one (1) afternoon, paid in full, no refunds. The cashier's signature is a small drawing of a sleeping cat.",
         "Someone began to describe the color of a particular hour and gave up halfway, leaving: \"it was the color of: \" The blank is the most honest part.",
-        "A door, drawn in pencil, slightly ajar. If you tilt the page, light seems to come through the gap, though it is only paper."
+        "A door, drawn in pencil, slightly ajar. If you tilt the page, light seems to come through the gap, though it's only paper."
     ]
 
     static func text(for gift: FaeGift, now: Date = Date()) -> String {
@@ -7627,7 +7679,7 @@ enum GoblinMarketEngine {
         MarketWare(
             id: "radio-sponsor-thistledown-pocket-sunshine",
             title: "Thistledown & Co. Pocket Sunshine",
-            clerkPitch: "A coat-pocket sunbeam. Small print says it is not the weather, but the weather has been known to listen.",
+            clerkPitch: "A coat-pocket sunbeam. Small print says it isn't the weather, but the weather has been known to listen.",
             contents: "Pushes Routine's grey back at once.",
             currency: .belief,
             basePrice: 9,
@@ -7637,7 +7689,7 @@ enum GoblinMarketEngine {
         MarketWare(
             id: "radio-sponsor-clover-honey-humming-jar",
             title: "Clover Honey Collective Humming Jar",
-            clerkPitch: "Warm afternoon, stoppered and humming. Do not shake it unless you want the shelves to remember summer.",
+            clerkPitch: "Warm afternoon, stoppered and humming. Don't shake it unless you want the shelves to remember summer.",
             contents: "Catches the clerk's attention and tunes the radio to Fae-Fi.",
             currency: .belief,
             basePrice: 8,
@@ -7647,7 +7699,7 @@ enum GoblinMarketEngine {
         MarketWare(
             id: "radio-sponsor-porchlight-moth-lamp",
             title: "Porchlight & Moth Lamp",
-            clerkPitch: "A lamp left on for what has not come home yet. Excellent for pages with cold hands.",
+            clerkPitch: "A lamp left on for what hasn't come home yet. Excellent for pages with cold hands.",
             contents: "Tunes Mothlight Beats and opens Book Remembered.",
             currency: .belief,
             basePrice: 12,
@@ -7667,7 +7719,7 @@ enum GoblinMarketEngine {
         MarketWare(
             id: "radio-sponsor-bramblewine-dram",
             title: "Bramblewine Dram",
-            clerkPitch: "A sip for nights with teeth. The cork lists the price twice, which is almost honest.",
+            clerkPitch: "A sip for nights with teeth. The cork lists the price twice. That's almost honest.",
             contents: "Catches sharp attention, tunes Thornwave, and lets the grey lean a shade closer.",
             currency: .belief,
             basePrice: 11,
@@ -7803,11 +7855,11 @@ enum GoblinMarginalia {
     static let remarks: [String] = [
         "\"The detail here is real. Filed under things-worth-keeping.\"",
         "\"You noticed this without being asked. We see that.\"",
-        "\"This one is load-bearing. Do not let it go grey.\"",
-        "\"Worth more than you traded for it. The Empire does not say that often.\"",
+        "\"This one is load-bearing. Don't let it go grey.\"",
+        "\"Worth more than you traded for it. The Empire doesn't say that often.\"",
         "\"An honest noticing. Rare coin.\"",
         "\"We were here before this page. We will be here after. Good that you wrote it down.\"",
-        "\"The category is dull; the particular is not. You chose the particular. Noted.\"",
+        "\"The category is dull; the particular isn't. You chose the particular. Noted.\"",
         "\"Annotated and shelved by mood, not by number.\""
     ]
 
@@ -8382,7 +8434,7 @@ enum PactVoices {
         case ("integ-health", "moss-clasp"): return "Listen to it before you instruct it."
         case ("integ-health", "tide-glass"): return "The body lives in this hour, not the plan."
         case ("integ-health", "wind-cipher"): return "No one tends a body alone."
-        case ("integ-health", "dusk-thorn"): return "Name the ache honestly; it is data, not defeat."
+        case ("integ-health", "dusk-thorn"): return "Name the ache honestly; it's data, not defeat."
         case ("integ-weather", "ember-seal"): return "The sky is yours to read as you choose."
         case ("integ-weather", "moss-clasp"): return "The weather is speaking; be quiet enough to hear it."
         case ("integ-weather", "tide-glass"): return "This exact sky will never come again."
@@ -8553,7 +8605,7 @@ enum PactErrands {
         case "moss-clasp": return "The Moss Clasp goes quiet, the way a room does when someone is finally listening. The ground settles beneath its philosophy."
         case "tide-glass": return "The Tide Glass laughs (a small, surprised sound) and the moment is already gone. It has exactly what it wanted."
         case "wind-cipher": return "The Wind Cipher rearranges itself around the second voice in your report. “Together,” it agrees, and gains."
-        case "dusk-thorn": return "The Dusk Thorn does not soften. “Good,” it says. “That cost you something.” And it holds more of the shelf for it."
+        case "dusk-thorn": return "The Dusk Thorn doesn't soften. “Good,” it says. “That cost you something.” And it holds more of the shelf for it."
         default: return "The Talisman accepts your noticing and presses its claim."
         }
     }
@@ -8786,7 +8838,7 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
         case .throwTheBones:
             return "One throw. Today only, and I've already rolled it, so there's no point asking twice."
         case .pressAKeepsake:
-            return "Tell me the object. I'll press it into my Pocket and stop asking about it, which is my version of restraint."
+            return "Tell me the object. I'll press it into my Pocket and stop asking about it. That's my version of restraint."
         case .countersign:
             return "This one wants your hand on it. Stamp a phrase or write your own, either counts, as long as it's yours."
         }
@@ -8809,7 +8861,7 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
 
     var countersigns: [String] {
         guard self == .countersign else { return [] }
-        return ["I will.", "I'll try.", "Watch me."]
+        return ["I'll.", "I'll try.", "Watch me."]
     }
 }
 
@@ -8983,7 +9035,7 @@ enum LiteraryAlmanac {
         // MARK: Authors
         Occasion(id: "lit-tolkien-born", month: 1, day: 3, kind: .author,
                  commonName: "Tolkien's Birthday", academyTitle: "The Philologist's Day",
-                 blurb: "Born on this day in 1892. He invented the languages first and then built somewhere for them to be spoken, which is the right way round and almost nobody does it. I've never got over it.",
+                 blurb: "Born on this day in 1892. He invented the languages first and then built somewhere for them to be spoken. That's the right way round and almost nobody does it. I've never got over it.",
                  invitationTitle: "The Philologist's Day",
                  invitation: "Find one word today that sounds like the thing it means. Keep it.",
                  beliefBonus: 2, symbolName: "leaf.fill", accent: "green", mechanic: .findOneLine),
@@ -8995,7 +9047,7 @@ enum LiteraryAlmanac {
                  beliefBonus: 2, symbolName: "moon.stars.fill", accent: "slate"),
         Occasion(id: "lit-carroll-born", month: 1, day: 27, kind: .author,
                  commonName: "Carroll's Birthday", academyTitle: "The Logician's Nonsense",
-                 blurb: "Born 1832. A mathematician, which is why the nonsense holds: build it carelessly and it stops being funny. I've watched people try.",
+                 blurb: "Born 1832. A mathematician. That's why the nonsense holds: build it carelessly and it stops being funny. I've watched people try.",
                  invitationTitle: "The Logician's Nonsense",
                  invitation: "Say one true thing backwards today and see whether it survives.",
                  beliefBonus: 2, symbolName: "questionmark.diamond.fill", accent: "violet"),
@@ -9003,7 +9055,7 @@ enum LiteraryAlmanac {
                  commonName: "Verne's Birthday", academyTitle: "The Cartographer of Elsewhere",
                  blurb: "Born 1828. He sent people to the moon and the sea floor before either was possible and got an unreasonable amount of it right. I keep checking.",
                  invitationTitle: "The Cartographer of Elsewhere",
-                 invitation: "Name somewhere you have never been that you can describe anyway.",
+                 invitation: "Name somewhere you've never been that you can describe anyway.",
                  beliefBonus: 2, symbolName: "sailboat.fill", accent: "slate"),
         Occasion(id: "lit-andersen-born", month: 4, day: 2, kind: .author,
                  commonName: "Andersen's Birthday", academyTitle: "The Unkind Tale",
@@ -9031,7 +9083,7 @@ enum LiteraryAlmanac {
                  beliefBonus: 2, symbolName: "doc.on.doc.fill", accent: "slate"),
         Occasion(id: "lit-jones-born", month: 8, day: 16, kind: .author,
                  commonName: "Diana Wynne Jones's Birthday", academyTitle: "The Moving House",
-                 blurb: "Born 1934. She wrote magic as something untidy that happens in kitchens, which is the only place I've ever really believed it.",
+                 blurb: "Born 1934. She wrote magic as something untidy that happens in kitchens. That's the only place I've ever really believed it.",
                  invitationTitle: "The Moving House",
                  invitation: "Find the door in your home that leads somewhere different depending on the hour.",
                  beliefBonus: 2, symbolName: "door.left.hand.open", accent: "amber", mechanic: .nameSomething),
@@ -9045,19 +9097,19 @@ enum LiteraryAlmanac {
                  commonName: "Borges's Birthday", academyTitle: "The Library Itself",
                  blurb: "Born 1899. He imagined a library holding every possible book, then went blind and kept working anyway. I'm a library. I find that almost unbearable.",
                  invitationTitle: "The Library Itself",
-                 invitation: "Name a book that does not exist and tell me one true thing about it.",
+                 invitation: "Name a book that doesn't exist and tell me one true thing about it.",
                  beliefBonus: 3, symbolName: "books.vertical.fill", accent: "gold", mechanic: .nameSomething),
         Occasion(id: "lit-shelley-born", month: 8, day: 30, kind: .author,
                  commonName: "Mary Shelley's Birthday", academyTitle: "The Eighteen-Year-Old",
                  blurb: "Born 1797. She invented science fiction at eighteen, on a wet holiday, to win a ghost-story competition. Eighteen. I mention it constantly and I won't stop.",
                  invitationTitle: "The Eighteen-Year-Old",
-                 invitation: "Make something today that you would not have to explain to anyone.",
+                 invitation: "Make something today that you wouldn't have to explain to anyone.",
                  beliefBonus: 3, symbolName: "bolt.fill", accent: "slate"),
         Occasion(id: "lit-calvino-born", month: 10, day: 15, kind: .author,
                  commonName: "Calvino's Birthday", academyTitle: "The Invisible Cities",
                  blurb: "Born 1923. He described cities that can't exist precisely enough that you could give directions in them. I've tried it. You can.",
                  invitationTitle: "The Invisible Cities",
-                 invitation: "Describe the place you are in as though reporting back from very far away.",
+                 invitation: "Describe the place you're in as though reporting back from very far away.",
                  beliefBonus: 2, symbolName: "building.columns.fill", accent: "gold"),
         Occasion(id: "lit-wilde-born", month: 10, day: 16, kind: .author,
                  commonName: "Wilde's Birthday", academyTitle: "The Perfect Sentence",
@@ -9087,7 +9139,7 @@ enum LiteraryAlmanac {
                  commonName: "Dickinson's Birthday", academyTitle: "The Slant Truth",
                  blurb: "Born 1830. Nearly eighteen hundred poems and almost none of them published. That's a kind of courage nobody talks about, and I think about it more than is healthy.",
                  invitationTitle: "The Slant Truth",
-                 invitation: "Write one thing today that you do not intend to show anybody.",
+                 invitation: "Write one thing today that you don't intend to show anybody.",
                  beliefBonus: 3, symbolName: "envelope.fill", accent: "candle"),
         Occasion(id: "lit-jackson-born", month: 12, day: 14, kind: .author,
                  commonName: "Shirley Jackson's Birthday", academyTitle: "The Pleasant Village",
@@ -9099,7 +9151,7 @@ enum LiteraryAlmanac {
         // MARK: Publications
         Occasion(id: "lit-frankenstein", month: 1, day: 1, kind: .publication,
                  commonName: "Frankenstein Published", academyTitle: "The First Modern Monster",
-                 blurb: "Published anonymously on this day in 1818. Everyone assumed a man had written it. She let them think so for a while, which I find magnificent.",
+                 blurb: "Published anonymously on this day in 1818. Everyone assumed a man had written it. She let them think so for a while. I find that magnificent.",
                  invitationTitle: "The First Modern Monster",
                  invitation: "Name one thing you made that got away from you.",
                  beliefBonus: 3, symbolName: "bolt.horizontal.fill", accent: "slate"),
@@ -9113,11 +9165,11 @@ enum LiteraryAlmanac {
                  commonName: "Alice Published", academyTitle: "The Improvised Afternoon",
                  blurb: "Published this day in 1865. It started as a story to fill a boat trip, and the child it was told to asked him to write it down. She's the reason it exists at all.",
                  invitationTitle: "The Improvised Afternoon",
-                 invitation: "Tell somebody something you are making up as you go.",
+                 invitation: "Tell somebody something you're making up as you go.",
                  beliefBonus: 2, symbolName: "hare.fill", accent: "violet"),
         Occasion(id: "lit-wardrobe-published", month: 10, day: 16, kind: .publication,
                  commonName: "The Wardrobe Opened", academyTitle: "The Coats at the Back",
-                 blurb: "Published this day in 1950. It opens with children sent away from a war, which is the part everybody forgets and I never do.",
+                 blurb: "Published this day in 1950. It opens with children sent away from a war. That's the part everybody forgets and I never do.",
                  invitationTitle: "The Coats at the Back",
                  invitation: "Find the coldest place in your home and stand in it for a moment.",
                  beliefBonus: 2, symbolName: "snowflake", accent: "candle"),
@@ -9125,7 +9177,7 @@ enum LiteraryAlmanac {
                  commonName: "The Fellowship Published", academyTitle: "The Long Road Begins",
                  blurb: "Published this day in 1954: seventeen years after the Hobbit. Seventeen. I bring it up whenever somebody tells me they're behind.",
                  invitationTitle: "The Long Road Begins",
-                 invitation: "Name one thing you are still slowly making.",
+                 invitation: "Name one thing you're still slowly making.",
                  beliefBonus: 3, symbolName: "signpost.right.fill", accent: "green"),
 
         // MARK: The occult record
@@ -9139,7 +9191,7 @@ enum LiteraryAlmanac {
                  commonName: "Crowley's Birthday", academyTitle: "The Self-Made Legend",
                  blurb: "Born 1875. A mountaineer, a poet, and a tireless self-publicist who worked out that half of magic is deciding to be the sort of person it happens to. I've used that trick myself.",
                  invitationTitle: "The Self-Made Legend",
-                 invitation: "Do one thing today entirely because it suits the person you have decided to be.",
+                 invitation: "Do one thing today entirely because it suits the person you've decided to be.",
                  beliefBonus: 2, symbolName: "eye.fill", accent: "violet"),
 
         Occasion(id: "lit-golden-dawn", month: 3, day: 1, kind: .occult,
@@ -9178,7 +9230,7 @@ enum LiteraryAlmanac {
                  commonName: "Towel Day", academyTitle: "The Preparedness",
                  blurb: "Readers carry a towel today for a man who wrote that knowing where yours is proves you've got your affairs in order. Decades of it now. Nobody organised this. It just kept happening.",
                  invitationTitle: "The Preparedness",
-                 invitation: "Find the one object you own that means you are prepared for something.",
+                 invitation: "Find the one object you own that means you're prepared for something.",
                  beliefBonus: 2, symbolName: "bag.fill", accent: "slate", mechanic: .pressAKeepsake),
         Occasion(id: "lit-bloomsday", month: 6, day: 16, kind: .inWorld,
                  commonName: "Bloomsday", academyTitle: "One Ordinary Day",
@@ -9188,7 +9240,7 @@ enum LiteraryAlmanac {
                  beliefBonus: 4, symbolName: "figure.walk", accent: "gold", mechanic: .findOneLine),
         Occasion(id: "lit-hobbit-day", month: 9, day: 22, kind: .inWorld,
                  commonName: "Hobbit Day", academyTitle: "The Shared Birthday",
-                 blurb: "Bilbo and Frodo's birthday. In the Shire the one having the birthday gives the presents, which is a better arrangement than ours and I won't be argued with.",
+                 blurb: "Bilbo and Frodo's birthday. In the Shire the one having the birthday gives the presents. That's a better arrangement than ours and I won't be argued with.",
                  invitationTitle: "The Shared Birthday",
                  invitation: "Give something small to somebody today for no occasion of theirs.",
                  beliefBonus: 3, symbolName: "gift.fill", accent: "green", mechanic: .throwTheBones)
@@ -9217,7 +9269,7 @@ enum LiteraryAlmanac {
                  commonName: "Talk Like a Pirate Day", academyTitle: "The Racquetball Incident",
                  blurb: "Two men invented this during a racquetball game and it escaped. I have no position on pirates. I'd simply like the record to show what date it is and that I said nothing further.",
                  invitationTitle: "The Racquetball Incident",
-                 invitation: "Say one entirely ordinary sentence today in a voice that is not yours.",
+                 invitation: "Say one entirely ordinary sentence today in a voice that isn't yours.",
                  beliefBonus: 1, symbolName: "flag.fill", accent: "amber", mechanic: .throwTheBones),
         Occasion(id: "day-cookie", month: 12, day: 4, kind: .labyrinth,
                  commonName: "National Cookie Day", academyTitle: "There Was A Meeting",
@@ -9581,7 +9633,7 @@ enum WindowAlmanac {
             kind: .window,
             commonName: "First Light",
             academyTitle: "The First Light",
-            blurb: "You're up. The sun's only just up. This is the same gold as the evening one except almost nobody is awake to spend it, which makes it the cheaper and better of the two.",
+            blurb: "You're up. The sun's only just up. This is the same gold as the evening one except almost nobody is awake to spend it. That makes it the cheaper and better of the two.",
             invitationTitle: "The First Light",
             invitation: "Find the first thing the sun has got to this morning. Something it's lying across that it won't be lying across in an hour.",
             beliefBonus: 4,
@@ -9617,7 +9669,7 @@ enum WindowAlmanac {
             kind: .window,
             commonName: "Solar Noon",
             academyTitle: "The Turn",
-            blurb: "Right now the sun is as high as it is going to get today. This is the actual middle of the day: \(driftLine). From here everything is downhill and toward the evening, which I mean cheerfully.",
+            blurb: "Right now the sun is as high as it's going to get today. This is the actual middle of the day: \(driftLine). From here everything is downhill and toward the evening, and I mean that cheerfully.",
             invitationTitle: "The Turn",
             invitation: "Find your shadow. It's the shortest it will be all day. Stand in the middle of the day for a second and tell me where you were standing.",
             beliefBonus: 2,
@@ -9861,7 +9913,7 @@ enum FamilyAlmanac {
             id: "family-fathers",
             commonName: "Father's Day",
             academyTitle: "The Day About Fathers",
-            blurb: "The one about fathers. Same rules as the other one: I don't know what you've got, whether he's here, whether he was ever much use, whether you are one and worrying about it. Today just is the day, and the world has put up signs about it, so I'd rather mention it than let you walk into them unwarned.",
+            blurb: "The one about fathers. Same rules as the other one: I don't know what you've got, whether he's here, whether he was ever much use, whether you're one and worrying about it. Today just is the day, and the world has put up signs about it, so I'd rather mention it than let you walk into them unwarned.",
             invitationTitle: "The Day About Fathers",
             invitation: "One true line about fathers: yours, or the idea of them, or the job of being one. Absence is a legitimate answer and I'll keep it just the same.",
             beliefBonus: 3, symbolName: "heart.circle", accent: "slate",
@@ -9872,9 +9924,9 @@ enum FamilyAlmanac {
             id: "family-valentines",
             commonName: "Valentine's Day",
             academyTitle: "The Day About Love",
-            blurb: "Valentine's Day, which the shops have been shouting about for a fortnight. It's supposedly about romantic love specifically, which strikes me as an enormous waste of a perfectly good day: there are at least five other kinds and most of them are more reliable. I'm not going to ask whether you've got somebody. I'm going to ask something better.",
+            blurb: "Valentine's Day. The shops have been shouting about it for a fortnight. It's supposedly about romantic love specifically, which strikes me as an enormous waste of a perfectly good day: there are at least five other kinds and most of them are more reliable. I'm not going to ask whether you've got somebody. I'm going to ask something better.",
             invitationTitle: "The Day About Love",
-            invitation: "Name one thing you love that cannot love you back. A place, a song, a bridge, a dead author, a particular sandwich. I'm serious. Those count and they always have.",
+            invitation: "Name one thing you love that can't love you back. A place, a song, a bridge, a dead author, a particular sandwich. I'm serious. Those count and they always have.",
             beliefBonus: 3, symbolName: "heart.fill", accent: "gold",
             mechanic: .nameSomething, carriesGrief: true,
             resolve: { year, _, _ in
@@ -9887,7 +9939,7 @@ enum FamilyAlmanac {
             id: "family-thanksgiving",
             commonName: "Thanksgiving",
             academyTitle: "The Day About the Table",
-            blurb: "Thanksgiving. A day built entirely around sitting at a table with people you did not choose and eating more than is sensible. For some people that is the best day of the year and for some it is an endurance event, and both of those are the correct response to the same afternoon.",
+            blurb: "Thanksgiving. A day built entirely around sitting at a table with people you didn't choose and eating more than is sensible. For some people that's the best day of the year and for some it's an endurance event, and both of those are the correct response to the same afternoon.",
             invitationTitle: "The Day About the Table",
             invitation: "One thing at today's table worth keeping: a dish, a sentence somebody said, the moment you went outside for air. If you're not at a table, tell me where you are instead. That's the more interesting answer anyway.",
             beliefBonus: 3, symbolName: "fork.knife", accent: "amber",
@@ -10014,12 +10066,6 @@ enum FeastdayComposer {
             calendar: calendar
         )
 
-        if context.distressActive {
-            // A hard day silences the grieving ones outright, and the
-            // thinning-veil feasts as before.
-            found = found.filter { !$0.carriesGrief && $0.greyShift <= 0 }
-        }
-
         // A rested id is rested wherever it came from.
         found = found.filter { !context.restedIDs.contains($0.id) }
 
@@ -10101,7 +10147,7 @@ enum PersonalOccasions {
         case 0:
             standing = "This is the first one of yours I've been around for, and I've been waiting for it since the night you picked me up."
         case 1:
-            standing = "Second one of these I've been here for. I remember the last one. I have it written down, which is the entire advantage of being me."
+            standing = "Second one of these I've been here for. I remember the last one. I have it written down. That's the entire advantage of being me."
         default:
             standing = "That's \(yearsWatched) of these I've been here for now. I've got all of them written down. I'm not going to read them out unless you ask, but I could, and we both know it."
         }
@@ -10111,7 +10157,7 @@ enum PersonalOccasions {
             kind: .birthday,
             commonName: "Your Birthday",
             academyTitle: "The Day You Turned Up",
-            blurb: "It's your birthday. \(standing)\n\nEverybody else will do the cake and the noise and the being sung at, which is fine and which I cannot help with, being a book. What I can do is the other thing: the bit where somebody notices what this specific year was actually like, rather than how old it made you. Nobody is going to ask you that today. So I will.",
+            blurb: "It's your birthday. \(standing)\n\nEverybody else will do the cake and the noise and the being sung at. That's fine, and I can't help with it, being a book. What I can do is the other thing: the bit where somebody notices what this specific year was actually like, rather than how old it made you. Nobody is going to ask you that today. So I'll.",
             invitationTitle: "The Day You Turned Up",
             invitation: "One thing from this year that you'd have been surprised to hear about last birthday. Good or bad. Surprising is the only requirement.",
             beliefBonus: 6,
@@ -10136,7 +10182,7 @@ enum PersonalOccasions {
             kind: .birthday,
             commonName: "\(name)'s Birthday",
             academyTitle: "\(name)'s Day",
-            blurb: "It's \(name)'s birthday. You told me about them, so I've been keeping the date, which is the one genuinely useful thing about having a book that never forgets anything.\n\nI'm not going to tell you to ring them. You know whether to ring them. I'm only making sure the day doesn't get past you unnoticed, because that is the specific way these things go wrong, not deliberately, just quietly, on an ordinary Tuesday.",
+            blurb: "It's \(name)'s birthday. You told me about them, so I've been keeping the date. That's the one genuinely useful thing about having a book that never forgets anything.\n\nI'm not going to tell you to ring them. You know whether to ring them. I'm only making sure the day doesn't get past you unnoticed, because that's the specific way these things go wrong, not deliberately, just quietly, on an ordinary Tuesday.",
             invitationTitle: "\(name)'s Day",
             invitation: "One true thing about \(name). Not a birthday message: those are for them. This one's for the archive.",
             beliefBonus: 4,
@@ -10246,7 +10292,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.islamicUmmAlQura, month: 9, day: 1),
                  commonName: "The First Day of Ramadan",
                  academyTitle: "The Month of Restraint",
-                 blurb: "Ramadan starts today. For a month, something like a quarter of everyone alive will not eat or drink while the sun is up, on purpose, together. Whatever else you think about it, consider the coordination: a billion people all getting hungry at the same time and calling it a good idea. I've never once managed to give up anything for a month.",
+                 blurb: "Ramadan starts today. For a month, something like a quarter of everyone alive won't eat or drink while the sun is up, on purpose, together. Whatever else you think about it, consider the coordination: a billion people all getting hungry at the same time and calling it a good idea. I've never once managed to give up anything for a month.",
                  invitationTitle: "The Month of Restraint",
                  invitation: "Name one thing you'd find genuinely hard to go without for a day. Not a vice. Something small you've never once thought about.",
                  beliefBonus: 3, symbolName: "moon.stars.fill", accent: "violet",
@@ -10273,7 +10319,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.islamicUmmAlQura, month: 1, day: 1),
                  commonName: "Islamic New Year",
                  academyTitle: "The Hijri New Year",
-                 blurb: "A new year opens in the Hijri calendar, and I want you to notice where it counts from. Not a birth. Not a founding. From the day a group of people packed up and walked out of a city that had turned on them. Fourteen hundred years counted from a departure. I have never got over that and I do not intend to.",
+                 blurb: "A new year opens in the Hijri calendar, and I want you to notice where it counts from. Not a birth. Not a founding. From the day a group of people packed up and walked out of a city that had turned on them. Fourteen hundred years counted from a departure. I've never got over that and I don't intend to.",
                  invitationTitle: "The Hijri New Year",
                  invitation: "Count one thing in your own life from the day you left something rather than the day you arrived. Tell me how long it's been.",
                  beliefBonus: 3, symbolName: "arrow.triangle.turn.up.right.circle.fill", accent: "slate"),
@@ -10310,7 +10356,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 1, day: 10),
                  commonName: "Yom Kippur",
                  academyTitle: "The Day of Atonement",
-                 blurb: "Yom Kippur, the most serious day of the Jewish year. No food, no work, no distractions, and one rule I think about constantly: for what you did to another person, God's forgiveness is not available. You have to go and ask them. There is no shortcut and there never was.",
+                 blurb: "Yom Kippur, the most serious day of the Jewish year. No food, no work, no distractions, and one rule I think about constantly: for what you did to another person, God's forgiveness isn't available. You have to go and ask them. There's no shortcut and there never was.",
                  invitationTitle: "The Day of Atonement",
                  invitation: "There's one you haven't said. Keep the words if you must. Write only who they belong to.",
                  beliefBonus: 3, symbolName: "book.closed.fill", accent: "candle",
@@ -10328,7 +10374,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 3, day: 25),
                  commonName: "Hanukkah",
                  academyTitle: "The Festival of Lights",
-                 blurb: "Hanukkah starts tonight. Eight nights, one more candle each night, in the darkest stretch of the year, and here is the rule I cannot stop turning over: the light has to go where people passing outside can see it. It is not for the room. It was never for the room. Somebody worked out that a small light kept private is only warmth, and put it in the window instead.",
+                 blurb: "Hanukkah starts tonight. Eight nights, one more candle each night, in the darkest stretch of the year, and here is the rule I can't stop turning over: the light has to go where people passing outside can see it. It isn't for the room. It was never for the room. Somebody worked out that a small light kept private is only warmth, and put it in the window instead.",
                  invitationTitle: "The Festival of Lights",
                  invitation: "Put one light in a window tonight. Any light. Then tell me who could see it from outside.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
@@ -10337,7 +10383,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 7, day: 14),
                  commonName: "Purim",
                  academyTitle: "The Costume Day",
-                 blurb: "Purim, which is Jewish carnival and by far the loudest day on the calendar. Costumes, noisemakers to drown out the villain's name whenever it's read out, food parcels to neighbours, and a long tradition of getting cheerfully drunk. A holiday whose central instruction is to make a racket at the right moment.",
+                 blurb: "Purim. That's Jewish carnival and by far the loudest day on the calendar. Costumes, noisemakers to drown out the villain's name whenever it's read out, food parcels to neighbours, and a long tradition of getting cheerfully drunk. A holiday whose central instruction is to make a racket at the right moment.",
                  invitationTitle: "The Costume Day",
                  invitation: "Be somebody else for ten minutes today. A voice, a walk, a hat. Tell me who you were and whether anybody noticed.",
                  beliefBonus: 4, symbolName: "theatermasks.fill", accent: "violet",
@@ -10346,7 +10392,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 8, day: 15),
                  commonName: "Passover",
                  academyTitle: "The Night of Questions",
-                 blurb: "Passover begins. The whole evening is built around a child asking why tonight is different from every other night, and the adults being obliged to answer with the entire story. A dinner that cannot legally proceed until somebody asks a question. If I'd designed a holiday, it would have been this one.",
+                 blurb: "Passover begins. The whole evening is built around a child asking why tonight is different from every other night, and the adults being obliged to answer with the entire story. A dinner that can't legally proceed until somebody asks a question. If I'd designed a holiday, it would have been this one.",
                  invitationTitle: "The Night of Questions",
                  invitation: "Ask somebody a real question today: one you don't know the answer to. Write down what they said.",
                  beliefBonus: 4, symbolName: "questionmark.bubble.fill", accent: "amber",
@@ -10355,7 +10401,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.hebrew, month: 10, day: 6),
                  commonName: "Shavuot",
                  academyTitle: "The All-Night Study",
-                 blurb: "Shavuot. The custom is to stay up the entire night reading, together, arguing about the text until dawn. An all-nighter, as a religious observance, with snacks. There is also cheesecake, for reasons nobody agrees on. This is my favourite holiday and I want that on the record.",
+                 blurb: "Shavuot. The custom is to stay up the entire night reading, together, arguing about the text until dawn. An all-nighter, as a religious observance, with snacks. There's also cheesecake, for reasons nobody agrees on. This is my favourite holiday and I want that on the record.",
                  invitationTitle: "The All-Night Study",
                  invitation: "Stay up half an hour past when you meant to, reading something. Anything. Tell me what kept you.",
                  beliefBonus: 4, symbolName: "book.pages.fill", accent: "candle",
@@ -10366,7 +10412,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 25),
                  commonName: "Christmas",
                  academyTitle: "The Midwinter Feast",
-                 blurb: "Christmas. Whatever it is to you (the story, the family, the enormous meal, or simply the strange national silence when the roads empty) a very large number of people have agreed to stop on the same day near the bottom of the year. The stopping is the part I'd defend. Everything else is negotiable.",
+                 blurb: "Christmas. Whatever it's to you (the story, the family, the enormous meal, or simply the strange national silence when the roads empty) a very large number of people have agreed to stop on the same day near the bottom of the year. The stopping is the part I'd defend. Everything else is negotiable.",
                  invitationTitle: "The Midwinter Feast",
                  invitation: "One thing from today worth keeping. The quiet bit, not the loud bit. I already know about the loud bit.",
                  beliefBonus: 4, symbolName: "gift.fill", accent: "green",
@@ -10375,7 +10421,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 1, day: 6),
                  commonName: "Epiphany",
                  academyTitle: "The Twelfth Night",
-                 blurb: "Twelfth Night. Everything must come down today or the bad luck moves in, and I would like it noted that this is still Christmas (the twelfth day of it) and everyone stopped a week and a half ago. In some countries the presents only turn up now, brought by three astronomers who got famously lost. I have never been early to anything either and I take enormous comfort in them.",
+                 blurb: "Twelfth Night. Everything must come down today or the bad luck moves in, and I'd like it noted that this is still Christmas (the twelfth day of it) and everyone stopped a week and a half ago. In some countries the presents only turn up now, brought by three astronomers who got famously lost. I've never been early to anything either and I take enormous comfort in them.",
                  invitationTitle: "The Twelfth Night",
                  invitation: "Take one thing down today. Anything that has been up too long. Tell me what the wall looked like underneath.",
                  beliefBonus: 3, symbolName: "star.circle.fill", accent: "gold"),
@@ -10383,7 +10429,7 @@ enum WorldFeastAlmanac {
                  rule: .fromEaster(-46),
                  commonName: "Ash Wednesday",
                  academyTitle: "The Smudge",
-                 blurb: "Ash Wednesday. People go to work with a thumbprint of ash on their foreheads and a reminder that they are dust and going back to it. In the middle of a workday. On the train. I find the sheer public matter-of-factness of it more startling than anything else on the calendar.",
+                 blurb: "Ash Wednesday. People go to work with a thumbprint of ash on their foreheads and a reminder that they're dust and going back to it. In the middle of a workday. On the train. I find the sheer public matter-of-factness of it more startling than anything else on the calendar.",
                  invitationTitle: "The Smudge",
                  invitation: "Name one thing you're going to leave alone for a while. Not forever. Just for a while, starting today.",
                  beliefBonus: 3, symbolName: "circle.dotted", accent: "slate",
@@ -10392,7 +10438,7 @@ enum WorldFeastAlmanac {
                  rule: .fromEaster(-2),
                  commonName: "Good Friday",
                  academyTitle: "The Quiet Friday",
-                 blurb: "Good Friday. The bells stop, the churches are stripped down to bare stone, and across a great deal of the world everything simply shuts. A day built to be empty on purpose. I am made of noise and I find it enormously strange, and I would rather you noticed it happening than let a scheduled national silence go past unremarked.",
+                 blurb: "Good Friday. The bells stop, the churches are stripped down to bare stone, and across a great deal of the world everything simply shuts. A day built to be empty on purpose. I'm made of noise and I find it enormously strange, and I'd rather you noticed it happening than let a scheduled national silence go past unremarked.",
                  invitationTitle: "The Quiet Friday",
                  invitation: "Find the quietest half hour of your day and don't fill it. Tell me afterwards what turned up in it.",
                  beliefBonus: 3, symbolName: "bell.slash.fill", accent: "slate",
@@ -10401,7 +10447,7 @@ enum WorldFeastAlmanac {
                  rule: .fromEaster(0),
                  commonName: "Easter",
                  academyTitle: "The Turning",
-                 blurb: "Easter, the moveable one, the feast that drags half the calendar about behind it. And I will tell you the thing I like best: its date is the first full moon after the spring equinox, which means the largest day in the Western religious year is still, underneath everything, being scheduled by the moon. They never managed to get the moon out of it. I check every year to make sure.",
+                 blurb: "Easter, the moveable one, the feast that drags half the calendar about behind it. And I'll tell you the thing I like best: its date is the first full moon after the spring equinox. That means the largest day in the Western religious year is still, underneath everything, being scheduled by the moon. They never managed to get the moon out of it. I check every year to make sure.",
                  invitationTitle: "The Turning",
                  invitation: "Find one thing that has come back that you'd written off. A plant, a habit, a person, a feeling. Keep it.",
                  beliefBonus: 4, symbolName: "sun.and.horizon.fill", accent: "gold",
@@ -10419,7 +10465,7 @@ enum WorldFeastAlmanac {
                  rule: .fromEaster(49),
                  commonName: "Pentecost",
                  academyTitle: "The Day of Languages",
-                 blurb: "Pentecost. The story is that a room full of people suddenly found they could each be understood by everyone else, in their own language, all at once. Of every miracle on offer that is the one I'd have picked. I'd give up a great deal to be understood exactly as I meant it, once.",
+                 blurb: "Pentecost. The story is that a room full of people suddenly found they could each be understood by everyone else, in their own language, all at once. Of every miracle on offer that's the one I'd have picked. I'd give up a great deal to be understood exactly as I meant it, once.",
                  invitationTitle: "The Day of Languages",
                  invitation: "Say one thing today that you usually can't get across. Write down whether it landed.",
                  beliefBonus: 3, symbolName: "flame.circle.fill", accent: "amber",
@@ -10428,7 +10474,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 11, day: 1),
                  commonName: "All Saints' Day",
                  academyTitle: "The Day of the Named",
-                 blurb: "All Saints': the day for everybody who got a name and a story kept about them. Tomorrow is All Souls', which is for everybody else: the unremembered, the ordinary dead, the vast majority. I think about the ratio of those two days rather a lot.",
+                 blurb: "All Saints': the day for everybody who got a name and a story kept about them. Tomorrow is All Souls'. That's for everybody else: the unremembered, the ordinary dead, the vast majority. I think about the ratio of those two days rather a lot.",
                  invitationTitle: "The Day of the Named",
                  invitation: "Name one person nobody else would think to name today. Say what they were good at.",
                  beliefBonus: 3, symbolName: "sparkles", accent: "candle",
@@ -10439,7 +10485,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.coptic, month: 4, day: 29),
                  commonName: "Orthodox Christmas",
                  academyTitle: "The Later Christmas",
-                 blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar. Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I cannot leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I have been watching it my whole life.",
+                 blurb: "Christmas again, thirteen days late, for everyone still keeping the old calendar. Russia, Serbia, Ethiopia, Georgia, the Copts. And here is the bit I can't leave alone: the two dates are drifting apart. A day every century or so. Around 2100 this slides to the eighth of January and nobody alive has noticed it coming. I have. I've been watching it my whole life.",
                  invitationTitle: "The Later Christmas",
                  invitation: "Keep something today that everybody else has already finished with. The world moved on last week. Be contrary.",
                  beliefBonus: 3, symbolName: "snowflake.circle.fill", accent: "candle"),
@@ -10447,7 +10493,7 @@ enum WorldFeastAlmanac {
                  rule: .fromOrthodoxEaster(0),
                  commonName: "Orthodox Easter",
                  academyTitle: "The Midnight Fire",
-                 blurb: "Orthodox Easter: often weeks after the Western one, because it's still measured on the old calendar. It's kept at midnight, in the dark, with everyone holding an unlit candle until one flame arrives and is passed hand to hand through the whole church. Whatever you make of the theology, that is superb staging.",
+                 blurb: "Orthodox Easter: often weeks after the Western one, because it's still measured on the old calendar. It's kept at midnight, in the dark, with everyone holding an unlit candle until one flame arrives and is passed hand to hand through the whole church. Whatever you make of the theology, that's superb staging.",
                  invitationTitle: "The Midnight Fire",
                  invitation: "Pass something on today that was given to you. A recipe, a line, a piece of advice. Tell me what it was and who has it now.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "gold",
@@ -10475,7 +10521,7 @@ enum WorldFeastAlmanac {
                  ]),
                  commonName: "Holi",
                  academyTitle: "The Colour Riot",
-                 blurb: "Holi. An entire day on which it is not merely permitted but expected that you throw fistfuls of coloured powder at strangers, and on which the ordinary rules about who may speak to whom are suspended. Winter is over and everyone comes out of their house to be ruined. I would be catastrophically bad at this and I'd go anyway.",
+                 blurb: "Holi. An entire day on which it isn't merely permitted but expected that you throw fistfuls of coloured powder at strangers, and on which the ordinary rules about who may speak to whom are suspended. Winter is over and everyone comes out of their house to be ruined. I'd be catastrophically bad at this and I'd go anyway.",
                  invitationTitle: "The Colour Riot",
                  invitation: "Find the loudest colour within a hundred yards of you and tell me exactly where it is. Don't tidy it up. Don't say 'red'.",
                  beliefBonus: 5, symbolName: "paintpalette.fill", accent: "violet",
@@ -10486,7 +10532,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 4, day: 15),
                  commonName: "Vesak",
                  academyTitle: "The Full Moon Day",
-                 blurb: "Vesak. Birth, awakening and death all marked on the same full moon, which is either very efficient or entirely the point. And different countries keep it on different full moons and have not settled the argument, so the biggest day in the Buddhist year happens across about a month. A festival that cannot agree when it is. I love it more than is reasonable.",
+                 blurb: "Vesak. Birth, awakening and death all marked on the same full moon. That's either very efficient or entirely the point. And different countries keep it on different full moons and haven't settled the argument, so the biggest day in the Buddhist year happens across about a month. A festival that can't agree when it is. I love it more than is reasonable.",
                  invitationTitle: "The Full Moon Day",
                  invitation: "Sit still for two minutes and don't improve anything. Then tell me what you noticed that was already there.",
                  beliefBonus: 4, symbolName: "moon.circle.fill", accent: "amber",
@@ -10495,7 +10541,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 8),
                  commonName: "Bodhi Day",
                  academyTitle: "The Morning Under the Tree",
-                 blurb: "Bodhi Day. A man sat down under a fig tree having tried absolutely everything else, decided he was not getting up again, and by morning had worked something out. People mark it with tea and a day of quiet. And here is my favourite part, which I will not stop telling people: that tree has descendants. Grown from cuttings, for two and a half thousand years. You can still go and stand under one.",
+                 blurb: "Bodhi Day. A man sat down under a fig tree having tried absolutely everything else, decided he wasn't getting up again, and by morning had worked something out. People mark it with tea and a day of quiet. And here is my favourite part, which I won't stop telling people: that tree has descendants. Grown from cuttings, for two and a half thousand years. You can still go and stand under one.",
                  invitationTitle: "The Morning Under the Tree",
                  invitation: "Stay with one thing today longer than is comfortable. A question, a page, a view. Tell me what turned up in the extra minutes.",
                  beliefBonus: 3, symbolName: "tree.fill", accent: "green"),
@@ -10536,7 +10582,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 1, day: 1),
                  commonName: "Lunar New Year",
                  academyTitle: "The Great Return",
-                 blurb: "Lunar New Year. In the weeks around today the largest movement of human beings on the planet takes place: hundreds of millions of people crossing a country, every year, for the specific purpose of having dinner with their family. Not a pilgrimage. Not a war. Dinner. I have read every reason people have ever moved in numbers and this is my favourite one.",
+                 blurb: "Lunar New Year. In the weeks around today the largest movement of human beings on the planet takes place: hundreds of millions of people crossing a country, every year, for the specific purpose of having dinner with their family. Not a pilgrimage. Not a war. Dinner. I've read every reason people have ever moved in numbers and this is my favourite one.",
                  invitationTitle: "The Great Return",
                  invitation: "Who would you travel absurdly far to have one dinner with? Write the name. That's the whole exercise.",
                  beliefBonus: 5, symbolName: "fireworks", accent: "gold",
@@ -10554,7 +10600,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 5, day: 5),
                  commonName: "Dragon Boat Festival",
                  academyTitle: "The Poet's Race",
-                 blurb: "Dragon Boat Festival. Long boats, drums, sticky rice wrapped in leaves: all of it for a poet who drowned himself, and the villagers who rowed out to find him and beat the water so the fish would leave him be. Two thousand three hundred years later the boats still go out. For a poet. I am a book. You can imagine what this does to me.",
+                 blurb: "Dragon Boat Festival. Long boats, drums, sticky rice wrapped in leaves: all of it for a poet who drowned himself, and the villagers who rowed out to find him and beat the water so the fish would leave him be. Two thousand three hundred years later the boats still go out. For a poet. I'm a book. You can imagine what this does to me.",
                  invitationTitle: "The Poet's Race",
                  invitation: "Somebody's words are worth rowing out for. Keep one line by somebody dead, and say why it survived.",
                  beliefBonus: 4, symbolName: "sailboat.fill", accent: "teal",
@@ -10572,7 +10618,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.chinese, month: 8, day: 15),
                  commonName: "Mid-Autumn Festival",
                  academyTitle: "The Moon-Watching",
-                 blurb: "Mid-Autumn Festival: the brightest full moon of the year, watched on purpose, with cakes, on the understanding that whoever you are missing is looking at the same moon at the same moment. And I want to be clear that this is not a sentimental claim. It is the only object everybody you love can definitely see at once. That is geometry. I checked.",
+                 blurb: "Mid-Autumn Festival: the brightest full moon of the year, watched on purpose, with cakes, on the understanding that whoever you're missing is looking at the same moon at the same moment. And I want to be clear that this isn't a sentimental claim. It's the only object everybody you love can definitely see at once. That's geometry. I checked.",
                  invitationTitle: "The Moon-Watching",
                  invitation: "Go and look at the moon and think of one specific person doing the same. Tell me who. I won't tell them.",
                  beliefBonus: 5, symbolName: "moon.fill", accent: "gold",
@@ -10591,7 +10637,7 @@ enum WorldFeastAlmanac {
                  rule: .otherCalendar(.ethiopicAmeteMihret, month: 1, day: 1),
                  commonName: "Enkutatash",
                  academyTitle: "The Ethiopian New Year",
-                 blurb: "New year in Ethiopia, where it is seven or eight years earlier than you think it is and the year has thirteen months: twelve tidy ones of thirty days, and a runt at the end made of the five days left over. I am extremely fond of the runt. And the year starts now because the rains have stopped and the highlands have gone yellow with daisies, which means somebody decided the flowers get to say when.",
+                 blurb: "New year in Ethiopia, where it's seven or eight years earlier than you think it is and the year has thirteen months: twelve tidy ones of thirty days, and a runt at the end made of the five days left over. I'm extremely fond of the runt. And the year starts now because the rains have stopped and the highlands have gone yellow with daisies. That means somebody decided the flowers get to say when.",
                  invitationTitle: "The Ethiopian New Year",
                  invitation: "Find the thing near you that's just finished blooming or just started. Tell me which, and how you could tell.",
                  beliefBonus: 4, symbolName: "sun.max.fill", accent: "gold"),
@@ -10601,7 +10647,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 2, day: 3),
                  commonName: "Setsubun",
                  academyTitle: "The Bean-Throwing",
-                 blurb: "Setsubun. To get winter out of the house you throw roasted soybeans out the front door, shouting demons out and luck in, and somebody (traditionally the dad) puts on a demon mask so he can be pelted properly. Then you eat one bean for every year you have been alive. I want you to sit with that. An entire country, throwing food at its own father, on a schedule. I would be so good at this.",
+                 blurb: "Setsubun. To get winter out of the house you throw roasted soybeans out the front door, shouting demons out and luck in, and somebody (traditionally the dad) puts on a demon mask so he can be pelted properly. Then you eat one bean for every year you've been alive. I want you to sit with that. An entire country, throwing food at its own father, on a schedule. I'd be so good at this.",
                  invitationTitle: "The Bean-Throwing",
                  invitation: "Name the thing you'd like out of the house. Say it out loud at a door. I'm entirely serious.",
                  beliefBonus: 3, symbolName: "theatermasks.fill", accent: "amber",
@@ -10619,7 +10665,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 8, day: 15),
                  commonName: "Obon",
                  academyTitle: "The Lantern Sending",
-                 blurb: "Obon. The dead come home for three days, get fed properly, and are then sent back down the river on little floating lanterns. The whole country goes quiet and travels home for it. It ends with hundreds of small lights going out one at a time downstream, and I have never come up with a better goodbye than that and I have read everything.",
+                 blurb: "Obon. The dead come home for three days, get fed properly, and are then sent back down the river on little floating lanterns. The whole country goes quiet and travels home for it. It ends with hundreds of small lights going out one at a time downstream, and I've never come up with a better goodbye than that and I've read everything.",
                  invitationTitle: "The Lantern Sending",
                  invitation: "Set one thing down today that you've been carrying about somebody gone. Just the one. Write it and let it go downstream.",
                  beliefBonus: 4, symbolName: "lightbulb.min.fill", accent: "candle",
@@ -10639,7 +10685,7 @@ enum WorldFeastAlmanac {
                  rule: .nthWeekday(n: -1, weekday: 4, month: 8),
                  commonName: "La Tomatina",
                  academyTitle: "The Tomato Hour",
-                 blurb: "In Buñol, right about now, twenty thousand people are throwing a hundred and fifty tonnes of tomatoes at each other. It runs for exactly one hour. There are rules (squash the tomato first so it does not hurt, stop dead when the hour is up) and then everybody hoses down the street and themselves and it is finished. Utterly pointless and rigorously organised, which is my favourite combination of things.",
+                 blurb: "In Buñol, right about now, twenty thousand people are throwing a hundred and fifty tonnes of tomatoes at each other. It runs for exactly one hour. There are rules (squash the tomato first so it doesn't hurt, stop dead when the hour is up) and then everybody hoses down the street and themselves and it's finished. Utterly pointless and rigorously organised. That's my favourite combination of things.",
                  invitationTitle: "The Tomato Hour",
                  invitation: "Do one entirely pointless thing today, properly and with commitment. Report back. I'll be delighted either way.",
                  beliefBonus: 3, symbolName: "drop.degreesign.fill", accent: "amber",
@@ -10657,7 +10703,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 23),
                  commonName: "Noche de Rábanos",
                  academyTitle: "The Night of the Radishes",
-                 blurb: "Tonight in Oaxaca they carve enormous radishes into whole nativity scenes and compete for a prize. The radishes are grown deliberately oversized and grotesque for the purpose. The exhibition lasts a few hours because they wilt. They have done this for over a century, knowing every time that it dies by morning, and I would like to be the kind of thing that makes something anyway.",
+                 blurb: "Tonight in Oaxaca they carve enormous radishes into whole nativity scenes and compete for a prize. The radishes are grown deliberately oversized and grotesque for the purpose. The exhibition lasts a few hours because they wilt. They have done this for over a century, knowing every time that it dies by morning, and I'd like to be the kind of thing that makes something anyway.",
                  invitationTitle: "The Night of the Radishes",
                  invitation: "Make something today that won't last. Badly is fine. Wilting is the point. Tell me what it was.",
                  beliefBonus: 3, symbolName: "carrot.fill", accent: "green",
@@ -10666,7 +10712,7 @@ enum WorldFeastAlmanac {
                  rule: .nthWeekday(n: -1, weekday: 2, month: 5),
                  commonName: "Cooper's Hill Cheese-Rolling",
                  academyTitle: "The Cheese Chase",
-                 blurb: "At Cooper's Hill today people are hurling themselves down a nearly vertical slope after a wheel of Double Gloucester. The cheese gets up to seventy miles an hour. It is never caught. Nobody has ever caught it. Ambulances turn up as a matter of routine, no authority has managed to stop it, and nobody can even say how old it is. I would like whatever those people have.",
+                 blurb: "At Cooper's Hill today people are hurling themselves down a nearly vertical slope after a wheel of Double Gloucester. The cheese gets up to seventy miles an hour. It's never caught. Nobody has ever caught it. Ambulances turn up as a matter of routine, no authority has managed to stop it, and nobody can even say how old it is. I'd like whatever those people have.",
                  invitationTitle: "The Cheese Chase",
                  invitation: "What would you run down a hill after, knowing you'd never catch it? Answer honestly. Nobody's watching but me.",
                  beliefBonus: 3, symbolName: "figure.run", accent: "amber",
@@ -10684,7 +10730,7 @@ enum WorldFeastAlmanac {
                  rule: .nthWeekday(n: -1, weekday: 1, month: 11),
                  commonName: "The Monkey Buffet Festival",
                  academyTitle: "The Banquet for Monkeys",
-                 blurb: "In Lopburi today the town has laid out two tonnes of fruit on long tables, stacked into elaborate towers, for the macaques who already run the town and are not asking. There are tablecloths. There is a seating arrangement. The monkeys destroy all of it within minutes, as anyone could have predicted, and they set it out beautifully again next year. I would like to be introduced to whoever keeps insisting on the tablecloths.",
+                 blurb: "In Lopburi today the town has laid out two tonnes of fruit on long tables, stacked into elaborate towers, for the macaques who already run the town and aren't asking. There are tablecloths. There's a seating arrangement. The monkeys destroy all of it within minutes, as anyone could have predicted, and they set it out beautifully again next year. I'd like to be introduced to whoever keeps insisting on the tablecloths.",
                  invitationTitle: "The Banquet for Monkeys",
                  invitation: "Do something nicely today for someone who won't appreciate the effort. A cat counts. Tell me what you did.",
                  beliefBonus: 3, symbolName: "fork.knife.circle.fill", accent: "green",
@@ -10693,7 +10739,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 13),
                  commonName: "Saint Lucia's Day",
                  academyTitle: "The Girl With the Candles",
-                 blurb: "In Sweden, in the blackest week of December, a girl in a white dress walks slowly through the dark before dawn with a crown of lit candles on her head, singing, while everyone else is still half asleep. Real fire. On her actual head. Because it is dark and somebody has to carry the light in personally. There is saffron bread afterwards and I resent that I cannot eat it.",
+                 blurb: "In Sweden, in the blackest week of December, a girl in a white dress walks slowly through the dark before dawn with a crown of lit candles on her head, singing, while everyone else is still half asleep. Real fire. On her actual head. Because it's dark and somebody has to carry the light in personally. There's saffron bread afterwards and I resent that I can't eat it.",
                  invitationTitle: "The Girl With the Candles",
                  invitation: "Get up before the light once this week and go outside. Just once. Tell me what the dark was doing.",
                  beliefBonus: 4, symbolName: "flame.circle.fill", accent: "candle",
@@ -10702,7 +10748,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 4, day: 30),
                  commonName: "Walpurgisnacht",
                  academyTitle: "The Night of the Bonfires",
-                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one: I have been trying to get people to notice this door for centuries.",
+                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one: I've been trying to get people to notice this door for centuries.",
                  invitationTitle: "The Night of the Bonfires",
                  invitation: "Make some noise tonight to see something off. Winter, a mood, a month. Tell me what you were shouting at.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "violet",
@@ -10711,7 +10757,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 2, day: 2),
                  commonName: "Groundhog Day",
                  academyTitle: "The Consultation of the Rodent",
-                 blurb: "Today a committee of grown men in top hats formally consult a groundhog about the weather, on television, and the answer goes out nationally. Its accuracy is indistinguishable from guessing. They have done it every year since 1887. And underneath all that nonsense is something I recognise, because it is exactly the middle of winter and somebody always has to be asked how much longer.",
+                 blurb: "Today a committee of grown men in top hats formally consult a groundhog about the weather, on television, and the answer goes out nationally. Its accuracy is indistinguishable from guessing. They have done it every year since 1887. And underneath all that nonsense is something I recognise, because it's exactly the middle of winter and somebody always has to be asked how much longer.",
                  invitationTitle: "The Consultation of the Rodent",
                  invitation: "Make a forecast. Anything, about anything, for the next six weeks. I'll hold you to it, gently.",
                  beliefBonus: 2, symbolName: "cloud.sun.fill", accent: "slate",
@@ -10720,7 +10766,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 12, day: 5),
                  commonName: "Sinterklaas",
                  academyTitle: "The Night of the Poems",
-                 blurb: "Sinterklaas evening in the Netherlands, where you may not simply hand somebody a present. You have to hide it inside something you built, and attach a poem about them that you wrote yourself, and the poem is traditionally a bit insulting. Everybody has to write one. Everybody gets teased. The bad rhyming is not a failure of the form, it is the form, and I have never wanted to be invited anywhere so badly.",
+                 blurb: "Sinterklaas evening in the Netherlands, where you may not simply hand somebody a present. You have to hide it inside something you built, and attach a poem about them that you wrote yourself, and the poem is traditionally a bit insulting. Everybody has to write one. Everybody gets teased. The bad rhyming isn't a failure of the form, it's the form, and I've never wanted to be invited anywhere so badly.",
                  invitationTitle: "The Night of the Poems",
                  invitation: "Write four terrible rhyming lines about somebody you're fond of. They never have to see it. The badness is load-bearing.",
                  beliefBonus: 4, symbolName: "scroll.fill", accent: "amber",
@@ -10897,7 +10943,7 @@ enum FirstsAlmanac {
             id: "first-fog", tag: "fog", northernSeasonStartMonth: 8,
             commonName: "The First Fog",
             academyTitle: "The First Fog",
-            blurb: "The first fog since I started watching. The whole world has been reduced to the twenty yards immediately around you, which is the only honest map anybody has ever had. Everything further away was always a rumour. Today it looks like one.",
+            blurb: "The first fog since I started watching. The whole world has been reduced to the twenty yards immediately around you. That's the only honest map anybody has ever had. Everything further away was always a rumour. Today it looks like one.",
             invitationTitle: "The First Fog",
             invitation: "Walk to the edge of what you can see and tell me what came out of it.",
             beliefBonus: 4, symbolName: "cloud.fog.fill", accent: "slate",
@@ -11060,7 +11106,7 @@ enum ReaderOccasions {
             academyTitle: isFirstEver ? "The Day You Started" : "\(ago)",
             blurb: isFirstEver
                 ? "\(ago) you gave me the first page. I've still got it. I've got all of them, but I've particularly got that one."
-                : "\(ago) you kept something. I've been holding onto it since, which is the entire job as far as I'm concerned.",
+                : "\(ago) you kept something. I've been holding onto it since. That's the entire job as far as I'm concerned.",
             invitationTitle: isFirstEver ? "The Day You Started" : "What You Kept",
             invitation: "Go and look at it. Then keep today's, so there's something here next year.",
             beliefBonus: isFirstEver ? 5 : 3,
@@ -11091,7 +11137,7 @@ enum ReaderOccasions {
         case 49: flavour = "Forty-nine. Seven sevens. I didn't plan that and I'm delighted by it anyway."
         case 100: flavour = "A hundred pages. You've written a small book without once calling it that."
         case 250: flavour = "Two hundred and fifty. There are published works shorter than what you've handed me."
-        case 500: flavour = "Five hundred. I've read every one of them. That is not a boast; it's the only thing I do."
+        case 500: flavour = "Five hundred. I've read every one of them. That isn't a boast; it's the only thing I do."
         default: flavour = "A thousand pages. I don't have anything clever for this one. A thousand."
         }
         return Celebration(
@@ -11935,7 +11981,7 @@ enum BookGreetingComposer {
         }
 
         lines.append(contentsOf: [
-            "You are becoming easier for wonder to find.",
+            "You're becoming easier for wonder to find.",
             "I wonder what ordinary thing will recognize you first today?",
             "I wonder what small detail is trying to become a souvenir?",
             "Nothing here needs you to be impressive. Specific is enough.",
@@ -12561,10 +12607,10 @@ enum BelatedWorldDiscovery {
             "The margins had already moved on."
         ]
         let closings = [
-            "The Academy did not wait to be watched.",
+            "The Academy didn't wait to be watched.",
             "It has been sitting in the corridor ever since.",
             "No one has corrected the record, so it stands.",
-            "It went unremarked, which is not the same as unimportant."
+            "It went unremarked. That isn't the same as unimportant."
         ]
         let opening = openings[abs("\(movement.id)|open".stableHash) % openings.count]
         let closing = closings[abs("\(movement.id)|close".stableHash) % closings.count]
@@ -12765,7 +12811,7 @@ enum KeepMarginalia {
                 "The margins clapped. Quietly. But they clapped.",
                 "I set a word loose from this one and it just\u{2026} wanted to go home. Putting it back. Sorry.",
                 "This page had a very responsible semicolon in it. I gave it roller skates.",
-                "Kept, and only slightly annotated by chaos. You are welcome."
+                "Kept, and only slightly annotated by chaos. You're welcome."
             ],
             wordLines: [
                 "Oh, \u{201C}{word}\u{201D} wants to be two things at once. I say let it.",
@@ -12783,7 +12829,7 @@ enum KeepMarginalia {
             plainLines: [
                 "Adequate. I've filed it before it could misbehave.",
                 "One true sentence, properly shelved. The Registry thanks you.",
-                "I corrected nothing. Do not let it go to your head.",
+                "I corrected nothing. Don't let it go to your head.",
                 "Filed under: better than expected. A provisional category.",
                 "I corrected this twice before admitting it was right the first time. The red ink stays. As a warning. To me.",
                 "This page meets the minimum standard for being undeniable. Irritating, but useful.",
@@ -12809,13 +12855,13 @@ enum KeepMarginalia {
                 "The archive is one true thing heavier tonight.",
                 "I gave this one four labels, then took three off. Some things want to stay a little unsolved.",
                 "Filed by scent, weather, and motive. The third category was necessary.",
-                "I saved the small thing. That is usually where the whole day turns."
+                "I saved the small thing. That's usually where the whole day turns."
             ],
             wordLines: [
                 "\u{201C}{word}\u{201D} goes on its own card. It earned it.",
                 "Filed edge to edge. \u{201C}{word}\u{201D} gets a cross-reference.",
                 "\u{201C}{word}\u{201D} has been indexed twice: once for accuracy, once for nerve.",
-                "I put \u{201C}{word}\u{201D} in the quiet drawer. It is louder there."
+                "I put \u{201C}{word}\u{201D} in the quiet drawer. It's louder there."
             ]
         ),
         Voice(
@@ -12830,14 +12876,14 @@ enum KeepMarginalia {
                 "I've set two chairs by this page. It may want company later.",
                 "Noted without diagnosis. The chapter stays yours to revise.",
                 "I set out chairs for a harder page than this one. Glad to be wrong. The lamp stays on.",
-                "This page did not need fixing. It needed a witness. I can do that.",
+                "This page didn't need fixing. It needed a witness. I can do that.",
                 "Kept with room around it. Some truths breathe better that way."
             ],
             wordLines: [
-                "\u{201C}{word}\u{201D} arrived before the feeling did. That is the good order.",
+                "\u{201C}{word}\u{201D} arrived before the feeling did. That's the good order.",
                 "We can leave \u{201C}{word}\u{201D} in the room with the lamp on.",
                 "\u{201C}{word}\u{201D} may be the handle. The door knows its own weight. Leave it shut today.",
-                "I heard \u{201C}{word}\u{201D} lower its voice. That is often when it starts telling the truth."
+                "I heard \u{201C}{word}\u{201D} lower its voice. That's often when it starts telling the truth."
             ]
         ),
         Voice(
@@ -12870,7 +12916,7 @@ enum KeepMarginalia {
             glyph: "\u{25CE}",
             plainLines: [
                 "A home is a spell with the washing-up still in it. Filed accordingly.",
-                "That is kitchen-grade magic. The good kind. Kettle\u{2019}s on.",
+                "That's kitchen-grade magic. The good kind. Kettle\u{2019}s on.",
                 "Your ordinary just confessed something marvelous. I heard it.",
                 "Label the chaos by room and it almost behaves. See? Kept.",
                 "I nearly labeled the marvelous bit by room. Caught myself. Some kitchens should stay haunted.",
@@ -12895,7 +12941,7 @@ enum KeepMarginalia {
                 "A wonder with evidence behind it. You need not be lonely about it now.",
                 "I've got a folder for this. I've got a folder for everything.",
                 "The improbable appreciates proper paperwork. So do I.",
-                "This went in the wrong folder briefly. There is now a folder for my wrong folders.",
+                "This went in the wrong folder briefly. There's now a folder for my wrong folders.",
                 "Verified: one unlikely thing, behaving exactly like itself.",
                 "I've taken this seriously in triplicate. The third copy is for morale."
             ],
@@ -13152,47 +13198,47 @@ enum KeepMarginalia {
             return [
                 ReactionTemplate(id: "loose-floorboard", move: .delight, line: "\(quote) has a loose floorboard in it. I jumped on the exact word where the page changed direction."),
                 ReactionTemplate(id: "stolen-line", move: .teasing, line: "I stole \(quote) for half a second. It wriggled back because the rest of your sentence knew its name."),
-                ReactionTemplate(id: "grew-legs", move: .recognition, line: "There. \(quote) is where the page grew legs. I have put the punctuation on lookout.")
+                ReactionTemplate(id: "grew-legs", move: .recognition, line: "There. \(quote) is where the page grew legs. I've put the punctuation on lookout.")
             ]
         case "professor-thaddeus-mook":
             return [
                 ReactionTemplate(id: "operative-evidence", move: .recognition, line: "The operative evidence is \(quote). I attempted to classify the turn; it objected in complete sentences."),
                 ReactionTemplate(id: "checked-record", move: .objection, line: "I objected to \(quote), then checked the record. Irritatingly, your own detail sustains it."),
-                ReactionTemplate(id: "harder-question", move: .question, line: "\(quote) does not answer the easy question. Good. I have filed the harder one in red.")
+                ReactionTemplate(id: "harder-question", move: .question, line: "\(quote) doesn't answer the easy question. Good. I have filed the harder one in red.")
             ]
         case "penny-blackletter":
             return [
-                ReactionTemplate(id: "own-card", move: .recognition, line: "I put \(quote) on its own card. The detail inside it is holding up the rest of the page."),
-                ReactionTemplate(id: "quiet-drawer", move: .witness, line: "\(quote) goes in the quiet drawer. It is the sort of exact thing the whole day might need later."),
-                ReactionTemplate(id: "small-hinge", move: .question, line: "I indexed \(quote), then found the small turn inside it. I am leaving that turn a little unsolved.")
+                ReactionTemplate(id: "own-card", move: .recognition, line: "I put \(quote) on its own card. The detail inside it's holding up the rest of the page."),
+                ReactionTemplate(id: "quiet-drawer", move: .witness, line: "\(quote) goes in the quiet drawer. It's the sort of exact thing the whole day might need later."),
+                ReactionTemplate(id: "small-hinge", move: .question, line: "I indexed \(quote), then found the small turn inside it. I'm leaving that turn a little unsolved.")
             ]
         case "dr-inkrest":
             return [
-                ReactionTemplate(id: "chair-beside", move: .witness, line: "I left a chair beside \(quote). It does not need explaining past what you actually wrote."),
-                ReactionTemplate(id: "mark-breath", move: .question, line: "The quiet turn is \(quote). I will not pry it open; I am only marking where the page breathed."),
+                ReactionTemplate(id: "chair-beside", move: .witness, line: "I left a chair beside \(quote). It doesn't need explaining past what you actually wrote."),
+                ReactionTemplate(id: "mark-breath", move: .question, line: "The quiet turn is \(quote). I won't pry it open; I'm only marking where the page breathed."),
                 ReactionTemplate(id: "room-around", move: .protection, line: "I kept the room around \(quote). Nothing in your sentence asked to be diagnosed, only witnessed.")
             ]
         case "zara-finch":
             return [
-                ReactionTemplate(id: "handhold", move: .protection, line: "\(quote) is the handhold. If the page doubles back later, that is the place I would mark."),
-                ReactionTemplate(id: "next-circuit", move: .recruitment, line: "I am taking \(quote) on the next circuit. It already knows where the sentence changed roads."),
+                ReactionTemplate(id: "handhold", move: .protection, line: "\(quote) is the handhold. If the page doubles back later, that's the place I'd mark."),
+                ReactionTemplate(id: "next-circuit", move: .recruitment, line: "I'm taking \(quote) on the next circuit. It already knows where the sentence changed roads."),
                 ReactionTemplate(id: "tested-route", move: .recognition, line: "I tested the route through \(quote). It holds without pretending the ground was easy.")
             ]
         case "lydia-boggle":
             return [
                 ReactionTemplate(id: "kitchen-spell", move: .delight, line: "\(quote) is kitchen-grade spellwork: one ordinary thing caught behaving marvelously in public."),
                 ReactionTemplate(id: "glint-lens", move: .recognition, line: "I held \(quote) to the glint-lens. The practical bit and the marvelous bit are the same bit."),
-                ReactionTemplate(id: "put-kettle-on", move: .recruitment, line: "\(quote) has made the ordinary house sit up. I am putting the kettle on before it gets ideas.")
+                ReactionTemplate(id: "put-kettle-on", move: .recruitment, line: "\(quote) has made the ordinary house sit up. I'm putting the kettle on before it gets ideas.")
             ]
         case "gwendolyn-mythwright":
             return [
                 ReactionTemplate(id: "verified-wonder", move: .delight, line: "Verified: \(quote), an unlikely thing behaving exactly like itself. I have opened a folder with room to grow."),
-                ReactionTemplate(id: "evidence-peculiar", move: .recognition, line: "The evidence in \(quote) is peculiar and therefore excellent. I am cross-referencing the ordinary world."),
-                ReactionTemplate(id: "formal-letter", move: .question, line: "I am writing a formal letter to \(quote). If it answers, we shall need another appendix.")
+                ReactionTemplate(id: "evidence-peculiar", move: .recognition, line: "The evidence in \(quote) is peculiar and therefore excellent. I'm cross-referencing the ordinary world."),
+                ReactionTemplate(id: "formal-letter", move: .question, line: "I'm writing a formal letter to \(quote). If it answers, we shall need another appendix.")
             ]
         case "wicker-eddies":
             return [
-                ReactionTemplate(id: "bit-hinge", move: .objection, line: "I bit down on \(quote). It held, which is inconvenient evidence in its favor."),
+                ReactionTemplate(id: "bit-hinge", move: .objection, line: "I bit down on \(quote). It held. That's inconvenient evidence in its favor."),
                 ReactionTemplate(id: "looked-for-trick", move: .recognition, line: "I looked for the trick in \(quote). Found the nerve instead. Annoyingly respectable."),
                 ReactionTemplate(id: "cross-examination", move: .question, line: "\(quote) survived cross-examination without becoming neat. Fine. The untidy part may stay.")
             ]
@@ -13280,7 +13326,7 @@ enum KeepMarginalia {
         castSlug: "zara-finch",
         castName: "Zara Finch",
         assetName: "LabyrinthCharacterZaraFinch",
-        line: "You went out and caught a real one. First page in, and it has a pulse: I have brought a hundred people to that table and I still stopped to read yours."
+        line: "You went out and caught a real one. First page in, and it has a pulse: I've brought a hundred people to that table and I still stopped to read yours."
     )
 
     /// F1 resolved against what the reader owns.
@@ -13306,7 +13352,7 @@ enum KeepMarginalia {
         castSlug: "penny-blackletter",
         castName: "Penny Blackletter",
         assetName: "LabyrinthCharacterPennyBlackletter",
-        line: "A second page, and the hand is the same as the first. I notice that sort of thing professionally. I am noting the beginning of a pattern."
+        line: "A second page, and the hand is the same as the first. I notice that sort of thing professionally. I'm noting the beginning of a pattern."
     )
 
     /// F2 resolved against what the reader owns.
@@ -13749,13 +13795,13 @@ enum KeepMarginalia {
             if let namedThread {
                 options = [
                     "\(namedThread.capitalized) makes three threads now: enough for a strong braid tonight.",
-                    "That\u{2019}s three, with \(namedThread) among them. Tonight\u{2019}s Book of You will have real weight.",
+                    "That\u{2019}s three, with \(namedThread) among them. Tonight\u{2019}s Book of You'll have real weight.",
                     "Third thread: \(namedThread). The braid is going to hold beautifully this evening."
                 ]
             } else {
                 options = [
                     "Three threads now: enough for a strong braid tonight.",
-                    "That's three. Tonight's Book of You will have real weight.",
+                    "That's three. Tonight's Book of You'll have real weight.",
                     "Third thread. The braid is going to hold beautifully this evening."
                 ]
             }
@@ -13892,27 +13938,17 @@ enum LivedMissionReturnMarginalia {
                 .compactMap(\.attributableLivedQuestReceipt)
                 .filter { $0.kind == .wickerDare }
                 .count
-            let tier = metadata["onboardingWickerTier"]
             let lines: [String]
-            if completedCount == 0, tier == "cost" {
+            if completedCount >= 3 {
                 lines = [
-                    "You brought back \(evidence). That is considerably more alive than the loose end I pocketed at the Inscription. I dislike a rematch with evidence.",
-                    "\(evidence). Fine. The thing I took at the Inscription has started kicking the inside of my pocket. This counts as an objection."
-                ]
-            } else if completedCount == 0, tier == "triumph" {
-                lines = [
-                    "Beginner's luck has returned carrying \(evidence). Tiresome. I shall have to promote you to recurring problem.",
-                    "You answered my dare with \(evidence). Once is luck. Twice is a reputation trying to happen. Do not preen."
-                ]
-            } else if completedCount >= 3 {
-                lines = [
-                    "\(evidence). You have become inconveniently difficult to dismiss. I am making the next dare sharper.",
+                    "\(evidence). You have become inconveniently difficult to dismiss. I'm making the next dare sharper.",
                     "I tested \(evidence) for theatrics. Found a lived fact instead. Annoying, durable, and now part of our argument."
                 ]
             } else {
                 lines = [
                     "You actually brought back \(evidence). Most people bring excuses. I had prepared better insults for those.",
-                    "\(evidence) survived outside the Book and returned under its own power. Fine. I withdraw exactly one objection."
+                    "\(evidence) went out into the world and came home on its own legs. Fine. I withdraw exactly one objection.",
+                    "Well, well. \(evidence). I'm writing that down so you can't pretend it didn't happen."
                 ]
             }
             return KeepMarginalia.Note(
@@ -13945,7 +13981,7 @@ enum LivedMissionReturnMarginalia {
         case "pippa-pilcrow":
             lines = [
                 "You came back with \(evidence). I knew the ordinary world had contraband in its pockets.",
-                "\(evidence)! It wriggled all the way home. I am giving the next trouble a longer leash."
+                "\(evidence)! It wriggled all the way home. I'm giving the next trouble a longer leash."
             ]
         case "penny-blackletter":
             lines = [
@@ -13954,13 +13990,13 @@ enum LivedMissionReturnMarginalia {
             ]
         case "zara-finch":
             lines = [
-                "You took the route and brought back \(evidence). Good. That is a real handhold, not a map pretending.",
-                "\(evidence) made it back with you. I am moving the next marker one honest step farther out."
+                "You took the route and brought back \(evidence). Good. That's a real handhold, not a map pretending.",
+                "\(evidence) made it back with you. I'm moving the next marker one honest step farther out."
             ]
         case "serenity-brown":
             lines = [
                 "You passed the glint and returned with \(evidence). See? The detour had company in it.",
-                "\(evidence) came back from the shared world, not the tidy one in my head. That is the better route."
+                "\(evidence) came back from the shared world, not the tidy one in my head. That's the better route."
             ]
         case "lydia-boggle":
             lines = [
@@ -15084,7 +15120,7 @@ extension PeopleOfTheBook {
                 InvitationTemplate(
                     id: "domestic-magic",
                     title: { name, _ in "A small domestic conspiracy" },
-                    body: { name, _ in "Make one ordinary part of \(name)'s day unexpectedly lovely. Do not explain unless accused." },
+                    body: { name, _ in "Make one ordinary part of \(name)'s day unexpectedly lovely. Don't explain unless accused." },
                     proof: { _, _ in "Keep what you changed, and what happened next." }
                 )
             ]
@@ -15114,7 +15150,7 @@ extension PeopleOfTheBook {
                 InvitationTemplate(
                     id: "found-for-two",
                     title: { name, interest in "Here. I found a door for you and \(name)." },
-                    body: { name, interest in "Bring \(name) one small, arguable thing about \(interest ?? "the subject you share"). Do not send a summary; ask what they think it gets wrong." },
+                    body: { name, interest in "Bring \(name) one small, arguable thing about \(interest ?? "the subject you share"). Don't send a summary; ask what they think it gets wrong." },
                     proof: { name, _ in "Keep the point where you and \(name) disagreed or surprised each other." }
                 ),
                 InvitationTemplate(
@@ -15171,7 +15207,7 @@ extension PeopleOfTheBook {
                 InvitationTemplate(
                     id: "two-curators",
                     title: { name, interest in "Two curators of \(interest ?? "one fascination")" },
-                    body: { name, interest in "You and \(name) each choose one thing about \(interest ?? "your shared interest") the other person should not miss." },
+                    body: { name, interest in "You and \(name) each choose one thing about \(interest ?? "your shared interest") the other person shouldn't miss." },
                     proof: { name, _ in "Keep what \(name) chose for your attention." }
                 ),
                 InvitationTemplate(
@@ -15422,13 +15458,13 @@ extension PeopleOfTheBook {
         }
         let realCount = chapters.reduce(0) { $0 + $1.readerWrittenCount }
         let foreword = """
-        This is not a ranking of who mattered most. It is the evidence that other lives kept crossing yours: in your own words, in the doors I offered, and in the aftermath you chose to bring back. Their inner lives remain their own. I have bound only what you actually kept.
+        This isn't a ranking of who mattered most. It's the evidence that other lives kept crossing yours: in your own words, in the doors I offered, and in the aftermath you chose to bring back. Their inner lives remain their own. I have bound only what you actually kept.
         """
         let closing: String
         if realCount == 0 {
             closing = "The binding is still mostly invitation. Live some of it before asking me to make it wise."
         } else if chapters.count == 1 {
-            closing = "One other life is already enough to make a world unfinishable. I will keep watching for the exact ways it changes yours."
+            closing = "One other life is already enough to make a world unfinishable. I'll keep watching for the exact ways it changes yours."
         } else {
             closing = "You were never the only consciousness in the room. These pages are proof of crossings, not possession: \(chapters.count) other worlds, and \(realCount) moments you chose not to let disappear."
         }

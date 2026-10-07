@@ -19,6 +19,11 @@ extension MonthlyEditionPDFWriter {
         spacing: CGFloat = 23, style: EditionStyle
     ) {
         guard let cg = UIGraphicsGetCurrentContext(), endY - startY >= spacing else { return }
+        // A writing area sits on a soft paper-white panel: less ink under the pen on coated stock.
+        if endY - startY >= spacing * 2.5 {
+            UIColor.white.withAlphaComponent(0.3).setFill()
+            UIBezierPath(roundedRect: CGRect(x: left - 4, y: startY + 3, width: right - left + 8, height: endY - startY - 1), cornerRadius: 3).fill()
+        }
         cg.saveGState()
         cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.17).cgColor)
         cg.setLineWidth(0.5)
@@ -77,12 +82,19 @@ extension MonthlyEditionPDFWriter {
         cursor: inout PDFCursor
     ) {
         PrintPageMap.reset()
+        // The month given back comes first: what the reader kept, said and collected.
+        if let keepsakes = handbook.keepsakes {
+            drawKeepsakesFront(keepsakes, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
+        }
         if showsContents {
             drawCourseContents(handbook, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
         }
         for lesson in handbook.lessons {
-            drawLectureLeaf(lesson, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
-            drawWorkbookLeaf(lesson, style: style, context: context, cursor: &cursor)
+            // A lesson whose lecture leaves room carries its practice on the same leaf; only a long one
+            // needs a leaf of its own for the worksheet.
+            if !drawLectureLeaf(lesson, style: style, context: context, cursor: &cursor, monthNumber: monthNumber) {
+                drawWorkbookLeaf(lesson, style: style, context: context, cursor: &cursor)
+            }
         }
         drawDossiers(handbook.dossiers, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
         drawLoreShelf(handbook.lore + handbook.compass, head: "The Lore Shelf", kicker: "Set down for you",
@@ -98,6 +110,10 @@ extension MonthlyEditionPDFWriter {
         }
         if let workbook = handbook.workbook {
             drawWorkbook(workbook, readerName: readerName, termLabel: termLabel, style: style, context: context, cursor: &cursor)
+        }
+        // Questions, a time capsule and a leaf to cut up go last, so nothing else is lost to scissors.
+        if let keepsakes = handbook.keepsakes {
+            drawKeepsakesBack(keepsakes, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
         }
     }
 
@@ -154,10 +170,12 @@ extension MonthlyEditionPDFWriter {
 
     // MARK: Lecture leaf
 
+    /// Returns whether the lesson's practice was set on this same leaf.
+    @discardableResult
     private static func drawLectureLeaf(
         _ lesson: HandbookLesson, style: EditionStyle, context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor, monthNumber: Int
-    ) {
+    ) -> Bool {
         let ink = style.palette.ink
         var leaf = fieldLeaf(&cursor, style: style, context: context,
                              headLeft: lesson.isClub ? "Society" : "Class", headRight: lesson.name)
@@ -227,11 +245,79 @@ extension MonthlyEditionPDFWriter {
             }
         }
 
-        // The margin: for your own notes on the lecture.
-        if leaf.y + 60 < leaf.bottom {
-            drawEyebrow("Your margin", style: style, leaf: &leaf)
-            hbRules(from: leaf.y, to: leaf.bottom, left: leaf.left, right: leaf.right, style: style)
+        // The practice, on this leaf if it fits: as many of its fields as the room allows.
+        let room = leaf.bottom - leaf.y
+        for fieldCount in [min(2, lesson.fields.count), min(1, lesson.fields.count), 0]
+            where practiceInlineNeed(lesson, width: leaf.contentWidth, fields: fieldCount) <= room {
+            drawPracticeInline(lesson, fields: fieldCount, style: style, leaf: &leaf)
+            return true
         }
+
+        // No room for it: the margin is for your own notes, and the worksheet gets its own leaf.
+        if leaf.y + 60 < leaf.bottom {
+            if let prompt = NotePromptDealer.next(.margin, seed: "lecture-\(lesson.id)") {
+                drawNotesBlock(prompt, in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: leaf.bottom - leaf.y), style: style)
+            } else {
+                drawEyebrow("Your margin", style: style, leaf: &leaf)
+                hbRules(from: leaf.y, to: leaf.bottom, left: leaf.left, right: leaf.right, style: style)
+            }
+        }
+        return false
+    }
+
+    // MARK: The practice, on the lecture leaf
+
+    private static func practiceInlineNeed(_ lesson: HandbookLesson, width: CGFloat, fields: Int) -> CGFloat {
+        let titleH = FieldText.height(lesson.practiceTitle, font: .fbSerif(ofSize: 15, weight: .bold), width: width, lineSpacing: 1.5, paragraphSpacing: 0, justified: false)
+        let inviteH = FieldText.height(lesson.invitation, font: .fbSerifItalic(ofSize: 10.2), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+        let footTextH = FieldText.height(lesson.realWorldPractice, font: .fbSerifItalic(ofSize: 10), width: width - 24, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+        var total: CGFloat = 13 + titleH + 5 + inviteH + 12 + footTextH + 34 + 12
+        if let entry = lesson.readerEntry {
+            let shown = entry.count > 360 ? String(entry.prefix(360)) + "…" : entry
+            total += 14 + slipHeight(shown, width: width - 20) + 10
+        }
+        return total + CGFloat(fields) * 60
+    }
+
+    private static func drawPracticeInline(
+        _ lesson: HandbookLesson, fields: Int, style: EditionStyle, leaf: inout PDFCursor
+    ) {
+        let ink = style.palette.ink
+        let rule = UIBezierPath(rect: CGRect(x: leaf.left + leaf.contentWidth * 0.3, y: leaf.y + 2, width: leaf.contentWidth * 0.4, height: 0.5))
+        style.palette.gold.withAlphaComponent(0.6).setFill(); rule.fill()
+        leaf.y += 10
+        drawEyebrow("The practice", style: style, leaf: &leaf)
+        hbText(lesson.practiceTitle, font: .fbSerif(ofSize: 15, weight: .bold), color: ink, leaf: &leaf, lineSpacing: 1.5, paragraphSpacing: 0, justified: false, gap: 5)
+        hbText(lesson.invitation, font: .fbSerifItalic(ofSize: 10.2), color: ink.withAlphaComponent(0.82), leaf: &leaf, lineSpacing: 2, justified: false, gap: 8)
+        if let entry = lesson.readerEntry {
+            drawTracked("What you brought back from the room", at: CGPoint(x: leaf.left, y: leaf.y), font: smallCaps(6.6), color: style.palette.accent, tracking: 1.2)
+            leaf.y += 12
+            let shown = entry.count > 360 ? String(entry.prefix(360)).trimmingCharacters(in: .whitespaces) + "…" : entry
+            let slipH = slipHeight(shown, width: leaf.contentWidth - 20)
+            drawHandSlip(shown, style: style, in: CGRect(x: leaf.left + 4, y: leaf.y, width: leaf.contentWidth - 20, height: slipH),
+                         rotation: (frac("hb-entry-\(lesson.id)") - 0.5) * 0.035, seed: "hb-entry-\(lesson.id)")
+            leaf.y += slipH + 10
+        }
+        // The foot box is anchored to the foot of the leaf; the fields take what is between.
+        let footWidth = leaf.contentWidth - 24
+        let footTextH = FieldText.height(lesson.realWorldPractice, font: .fbSerifItalic(ofSize: 10), width: footWidth, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+        let footH = footTextH + 34
+        let footTop = leaf.bottom - footH
+        let each = fields > 0 ? max(52, min(78, (footTop - 10 - leaf.y) / CGFloat(fields))) : 0
+        for field in lesson.fields.prefix(fields) {
+            let top = leaf.y
+            drawTracked(field.label, at: CGPoint(x: leaf.left, y: top), font: smallCaps(7), color: ink.withAlphaComponent(0.85), tracking: 1.1)
+            (field.placeholder as NSString).draw(in: CGRect(x: leaf.left, y: top + 11, width: leaf.contentWidth, height: 12),
+                withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 8.4), .foregroundColor: ink.withAlphaComponent(0.5)])
+            hbRules(from: top + 20, to: top + each - 4, left: leaf.left, right: leaf.right, spacing: 17, style: style)
+            leaf.y = top + each
+        }
+        let frame = CGRect(x: leaf.left, y: footTop, width: leaf.contentWidth, height: footH)
+        drawCardFrame(frame, style: style, double: true)
+        drawTracked("To try in the real world", at: CGPoint(x: frame.minX + 12, y: frame.minY + 8), font: smallCaps(6.6), color: style.palette.accent, tracking: 1.2)
+        FieldText.flow(lesson.realWorldPractice, font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.9),
+                       in: CGRect(x: frame.minX + 12, y: frame.minY + 22, width: footWidth, height: footTextH + 4),
+                       lineSpacing: 2, paragraphSpacing: 0, justified: false)
     }
 
     // MARK: Workbook leaf
@@ -286,8 +372,12 @@ extension MonthlyEditionPDFWriter {
                 leaf.y = top + perField
             }
         } else {
-            drawEyebrow("Your notes", style: style, leaf: &leaf)
-            hbRules(from: leaf.y, to: footTop - 12, left: leaf.left, right: leaf.right, style: style)
+            if let prompt = NotePromptDealer.next(.margin, seed: "worksheet-\(lesson.id)") {
+                drawNotesBlock(prompt, in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: footTop - 12 - leaf.y), style: style)
+            } else {
+                drawEyebrow("Your notes", style: style, leaf: &leaf)
+                hbRules(from: leaf.y, to: footTop - 12, left: leaf.left, right: leaf.right, style: style)
+            }
         }
 
         let frame = CGRect(x: leaf.left, y: footTop, width: leaf.contentWidth, height: footH)
@@ -363,7 +453,8 @@ extension MonthlyEditionPDFWriter {
     static func drawStack(
         _ items: [StackItem], head: String, kicker: String, headRight: String,
         style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor,
-        gap: CGFloat = 16
+        gap: CGFloat = 16,
+        fill: ((CGRect) -> Void)? = nil
     ) {
         guard !items.isEmpty else { return }
         var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: head, headRight: headRight)
@@ -384,6 +475,10 @@ extension MonthlyEditionPDFWriter {
                 cg.addLine(to: CGPoint(x: leaf.left + leaf.contentWidth * 0.62, y: leaf.y - gap / 2))
                 cg.strokePath()
             }
+        }
+        // Whatever room the last leaf has left is offered to the reader, if there is enough to write in.
+        if let fill, leaf.bottom - leaf.y >= 110 {
+            fill(CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: min(leaf.bottom - leaf.y, 260)))
         }
     }
 

@@ -137,7 +137,7 @@ struct QuillTemperament: Codable, Equatable {
         return QuillTemperament(axes: [
             axis("boldness", measure: boldMeasure,
                  lowReader: "writes in pencil-soft maybes",
-                 lowQuill: "is bold to the point of rudeness and does not believe in maybe",
+                 lowQuill: "is bold to the point of rudeness and doesn't believe in maybe",
                  highReader: "writes at full volume, exclamation-first",
                  highQuill: "is quiet and exact, and waits for the one word that needs no emphasis"),
             axis("order", measure: orderMeasure,
@@ -288,7 +288,7 @@ enum QuillChoosing {
         case ("boldness", false):
             return "wants the daring version of every sentence written first, so the timid version can be chosen honestly"
         case ("boldness", true):
-            return "wants one sentence per page slowed down until it is exactly true"
+            return "wants one sentence per page slowed down until it's exactly true"
         case ("order", true):
             return "wants to know what happens if the rule is broken just once, for science"
         case ("order", false):
@@ -296,7 +296,7 @@ enum QuillChoosing {
         case ("inquiry", true):
             return "wants questions answered on the same page they were asked"
         case ("inquiry", false):
-            return "wants every certainty to survive one good question before it is inked"
+            return "wants every certainty to survive one good question before it's inked"
         case ("ornament", false):
             return "wants a flourish on the descenders whenever nobody is watching"
         default:
@@ -339,7 +339,7 @@ enum QuillChoosing {
             "Where your hand \(pastReaderHabit(for: $0)), the new instrument \(pastQuillPromise(for: $0))."
         } ?? "The new instrument had arrived with opinions, and ink to spend on them."
         return """
-        The Quillquarium had not been still when you entered. Pens had schooled overhead like minnows, their nibs glinting; predatory quills had patrolled the high shelves; somewhere, a pencil had pretended badly to be asleep. Instruments sometimes waited there for years, the keepers had told you, because a pen could not merely be picked up. It had to choose.
+        The Quillquarium hadn't been still when you entered. Pens had schooled overhead like minnows, their nibs glinting; predatory quills had patrolled the high shelves; somewhere, a pencil had pretended badly to be asleep. Instruments sometimes waited there for years, the keepers had told you, because a pen couldn't merely be picked up. It had to choose.
 
         That night, one of them chose you.
 
@@ -347,7 +347,7 @@ enum QuillChoosing {
 
         \(counterweight)
 
-        That had not been an insult. It had been the oldest rule of the room: the right instrument was the one that carried you where you would not have gone alone. \(quill.name) had chosen you because it \(quill.wants.first ?? "had opinions, and ink to spend on them"). For the record, it also \(quill.quirks.first ?? "hummed faintly on downstrokes").
+        That hadn't been an insult. It had been the oldest rule of the room: the right instrument was the one that carried you where you wouldn't have gone alone. \(quill.name) had chosen you because it \(quill.wants.first ?? "had opinions, and ink to spend on them"). For the record, it also \(quill.quirks.first ?? "hummed faintly on downstrokes").
 
         The page waited for your answer. If you kept it, the choosing would stand, and \(quill.name) would ride in your Book's spine with opinions about everything the two of you wrote. If you let it wait, the quill would return to the school without offense. Quills had always been patient. This one had already decided about you.
         """
@@ -453,9 +453,9 @@ enum QuillChoosing {
         - Never use first-person narration. Never narrate as "I" or "we." Dialogue may use first person only when a keeper speaks.
         - Keep the entire scene about \(name) breaking from the airborne school, studying the reader's hand, landing before them, and choosing them in the Quillquarium.
         - Make the choosing tactile and magical: airborne instruments, ink, paper, sound, the weight or temperature of the chosen pen, and one small reaction from the room.
-        - Explain through action why this opposite temperament made the pairing right. Do not diagnose the reader or invent private facts beyond the supplied writing habits.
-        - Do not introduce two cast members, a Loom milestone, a relationship scene, today's weather, or an unrelated adventure.
-        - Do not claim the reader accepted. End at the held-breath choice: keeping the page would make the choosing stand; letting it wait would return \(name) patiently to the school.
+        - Explain through action why this opposite temperament made the pairing right. Don't diagnose the reader or invent private facts beyond the supplied writing habits.
+        - Don't introduce two cast members, a Loom milestone, a relationship scene, today's weather, or an unrelated adventure.
+        - Don't claim the reader accepted. End at the held-breath choice: keeping the page would make the choosing stand; letting it wait would return \(name) patiently to the school.
         - Prose only. No headings, lists, analysis, or meta-commentary. 5 to 7 short paragraphs.
         """
     }
@@ -561,7 +561,6 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
         guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
         // On a hard day the Book leads with care. This milestone is once-ever
         // and self-suppressing, so it simply waits for a calmer session.
-        guard !context.distress.isActive else { return [] }
         let archive = inputs.days + [day]
         // Measuring the reader's hand reads every prose page they have kept,
         // and both the maturity gate and the mint do it. One reading per

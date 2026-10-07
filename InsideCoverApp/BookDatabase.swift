@@ -286,41 +286,97 @@ enum BookDatabase {
 /// Reads the durable archive rather than the launch-time view cache. ContentView
 /// intentionally hydrates bounded event/memory windows for responsiveness; a
 /// direct question to the Book is the moment to consult the complete local store.
+///
+/// The read is the expensive part of a history question (every day, up to
+/// 20,000 events, memories and faculty entries, plus consolidating the
+/// memories), and it used to be redone for each message of a conversation.
+/// What was read is now kept until the store file changes, or a minute passes,
+/// so a second question in the same chat starts from the cached archive.
 actor AskTheBookArchiveMemoryReader {
     static let shared = AskTheBookArchiveMemoryReader()
+
+    private struct Stamp: Equatable {
+        var storeModified: TimeInterval
+        var storeSize: Int
+        var walModified: TimeInterval
+        var walSize: Int
+    }
+
+    private struct Snapshot {
+        var stamp: Stamp
+        var loadedAt: Date
+        var days: [BookDay]
+        var selfFacts: [SelfFact]?
+        var events: [NarrativeEvent]?
+        var memories: [NarrativeEntityMemory]?
+        var facultyEntries: [FacultyEntry]?
+        var customCastEntities: [NarrativeWorldEntity]?
+    }
+
+    private static let maximumAge: TimeInterval = 60
+
+    private var database: BookArchiveDatabase?
+    private var snapshot: Snapshot?
+
+    /// Forget what was read, e.g. when the chat closes.
+    func invalidate() {
+        snapshot = nil
+    }
 
     func retrieve(
         query: String,
         previousTurns: [AskTheBookTurn],
         baseline: StacksSearchDataset
     ) -> AskTheBookMemoryPacket {
-        let database = BookDatabase.detachedDatabase()
+        let database = self.database ?? BookDatabase.detachedDatabase()
+        self.database = database
+        let stamp = Self.stamp(for: database.storeURL)
+        let now = Date()
+
+        let current: Snapshot
+        if let snapshot, snapshot.stamp == stamp, now.timeIntervalSince(snapshot.loadedAt) < Self.maximumAge {
+            current = snapshot
+        } else {
+            current = Snapshot(
+                stamp: stamp,
+                loadedAt: now,
+                days: database.loadDays(migratingFrom: baseline.days),
+                selfFacts: try? database.selfFacts(),
+                events: try? database.narrativeEvents(limit: 20_000),
+                memories: (try? database.entityMemories(entityIDs: nil, limit: 20_000))
+                    .map { NarrativeEntityMemoryConsolidator.consolidate($0) },
+                facultyEntries: try? database.facultyEntries(kind: nil, dayIDs: nil, since: nil, limit: 20_000),
+                customCastEntities: (try? database.customCastMembers(limit: 5_000))?.map(\.entity)
+            )
+            snapshot = current
+        }
+
         var dataset = baseline
-        dataset.days = database.loadDays(migratingFrom: baseline.days)
-        if let facts = try? database.selfFacts() {
-            dataset.selfFacts = facts
-        }
-        if let events = try? database.narrativeEvents(limit: 20_000) {
-            dataset.narrativeEvents = events
-        }
-        if let memories = try? database.entityMemories(entityIDs: nil, limit: 20_000) {
-            dataset.memories = NarrativeEntityMemoryConsolidator.consolidate(memories)
-        }
-        if let entries = try? database.facultyEntries(
-            kind: nil,
-            dayIDs: nil,
-            since: nil,
-            limit: 20_000
-        ) {
-            dataset.facultyEntries = entries
-        }
-        if let customCast = try? database.customCastMembers(limit: 5_000) {
-            dataset.entities = NarrativePackRegistry.entities + customCast.map(\.entity)
+        dataset.days = current.days
+        if let facts = current.selfFacts { dataset.selfFacts = facts }
+        if let events = current.events { dataset.narrativeEvents = events }
+        if let memories = current.memories { dataset.memories = memories }
+        if let entries = current.facultyEntries { dataset.facultyEntries = entries }
+        if let custom = current.customCastEntities {
+            dataset.entities = NarrativePackRegistry.entities + custom
         }
         return AskTheBookMemoryRetriever.retrieve(
             query: query,
             previousTurns: previousTurns,
             from: dataset
         )
+    }
+
+    private static func stamp(for storeURL: URL) -> Stamp {
+        func attributes(_ url: URL) -> (TimeInterval, Int) {
+            let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey])
+            return (
+                values?.contentModificationDate?.timeIntervalSinceReferenceDate ?? 0,
+                values?.fileSize ?? 0
+            )
+        }
+        let store = attributes(storeURL)
+        let wal = attributes(URL(fileURLWithPath: storeURL.path + "-wal"))
+        return Stamp(storeModified: store.0, storeSize: store.1, walModified: wal.0, walSize: wal.1)
     }
 }

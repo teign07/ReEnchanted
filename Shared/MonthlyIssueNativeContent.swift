@@ -42,6 +42,8 @@ struct AuthoredStorySceneChoice: Codable, Identifiable, Equatable {
     /// The option appears only while the Reader's kept finding still exists
     /// in this issue/run. This is an offer, not a claim about the finding.
     var requiresFindingContentID: String? = nil
+    /// What the Cast carry away when the reader commits this choice.
+    var castMemories: [AuthoredCastMemory]? = nil
 }
 
 struct AuthoredJumpDefinition: Codable, Equatable {
@@ -160,6 +162,11 @@ struct AuthoredStoryNode: Codable, Identifiable, Equatable {
     var carryForward: AuthoredChoiceCarryForward? = nil
     var findingInsertion: AuthoredFindingInsertion? = nil
     var observationPairInsertion: AuthoredObservationPairInsertion? = nil
+    /// What the Cast carry away when the reader finishes this node.
+    var castMemories: [AuthoredCastMemory]? = nil
+    /// Sentences present only if somebody remembers an earlier moment, by key,
+    /// across issues. Runtime 11.
+    var recalls: [AuthoredCastRecall]? = nil
 }
 
 struct AuthoredStoryScene: MonthlyIssueNativeContent {
@@ -191,6 +198,8 @@ struct AuthoredStoryScene: MonthlyIssueNativeContent {
     /// in it by entity id. The Book's map reads both off the Page.
     var roomID: String? = nil
     var castIDs: [String]? = nil
+    /// What the Cast carry away when the reader completes the scene.
+    var castMemories: [AuthoredCastMemory]? = nil
 }
 
 struct AuthoredRadioBanter: MonthlyIssueNativeContent {
@@ -554,7 +563,8 @@ enum AuthoredStoryScenePageAdapter {
                     guard let node = AuthoredStoryProgress.currentNode(scene: scene, contentID: atomAndManifest.1.id,
                         scope: scope, ledger: inputs.authoredContentReceipts) else { return nil }
                     presented.title = node.title
-                    presented.opening = node.body
+                    presented.opening = CastStoryRecall.render(node.body, recalls: node.recalls,
+                        ledger: inputs.castStoryMemories)
                     if let insertion = node.findingInsertion {
                         presented.opening = presented.opening.replacingOccurrences(of: insertion.marker,
                             with: insertion.render(scope: scope, ledger: inputs.authoredContentReceipts,
@@ -830,10 +840,9 @@ enum MonthlyIssueMarginaliaDresser {
         _ pages: [SurfacePage],
         day: BookDay,
         inputs: BookSourceInputs,
-        now: Date,
-        distressActive: Bool
+        now: Date
     ) -> [SurfacePage] {
-        guard !distressActive, !pages.isEmpty else { return pages }
+        guard !pages.isEmpty else { return pages }
         let resolvedInputs = inputs.resolvingWorldEvents(for: day, now: now)
         let artifacts = monthlyIssueNativeIndex(resolvedInputs.authoredMarginaliaMarks)
         let eligible: [ResolvedAuthoredMarginalia] = MonthlyIssueContentResolver.eligible(
@@ -1210,8 +1219,11 @@ struct MonthlyIssueRuntimeCatalog {
         var reportableScenes: [AuthoredStoryScene]
     }
     private var entries: [String: Entry] = [:]
+    /// The same packs' Cast memories, indexed for the receipts that earn them.
+    private(set) var castMemorySource: CastStoryMemorySource = .empty
 
     init(packs: [WorldEventPack]) {
+        castMemorySource = CastStoryMemorySource(packs: packs)
         for pack in packs {
             for manifest in pack.authoringManifests ?? [] {
                 guard let event = pack.events.first(where: { $0.id == manifest.eventID }) else { continue }
@@ -1322,6 +1334,19 @@ struct MonthlyIssueRuntimeCatalog {
                    now: Date, hasAccess: Bool) -> SurfacePage? {
         // Explicit archive reads are outside the temporary-content lifecycle.
         if page.payload.metadata["keptPage"] == "true" { return page }
+        // A story beat the issue has moved past (a later beat opened, or a recap
+        // told it) leaves the desk, the bench and the folio. A story the reader
+        // is partway through keeps its own continuation window.
+        if page.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
+           let issueID = page.payload.metadata[MonthlyIssuePageMetadata.issueID],
+           let contentID = page.payload.metadata[MonthlyIssuePageMetadata.contentID],
+           let entry = entries[Self.key(issueID, contentID)], entry.atom.isStoryBeat,
+           let snapshot = WorldEventResolver.lifecycleSnapshot(packID: entry.manifest.eventPackID,
+                event: entry.event, now: now, ledger: inputs.worldEventLifecycle),
+           entry.manifest.supersededStoryBeatIDs(
+                atLiveDay: snapshot.liveDay, ledger: inputs.authoredContentReceipts,
+                scope: AuthoredContentScope(scopeID: issueID, runID: snapshot.runID),
+                now: now).contains(contentID) { return nil }
         if page.payload.metadata["authoredMissionOffer"] == "true",
            let base = page.authoredContentReceipts(state: .opened, at: now).first,
            inputs.authoredContentReceipts.satisfies(AuthoredContentReceiptQuery(contentID: base.contentID,

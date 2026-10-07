@@ -216,7 +216,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let prose = try XCTUnwrap(WeeklyBindingWriter.issue(for: plan))
         XCTAssertTrue(prose.contains("bakery"), prose)
         XCTAssertTrue(prose.lowercased().contains("plums"), prose)
-        XCTAssertTrue(prose.contains("The Book bound the week:"), prose)
+        XCTAssertTrue(prose.contains("The Book bound the week"), prose)
         // It leads with the night the plan chose, not with Monday.
         XCTAssertTrue(prose.hasPrefix("You walked the long way"), prose)
         // And the issue's own framing is the issue's, not the night's.

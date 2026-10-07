@@ -81,11 +81,22 @@ labels their issue; the ordinary leaf decorator and edition marginalia composer
 may place them only on October leaves. The marks are restrained to existing
 collision-safe leaf slots; not every leaf receives one.
 
-`make_seasonal_marginalia.py` deterministically renders the twenty 220px PNGs,
-the contact sheet, and the corresponding native cabinet entries. Each PNG's
-media ID is `count-unbound.seasonal.<filename-stem>`. A signed issue delivery
-must list all twenty as media alongside the page-archetype pack, with the same
-scope and compatible retirement dates. The original eight directed notes need
+The twenty illustrations were replaced on October 3 using built-in image
+generation, with the existing pixie and goblin marginalia as style references.
+The PNGs preserve the generated resolution and alpha; exact prompts are in
+`seasonal-art-prompts.json`. `make_seasonal_marginalia.py` validates these files,
+refreshes the contact sheet, and synchronizes cabinet metadata without redrawing
+or overwriting any source art.
+
+The revised page-archetype delivery ID is `count-unbound.margins.v2`; each new
+image's immutable media ID is `count-unbound.seasonal.v2.<filename-stem>`.
+Logical cabinet IDs and October date gates are unchanged. A revised signed issue
+delivery must carry these twenty media files and the v2 page-archetype pack.
+This revision was signed and published on October 3, 2026. An independent free
+Reader session verified the live signature and all 37 asset sizes and SHA-256
+digests, including the twenty replacement illustrations. The prior signed
+envelope is retained with the generated-art release candidate for rollback.
+The original eight directed notes need
 their separate `count-unbound.mark.*` media IDs. No monthly issue is bundled or
 published by this source change. Retaining October art for later unbound
 seasonal or annual composition still requires a separate archival delivery

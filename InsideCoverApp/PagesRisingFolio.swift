@@ -175,6 +175,10 @@ private enum FolioInteractionLeafKind: Equatable {
     case response
     case generationRequest
     case storyChoices
+    /// Let's Chat. The leaf is an invitation, not a field: the conversation
+    /// happens on the opened Page, and a box here that looked like the chat's
+    /// composer sent readers to type into the wrong place.
+    case conversation
 }
 
 /// The compact desk's living book. A `SurfacePage` remains the unit the
@@ -224,6 +228,9 @@ struct PagesRisingFolio: View {
     let onLiftRibbon: () -> Void
     let onOpenGlow: () -> Void
     let onExploreDeeper: () -> String?
+    /// The Pages the next Explore deeper will bind, decided ahead of the tap so
+    /// their leaves can be laid out while the reader is still reading.
+    let onPrepareDeeper: () -> [SurfacePage]
     let onSelectOfficialCover: (PublicationOfficialMonthlyCover) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -244,6 +251,7 @@ struct PagesRisingFolio: View {
     @State private var requestedDocumentID: String?
     @State private var interactionStore = FolioInteractionStore()
     @State private var inspectedArtifact: FolioInspectableArtifact?
+    @State private var preparedDeeperKey: String?
 
     private var pageHeight: CGFloat {
         if sizeCategory.isFolioAccessibilityCategory {
@@ -354,9 +362,12 @@ struct PagesRisingFolio: View {
             }
             let openEphemeraID = leaves.first(where: { $0.id == currentLeafID })
                 .flatMap { FolioEphemeraArtifact(surface: $0.surface)?.id }
-            let illuminationRequests = boundaryIlluminationRequests(in: leaves)
+            // Only the leaves one turn away have to be finished before the
+            // paper takes a touch. Waiting on every photograph in the binding
+            // froze the whole Book after Explore deeper while each new
+            // boundary was fetched and composed in turn.
             let boundaryIlluminationsAreSettled = preparedIlluminations.areSettled(
-                illuminationRequests
+                boundaryIlluminationRequests(within: 1, of: currentLeafID, in: leaves)
             )
 
             VStack(spacing: 8) {
@@ -676,11 +687,6 @@ struct PagesRisingFolio: View {
                 .compositingGroup()
             }
             .task(id: synchronizationKey(for: leaves, metrics: metrics)) {
-                // Photo boundaries are finished while the reader is still on
-                // the surrounding Pages. Their leaf only displays prepared
-                // pixels; it never begins a Photos fetch or composition pass.
-                await preparedIlluminations.prepare(illuminationRequests)
-
                 #if DEBUG
                 let smokeTarget = requestedSmokeLeaf(in: leaves)
                 #else
@@ -704,6 +710,15 @@ struct PagesRisingFolio: View {
                 if leaves.isEmpty {
                     isContentsOpen = true
                 }
+
+                // Photo boundaries are finished while the reader is still on
+                // the surrounding Pages, nearest first. Their leaf only displays
+                // prepared pixels; it never begins a Photos fetch or composition
+                // pass. The reader is moved first: a destination never waits on
+                // a photograph it does not show.
+                await preparedIlluminations.prepare(
+                    boundaryIlluminationRequests(nearestTo: currentLeafID, in: leaves)
+                )
             }
             .onAppear {
                 #if DEBUG
@@ -715,6 +730,13 @@ struct PagesRisingFolio: View {
             }
             .onChange(of: currentLeafID) { _, nextID in
                 rememberPosition(for: nextID, in: leaves)
+                // The paper waits on these before it takes a touch, so they go
+                // ahead of whatever the binding-wide pass is still working on.
+                let neighbours = boundaryIlluminationRequests(within: 1, of: nextID, in: leaves)
+                if !preparedIlluminations.areSettled(neighbours) {
+                    Task { await preparedIlluminations.prepare(neighbours) }
+                }
+                prepareDeeperLeavesIfNearEnd(nextID, in: leaves, metrics: metrics)
             }
         }
         .frame(height: Self.declaredHeight(pageHeight: pageHeight))
@@ -878,6 +900,28 @@ struct PagesRisingFolio: View {
         }
     }
 
+    /// Once the reader reaches the last Page in the binding, lay out the nine
+    /// that Explore deeper would bring. Measuring them used to happen inside
+    /// the riffle, on the frame the new leaves were bound. Now the riffle finds
+    /// them already set, and only the binding changes.
+    private func prepareDeeperLeavesIfNearEnd(
+        _ leafID: String?,
+        in leaves: [FolioLeaf],
+        metrics: FolioLayoutMetrics
+    ) {
+        guard let leaf = leaves.first(where: { $0.id == leafID }),
+              let lastDocumentID = leaves.last(where: { !$0.isEnding && !$0.isInterstitial })?.documentID,
+              leaf.isEnding || leaf.documentID == lastDocumentID else { return }
+        let key = synchronizationKey(for: leaves, metrics: metrics)
+        guard preparedDeeperKey != key else { return }
+        preparedDeeperKey = key
+        Task { @MainActor in
+            // Let the turn that brought the reader here finish first.
+            try? await Task.sleep(for: .seconds(0.45))
+            await PagesRisingFolioPaginator.prewarm(onPrepareDeeper(), metrics: metrics)
+        }
+    }
+
     /// The last leaf deepens the current binding. The new Pages arrive beneath
     /// the thickest part of a riffle, and the Book settles on the first of them.
     private func exploreDeeper() {
@@ -967,6 +1011,29 @@ struct PagesRisingFolio: View {
         return "\(Int(metrics.pageWidth)):\(Int(metrics.pageHeight)):\(metrics.contentSizeCategory.rawValue):\(leafKey)"
     }
 
+    /// Every boundary illumination in the binding, the nearest to `leafID`
+    /// first, so the next turn either way is the first one finished.
+    private func boundaryIlluminationRequests(
+        nearestTo leafID: String?,
+        in leaves: [FolioLeaf]
+    ) -> [FolioPreparedIlluminationRequest] {
+        let origin = leaves.firstIndex { $0.id == leafID } ?? 0
+        return leaves.indices
+            .sorted { (abs($0 - origin), $0) < (abs($1 - origin), $1) }
+            .flatMap { boundaryIlluminationRequests(in: [leaves[$0]]) }
+    }
+
+    /// The illuminations within `reach` turns of `leafID`.
+    private func boundaryIlluminationRequests(
+        within reach: Int,
+        of leafID: String?,
+        in leaves: [FolioLeaf]
+    ) -> [FolioPreparedIlluminationRequest] {
+        guard let index = leaves.firstIndex(where: { $0.id == leafID }) else { return [] }
+        let window = leaves[max(0, index - reach)...min(leaves.count - 1, index + reach)]
+        return boundaryIlluminationRequests(in: Array(window))
+    }
+
     private func boundaryIlluminationRequests(
         in leaves: [FolioLeaf]
     ) -> [FolioPreparedIlluminationRequest] {
@@ -988,6 +1055,10 @@ struct PagesRisingFolio: View {
     /// Launch-only visual routes. They do not change reader state; they let a
     /// locked Simulator settle directly on otherwise hard-to-reach specimens.
     private func requestedSmokeLeaf(in leaves: [FolioLeaf]) -> FolioLeaf? {
+        // Once only, so Explore deeper can be tried from the ending leaf.
+        guard currentLeafID == nil || leaves.first(where: { $0.id == currentLeafID }) == nil else {
+            return nil
+        }
         let arguments = ProcessInfo.processInfo.arguments
         if arguments.contains("--smoke-folio-decoration-plate") {
             return leaves.first(where: \.isDecorationPlate)
@@ -3735,10 +3806,11 @@ private struct FolioLeaf: Identifiable, Equatable {
 
     var decorativeMarginNote: String? {
         if interactionKind == .generationRequest { return "Psst. Tell me to start." }
+        if interactionKind == .conversation { return "Come talk to me." }
         if interactionKind == .response { return "Your ink goes here." }
         if interactionKind == .storyChoices { return "Three paths are scratching at the paper." }
         guard documentLeafCount > 1 else { return nil }
-        if isFirstDocumentLeaf { return "It would not all sit still. Turn me." }
+        if isFirstDocumentLeaf { return "It wouldn't all sit still. Turn me." }
         if isLastDocumentLeaf { return "I caught the last loose lines here." }
         return documentLeafIndex.isMultiple(of: 2)
             ? "It ran over. I put it here."
@@ -4500,7 +4572,11 @@ private enum PagesRisingFolioPaginator {
     /// must not throw away the pagination of the two beside it.
     @MainActor private static var documentCache: [FolioDocumentCacheKey: [FolioLeaf]] = [:]
     @MainActor private static var documentCacheOrder: [FolioDocumentCacheKey] = []
-    private static let documentCacheLimit = 24
+    /// Room for a long evening of Explore deeper. The folio re-reads every
+    /// document in order on each change, so a cache smaller than the folio
+    /// evicts each document just before it is asked for again: at 24, the
+    /// third pull of nine re-measured every Page in the Book.
+    private static let documentCacheLimit = 160
     @MainActor private static var deskCache: [FolioDeskCacheKey: [FolioLeaf]] = [:]
     @MainActor private static var deskCacheOrder: [FolioDeskCacheKey] = []
     private static let deskCacheLimit = 4
@@ -4619,6 +4695,17 @@ private enum PagesRisingFolioPaginator {
             height: height + spacingAfter,
             blockID: block.id
         )
+    }
+
+    /// Lays out Pages before they are bound, one per frame, so a later
+    /// `paginate` finds them in the cache.
+    @MainActor
+    static func prewarm(_ surfaces: [SurfacePage], metrics: FolioLayoutMetrics) async {
+        for surface in surfaces {
+            guard !Task.isCancelled else { return }
+            _ = cachedPaginate(surface, metrics: metrics)
+            try? await Task.sleep(for: .milliseconds(16))
+        }
     }
 
     @MainActor
@@ -4831,6 +4918,7 @@ private enum PagesRisingFolioPaginator {
     /// that pair. A library photograph is selected by identifier only from an
     /// already-authorized Photos library; no captioning, analysis, or model is
     /// involved.
+    @MainActor
     private static func boundaryInterstitial(
         from leading: SurfacePage,
         to trailing: SurfacePage,
@@ -5031,6 +5119,7 @@ private enum PagesRisingFolioPaginator {
         )
     }
 
+    @MainActor
     private static func interstitialKind(
         seed: Int,
         readerSentences: [String],
@@ -5053,9 +5142,6 @@ private enum PagesRisingFolioPaginator {
         ]
         let index = Int(UInt(bitPattern: (seed &+ 7_919).stableScramble) % UInt(illustrations.count))
         let illustration = FolioInterstitialKind.illustration(assetName: illustrations[index])
-        let photo = deterministicLibraryPhotoIdentifier(seed: seed).map {
-            FolioInterstitialKind.libraryPhoto(identifier: $0)
-        }
         let sentence = deterministicReaderSentence(from: readerSentences, seed: seed).map {
             FolioInterstitialKind.readerSentence(text: $0)
         }
@@ -5069,16 +5155,22 @@ private enum PagesRisingFolioPaginator {
         // like the residue: a plate is something to come across, and coming
         // across it every single time is just a section.
         let plate = placeLeaf.map { FolioInterstitialKind.placePlate(leaf: $0) }
-        let choices: [FolioInterstitialKind] = [
-            .marginalia,
-            sentence ?? .marginalia,
-            photo ?? .marginalia,
-            photo ?? illustration,
-            plate ?? illustration,
-            illustration
-        ]
-        let choice = Int(UInt(bitPattern: seed.stableScramble) % UInt(choices.count))
-        return choices[choice]
+        // Only the two photo slots ask the library for anything. Asking at
+        // every boundary put a Photos query on the main thread for each one,
+        // which Explore deeper paid nine at a time.
+        func photo() -> FolioInterstitialKind? {
+            deterministicLibraryPhotoIdentifier(seed: seed).map {
+                FolioInterstitialKind.libraryPhoto(identifier: $0)
+            }
+        }
+        switch Int(UInt(bitPattern: seed.stableScramble) % 6) {
+        case 0: return .marginalia
+        case 1: return sentence ?? .marginalia
+        case 2: return photo() ?? .marginalia
+        case 3: return photo() ?? illustration
+        case 4: return plate ?? illustration
+        default: return illustration
+        }
     }
 
     private static func deterministicReaderSentence(
@@ -5092,13 +5184,28 @@ private enum PagesRisingFolioPaginator {
         return sentences[index]
     }
 
+    /// The whole library sorted by date is a real query on a phone with years
+    /// of photographs, and every boundary used to run it afresh. One fetch
+    /// serves a few minutes of pagination; a photo taken in the meantime just
+    /// waits for the next one to be eligible.
+    @MainActor private static var libraryPhotos: (fetchedAt: Date, assets: PHFetchResult<PHAsset>)?
+    private static let libraryPhotosLifetime: TimeInterval = 300
+
+    @MainActor
     private static func deterministicLibraryPhotoIdentifier(seed: Int) -> String? {
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         guard status == .authorized || status == .limited else { return nil }
-        let options = PHFetchOptions()
-        options.includeHiddenAssets = false
-        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-        let assets = PHAsset.fetchAssets(with: .image, options: options)
+        let assets: PHFetchResult<PHAsset>
+        if let cached = libraryPhotos,
+           Date().timeIntervalSince(cached.fetchedAt) < libraryPhotosLifetime {
+            assets = cached.assets
+        } else {
+            let options = PHFetchOptions()
+            options.includeHiddenAssets = false
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+            assets = PHAsset.fetchAssets(with: .image, options: options)
+            libraryPhotos = (Date(), assets)
+        }
         guard assets.count > 0 else { return nil }
         let index = Int(UInt(bitPattern: (seed &+ 104_729).stableScramble) % UInt(assets.count))
         return assets.object(at: index).localIdentifier
@@ -5501,6 +5608,8 @@ private enum PagesRisingFolioPaginator {
                 ].contains { surface.payload.metadata[$0]?.nonEmpty != nil }
             let kind: FolioInteractionLeafKind = if hasStoryChoices {
                 .storyChoices
+            } else if surface.type == .askTheBook {
+                .conversation
             } else if surface.pagesRisingNeedsUserInitiatedGeneration {
                 .generationRequest
             } else {
@@ -5570,6 +5679,8 @@ private enum PagesRisingFolioPaginator {
         switch kind {
         case .generationRequest:
             return 174
+        case .conversation:
+            return 214
         case .storyChoices:
             return 356
         case .response:
@@ -6625,7 +6736,11 @@ private struct FolioLeafPage: View {
                     }
                 } else if !isAlreadyKept {
                     Button { onKeep(preparedResponse, responseDraft.extraMedia) } label: {
-                        Label("Keep", systemImage: "bookmark.fill")
+                        if leaf.surface.type == .askTheBook {
+                            Label("Let's chat", systemImage: "text.bubble.fill")
+                        } else {
+                            Label("Keep", systemImage: "bookmark.fill")
+                        }
                     }
                     .disabled(
                         responseDraft.isRecordingVoice
@@ -6748,6 +6863,13 @@ private struct FolioLeafPage: View {
                 accent: visualStyle.accent,
                 isBusy: isBusy,
                 compact: compact
+            )
+        case .conversation:
+            FolioConversationLeafPanel(
+                surface: leaf.surface,
+                accent: visualStyle.accent,
+                compact: compact,
+                onSay: { line in onKeep(line, []) }
             )
         case .storyChoices:
             FolioStoryChoicesLeafPanel(
@@ -7190,7 +7312,7 @@ private struct FolioLeafPage: View {
                         .stroke(visualStyle.accent.opacity(0.48), lineWidth: 1)
                 }
                 .accessibilityHint(leaf.surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
-                    ? "Lets this monthly scene go. It will not be offered again in this story."
+                    ? "Lets this monthly scene go. It won't be offered again in this story."
                     : "Rips this Page from the Book. The Book can call it back.")
 
                 if isGenerationPreview {
@@ -7212,6 +7334,19 @@ private struct FolioLeafPage: View {
                     .foregroundStyle(BookPalette.page)
                     .background(visualStyle.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .disabled(isBusy)
+                } else if leaf.surface.type == .askTheBook, !isAlreadyKept {
+                    // The way in. The chat itself lives on the opened Page.
+                    Button { onKeep("", []) } label: {
+                        Label("Let's chat", systemImage: "text.bubble.fill")
+                            .frame(maxWidth: .infinity)
+                            .frame(minHeight: 46)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.callout.weight(.black))
+                    .foregroundStyle(BookPalette.page)
+                    .background(visualStyle.accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .disabled(isBusy)
+                    .accessibilityHint("Opens the conversation")
                 } else {
                     Button { onKeep(preparedResponse, responseDraft.extraMedia) } label: {
                         Label(isAlreadyKept ? "Kept" : "Keep", systemImage: "bookmark.fill")
@@ -8022,7 +8157,7 @@ private struct FolioResponseLeafPanel: View {
     @MainActor
     private func keepPhotograph(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self) else {
-            photographMessage = "That photograph would not come loose."
+            photographMessage = "That photograph wouldn't come loose."
             return
         }
         await keepPhotograph(data)
@@ -8035,7 +8170,7 @@ private struct FolioResponseLeafPanel: View {
         defer { isLoadingPhotograph = false }
 
         guard let jpeg = PressedPhotograph.downscaledJPEG(from: data) else {
-            photographMessage = "That photograph would not come loose."
+            photographMessage = "That photograph wouldn't come loose."
             return
         }
         let base = InsideCoverStore.containerURL
@@ -8056,7 +8191,7 @@ private struct FolioResponseLeafPanel: View {
             photographMessage = "Pressed. It stays with this Page."
             BookFeedback.play(.openPage)
         } catch {
-            photographMessage = "The leaf could not hold that photograph."
+            photographMessage = "The leaf couldn't hold that photograph."
         }
     }
 
@@ -8071,7 +8206,7 @@ private struct FolioResponseLeafPanel: View {
         voiceMessage = nil
         guard voiceRecorder.start() else {
             draft.isRecordingVoice = false
-            voiceMessage = "The microphone would not wake."
+            voiceMessage = "The microphone wouldn't wake."
             return
         }
         draft.isRecordingVoice = true
@@ -8262,6 +8397,72 @@ private struct FolioGenerationRequestLeaf: View {
         }
         .padding(.horizontal, compact ? 12 : 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// The chat leaf: an invitation with three things to say. Tapping one opens
+/// the conversation and sends it, so the leaf and the chat are one gesture
+/// rather than a box here and a different box there.
+private struct FolioConversationLeafPanel: View {
+    let surface: SurfacePage
+    let accent: Color
+    var compact = false
+    let onSay: (String) -> Void
+
+    private var starters: [String] {
+        let provided = surface.payload.metadata["bookInitiativeSuggestedPrompts"]?
+            .components(separatedBy: "||")
+            .compactMap(\.nonEmpty) ?? []
+        return LetsChatSuggestions.starters(
+            initiativePrompts: provided,
+            seed: surface.id.stableHash
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 7 : 12) {
+            Text("Talk to me.")
+                .font(.system(size: compact ? 17 : 24, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+            if !compact {
+                Text("About anything. Tell me about your day, argue with me, or ask what I remember.")
+                    .font(.system(size: 15, design: .serif))
+                    .lineSpacing(3)
+                    .foregroundStyle(BookPalette.ink.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            VStack(spacing: compact ? 5 : 8) {
+                ForEach(starters.prefix(compact ? 2 : 3), id: \.self) { line in
+                    Button { onSay(line) } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "text.bubble")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(line)
+                                .font(.system(size: compact ? 12 : 14, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 11)
+                        .padding(.vertical, compact ? 6 : 9)
+                        .foregroundStyle(accent)
+                        .background(
+                            BookPalette.page.opacity(0.4),
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(accent.opacity(0.38), lineWidth: 1)
+                        }
+                    }
+                    .buttonStyle(.bookPress())
+                    .accessibilityHint("Opens the chat and says this")
+                }
+            }
+        }
+        .padding(.horizontal, compact ? 12 : 22)
+        .padding(.vertical, compact ? 8 : 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -10964,6 +11165,8 @@ extension SurfacePage {
     /// payload body stays a small old card-preview. Both the folio and the Keep
     /// path must read the same complete Page.
     var pagesRisingReadingBody: String {
+        // A long authored scene with a choice is read on the opened Page.
+        if let enticement = authoredChoiceEnticement { return enticement }
         guard pagesRisingHasWrittenProse else { return payload.body }
         for key in [
             "storyScene",

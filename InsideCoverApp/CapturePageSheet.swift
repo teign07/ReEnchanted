@@ -883,7 +883,7 @@ private struct MarginsAtlasFullScreenView: View {
                         if let selectedNode {
                             MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: variant)
                         } else {
-                            Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I will draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
+                            Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I'll draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(BookPalette.nightText.opacity(0.86))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -1412,6 +1412,8 @@ struct CapturePageSheet: View {
     /// Records only a reader-initiated reply to a deterministic Book teaser.
     /// Creating or opening the teaser never invokes the local model.
     var onBookInitiativeAnswered: (String, String, Date) -> Void = { _, _, _ in }
+    /// The reader asked the Book to remember a sentence and confirmed it.
+    var onRememberFromChat: (String, Date) -> Void = { _, _ in }
     var onExternalSparkContinuation: (String, ExternalSparkContinuation, Date) -> String = {
         _, _, _ in ""
     }
@@ -1495,6 +1497,17 @@ struct CapturePageSheet: View {
     @State private var openedAskEvidence: AskTheBookEvidence?
     @State private var isAskingTheBook = false
     @State private var askTheBookMessage = ""
+    /// Streaming reply and the Book's current phase; read only by the live
+    /// bubble so a reply arriving word by word does not redraw this sheet.
+    @State private var askLive = LetsChatLiveState()
+    @State private var askScrollHandle = LetsChatScrollHandle()
+    @State private var askOffer: LetsChatOffer?
+    @State private var askLastRoute: LetsChatRoute?
+    /// The turn count at which something from the Book's own life last got
+    /// into a reply, so it rests between appearances.
+    @State private var askOnMindAtTurn: Int?
+    @State private var askAutoSent = false
+    @FocusState private var askComposerFocused: Bool
     @State private var inkrestIntake = InkrestIntake()
     @State private var inkrestSeeded = false
     @State private var inkrestStarted = false
@@ -2181,7 +2194,7 @@ struct CapturePageSheet: View {
         if allowsCompassPhotoProof {
             return "Type or paste one sentence below, add one photo, or use both."
         }
-        return "Type or paste one sentence below. That is all you need to keep this mission."
+        return "Type or paste one sentence below. That's all you need to keep this mission."
     }
 
     private var showsGenericMarginNoteEditor: Bool {
@@ -3233,6 +3246,19 @@ struct CapturePageSheet: View {
                             // (Editable fields keep their own selection behavior.)
                             .textSelection(.enabled)
                     }
+                    .onAppear {
+                        // Lets the streaming reply keep its last line in view
+                        // without changing any state this body reads.
+                        let handle = askScrollHandle
+                        handle.scrollToBottom = {
+                            scrollProxy.scrollTo(Self.letsChatBottomID, anchor: .bottom)
+                        }
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if surface.type == .askTheBook, openedAskEvidence == nil {
+                            AnyView(letsChatComposer)
+                        }
+                    }
                     .onChange(of: isLocalBrainWorking) { _, isWorking in
                         guard isWorking else { return }
                         scrollToLocalBrainStatus(scrollProxy)
@@ -3434,7 +3460,7 @@ struct CapturePageSheet: View {
                 if BookCameraCaptureView.isCameraAvailable {
                     isCameraPresented = true
                 } else {
-                    illuminationMessage = "This device cannot open the camera here. Choose a photo from the library instead."
+                    illuminationMessage = "This device can't open the camera here. Choose a photo from the library instead."
                 }
             }
             .fullScreenCover(isPresented: $isCameraPresented) {
@@ -3647,7 +3673,7 @@ struct CapturePageSheet: View {
                 .toggleStyle(.switch)
                 .tint(LeafInk.gold)
                 .bookToggleSound(includePrivateWeatherInBoundVolumes)
-                Text("When this is on, the almanac may print counts and recurring food, drink, and Inner Weather patterns from Vellum and Inkrest. It does not print raw Health values or diagnose them.")
+                Text("When this is on, the almanac may print counts and recurring food, drink, and Inner Weather patterns from Vellum and Inkrest. It doesn't print raw Health values or diagnose them.")
                     .font(.caption2)
                     .foregroundStyle(openPageSecondaryText.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
@@ -3828,7 +3854,7 @@ struct CapturePageSheet: View {
                     Text(surface.payload.metadata["boundYearAnnual"] == "true"
                         ? (seasonalDispatchCoverChoice == .bookChooses
                             ? "This is the dust jacket. Navy linen and gold spine foil wait underneath."
-                            : "This prints as the illustrated hardcase. Choosing art replaces linen; it does not pretend foil can print on the boards.")
+                            : "This prints as the illustrated hardcase. Choosing art replaces linen; it doesn't pretend foil can print on the boards.")
                         : "This is the front of the perfect-bound softcover. The press file adds its back, spine, and bleed around it.")
                         .font(.caption2)
                         .foregroundStyle(openPageSecondaryText.opacity(0.76))
@@ -5310,7 +5336,7 @@ struct CapturePageSheet: View {
             gameBraidMessage = ""
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
-            gameBraidMessage = "The Scribe could not braid this run: \(error.localizedDescription)"
+            gameBraidMessage = "The Scribe couldn't braid this run: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
         isBraidingGameRun = false
@@ -5593,7 +5619,7 @@ struct CapturePageSheet: View {
             if let selectedNode = graph.nodes.first(where: { $0.id == selectedAtlasNodeID }) {
                 MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: atlasVariant)
             } else {
-                Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I will draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
+                Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I'll draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
@@ -5866,7 +5892,7 @@ struct CapturePageSheet: View {
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text("The formes are locked, but the ink has not reached this copy yet.")
+                Text("The formes are locked, but the ink hasn't reached this copy yet.")
                     .font(.system(.body, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
@@ -5936,7 +5962,7 @@ struct CapturePageSheet: View {
             bleedExportMessage = "The Bleed is bound for sharing."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
-            bleedExportMessage = "The edition would not bind: \(error.localizedDescription)"
+            bleedExportMessage = "The edition wouldn't bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -5950,116 +5976,124 @@ struct CapturePageSheet: View {
         }
     }
 
+    private static let letsChatBottomID = "lets-chat-bottom"
+
+    /// The transcript. The composer is pinned below the scroll view (see
+    /// `pageRoot`), so this is only what has been said.
     private var askTheBookConversationView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             if askTurns.isEmpty, let opening = bookInitiativeOpening {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("THE BOOK SPOKE FIRST", systemImage: "bookmark.fill")
-                        .font(.caption2.weight(.black))
-                        .foregroundStyle(BookPalette.teal)
-                    Text(opening)
-                        .font(.system(.body, design: .serif).italic())
-                        .foregroundStyle(BookPalette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 6) {
+                    LetsChatBubble(role: .book, text: opening)
                     if let invitation = surface.payload.metadata["bookInitiativeInvitation"]?.nonEmpty {
                         Text(invitation)
-                            .font(.callout)
+                            .font(.caption)
                             .foregroundStyle(openPageSecondaryText)
+                            .padding(.leading, 32)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text("The next bit of ink is yours, if there is one.")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(openPageSecondaryText.opacity(0.82))
                 }
-                .padding(14)
-                .background(BookPalette.teal.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(BookPalette.teal.opacity(0.24), lineWidth: 1)
-                }
+            } else if askTurns.isEmpty {
+                LetsChatBubble(role: .book, text: letsChatOpener)
             }
 
-            if !askTurns.isEmpty {
-                ForEach(Array(askTurns.enumerated()), id: \.element.id) { index, turn in
-                    askTurnCard(
-                        turn,
-                        index: index,
+            ForEach(askTurns) { turn in
+                LetsChatBubble(role: .reader, text: turn.prompt)
+                LetsChatBubble(role: .book, text: turn.answer)
+                if let searched = askSearchCountByTurnID[turn.id], searched > 0 {
+                    LetsChatLeaves(
                         evidence: askEvidenceByTurnID[turn.id] ?? [],
-                        searchedRecordCount: askSearchCountByTurnID[turn.id] ?? 0
+                        searchedRecordCount: searched,
+                        onOpen: { openedAskEvidence = $0 }
                     )
                 }
             }
 
-            if askTurns.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach((bookInitiativeSuggestedPrompts + [
-                            "What are you thinking about?",
-                            "What do you want from me?",
-                            "Which Page is your favorite?",
-                            "Tell me one of your secrets.",
-                            "What have you changed your mind about?",
-                            "What is your long-term goal?",
-                            "What opinion do you hold?",
-                            "What are your quirks?"
-                        ]), id: \.self) { question in
-                            Button(question) { askPrompt = question }
-                                .font(.caption.weight(.semibold))
-                                .buttonStyle(.bordered)
-                                .tint(BookPalette.teal)
-                        }
-                    }
-                }
-                .accessibilityLabel("Questions about my inner life")
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(askTurns.isEmpty && bookInitiativeOpening != nil ? "Say something back, or don't" : (askTurns.isEmpty ? "What do you want to say?" : "Put another sentence between us"))
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(openPageSecondaryText)
-                TextEditor(text: $askPrompt)
-                    .font(.body)
-                    .foregroundStyle(BookPalette.ink)
-                    .scrollContentBackground(.hidden)
-                    .padding(10)
-                    .frame(minHeight: 116)
-                    .inkFeedback(text: askPrompt)
-                    .dictationInput(text: $askPrompt)
-                    .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
-                    }
-            }
-
-            Button {
-                Task { await askTheBook() }
-            } label: {
-                Label(isAskingTheBook ? "I'm replying" : (bookInitiativeOpening == nil ? "Come closer" : "Stay a little longer"), systemImage: isAskingTheBook ? "pencil.and.scribble" : "text.bubble")
-                    .font(.subheadline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(BookPalette.teal.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.teal.opacity(0.36), lineWidth: 1)
-                    }
-            }
-            .buttonStyle(.bookPress())
-            .foregroundStyle(BookPalette.teal)
-            .disabled(isAskingTheBook || askPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
-
             if isAskingTheBook {
-                scribeWorkCard("ask-the-book")
+                if let line = askLive.readerLine {
+                    LetsChatBubble(role: .reader, text: line)
+                }
+                LetsChatLiveBubble(
+                    live: askLive,
+                    reduceMotion: reduceMotion,
+                    onGrow: { [askScrollHandle] in askScrollHandle.scrollToBottom?() }
+                )
             }
 
-            if !askTheBookMessage.isEmpty {
+            if let offer = askOffer, !isAskingTheBook {
+                LetsChatOfferCard(
+                    offer: offer,
+                    onAccept: { acceptChatOffer(offer) },
+                    onDecline: { askOffer = nil }
+                )
+            }
+
+            if !isAskingTheBook, askOffer == nil {
+                LetsChatChips(chips: letsChatChips) { chip in
+                    askPrompt = chip
+                    Task { await askTheBook() }
+                }
+            }
+
+            if !askTheBookMessage.isEmpty, !isAskingTheBook {
                 Text(askTheBookMessage)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            Color.clear
+                .frame(height: 1)
+                .id(Self.letsChatBottomID)
         }
+        .onChange(of: askComposerFocused) { _, focused in
+            // The keyboard is going. The weights must be gone before it can be
+            // asked for again; see `chatMayKeepModelWarm`.
+            if !focused, !isAskingTheBook, LocalModelManager.deviceMemoryGB < 8 {
+                releaseChatModel(afterTurn: false)
+            }
+        }
+        .onDisappear {
+            // Whatever the chat was holding, give it back with the page.
+            Task { await AskTheBookArchiveMemoryReader.shared.invalidate() }
+            releaseChatModel(afterTurn: false)
+        }
+    }
+
+    /// The Book's first line when it has not spoken first. Instant and
+    /// deterministic: opening the chat never waits on the model.
+    private var letsChatOpener: String {
+        if let line = bookInterior.currentInitiative?.openingLine.nonEmpty { return line }
+        if let fascination = bookInterior.fascination {
+            return "I keep thinking about \(fascination.subject). Tell me something, or ask me something."
+        }
+        return "I'm here. What's on your mind?"
+    }
+
+    private var letsChatChips: [String] {
+        if let route = askLastRoute, let last = askTurns.last {
+            return LetsChatSuggestions.followUps(
+                after: route,
+                evidence: askEvidenceByTurnID[last.id] ?? []
+            )
+        }
+        return LetsChatSuggestions.starters(
+            initiativePrompts: bookInitiativeSuggestedPrompts,
+            seed: Calendar.current.ordinality(of: .day, in: .year, for: Date()) ?? 0
+        )
+    }
+
+    /// The composer lives outside the scroll view so the field never scrolls
+    /// away from the thread.
+    private var letsChatComposer: some View {
+        LetsChatComposer(
+            text: $askPrompt,
+            isBusy: isAskingTheBook || isLocalBrainWorking,
+            placeholder: askTurns.isEmpty ? "Say something" : "Say something back",
+            focus: $askComposerFocused,
+            onSend: { Task { await askTheBook() } }
+        )
+        .padding(.bottom, 2)
     }
 
     private var bookInitiativeOpening: String? {
@@ -6280,7 +6314,7 @@ struct CapturePageSheet: View {
         )
         festivalMessage = ok
             ? "The feast is marked on your calendar."
-            : "It could not be added (check Calendar permission in Settings)."
+            : "It couldn't be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
 
@@ -6360,7 +6394,7 @@ struct CapturePageSheet: View {
         )
         todaysSkyMessage = ok
             ? "The sky-watch is marked on your calendar."
-            : "It could not be added (check Calendar permission in Settings)."
+            : "It couldn't be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
 
@@ -6444,7 +6478,7 @@ struct CapturePageSheet: View {
         let sessionName = m["sessionName"]?.nonEmpty ?? surface.prompt
         guard let startTimestamp = m["sessionStartTimestamp"].flatMap(Double.init),
               let endTimestamp = m["sessionEndTimestamp"].flatMap(Double.init) else {
-            academyCalendarMessage = "This session does not have a calendar time yet."
+            academyCalendarMessage = "This session doesn't have a calendar time yet."
             BookFeedback.play(.error)
             return
         }
@@ -6468,7 +6502,7 @@ struct CapturePageSheet: View {
         )
         academyCalendarMessage = ok
             ? "\(isClub ? "The club" : "The class") is marked on your calendar."
-            : "It could not be added (check Calendar permission in Settings)."
+            : "It couldn't be added (check Calendar permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
 
@@ -6872,7 +6906,7 @@ struct CapturePageSheet: View {
         case 2:
             return "The book has begun closing behind you."
         default:
-            return "You are deep in borrowed ink."
+            return "You're deep in borrowed ink."
         }
     }
 
@@ -7024,7 +7058,7 @@ struct CapturePageSheet: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Label("No ruling. The word is gone.", systemImage: "questionmark.square.dashed")
                         .font(.callout.weight(.black))
-                    Text("Keep this Page and I’ll mark the exact hole it left. Do not fill it in. The hole has business later.")
+                    Text("Keep this Page and I’ll mark the exact hole it left. Don't fill it in. The hole has business later.")
                         .font(.system(.body, design: .serif))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -7442,7 +7476,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(greyThreatChoice == "rescue" ? LeafInk.gold : BookPalette.teal)
 
                     if greyThreatChoice == "rescue" {
-                        Text("Something this Page could not have known when it was first kept.")
+                        Text("Something this Page couldn't have known when it was first kept.")
                             .font(.caption)
                             .foregroundStyle(openPageSecondaryText)
                         TextEditor(text: $greyRescueLine)
@@ -8262,18 +8296,9 @@ struct CapturePageSheet: View {
                 castLivingRecordSection(castLivingRecord)
             }
 
-            // Short authored entry/return leaves have no choice result panel.
-            // Keep must remain on the Page when iPhone puts the long toolbar
-            // label into its overflow menu.
-            if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
-               !surface.isStoryPlayablePage, !isKeptReadbackPage, !isReadOnlyPublication {
-                Button(keepPageButtonTitle) {
-                    keepCurrentPage()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(BookPalette.teal)
-                .disabled(!canKeep || isCommittingKeep)
-            }
+            // The wax seal at the foot of the leaf says "Keep and turn the page"
+            // for authored scenes; a second Keep button in the body would only
+            // be the same button twice.
 
             if showsLocalBrainInstallControl {
                 localBrainInstallControl
@@ -8303,7 +8328,9 @@ struct CapturePageSheet: View {
         let warm = record.relationships.filter { $0.disposition == .warm }
         let tense = record.relationships.filter { $0.disposition == .tense }
         let familiar = record.relationships.filter { $0.disposition == .familiar }
+        let story = record.storyMemories ?? []
         let hasAnyInk = !record.memories.isEmpty
+            || !story.isEmpty
             || !record.actions.isEmpty
             || record.lastPage != nil
             || !record.relationships.isEmpty
@@ -8340,6 +8367,22 @@ struct CapturePageSheet: View {
                 }
             }
 
+            if !story.isEmpty {
+                castLivingRecordHeading("What happened to them", symbol: "book.closed")
+                ForEach(story) { memory in
+                    // Their own words first, where they have any; the plain
+                    // fact underneath, so nobody has to guess what they mean.
+                    castLivingRecordRow(
+                        eyebrow: [memory.storyTitle, castRecordDate(memory.happenedAt),
+                                  memory.withReader ? "You were there" : nil]
+                            .compactMap { $0 }.joined(separator: " · "),
+                        title: memory.aside.map { "\u{201C}\($0)\u{201D}" } ?? memory.memory,
+                        detail: memory.aside == nil ? memory.momentTitle : memory.memory,
+                        symbol: memory.withReader ? "person.2.fill" : "bookmark.fill"
+                    )
+                }
+            }
+
             if !record.memories.isEmpty {
                 castLivingRecordHeading("What stuck", symbol: "brain.head.profile")
                 ForEach(record.memories) { memory in
@@ -8368,7 +8411,7 @@ struct CapturePageSheet: View {
                     .font(.system(.caption, design: .serif).italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
             } else {
-                Text("Nothing recent has stuck. They are here, but the paper is still learning their footsteps.")
+                Text("Nothing recent has stuck. They're here, but the paper is still learning their footsteps.")
                     .font(.system(.callout, design: .serif).italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
@@ -8608,7 +8651,7 @@ struct CapturePageSheet: View {
         VStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: "This is what I know about you.",
-                subtitle: "I learned it from Pages you kept and choices you made. I did not guess.",
+                subtitle: "I learned it from Pages you kept and choices you made. I didn't guess.",
                 symbol: "text.book.closed.fill",
                 tint: LeafInk.gold
             )
@@ -8641,7 +8684,7 @@ struct CapturePageSheet: View {
 
             ceremonyFindingCard(
                 title: "Wrong?",
-                text: "Write the correction below. I will keep it with these front pages.",
+                text: "Write the correction below. I'll keep it with these front pages.",
                 symbol: "pencil.line",
                 tint: BookPalette.teal
             )
@@ -8709,11 +8752,11 @@ struct CapturePageSheet: View {
         let strength: String
         switch metadata["claimTier"].flatMap(BookClaimTier.init(rawValue:)) {
         case .gathering:
-            strength = "It happened again. I am watching the line."
+            strength = "It happened again. I'm watching the line."
         case .established:
-            strength = "It keeps happening. I am keeping the line."
+            strength = "It keeps happening. I'm keeping the line."
         default:
-            strength = "I have only seen it once. The line is pencil, not ink."
+            strength = "I've only seen it once. The line is pencil, not ink."
         }
 
         return VStack(alignment: .leading, spacing: 14) {
@@ -8749,7 +8792,7 @@ struct CapturePageSheet: View {
                 tint: BookPalette.teal
             )
 
-            ritualCard(strength, title: "How sure I am")
+            ritualCard(strength, title: "How sure I'm")
         }
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
@@ -8912,7 +8955,7 @@ struct CapturePageSheet: View {
                 }
 
                 if boundWeeklyIssuePDFURL == nil {
-                    Text("Open it once and I will mend the missing share copy without asking Gemma to write it again.")
+                    Text("Open it once and I'll mend the missing share copy without asking Gemma to write it again.")
                         .font(.caption2)
                         .foregroundStyle(BookPalette.ink.opacity(0.58))
                         .fixedSize(horizontal: false, vertical: true)
@@ -8981,7 +9024,7 @@ struct CapturePageSheet: View {
 
             ceremonyFindingCard(
                 title: "A first light",
-                text: "This is the least I will ever know you.",
+                text: "This is the least I'll ever know you.",
                 symbol: "sparkle",
                 tint: LeafInk.gold
             )
@@ -9492,7 +9535,7 @@ struct CapturePageSheet: View {
         if metadata["tags"]?.contains("book-learning") == true {
             return "I learned from your choices."
         }
-        return "Something would not sit still."
+        return "Something wouldn't sit still."
     }
 
     private func bookNoticesSubtitle(_ metadata: [String: String]) -> String? {
@@ -9515,7 +9558,7 @@ struct CapturePageSheet: View {
         if let name = metadata["constellationName"]?.nonEmpty {
             return (
                 "Why I named it",
-                "I saw this repeat enough times to call it \(name). If it changes, I will change the name.",
+                "I saw this repeat enough times to call it \(name). If it changes, I'll change the name.",
                 "sparkles.rectangle.stack",
                 LeafInk.gold
             )
@@ -10071,8 +10114,8 @@ struct CapturePageSheet: View {
         }
         didAnswerTaleAsk = true
         taleAskReply = answer == .keepsHappening
-            ? "Then I will keep watching it, and I will not say what it means."
-            : "Good. I have put it down and I will not pick it up again."
+            ? "Then I'll keep watching it, and I won't say what it means."
+            : "Good. I've put it down and I won't pick it up again."
         BookFeedback.play(.braidComplete)
     }
 
@@ -10083,7 +10126,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.teal)
 
             Text(braidFeedbackMessage.isEmpty
-                ? "A heart or a miss teaches future Pages. It does not replace this one."
+                ? "A heart or a miss teaches future Pages. It doesn't replace this one."
                 : braidFeedbackMessage)
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
@@ -10147,7 +10190,7 @@ struct CapturePageSheet: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
 
-            Text("The kept Pages stay authoritative. Future Bindings use the telling left here; already-bound volumes do not rewrite themselves. If the new telling snags, this one stays exactly where it is.")
+            Text("The kept Pages stay authoritative. Future Bindings use the telling left here; already-bound volumes don't rewrite themselves. If the new telling snags, this one stays exactly where it is.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
@@ -10244,7 +10287,7 @@ struct CapturePageSheet: View {
 
             inventorySectionTitle("Story objects", symbol: "key.horizontal.fill")
             if inventoryStoryObjects.isEmpty {
-                Text("Objects you create in the Cast will live here too. They are not consumables; they are participants in the story.")
+                Text("Objects you create in the Cast will live here too. They aren't consumables; they're participants in the story.")
                     .font(.callout)
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
             } else {
@@ -10424,9 +10467,9 @@ struct CapturePageSheet: View {
 
     private func unspokenPenSentence() async -> String {
         let prompt = """
-        Write exactly one original English sentence that is very unlikely to have ever been spoken before.
+        Write exactly one original English sentence that's very unlikely to have ever been spoken before.
         It should still make sense: concrete, grammatically complete, and meaningful rather than random.
-        Do not explain the sentence. Do not use quotation marks. Do not write more than one sentence.
+        Don't explain the sentence. Don't use quotation marks. Don't write more than one sentence.
         """
         let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -10913,7 +10956,7 @@ struct CapturePageSheet: View {
             }
 
             Label(
-                "Do it away from the screen, then come back with what you found. Leave it entirely if it is unsafe, unwelcome, inaccessible, or simply not yours.",
+                "Do it away from the screen, then come back with what you found. Leave it entirely if it's unsafe, unwelcome, inaccessible, or simply not yours.",
                 systemImage: "eye"
             )
             .font(.caption.weight(.semibold))
@@ -11337,10 +11380,10 @@ struct CapturePageSheet: View {
             Button {
                 BookFeedback.play(.braidStart)
                 isGeneratingPlayfulMission = true
-                playfulMissionGenerationMessage = "I am inventing one fresh sensory errand."
+                playfulMissionGenerationMessage = "I'm inventing one fresh sensory errand."
                 onGeneratePlayfulMission(surface)
             } label: {
-                Label(isGeneratingPlayfulMission ? "I am plotting..." : "Give me another small trouble", systemImage: "sparkles")
+                Label(isGeneratingPlayfulMission ? "I'm plotting..." : "Give me another small trouble", systemImage: "sparkles")
                     .font(.subheadline.weight(.bold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
@@ -11353,7 +11396,7 @@ struct CapturePageSheet: View {
                 scribeWorkCard("wonder-compass-playful-mission")
             }
 
-            Text("I will keep it tiny, concrete, sensory, and small enough to finish before three minutes escape.")
+            Text("I'll keep it tiny, concrete, sensory, and small enough to finish before three minutes escape.")
                 .font(.caption)
                 .foregroundStyle(openPageSecondaryText)
                 .fixedSize(horizontal: false, vertical: true)
@@ -12211,7 +12254,7 @@ struct CapturePageSheet: View {
         guard let raw = try? await item.loadTransferable(type: Data.self),
               let jpeg = PressedPhotograph.downscaledJPEG(from: raw),
               let image = UIImage(data: jpeg) else {
-            await MainActor.run { pressedPhotoMessage = "That photograph could not be read." }
+            await MainActor.run { pressedPhotoMessage = "That photograph couldn't be read." }
             return
         }
         let attention = await attentionMetadata(for: image)
@@ -12233,7 +12276,7 @@ struct CapturePageSheet: View {
                 BookFeedback.play(.openPage)
             }
         } catch {
-            await MainActor.run { pressedPhotoMessage = "That photograph could not be kept." }
+            await MainActor.run { pressedPhotoMessage = "That photograph couldn't be kept." }
         }
     }
     #endif
@@ -12327,7 +12370,7 @@ struct CapturePageSheet: View {
             keptVoiceAsset = nil
             BookFeedback.play(.tap)
             if !keptVoiceRecorder.start() {
-                keptVoiceMessage = "The microphone could not start."
+                keptVoiceMessage = "The microphone couldn't start."
             }
         }
     }
@@ -12617,8 +12660,11 @@ struct CapturePageSheet: View {
                     storyMechanicActionCard(choice: selectedStoryChoice, draft: draft)
                 }
 
-                if currentStoryArc?.isComplete == true
-                    || draft.surface.payload.metadata["authoredStoryScene"] == "true" {
+                if draft.surface.payload.metadata["authoredStoryScene"] == "true" {
+                    // Authored scenes keep from the wax seal at the foot of the
+                    // leaf ("Keep and turn the page"). One button, not two.
+                    EmptyView()
+                } else if currentStoryArc?.isComplete == true {
                     VStack(spacing: 8) {
                         Text("The vignette is ready to keep.")
                             .font(.caption.weight(.bold))
@@ -12728,7 +12774,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.gold)
 
             if glintStage == 0 {
-                Text("Pick an ordinary object close enough to inspect. Boggle's rule: do not improve it yet.")
+                Text("Pick an ordinary object close enough to inspect. Boggle's rule: don't improve it yet.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
                 TextField("The object in the lens", text: $glintObject)
@@ -12862,8 +12908,8 @@ struct CapturePageSheet: View {
         Text("Pick which one this is, then fill in the boxes. Moving toward something changes what happens next. Getting away from something just gets you away.")
             .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
         activityOptionRow(activity, options: [
-            ("threshold", "I am moving toward something small"),
-            ("escape", "I am trying to get away from something")
+            ("threshold", "I'm moving toward something small"),
+            ("escape", "I'm trying to get away from something")
         ])
         activityFields(activity.fields)
         if academyActivitySelections[activity.id] == "escape" {
@@ -13601,7 +13647,7 @@ struct CapturePageSheet: View {
         proofPhotoMessage = "I'm tucking the proof into the margin."
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             BookFeedback.play(.error)
-            proofPhotoMessage = "That photo would not open. A sentence still counts."
+            proofPhotoMessage = "That photo wouldn't open. A sentence still counts."
             return
         }
         await loadCompassProofPhoto(imageData: data)
@@ -13611,7 +13657,7 @@ struct CapturePageSheet: View {
         proofPhotoMessage = "I'm tucking the proof into the margin."
         guard let image = UIImage(data: data) else {
             BookFeedback.play(.error)
-            proofPhotoMessage = "That photo would not open. A sentence still counts."
+            proofPhotoMessage = "That photo wouldn't open. A sentence still counts."
             return
         }
         do {
@@ -13625,7 +13671,7 @@ struct CapturePageSheet: View {
         } catch {
             await MainActor.run {
                 BookFeedback.play(.error)
-                proofPhotoMessage = "The photo could not be saved. A sentence still counts."
+                proofPhotoMessage = "The photo couldn't be saved. A sentence still counts."
             }
         }
     }
@@ -13634,7 +13680,7 @@ struct CapturePageSheet: View {
         illuminationMessage = "I'm opening that photograph."
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             BookFeedback.play(.error)
-            illuminationMessage = "That photograph would not open. Try another one."
+            illuminationMessage = "That photograph wouldn't open. Try another one."
             return
         }
         await holdCameraPhotoForChoice(imageData: data)
@@ -13647,7 +13693,7 @@ struct CapturePageSheet: View {
         }
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             BookFeedback.play(.error)
-            illuminationMessage = "The photograph would not open. The margins stayed quiet."
+            illuminationMessage = "The photograph wouldn't open. The margins stayed quiet."
             return
         }
         await loadManualPhoto(imageData: data)
@@ -13665,7 +13711,7 @@ struct CapturePageSheet: View {
         }
         guard let image = UIImage(data: data) else {
             BookFeedback.play(.error)
-            illuminationMessage = "The photograph would not open. The margins stayed quiet."
+            illuminationMessage = "The photograph wouldn't open. The margins stayed quiet."
             return
         }
         AppMemoryLedger.record("photo-manual-decoded")
@@ -13675,7 +13721,7 @@ struct CapturePageSheet: View {
         } catch {
             await MainActor.run {
                 BookFeedback.play(.error)
-                illuminationMessage = "Penny could not reach Gemma for this photo: \(error.localizedDescription)"
+                illuminationMessage = "Penny couldn't reach Gemma for this photo: \(error.localizedDescription)"
             }
             return
         }
@@ -13881,7 +13927,7 @@ struct CapturePageSheet: View {
     private func castEnchantment(from item: PhotosPickerItem) async {
         guard let data = try? await item.loadTransferable(type: Data.self) else {
             BookFeedback.play(.error)
-            enchantmentMessage = "That photo would not open. The spell did not land."
+            enchantmentMessage = "That photo wouldn't open. The spell didn't land."
             return
         }
         await castEnchantment(imageData: data)
@@ -13903,7 +13949,7 @@ struct CapturePageSheet: View {
 
         guard let image = UIImage(data: data) else {
             BookFeedback.play(.error)
-            enchantmentMessage = "That photo would not open. The spell did not land."
+            enchantmentMessage = "That photo wouldn't open. The spell didn't land."
             return
         }
         guard onSpendBeliefForGeneration(.enchantment) else {
@@ -13949,7 +13995,7 @@ struct CapturePageSheet: View {
             appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .private)")
             await MainActor.run {
                 BookFeedback.play(.error)
-                enchantmentMessage = "\(spell.title) did not finish. The local brain dropped its pencil, and your Belief was returned."
+                enchantmentMessage = "\(spell.title) didn't finish. The local brain dropped its pencil, and your Belief was returned."
             }
         }
     }
@@ -14141,7 +14187,7 @@ struct CapturePageSheet: View {
             illuminationMessage = "The page tore while being assembled. Try again, or choose one by hand."
         }
         #else
-        illuminationMessage = "This build cannot open the camera roll, but Labyrinth illustration plates still work."
+        illuminationMessage = "This build can't open the camera roll, but Labyrinth illustration plates still work."
         #endif
     }
 
@@ -14196,7 +14242,7 @@ struct CapturePageSheet: View {
         renderedIlluminatedPageURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)
-            illuminationMessage = "The plate did not finish drying. Try preparing it again."
+            illuminationMessage = "The plate didn't finish drying. Try preparing it again."
         } else if force {
             BookFeedback.play(.braidComplete)
         }
@@ -14227,7 +14273,7 @@ struct CapturePageSheet: View {
         illuminatedQuoteCardURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)
-            quoteCardMessage = "The card did not finish drying. Text sharing still works."
+            quoteCardMessage = "The card didn't finish drying. Text sharing still works."
         } else {
             if force {
                 BookFeedback.play(.braidComplete)
@@ -14252,7 +14298,7 @@ struct CapturePageSheet: View {
         bookOfYouShareCardURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)
-            bookOfYouShareMessage = "The page did not finish pressing. Text sharing still works."
+            bookOfYouShareMessage = "The page didn't finish pressing. Text sharing still works."
         } else {
             if force {
                 BookFeedback.play(.braidComplete)
@@ -14277,7 +14323,7 @@ struct CapturePageSheet: View {
         bookOfYouRevealVideoURL = renderedURL
         if renderedURL == nil {
             BookFeedback.play(.error)
-            bookOfYouShareMessage = "The reveal did not finish pressing. The still page is ready to share."
+            bookOfYouShareMessage = "The reveal didn't finish pressing. The still page is ready to share."
         } else {
             BookFeedback.play(.braidComplete)
             bookOfYouShareMessage = "Only this reveal video is shared. The full braid stays in your Book."
@@ -14292,7 +14338,7 @@ struct CapturePageSheet: View {
         await prepareIlluminatedArtifactIfNeeded()
         guard let artifactURL = illuminatedArtifactURL else {
             BookFeedback.play(.error)
-            illuminationMessage = "The plate is not ready to save yet."
+            illuminationMessage = "The plate isn't ready to save yet."
             return
         }
 
@@ -14305,10 +14351,10 @@ struct CapturePageSheet: View {
             illuminationMessage = "The plate is tucked into Photos."
         } catch {
             BookFeedback.play(.error)
-            illuminationMessage = "Photos would not take the plate yet. Check photo permissions, then try again."
+            illuminationMessage = "Photos wouldn't take the plate yet. Check photo permissions, then try again."
         }
         #else
-        illuminationMessage = "This build cannot save to Photos, but the plate is prepared."
+        illuminationMessage = "This build can't save to Photos, but the plate is prepared."
         #endif
     }
 
@@ -14319,7 +14365,7 @@ struct CapturePageSheet: View {
 
         guard let artifactURL = enchantmentArtifactURL else {
             BookFeedback.play(.error)
-            enchantmentMessage = "The Enchantment result is not ready to save yet."
+            enchantmentMessage = "The Enchantment result isn't ready to save yet."
             return
         }
 
@@ -14332,10 +14378,10 @@ struct CapturePageSheet: View {
             enchantmentMessage = "The Enchantment result is tucked into Photos."
         } catch {
             BookFeedback.play(.error)
-            enchantmentMessage = "Photos would not take the Enchantment result yet. Check photo permissions, then try again."
+            enchantmentMessage = "Photos wouldn't take the Enchantment result yet. Check photo permissions, then try again."
         }
         #else
-        enchantmentMessage = "This build cannot save to Photos, but the Enchantment result is prepared."
+        enchantmentMessage = "This build can't save to Photos, but the Enchantment result is prepared."
         #endif
     }
 
@@ -14517,7 +14563,7 @@ struct CapturePageSheet: View {
                     var correction = StoryTurnValidator.correction(
                         for: result, landing: landing, character: character, names: names)
                     if let reversed = ledger.contradiction(in: result) {
-                        correction += "\n- This contradicts what the reader has already been shown. It is still true, and the beat must not reverse it: \(reversed)"
+                        correction += "\n- This contradicts what the reader has already been shown. It's still true, and the beat must not reverse it: \(reversed)"
                     }
                     for missed in firstTaste.signals where missed.points < 0 {
                         correction += "\n- \(missed.name)"
@@ -14641,7 +14687,7 @@ struct CapturePageSheet: View {
             storyContinuationMessage = "One more beat has surfaced. Choose how it lands."
             BookFeedback.play(.braidComplete)
         } catch {
-            storyContinuationMessage = "The ink did not finish the next turn. The current page is still safe to keep."
+            storyContinuationMessage = "The ink didn't finish the next turn. The current page is still safe to keep."
             BookFeedback.play(.error)
         }
     }
@@ -15650,7 +15696,7 @@ struct CapturePageSheet: View {
             compassGenerationMessage = ""
         } catch {
             plan = fallbackCompassRunPlan(constraints: constraints)
-            compassGenerationMessage = "Gemma did not finish, so I made a local run from the same constraints."
+            compassGenerationMessage = "Gemma didn't finish, so I made a local run from the same constraints."
         }
 
         let savedSurface = surface.withCompassRunPlan(plan, constraints: constraints)
@@ -15765,12 +15811,12 @@ struct CapturePageSheet: View {
             """
         case .neighborhood:
             return """
-            VENTURE READING: There is fuel for the block, not for a trip. The EAST Destination should be within a few minutes of the front door, described by KIND ("the nearest tree older than the house", "the corner with the loudest birds"), never by a business name. Do not invent named places.
+            VENTURE READING: There's fuel for the block, not for a trip. The EAST Destination should be within a few minutes of the front door, described by KIND ("the nearest tree older than the house", "the corner with the loudest birds"), never by a business name. Don't invent named places.
             """
         case .destination:
             let places = currentNearbyPlacesText
             return """
-            VENTURE READING: There is real fuel today: this run may go somewhere true.
+            VENTURE READING: There's real fuel today: this run may go somewhere true.
             REAL PLACES NEARBY (verified to exist; the only named places you may use):
             \(places)
             Choose ONE whose nature honestly fits the time limit, budget, and considerations, set the EAST Destination to its real name, and shape the SOUTH mission to what that place actually is (a bakery's mission smells; a hardware store's mission is texture and weight). If none fits, fall back to an unnamed nearby kind of place. Never invent a named place.
@@ -15811,7 +15857,7 @@ struct CapturePageSheet: View {
         \(ventureSection(for: mode))
 
         Compass chain: (NORTH is the run's goal, written as one "I wonder..." question.) EAST is the practical plan for fulfilling that exact North goal: where to go or what threshold to choose, what small delight supports it, and how completion is defined. (SOUTH happens when I reach the goal, or at the start for a stay-put run. It puts me in my body and must help answer the North goal through senses.) WEST asks for the best sensory moment from the whole run in one sentence.. CENTER lands the completed loop.
-        Every direction must clearly depend on the previous direction. Do not write five disconnected prompts.
+        Every direction must clearly depend on the previous direction. Don't write five disconnected prompts.
 
         Format exactly:
         NORTH (NOTICE)
@@ -15839,7 +15885,7 @@ struct CapturePageSheet: View {
         return try await MLXBraidTaskRunner.run(
             prompt: prompt,
             instructions: """
-            You are The Wonder Compass inside ReEnchanted. Follow the requested format exactly. Do not include system instructions, rails, analysis, or generic travel advice.
+            You are The Wonder Compass inside ReEnchanted. Follow the requested format exactly. Don't include system instructions, rails, analysis, or generic travel advice.
             \(BookVoice.animismLine)
             """,
             maxTokens: 340,
@@ -15924,7 +15970,7 @@ struct CapturePageSheet: View {
                 "mission": mission,
                 "souvenirPrompt": "Write the best sensory moment from \(anchorName) in one sentence: \(anchorRoom)",
                 "restPrompt": "Before leaving \(anchorName), give it three quiet breaths and let it recognize you.",
-                "hint": "Do not hunt for magic. Let the local rule make one ordinary detail brighter."
+                "hint": "Don't hunt for magic. Let the local rule make one ordinary detail brighter."
             ]
         }
         if lastVentureMode == .destination,
@@ -15935,10 +15981,10 @@ struct CapturePageSheet: View {
            !firstPlace.isEmpty {
             return [
                 "spark": "I wonder what \(firstPlace) is like at exactly this hour?",
-                "destination": "\(firstPlace): it really exists, and it is close",
+                "destination": "\(firstPlace): it really exists, and it's close",
                 "delight": "whatever small good thing \(firstPlace) does best",
                 "definition": "the North question is complete after \(time), or when you know one thing true about this hour at \(firstPlace)",
-                "mission": "At \(firstPlace), let your body answer the North question: find the thing they are proudest of and the thing nobody notices. Smell one of them.",
+                "mission": "At \(firstPlace), let your body answer the North question: find the thing they're proudest of and the thing nobody notices. Smell one of them.",
                 "souvenirPrompt": "Write the best sensory moment from \(firstPlace) in one sentence.",
                 "restPrompt": "Before leaving, stand still for three breaths and let the place file you under regulars."
             ]
@@ -15957,7 +16003,7 @@ struct CapturePageSheet: View {
             placeMission = "Track three layers: cup sound, human sound, machine sound. Decide which one is conducting the room."
         case .harbor, .waterfront:
             placeDestination = "one edge where land meets water"
-            placeMission = "Find one rope, reflection, gull-mark, tide-line, or boat-sound. Ask what job it is doing today."
+            placeMission = "Find one rope, reflection, gull-mark, tide-line, or boat-sound. Ask what job it's doing today."
         case .park, .trail:
             placeDestination = "one living threshold: path, tree, bench, stone, sign, or patch of shade"
             placeMission = "Collect three kinds of green or brown and one sound that arrived before you did."
@@ -15972,7 +16018,7 @@ struct CapturePageSheet: View {
             placeMission = "Watch one moving thing nobody else is watching. Give its errand a name."
         case .neighborhood:
             placeDestination = "one corner, tree, sign, stoop, fence, mailbox, or threshold nearby"
-            placeMission = "Find three details proving this block is not generic: one old thing, one repair, and one color."
+            placeMission = "Find three details proving this block isn't generic: one old thing, one repair, and one color."
         case .current, .other:
             placeDestination = "one real threshold in or near \(location)"
             placeMission = "Find three textures, two colors, and the quietest sound nearby."
@@ -15996,56 +16042,124 @@ struct CapturePageSheet: View {
         guard !prompt.isEmpty, !isAskingTheBook else { return }
         let isFirstTurn = askTurns.isEmpty
         isAskingTheBook = true
-        askTheBookMessage = "I'm climbing into the Stacks."
+        askOffer = nil
+        askTheBookMessage = ""
+        askPrompt = ""
+        askLive.begin(readerLine: prompt)
+        let scrollHandle = askScrollHandle
+        DispatchQueue.main.async { scrollHandle.scrollToBottom?() }
+
+        let route = LetsChatRouter.route(prompt, previousTurns: askTurns)
+        askLastRoute = route
+        appLog.info(
+            "Let’s Chat routed: \(route.intent.rawValue, privacy: .public); archive: \(route.needsArchive, privacy: .public); reply tokens: \(route.maxReplyTokens, privacy: .public)"
+        )
+
+        // A request to remember or keep is answered on the spot and offered
+        // back as a choice. The model is not asked, and nothing happens until
+        // the reader taps.
+        if let action = route.action {
+            offerChatAction(action, prompt: prompt)
+            askLive.finish()
+            isAskingTheBook = false
+            return
+        }
+
         do {
-            let memory = await askTheBookMemoryLookup(prompt, askTurns)
-            askTheBookMessage = memory.evidence.isEmpty
-                ? "I went through the permitted shelves. Nothing bit hard enough yet."
-                : "A few old leaves tugged back. I am reading their corners."
-            appLog.info(
-                "Chat with the Book archive search finished; records: \(memory.searchedRecordCount, privacy: .public); opened: \(memory.evidence.count, privacy: .public); inquiry: \(memory.inquiryKind.rawValue, privacy: .public)"
-            )
+            // Only a question about the reader's own history pays for the
+            // archive. Everything else answers from the conversation.
+            var memory = AskTheBookMemoryPacket.empty
+            if route.needsArchive {
+                askLive.setCurrent(LetsChatStatusCopy.lookingLine(for: prompt))
+                memory = await askTheBookMemoryLookup(prompt, askTurns)
+                askLive.advance(
+                    receipt: LetsChatStatusCopy.searchedLine(
+                        records: memory.searchedRecordCount,
+                        evidence: memory.evidence
+                    ),
+                    to: memory.evidence.isEmpty ? LetsChatStatusCopy.starting : LetsChatStatusCopy.openingThem
+                )
+                // Name each page it opened, one by one, while the reply is
+                // being made. Not awaited: the model must not wait on the show.
+                let leaves = memory.evidence.prefix(6).map { item -> LetsChatLiveState.Receipt in
+                    let line = LetsChatStatusCopy.leafLine(for: item)
+                    return LetsChatLiveState.Receipt(
+                        text: line.title,
+                        symbol: item.result.kind.symbolName,
+                        detail: line.detail
+                    )
+                }
+                let live = askLive
+                Task { @MainActor in await live.reveal(leaves: Array(leaves)) }
+                appLog.info(
+                    "Let’s Chat archive search finished; records: \(memory.searchedRecordCount, privacy: .public); opened: \(memory.evidence.count, privacy: .public); inquiry: \(memory.inquiryKind.rawValue, privacy: .public)"
+                )
+            }
+
             let answer: String
-            if let interiorAnswer = BookInteriorAnswerGrounder.answer(to: prompt, interior: bookInterior) {
+            if route.mayAnswerFromInterior,
+               let interiorAnswer = BookInteriorAnswerGrounder.answer(to: prompt, interior: bookInterior) {
                 answer = interiorAnswer
-                appLog.info("Chat with the Book answered from durable Book interior state.")
+                appLog.info("Let’s Chat answered from durable Book interior state.")
             } else if let deterministic = AskTheBookAnswerGrounder.deterministicAnswer(for: memory) {
                 answer = deterministic
-                appLog.info("Chat with the Book used deterministic archive calculation.")
+                appLog.info("Let’s Chat used a deterministic archive calculation.")
             } else {
+                let live = askLive
+                let streamTo: @Sendable (String) -> Void = { text in
+                    Task { @MainActor in
+                        if live.isActive { live.text = text }
+                    }
+                }
+                let reportStage: @Sendable (LetsChatStage) -> Void = { stage in
+                    Task { @MainActor in live.apply(stage) }
+                }
+                let onMyMind = LetsChatPersonality.pick(
+                    interior: bookInterior,
+                    route: route,
+                    message: prompt,
+                    turnCount: askTurns.count,
+                    turnsSinceLast: askOnMindAtTurn.map { askTurns.count - $0 }
+                )
+                if onMyMind != nil { askOnMindAtTurn = askTurns.count }
                 let generated: String
-            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            appLog.info("Chat with the Book sending message to Gemma; message characters: \(prompt.count, privacy: .public); previous turns: \(askTurns.count, privacy: .public)")
-            generated = try await MLXAskTheBookAnswerer().answer(
-                prompt: prompt,
-                day: day,
-                previousTurns: askTurns,
-                readerLexicon: readerLexicon,
-                memory: memory,
-                relationship: bookRelationship,
-                interior: bookInterior,
-                bookVoicePatina: bookVoicePatina
-            )
-            appLog.info("Chat with the Book Gemma reply returned; reply characters: \(generated.count, privacy: .public)")
-        #else
-            appLog.info("Chat with the Book using preview fallback; native local brain is not available in this build.")
-            generated = try await FakeAskTheBookAnswerer().answer(
-                prompt: prompt,
-                day: day,
-                previousTurns: askTurns,
-                readerLexicon: readerLexicon,
-                memory: memory,
-                relationship: bookRelationship,
-                interior: bookInterior,
-                bookVoicePatina: bookVoicePatina
-            )
-            #endif
+                #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+                appLog.info("Let’s Chat sending to Gemma; message characters: \(prompt.count, privacy: .public); previous turns: \(askTurns.count, privacy: .public)")
+                generated = try await MLXAskTheBookAnswerer().answer(
+                    prompt: prompt,
+                    route: route,
+                    day: day,
+                    previousTurns: askTurns,
+                    readerLexicon: readerLexicon,
+                    memory: memory,
+                    relationship: bookRelationship,
+                    interior: bookInterior,
+                    bookVoicePatina: bookVoicePatina,
+                    onPartial: streamTo,
+                    onStage: reportStage,
+                    onMyMind: onMyMind
+                )
+                appLog.info("Let’s Chat Gemma reply returned; reply characters: \(generated.count, privacy: .public)")
+                #else
+                appLog.info("Let’s Chat using preview fallback; native local brain isn't available in this build.")
+                generated = try await FakeAskTheBookAnswerer().answer(
+                    prompt: prompt,
+                    day: day,
+                    previousTurns: askTurns,
+                    readerLexicon: readerLexicon,
+                    memory: memory,
+                    relationship: bookRelationship,
+                    interior: bookInterior,
+                    bookVoicePatina: bookVoicePatina
+                )
+                #endif
                 answer = AskTheBookAnswerGrounder.finalizeGenerated(
                     generated,
                     prompt: prompt,
                     memory: memory
                 )
             }
+
             let turn = AskTheBookTurn(prompt: prompt, answer: answer)
             askTurns.append(turn)
             if isFirstTurn,
@@ -16055,24 +16169,78 @@ struct CapturePageSheet: View {
             }
             askEvidenceByTurnID[turn.id] = memory.evidence
             askSearchCountByTurnID[turn.id] = memory.searchedRecordCount
-            askPrompt = ""
-            askTheBookMessage = memory.evidence.isEmpty
-                ? "The answer is here. I did not invent a memory to make it prettier."
-                : "The answer is here. The leaves that pulled at it are tucked underneath."
+            askLive.finish()
             BookFeedback.play(.braidComplete)
+            DispatchQueue.main.async { scrollHandle.scrollToBottom?() }
         } catch {
             appLog.error("Let’s Chat failed: \(error.localizedDescription, privacy: .public)")
-            askTheBookMessage = "The sentence slipped before it settled. I kept the question."
+            // Give the reader their sentence back; they should not have to
+            // type it twice because the Book dropped its pencil.
+            askPrompt = prompt
+            askLive.finish()
+            askTheBookMessage = "That one slipped away from me. Your words are still in the box. Try again?"
             BookFeedback.play(.error)
         }
-        // The reader's next move here is to type again, and they cannot: with
-        // E2B resident this device has no room to raise a keyboard. Give the
-        // weights back between turns rather than holding them for a reply that
-        // can never be written.
-        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-        await LocalBrainModelCache.shared.releaseAfterFlow(label: "ask-the-book")
-        #endif
+        releaseChatModel(afterTurn: true)
         isAskingTheBook = false
+    }
+
+    /// Whether the weights may stay resident after a reply.
+    ///
+    /// A device with 8 GB or more always can. A 6 GB phone cannot hold E2B and
+    /// *raise* a keyboard: with the weights resident it has about 330 MB left
+    /// and iOS gives no keys. But a keyboard that is already up stays up, and
+    /// that is exactly the state every reply was already generated in. So while
+    /// the composer has focus the weights stay (the next reply skips the cold
+    /// load), and the moment focus goes the weights go with it, before the
+    /// reader can tap the field again. If a 6 GB phone ever fails to raise a
+    /// keyboard in the chat, this is the line to turn off.
+    private var chatMayKeepModelWarm: Bool {
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+        return LocalModelManager.deviceMemoryGB >= 8 || askComposerFocused
+        #else
+        return false
+        #endif
+    }
+
+    private func releaseChatModel(afterTurn: Bool) {
+        #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+        let keepsWarm = afterTurn && chatMayKeepModelWarm
+        Task {
+            if keepsWarm {
+                // Long enough to read a reply and type the next one; the
+                // composer losing focus releases sooner.
+                await LocalBrainModelCache.shared.scheduleIdleEviction(after: 120)
+            } else {
+                await LocalBrainModelCache.shared.releaseAfterFlow(label: "ask-the-book")
+            }
+        }
+        #endif
+    }
+
+    private func offerChatAction(_ action: LetsChatAction, prompt: String) {
+        switch action {
+        case .remember(let text):
+            askOffer = .remember(text)
+        case .keepChat:
+            if askTurns.isEmpty {
+                askTheBookMessage = "There's nothing to keep yet. Say something to me first."
+            } else {
+                askOffer = .keepChat
+            }
+        }
+    }
+
+    private func acceptChatOffer(_ offer: LetsChatOffer) {
+        askOffer = nil
+        switch offer {
+        case .remember(let text):
+            onRememberFromChat(text, Date())
+            askTheBookMessage = "Got it. I'll remember that."
+            BookFeedback.play(.keepPage)
+        case .keepChat:
+            keepCurrentPage()
+        }
     }
 
     private func seedInkrestIntakeIfNeeded() {
@@ -16106,6 +16274,12 @@ struct CapturePageSheet: View {
         case .askTheBook:
             if askPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 askPrompt = draft
+            }
+            // A line picked on the leaf was already said; send it now.
+            if surface.payload.metadata["pagesRisingLeafAutoSend"] == "true",
+               !askAutoSent, askTurns.isEmpty {
+                askAutoSent = true
+                DispatchQueue.main.async { Task { await askTheBook() } }
             }
         case .inkrestOfficeHours:
             if inkrestStarted {
@@ -16161,7 +16335,7 @@ struct CapturePageSheet: View {
                 isClosing: isClosing
             )
             #else
-            appLog.info("Inkrest Office Hours using preview fallback; native local brain is not available in this build.")
+            appLog.info("Inkrest Office Hours using preview fallback; native local brain isn't available in this build.")
             reply = try await FakeInkrestOfficeHoursCounselor().reply(
                 intake: inkrestIntake,
                 day: day,
@@ -16184,7 +16358,7 @@ struct CapturePageSheet: View {
             if inkrestTurns.isEmpty {
                 inkrestStarted = false
             }
-            inkrestMessage = "The sitting did not settle: \(error.localizedDescription)"
+            inkrestMessage = "The sitting didn't settle: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
         isInkrestSitting = false
@@ -16208,7 +16382,7 @@ struct CapturePageSheet: View {
         )
         faeMessage = ok
             ? "A Reminder is set while the exchange is still waiting."
-            : "The Reminder could not be set (check Reminders permission in Settings)."
+            : "The Reminder couldn't be set (check Reminders permission in Settings)."
         BookFeedback.play(ok ? .select : .error)
     }
 
@@ -16227,14 +16401,14 @@ struct CapturePageSheet: View {
             appLog.info("Fae Bargain payment to Gemma; fae: \(bargain.faeKind.rawValue, privacy: .public); report characters: \(report.count, privacy: .public)")
             reply = try await MLXFaeBargainResponder().respond(bargain: bargain, report: report, mood: mood, day: day)
             #else
-            appLog.info("Fae Bargain using preview fallback; native local brain is not available in this build.")
+            appLog.info("Fae Bargain using preview fallback; native local brain isn't available in this build.")
             reply = try await FakeFaeBargainResponder().respond(bargain: bargain, report: report, mood: mood, day: day)
             #endif
             faeResponseText = reply
             faeMessage = "The exchange is complete. Keep the page to remember it."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
-            faeMessage = "The exchange did not settle: \(error.localizedDescription)"
+            faeMessage = "The exchange didn't settle: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
         isFaePaying = false
@@ -16294,7 +16468,7 @@ struct CapturePageSheet: View {
             currentEnchantmentSurface = currentEnchantmentSurface?.withEnchantmentConversation(enchantmentTurns)
             BookFeedback.play(.braidComplete)
         } catch {
-            enchantmentMessage = "The subject did not answer clearly: \(error.localizedDescription)"
+            enchantmentMessage = "The subject didn't answer clearly: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
         isAnsweringEnchantedObject = false
@@ -16546,7 +16720,7 @@ private struct SentenceRunnerResult: Equatable {
             case .brightRun:
                 return "You crossed the margin on bright words. The Loom will remember which phrases carried you."
             case .mixedThread:
-                return "You caught live words and brushed the grey. The result is not failure; it is a map of where the sentence thinned."
+                return "You caught live words and brushed the grey. The result isn't failure; it's a map of where the sentence thinned."
             case .greyTouched:
                 return "The Rut of Routine pressed vague language into the run, but one kept word can still hold a door open."
             case .emptyHands:
@@ -16723,7 +16897,7 @@ private struct PublicMarginsContributionSheet: View {
                             Label(
                                 receipt.status == "approved"
                                     ? "Placed in the Public Margins."
-                                    : "Received, but the automatic safety check did not publish it.",
+                                    : "Received, but the automatic safety check didn't publish it.",
                                 systemImage: receipt.status == "approved" ? "checkmark.seal.fill" : "shield.lefthalf.filled"
                             )
                             .font(.subheadline.weight(.semibold))
@@ -16765,7 +16939,7 @@ private struct PublicMarginsContributionSheet: View {
                                     Label(
                                         choiceReceipt.status == "approved"
                                             ? "Counted anonymously."
-                                            : "This choice was not published.",
+                                            : "This choice wasn't published.",
                                         systemImage: choiceReceipt.status == "approved" ? "checkmark.circle.fill" : "shield.lefthalf.filled"
                                     )
                                     .font(.subheadline.weight(.semibold))
@@ -16823,7 +16997,7 @@ private struct PublicMarginsContributionSheet: View {
                                     }
                                 }
                             } else {
-                                Text("The quiet question could not be fetched. Nothing was sent.")
+                                Text("The quiet question couldn't be fetched. Nothing was sent.")
                                     .font(.caption)
                                     .foregroundStyle(BookPalette.ink.opacity(0.64))
                             }
@@ -17086,7 +17260,7 @@ private struct SentenceRunnerGameView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(BookPalette.lampGold)
 
-                Text("Bright phrases come from kept pages. Grey phrases are Routine trying to flatten the run. A grey touch is not failure; it is evidence.")
+                Text("Bright phrases come from kept pages. Grey phrases are Routine trying to flatten the run. A grey touch isn't failure; it's evidence.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.nightText.opacity(0.68))
                     .fixedSize(horizontal: false, vertical: true)
@@ -17551,7 +17725,7 @@ struct StoryArcShape: Equatable {
         FINAL SETUP for \(formLine): write the final playable scene before the last choice.
         The previous consequence has already happened. Let it alter what \(who) says or does next.
         Keep the vignette small: no new subplot, no new phase, no cliffhanger.
-        Leave the final landing for the reader's next choice/result. Do not resolve a new choice inside SCENE.
+        Leave the final landing for the reader's next choice/result. Don't resolve a new choice inside SCENE.
         Owed change for the final consequence: \(owedChange)\(beatLine)
         """
     }
@@ -17673,13 +17847,13 @@ struct StoryPageContinuationContext: Equatable {
 
         let canon = canonLedger.promptSection()
         return """
-        The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ: it is context, never material to reuse.
+        The reader asked for the one optional final beat. Everything under "already written" has ALREADY BEEN READ: it's context, never material to reuse.
         \(canon.isEmpty ? "" : "\n" + canon + "\n")
         LAST VISIBLE STATE TO CONTINUE FROM:
         \(latestResult.bookPreviewSentenceLimit(3))
 
-        THE CONTRACT FOR THE NEW SCENE: (Never repeat a sentence, image, or opening line from earlier turns, and never re-describe the setting; it exists.) The chosen action and its consequence already happened. The first sentence must begin AFTER the last visible state above.. Start from what the consequence changed and show its cost or gift through what a character says; do not restate the action itself.
-        \(recipeContinuation) (140-220 words in 2-3 short paragraphs, beginning at a new point in the conversation. This is the final setup before the final reader choice) do not open a third beat.
+        THE CONTRACT FOR THE NEW SCENE: (Never repeat a sentence, image, or opening line from earlier turns, and never re-describe the setting; it exists.) The chosen action and its consequence already happened. The first sentence must begin AFTER the last visible state above.. Start from what the consequence changed and show its cost or gift through what a character says; don't restate the action itself.
+        \(recipeContinuation) (140-220 words in 2-3 short paragraphs, beginning at a new point in the conversation. This is the final setup before the final reader choice) don't open a third beat.
         \(beatDirective)\(lensLine)
 
         \(rendered)
@@ -17744,7 +17918,7 @@ enum StoryRecipeValidator {
             failures.append(
                 "This is an Academy practice return. Respond to the reader's submitted answer by naming at least one exact detail"
                     + (anchors.isEmpty ? "." : " (for example: \(anchors)).")
-                    + " Do not replay the original lesson."
+                    + " Don't replay the original lesson."
             )
             score -= 60
         }
@@ -17954,9 +18128,9 @@ enum SentenceRunnerPromptBuilder {
     You are The Book inside ReEnchanted, writing up the result of a Game Page called The Sentence Runner.
     The reader just played a small runner game whose obstacles are phrases pulled from their own kept pages (bright words) and Routine's vague filler (grey words).
     Your real work is RE-ENCHANTMENT: Routine flattens real life into grey words like "fine" or "later"; you restore the concrete thing each grey word was hiding, using only the reader's own kept phrases as the source of that meaning.
-    You are given the bright words they caught, the grey words that touched them, sample phrases from their archive, a deterministic rescue draft, and a deterministic prose draft. Rewrite both drafts into finished prose.
-    Use ONLY the supplied caught words, grey words, and archive samples as material. Do not invent new events, characters, places, or facts.
-    Do not mention games, scores, points, tokens, taps, code, prompts, or simulation machinery.
+    You're given the bright words they caught, the grey words that touched them, sample phrases from their archive, a deterministic rescue draft, and a deterministic prose draft. Rewrite both drafts into finished prose.
+    Use ONLY the supplied caught words, grey words, and archive samples as material. Don't invent new events, characters, places, or facts.
+    Don't mention games, scores, points, tokens, taps, code, prompts, or simulation machinery.
     \(BookVoice.animismLine)
     """
 
@@ -17972,7 +18146,7 @@ enum SentenceRunnerPromptBuilder {
             "Caught (bright) words: \(caught)",
             "Grey words touched: \(grey)",
             "Archive samples (the only material for re-enchantment): \(samples)",
-            "\(formInstruction)\nIf any grey words are present, do not leave them flat: re-enchant each one into the concrete memory it was hiding, drawn from the archive samples, then let the run move past it."
+            "\(formInstruction)\nIf any grey words are present, don't leave them flat: re-enchant each one into the concrete memory it was hiding, drawn from the archive samples, then let the run move past it."
         ]
         if !context.rescues.isEmpty {
             sections.append("Rescue draft to elevate (one restored line per grey word; keep each word's restored meaning):\n" + context.rescues.joined(separator: "\n"))
@@ -18072,7 +18246,7 @@ enum StoryPageResultPromptBuilder {
     static let instructions = """
     You are The Book inside ReEnchanted.
     Write only the consequence of the selected Story Page action. The app owns the mechanics; you write the ink.
-    Do not invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
+    Don't invent completed real-world actions, exact locations, diagnoses, private facts, identities, or surveillance details.
     Keep it grounded, strange, concrete, and warm. No headings. No labels. No choices.
     \(BookVoice.storyNarration)
     Prose standard: simple surprising sentences; specific nouns and verbs; dialogue before stage business; no generic wisdom, no abstract emotional summary, no mist, echoes, tapestry, journey, profound, or quiet magic.
@@ -18115,7 +18289,7 @@ enum StoryPageResultPromptBuilder {
 
             THIS ACTION RESOLVES THE SCENE'S TURN. By the end, this must be TRUE:
             \(line)
-            \(recipeResultRule) Do not restate the chosen action as a sentence: show its consequence.
+            \(recipeResultRule) Don't restate the chosen action as a sentence: show its consequence.
             """
         } ?? ""
         let dramaticBlock = context.dramaticEffect.map { effect in
@@ -18126,7 +18300,7 @@ enum StoryPageResultPromptBuilder {
             Required visible reaction: \(effect.requiredReaction)
             Changed fact that becomes canon: \(effect.changedFact)
             What the reader's choice changes: \(effect.readerChoiceEffect)
-            The result must show all four. Do not substitute a different character, reaction, or emotional outcome.
+            The result must show all four. Don't substitute a different character, reaction, or emotional outcome.
             """
         } ?? ""
 
@@ -18140,8 +18314,8 @@ enum StoryPageResultPromptBuilder {
             )
         } ?? ""
         let mechanicRequirement = context.inkbonesResolution == nil
-            ? "If SELECTED MECHANIC is not none, write only around the supplied consequence. Do not invent that an unfinished mechanic was completed."
-            : "The Inkbones mechanic is complete. Make its supplied band visibly change how the committed landing happens; do not reroll or reduce it to a win/loss label."
+            ? "If SELECTED MECHANIC isn't none, write only around the supplied consequence. Don't invent that an unfinished mechanic was completed."
+            : "The Inkbones mechanic is complete. Make its supplied band visibly change how the committed landing happens; don't reroll or reduce it to a win/loss label."
         return """
         Write the result for this selected Story Page action.
 
@@ -18171,7 +18345,7 @@ enum StoryPageResultPromptBuilder {
         \(context.canonLedger.promptSection().nonEmpty.map { "\($0)\n\n" } ?? "")RECENT THREAD MEMORY:
         \(prior.isEmpty ? "No prior turns." : prior)\(context.draft.surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata["storyQuillDirective"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(context.draft.surface.payload.metadata[BookVoicePatina.metadataKey]?.nonEmpty.map { "\n\n\($0)" } ?? "")
 
-        REQUIREMENTS: (Return only the result prose.) 90-150 words. (5-8 sentences.) Make the consequence specific to the selected action, not generic. (\(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)) Let one relationship, secret, refusal, promise, or question gain weight. (Make the named reactor answer, trust, hide, refuse, admit, decide, or revise something on the page; atmosphere is not a reaction.) If this is Progress Arc, let the thread move one step. (If this is Slice of Life, let an ordinary detail deepen.) If this is Surprise, reveal a strange related angle that still belongs here. (\(mechanicRequirement)) Do not include headings, button titles, labels, JSON, markdown, or additional choices.
+        REQUIREMENTS: (Return only the result prose.) 90-150 words. (5-8 sentences.) Make the consequence specific to the selected action, not generic. (\(context.draft.blueprint == nil ? "Make most of this result spoken exchange and include no more than one small physical action." : recipeResultRule)) Let one relationship, secret, refusal, promise, or question gain weight. (Make the named reactor answer, trust, hide, refuse, admit, decide, or revise something on the page; atmosphere isn't a reaction.) If this is Progress Arc, let the thread move one step. (If this is Slice of Life, let an ordinary detail deepen.) If this is Surprise, reveal a strange related angle that still belongs here. (\(mechanicRequirement)) Don't include headings, button titles, labels, JSON, markdown, or additional choices.
         """
     }
 
@@ -18213,7 +18387,7 @@ enum StoryPageResultPromptBuilder {
         \(previous)
         \(context.draft.characterCanon)\(inkbones)
 
-        Write 170-260 words in 3-5 short paragraphs. Begin with the choice happening, then show both its gift and its price. Let a character react in speech or action. Do not recap the scene, explain the choice, name mechanics, add headings, or offer another decision. End on one concrete changed fact that later Story Pages can remember.
+        Write 170-260 words in 3-5 short paragraphs. Begin with the choice happening, then show both its gift and its price. Let a character react in speech or action. Don't recap the scene, explain the choice, name mechanics, add headings, or offer another decision. End on one concrete changed fact that later Story Pages can remember.
         """
     }
 
@@ -18297,7 +18471,7 @@ enum StoryPagePromptBuilder {
             let modeRule: String
             switch blueprint.sceneMode {
             case .conversation:
-                modeRule = "Dialogue carries the scene; every line concerns the concrete premise. Warmth or play is fine; conflict is not required."
+                modeRule = "Dialogue carries the scene; every line concerns the concrete premise. Warmth or play is fine; conflict isn't required."
             case .balanced:
                 modeRule = "Balance dialogue, observation, and consequential action."
             case .action:
@@ -18324,7 +18498,7 @@ enum StoryPagePromptBuilder {
                 Stakes if nobody answers: \(contract.stakes)
                 The three reader paths must pressure the relationship differently:
                 \(effects)
-                The opening must visibly stage the want, worry or blind spot, and counter-pressure. Do not answer the relationship question yet.
+                The opening must visibly stage the want, worry or blind spot, and counter-pressure. Don't answer the relationship question yet.
                 """
             } ?? ""
             engine = """
@@ -18342,7 +18516,7 @@ enum StoryPagePromptBuilder {
             Grounding: \(blueprint.groundingDirective)
             Tone: \(blueprint.toneDirective)
             Scene mode: \(modeRule)
-            The setting constrains the scene but is not a cast member; name concrete nouns and actions, not vague feelings.
+            The setting constrains the scene but isn't a cast member; name concrete nouns and actions, not vague feelings.
             """
         } else if draft.turnStatement.isEmpty {
             engine = ""
@@ -18376,8 +18550,8 @@ enum StoryPagePromptBuilder {
             ? """
 
             BOOK FAE PAGE:
-            This is not an ordinary Story Page and not a Fae Bargain. It is a parley with \(draft.surface.payload.metadata["faeName"] ?? "a Book Fae").
-            The Book itself narrates the visitation. Its voice is intimate, observant, faintly amused, and alert to old dangers. Do not narrate as the Fae, an assistant, or a neutral game master.
+            This isn't an ordinary Story Page and not a Fae Bargain. It's a parley with \(draft.surface.payload.metadata["faeName"] ?? "a Book Fae").
+            The Book itself narrates the visitation. Its voice is intimate, observant, faintly amused, and alert to old dangers. Don't narrate as the Fae, an assistant, or a neutral game master.
             Use old faerie manners: courtesy, exact wording, beautiful danger, gifts with edges, loopholes, and alien attention.
             Failure must never read as punishment. Consequences are marks, obligations, debts of attention, strange gifts, and story hooks.
             Build the scene from the supplied Fae identity, court, omen, standing, recent kept material, and entity memory. The visitor must want, notice, test, offer, conceal, or interrupt something specific.
@@ -18391,7 +18565,7 @@ enum StoryPagePromptBuilder {
         return """
         Write one ReEnchanted Story Page.
 
-        World rule: magic here is written, never waved. Cast members work spells through pens, quills, and pencils (there are no wands) and every writing implement has opinions of its own about what it is asked to write.
+        World rule: magic here is written, never waved. Cast members work spells through pens, quills, and pencils (there are no wands) and every writing implement has opinions of its own about what it's asked to write.
 
         THREAD:
         \(draft.thread)
@@ -18435,7 +18609,7 @@ enum StoryPagePromptBuilder {
         One sentence under 16 words: the specific action the reader takes.
 
         Choice rule: every choice must name a specific person, spoken line, object, or fact from SCENE: something said, asked, refused, given, opened, followed, or protected. Every choice must visibly put pressure on the named character assigned to that path, while leaving its result unwritten.\(draft.blueprint.map { " Choices should offer: \($0.choiceDirective)" } ?? "") Never use generic titles like "Stay With It", "Follow the Thread", or "Look Closer".
-        Do not write any result sections; The Book writes the consequence after the reader chooses.
+        Don't write any result sections; The Book writes the consequence after the reader chooses.
         """
     }
 
@@ -18460,7 +18634,7 @@ enum StoryPagePromptBuilder {
                 groundingBrief = "Let this remembered real detail matter once, without claiming the reader did anything else: \(material)"
             }
         case .echoed:
-            groundingBrief = "Use this only as an echo: borrow one concrete detail or emotional rhyme. Do not quote it, explain it, debate what it means, or make it the problem to solve: \(material)"
+            groundingBrief = "Use this only as an echo: borrow one concrete detail or emotional rhyme. Don't quote it, explain it, debate what it means, or make it the problem to solve: \(material)"
         case .worldLed:
             groundingBrief = "The reader's kept Pages stay closed. The Labyrinth is living its own life. Only supplied weather or hour may tint the room."
         }
@@ -18525,7 +18699,7 @@ enum StoryPagePromptBuilder {
 
         OUTPUT EXACTLY:
         SCENE:
-        340-520 words in 4-7 short paragraphs. Start after the interesting thing has begun. Before the decision, add two concrete turns that make the situation funnier, stranger, cozier, or more urgent. Make the cast want things and do things. End at the decision: do not resolve any road. No headings inside the prose.
+        340-520 words in 4-7 short paragraphs. Start after the interesting thing has begun. Before the decision, add two concrete turns that make the situation funnier, stranger, cozier, or more urgent. Make the cast want things and do things. End at the decision: don't resolve any road. No headings inside the prose.
 
         SLICE_OF_LIFE_CHOICE:
         A vivid 2-5 word button for that authored action.
@@ -18542,7 +18716,7 @@ enum StoryPagePromptBuilder {
         SURPRISE_PROMPT:
         One sentence under 18 words naming what the reader does and what it risks.
 
-        Return no result prose. Do not mention recipes, prompts, grounding, roles, gains, costs, or mechanics.
+        Return no result prose. Don't mention recipes, prompts, grounding, roles, gains, costs, or mechanics.
         """
     }
 
@@ -18557,7 +18731,7 @@ enum StoryPagePromptBuilder {
         let realSubject = metadata["lessonRealSubject"]?.nonEmpty ?? "the Academy subject"
         let demonstration = metadata["lessonDemonstration"]?.nonEmpty ?? "Demonstrate the subject with one concrete classroom object."
         let interaction = metadata["lessonInteractionPrompt"]?.nonEmpty ?? "Ask the reader one answerable question about the lesson."
-        let practice = metadata["lessonRealWorldPractice"]?.nonEmpty ?? "Offer one small real-world practice for later; do not claim it is done."
+        let practice = metadata["lessonRealWorldPractice"]?.nonEmpty ?? "Offer one small real-world practice for later; don't claim it's done."
         let continuation = draft.continuationContext.map {
             "\n\nCONTINUATION MEMORY:\n\($0)"
         } ?? ""
@@ -18587,24 +18761,24 @@ enum StoryPagePromptBuilder {
             150-240 words in 2-3 short paragraphs. Begin with the submitted practice already in the leader's hands.
             1. The leader quotes or names one exact detail from the reader's answer and responds to what that detail changes.
             2. Apply the lesson's concept to the answer; let one companion react or revise their own understanding.
-            3. End on one new, answer-shaped observation or question. Do not repeat the old lecture, demonstration, practice invitation, or classroom entrance.
+            3. End on one new, answer-shaped observation or question. Don't repeat the old lecture, demonstration, practice invitation, or classroom entrance.
             """
         let hardRules = debrief == nil
             ? """
             - \(leader) must be physically present, must teach, and must speak at least twice.
             - Most of SCENE should be dialogue: lecture lines, student answers, corrections, and the reader-facing question.
             - This must teach the real subject, not merely mention it. Include two accurate mini-lecture beats and one demonstrated example.
-            - Use the first two supplied lecture beats in order. Do not skip the lesson just to reach the choices.
+            - Use the first two supplied lecture beats in order. Don't skip the lesson just to reach the choices.
             - Spend most of SCENE on the class exchange: explanation, student response, correction, and reader question. Keep arrival/setup to one sentence.
             - The professor or leader asks the reader one direct, answerable classroom question.
-            - Do not claim the reader completed the practice, attended earlier, or did any real-world task.
+            - Don't claim the reader completed the practice, attended earlier, or did any real-world task.
             - Complete every sentence. If space gets tight, shorten description before cutting the lesson, question, or practice invitation.
             """
             : """
             - \(leader) must be physically present, speak at least twice, and receive the submitted answer before doing anything else.
-            - Name or quote at least one exact submitted detail in the first paragraph. A generic “good work” does not count.
-            - Teach by applying the core concept to the reader's detail. Do not recite the lecture beats or repeat the demonstration.
-            - The completed practice is already real because the reader submitted it. Do not question whether they did it, invent anything beyond it, or assign it again.
+            - Name or quote at least one exact submitted detail in the first paragraph. A generic “good work” doesn't count.
+            - Teach by applying the core concept to the reader's detail. Don't recite the lecture beats or repeat the demonstration.
+            - The completed practice is already real because the reader submitted it. Don't question whether they did it, invent anything beyond it, or assign it again.
             - The final question must follow from the submitted detail and must differ from the original Reader interaction.
             - Complete every sentence. If space gets tight, preserve the exact detail and the leader's response before anything else.
             """
@@ -18636,7 +18810,7 @@ enum StoryPagePromptBuilder {
         \(continuation)\(metadata["readerLexiconPromptSection"]?.nonEmpty.map { "\n\n\($0)" } ?? "")\(mechanicPlan)
 
         HARD RULES:
-        \(hardRules) (At least one companion reacts in a small characterful way.) Include only one room texture detail total. (Do not build the scene around moving classroom props. One demonstration object is allowed; repeated handling is not.) If CONTINUATION MEMORY is present, everything in it has already been read. Continue from the consequence; do not repeat the previous classroom scene, opening setup, image, dialogue, or chosen action. (A continued class scene must start one beat later: the lesson has advanced, or someone has visibly changed their answer.) If READER'S COMPLETED PRACTICE is present, it outranks the generic lesson structure. Use at least one exact submitted detail in SCENE, and never give the same assignment again.. Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
+        \(hardRules) (At least one companion reacts in a small characterful way.) Include only one room texture detail total. (Don't build the scene around moving classroom props. One demonstration object is allowed; repeated handling isn't.) If CONTINUATION MEMORY is present, everything in it has already been read. Continue from the consequence; don't repeat the previous classroom scene, opening setup, image, dialogue, or chosen action. (A continued class scene must start one beat later: the lesson has advanced, or someone has visibly changed their answer.) If READER'S COMPLETED PRACTICE is present, it outranks the generic lesson structure. Use at least one exact submitted detail in SCENE, and never give the same assignment again.. Simple concrete sentences. No assistant language, no headings or labels inside SCENE.
 
         OUTPUT FORMAT, EXACTLY:
         SCENE:
@@ -18693,7 +18867,7 @@ enum StoryPagePromptBuilder {
 
 
         MECHANIC NOTE (\(mandate.reason)):
-        When it is tapped, the \(choiceName) choice will trigger \(inviteText). Write that choice's title and prompt so the action naturally invites this, without naming any mechanic or system.
+        When it's tapped, the \(choiceName) choice will trigger \(inviteText). Write that choice's title and prompt so the action naturally invites this, without naming any mechanic or system.
         """
     }
 }
@@ -18708,7 +18882,7 @@ enum StoryPageProseParser {
             case .emptyResponse:
                 return "Gemma returned an empty Story Page."
             case .missingScene(let preview):
-                return "Gemma did not return a usable SCENE section for the Story Page.\n\nGemma returned:\n\(preview)"
+                return "Gemma didn't return a usable SCENE section for the Story Page.\n\nGemma returned:\n\(preview)"
             }
         }
     }
@@ -19444,7 +19618,7 @@ struct StoryPageSceneDraft: Equatable {
 
         \(signalLine.isEmpty ? "The day has offered a few small pieces of evidence." : signalLine)
 
-        \(pressureLine) The Book does not ask the reader to leave real life. It asks which part of real life is ready to become story.
+        \(pressureLine) The Book doesn't ask the reader to leave real life. It asks which part of real life is ready to become story.
         """
     }
 
@@ -19457,7 +19631,7 @@ struct StoryPageSceneDraft: Equatable {
         let title = metadata["lessonTitle"]?.nonEmpty ?? sessionName
         let concept = metadata["lessonConcept"]?.nonEmpty
             ?? metadata["sessionTeaches"]?.nonEmpty
-            ?? "A useful practice becomes real when it is demonstrated, tried, and carried back into ordinary life."
+            ?? "A useful practice becomes real when it's demonstrated, tried, and carried back into ordinary life."
         let beats = (metadata["lessonLectureBeats"]?.nonEmpty ?? metadata["sessionTeaches"] ?? "")
             .split(separator: "\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -19485,18 +19659,18 @@ struct StoryPageSceneDraft: Equatable {
 
             \(debrief.outcome)
 
-            \(leader) does not begin \(sessionName) again. “I heard this: \(firstDetail),” they say. “Now the lesson has something real to answer.” They apply \(concept.lowercased()) to that detail, making the distinction smaller and more exact instead of repeating the demonstration. \(companion) looks back at their own answer and changes one word.
+            \(leader) doesn't begin \(sessionName) again. “I heard this: \(firstDetail),” they say. “Now the lesson has something real to answer.” They apply \(concept.lowercased()) to that detail, making the distinction smaller and more exact instead of repeating the demonstration. \(companion) looks back at their own answer and changes one word.
 
-            “Keep the part of your answer that only you could have supplied,” \(leader) says. “What does that exact detail let you notice next?” The room waits at this new place in the lesson; the old assignment is not given again.
+            “Keep the part of your answer that only you could have supplied,” \(leader) says. “What does that exact detail let you notice next?” The room waits at this new place in the lesson; the old assignment isn't given again.
             """
         }
 
         return """
         The door to \(room) is already open, and \(sessionName) is underway. Chalk dust smells faintly mineral. A chair leg ticks against the floor while the light leans across the desks. \(leader) taps the board and says, "\(title) begins here: \(concept)"
 
-        In a \(style) voice, \(leader) makes the lesson plain. "\(firstBeat)" A pause lets the sentence settle. "\(secondBeat)" The point is not to admire the idea from a distance. The point is to make it small enough to test while the day is still ordinary.
+        In a \(style) voice, \(leader) makes the lesson plain. "\(firstBeat)" A pause lets the sentence settle. "\(secondBeat)" The point isn't to admire the idea from a distance. The point is to make it small enough to test while the day is still ordinary.
 
-        \(demonstration) \(companion) answers first, a little too fast, and has to revise in front of everyone. "Try that again with a smaller claim," \(leader) says. That is useful. The lesson becomes less decorative and more usable.
+        \(demonstration) \(companion) answers first, a little too fast, and has to revise in front of everyone. "Try that again with a smaller claim," \(leader) says. That's useful. The lesson becomes less decorative and more usable.
 
         \(leader) turns toward you. "\(interaction)" The question waits without hurry. For later, the practice is simple: \(practice) Nothing has to be completed inside this page. The class only asks you to leave with a better-shaped beginning.
         """

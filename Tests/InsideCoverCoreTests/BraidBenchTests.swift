@@ -283,15 +283,24 @@ extension BraidBenchTests {
   func testWriteTheBriefForARealDayWhenAsked() throws {
     let env = ProcessInfo.processInfo.environment
     guard let dayPath = env["BRAID_REAL_DAY"], let outPath = env["BRAID_BRIEFS_OUT"] else { return }
-    struct RealPage: Decodable { var time: String; var type: String; var text: String }
-    struct RealDay: Decodable { var date: String; var pages: [RealPage] }
-    let real = try JSONDecoder().decode(RealDay.self, from: Data(contentsOf: URL(fileURLWithPath: dayPath)))
+    struct RealPage: Decodable { var time: String; var type: String; var text: String; var origin: String? }
+    struct RealScene: Decodable { var id: String; var time: String; var text: String }
+    struct RealDay: Decodable { var date: String; var pages: [RealPage]; var scenes: [RealScene]? }
+    let raw = try Data(contentsOf: URL(fileURLWithPath: dayPath))
+    let realDays: [RealDay]
+    if let many = try? JSONDecoder().decode([RealDay].self, from: raw) {
+      realDays = many
+    } else {
+      realDays = [try JSONDecoder().decode(RealDay.self, from: raw)]
+    }
     let formatter = ISO8601DateFormatter()
+    var nights: [[String: String]] = []
+    for real in realDays {
     let pages = try real.pages.enumerated().map { index, page -> BookPage in
       let type = try XCTUnwrap(BookPageType(rawValue: page.type), "unknown page type \(page.type)")
       let at = try XCTUnwrap(formatter.date(from: "\(real.date)T\(page.time):00Z"))
       return BookPage(id: "real-\(index)", type: type, createdAt: at, promptText: "One true thing",
-                      userInput: page.text, origin: .userAuthored)
+                      userInput: page.text, origin: page.origin == "generated" ? .generated : .userAuthored)
     }
     let dayDate = try XCTUnwrap(formatter.date(from: "\(real.date)T21:00:00Z"))
     let day = BookDay(id: real.date, date: dayDate, pages: pages)
@@ -314,19 +323,32 @@ extension BraidBenchTests {
         endsAt: dayDate.addingTimeInterval(Double(event.calendar.durationDays - liveDay) * 86_400),
         progress: progress, playerTouchCount: 0, playerTouchCounts: nil, outcome: nil, effects: [], packet: event.packet)]
     }
+    // Monthly scenes the reader finished that day: their authored braid lines,
+    // exactly as the app would hand them to the planner.
+    for scene in real.scenes ?? [] {
+      let at = try XCTUnwrap(formatter.date(from: "\(real.date)T\(scene.time):00Z"))
+      context.authoredStoryReceipts.append(AuthoredContentReceipt(
+        contentID: scene.id, occurrenceID: "real-day", channel: .storyScene, state: .completed,
+        recordedAt: at, storyText: scene.text))
+    }
     let prepared = DeterministicBraidwright.preparedContext(for: day, context: context)
     var plan = BraidScenePlanBuilder.plan(for: day, context: prepared)
     plan.earnedWords = BraidScenePlan.deviceHonestBand(plan.earnedWords)
     let brief = plan.brief()
     let masked = BraidWornImages.masked(sparing: brief)
+    let passages = MonthlyIssueBraidMatter.ordered(plan.authoredStoryReceipts ?? [])
+      .compactMap(\.storyText).joined(separator: "\n\n")
     let night: [String: String] = [
-      "name": "real-day", "brief": brief,
+      "name": "day-\(real.date)", "brief": brief, "passages": passages,
+      "tale": plan.worldBeat?.fact ?? "",
       "maskWords": masked.words.joined(separator: "|"),
       "maskPairs": masked.pairs.map { "\($0.after)\u{1}\($0.word)" }.joined(separator: "|"),
       "readerMaterial": ([plan.title()] + plan.readerDayNarration).joined(separator: " "),
       "hardNight": plan.isHardNight ? "true" : "false"
     ]
-    try JSONEncoder().encode([night]).write(to: URL(fileURLWithPath: outPath))
+    nights.append(night)
     print("Wrote the brief for \(real.date): \(pages.count) pages, hard night: \(plan.isHardNight), business: \(plan.bookBusiness?.id ?? "none")")
+    }
+    try JSONEncoder().encode(nights).write(to: URL(fileURLWithPath: outPath))
   }
 }

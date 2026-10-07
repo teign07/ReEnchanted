@@ -4,13 +4,13 @@
   "runID": "count-unbound:2026",
   "files": [
     {
-      "id": "count-unbound.runtime.v4",
+      "id": "count-unbound.runtime.v7",
       "kind": "worldEventPack",
       "source": "opening.reenchantedevents.json",
       "fileName": "count-unbound.reenchantedevents.json"
     },
     {
-      "id": "count-unbound.margins.v1",
+      "id": "count-unbound.margins.v2",
       "kind": "pageArchetypePack",
       "source": "margins.reenchantedpack.json",
       "fileName": "count-unbound.reenchantedpack.json"
@@ -30,7 +30,7 @@
       "suffix": ".png"
     },
     {
-      "prefix": "count-unbound.seasonal.",
+      "prefix": "count-unbound.seasonal.v2.",
       "directory": "seasonal-marginalia",
       "suffix": ".png"
     },

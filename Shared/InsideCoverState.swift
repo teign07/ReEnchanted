@@ -168,7 +168,7 @@ struct WritingVoiceProfile: Codable, Equatable {
     var promptDescription: String {
         let dictionLine = diction.isEmpty ? "Use vocabulary implied by the character." : diction.joined(separator: ", ")
         let habitLine = habits.isEmpty ? "Let the character's habits appear subtly." : habits.joined(separator: "; ")
-        let avoidLine = avoid.isEmpty ? "Do not overperform the voice." : avoid.joined(separator: "; ")
+        let avoidLine = avoid.isEmpty ? "Don't overperform the voice." : avoid.joined(separator: "; ")
         let exemplarLine = exemplars.isEmpty
             ? ""
             : "\nCadence examples (copy the movement, never the facts): " + exemplars.map { "“\($0)”" }.joined(separator: " / ")
@@ -334,7 +334,7 @@ enum SupportFacultyPackRegistry {
                 "grounding card",
                 "question for real therapy"
             ],
-            safetyLine: "A feeling is not a verdict. A problem is not a person. The next hour is where the story can be revised.",
+            safetyLine: "A feeling isn't a verdict. A problem isn't a person. The next hour is where the story can be revised.",
             tags: ["support-faculty", "inkrest", "difficult-pages", "therapy-chart", "grounding", "care", "reauthoring"]
         ),
         SupportFacultyChart(
@@ -1344,29 +1344,39 @@ struct DistressSignals: Equatable {
     var isActive: Bool
     var reasons: [String]
 
+    /// What counts as a hard day.
+    ///
+    /// This used to trip on any single captured page carrying one of nine tags
+    /// (`low`, `heavy`, `numb`...) or one of five phrases, which meant one
+    /// honest Inner Weather answer, or one "I can't do this crossword", put the
+    /// whole Book into shelter for the day. Naming a heavy sky is exactly what
+    /// the Book asks for, and it should not be punished with a smaller Book.
+    ///
+    /// Now: one explicit crisis signal is enough, but the ordinary mood words
+    /// are only evidence, and it takes two different pages of them.
     static func evaluate(day: BookDay) -> DistressSignals {
-        let distressTags: Set<String> = [
-            "distress", "hard", "heavy", "low", "numb", "stormy", "depleted", "grief", "panic"
+        let strongTags: Set<String> = ["distress", "panic"]
+        let weakTags: Set<String> = [
+            "hard", "heavy", "low", "numb", "stormy", "depleted", "grief"
         ]
-        var reasons: [String] = []
+        let strongPhrases = ["hopeless", "depressed"]
+        let weakPhrases = ["panic", "can't do this", "cannot do this"]
+        var strongReasons: [String] = []
+        var weakReasons: [String] = []
 
         for page in day.capturedPages {
             let loweredTags = Set(page.tags.map { $0.lowercased() })
-            if !loweredTags.isDisjoint(with: distressTags) {
-                reasons.append("\(page.type.shortTitle) carried a hard tag")
-                continue
-            }
-
             let loweredInput = page.userInput.lowercased()
-            if loweredInput.contains("panic")
-                || loweredInput.contains("depressed")
-                || loweredInput.contains("hopeless")
-                || loweredInput.contains("can't do this")
-                || loweredInput.contains("cannot do this") {
-                reasons.append("\(page.type.shortTitle) carried a hard phrase")
+            if !loweredTags.isDisjoint(with: strongTags)
+                || strongPhrases.contains(where: loweredInput.contains) {
+                strongReasons.append("\(page.type.shortTitle) carried an explicit hard signal")
+            } else if !loweredTags.isDisjoint(with: weakTags)
+                || weakPhrases.contains(where: loweredInput.contains) {
+                weakReasons.append("\(page.type.shortTitle) carried a hard tag or phrase")
             }
         }
 
+        let reasons = strongReasons + (weakReasons.count >= 2 ? weakReasons : [])
         return DistressSignals(isActive: !reasons.isEmpty, reasons: reasons)
     }
 }
@@ -1438,7 +1448,7 @@ struct EnchantmentSpell: Identifiable, Equatable {
     var styleDirective: String {
         switch id {
         case "everything-speaks":
-            return "The subject speaks in first person with a concrete, approachable voice: like a neighbor who happens to be a teapot. It knows its own materials, its wear marks, its job, and its small opinions about how it is treated. It mentions one specific thing it has witnessed from where it sits. It is candid but kind, never mystical, and it ends by asking the reader one small practical question."
+            return "The subject speaks in first person with a concrete, approachable voice: like a neighbor who happens to be a teapot. It knows its own materials, its wear marks, its job, and its small opinions about how it's treated. It mentions one specific thing it has witnessed from where it sits. It's candid but kind, never mystical, and it ends by asking the reader one small practical question."
         case "everything-is-poetry":
             return "Write in the manner of Mary Oliver: plain spoken attention, short unforced lines, the natural world close at hand even indoors, amazement carried lightly. Begin in exact observation of the subject, let the poem turn once toward the reader's one wild life, and end on a question or a quiet instruction. No rhyme, no ornament, no abstractions where a grasshopper would do."
         case "everything-is-a-haiku":
@@ -1460,7 +1470,7 @@ struct EnchantmentSpell: Identifiable, Equatable {
         case "everything-is-astral":
             return "The subject has an astral double that travels while the body stays. Write the double's travelogue from last night: two or three vivid stops, transit described synesthetically, one souvenir it brought back that explains something visible in the photo."
         case "everything-is-roasted":
-            return "An affectionate comedy roast. Three escalating burns aimed at the subject's visible weak spots, each funny because it is precise, then one closing line that accidentally reveals the roaster loves it."
+            return "An affectionate comedy roast. Three escalating burns aimed at the subject's visible weak spots, each funny because it's precise, then one closing line that accidentally reveals the roaster loves it."
         case "everything-is-punny":
             return "A cascade of puns about the subject, escalating from groanworthy to genuinely criminal, each one building on the last. End when the subject itself appears to file a complaint."
         case "everything-is-a-joke":
@@ -1628,7 +1638,7 @@ enum FacultyResearchNoteGenerator {
         // diagnosis. No protocol heroics." Same split as notes and letters.
         let promptPacket = promptBody(for: facultyID, topic: topic, day: day, inputs: inputs)
         let waitingLine = facultyID == "dr-vellum"
-            ? "Vellum has the chart out and has not written a word yet. Still reading what the week actually did."
+            ? "Vellum has the chart out and hasn't written a word yet. Still reading what the week actually did."
             : "Inkrest has the folio open and the lamp low. Not a word down yet."
         let characterCanon = CharacterCanonPacket.promptSection(for: [entity].compactMap { $0 })
         return SurfacePage(

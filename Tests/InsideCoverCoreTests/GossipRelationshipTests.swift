@@ -122,13 +122,13 @@ final class GossipRelationshipTests: XCTestCase {
         // these assert the shape rather than one wording: the Book announces
         // that it has been holding something, and ends on its own opinion.
         XCTAssertTrue(
-            aside.payload.body.contains("I have been waiting")
-                || aside.payload.body.contains("I have been holding")
-                || aside.payload.body.contains("did not wait for you")
+            aside.payload.body.contains("I've been waiting")
+                || aside.payload.body.contains("I've been holding")
+                || aside.payload.body.contains("didn't wait for you")
                 || aside.payload.body.contains("sitting on it"),
             "No opening in the Book's voice: \(aside.payload.body)"
         )
-        XCTAssertTrue(aside.payload.body.contains("I "), "The Book vanished from its own Aside")
+        XCTAssertTrue(aside.payload.body.contains("I ") || aside.payload.body.contains("I'"), "The Book vanished from its own Aside")
         XCTAssertFalse(aside.payload.body.contains("What changed:"))
         XCTAssertFalse(aside.payload.body.contains("•"))
         XCTAssertTrue(aside.payload.metadata["tags"]?.contains("book-aside") ?? false)

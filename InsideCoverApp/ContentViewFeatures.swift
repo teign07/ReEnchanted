@@ -367,7 +367,7 @@ extension ContentView {
             castName: "Marginalia Goblin",
             assetName: "LabyrinthFaeMarginaliaGoblin",
             line: line,
-            carryOutLine: "They are yours now. I won't put the locks back."
+            carryOutLine: "They're yours now. I won't put the locks back."
         )
         let announcementTitle = additionalCount > 0
             ? "THE MARGINS FOUND \(newlyCompleted.count) THINGS"
@@ -454,12 +454,12 @@ extension ContentView {
             BookFeedback.play(.braidComplete, fill: true)
             return url
         } catch {
-            statusMessage = "The Pagewright could not bind that page: \(error.localizedDescription)"
+            statusMessage = "The Pagewright couldn't bind that page: \(error.localizedDescription)"
             BookFeedback.play(.error)
             return nil
         }
         #else
-        statusMessage = "This build cannot bind Pagewright PDFs yet."
+        statusMessage = "This build can't bind Pagewright PDFs yet."
         BookFeedback.play(.error)
         return nil
         #endif
@@ -486,12 +486,12 @@ extension ContentView {
             BookFeedback.play(.braidComplete)
             return url
         } catch {
-            statusMessage = "The Pagewright could not make that PNG: \(error.localizedDescription)"
+            statusMessage = "The Pagewright couldn't make that PNG: \(error.localizedDescription)"
             BookFeedback.play(.error)
             return nil
         }
         #else
-        statusMessage = "This build cannot make Pagewright PNGs yet."
+        statusMessage = "This build can't make Pagewright PNGs yet."
         BookFeedback.play(.error)
         return nil
         #endif
@@ -510,7 +510,7 @@ extension ContentView {
                     export: "png"
                 ))
             } catch {
-                statusMessage = "The Pagewright could not keep that PNG: \(error.localizedDescription)"
+                statusMessage = "The Pagewright couldn't keep that PNG: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -523,7 +523,7 @@ extension ContentView {
                     export: "pdf"
                 ))
             } catch {
-                statusMessage = "The Pagewright could not keep that PDF: \(error.localizedDescription)"
+                statusMessage = "The Pagewright couldn't keep that PDF: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -750,7 +750,7 @@ extension ContentView {
             score: 88,
             reason: "No Anchor is lit within two hundred meters. This place could become one.",
             prompt: "Anchor this place?",
-            detail: "I can grow an Outer Stacks room from where you are standing.",
+            detail: "I can grow an Outer Stacks room from where you're standing.",
             payload: BookPagePayload(
                 headline: "An Unanchored Place",
                 body: "No Anchor is lit within two hundred meters of where you stand. I may recognize the place, but maps are nosy guessers. You choose its true name and tell me what it holds. Those facts become the room.",
@@ -935,7 +935,7 @@ extension ContentView {
         if !hiddenMagicStance.isEmpty {
             saveOnboardingFact(
                 questionID: "onboarding-hidden-magic",
-                question: "Do you think there is hidden magic in your life right now?",
+                question: "Do you think there's hidden magic in your life right now?",
                 answer: hiddenMagicAnswer,
                 tags: ["hidden-magic", "lived-experience", "onboarding", "hidden-magic:\(hiddenMagicStance)"]
             )
@@ -1083,7 +1083,7 @@ extension ContentView {
                     "onboarding",
                     "role:\(refused.id)"
                 ],
-                bookTranslation: "The Book called the reader \(refused.name) and they said that is not me. Do not use this name for them. It is still worth knowing what they refused."
+                bookTranslation: "The Book called the reader \(refused.name) and they said that isn't me. Don't use this name for them. It's still worth knowing what they refused."
             )
         }
         if !magicSource.isEmpty {
@@ -1380,7 +1380,7 @@ extension ContentView {
         let trimmedPath = pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty,
               FileManager.default.fileExists(atPath: trimmedPath) else {
-            statusMessage = "The first edition was bound, but its shelf copy could not be found."
+            statusMessage = "The first edition was bound, but its shelf copy couldn't be found."
             return
         }
 
@@ -1775,7 +1775,7 @@ extension ContentView {
             switch effect.kind {
             case .calendarOpening:
                 succeeded = await EventKitWriter.arrangeBookWorking(working)
-                detail = succeeded ? "The opening was written to Calendar." : "Calendar did not accept the opening."
+                detail = succeeded ? "The opening was written to Calendar." : "Calendar didn't accept the opening."
             case .notificationSummons:
                 #if canImport(UserNotifications)
                 succeeded = await BookWhispers.offerWorking(working, now: now)
@@ -1820,7 +1820,7 @@ extension ContentView {
                 bookWhispersEnabled = true
                 promptWhispersEnabled = true
             }
-            statusMessage = "The pact is open. The next Working will be a surprise; its limits will not be."
+            statusMessage = "The pact is open. The next Working will be a surprise; its limits won't be."
             Task { @MainActor in
                 if bookCalendarEnabled {
                     calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: 5)
@@ -2079,7 +2079,7 @@ extension ContentView {
         } else if let offline = try? await fallbackWriter.room(context: generationContext) {
             spec = offline
         } else {
-            statusMessage = "The room would not take shape yet. Try anchoring once more."
+            statusMessage = "The room wouldn't take shape yet. Try anchoring once more."
             return
         }
 
@@ -2182,6 +2182,7 @@ extension ContentView {
             openWorldEventArchive: vault.data.openWorldEventArchive,
             worldEventLifecycle: vault.data.worldEventLifecycle,
             authoredContentReceipts: vault.data.authoredContentReceipts,
+            castStoryMemories: vault.data.castStoryMemories,
             publicationEpoch: vault.data.publicationEpoch,
             overnightConnectionDrafts: vault.data.overnightConnectionDrafts,
             chosenQuill: vault.data.chosenQuill,
@@ -2257,7 +2258,7 @@ extension ContentView {
                 : "I'm sealed: a complete copy, pages and photographs alike."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The save file would not bind: \(error.localizedDescription)"
+            statusMessage = "The save file wouldn't bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -2277,7 +2278,7 @@ extension ContentView {
             statusMessage = "Your pages are copied out in plain ink, ready to share."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The plain-ink copy would not write: \(error.localizedDescription)"
+            statusMessage = "The plain-ink copy wouldn't write: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -2316,7 +2317,7 @@ extension ContentView {
             statusMessage = "My continuity is bound and ready to share."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The continuity file would not bind: \(error.localizedDescription)"
+            statusMessage = "The continuity file wouldn't bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -2554,7 +2555,7 @@ extension ContentView {
             statusMessage = "The Bleed is bound for sharing."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
-            statusMessage = "The edition would not bind: \(error.localizedDescription)"
+            statusMessage = "The edition wouldn't bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -3281,7 +3282,7 @@ extension ContentView {
                         throw NSError(
                             domain: "Bindery",
                             code: 15,
-                            userInfo: [NSLocalizedDescriptionKey: "The print desk did not return this parcel's exact cover template."]
+                            userInfo: [NSLocalizedDescriptionKey: "The print desk didn't return this parcel's exact cover template."]
                         )
                     }
                     let cover = try makeSeasonalPrintCover(
@@ -3660,6 +3661,45 @@ extension ContentView {
         }
     }
 
+    /// The Bound Year's room, once whatever sheet the reader was in has left.
+    @MainActor
+    func openBoundYearRoom() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            bookShopInitialDestination = .subscriptions
+            currentStall = buildGoblinStall()
+            isBookShopPresented = true
+        }
+    }
+
+    /// Opens the Print Studio on the one volume a season or year Page is about.
+    /// Returns false when the volume can't be built, so the Page can fall back
+    /// to the shop instead of opening nothing.
+    @MainActor
+    func openEditionOffer(periodRaw: String, cadenceRaw: String?, now: Date = Date()) -> Bool {
+        guard let periodID = PublicationPeriodID(rawValue: periodRaw) else { return false }
+        let edition: MonthlyEdition?
+        // The period knows what it is; the Page's own word is only a hint.
+        switch periodID.recipe.cadence {
+        case .annual:
+            edition = annualPrintEdition(periodID: periodID, now: now)
+        case .seasonal:
+            edition = calendarSeasonalPrintEdition(periodID: periodID, now: now)
+        case .monthly:
+            edition = resolveEditionForBinding(periodID: periodID)
+        default:
+            edition = nil
+        }
+        guard let edition else { return false }
+        bookShopPrintPreviewOverride = edition
+        bookShopPrintEditionChoices = [edition]
+        preparedPrintInteriorURL = nil
+        preparedPrintCoverURL = nil
+        bookShopInitialDestination = .printStudio
+        currentStall = buildGoblinStall()
+        isBookShopPresented = true
+        return true
+    }
+
     /// Carries the exact reading copy to the press. The editor's note and
     /// closing in `WeeklyIssueReader` may have been written during binding, so
     /// rebuilding from the underlying week here would be a quiet substitution.
@@ -3768,21 +3808,11 @@ extension ContentView {
         edition.dedication = issue.dedication
         edition.publicationKind = .weekly
         edition.publicationRecipeID = "weekly-issue-\(issue.number)"
-        var fieldMatter = matter
-        fieldMatter.dayBook = BoundDayBookBuilder.make(
-            pages: issue.pages,
+        // The same days and handbook the reading copy is pressed from.
+        let fieldMatter = WeeklyIssuePDFWriter.fieldMatter(
+            from: matter,
             receipts: vault.data.authoredContentReceipts ?? .empty,
-            castActs: (vault.data.castActs ?? .empty).records,
-            startDate: issue.startDate,
-            endDate: issue.endDate
-        )
-        fieldMatter.handbook = HandbookBuilder.make(
-            pages: issue.pages,
-            castPresence: fieldMatter.dayBook?.chart.cast ?? [],
-            terms: [issue.resolvedEditorialTitle] + issue.highlights + [issue.readerRole?.gloss ?? ""],
-            seed: "week-\(issue.number)",
-            dayBook: fieldMatter.dayBook,
-            dayCount: WeeklyIssue.weekDays
+            castActs: (vault.data.castActs ?? .empty).records
         )
         edition.weeklyPublication = fieldMatter
         edition.playLeaves = issue.playLeaves
@@ -3978,7 +4008,7 @@ extension ContentView {
                 clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: pending))
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("monthly-aborted")
-                colophonBindingNote = "The thread snapped mid-stitch: the month would not bind. (\(error.localizedDescription))"
+                colophonBindingNote = "The thread snapped mid-stitch: the month wouldn't bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
             }
         }
@@ -4031,7 +4061,7 @@ extension ContentView {
                     monthlyEditionReader = reader
                 }
             } catch {
-                colophonBindingNote = "The thread snapped mid-stitch: \(edition.title) would not bind. (\(error.localizedDescription))"
+                colophonBindingNote = "The thread snapped mid-stitch: \(edition.title) wouldn't bind. (\(error.localizedDescription))"
                 BookFeedback.play(.error)
             }
         }
@@ -4100,7 +4130,7 @@ extension ContentView {
                 clearPublicationBindingCheckpoint(slot: weeklyBindingSlot(for: issue))
                 presentWeeklyIssueReader(kept, afterShopDismiss: wasShopOpen)
             } catch {
-                colophonBindingNote = "The issue opened, but it would not stay on the shelf: \(error.localizedDescription)"
+                colophonBindingNote = "The issue opened, but it wouldn't stay on the shelf: \(error.localizedDescription)"
                 presentWeeklyIssueReader(cached, afterShopDismiss: wasShopOpen)
             }
             return
@@ -4110,7 +4140,7 @@ extension ContentView {
             do {
                 try PublicationBindingCheckpointStore.remove(slot: weeklyBindingSlot(for: issue))
             } catch {
-                colophonBindingNote = "The old issue draft would not come off the binding table: \(error.localizedDescription)"
+                colophonBindingNote = "The old issue draft wouldn't come off the binding table: \(error.localizedDescription)"
                 BookFeedback.play(.error)
                 return
             }
@@ -4167,6 +4197,8 @@ extension ContentView {
                     editorialNote: wrapper.editorialNote,
                     closingNote: wrapper.closingNote,
                     chart: weekCharts.endpaper,
+                    receipts: vault.data.authoredContentReceipts ?? .empty,
+                    castActs: (vault.data.castActs ?? .empty).records,
                     to: url
                 )
                 preparedWeeklyIssueCardURL = cardURL
@@ -4197,7 +4229,7 @@ extension ContentView {
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("weekly-aborted")
                 weeklyIssueBindingNote = nil
-                colophonBindingNote = "The weekly issue would not bind: \(error.localizedDescription)"
+                colophonBindingNote = "The weekly issue wouldn't bind: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -4305,6 +4337,8 @@ extension ContentView {
                     shareCard: artifact.card,
                     editorialNote: artifact.editorialNote,
                     closingNote: artifact.closingNote,
+                    receipts: vault.data.authoredContentReceipts ?? .empty,
+                    castActs: (vault.data.castActs ?? .empty).records,
                     to: pdfURL
                 )
             }
@@ -4324,7 +4358,7 @@ extension ContentView {
             weeklyIssueReader = reader
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "Issue No. \(artifact.issue.number) would not open: \(error.localizedDescription)"
+            statusMessage = "Issue No. \(artifact.issue.number) wouldn't open: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -4414,7 +4448,7 @@ extension ContentView {
                 }
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
-                colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
+                colophonBindingNote = "The press wouldn't take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -4447,7 +4481,7 @@ extension ContentView {
                 }
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
-                colophonBindingNote = "The press would not take it: \(error.localizedDescription)"
+                colophonBindingNote = "The press wouldn't take it: \(error.localizedDescription)"
                 BookFeedback.play(.error)
             }
         }
@@ -4805,7 +4839,7 @@ extension ContentView {
             )
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "\(artifact.edition.monthName) would not open: \(error.localizedDescription)"
+            statusMessage = "\(artifact.edition.monthName) wouldn't open: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -4914,7 +4948,7 @@ extension ContentView {
             )
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "The \(artifact.edition.year) annual would not open: \(error.localizedDescription)"
+            statusMessage = "The \(artifact.edition.year) annual wouldn't open: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -4965,7 +4999,7 @@ extension ContentView {
         switch reader.edition.publicationKind ?? .monthly {
         case .seasonal:
             guard var edition = calendarSeasonalPrintEdition(periodID: periodID) else {
-                statusMessage = "That season's leaves would not come back to the binding table."
+                statusMessage = "That season's leaves wouldn't come back to the binding table."
                 BookFeedback.play(.error)
                 return
             }
@@ -5079,7 +5113,7 @@ extension ContentView {
         } catch {
             // The finished artifact is authoritative. A stale draft may remain,
             // but its source fingerprint prevents it crossing into another book.
-            appLog.error("Could not clear finished publication checkpoint: \(error.localizedDescription, privacy: .private)")
+            appLog.error("Couldn't clear finished publication checkpoint: \(error.localizedDescription, privacy: .private)")
         }
     }
 
@@ -5136,10 +5170,15 @@ extension ContentView {
         weeklyIssueBindingNote = "The cover has a name. Gemma is writing the editor's note…"
         let editorialStage = WeeklyIssueBindingStage.editorialNote.rawValue
         if !checkpoint.hasCompleted(editorialStage) {
-            checkpoint.payload.editorialNote = await gemmaWeeklyIssueEditorialNote(
+            let editorial = await gemmaWeeklyIssueEditorialNote(
                 for: checkpoint.payload.issue,
                 character: character
             )
+            // The pull quote and the bound story are printed around this note, so a
+            // sentence it shares with them is dropped: Issue 6 said one line seven times.
+            checkpoint.payload.editorialNote = editorial.map {
+                WeeklyCuration.removingRepeats(from: $0, of: weeklySpentLines(for: checkpoint.payload.issue))
+            }
             checkpoint.markCompleted(editorialStage)
             try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
             await LocalBrainPublicationStageBoundary.persisted(editorialStage)
@@ -5148,10 +5187,16 @@ extension ContentView {
         weeklyIssueBindingNote = "The editor's note is dry. Gemma is writing the last page…"
         let closingStage = WeeklyIssueBindingStage.closingNote.rawValue
         if !checkpoint.hasCompleted(closingStage) {
-            checkpoint.payload.closingNote = await gemmaWeeklyIssueClosingNote(
+            let closing = await gemmaWeeklyIssueClosingNote(
                 for: checkpoint.payload.issue,
                 character: character
             )
+            checkpoint.payload.closingNote = closing.map {
+                WeeklyCuration.removingRepeats(
+                    from: $0,
+                    of: weeklySpentLines(for: checkpoint.payload.issue) + WonderBraid.sentences(checkpoint.payload.editorialNote ?? "")
+                )
+            }
             checkpoint.markCompleted(closingStage)
             try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
             await LocalBrainPublicationStageBoundary.persisted(closingStage)
@@ -5164,8 +5209,15 @@ extension ContentView {
                 for: checkpoint.payload.issue,
                 character: character
             )
-            checkpoint.payload.issue.looseThread = generated
-                ?? checkpoint.payload.issue.resolvedLooseThread
+            if var thread = generated {
+                let spent = weeklySpentLines(for: checkpoint.payload.issue)
+                    + WonderBraid.sentences(checkpoint.payload.editorialNote ?? "")
+                    + WonderBraid.sentences(checkpoint.payload.closingNote ?? "")
+                thread.body = WeeklyCuration.removingRepeats(from: thread.body, of: spent)
+                checkpoint.payload.issue.looseThread = thread
+            } else {
+                checkpoint.payload.issue.looseThread = checkpoint.payload.issue.resolvedLooseThread
+            }
             checkpoint.markCompleted(looseThreadStage)
             try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
             await LocalBrainPublicationStageBoundary.persisted(looseThreadStage)
@@ -5222,6 +5274,12 @@ extension ContentView {
             appLog.info("Weekly binding refused: \(refusal.rawValue, privacy: .public)")
             return floor
         }
+    }
+
+    /// What the issue has already printed in its own words, so the pieces written
+    /// around it do not say it again.
+    private func weeklySpentLines(for issue: WeeklyIssue) -> [String] {
+        Array(issue.highlights.prefix(2)) + WonderBraid.sentences(issue.bindingStory ?? "")
     }
 
     @MainActor
@@ -5304,7 +5362,7 @@ extension ContentView {
         \(findings.isEmpty ? "- no finding cleared the evidence threshold" : findings)
         Tale desk: \(tale)
         Set-aside note: \(issue.setAsideLine ?? "none")
-        Write 1 or 2 short paragraphs as an actual magazine editor opening this exact issue. Point to one concrete thing inside, and give the reader a reason to turn the page. Make the week feel whole without pretending it was grand. Do not repeat the binding story and do not invent events.
+        Write 1 or 2 short paragraphs as an actual magazine editor opening this exact issue. Point to one concrete thing inside, and give the reader a reason to turn the page. Make the week feel whole without pretending it was grand. Don't repeat the binding story or any highlight line word for word, and don't invent events. Point at something the highlights don't already say.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5328,7 +5386,7 @@ extension ContentView {
         Highlights:
         \(highlights)
         Set-aside note: \(issue.setAsideLine ?? "none")
-        Write one short paragraph, 1 to 3 sentences. Let the week feel kept; mention that the month and year are still gathering only if it feels natural. Do not invent events.
+        Write one short paragraph, 1 to 3 sentences. Let the week feel kept; mention that the month and year are still gathering only if it feels natural. Don't invent events, and don't repeat a highlight line word for word.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5388,7 +5446,7 @@ extension ContentView {
         Rules:
         - Use only supplied evidence for facts about the reader. Never invent an event, feeling, place, meal, or habit.
         - Refer to at least two exact details and let the speakers disagree, tease, or surprise each other.
-        - Do not summarize the reader, explain an app, or praise generically.
+        - Don't summarize the reader, explain an app, or praise generically.
         - Write 4 to 7 brief lines, with at least two speakers.
         - Output only lines in this exact format: speaker-id|words
         """
@@ -5539,7 +5597,7 @@ extension ContentView {
     private func gemmaMonthlyForeword(for edition: MonthlyEdition, character: String) async -> String? {
         let material = monthlyBindingPromptMaterial(for: edition)
         let prompt = """
-        Write the foreword to \(edition.monthName) for The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound monthly chapter with \(edition.pageCount) pages across \(edition.dayCount) days.
+        Write the foreword to \(edition.monthName) for The Book of You, in the Book's own voice, addressed to the reader. It's opening a bound monthly chapter with \(edition.pageCount) pages across \(edition.dayCount) days.
         \(character)
         Theme: \(material.themeLine)
         What kept returning this month: \(material.signals)
@@ -5548,7 +5606,7 @@ extension ContentView {
         \(material.memorySpine)
         Selected reader-authored passages from meaningful parts of eligible keeps:
         \(material.passageCompass)
-        Write 2 to 4 short paragraphs. Be specific to the supplied material. Do not invent events. Do not sign the note; the reader knows who's speaking.
+        Write 2 to 4 short paragraphs. Be specific to the supplied material. Don't invent events. Don't sign the note; the reader knows who's speaking.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5577,7 +5635,7 @@ extension ContentView {
         \(material.memorySpine)
         Selected reader-authored passages from meaningful parts of eligible keeps:
         \(material.passageCompass)
-        Two or three short paragraphs. Do not sign the note. Do not invent events; only reflect what is given.
+        Two or three short paragraphs. Don't sign the note. Don't invent events; only reflect what is given.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5627,7 +5685,7 @@ extension ContentView {
             "- \(voice.slug) | \(voice.name) | glyph \(voice.glyph) | voice examples: \(voice.plainLines.prefix(3).joined(separator: " / "))"
         }.joined(separator: "\n")
         let prompt = """
-        Write a short in-world conversation at the Bindery about the exact physical monthly book titled \(edition.monthName). The characters have the finished volume open in front of them. They may argue about the edit, notice a funny juxtaposition, care about an ordinary detail, or object to what another character thinks it means. They are people with agendas, not tour guides.
+        Write a short in-world conversation at the Bindery about the exact physical monthly book titled \(edition.monthName). The characters have the finished volume open in front of them. They may argue about the edit, notice a funny juxtaposition, care about an ordinary detail, or object to what another character thinks it means. They're people with agendas, not tour guides.
 
         Allowed speakers:
         \(speakerLines)
@@ -5638,7 +5696,7 @@ extension ContentView {
         Rules:
         - Use only supplied evidence for facts about the reader. Never invent an event, meal, feeling, place, or habit.
         - Refer to at least two exact supplied details.
-        - Let the speakers disagree or surprise each other. Do not summarize the reader or explain an app.
+        - Let the speakers disagree or surprise each other. Don't summarize the reader or explain an app.
         - Write 5 to 8 brief lines, with at least two speakers.
         - Output only lines in this exact format: speaker-id|words
         """
@@ -5788,10 +5846,10 @@ extension ContentView {
             ?? annualBindingPromptMaterial(for: annual)
         let kind = annual.publicationKind == .seasonal ? "seasonal volume" : "membership-year annual"
         let prompt = """
-        Write the foreword to \(annual.resolvedCoverLine()) of The Book of You, in the Book's own voice, addressed to the reader. It is opening a bound \(kind) with \(annual.pageCount) kept pages across \(annual.dayCount) days and \(annual.chapters.count) chapters.
+        Write the foreword to \(annual.resolvedCoverLine()) of The Book of You, in the Book's own voice, addressed to the reader. It's opening a bound \(kind) with \(annual.pageCount) kept pages across \(annual.dayCount) days and \(annual.chapters.count) chapters.
         \(character)
         \(bindingEvidence)
-        Write 3 to 5 short paragraphs. Choose the truest architecture the supplied year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return. Do not force the year into one arc, and do not invent events beyond the supplied material. Do not sign the note.
+        Write 3 to 5 short paragraphs. Choose the truest architecture the supplied year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return. Don't force the year into one arc, and don't invent events beyond the supplied material. Don't sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5811,7 +5869,7 @@ extension ContentView {
         Write the closing back-matter note for \(annual.resolvedCoverLine()) of The Book of You, in the Book's own voice, addressed to the reader after they have reached the end of this \(kind).
         \(character)
         \(annualBindingPromptMaterial(for: annual))
-        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: this \(kind) is kept, the next page is blank on purpose. Do not claim the calendar year ended unless this is explicitly an annual. Do not invent events. Do not sign the note.
+        Write 2 or 3 short paragraphs. Let it feel final but not grandiose: this \(kind) is kept, the next page is blank on purpose. Don't claim the calendar year ended unless this is explicitly an annual. Don't invent events. Don't sign the note.
         """
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
@@ -5859,7 +5917,7 @@ extension ContentView {
             return "- \(voice.slug) | \(voice.name) | glyph \(voice.glyph) | voice examples: \(examples)"
         }.joined(separator: "\n")
         let prompt = """
-        Write a short in-world conversation at the Bindery about the exact physical book titled \(annual.resolvedCoverLine()). The characters have the finished volume open in front of them. They may disagree about its editing, notice a funny or tender juxtaposition, argue over a title, or react to a real detail. They are people with agendas, not tour guides.
+        Write a short in-world conversation at the Bindery about the exact physical book titled \(annual.resolvedCoverLine()). The characters have the finished volume open in front of them. They may disagree about its editing, notice a funny or tender juxtaposition, argue over a title, or react to a real detail. They're people with agendas, not tour guides.
 
         Allowed speakers:
         \(speakerLines)
@@ -5870,12 +5928,12 @@ extension ContentView {
         Rules:
         - Use only the supplied evidence for facts about the reader. Never invent an event, meal, feeling, place, or habit.
         - The Cast may form opinions, tease each other, misunderstand each other, and care about the object.
-        - Refer to at least two exact supplied details. Do not summarize the reader or explain the app.
+        - Refer to at least two exact supplied details. Don't summarize the reader or explain the app.
         - Write 5 to 8 brief lines, with at least two speakers.
         - Output only lines in this exact format: speaker-id|words
         """
         let instructions = """
-        You are writing canon-faithful dialogue among residents of ReEnchanted's Labyrinth. Keep each speaker distinct using the supplied voice examples. The scene is a contemporary domestic faerie tale with exact ordinary evidence. Generated dialogue may interpret evidence but may never manufacture real-life facts. No assistant voice, therapy language, praise-summary, or generic whimsy.
+        You're writing canon-faithful dialogue among residents of ReEnchanted's Labyrinth. Keep each speaker distinct using the supplied voice examples. The scene is a contemporary domestic faerie tale with exact ordinary evidence. Generated dialogue may interpret evidence but may never manufacture real-life facts. No assistant voice, therapy language, praise-summary, or generic whimsy.
         \(BookVoice.animismLine)
         """
         guard let raw = await LocalBrainProse.write(
@@ -5934,8 +5992,8 @@ extension ContentView {
         let secondDetail = String(secondEvidence.body.prefix(150))
         let lines = [
             BoundVolumeCastLine(id: "volume-dialogue-fallback-0", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "I've put \(firstEvidence.title.lowercased()) on its own card. \(firstDetail)"),
-            BoundVolumeCastLine(id: "volume-dialogue-fallback-1", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "A card is not an argument, Blackletter. It is barely furniture."),
-            BoundVolumeCastLine(id: "volume-dialogue-fallback-2", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "Then explain \(secondEvidence.title.lowercased()). \(secondDetail) That is a turn, and you know it."),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-1", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "A card isn't an argument, Blackletter. It's barely furniture."),
+            BoundVolumeCastLine(id: "volume-dialogue-fallback-2", speakerID: penny.slug, speakerName: penny.name, glyph: penny.glyph, words: "Then explain \(secondEvidence.title.lowercased()). \(secondDetail) That's a turn, and you know it."),
             BoundVolumeCastLine(id: "volume-dialogue-fallback-3", speakerID: mook.slug, speakerName: mook.name, glyph: mook.glyph, words: "I know only that \(annual.resolvedCoverLine()) has survived binding with its evidence intact. Irritatingly, that will do.")
         ]
         return BoundVolumeCastConversation(
@@ -6039,12 +6097,12 @@ extension ContentView {
                     }
                 } catch {
                     await LocalBrainPublicationStageBoundary.persisted("annual-aborted")
-                    statusMessage = "The annual would not bind: \(error.localizedDescription)"
+                    statusMessage = "The annual wouldn't bind: \(error.localizedDescription)"
                     BookFeedback.play(.error)
                 }
             }
         } catch {
-            statusMessage = "The annual would not bind: \(error.localizedDescription)"
+            statusMessage = "The annual wouldn't bind: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -6260,6 +6318,10 @@ extension ContentView {
                 mergedReceipts.merge(importedReceipts)
                 vault.data.authoredContentReceipts = mergedReceipts
             }
+            if let importedMemories = save.castStoryMemories {
+                vault.data.castStoryMemories = (vault.data.castStoryMemories ?? .empty)
+                    .absorbing(importedMemories.memories)
+            }
             if let importedEpoch = save.publicationEpoch,
                vault.data.publicationEpoch == nil {
                 vault.data.publicationEpoch = importedEpoch
@@ -6344,7 +6406,7 @@ extension ContentView {
             statusMessage = "The save file has been read back into me: \(save.days.count) days, \(save.selfFacts.count) facts, \(save.anchors.count) anchors."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "That save file would not open: \(error.localizedDescription)"
+            statusMessage = "That save file wouldn't open: \(error.localizedDescription)"
             BookFeedback.play(.error)
         }
     }
@@ -6421,7 +6483,7 @@ extension ContentView {
     }
 
     static let braidTasteNoteInstructions = """
-    You are the Book inside ReEnchanted, learning a single reader's taste.
+    You're the Book inside ReEnchanted, learning a single reader's taste.
     Return exactly one short second-person instruction to yourself for next time. No preamble, no quotes, no label. Begin with a verb. Never diagnose, flatter, or moralize.
     """
 
@@ -6697,7 +6759,7 @@ extension ContentView {
             // Page now so a Keep that landed meanwhile is never overwritten by
             // a stale day snapshot.
             guard let (liveDayIndex, livePageIndex, _) = locatedBraidPage(pageID: pageID) else {
-                statusMessage = "The new telling came back, but its Page had moved. I did not force it into the shelf."
+                statusMessage = "The new telling came back, but its Page had moved. I didn't force it into the shelf."
                 BookFeedback.play(.error)
                 return
             }
@@ -6930,7 +6992,7 @@ extension ContentView {
             proseKey: "twoReadingsProse",
             prompt: LocalModelManager.twoReadingsPrompt(surface: base, day: today),
             instructions: """
-            You are the Labyrinth staging a disagreement between two cast members inside ReEnchanted. Prose only, no headings. Both positions must be fair; end by leaving the choice to the reader. \(BookVoice.animismLine)
+            You're the Labyrinth staging a disagreement between two cast members inside ReEnchanted. Prose only, no headings. Both positions must be fair; end by leaving the choice to the reader. \(BookVoice.animismLine)
             """,
             maxTokens: 620,
             sourceID: "two-readings",
@@ -6953,9 +7015,9 @@ extension ContentView {
         let opening = pageText.map { text in
             let presented = mayQuote ? "“\(text)”" : text
             return authored
-                ? "\(aName) and \(bName) both stopped on the page you wrote (\(presented)) and did not come back with the same weather in their hands."
-                : "\(aName) and \(bName) both stopped on the same kept evidence (\(presented)) and did not come back with the same weather in their hands."
-        } ?? "\(aName) and \(bName) read the same kept page and did not come back with the same weather in their hands."
+                ? "\(aName) and \(bName) both stopped on the page you wrote (\(presented)) and didn't come back with the same weather in their hands."
+                : "\(aName) and \(bName) both stopped on the same kept evidence (\(presented)) and didn't come back with the same weather in their hands."
+        } ?? "\(aName) and \(bName) read the same kept page and didn't come back with the same weather in their hands."
 
         return """
         \(opening)
@@ -6964,14 +7026,14 @@ extension ContentView {
 
         \(bName) says \(bStance). Not because \(aName) is wrong, exactly, but because another truth is standing at the edge of the same sentence.\(bridge)
 
-        The Book will not settle this. It only places both readings in the margin and waits to see which one you keep closer.
+        The Book won't settle this. It only places both readings in the margin and waits to see which one you keep closer.
         """
     }
 
     private static func stanceLine(for profile: String, name: String, fallback: String) -> String {
         let lower = profile.lowercased()
         if lower.contains("rest") || lower.contains("body") || lower.contains("care") || lower.contains("sleep") {
-            return "the body is not background; it is part of the story, and it may be speaking first"
+            return "the body isn't background; it's part of the story, and it may be speaking first"
         }
         if lower.contains("pattern") || lower.contains("evidence") || lower.contains("notice") || lower.contains("record") {
             return "the pattern matters; one page is a moment, but repeated ink is beginning to behave like a map"
@@ -6980,7 +7042,7 @@ extension ContentView {
             return "the important thing may be the little door that opened, not the reason it opened"
         }
         if lower.contains("protect") || lower.contains("boundary") || lower.contains("truth") || lower.contains("honest") {
-            return "the honest edge of the page should not be softened until it disappears"
+            return "the honest edge of the page shouldn't be softened until it disappears"
         }
         if lower.contains("chapter") || lower.contains("belief") {
             return "this belongs to the larger chapter, and the larger chapter is asking to be named"
@@ -7002,7 +7064,7 @@ extension ContentView {
             proseKey: "castBondProse",
             prompt: LocalModelManager.castBondPrompt(surface: base, day: today),
             instructions: """
-            You are the Labyrinth staging an emergent relationship beat inside ReEnchanted. Prose only, no headings. The relationship milestone must become visible as a scene. \(BookVoice.animismLine)
+            You're the Labyrinth staging an emergent relationship beat inside ReEnchanted. Prose only, no headings. The relationship milestone must become visible as a scene. \(BookVoice.animismLine)
             """,
             maxTokens: 620,
             sourceID: "cast-bond",
@@ -7065,7 +7127,7 @@ extension ContentView {
             proseKey: "bookJumpProse",
             prompt: LocalModelManager.bookJumpPrompt(surface: base),
             instructions: """
-            You are the Book inside ReEnchanted staging a controlled Book Jump into a named public-domain work. Write to the senses, name the book's actual places and people, and never settle for generic mood. \(BookVoice.animismLine) \(continuityInstruction) Prose only, no headings, no quotes from the source text.
+            You're the Book inside ReEnchanted staging a controlled Book Jump into a named public-domain work. Write to the senses, name the book's actual places and people, and never settle for generic mood. \(BookVoice.animismLine) \(continuityInstruction) Prose only, no headings, no quotes from the source text.
             """,
             maxTokens: 700,
             sourceID: "book-jump",
@@ -7083,7 +7145,7 @@ extension ContentView {
         var metadata = base.payload.metadata
         let prompt = LocalModelManager.supportGuildPrompt(surface: base)
         let instructions = """
-        You are the Support Guild scribe inside ReEnchanted. Return only the requested labeled sections. Complete every sentence. Never label prose paragraphs with "Try:".
+        You're the Support Guild scribe inside ReEnchanted. Return only the requested labeled sections. Complete every sentence. Never label prose paragraphs with "Try:".
         """
         let generated = await LocalBrainProse.write(
             prompt: prompt,
@@ -7197,7 +7259,7 @@ extension ContentView {
             from: base,
             proseKey: "packProse",
             prompt: base.payload.metadata["packPrompt"] ?? "",
-            instructions: (base.payload.metadata["packInstructions"] ?? "You are the Book inside ReEnchanted. \(BookVoice.animismLine) Write the requested page in prose only.")
+            instructions: (base.payload.metadata["packInstructions"] ?? "You're the Book inside ReEnchanted. \(BookVoice.animismLine) Write the requested page in prose only.")
                 + (base.payload.metadata[BookVoicePatina.metadataKey] ?? sourceInputs.bookVoicePatina.promptSection),
             maxTokens: Int(base.payload.metadata["packMaxTokens"] ?? "") ?? 420,
             sourceID: "pack-page",
@@ -7397,7 +7459,7 @@ extension ContentView {
 
             Somewhere in the stacks, new characters look up. A sealed mystery changes shelves. A song clears its throat. Next month's folio starts walking toward you.
 
-            The Book has not purchased your attention. It has promised to keep earning it.
+            The Book hasn't purchased your attention. It has promised to keep earning it.
 
             Then the cover falls open onto Home.
 
@@ -8749,7 +8811,7 @@ struct BookwideMarginaliaAchievement {
     static let all: [BookwideMarginaliaAchievement] = catalog([
         achievement(
             "first-margin", "My First Loose Mark",
-            "Keep one Page. That is enough to make my margins start scratching at the lock.",
+            "Keep one Page. That's enough to make my margins start scratching at the lock.",
             "Keep one Page anywhere in me.",
             .keptPages(1),
             ["illumination_paper_deckled", "illumination_reported_small"],
@@ -8888,7 +8950,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "three-anchors", "Three Places You Made",
-            "Three real places are holding doors for you now. That is enough to start a map.",
+            "Three real places are holding doors for you now. That's enough to start a map.",
             "Make three Anchors.",
             .anchorsCreated(3),
             ["illumination_compass_reminder", "illumination_astrolabe_stamp"]
@@ -8909,8 +8971,8 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "shadow-wonder", "The Thorn Saw Something Else",
-            "You fed the Dusk Thorn. Then you noticed something strange that did not need to be about you.",
-            "Raise the Dusk Thorn above zero Belief. Then bring back proof that you noticed something strange which was not about you.",
+            "You fed the Dusk Thorn. Then you noticed something strange that didn't need to be about you.",
+            "Raise the Dusk Thorn above zero Belief. Then bring back proof that you noticed something strange which wasn't about you.",
             .all([
                 .shadowWonder,
                 .longGameEvidence(
@@ -8995,7 +9057,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "three-tarot-readings", "The Cards Answered Once",
-            "The cards asked their questions once. They did not pretend to be a verdict.",
+            "The cards asked their questions once. They didn't pretend to be a verdict.",
             "Keep one Tarot reading.",
             .keptPageType(.tarot, 1),
             ["illumination_constellation", "illumination_luna_moth"],
@@ -9050,8 +9112,8 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "seven-kept-days", "Seven Real Days",
-            "Seven actual days brought something back. They did not have to stand in a row.",
-            "Bring back proof from real life on seven different days. They do not need to stand in a row.",
+            "Seven actual days brought something back. They didn't have to stand in a row.",
+            "Bring back proof from real life on seven different days. They don't need to stand in a row.",
             .longGameEvidence(
                 capacity: nil,
                 kinds: nil,
@@ -9227,7 +9289,7 @@ private struct PagewrightMarginaliaAchievement {
             case .visualScrap:
                 return context.hasVisualScrap ? "I have something visible" : "I still need something visible"
             case .exportedDraft:
-                return context.hasExport ? "It has left as a PDF or PNG" : "It has not left as a PDF or PNG yet"
+                return context.hasExport ? "It has left as a PDF or PNG" : "It hasn't left as a PDF or PNG yet"
             case .namedDraft:
                 return context.hasCustomTitle ? "The Page has its own name" : "The Page still needs its own name"
             case .editedPullQuote:
@@ -9510,7 +9572,7 @@ private struct PagewrightMarginaliaAchievement {
     private static let nightPaper = Quest(
         id: "night-paper",
         name: "Paper After Dark",
-        riddle: "Put two scraps on Night paper. They are waiting for the lamps to go out.",
+        riddle: "Put two scraps on Night paper. They're waiting for the lamps to go out.",
         requirements: [.selectedScraps(2), .background(.night)]
     )
     private static let cartographersOffcut = Quest(
@@ -9528,7 +9590,7 @@ private struct PagewrightMarginaliaAchievement {
     private static let greenBinding = Quest(
         id: "green-binding",
         name: "A Flower Held It",
-        riddle: "Put down a pressed flower and pin one note beside it. That is enough to hold the Page together.",
+        riddle: "Put down a pressed flower and pin one note beside it. That's enough to hold the Page together.",
         requirements: [.marginaliaStyle(.pressedFlower), .pinnedNotes(1)]
     )
     private static let heldTogether = Quest(
@@ -9540,7 +9602,7 @@ private struct PagewrightMarginaliaAchievement {
     private static let archivistsSeal = Quest(
         id: "archivists-seal",
         name: "Five Scraps Made a Pile",
-        riddle: "Gather five scraps from at least two days. I will stop calling it a pile and call it an archive.",
+        riddle: "Gather five scraps from at least two days. I'll stop calling it a pile and call it an archive.",
         requirements: [.selectedScraps(5), .litDays(2)]
     )
     private static let lunaPost = Quest(
@@ -9594,7 +9656,7 @@ private struct PagewrightMarginaliaAchievement {
     private static let handmadeConstellation = Quest(
         id: "handmade-constellation",
         name: "A Handmade Constellation",
-        riddle: "Bring three kinds of Page together and put ink stars around them. That is enough sky.",
+        riddle: "Bring three kinds of Page together and put ink stars around them. That's enough sky.",
         requirements: [.distinctSelectedTypes(3), .marginaliaStyle(.inkStars)]
     )
     private static let passageGranted = Quest(
@@ -9672,7 +9734,7 @@ private struct PagewrightMarginaliaAchievement {
     private static let softChaosLicense = Quest(
         id: "soft-chaos-license",
         name: "Three Marks Got Loose",
-        riddle: "Use Soft Chaos and put down three open marks. Do not make them stand straight.",
+        riddle: "Use Soft Chaos and put down three open marks. Don't make them stand straight.",
         requirements: [.template(.softChaos), .placedMarks(3)]
     )
     private static let witnessedEdge = Quest(
@@ -11183,7 +11245,7 @@ struct PagewrightSheet: View {
             }
             isImportingPersonalPhotos = false
             if imported.isEmpty {
-                personalPhotoImportMessage = "Those photos could not be read."
+                personalPhotoImportMessage = "Those photos couldn't be read."
                 BookFeedback.play(.error)
             } else {
                 let noun = imported.count == 1 ? "photo" : "photos"
@@ -11193,7 +11255,7 @@ struct PagewrightSheet: View {
                 BookFeedback.play(.select)
             }
             if failedCount > 0, !imported.isEmpty {
-                personalPhotoImportMessage? += " \(failedCount) could not be read."
+                personalPhotoImportMessage? += " \(failedCount) couldn't be read."
             }
         }
     }
@@ -11394,7 +11456,7 @@ struct PagewrightSheet: View {
         guard !marks.isEmpty else { return nil }
         let locked = marks.filter { !isMarginaliaUnlocked($0.asset) }.count
         guard locked > 0 else {
-            return marks.count == 1 ? "One mark, and it is yours." : "All \(marks.count) are yours."
+            return marks.count == 1 ? "One mark, and it's yours." : "All \(marks.count) are yours."
         }
         let open = marks.count - locked
         if open == 0 {
@@ -11472,7 +11534,7 @@ struct PagewrightSheet: View {
         let picks = suggestedMarks
         if !picks.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Label("I would use these", systemImage: "hand.point.right")
+                Label("I'd use these", systemImage: "hand.point.right")
                     .font(.caption.weight(.black))
                     .foregroundStyle(BookPalette.lampGold)
                 HStack(spacing: 8) {
@@ -14967,7 +15029,7 @@ struct PlainPageSheet: View {
             isWriting = false
             BookFeedback.play(.tap)
             if !recorder.start() {
-                voiceMessage = "The microphone could not start."
+                voiceMessage = "The microphone couldn't start."
             }
         }
     }

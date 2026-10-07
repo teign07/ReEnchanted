@@ -3436,7 +3436,6 @@ struct IlluminatedPhotoPageSourceAdapter: BookPageSourceAdapter {
     }
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !context.distress.isActive else { return [] }
         if let prepared = inputs.preparedIlluminatedPhotoSurface,
            prepared.payload.metadata["renderedPreviewPath"]?.isEmpty == false {
             return [prepared]

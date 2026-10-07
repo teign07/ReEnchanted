@@ -1,4 +1,5 @@
 import { expectedStripeLivemode } from './checkout-mode.mjs';
+import { acceptedBoundYearPriceIDs } from './bound-year-prices.mjs';
 import { recoveryRehearsalScope } from './membership-recovery-rehearsal.mjs';
 import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
@@ -76,7 +77,7 @@ function verifiedMembershipPayment(subscription, env) {
   return Boolean(price && env[price.envKey] && subscription.status === "active" &&
     subscription.livemode === expectedStripeLivemode(env) &&
     subscription.metadata?.reenchanted_physical_fulfillment === "accepted" &&
-    subscription.items?.data?.some(item => item.price?.id === env[price.envKey]) &&
+    subscription.items?.data?.some(item => acceptedBoundYearPriceIDs(env, cadence).has(item.price?.id)) &&
     Number(subscription.current_period_end) * 1000 > Date.now() &&
     invoice?.subscription === subscription.id && invoice.status === "paid" && invoice.paid === true && invoice.amount_paid > 0 &&
     payment?.status === "succeeded" && charge?.paid === true && !charge.refunded && !charge.disputed &&
@@ -2145,10 +2146,11 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
 }
 
 async function requirePaidMembershipMonths(subscription, cadence, seasonStart, env) {
-  const priceID = boundYearPriceID(env, cadence);
+  boundYearPriceID(env, cadence);
+  const priceIDs = acceptedBoundYearPriceIDs(env, cadence);
   const live = expectedStripeLivemode(env);
   if (subscription.livemode !== live ||
-      !(subscription.items?.data || []).some(item => item.price?.id === priceID)) {
+      !(subscription.items?.data || []).some(item => priceIDs.has(item.price?.id))) {
     throw new HTTPError(403, "membership_price_mismatch", "That subscription is not the configured Bound Year.");
   }
   const firstMonth = seasonStart.getUTCFullYear() * 12 + seasonStart.getUTCMonth();
@@ -2180,7 +2182,7 @@ async function requirePaidMembershipMonths(subscription, cadence, seasonStart, e
           charge.amount_refunded < 0 || charge.amount_refunded >= charge.amount) continue;
       for (const line of invoice.lines?.data || []) {
         if (line.type !== "subscription" || line.subscription !== subscription.id ||
-            line.proration !== false || line.price?.id !== priceID || !(line.amount > 0)) continue;
+            line.proration !== false || !priceIDs.has(line.price?.id) || !(line.amount > 0)) continue;
         const start = new Date(Number(line.period?.start) * 1000);
         const end = new Date(Number(line.period?.end) * 1000);
         const from = start.getUTCFullYear() * 12 + start.getUTCMonth();
@@ -4089,8 +4091,9 @@ async function readMembershipSeasonRefundProof(env, { membershipID, seasonKey })
   const live = expectedStripeLivemode(env);
   if (subscription.id !== membershipID || subscription.livemode !== live ||
       metadata.reenchanted_physical_fulfillment !== "accepted" || !BOUND_YEAR_CADENCES.has(cadence) || !start || !season) throw invalid();
-  const priceID = boundYearPriceID(env, cadence);
-  if (!subscription.items?.data?.some(item => item.price?.id === priceID)) throw invalid();
+  boundYearPriceID(env, cadence);
+  const priceIDs = acceptedBoundYearPriceIDs(env, cadence);
+  if (!subscription.items?.data?.some(item => priceIDs.has(item.price?.id))) throw invalid();
   const firstMonth = Number(season[1]) * 12 + Number(season[2]) - 1;
   const offset = firstMonth - (Number(start[1]) * 12 + Number(start[2]) - 1);
   if (offset < 0 || offset % 3 !== 0 || Date.UTC(Number(season[1]), Number(season[2]) + 2, 1) > Date.now()) throw invalid();
@@ -4112,7 +4115,7 @@ async function readMembershipSeasonRefundProof(env, { membershipID, seasonKey })
       seenInvoices.add(invoice.id);
       const months = new Set();
       for (const line of invoice.lines.data) {
-        if (line.type !== "subscription" || line.subscription !== membershipID || line.price?.id !== priceID) continue;
+        if (line.type !== "subscription" || line.subscription !== membershipID || !priceIDs.has(line.price?.id)) continue;
         if (!Number.isSafeInteger(line.period?.start) || !Number.isSafeInteger(line.period?.end)) throw invalid();
         const fromDate = new Date(line.period.start * 1000), untilDate = new Date(line.period.end * 1000);
         const from = fromDate.getUTCFullYear() * 12 + fromDate.getUTCMonth();

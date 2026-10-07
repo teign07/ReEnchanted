@@ -117,7 +117,7 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertFalse(correction.localizedCaseInsensitiveContains("apolog"), correction)
 
         XCTAssertTrue(boundary.contains("path is shut"), boundary)
-        XCTAssertTrue(boundary.contains("will not read you that way again"), boundary)
+        XCTAssertTrue(boundary.contains("won't read you that way again"), boundary)
         XCTAssertFalse(boundary.localizedCaseInsensitiveContains("sorry"), boundary)
         XCTAssertFalse(boundary.localizedCaseInsensitiveContains("apolog"), boundary)
     }

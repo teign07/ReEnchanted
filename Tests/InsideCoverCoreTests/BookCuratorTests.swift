@@ -851,6 +851,44 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertTrue(reachable.prefix(9).contains { $0.id == authored.id })
     }
 
+    /// The month's spine scene must not be buried at the back of the folio just
+    /// because the opening already carries two asks. Trading an ask for an ask
+    /// adds no pressure, so the scene takes a visible chair (it used to land on
+    /// the ninth leaf, where the day's single offer was spent unseen).
+    func testIssueSceneTakesAVisibleChairWhenTheOpeningIsAlreadyOverAskBudget() {
+        let now = localDate(year: 2026, month: 10, day: 1, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        let mood = CuratorMood.make(inputs: inputs, now: now)
+        let authored = rankedCandidate(.narrativeOS, score: 94).withMetadata([
+            MonthlyIssuePageMetadata.issueID: "october-issue",
+            MonthlyIssuePageMetadata.authoredStoryScene: "true",
+            MonthlyIssuePageMetadata.priority: MonthlyIssueContentPriority.spine.rawValue,
+            MonthlyIssuePageMetadata.mayReserve: "true",
+            MonthlyIssuePageMetadata.claimHistoryKey: "october-issue:2026-10-01",
+            MonthlyIssuePageMetadata.interaction: MonthlyIssueInteractionKind.choice.rawValue
+        ])
+            .withPageCapabilities(AuthoredStoryScenePageAdapter.capabilities(for: .choice))
+        XCTAssertTrue(authored.spendsCuratorAskBudget, "a choice scene is an ask")
+        let picked = [
+            rankedCandidate(.bookNotices, score: 75),
+            rankedCandidate(.diary, score: 58),
+            rankedCandidate(.aboutYou, score: 64),
+            rankedCandidate(.fuel, score: 66),
+            rankedCandidate(.weather, score: 88)
+        ]
+        XCTAssertGreaterThan(picked.prefix(3).filter(\.spendsCuratorAskBudget).count, 1,
+                             "the fixture's opening must already be over the ask budget")
+        let reserved = BookCurator.reservingAuthoredIssuePageIfOwed(
+            in: picked, candidates: [authored], day: day, inputs: inputs,
+            context: CuratorContext.make(for: day), preferences: .none,
+            mood: mood, now: now, limit: 9
+        )
+        XCTAssertTrue(reserved.prefix(3).contains { $0.id == authored.id },
+                      "the scene sat at \(reserved.firstIndex { $0.id == authored.id } ?? -1)")
+    }
+
     func testFirstHoursCuratorAllowsActiveBookJumpButHidesStart() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
         let start = bookJumpCandidate(action: .start, score: 100)
@@ -1346,7 +1384,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertEqual(pages.first?.payload.metadata["semanticEchoCount"], "1")
         XCTAssertEqual(pages.first?.payload.metadata["semanticEchoLead"], echoLine)
         XCTAssertEqual(pages.first?.payload.metadata["lead"], "Two Pages answered each other")
-        XCTAssertTrue(pages.first?.payload.body.contains("They do not repeat the same important words.") == true)
+        XCTAssertTrue(pages.first?.payload.body.contains("They don't repeat the same important words.") == true)
     }
 
     func testBookConnectionsRejectsTheSameWordsPretendingToBeAConnection() {
@@ -1716,7 +1754,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             for: emptyDay(),
             inputs: inputs,
             now: localDate(hour: 14),
-            limit: 20
+            limit: 40
         ).first { $0.type == .body })
 
         XCTAssertEqual(surface.payload.metadata["bodyGlyph"], "Walking Star")
@@ -1754,7 +1792,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             for: emptyDay(),
             inputs: richInputs(),
             now: localDate(year: 2026, month: 7, day: 7, hour: 9),
-            limit: 12
+            limit: 14
         )
         let lore = try XCTUnwrap(morning.first { $0.type == .lore })
         let wonder = try XCTUnwrap(morning.first { $0.type == .wonderCompass })
@@ -2242,7 +2280,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertEqual(inkrest.facultyEntityID, "dr-inkrest")
         XCTAssertEqual(inkrest.kind, .difficultPage)
         XCTAssertTrue(inkrest.forbiddenUses.contains("diagnosis"))
-        XCTAssertTrue(inkrest.safetyLine.contains("feeling is not a verdict"))
+        XCTAssertTrue(inkrest.safetyLine.contains("feeling isn't a verdict"))
 
         XCTAssertEqual(vellum.facultyEntityID, "dr-vellum")
         XCTAssertEqual(vellum.kind, .bodyMarginalia)
@@ -2876,7 +2914,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         )
     }
 
-    func testDistressBiasesGentleRestFirst() {
+    func testAHardDayStillGetsAFullDesk() {
         let dayDate = localDate(year: 2026, month: 6, day: 1, hour: 0)
         let day = BookDay(
             id: "2026-06-01",
@@ -2888,7 +2926,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
                     createdAt: localDate(year: 2026, month: 6, day: 1, hour: 8),
                     promptText: "One sentence.",
                     userInput: "A hard low morning.",
-                    tags: ["low"]
+                    tags: ["distress"]
                 )
             ]
         )
@@ -2900,7 +2938,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             limit: 3
         )
 
-        XCTAssertEqual(pages.first?.type, .rest)
+        XCTAssertEqual(pages.count, 3)
     }
 
     func testPageBeliefRaisesEligiblePageInCuratorRanking() throws {
@@ -2986,6 +3024,27 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertNotEqual(firstSnippetID, secondSnippetID)
     }
 
+    func testLogFloorSeatsFuelLogAndInnerWeatherEvenOnAHardDay() throws {
+        let day = emptyDay()
+        let now = localDate(year: 2026, month: 7, day: 7, hour: 10)
+        for distressed in [false, true] {
+            var context = CuratorContext.make(for: day)
+            if distressed {
+                context.distress = DistressSignals(isActive: true, reasons: ["test"])
+            }
+            let desk = BookCurator.surfacedPages(
+                for: day,
+                context: context,
+                inputs: richInputs(),
+                now: now,
+                limit: 9
+            )
+            XCTAssertTrue(desk.contains { $0.type == .fuel }, "fuel missing, distressed: \(distressed)")
+            XCTAssertTrue(desk.contains { $0.type == .mood }, "mood missing, distressed: \(distressed)")
+            XCTAssertLessThanOrEqual(desk.count, 9)
+        }
+    }
+
     func testCuratorLorePageRotatesAcrossSurfaceSlots() throws {
         let day = emptyDay()
         // Fixed ordinary date so Almanac festival pages don't claim a slot.
@@ -2993,13 +3052,13 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             for: day,
             inputs: richInputs(),
             now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 0),
-            limit: 12
+            limit: 14
         )
         let later = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(),
             now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 40),
-            limit: 12
+            limit: 14
         )
 
         let morningLore = try XCTUnwrap(morning.first { $0.type == .lore }?.payload.metadata["snippetID"])
@@ -3476,7 +3535,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
 
         XCTAssertTrue(WordNegotiationRulingContract.choices(from: surface.payload.metadata).isEmpty)
         XCTAssertNil(surface.payload.metadata["wordNegotiationDefaultRuling"])
-        XCTAssertTrue(surface.payload.body.contains("There is no ruling to choose."))
+        XCTAssertTrue(surface.payload.body.contains("There's no ruling to choose."))
         XCTAssertTrue(surface.payload.body.contains("The cold little hole matters later."))
     }
 
@@ -3788,7 +3847,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         let learningNotice = try XCTUnwrap(notices.first { $0.payload.metadata["bookLearning"] == "true" })
 
         XCTAssertEqual(learningNotice.payload.headline, "I Learn")
-        XCTAssertTrue(learningNotice.payload.body.contains("You have been rearranging me."), learningNotice.payload.body)
+        XCTAssertTrue(learningNotice.payload.body.contains("You've been rearranging me."), learningNotice.payload.body)
         XCTAssertTrue(learningNotice.payload.body.contains("My short version:"))
         XCTAssertTrue(learningNotice.payload.body.contains("changed what I put in your way"), learningNotice.payload.body)
         XCTAssertTrue(learningNotice.payload.body.contains("The eraser is hungry."))

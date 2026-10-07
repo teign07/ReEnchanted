@@ -89,7 +89,6 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             relationship: relationship,
             receipts: [],
             appetite: .unruly,
-            distressActive: false,
             rutward: false,
             now: now
         ).first)
@@ -105,40 +104,31 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         let first = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("first")], interior: interior, days: [], selfFacts: [],
             relationship: relationship, receipts: [], appetite: .alive,
-            distressActive: false, rutward: false, now: now
+            rutward: false, now: now
         ).first)
         let receipt = try XCTUnwrap(BookInterjectionEditor.receipt(for: first, servedAt: now))
 
         let tooSoon = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("soon")], interior: interior, days: [], selfFacts: [],
             relationship: relationship, receipts: [receipt], appetite: .alive,
-            distressActive: false, rutward: false, now: now.addingTimeInterval(4 * 86_400)
+            rutward: false, now: now.addingTimeInterval(4 * 86_400)
         ).first)
         XCTAssertNotEqual(tooSoon.payload.metadata["bookInterjectionSubjectKey"], "fascination:doorways")
 
         let returned = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("returned")], interior: interior, days: [], selfFacts: [],
             relationship: relationship, receipts: [receipt], appetite: .alive,
-            distressActive: false, rutward: false, now: now.addingTimeInterval(6 * 86_400)
+            rutward: false, now: now.addingTimeInterval(6 * 86_400)
         ).first)
         XCTAssertEqual(returned.payload.metadata["bookInterjectionSubjectKey"], "fascination:doorways")
         XCTAssertNotEqual(returned.payload.metadata["bookInterjectionRegister"], receipt.register?.rawValue)
-    }
-
-    func testDistressSilencesEvenAnUnrulyCompanionBook() {
-        let pages = [surface("a"), surface("b", type: .bookRemembered), surface("c", type: .bookNotices)]
-        let decorated = BookInterjectionEditor.decoratingDesk(
-            pages, interior: interior, days: [], selfFacts: [], relationship: relationship,
-            receipts: [], appetite: .unruly, distressActive: true, rutward: false, now: now
-        )
-        XCTAssertFalse(decorated.contains { $0.payload.metadata["bookInterjectionID"] != nil })
     }
 
     func testDayOneBookCanMutterAboutItsOwnHouseWithoutReadingTheReader() throws {
         let decorated = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("first-opening")], interior: .unawakened, days: [], selfFacts: [],
             relationship: .firstOpening, receipts: [], appetite: .alive,
-            distressActive: false, rutward: false, now: now
+            rutward: false, now: now
         ).first)
         XCTAssertEqual(decorated.payload.metadata["bookInterjectionSource"], "shelf")
         XCTAssertTrue(
@@ -181,7 +171,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         let decorated = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("answerable")], interior: interior, days: [], selfFacts: [],
             relationship: relationship, receipts: [], appetite: .alive,
-            distressActive: false, rutward: false, now: now
+            rutward: false, now: now
         ).first)
         let served = try XCTUnwrap(BookInterjectionEditor.receipt(for: decorated, servedAt: now))
         let answered = BookInterjectionEditor.responding(
@@ -193,7 +183,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         let later = BookInterjectionEditor.decoratingDesk(
             [surface("later")], interior: interior, days: [], selfFacts: [],
             relationship: relationship, receipts: answered, appetite: .unruly,
-            distressActive: false, rutward: false, now: now.addingTimeInterval(30 * 86_400)
+            rutward: false, now: now.addingTimeInterval(30 * 86_400)
         )
         XCTAssertFalse(later.contains {
             $0.payload.metadata["bookInterjectionSubjectKey"] == "fascination:doorways"
@@ -353,7 +343,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             let page = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
                 [surface("season-\(day)")], interior: interior, days: [], selfFacts: [],
                 relationship: curious, receipts: receipts, appetite: .unruly,
-                distressActive: false, rutward: false, now: date
+                rutward: false, now: date
             ).first)
             if let receipt = BookInterjectionEditor.receipt(for: page, servedAt: date) {
                 wordings.append(receipt.wordingKey)
@@ -415,7 +405,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             let candidate = BookInterjectionEditor.decoratingDesk(
                 [surface("underline-\(offset)")], interior: .unawakened, days: days,
                 selfFacts: [], relationship: curious, receipts: [], appetite: .unruly,
-                distressActive: false, rutward: false, now: date
+                rutward: false, now: date
             ).first
             if candidate?.payload.metadata["bookInterjectionRegister"] == BookInterjectionRegister.opinion.rawValue {
                 underlined = candidate
@@ -436,7 +426,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             [surface("dog-ear")],
             interior: BookInteriorState(awakenedAt: now, favorite: favorite),
             days: [], selfFacts: [], relationship: curious, receipts: [], appetite: .unruly,
-            distressActive: false, rutward: false, now: now
+            rutward: false, now: now
         ).first)
         XCTAssertEqual(dogEared.payload.metadata["bookInterjectionPhysicalAct"], "dog-ear")
 
@@ -446,7 +436,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             let candidate = BookInterjectionEditor.decoratingDesk(
                 [surface("left-open-\(offset)")], interior: interior, days: [], selfFacts: [],
                 relationship: curious, receipts: [], appetite: .unruly,
-                distressActive: false, rutward: false, now: date
+                rutward: false, now: date
             ).first
             if candidate?.payload.metadata["bookInterjectionRegister"] == BookInterjectionRegister.callback.rawValue {
                 leftOpen = candidate
@@ -499,7 +489,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         let decorated = try XCTUnwrap(BookInterjectionEditor.decoratingDesk(
             [surface("hushed")], interior: interior, days: [], selfFacts: [],
             relationship: hushed, receipts: [], appetite: .unruly,
-            distressActive: false, rutward: false, now: now
+            rutward: false, now: now
         ).first)
         let line = try XCTUnwrap(decorated.payload.metadata["bookActedMargin"])
 
@@ -514,7 +504,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
             generated += BookInterjectionEditor.decoratingDesk(
                 [surface("voice-\(offset)")], interior: interior, days: [], selfFacts: [],
                 relationship: relationship, receipts: [], appetite: .unruly,
-                distressActive: false, rutward: false, now: date
+                rutward: false, now: date
             )
         }
 
@@ -525,7 +515,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
         let result = BookInterjectionEditor.decoratingDesk(
             [original], interior: .unawakened, days: [], selfFacts: [],
             relationship: .firstOpening, receipts: [], appetite: .alive,
-            distressActive: false, rutward: false, now: now)
+            rutward: false, now: now)
         let page = try XCTUnwrap(result.first)
         let line = try XCTUnwrap(page.payload.metadata["bookActedMargin"])
         let more = BookInterjectionEditor.responseLine(for: page, response: .goOn)

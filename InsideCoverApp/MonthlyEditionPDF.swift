@@ -726,6 +726,7 @@ enum MonthlyEditionPDFWriter {
     ) throws -> Int {
         // Which pages were built to be handled, kept beside the file.
         PrintPageMap.reset()
+        MarginaliaDealer.reset()
         defer { PrintPageMap.writeSidecar(for: url) }
         guard edition.publicationKind != .weekly else {
             return try writeUncappedPrintInterior(edition, spec: spec, to: url)
@@ -1260,13 +1261,34 @@ enum MonthlyEditionPDFWriter {
         drawCentered("\(edition.pageCount) kept pages", font: .systemFont(ofSize: rect.height * 0.030, weight: .medium), color: gold.withAlphaComponent(0.64), y: rect.minY + rect.height * 0.53, in: rect)
     }
 
-    /// The back of the jacket: a quiet echo of the cover, lower on the panel.
+    /// The back of the jacket: what a book says about itself, said about this one.
     private static func drawCoverBackPanel(_ edition: MonthlyEdition, style: EditionStyle, rect: CGRect) {
         let text = style.palette.coverText
-        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 11, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.34, in: rect)
-        drawCentered("\(edition.coverReaderName) \u{00B7} Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: 16, weight: .regular), color: text, y: rect.minY + rect.height * 0.40, in: rect)
-        drawCentered(edition.monthName, font: .serifItalicFont(ofSize: 13), color: style.palette.gold, y: rect.minY + rect.height * 0.46, in: rect)
-        drawCentered("\(edition.dayCount) days bound \u{00B7} \(edition.pageCount) kept pages", font: .systemFont(ofSize: 9, weight: .medium), color: text.withAlphaComponent(0.6), y: rect.minY + rect.height * 0.62, in: rect)
+        let gold = style.palette.gold
+        let book = edition.dayBook
+        let copy = BackCoverCopy.make(
+            readerName: edition.coverReaderName, monthName: edition.monthName, keptPages: edition.pageCount,
+            nights: book?.braidCount ?? 0, scenes: book?.scenes.count ?? 0,
+            photos: book?.days.reduce(0) { $0 + $1.photos.count } ?? 0,
+            hasIndex: edition.handbook?.keepsakes?.index != nil, seed: edition.monthName + edition.coverReaderName)
+
+        drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 10, weight: .semibold), color: text.withAlphaComponent(0.8), y: rect.minY + rect.height * 0.14, in: rect)
+        drawCentered("\(edition.coverReaderName) \u{00B7} Chapter \(edition.chapterNumber)", font: .serifFont(ofSize: 15, weight: .regular), color: text, y: rect.minY + rect.height * 0.19, in: rect)
+        drawCentered(edition.monthName, font: .serifItalicFont(ofSize: 12), color: gold, y: rect.minY + rect.height * 0.235, in: rect)
+
+        // The blurb, in the Book's own voice.
+        drawFittedCentered(copy.blurb, color: text.withAlphaComponent(0.9),
+                           rect: CGRect(x: rect.minX + rect.width * 0.14, y: rect.minY + rect.height * 0.31, width: rect.width * 0.72, height: rect.height * 0.20),
+                           maximumSize: 13, minimumSize: 9, maximumLines: 7, font: { .serifItalicFont(ofSize: $0) })
+
+        // What is in it, counted.
+        drawCentered("IN THIS BOOK", font: .systemFont(ofSize: 7.5, weight: .semibold), color: gold.withAlphaComponent(0.85), y: rect.minY + rect.height * 0.55, in: rect)
+        for (index, item) in copy.contains.prefix(6).enumerated() {
+            drawCentered(item, font: .serifFont(ofSize: 10.5, weight: .regular), color: text.withAlphaComponent(0.82),
+                         y: rect.minY + rect.height * 0.585 + CGFloat(index) * 15, in: rect)
+        }
+        drawCentered(copy.onlyCopy, font: .serifItalicFont(ofSize: 9.5), color: gold.withAlphaComponent(0.9), y: rect.minY + rect.height * 0.80, in: rect)
+        drawCentered("\(edition.dayCount) days bound \u{00B7} \(edition.pageCount) kept pages", font: .systemFont(ofSize: 8, weight: .medium), color: text.withAlphaComponent(0.55), y: rect.minY + rect.height * 0.88, in: rect)
     }
 
     /// The foil-stamped spine, reading top-to-bottom up the standing book.
@@ -1340,6 +1362,7 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
+        MarginaliaDealer.reset()
         let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
         let pageBounds = CGRect(
             x: 0,
@@ -3838,7 +3861,7 @@ enum MonthlyEditionPDFWriter {
             let safe = bounds.insetBy(dx: horizontal, dy: vertical)
             let scale = min(safe.width / image.size.width, safe.height / image.size.height)
             let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-            image.draw(in: CGRect(
+            PrintImage.greyscale(image).draw(in: CGRect(
                 x: safe.midX - size.width / 2,
                 y: safe.midY - size.height / 2,
                 width: size.width,
@@ -6831,692 +6854,85 @@ enum WeeklyIssuePDFWriter {
         return EditionStyle(palette: palette, coverMotif: .lamp, ornament: ornament)
     }
 
+    /// What the printer is sent and what the reader reads are the same book. This presses the
+    /// reading copy from the weekly's own print layout (the 6x9 Field Book: day spreads,
+    /// photographs, the Cast's margins, the handbook), minus the press-only leaves that exist so
+    /// ink cannot ghost through a printed sheet. It used to be a second, Letter-size design that
+    /// drifted from the first; Issue 6's reading copy was fixed while the book that ships was not.
+    ///
+    /// `chart` is accepted for the existing callers; the Field Book draws its own chart of where
+    /// the week happened. `receipts` and `castActs` are what the bindery gives the day book, so
+    /// pass the vault's to read exactly what the press would print.
     static func write(
         _ issue: WeeklyIssue,
         readerName: String,
         shareCard: WeeklyIssueShareCard? = nil,
         editorialNote: String? = nil,
         closingNote: String? = nil,
-        /// A chart of where *this week* happened, not of the reader's whole
-        /// world. A weekly issue arrives every week, and the same world map in
-        /// all of them would be wallpaper by the third one.
         chart: RenderedMapPlate? = nil,
+        receipts: AuthoredContentReceiptLedger = .empty,
+        castActs: [CastActRecord] = [],
         to url: URL
     ) throws {
-        let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let frontMargins = UIEdgeInsets(top: 58, left: 64, bottom: 66, right: 64)
-        // Reading pages keep a wide left gutter so the taped marginalia scraps
-        // have somewhere to live, mirroring the monthly binding.
-        let readingMargins = UIEdgeInsets(top: 58, left: 116, bottom: 66, right: 58)
-        let style = style(for: issue)
-        let ink = style.palette.ink
-        let accent = style.palette.accent
-        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-        let card = shareCard ?? WeeklyIssueShareCard.make(issue: issue)
-
-        // A weekly issue reaches the same cabinet the monthly does; its own
-        // week supplies the motifs, and the week it covers supplies the season.
-        let issueMonth = Calendar.current.component(.month, from: issue.startDate)
-        let issueYear = Calendar.current.component(.year, from: issue.startDate)
-        let weeklyMotifs = EditionMarginalia.motifs(
-            title: "Issue No. \(issue.number)",
-            prose: (issue.highlights.prefix(6) + [issue.setAsideLine ?? ""])
-                .filter { !$0.isEmpty }
-                .joined(separator: " "),
-            tags: ["weekly", "issue"],
-            pageTypes: [],
-            month: issueMonth
+        let matter = fieldMatter(
+            from: WeeklyPublicationMatter(
+                issue: issue,
+                card: shareCard ?? WeeklyIssueShareCard.make(issue: issue),
+                readerName: readerName,
+                editorialNote: editorialNote,
+                closingNote: closingNote
+            ),
+            receipts: receipts,
+            castActs: castActs
         )
-        let calendar = Calendar.current
+        try writePrintInterior(matter, dedication: issue.dedication, spec: .saddleStitchedWeekly6x9, medium: .screen, to: url)
+    }
 
-        let weekdayFormatter = DateFormatter()
-        weekdayFormatter.dateFormat = "EEEE"
-        let dayFormatter = DateFormatter()
-        dayFormatter.dateFormat = "MMM d"
-        let timeFormatter = DateFormatter()
-        timeFormatter.dateFormat = "h:mm a"
-        let fullDateFormatter = DateFormatter()
-        fullDateFormatter.dateFormat = "EEEE, MMM d"
-
-        // Scrapbook pages become plates; their scaffold text reads poorly as
-        // prose, so they stay out of the day-by-day chronology and the
-        // centerfold pick.
-        let prosePages = issue.pages.filter { !EditionCurator.isScrapbookPage($0) }
-        let plates: [(page: BookPage, image: UIImage)] = Array(
-            issue.pages
-                .filter(EditionCurator.isScrapbookPage)
-                .compactMap { page in Monthly.firstImage(from: page.mediaAssets).map { (page, $0) } }
-                .prefix(4)
+    /// The weekly's matter with its days and handbook attached: the one place that is done, for
+    /// the press and for the screen alike.
+    static func fieldMatter(
+        from matter: WeeklyPublicationMatter,
+        receipts: AuthoredContentReceiptLedger,
+        castActs: [CastActRecord]
+    ) -> WeeklyPublicationMatter {
+        let issue = matter.issue
+        var field = matter
+        field.dayBook = BoundDayBookBuilder.make(
+            pages: issue.pages, receipts: receipts, castActs: castActs,
+            startDate: issue.startDate, endDate: issue.endDate
         )
-        // The single strongest page of the week: the issue's centerfold.
-        let bestPage = prosePages
-            .filter { $0.bindingBodyText.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count >= 3 }
-            .max { StorySpark.score($0.bindingBodyText) < StorySpark.score($1.bindingBodyText) }
+        field.handbook = HandbookBuilder.make(
+            pages: issue.pages,
+            castPresence: field.dayBook?.chart.cast ?? [],
+            terms: [issue.resolvedEditorialTitle] + issue.highlights + [issue.readerRole?.gloss ?? ""],
+            seed: "week-\(issue.number)",
+            dayBook: field.dayBook,
+            dayCount: WeeklyIssue.weekDays
+        )
+        return field
+    }
 
-        try renderer.writePDF(to: url) { context in
-            var pageIndex = 0
+    /// Where a weekly interior is going.
+    enum Medium {
+        /// To the printer: page map sidecar, folios, every leaf the press plan counts.
+        case press
+        /// To a screen: the same pages, without the leaves that are blank on purpose.
+        case screen
+    }
 
-            func beginPage(margins: UIEdgeInsets) -> PDFCursor {
-                context.beginPage()
-                var cursor = PDFCursor(bounds: pageBounds, margins: margins)
-                cursor.seed = "weekly-issue-\(issue.number)"
-                cursor.pageIndex = pageIndex
-                pageIndex += 1
-                Monthly.drawComposedBackground(style: style, seed: cursor.pageSeed, in: pageBounds)
-                drawCentered("The Book of You \u{00B7} Weekly Issue No. \(issue.number)", font: .systemFont(ofSize: 8, weight: .semibold), color: ink.withAlphaComponent(0.42), y: 30, in: pageBounds)
-                drawCentered("Made with ReEnchanted \u{00B7} reenchanted.app", font: .systemFont(ofSize: 8.5, weight: .semibold), color: ink.withAlphaComponent(0.48), y: pageBounds.height - 42, in: pageBounds)
-                return cursor
-            }
-
-            func ensureSpace(_ needed: CGFloat, cursor: inout PDFCursor, margins: UIEdgeInsets) {
-                if cursor.y + needed > cursor.bottom {
-                    cursor = beginPage(margins: margins)
-                }
-            }
-
-            /// A torn label taped across the leaf: the issue's section headers.
-            func drawTornLabel(_ text: String, cursor: inout PDFCursor) {
-                let font = UIFont.serifFont(ofSize: 15, weight: .bold)
-                let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink.withAlphaComponent(0.88)]
-                let size = (text as NSString).size(withAttributes: attributes)
-                let scrap = CGRect(x: cursor.left - 8, y: cursor.y - 6, width: size.width + 44, height: size.height + 16)
-                Monthly.drawTornScrap(
-                    in: scrap,
-                    rotation: (Monthly.frac("\(cursor.pageSeed)-label-\(text)") - 0.5) * 0.06,
-                    fill: Monthly.blend(Monthly.parchment(for: style).top, accent, 0.10),
-                    seed: "\(cursor.pageSeed)-label-\(text)"
-                )
-                (text as NSString).draw(at: CGPoint(x: cursor.left + 12, y: cursor.y + 2), withAttributes: attributes)
-                Monthly.drawTapeStrip(
-                    center: CGPoint(x: scrap.midX, y: scrap.minY + 2),
-                    length: 46,
-                    angle: (Monthly.frac("\(cursor.pageSeed)-tape-\(text)") - 0.5) * 0.4,
-                    tint: style.palette.gold
-                )
-                cursor.y += scrap.height + 16
-            }
-
-            /// Body prose with an illuminated drop capital on the first paragraph.
-            func drawDropCapProse(_ text: String, fontSize: CGFloat, cursor: inout PDFCursor) {
-                let paragraphs = text
-                    .components(separatedBy: "\n\n")
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                for (index, paragraph) in paragraphs.enumerated() {
-                    if index == 0, let first = paragraph.first {
-                        let capital = String(first)
-                        let capAttributes: [NSAttributedString.Key: Any] = [
-                            .font: UIFont.serifFont(ofSize: fontSize * 3.4, weight: .bold),
-                            .foregroundColor: accent
-                        ]
-                        let capSize = (capital as NSString).size(withAttributes: capAttributes)
-                        (capital as NSString).draw(at: CGPoint(x: cursor.left, y: cursor.y - 4), withAttributes: capAttributes)
-                        Monthly.drawText(
-                            String(paragraph.dropFirst()),
-                            font: .serifFont(ofSize: fontSize, weight: .regular),
-                            color: ink.withAlphaComponent(0.90),
-                            cursor: &cursor,
-                            spacingAfter: 14,
-                            leftInset: capSize.width + 6,
-                            firstLineOnlyInsetHeight: capSize.height
-                        )
-                    } else {
-                        Monthly.drawText(
-                            paragraph,
-                            font: .serifFont(ofSize: fontSize, weight: .regular),
-                            color: ink.withAlphaComponent(0.90),
-                            cursor: &cursor,
-                            spacingAfter: 14
-                        )
-                    }
-                }
-            }
-
-            /// A torn note taped into the left gutter, in the monthly's hand.
-            func drawMarginNote(_ note: BoundMarginNote, top: CGFloat, cursor: PDFCursor) {
-                guard top + 140 < pageBounds.height - 60 else { return }
-                let speakerInk = note.accentHex.map { Monthly.castInk($0) }
-                let paragraph = NSMutableParagraphStyle()
-                paragraph.lineSpacing = 1.5
-                let attributed = NSAttributedString(string: note.text, attributes: [
-                    .font: UIFont.serifItalicFont(ofSize: 8),
-                    .foregroundColor: speakerInk?.withAlphaComponent(0.86) ?? ink.withAlphaComponent(0.62),
-                    .paragraphStyle: paragraph
-                ])
-                let measured = attributed.boundingRect(
-                    with: CGSize(width: 70, height: CGFloat.greatestFiniteMagnitude),
-                    options: [.usesLineFragmentOrigin, .usesFontLeading],
-                    context: nil
-                )
-                let signature = note.isSpoken
-                    ? [note.glyph, note.speakerName].compactMap { $0 }.joined(separator: " ")
-                    : nil
-                let signatureHeight: CGFloat = signature == nil ? 0 : 11
-                let seed = "\(cursor.pageSeed)-margin-\(note.text.prefix(12))"
-                let scrap = CGRect(
-                    x: 16,
-                    y: top + 8,
-                    width: 86,
-                    height: min(128, measured.height + 18 + signatureHeight)
-                )
-                Monthly.drawTornScrap(
-                    in: scrap,
-                    rotation: (Monthly.frac("\(seed)-rot") - 0.5) * 0.14,
-                    fill: Monthly.blend(Monthly.parchment(for: style).top, style.palette.gold, 0.12),
-                    seed: seed
-                )
-                attributed.draw(in: CGRect(x: scrap.minX + 8, y: scrap.minY + 9, width: 70, height: measured.height))
-                if let signature {
-                    let signatureStyle = NSMutableParagraphStyle()
-                    signatureStyle.alignment = .right
-                    (signature as NSString).draw(
-                        in: CGRect(
-                            x: scrap.minX + 8,
-                            y: scrap.minY + 9 + measured.height + 1,
-                            width: 70,
-                            height: 10
-                        ),
-                        withAttributes: [
-                            .font: UIFont.serifFont(ofSize: 6.8, weight: .semibold),
-                            .foregroundColor: (speakerInk ?? accent).withAlphaComponent(0.95),
-                            .paragraphStyle: signatureStyle
-                        ]
-                    )
-                }
-                Monthly.drawTapeStrip(
-                    center: CGPoint(x: scrap.midX, y: scrap.minY + 2),
-                    length: 40,
-                    angle: (Monthly.frac("\(seed)-tape") - 0.5) * 0.5,
-                    tint: style.palette.gold
-                )
-            }
-
-            // ---- Front page: masthead, editor's note, pull quote, contents ----
-
-            var cursor = beginPage(margins: frontMargins)
-            drawCentered("T H E   B O O K   O F   Y O U", font: .systemFont(ofSize: 10, weight: .bold), color: ink.withAlphaComponent(0.64), y: cursor.y, in: pageBounds)
-            cursor.y += 30
-            drawCentered("ISSUE NO. \(issue.number)", font: .systemFont(ofSize: 10, weight: .heavy), color: accent, y: cursor.y, in: pageBounds)
-            cursor.y += 32
-            draw(issue.resolvedEditorialTitle, font: .serifFont(ofSize: 30, weight: .bold), color: ink, centered: true, cursor: &cursor, bounds: pageBounds, after: 18)
-            drawCentered(issue.readerRole?.fullName ?? readerName, font: .serifItalicFont(ofSize: 15), color: ink.withAlphaComponent(0.70), y: cursor.y, in: pageBounds)
-            cursor.y += 26
-            drawCentered(issue.dateRange.uppercased(), font: .systemFont(ofSize: 10, weight: .semibold), color: accent, y: cursor.y, in: pageBounds)
-            cursor.y += 28
-            thickRule(accent.withAlphaComponent(0.48), cursor: &cursor)
-            cursor.y += 16
-
-            if issue.dedication != nil {
-                // Let the masthead stand as the cover, then give the reader's
-                // words a whole quiet leaf before the Book begins speaking.
-                Monthly.drawDedication(
-                    issue.dedication,
-                    style: style,
-                    context: context,
-                    cursor: &cursor
-                )
-                pageIndex += 1
-                cursor = beginPage(margins: frontMargins)
-            }
-
-            // The week's chart, on its own leaf behind the masthead. A weekly
-            // gets where *this* week happened rather than the world endpaper a
-            // monthly carries: the same world map every seven days would be
-            // wallpaper by the third issue.
-            if let chart {
-                pageIndex += 1
-                cursor = beginPage(margins: frontMargins)
-                let available = CGRect(
-                    x: cursor.left, y: cursor.y + 10,
-                    width: cursor.right - cursor.left, height: 300
-                )
-                let scale = min(
-                    available.width / chart.image.size.width,
-                    available.height / chart.image.size.height
-                )
-                let drawn = CGSize(
-                    width: chart.image.size.width * scale,
-                    height: chart.image.size.height * scale
-                )
-                let origin = CGPoint(x: available.midX - drawn.width / 2, y: available.minY)
-                chart.image.draw(in: CGRect(origin: origin, size: drawn))
-                cursor.y = origin.y + drawn.height + 22
-                drawCentered(chart.title, font: .serifFont(ofSize: 14, weight: .bold),
-                             color: ink, y: cursor.y, in: pageBounds)
-                cursor.y += 20
-                drawCentered(chart.caption, font: .serifItalicFont(ofSize: 10),
-                             color: ink.withAlphaComponent(0.62), y: cursor.y, in: pageBounds)
-                pageIndex += 1
-                cursor = beginPage(margins: frontMargins)
-            }
-
-            let lead = editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-                ?? (issue.isFirstIssue
-                    ? "Your first week, bound. Seven days after the Book opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become a literary magazine."
-                    : "Your week became a literary magazine. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
-            drawDropCapProse(lead, fontSize: 12.5, cursor: &cursor)
-
-            if let bright = issue.highlights.first {
-                cursor.y += 4
-                Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-                cursor.y += 18
-                draw("\u{201C}\(bright).\u{201D}", font: .serifItalicFont(ofSize: 15), color: ink.withAlphaComponent(0.84), centered: true, cursor: &cursor, bounds: pageBounds, after: 24)
-            } else {
-                cursor.y += 12
-            }
-
-            drawTornLabel("In This Issue", cursor: &cursor)
-            var contents: [(String, String)] = []
-            if issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil {
-                contents.append(("The Week, Bound", "the daily bindings become one story"))
-            }
-            if !issue.revelations.isEmpty {
-                contents.append(("I Counted These", "connections with their receipts"))
-            }
-            if issue.castConversation?.isEmpty == false {
-                contents.append(("At the Issue Desk", "the Cast gets hold of the proof"))
-            }
-            contents.append(("The Seven Days", "the week, day by day"))
-            if bestPage != nil {
-                contents.append(("The Week's Page", "one page, set full"))
-            }
-            if !plates.isEmpty {
-                contents.append(("Plates", "\(plates.count) scrapbook \(plates.count == 1 ? "page" : "pages")"))
-            }
-            if issue.resolvedLooseThread != nil {
-                contents.append(("A Loose Thread", "one thing I am still watching"))
-            }
-            for leaf in issue.playLeaves ?? [] {
-                let prefix = "\(leaf.definition.title) · "
-                let note = leaf.definition.contentsListing.hasPrefix(prefix)
-                    ? String(leaf.definition.contentsListing.dropFirst(prefix.count))
-                    : leaf.definition.contentsListing
-                contents.append((leaf.definition.title, note))
-            }
-            contents.append(("The Wrapped Week", "refrain, closing & next week"))
-            for (title, note) in contents {
-                let titleAttributes: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.serifFont(ofSize: 12.5, weight: .semibold),
-                    .foregroundColor: ink.withAlphaComponent(0.88)
-                ]
-                let noteAttributes: [NSAttributedString.Key: Any] = [
-                    .font: UIFont.serifItalicFont(ofSize: 10.5),
-                    .foregroundColor: ink.withAlphaComponent(0.58)
-                ]
-                let titleSize = (title as NSString).size(withAttributes: titleAttributes)
-                let noteSize = (note as NSString).size(withAttributes: noteAttributes)
-                (title as NSString).draw(at: CGPoint(x: cursor.left + 6, y: cursor.y), withAttributes: titleAttributes)
-                (note as NSString).draw(at: CGPoint(x: cursor.right - noteSize.width, y: cursor.y + 2), withAttributes: noteAttributes)
-                let dotsStart = cursor.left + 6 + titleSize.width + 10
-                let dotsEnd = cursor.right - noteSize.width - 10
-                if dotsEnd > dotsStart {
-                    accent.withAlphaComponent(0.45).setFill()
-                    var x = dotsStart
-                    while x < dotsEnd {
-                        UIBezierPath(ovalIn: CGRect(x: x, y: cursor.y + 9, width: 1.6, height: 1.6)).fill()
-                        x += 6
-                    }
-                }
-                cursor.y += 24
-            }
-            for leaf in (issue.playLeaves ?? []).filter({ $0.definition.form == .coloring }) {
-                Monthly.drawText(
-                    leaf.definition.instruction,
-                    font: .serifItalicFont(ofSize: 10.5),
-                    color: ink.withAlphaComponent(0.68),
-                    cursor: &cursor,
-                    spacingAfter: 8
-                )
-            }
-
-            // ---- The issue becomes a place where play happens ----
-
-            for leaf in issue.playLeaves ?? [] {
-                let playPageCount = leaf.definition.footprint.pageCount
-                let nextPageNumber = pageIndex + 1
-                if (leaf.definition.footprint.hasBlankReverse && nextPageNumber.isMultiple(of: 2))
-                    || (leaf.definition.footprint.isFacingSpread && !nextPageNumber.isMultiple(of: 2)) {
-                    context.beginPage()
-                    Monthly.drawSpacerPlate(style: style, bounds: pageBounds, seed: "weekly-spacer-\(pageIndex)")
-                    pageIndex += 1
-                }
-                for part in 0..<playPageCount {
-                    context.beginPage()
-                    Monthly.drawEditionPlayLeafPage(
-                        leaf,
-                        part: part,
-                        bounds: pageBounds,
-                        style: style,
-                        safeInsets: readingMargins
-                    )
-                    pageIndex += 1
-                }
-            }
-
-            // ---- The Week, Bound: daily Book of You bindings as one story ----
-
-            if let bindingStory = issue.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
-                cursor = beginPage(margins: readingMargins)
-                drawTornLabel("The Week, Bound", cursor: &cursor)
-                Monthly.drawText(
-                    "A binding of the week's nightly bindings",
-                    font: .serifItalicFont(ofSize: 10.5),
-                    color: ink.withAlphaComponent(0.58),
-                    cursor: &cursor,
-                    spacingAfter: 18
-                )
-                drawDropCapProse(bindingStory, fontSize: 12.5, cursor: &cursor)
-                cursor.y += 4
-                Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-                cursor.y += 22
-            }
-
-            // ---- Strange arithmetic: findings that carry their own receipts ----
-
-            for revelation in issue.revelations.prefix(2) {
-                cursor = beginPage(margins: readingMargins)
-                drawTornLabel("I Counted These Because You Didn't", cursor: &cursor)
-                Monthly.drawText(
-                    revelation.title,
-                    font: .serifFont(ofSize: 22, weight: .bold),
-                    color: ink,
-                    cursor: &cursor,
-                    spacingAfter: 13
-                )
-                Monthly.drawText(
-                    revelation.body,
-                    font: .serifFont(ofSize: 12.5, weight: .regular),
-                    color: ink.withAlphaComponent(0.90),
-                    cursor: &cursor,
-                    spacingAfter: 18
-                )
-                for evidence in revelation.evidence.prefix(3) {
-                    ensureSpace(66, cursor: &cursor, margins: readingMargins)
-                    Monthly.drawText(
-                        dayFormatter.string(from: evidence.date).uppercased(),
-                        font: .systemFont(ofSize: 8, weight: .heavy),
-                        color: accent,
-                        cursor: &cursor,
-                        spacingAfter: 4
-                    )
-                    Monthly.drawText(
-                        "“\(evidence.excerpt)”",
-                        font: .serifItalicFont(ofSize: 10.5),
-                        color: ink.withAlphaComponent(0.68),
-                        cursor: &cursor,
-                        spacingAfter: 13,
-                        leftInset: 10
-                    )
-                }
-            }
-
-            // ---- At the Issue Desk: the Cast reacts to this exact proof ----
-
-            if let conversation = issue.castConversation, !conversation.isEmpty {
-                cursor = beginPage(margins: readingMargins)
-                drawTornLabel(conversation.title, cursor: &cursor)
-                Monthly.drawText(
-                    conversation.setting,
-                    font: .serifItalicFont(ofSize: 10.5),
-                    color: ink.withAlphaComponent(0.60),
-                    cursor: &cursor,
-                    spacingAfter: 16
-                )
-                for line in conversation.lines {
-                    ensureSpace(76, cursor: &cursor, margins: readingMargins)
-                    let voice = KeepMarginalia.voice(forSlug: line.speakerID)
-                    let speakerInk = voice.map { Monthly.castInk($0.accentHex) } ?? accent
-                    Monthly.drawText(
-                        [line.glyph ?? voice?.glyph ?? "", line.speakerName].filter { !$0.isEmpty }.joined(separator: "  "),
-                        font: .systemFont(ofSize: 9.5, weight: .bold),
-                        color: speakerInk,
-                        cursor: &cursor,
-                        spacingAfter: 4
-                    )
-                    Monthly.drawText(
-                        line.words,
-                        font: .serifFont(ofSize: 11.5, weight: .regular),
-                        color: ink.withAlphaComponent(0.90),
-                        cursor: &cursor,
-                        spacingAfter: 15,
-                        leftInset: 12
-                    )
-                }
-            }
-
-            // ---- The Seven Days: the week, day by day, in the reader's ink ----
-
-            cursor = beginPage(margins: readingMargins)
-            drawTornLabel("The Seven Days", cursor: &cursor)
-
-            let weekStart = calendar.startOfDay(for: issue.startDate)
-            let pagesByDay = Dictionary(grouping: prosePages) { calendar.startOfDay(for: $0.createdAt) }
-            let marginalia = marginNotes(issue: issue, card: card)
-            var marginaliaIndex = 0
-
-            for dayOffset in 0..<WeeklyIssue.weekDays {
-                guard let dayDate = calendar.date(byAdding: .day, value: dayOffset, to: weekStart) else { continue }
-                let dayPages = (pagesByDay[dayDate] ?? []).sorted { $0.createdAt < $1.createdAt }
-                let weekday = weekdayFormatter.string(from: dayDate)
-                ensureSpace(dayPages.isEmpty ? 64 : 120, cursor: &cursor, margins: readingMargins)
-
-                accent.setFill()
-                UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y + 4, width: 30, height: 1.6)).fill()
-                Monthly.drawText(
-                    "\(weekday.uppercased()) \u{00B7} \(dayFormatter.string(from: dayDate))",
-                    font: .systemFont(ofSize: 9, weight: .heavy),
-                    color: accent,
-                    cursor: &cursor,
-                    spacingAfter: 6,
-                    leftInset: 38
-                )
-
-                if dayPages.isEmpty {
-                    let quiet = quietLines[ConstellationKeeper.stableIndex(for: "weekly-\(issue.number)-quiet-\(dayOffset)", count: quietLines.count)]
-                    Monthly.drawText("\(weekday) \(quiet)", font: .serifItalicFont(ofSize: 11), color: ink.withAlphaComponent(0.55), cursor: &cursor, spacingAfter: 18)
-                    continue
-                }
-                for page in dayPages.prefix(2) {
-                    ensureSpace(64, cursor: &cursor, margins: readingMargins)
-                    let itemTop = cursor.y
-                    Monthly.drawText(
-                        "\(page.bindingDisplayTitle) \u{00B7} \(timeFormatter.string(from: page.createdAt).lowercased())",
-                        font: .systemFont(ofSize: 8, weight: .semibold),
-                        color: ink.withAlphaComponent(0.50),
-                        cursor: &cursor,
-                        spacingAfter: 4
-                    )
-                    Monthly.drawText(
-                        clamp(page.publicationBodyText, limit: 340),
-                        font: .serifFont(ofSize: 11.5, weight: .regular),
-                        color: ink.withAlphaComponent(0.88),
-                        cursor: &cursor,
-                        spacingAfter: 14
-                    )
-                    if marginaliaIndex < marginalia.count,
-                       ConstellationKeeper.stableIndex(for: "weekly-\(issue.number)-margin-\(dayOffset)-\(page.id)", count: 3) == 0 {
-                        drawMarginNote(marginalia[marginaliaIndex], top: itemTop, cursor: cursor)
-                        marginaliaIndex += 1
-                    }
-                }
-                // A kept monthly mark belongs to this day even when its Page
-                // was not one of the two prose excerpts chosen for the issue.
-                if let mark = Monthly.retainedMarkImage(from: dayPages.flatMap(\.mediaAssets)) {
-                    ensureSpace(100, cursor: &cursor, margins: readingMargins)
-                    Monthly.drawRetainedMark(mark, cursor: &cursor)
-                }
-                if dayPages.count > 2 {
-                    Monthly.drawText(
-                        "\u{2026}and \(dayPages.count - 2) more kept that day.",
-                        font: .serifItalicFont(ofSize: 9.5),
-                        color: ink.withAlphaComponent(0.50),
-                        cursor: &cursor,
-                        spacingAfter: 16
-                    )
-                }
-            }
-
-            // ---- The Week's Page: the strongest page, set full ----
-
-            if let best = bestPage {
-                cursor = beginPage(margins: readingMargins)
-                drawTornLabel("The Week's Page", cursor: &cursor)
-                Monthly.drawText(
-                    "\(fullDateFormatter.string(from: best.createdAt)) \u{00B7} \(best.bindingDisplayTitle)",
-                    font: .systemFont(ofSize: 9, weight: .heavy),
-                    color: accent,
-                    cursor: &cursor,
-                    spacingAfter: 14
-                )
-                drawDropCapProse(clamp(best.publicationBodyText, limit: 1400), fontSize: 13, cursor: &cursor)
-                cursor.y += 6
-                Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-                cursor.y += 22
-                if let image = Monthly.firstImage(from: best.mediaAssets) {
-                    ensureSpace(260, cursor: &cursor, margins: readingMargins)
-                    Monthly.drawFramedImage(image, style: style, context: context, cursor: &cursor)
-                }
-            }
-
-            // ---- Plates: the week's scrapbook pages, matted and taped ----
-
-            let plateNumerals = ["I", "II", "III", "IV"]
-            for (index, plate) in plates.enumerated() {
-                cursor = beginPage(margins: frontMargins)
-                let title = plate.page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Scrapbook Page"
-                drawCentered("P L A T E   \(plateNumerals[min(index, plateNumerals.count - 1)])", font: .systemFont(ofSize: 9, weight: .heavy), color: ink.withAlphaComponent(0.55), y: cursor.y, in: pageBounds)
-                cursor.y += 24
-                drawCentered(title, font: .serifFont(ofSize: 20, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
-                cursor.y += 34
-                drawCentered(dayFormatter.string(from: plate.page.createdAt), font: .systemFont(ofSize: 9, weight: .semibold), color: accent, y: cursor.y, in: pageBounds)
-                cursor.y += 28
-
-                let image = plate.image
-                let maxRect = CGRect(x: 74, y: cursor.y, width: pageBounds.width - 148, height: pageBounds.height - cursor.y - 118)
-                let scale = min(maxRect.width / image.size.width, maxRect.height / image.size.height)
-                let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-                let rect = CGRect(
-                    x: maxRect.midX - size.width / 2,
-                    y: maxRect.minY + (maxRect.height - size.height) / 2,
-                    width: size.width,
-                    height: size.height
-                )
-                let mat = rect.insetBy(dx: -10, dy: -10)
-                style.palette.accentSoft.setFill()
-                UIBezierPath(roundedRect: mat, cornerRadius: 5).fill()
-                image.draw(in: rect)
-                accent.withAlphaComponent(0.72).setStroke()
-                let frame = UIBezierPath(roundedRect: mat, cornerRadius: 5)
-                frame.lineWidth = 1.1
-                frame.stroke()
-                Monthly.drawTapeStrip(center: CGPoint(x: mat.minX + 14, y: mat.minY + 4), length: 44, angle: -0.6, tint: style.palette.gold)
-                Monthly.drawTapeStrip(center: CGPoint(x: mat.maxX - 14, y: mat.minY + 4), length: 44, angle: 0.6, tint: style.palette.gold)
-
-                if let caption = plate.page.mediaAssets.first?.caption.nonEmpty, caption != title {
-                    drawCentered(caption, font: .serifItalicFont(ofSize: 10), color: ink.withAlphaComponent(0.62), y: pageBounds.height - 74, in: pageBounds.insetBy(dx: 70, dy: 0))
-                }
-            }
-
-            // ---- A Loose Thread: attention, not prophecy ----
-
-            if let thread = issue.resolvedLooseThread {
-                cursor = beginPage(margins: readingMargins)
-                drawTornLabel(thread.title, cursor: &cursor)
-                drawDropCapProse(thread.body, fontSize: 13, cursor: &cursor)
-                if !thread.evidence.isEmpty {
-                    cursor.y += 10
-                    Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-                    cursor.y += 20
-                    Monthly.drawText(
-                        "THE THREAD IS TIED TO",
-                        font: .systemFont(ofSize: 8, weight: .heavy),
-                        color: accent,
-                        cursor: &cursor,
-                        spacingAfter: 8
-                    )
-                    for evidence in thread.evidence.prefix(2) {
-                        Monthly.drawText(
-                            "\(dayFormatter.string(from: evidence.date)) · “\(evidence.excerpt)”",
-                            font: .serifItalicFont(ofSize: 10),
-                            color: ink.withAlphaComponent(0.62),
-                            cursor: &cursor,
-                            spacingAfter: 10
-                        )
-                    }
-                }
-            }
-
-            // ---- The Wrapped Week: refrain, tallies, closing, next week ----
-
-            cursor = beginPage(margins: frontMargins)
-            Monthly.openLeaf(
-                kind: .closing,
-                motifs: weeklyMotifs,
-                month: issueMonth,
-                year: issueYear,
-                style: style,
-                cursor: cursor
-            )
-            drawTornLabel("The Wrapped Week", cursor: &cursor)
-            cursor.y += 4
-            drawCentered("The Week, Wrapped", font: .serifFont(ofSize: 30, weight: .bold), color: ink, y: cursor.y, in: pageBounds)
-            cursor.y += 46
-            drawWrappedPanel(title: "The week's refrain", body: card.motifLine.replacingOccurrences(of: "Refrain: ", with: ""), color: accent, ink: ink, cursor: &cursor, bounds: pageBounds)
-            if issue.scrapbookCount > 0, plates.isEmpty {
-                let titles = issue.scrapbookTitles.joined(separator: ", ")
-                drawWrappedPanel(
-                    title: "Scrapbook plates",
-                    body: titles.isEmpty ? "\(issue.scrapbookCount) composed page\(issue.scrapbookCount == 1 ? "" : "s") joined the issue." : titles,
-                    color: style.palette.gold,
-                    ink: ink,
-                    cursor: &cursor,
-                    bounds: pageBounds
-                )
-            }
-            if let setAsideLine = issue.setAsideLine {
-                draw(setAsideLine, font: .serifItalicFont(ofSize: 10), color: ink.withAlphaComponent(0.58), centered: false, cursor: &cursor, bounds: pageBounds, after: 10)
-            }
-
-            let closing = closingNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-                ?? "The month and the year are still gathering. This week is already whole."
-            cursor.y = max(cursor.y + 16, pageBounds.height - 264)
-            Monthly.drawOrnamentRow(style, centerY: cursor.y, in: pageBounds, color: accent)
-            cursor.y += 18
-            draw(closing, font: .serifItalicFont(ofSize: 11.5), color: ink.withAlphaComponent(0.72), centered: true, cursor: &cursor, bounds: pageBounds, after: 0)
-
-            // Next week: a torn tease taped near the foot of the back page.
-            let tease = card.nextIssueTease.nonEmpty ?? "Issue No. \(issue.number + 1) is already gathering."
-            let teaseParagraph = NSMutableParagraphStyle()
-            teaseParagraph.alignment = .center
-            teaseParagraph.lineSpacing = 2
-            let teaseAttributed = NSAttributedString(string: tease, attributes: [
-                .font: UIFont.serifItalicFont(ofSize: 11),
-                .foregroundColor: ink.withAlphaComponent(0.80),
-                .paragraphStyle: teaseParagraph
-            ])
-            let teaseMeasured = teaseAttributed.boundingRect(
-                with: CGSize(width: 300, height: CGFloat.greatestFiniteMagnitude),
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                context: nil
-            )
-            let scrapWidth = min(356, teaseMeasured.width + 64)
-            let scrapHeight = teaseMeasured.height + 44
-            let teaseScrap = CGRect(x: pageBounds.midX - scrapWidth / 2, y: pageBounds.height - 92 - scrapHeight, width: scrapWidth, height: scrapHeight)
-            Monthly.drawTornScrap(
-                in: teaseScrap,
-                rotation: (Monthly.frac("weekly-\(issue.number)-tease-rot") - 0.5) * 0.08,
-                fill: Monthly.blend(Monthly.parchment(for: style).top, style.palette.gold, 0.10),
-                seed: "weekly-\(issue.number)-tease"
-            )
-            drawCentered("NEXT WEEK", font: .systemFont(ofSize: 7.5, weight: .heavy), color: accent, y: teaseScrap.minY + 10, in: pageBounds)
-            teaseAttributed.draw(in: CGRect(x: teaseScrap.minX + 16, y: teaseScrap.minY + 24, width: scrapWidth - 32, height: teaseMeasured.height + 4))
-            Monthly.drawTapeStrip(
-                center: CGPoint(x: teaseScrap.midX, y: teaseScrap.minY + 2),
-                length: 48,
-                angle: (Monthly.frac("weekly-\(issue.number)-tease-tape") - 0.5) * 0.4,
-                tint: style.palette.gold
-            )
+    /// A screen has no sheet for ink to ghost through, so the blank reverse behind a worksheet or
+    /// a colouring leaf is simply not a page. Only pages with nothing on them at all go; a leaf
+    /// with a folio, a ruled line or a picture stays.
+    private static func droppingBlankLeaves(at url: URL) throws -> Int {
+        guard let document = PDFDocument(url: url) else { return 0 }
+        for index in stride(from: document.pageCount - 1, through: 0, by: -1) {
+            let text = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if text.isEmpty { document.removePage(at: index) }
         }
+        guard document.pageCount > 0, document.write(to: url) else {
+            throw NSError(domain: "Bindery", code: 8, userInfo: [NSLocalizedDescriptionKey: "The reading copy would not save."])
+        }
+        return document.pageCount
     }
 
     /// Sets a closed Reader Week as a real saddle-stitched magazine. The press
@@ -7529,10 +6945,12 @@ enum WeeklyIssuePDFWriter {
         _ matter: WeeklyPublicationMatter,
         dedication: BoundDedication?,
         spec: PrintSpec,
+        medium: Medium = .press,
         to url: URL
     ) throws -> Int {
         PrintPageMap.reset()
-        defer { PrintPageMap.writeSidecar(for: url) }
+        MarginaliaDealer.reset()
+        defer { if medium == .press { PrintPageMap.writeSidecar(for: url) } }
         guard spec.coverTreatment == .saddleStitch else {
             throw NSError(
                 domain: "Bindery",
@@ -7547,7 +6965,9 @@ enum WeeklyIssuePDFWriter {
                 matter, book: book, dedication: dedication, spec: spec,
                 style: style(for: matter.issue), to: url
             )
-            if count > 0 { return count }
+            if count > 0 {
+                return medium == .screen ? try droppingBlankLeaves(at: url) : count
+            }
         }
 
         var issue = matter.issue
@@ -8813,13 +8233,8 @@ enum WeeklyIssuePDFWriter {
 
     private static func marginaliaLines(issue: WeeklyIssue, card: WeeklyIssueShareCard) -> [String] {
         var lines: [String] = []
-        let refrainPrefix = "Refrain: "
-        if card.motifLine.hasPrefix(refrainPrefix) {
-            let motifs = card.motifLine.dropFirst(refrainPrefix.count).components(separatedBy: ", ")
-            for motif in motifs.prefix(3) where !motif.isEmpty {
-                lines.append("\(motif.capitalized) again. The week insists.")
-            }
-        }
+        // Only a real refrain earns an "again", and only the first one.
+        if let first = WeeklyCuration.refrain(from: issue.pages).first { lines.append("\(first.capitalized) again. The week insists.") }
         lines.append(contentsOf: [
             "Kept, so it cannot blur.",
             "The week noticed you noticing.",
@@ -8839,13 +8254,9 @@ enum WeeklyIssuePDFWriter {
         "held still and offered nothing it wanted kept."
     ]
 
-    /// Trims a page's ink to a bindable length at a word boundary.
+    /// Trims a page's ink to a bindable length, between sentences.
     private static func clamp(_ text: String, limit: Int) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > limit else { return trimmed }
-        let cut = trimmed.prefix(limit)
-        let atWord = cut.lastIndex(where: { $0 == " " || $0 == "\n" }).map { cut[..<$0] } ?? cut
-        return String(atWord).trimmingCharacters(in: .whitespacesAndNewlines) + "\u{2026}"
+        WeeklyCuration.sentenceClamp(text, limit: limit)
     }
 
     /// Alongside scraps are glances, each sharing a fixed magazine leaf.

@@ -68,3 +68,33 @@ final class AffirmationTests: XCTestCase {
         XCTAssertFalse(surface.payload.metadata["placeholder", default: ""].isEmpty)
     }
 }
+
+extension AffirmationTests {
+    /// The Book contracts everything it says. A believing is the Book's own
+    /// sentence, so an uncontracted "you are" or "I will" is a voice bug.
+    func testEveryBelievingIsContractedAndFreeOfTheOldAiShapes() {
+        let uncontracted = [
+            "you are ", "you have ", "i am ", "i will ", "it is ", "it does not", "does not ",
+            "do not ", "is not ", "are not ", "i have ", "that is ", "there is "
+        ]
+        let banned = ["hinge", "ritual", "not a ", "rather than", "journey", "sacred"]
+        for entry in AffirmationLibraryRegistry.allAffirmations {
+            let lines = [entry.text, entry.aside]
+            for line in lines {
+                let lowered = " " + line.lowercased() + " "
+                for phrase in uncontracted where lowered.contains(phrase) {
+                    XCTFail("\(entry.id): uncontracted “\(phrase.trimmingCharacters(in: .whitespaces))” in \(line)")
+                }
+                for phrase in banned where lowered.contains(phrase) {
+                    XCTFail("\(entry.id): \(phrase) in \(line)")
+                }
+            }
+        }
+    }
+
+    func testTheHiddenMagicShelfExistsAndSurvivesAHardDay() {
+        let hidden = AffirmationLibraryRegistry.allAffirmations.filter { $0.theme == "Hidden Things" }
+        XCTAssertGreaterThanOrEqual(hidden.count, 8)
+        XCTAssertTrue(hidden.allSatisfy { !$0.isPact }, "Hidden Things are gifts: nothing owed")
+    }
+}

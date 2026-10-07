@@ -655,7 +655,7 @@ final class PeopleOfTheBookTests: XCTestCase {
         XCTAssertTrue(chapter.entries.contains { $0.authority == .readerWords && $0.pageID == authored.id })
         let aftermath = try XCTUnwrap(chapter.entries.first { $0.authority == .readerAftermath })
         XCTAssertEqual(aftermath.externalReference?.url, reference.url)
-        XCTAssertTrue(volume.foreword.contains("not a ranking"))
+        XCTAssertTrue(volume.foreword.contains("isn't a ranking"))
         XCTAssertFalse(volume.shareText.lowercased().contains("closeness score"))
     }
 

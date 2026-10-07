@@ -90,18 +90,18 @@ final class FeastdayComposerTests: XCTestCase {
         XCTAssertFalse(found.contains { $0.id.hasPrefix("birthday-person") })
     }
 
-    // MARK: The grief valve
+    // MARK: A hard day
 
-    func testAHardDaySilencesEveryGrievingFeast() {
+    /// A hard day used to silence every grieving feast and the reader's own
+    /// birthday. It does not any more: a feast is welcome on a heavy day.
+    func testAHardDayStillGetsItsFeasts() {
         var context = FeastdayComposer.Context.empty
         context.readerBirthday = ReaderBirthday(month: 12, day: 25)
         context.distressActive = true
 
         let found = FeastdayComposer.celebrations(on: date(2026, 12, 25), context: context, calendar: calendar)
-        XCTAssertFalse(found.contains { $0.carriesGrief },
-                       "A hard day let through: \(found.filter(\.carriesGrief).map(\.id))")
-        XCTAssertFalse(found.contains { $0.id == "birthday-reader" })
-        XCTAssertFalse(found.contains { $0.id == "world-christmas" })
+        XCTAssertTrue(found.contains { $0.id == "birthday-reader" })
+        XCTAssertTrue(found.contains { $0.id == "world-christmas" })
     }
 
     func testAGentleDayStillGetsItsFeasts() {

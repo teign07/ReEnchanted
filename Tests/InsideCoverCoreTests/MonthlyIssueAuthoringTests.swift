@@ -370,6 +370,48 @@ final class MonthlyIssueAuthoringTests: XCTestCase {
         XCTAssertFalse(rested.contains { $0.id == claim.id })
     }
 
+    func testIssueClaimsKeepTheirChairOnAHardDay() {
+        let now = date(year: 2027, month: 9, day: 10, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        var context = CuratorContext.make(for: day)
+        context.distress = DistressSignals(isActive: true, reasons: ["test"])
+
+        func claim(_ id: String, storyScene: Bool) -> SurfacePage {
+            var metadata = [
+                MonthlyIssuePageMetadata.issueID: "issue-one",
+                MonthlyIssuePageMetadata.mayReserve: "true",
+                MonthlyIssuePageMetadata.claimHistoryKey: "claim-\(id)"
+            ]
+            if storyScene { metadata[MonthlyIssuePageMetadata.authoredStoryScene] = "true" }
+            return deskPage(id, type: storyScene ? .narrativeOS : .body, score: 90).withMetadata(metadata)
+        }
+        let ordinary = [
+            deskPage("ordinary-weather", type: .weather),
+            deskPage("ordinary-fuel", type: .fuel),
+            deskPage("ordinary-lore", type: .lore)
+        ]
+        func reserve(_ page: SurfacePage) -> [SurfacePage] {
+            BookCurator.reservingAuthoredIssuePageIfOwed(
+                in: ordinary,
+                candidates: [page],
+                day: day,
+                inputs: inputs,
+                context: context,
+                preferences: .none,
+                mood: CuratorMood.make(inputs: inputs, distressActive: true, now: now),
+                now: now,
+                limit: 3
+            )
+        }
+
+        let scene = claim("story-scene", storyScene: true)
+        XCTAssertTrue(reserve(scene).contains { $0.id == scene.id })
+        let other = claim("other-issue-page", storyScene: false)
+        XCTAssertTrue(reserve(other).contains { $0.id == other.id })
+    }
+
     func testRankedPublishedBlockContainsAtMostOneMonthlyIssuePage() {
         let issueMetadata = [MonthlyIssuePageMetadata.issueID: "issue-one"]
         let pages = [
@@ -426,6 +468,41 @@ final class MonthlyIssueAuthoringTests: XCTestCase {
         )
         XCTAssertTrue(desk.prefix(3).contains { $0.id == authored.id }, desk.map(\.id).description)
         XCTAssertLessThanOrEqual(desk.filter(\.belongsToAuthoredIssue).count, 1)
+    }
+
+    /// The claim is proven above at a nine-Page desk. The app curates twenty-
+    /// seven, and a hard day used to switch the claim off, so both are checked
+    /// against the real Curator: the month's page is in the opening trio.
+    func testMonthlyContentStillReachesTheOpeningTrioAtBenchSizeAndOnAHardDay() throws {
+        let savedOwned = PackEntitlements.ownedPackIDs
+        PackEntitlements.ownedPackIDs.insert("dictionary-rebellion")
+        defer { PackEntitlements.ownedPackIDs = savedOwned }
+
+        var fixture = makeFixture()
+        let contentIndex = try XCTUnwrap(fixture.manifest.content.firstIndex {
+            $0.reference.id == "first-negotiation"
+        })
+        fixture.manifest.content[contentIndex].channel = .page
+        let now = date(year: 2027, month: 9, day: 10, hour: 10)
+        let day = BookDay(id: BookDay.id(for: now), date: now, pages: [])
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        inputs.monthlyIssueAuthoringManifests = [fixture.manifest]
+
+        for distressed in [false, true] {
+            var context = CuratorContext.make(for: day)
+            if distressed { context.distress = DistressSignals(isActive: true, reasons: ["test"]) }
+            let desk = BookCurator.surfacedPages(
+                for: day, context: context, inputs: inputs, now: now,
+                limit: BookDeskRound.candidateBenchCapacity
+            )
+            XCTAssertTrue(
+                desk.prefix(3).contains {
+                    $0.payload.metadata[MonthlyIssuePageMetadata.contentID] == "opening-outbreak"
+                },
+                "monthly content missing from the opening trio, distressed: \(distressed): \(desk.prefix(3).map(\.id))"
+            )
+        }
     }
 
     private func deskPage(

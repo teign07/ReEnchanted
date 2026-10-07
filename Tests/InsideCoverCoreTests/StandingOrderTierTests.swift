@@ -78,7 +78,7 @@ final class StandingOrderTierTests: StandingOrderGatedTestCase {
             calendar.date(byAdding: .day, value: -1, to: trialEndsAt)
         )
         XCTAssertEqual(plan.title, "Your free trial ends tomorrow")
-        XCTAssertTrue(plan.body.contains("If it is still set to renew"))
+        XCTAssertTrue(plan.body.contains("If it's still set to renew"))
         XCTAssertTrue(plan.body.contains("every page you made stays yours"))
     }
 

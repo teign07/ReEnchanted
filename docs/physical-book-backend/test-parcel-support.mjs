@@ -234,6 +234,14 @@ for (const cadence of ['monthly', 'annual']) test(`${cadence} membership closure
   f.objects.delete(target.key); assert.equal((await f.fulfill(target)).status, 409);
 });
 
+test('legacy annual refund closure remains verifiable after replacing the checkout price', async t => {
+  const f = fixture(t); refundFixture(f); const target = f.targets[1];
+  f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE = 'price_annual_new';
+  f.env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = 'price_annual';
+  await f.call(target, 'hold');
+  assert.equal((await f.call(target, 'close-refunded')).status, 200);
+});
+
 test('a membership season cannot close with a missing month or one unrefunded invoice', async t => {
   const f = fixture(t), { data, invoice } = refundFixture(f, 'monthly'), target = f.targets[1];
   await f.call(target, 'hold');

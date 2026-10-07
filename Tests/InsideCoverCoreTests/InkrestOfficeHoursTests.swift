@@ -69,7 +69,7 @@ final class InkrestOfficeHoursTests: XCTestCase {
         XCTAssertTrue(prompt.contains("Write 3 to 5 short paragraphs"))
         XCTAssertTrue(prompt.contains("reflect at least two specific details or tensions"))
         XCTAssertTrue(prompt.contains("ask exactly ONE curious narrative-therapy question"))
-        XCTAssertTrue(prompt.contains("Do not rush toward advice"))
+        XCTAssertTrue(prompt.contains("Don't rush toward advice"))
     }
 
     func testClosingPromptSynthesizesTheWholeSitting() {

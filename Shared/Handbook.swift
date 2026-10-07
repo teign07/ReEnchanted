@@ -91,10 +91,16 @@ struct Handbook: Codable, Equatable {
     /// leaves themselves are chosen at print time from the binding's id, so a
     /// reprint of the same month asks the reader for something new.
     var ruinCount: Int? = nil
+    /// What the month gives back: pixels, a found poem, a passport, cut-outs, questions, eight words, a
+    /// time capsule. Made of the reader's own days; monthly only. Optional so older books decode.
+    var keepsakes: HandbookKeepsakes? = nil
 
     var isEmpty: Bool {
         lessons.isEmpty && lore.isEmpty && compass.isEmpty && dossiers.isEmpty && bestiary.isEmpty
     }
+
+    /// The fewest rooms a printed handbook keeps while anything else is being given up.
+    static let minimumLessons = 3
 
     var classes: [HandbookLesson] { lessons.filter { !$0.isClub } }
     var societies: [HandbookLesson] { lessons.filter(\.isClub) }
@@ -105,6 +111,17 @@ struct Handbook: Codable, Equatable {
     func trimmedOnce() -> Handbook? {
         var copy = self
         if copy.compass.count > 0 { copy.compass.removeLast(); return copy }
+        // The generic part goes first: a room the reader never sat costs two leaves and is the same for
+        // everyone, while a puzzle is a fraction of a leaf made of this reader's own days.
+        if copy.lessons.count > Handbook.minimumLessons,
+           let index = copy.lessons.lastIndex(where: { !$0.attended }) {
+            copy.lessons.remove(at: index)
+            return copy
+        }
+        for kind in [HandbookWorkbook.PuzzleKind.oddOne, .anagrams, .vowels, .cloze, .sudoku] where copy.workbook?.has(kind) == true {
+            copy.workbook?.remove(kind)
+            return copy
+        }
         if copy.workbook?.matching != nil { copy.workbook?.matching = nil; return copy }
         if copy.workbook?.ordering != nil { copy.workbook?.ordering = nil; return copy }
         if copy.workbook?.cipher != nil { copy.workbook?.cipher = nil; return copy }
@@ -118,6 +135,12 @@ struct Handbook: Codable, Equatable {
         }
         if copy.lore.count > 0 { copy.lore.removeAll(); return copy }
         if copy.bestiary.count > 0 { copy.bestiary.removeAll(); return copy }
+        // The extras go with the generic part; the month at a glance outlasts even the days (see
+        // `MonthlyEdition.trimmedForPrint`).
+        if var keepsakes = copy.keepsakes, keepsakes.removeExtra() {
+            copy.keepsakes = keepsakes.isEmpty ? nil : keepsakes
+            return copy
+        }
         return nil
     }
 
@@ -158,7 +181,8 @@ enum HandbookBuilder {
         loreLimit: Int = 10,
         compassLimit: Int = 5,
         dossierLimit: Int = 5,
-        ruinLeaves: Int? = nil
+        ruinLeaves: Int? = nil,
+        calendar: Calendar = .current
     ) -> Handbook {
         let searchTerms = normalizedTerms(terms)
         let lore = chooseLore(
@@ -170,7 +194,7 @@ enum HandbookBuilder {
             terms: searchTerms, seed: seed + "|compass", limit: compassLimit, excerptLimit: 620
         )
         return Handbook(
-            lessons: lessons(from: pages),
+            lessons: chosenLessons(lessons(from: pages), keptPages: pages.count, seed: seed),
             lore: lore,
             compass: compass,
             dossiers: dossiers(from: castPresence, limit: dossierLimit),
@@ -182,11 +206,28 @@ enum HandbookBuilder {
             ruinCount: {
                 let count = ruinLeaves ?? PrintFeatureFlags.ruinLeaves(dayCount: dayCount)
                 return count > 0 ? count : nil
-            }()
+            }(),
+            keepsakes: dayCount > 10
+                ? HandbookKeepsakesBuilder.make(days: dayBook?.days ?? [], pages: pages, seed: seed, calendar: calendar, chart: dayBook?.chart)
+                : nil
         )
     }
 
     // MARK: Coursework
+
+    /// The rooms this month's book prints. Every room the reader sat comes; the rest are a
+    /// rotation chosen by the month, as many as the month's own material can carry. Two leaves a
+    /// lesson, the same for every reader, is the part of a book that is not about them, so a light
+    /// month prints a few and a full month prints them all.
+    static func chosenLessons(_ all: [HandbookLesson], keptPages: Int, seed: String) -> [HandbookLesson] {
+        let sat = all.filter(\.attended)
+        let budget = min(all.count, max(4, 3 + keptPages / 12))
+        let rest = all.filter { !$0.attended }
+            .sorted { stableHash(seed + "|lesson|" + $0.id) < stableHash(seed + "|lesson|" + $1.id) }
+        let wanted = max(sat.count, budget)
+        let chosen = Set((sat + rest.prefix(max(0, wanted - sat.count))).map(\.id))
+        return all.filter { chosen.contains($0.id) }
+    }
 
     static func lessons(from pages: [BookPage]) -> [HandbookLesson] {
         var attendance: [String: Int] = [:]
@@ -469,12 +510,16 @@ extension Handbook {
         // A week's one ruin leaf comes in once the magazine has room for it.
         copy.ruinCount = level >= 5 ? min(ruinCount ?? 0, 1) : 0
         if level < 8 { copy.spells = [] }
+        // A week is a keepsake already; the month's keepsakes belong to the month.
+        copy.keepsakes = nil
         if var workbook = copy.workbook {
             if level < 2 {
-                workbook.cipher = nil; workbook.matching = nil; workbook.ordering = nil
+                for kind in HandbookWorkbook.PuzzleKind.allCases { workbook.remove(kind) }
                 workbook.exam = nil; workbook.reportCard = nil
             }
-            if level < 5 { workbook.matching = nil; workbook.ordering = nil }
+            // A week carries three of the eight kinds, a different three each issue; a thin week
+            // may only draw on the light ones.
+            workbook.rotate(seed: "week-\(issueNumber)", keep: 3, allowed: { level >= 5 || !$0.needsFullWeek })
             copy.workbook = workbook
         }
         return copy

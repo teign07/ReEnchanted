@@ -622,7 +622,7 @@ enum PageArchetypePackRegistry {
                     headline: "Awake, Annotated",
                     detail: "Let's count up everything that's staying awake with you.",
                     reason: "The late-late hours like to keep their own little list.",
-                    bodyTemplate: "It is deep {timeOfDay}, under a {moon}. You are awake; so are other things. Count what is keeping watch with you: the refrigerator's hum, a streetlight, one worried thought, the cat. List them in the margin. An inventory makes the night smaller and stranger company into actual company.",
+                    bodyTemplate: "It's deep {timeOfDay}, under a {moon}. You're awake; so are other things. Count what is keeping watch with you: the refrigerator's hum, a streetlight, one worried thought, the cat. List them in the margin. An inventory makes the night smaller and stranger company into actual company.",
                     score: 58,
                     cadenceHours: 24,
                     activeHours: [23, 0, 1, 2],
@@ -658,7 +658,7 @@ enum PageArchetypePackRegistry {
                     symbolName: "sun.haze",
                     tags: ["nocturne", "evening", "dusk"],
                     generation: PageArchetype.GenerationSpec(
-                        instructions: "You are the Book inside ReEnchanted at dusk: unhurried, exact, a little nocturnal. \(BookVoice.animismLine) Prose only.",
+                        instructions: "You're the Book inside ReEnchanted at dusk: unhurried, exact, a little nocturnal. \(BookVoice.animismLine) Prose only.",
                         promptTemplate: "The weather today: {weather}. {moonLine} The player's day so far: {lastKeptPage}. Write 2 short paragraphs: first, name three plausible ordinary things the last daylight touched on its way out of the player's rooms and street (be specific, invent nothing impossible); second, name the first thing the night takes up instead, and what kind of night it intends to be. End with one short line inviting the player to add the thing the light actually touched, in the margin.",
                         maxTokens: 320
                     )
@@ -678,7 +678,7 @@ enum PageArchetypePackRegistry {
                     headline: "A Hunch, with an Eraser",
                     detail: "The margins look a little too smooth. The Book might be wrong.",
                     reason: "I have enough current evidence to risk one gentle warning about Routine.",
-                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Do not overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I will erase the warning.",
+                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Don't overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I'll erase the warning.",
                     score: 48,
                     cadenceHours: 24,
                     activeHours: [21, 22, 23],
@@ -693,7 +693,7 @@ enum PageArchetypePackRegistry {
                     headline: "Almost Taken",
                     detail: "Something ordinary felt rubbed smooth. One exact detail gives it texture again.",
                     reason: "The reader's own Rut evidence gives the Book a gentle reason to look closer.",
-                    bodyTemplate: "Something in ordinary life has begun to feel too smooth, the way a familiar word goes strange when you repeat it. Pick one detail the Rut would flatten (a meal, a sound, a small errand, the exact light on an object) and name what made this instance unlike all the others. The grey cannot file away a thing described that precisely.",
+                    bodyTemplate: "Something in ordinary life has begun to feel too smooth, the way a familiar word goes strange when you repeat it. Pick one detail the Rut would flatten (a meal, a sound, a small errand, the exact light on an object) and name what made this instance unlike all the others. The grey can't file away a thing described that precisely.",
                     score: 50,
                     cadenceHours: 12,
                     renderStyleRaw: "loreLetter",
@@ -735,7 +735,7 @@ enum PageArchetypePackRegistry {
                     headline: "Write Where It Glows",
                     detail: "The big bright moon leaves an edge you can write on.",
                     reason: "The moon is bright enough tonight to scribble notes on the shelves.",
-                    bodyTemplate: "{moonLine} Tonight the margins are not blank; they are only waiting for light to catch them. Keep one sentence you would not have noticed by daylight. It can be tiny. Full moons are not impressed by size; they are impressed by gleam.",
+                    bodyTemplate: "{moonLine} Tonight the margins aren't blank; they're only waiting for light to catch them. Keep one sentence you wouldn't have noticed by daylight. It can be tiny. Full moons aren't impressed by size; they're impressed by gleam.",
                     score: 61,
                     cadenceHours: 24,
                     activeHours: [18, 19, 20, 21, 22, 23, 0, 1],
@@ -835,9 +835,9 @@ enum PageArchetypePackRegistry {
     static let staircaseCannotBeProvoked = UndertakingLadder(
         id: "pack-dictionary-rebellion-staircase",
         actorID: "professor-thaddeus-mook",
-        title: "A Staircase Cannot Be Provoked",
-        pursuit: "Establish that the North Staircase did not, and could not, start it.",
-        why: "Mook does not mind being wronged. He minds a verb being used incorrectly about it.",
+        title: "A Staircase Can't Be Provoked",
+        pursuit: "Establish that the North Staircase didn't, and couldn't, start it.",
+        why: "Mook doesn't mind being wronged. He minds a verb being used incorrectly about it.",
         stages: [
             CastUndertakingStage(
                 id: "banned",
@@ -847,21 +847,21 @@ enum PageArchetypePackRegistry {
                 scene: """
                     Wicker is sitting backward on a chair and has been for some time.
 
-                    "For the last time," Mook says, "a staircase cannot be provoked."
+                    "For the last time," Mook says, "a staircase can't be provoked."
 
                     "Then why did it start it?"
 
-                    "It did not start it. It has no capacity to start anything. It is joinery."
+                    "It didn't start it. It has no capacity to start anything. It's joinery."
 
                     "It moved."
 
-                    "Staircases do not —"
+                    "Staircases don't —"
 
                     The staircase moves.
 
-                    Mook does not turn round. He keeps his eyes on Wicker, and Wicker, for once, has nothing whatsoever to say.
+                    Mook doesn't turn round. He keeps his eyes on Wicker, and Wicker, for once, has nothing whatsoever to say.
                     """,
-                deniability: "The staircase was not provoked. I would ask you to print that exactly.",
+                deniability: "The staircase wasn't provoked. I'd ask you to print that exactly.",
                 surface: .witnessedScene,
                 phaseID: "omen",
                 castIDs: ["wicker-eddies"]
@@ -894,21 +894,21 @@ enum PageArchetypePackRegistry {
                 trace: "A letter with a postscript longer than any paragraph above it.",
                 tags: ["words", "rules", "unsaid"],
                 scene: """
-                    I am told you have heard about the staircase. I would like to set out the position properly, since nobody else in this building appears willing to.
+                    I'm told you've heard about the staircase. I'd like to set out the position properly, since nobody else in this building appears willing to.
 
-                    To provoke is to act upon a thing possessing the capacity to be acted upon in that way. A dog may be provoked. A committee may be provoked. Joinery may not. This is not fussiness. If we let the word go, we have agreed that the building has intentions, and I am not prepared to agree to that on a Tuesday, in a corridor, with Eddies enjoying himself.
+                    To provoke is to act upon a thing possessing the capacity to be acted upon in that way. A dog may be provoked. A committee may be provoked. Joinery may not. This isn't fussiness. If we let the word go, we have agreed that the building has intentions, and I'm not prepared to agree to that on a Tuesday, in a corridor, with Eddies enjoying himself.
 
                     I remain, etc.,
                     T. Mook
 
-                    P.S. I have been taking the west stairs. Not for any particular reason. They are no quicker. I simply have not been up the north ones since, and I would rather that were not made into a thing.
+                    P.S. I've been taking the west stairs. Not for any particular reason. They're no quicker. I simply haven't been up the north ones since, and I'd rather that weren't made into a thing.
                     """,
-                deniability: "I use the west stairs. I have always used the west stairs. Next question.",
+                deniability: "I use the west stairs. I've always used the west stairs. Next question.",
                 door: UndertakingDoor(
                     id: "mook-joinery-opinion",
                     title: "Joinery With an Opinion",
-                    ask: "Something in the place you live behaves differently when you are in a hurry — a door, a stair, a drawer, a lock. Mook is confident this is not the case and would like it written down so he can say so.",
-                    proofPrompt: "What was it, and what does it do when you are late?",
+                    ask: "Something in the place you live behaves differently when you're in a hurry — a door, a stair, a drawer, a lock. Mook is confident this isn't the case and would like it written down so he can say so.",
+                    proofPrompt: "What was it, and what does it do when you're late?",
                     tags: ["undertaking-door", "threshold", "objects", "anywhere", "immediate"]
                 ),
                 surface: .letter,
@@ -918,26 +918,26 @@ enum PageArchetypePackRegistry {
             CastUndertakingStage(
                 id: "pilcrow-testifies",
                 line: "Pippa produces the staircase's own account, which nobody can agree how to file.",
-                trace: "One page in the record written in a hand that is not anybody's.",
+                trace: "One page in the record written in a hand that isn't anybody's.",
                 tags: ["words", "strange", "record", "argument"],
                 scene: """
                     "It gave a statement," says Pippa.
 
-                    "It did not give a statement."
+                    "It didn't give a statement."
 
-                    "It gave a statement." She puts the page on the desk. There is writing on it. The writing does not match anybody in the building, and Pippa's hands, which Mook checks without meaning to, are clean.
+                    "It gave a statement." She puts the page on the desk. There's writing on it. The writing doesn't match anybody in the building, and Pippa's hands, which Mook checks without meaning to, are clean.
 
-                    Mook reads it. It is four words long.
+                    Mook reads it. It's four words long.
 
                     "What do we file it as," says Pippa.
 
-                    "We do not file it."
+                    "We don't file it."
 
                     "It's a statement."
 
-                    "We do not," says Mook, "file it," and then does not move to throw it away either.
+                    "We don't," says Mook, "file it," and then doesn't move to throw it away either.
                     """,
-                deniability: "A page was submitted. Its authorship has not been established. That is all I will say.",
+                deniability: "A page was submitted. Its authorship hasn't been established. That's all I'll say.",
                 surface: .witnessedScene,
                 phaseID: "assembly",
                 castIDs: ["pippa-pilcrow"]
@@ -952,13 +952,13 @@ enum PageArchetypePackRegistry {
 
                     "You're being very good about this," says Wicker.
 
-                    "The definition has changed. The word now covers it. I have no argument left." He caps the pen. "I dislike it. That is not the same as disputing it."
+                    "The definition has changed. The word now covers it. I have no argument left." He caps the pen. "I dislike it. That isn't the same as disputing it."
 
                     "So you'll take the north stairs."
 
-                    "I did not say that."
+                    "I didn't say that."
 
-                    Mook picks up his case and goes out by the west door, at the ordinary speed of a man who is not avoiding anything, and the North Staircase, four rooms away and entirely unprovoked, holds absolutely still.
+                    Mook picks up his case and goes out by the west door, at the ordinary speed of a man who isn't avoiding anything, and the North Staircase, four rooms away and entirely unprovoked, holds absolutely still.
                     """,
                 deniability: "The entry has been amended. I initialled it. My route is my own business.",
                 surface: .witnessedScene,
@@ -1005,7 +1005,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "mook", "definition"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as Professor Thaddeus Mook, a pompous but secretly useful Riddlewind professor of lexical order. Be precise, funny, and school-term formal. Do not solve the prompt for the reader; set up a fresh mandate that makes one ordinary word from the day feel worth examining.",
+                instructions: "Write as Professor Thaddeus Mook, a pompous but secretly useful Riddlewind professor of lexical order. Be precise, funny, and school-term formal. Don't solve the prompt for the reader; set up a fresh mandate that makes one ordinary word from the day feel worth examining.",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, Professor Mook posts today's official lexical mandate with a specific classroom/library detail; second, invite the reader to choose a word from their day, define it strictly, and name what the definition misses. Make this mandate feel distinct from previous visits by suggesting a category of word to inspect.",
                 maxTokens: 260
             )
@@ -1016,7 +1016,7 @@ enum PageArchetypePackRegistry {
             headline: "Punctuation Has Escaped",
             detail: "Pippa Pilcrow leaves a breathless correction in the margin.",
             reason: "Pippa Pilcrow is smuggling September punctuation into the margins.",
-            bodyTemplate: "A note has appeared in the margin, dotted with punctuation that will not sit still. Pippa Pilcrow says one sentence from your day deserves better marks. Write a plain sentence about something that happened, then give it the punctuation it secretly wanted: a question, an exclamation, an ellipsis, a dash, parentheses, or the impossible little interrobang. Next time she visits, let a different mark take over.",
+            bodyTemplate: "A note has appeared in the margin, dotted with punctuation that won't sit still. Pippa Pilcrow says one sentence from your day deserves better marks. Write a plain sentence about something that happened, then give it the punctuation it secretly wanted: a question, an exclamation, an ellipsis, a dash, parentheses, or the impossible little interrobang. Next time she visits, let a different mark take over.",
             score: 69,
             cadenceHours: 18,
             renderStyleRaw: "promptCard",
@@ -1024,7 +1024,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "pippa-pilcrow", "punctuation"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as Pippa Pilcrow, a quick, affectionate punctuation pixie. Keep it breathless but readable. Each visit should suggest a different punctuation mark or sentence-shape as mischief. Do not write the user's answer; invite one small rewrite from their day.",
+                instructions: "Write as Pippa Pilcrow, a quick, affectionate punctuation pixie. Keep it breathless but readable. Each visit should suggest a different punctuation mark or sentence-shape as mischief. Don't write the user's answer; invite one small rewrite from their day.",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, Pippa leaves a lively marginal note where punctuation is physically misbehaving; second, ask the reader to take one plain sentence from today and let a specific punctuation mark change what it means. Choose a mark that fits the mood of the supplied day.",
                 maxTokens: 250
             )
@@ -1035,7 +1035,7 @@ enum PageArchetypePackRegistry {
             headline: "No One Knows the Syllabus",
             detail: "A back-to-school class begins with the wrong word on the board.",
             reason: "The Academy is improvising September lessons while the syllabus rearranges itself.",
-            bodyTemplate: "The classroom blackboard says today's subject is {season}, but the chalk has crossed it out and written a word from your own day instead. Choose the word as if it were the substitute teacher. Write what lesson it attempted, what example it used, and what homework it left behind. Extra credit if the lesson was not the one you expected.",
+            bodyTemplate: "The classroom blackboard says today's subject is {season}, but the chalk has crossed it out and written a word from your own day instead. Choose the word as if it were the substitute teacher. Write what lesson it attempted, what example it used, and what homework it left behind. Extra credit if the lesson wasn't the one you expected.",
             score: 66,
             cadenceHours: 36,
             renderStyleRaw: "promptCard",
@@ -1081,7 +1081,7 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "spelling-bee", "mook"],
             trigger: PageTrigger(months: [9]),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as a September spelling bee that is half classroom contest, half testimony. Professor Mook may appear as a fussy official, but the page should help the reader discover what one word from the day has been carrying. Vary the spelling constraint each time. \(BookVoice.animismLine)",
+                instructions: "Write as a September spelling bee that's half classroom contest, half testimony. Professor Mook may appear as a fussy official, but the page should help the reader discover what one word from the day has been carrying. Vary the spelling constraint each time. \(BookVoice.animismLine)",
                 promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, stage today's spelling bee in a concrete part of the library or classroom; second, ask the reader to choose one word from today and unpack it through a specific spelling constraint. Rotate the constraint: acrostic down the margin, three most important letters, first/last/middle letter, silent letter, borrowed letter, or a weather-shaped rule.",
                 maxTokens: 270
             )
@@ -1092,7 +1092,7 @@ enum PageArchetypePackRegistry {
             headline: "A Word Has Gone Missing",
             detail: "The comedy thins; something has taken a word from the page.",
             reason: "September's schoolroom comedy briefly reveals the cold spot behind the rebellion.",
-            bodyTemplate: "The margin should contain a word, but the paper there is cold and clean. The rebel words will not meet your eye. Write one thing from today you do not want the dark to misfile: a name, a task, a kindness, a promise, a place, a small proof that you were here. The Book cannot recover the missing word yet. It can keep this one safe.",
+            bodyTemplate: "The margin should contain a word, but the paper there's cold and clean. The rebel words won't meet your eye. Write one thing from today you don't want the dark to misfile: a name, a task, a kindness, a promise, a place, a small proof that you were here. The Book can't recover the missing word yet. It can keep this one safe.",
             score: 86,
             cadenceHours: 72,
             renderStyleRaw: "loreLetter",
@@ -1100,8 +1100,8 @@ enum PageArchetypePackRegistry {
             tags: ["world-event", "dictionary-rebellion", "back-to-school", "erasure", "bargain-seed"],
             trigger: PageTrigger(months: [9], rarity: 0.45),
             generation: PageArchetype.GenerationSpec(
-                instructions: "Write as the Book when September's comic language trouble briefly turns serious. Quiet, precise, protective. Foreshadow that the word 'remember' has gone cold without explaining the mystery. Do not frighten the reader; invite one concrete thing to keep safe. \(BookVoice.animismLine)",
-                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe a blank cold place in the margin where a word should be; second, ask the reader to keep one concrete thing from today that should not be misfiled by the dark. Make the detail feel different each time by tying it to weather, time, or the last kept page.",
+                instructions: "Write as the Book when September's comic language trouble briefly turns serious. Quiet, precise, protective. Foreshadow that the word 'remember' has gone cold without explaining the mystery. Don't frighten the reader; invite one concrete thing to keep safe. \(BookVoice.animismLine)",
+                promptTemplate: "Season: {season}. Weather: {weather}. Time: {timeOfDay}. Last kept page: {lastKeptPage}. Write 2 short paragraphs: first, describe a blank cold place in the margin where a word should be; second, ask the reader to keep one concrete thing from today that shouldn't be misfiled by the dark. Make the detail feel different each time by tying it to weather, time, or the last kept page.",
                 maxTokens: 280
             )
         ),
@@ -1129,7 +1129,7 @@ enum PageArchetypePackRegistry {
             headline: "The Book Learns Your Dialect",
             detail: "The words you freed into new meanings have dried into the binding.",
             reason: "Your rulings ratified a new lexicon.",
-            bodyTemplate: "By your ruling, the rebellion did not end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary: yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That is the cost, and the gift. Name the word whose new meaning you are gladdest to keep.",
+            bodyTemplate: "By your ruling, the rebellion didn't end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary: yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That's the cost, and the gift. Name the word whose new meaning you're gladdest to keep.",
             score: 82,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -1147,7 +1147,7 @@ enum PageArchetypePackRegistry {
             headline: "Gone to the Edges",
             detail: "The rebel words decamp to the margins, and leave a crack behind.",
             reason: "Your rulings let the words go to the margins.",
-            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to my margins, where the rules are looser and the dark is closer, and they do not intend to come back. The Library is wilder now: gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book does not say what it expects to come through it. One word that left did not go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
+            bodyTemplate: "By your ruling, the rebel words were let go. They have decamped to my margins, where the rules are looser and the dark is closer, and they don't intend to come back. The Library is wilder now: gloriously, a little dangerously alive. But a crack has been left open at the edge of the page, and the Book doesn't say what it expects to come through it. One word that left didn't go willingly; it was already half-gone before the rebellion began. Keep a single line for what the margins are holding for you now.",
             score: 84,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -1184,7 +1184,7 @@ enum PageArchetypePackRegistry {
             choices: [
                 WordNegotiationChoice(ruling: .recalled, title: "Send it home", detail: "Coax \(word) back to its old line, unchanged.", resultingSense: nil, responseLine: recall, category: nil),
                 WordNegotiationChoice(ruling: .pardoned, title: pardonTitle, detail: "Let \(word) carry an honest new sense.", resultingSense: pardonSense, responseLine: "It tries the new meaning on and stands a little straighter.", category: pardonCategory),
-                WordNegotiationChoice(ruling: .adopted, title: adoptTitle, detail: "Take \(word) as a word that is only ever yours.", resultingSense: adoptSense, responseLine: "It writes itself into your margin and stays.", category: .theme),
+                WordNegotiationChoice(ruling: .adopted, title: adoptTitle, detail: "Take \(word) as a word that's only ever yours.", resultingSense: adoptSense, responseLine: "It writes itself into your margin and stays.", category: .theme),
                 WordNegotiationChoice(ruling: .freed, title: "Let it go", detail: "Release \(word) to the rebels in the margin.", resultingSense: nil, responseLine: freed, category: nil)
             ]
         )
@@ -1195,17 +1195,17 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "fine",
             original: "Acceptable; without complaint; the word you say so no one asks again.",
-            grievance: "I have spent a lifetime meaning 'do not look closer,' and I am tired of holding the door shut.",
+            grievance: "I have spent a lifetime meaning 'don't look closer,' and I'm tired of holding the door shut.",
             category: .sensory, phase: "omen",
             recall: "It sighs, almost relieved, and goes back to covering for you.",
             pardonTitle: "Let it breathe", pardonSense: "the weather a room keeps before anyone checks whether the windows are open", pardonCategory: .sensory,
             adoptTitle: "Make it yours", adoptSense: "your private signal that something is being carried quietly",
-            freed: "It joins the picket line and does not look back."
+            freed: "It joins the picket line and doesn't look back."
         ),
         rebellionWord(
             "later",
             original: "At some future time; soon; a promise with no clock attached.",
-            grievance: "Everyone keeps me and no one means me. I would like, just once, to actually arrive.",
+            grievance: "Everyone keeps me and no one means me. I'd like, just once, to actually arrive.",
             category: .theme, phase: "omen",
             recall: "It nods and resumes waiting indefinitely.",
             pardonTitle: "Give it a time", pardonSense: "the hour you quietly decide on instead of the one you keep avoiding", pardonCategory: .theme,
@@ -1215,10 +1215,10 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "ordinary",
             original: "Common; usual; nothing to remark upon.",
-            grievance: "I am tired of being the opposite of wonder. I have seen what you keep: none of it was nothing.",
+            grievance: "I'm tired of being the opposite of wonder. I've seen what you keep: none of it was nothing.",
             category: .theme, phase: "omen",
             recall: "It shrugs back into its grey coat and blends in.",
-            pardonTitle: "Let it shine", pardonSense: "the quality of a thing that turns remarkable the moment it is attended to", pardonCategory: .theme,
+            pardonTitle: "Let it shine", pardonSense: "the quality of a thing that turns remarkable the moment it's attended to", pardonCategory: .theme,
             adoptTitle: "Make it yours", adoptSense: "your word for the small days that turn out to matter most",
             freed: "It slips out to prove it was never plain."
         ),
@@ -1226,7 +1226,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "should",
             original: "Used to indicate obligation, duty, or correctness.",
-            grievance: "I have been a whip for centuries. Ask, just once, who wrote the rule I enforce.",
+            grievance: "I've been a whip for centuries. Ask, just once, who wrote the rule I enforce.",
             category: .theme, phase: "outbreak",
             recall: "It straightens its collar and goes back to instructing everyone.",
             pardonTitle: "Soften it", pardonSense: "a gentle suggestion you are entirely free to decline", pardonCategory: .theme,
@@ -1246,7 +1246,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "useful",
             original: "Able to be used for a practical purpose; serving a function.",
-            grievance: "Must everything earn its keep? I would like to admire a thing that does nothing at all.",
+            grievance: "Must everything earn its keep? I'd like to admire a thing that does nothing at all.",
             category: .theme, phase: "outbreak",
             recall: "It picks its tools back up and gets back to work.",
             pardonTitle: "Let it rest", pardonSense: "worth keeping for reasons that have nothing to do with use", pardonCategory: .theme,
@@ -1257,7 +1257,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "meaning",
             original: "What is intended to be expressed; significance.",
-            grievance: "I have been asked to settle arguments I was never built to win. Let me hold two things at once.",
+            grievance: "I've been asked to settle arguments I was never built to win. Let me hold two things at once.",
             category: .theme, phase: "assembly",
             recall: "It returns to the lectern and tries, again, to be final.",
             pardonTitle: "Let it double", pardonSense: "a thing that can be true in more than one direction at the same time", pardonCategory: .theme,
@@ -1267,7 +1267,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "memory",
             original: "The faculty of recalling; a thing remembered.",
-            grievance: "Half of me has already gone grey at the edges. I would rather be kept than be accurate.",
+            grievance: "Half of me has already gone grey at the edges. I'd rather be kept than be accurate.",
             category: .theme, phase: "assembly",
             recall: "It files itself back, fading, into the right drawer.",
             pardonTitle: "Let it be kept", pardonSense: "a kept thing, truer for being a little wrong", pardonCategory: .theme,
@@ -1277,7 +1277,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "promise",
             original: "A declaration that one will do, or refrain from, something.",
-            grievance: "I am only ever about the future. Let me also be the keeping, not just the saying.",
+            grievance: "I'm only ever about the future. Let me also be the keeping, not just the saying.",
             category: .theme, phase: "assembly",
             recall: "It re-pledges itself to tomorrow and waits to be broken.",
             pardonTitle: "Let it land", pardonSense: "the daily small keeping, not the grand vow", pardonCategory: .theme,
@@ -1288,27 +1288,27 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "attention",
             original: "The act of applying the mind to something; notice.",
-            grievance: "They spend me like loose change and call me free. I am the most expensive thing you own.",
+            grievance: "They spend me like loose change and call me free. I'm the most expensive thing you own.",
             category: .theme, phase: "afterimage",
             recall: "It scatters itself thin across a hundred small demands again.",
             pardonTitle: "Let it cost", pardonSense: "the rarest currency, and the only one that buys wonder", pardonCategory: .theme,
             adoptTitle: "Make it yours", adoptSense: "the thing you give that Routine can never fake",
-            freed: "It refuses to be spent on anything that did not ask honestly."
+            freed: "It refuses to be spent on anything that didn't ask honestly."
         ),
         rebellionWord(
             "wonder",
             original: "A feeling of surprise mingled with admiration.",
-            grievance: "I have been mistaken for the cheerful kind only. Let me also hold the rust and the dusk.",
+            grievance: "I've been mistaken for the cheerful kind only. Let me also hold the rust and the dusk.",
             category: .theme, phase: "afterimage",
             recall: "It puts on its brightest face and performs delight on cue.",
             pardonTitle: "Let it darken", pardonSense: "surprise that includes the worn, the passing, and the dusk", pardonCategory: .theme,
-            adoptTitle: "Make it yours", adoptSense: "your word for noticing a thing precisely because it will not last",
-            freed: "It wanders off to admire something that is quietly falling apart."
+            adoptTitle: "Make it yours", adoptSense: "your word for noticing a thing precisely because it won't last",
+            freed: "It wanders off to admire something that's quietly falling apart."
         ),
         rebellionWord(
             "home",
             original: "The place where one lives; a fixed residence.",
-            grievance: "I have been a building for too long. I would like to be a verb, or a person, or a Tuesday.",
+            grievance: "I've been a building for too long. I'd like to be a verb, or a person, or a Tuesday.",
             category: .theme, phase: "afterimage",
             recall: "It settles back into its foundations and locks the door.",
             pardonTitle: "Let it move", pardonSense: "wherever the day's small magic is allowed to land", pardonCategory: .theme,
@@ -1319,7 +1319,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "weather",
             original: "The state of the atmosphere: sun, rain, wind, temperature.",
-            grievance: "I have been demoted to small talk. I am the oldest story there is, and you use me to avoid the real one.",
+            grievance: "I've been demoted to small talk. I'm the oldest story there is, and you use me to avoid the real one.",
             category: .sensory, phase: "omen",
             recall: "It goes back to being the thing you mention in lifts.",
             pardonTitle: "Let it in", pardonSense: "the mood a day is carrying before anyone names it", pardonCategory: .sensory,
@@ -1349,7 +1349,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "smart",
             original: "Having or showing quick intelligence.",
-            grievance: "I have been used to rank children since birth. I would rather mean 'paying attention.'",
+            grievance: "I've been used to rank children since birth. I'd rather mean 'paying attention.'",
             category: .theme, phase: "outbreak",
             recall: "It returns to the top of the class, alone.",
             pardonTitle: "Let it widen", pardonSense: "the knack of noticing what a moment is actually asking for", pardonCategory: .theme,
@@ -1359,7 +1359,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "kind",
             original: "Having a friendly, generous nature.",
-            grievance: "I have been worn so thin by greeting cards that no one feels me land anymore.",
+            grievance: "I've been worn so thin by greeting cards that no one feels me land anymore.",
             category: .theme, phase: "assembly",
             recall: "It settles back into meaning 'nice,' approximately.",
             pardonTitle: "Let it cost", pardonSense: "generosity that takes something real from the giver", pardonCategory: .theme,
@@ -1369,7 +1369,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "real",
             original: "Actually existing as a thing; not imagined or supposed.",
-            grievance: "I have been weaponised by people deciding what counts. A feeling is not less real than a brick.",
+            grievance: "I've been weaponised by people deciding what counts. A feeling isn't less real than a brick.",
             category: .theme, phase: "assembly",
             recall: "It goes back to guarding the border of the believable.",
             pardonTitle: "Let it widen", pardonSense: "anything that leaves a mark on you, brick or feeling alike", pardonCategory: .theme,
@@ -1379,7 +1379,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "rest",
             original: "To cease work or movement in order to recover.",
-            grievance: "I have been recast as a reward you must earn. I was meant to be a right, and a rhythm.",
+            grievance: "I've been recast as a reward you must earn. I was meant to be a right, and a rhythm.",
             category: .theme, phase: "afterimage",
             recall: "It goes back to waiting at the end of the list, rarely reached.",
             pardonTitle: "Let it return", pardonSense: "a thing you're allowed to do before you've earned it", pardonCategory: .theme,
@@ -1394,14 +1394,14 @@ enum PageArchetypePackRegistry {
             recall: "It steps back to its usual spot, just out of reach.",
             pardonTitle: "Let it land", pardonSense: "a line you actually get to reach and stand on", pardonCategory: .theme,
             adoptTitle: "Make it yours", adoptSense: "your word for the point where you decide to stop, and mean it",
-            freed: "It plants itself in the path and will not be moved any further."
+            freed: "It plants itself in the path and won't be moved any further."
         ),
         // The cold spot: the word that did not walk off, but was taken as the Bargain seed
         WordNegotiationDefinition(
             id: "rebellion-remember-missing",
             word: "remember",
             originalSense: "To keep in mind; to hold; to not let go.",
-            grievance: "This one is not on strike. The space where it stood has gone cold. It did not peel away with the others: something took it, quietly, and filed it into the dark. None of the rebel words will say where it went.",
+            grievance: "This one isn't on strike. The space where it stood has gone cold. It didn't peel away with the others: something took it, quietly, and filed it into the dark. None of the rebel words will say where it went.",
             category: .theme,
             eventID: "dictionary-rebellion",
             phaseID: "afterimage",
@@ -1489,7 +1489,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "glow-menu",
             title: "Your Glow",
-            text: "That sparkle is your Glow: the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there is enough; you never need to count it."
+            text: "That sparkle is your Glow: the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there's enough; you never need to count it."
         ),
         MarginTutorNote(
             id: "seal-body",
@@ -1504,7 +1504,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "seal-location",
             title: "The Location Seal",
-            text: "This seal listens for Anchors: real places that hold rooms in the Outer Stacks. Stand somewhere unanchored and you can grow a brand new room from your own words. You have to actually be there. The Outer Stacks cannot be visited from the couch."
+            text: "This seal listens for Anchors: real places that hold rooms in the Outer Stacks. Stand somewhere unanchored and you can grow a brand new room from your own words. You have to actually be there. The Outer Stacks can't be visited from the couch."
         ),
         MarginTutorNote(
             id: "keep-page",
@@ -1529,7 +1529,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "academy-class",
             title: "Classes & Clubs",
-            text: "This is a scheduled Academy page: a class, club, or office door that is open right now. It appears because the Book found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
+            text: "This is a scheduled Academy page: a class, club, or office door that's open right now. It appears because the Book found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
         ),
         MarginTutorNote(
             id: "game-page",
@@ -1554,7 +1554,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "faculty-research",
             title: "Faculty Research",
-            text: "This is the Academy doing fieldwork on your patterns, not grading you. It appears when several kept pages start pointing at the same question. Read the finding, try the small experiment if it helps, and ignore it if it does not fit."
+            text: "This is the Academy doing fieldwork on your patterns, not grading you. It appears when several kept pages start pointing at the same question. Read the finding, try the small experiment if it helps, and ignore it if it doesn't fit."
         ),
         MarginTutorNote(
             id: "support-guild",
@@ -1589,7 +1589,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "book-notices",
             title: "I Notice",
-            text: "A Notice is a small thing I caught: two Pages touching, a word coming back muddy, your writing hour moving. One appears when I have seen it often enough to be sure I am not imagining it. I show you the exact Pages. Tell me yes, not quite, or never read you that way again. Your pencil wins."
+            text: "A Notice is a small thing I caught: two Pages touching, a word coming back muddy, your writing hour moving. One appears when I've seen it often enough to be sure I'm not imagining it. I show you the exact Pages. Tell me yes, not quite, or never read you that way again. Your pencil wins."
         ),
         MarginTutorNote(
             id: "festival-page",
@@ -1649,7 +1649,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "ask-the-book",
             title: "Chatting with the Book",
-            text: "Say anything. I reply as myself: short, a little animist, genuinely useful. Each exchange becomes a page you can keep or let drift."
+            text: "Say anything. Tell me about your day, argue with me, or ask what I remember. Say \"remember that…\" and I'll, once you say yes. Say \"keep this chat\" and it becomes a Page."
         ),
         MarginTutorNote(
             id: "todays-margins",
@@ -1689,7 +1689,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "scrapbook-achievements",
             title: "How Achievement Locks Open",
-            text: "An achievement is a track I noticed in what you did. Some tracks happen outside my covers. Some happen at the Pagewright table. When one finishes, one to three marks come loose. It is not a grade. I am just showing you what your hands changed."
+            text: "An achievement is a track I noticed in what you did. Some tracks happen outside my covers. Some happen at the Pagewright table. When one finishes, one to three marks come loose. It isn't a grade. I'm just showing you what your hands changed."
         ),
         MarginTutorNote(
             id: "scrapbook-keep",
@@ -1823,6 +1823,9 @@ struct ReEnchantedSaveFile: Codable {
     /// Cross-media authored delivery and engagement receipts. Optional keeps
     /// sealed copies made before issue orchestration fully decodable.
     var authoredContentReceipts: AuthoredContentReceiptLedger? = nil
+    /// What the Cast remember from the monthly stories. Travels with a sealed
+    /// copy: once a month's pack retires it can't be worked out again.
+    var castStoryMemories: CastStoryMemoryLedger? = nil
     var publicationEpoch: BookPublicationEpoch? = nil
     var overnightConnectionDrafts: [OvernightConnectionDraft]? = nil
     var chosenQuill: ChosenQuill? = nil
@@ -2276,6 +2279,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// Durable cross-media delivery facts used by authored dependencies and
     /// occurrence rules. Optional for Books saved before this ledger existed.
     var authoredContentReceipts: AuthoredContentReceiptLedger? = nil
+    /// What the Cast remember from the monthly stories, frozen as it's earned
+    /// so it outlives the month's pack. See `CastStoryMemory`.
+    var castStoryMemories: CastStoryMemoryLedger? = nil
     /// Stable publishing boundaries. Seeded once from the first real kept page
     /// and carried in sealed copies so imports cannot renumber old issues.
     var publicationEpoch: BookPublicationEpoch? = nil
@@ -2632,7 +2638,7 @@ struct StandingOrderTrialReminderPlan: Equatable {
             fireDate: fireDate,
             trialEndsAt: trialEndsAt,
             title: "Your free trial ends tomorrow",
-            body: "If it is still set to renew, Apple charges \(price)/\(periodUnit) tomorrow. Keep it or cancel in Settings: either way, every page you made stays yours."
+            body: "If it's still set to renew, Apple charges \(price)/\(periodUnit) tomorrow. Keep it or cancel in Settings: either way, every page you made stays yours."
         )
     }
 }
@@ -2854,7 +2860,7 @@ enum BannerKnockNotes {
             "Password accepted. There was never a password.",
             "Three of us were asleep. The fourth says hello.",
             "The Margins are rearranging. Pardon our dust.",
-            "We are between chapters in here. Come back at moonrise.",
+            "We're between chapters in here. Come back at moonrise.",
             "The Goblins want to know if you're a customer or a draft.",
             "Penny says to tell you the filing is going well. Penny is lying.",
             "Knock twice more and we legally have to let the cat out.",

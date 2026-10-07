@@ -195,7 +195,7 @@ final class QuillCompanionTests: XCTestCase {
         XCTAssertTrue(prompt.contains(quill.name))
         XCTAssertTrue(prompt.contains(quill.make))
         XCTAssertTrue(prompt.contains("Quillquarium"))
-        XCTAssertTrue(prompt.contains("Do not introduce two cast members"))
+        XCTAssertTrue(prompt.contains("Don't introduce two cast members"))
         XCTAssertFalse(prompt.contains("The relationship web has crossed a milestone"))
     }
 

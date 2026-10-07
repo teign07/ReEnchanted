@@ -270,6 +270,15 @@ const beforeHistory = invoiceRequests;
 check((await checkSeason()).response.status === 201, "a paid historical year is found beyond the newest invoice page");
 check(invoiceRequests === beforeHistory + 2, "history lookup stops as soon as the season is proved");
 paginatedInvoices = false;
+env.STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_annual_new";
+env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY = "price_annual";
+check((await checkSeason()).response.status === 201, "the old paid annual price still earns its season after new-buyer pricing changes");
+paidInvoices[0].payment_intent.latest_charge.refunded = true;
+check((await checkSeason()).response.status === 402, "a refunded legacy annual price cannot earn a season");
+paidInvoices[0].payment_intent.latest_charge.refunded = false;
+delete env.STRIPE_BOUND_YEAR_ANNUAL_PRICE_LEGACY;
+check((await checkSeason()).body.error === "membership_price_mismatch", "a previous annual price needs explicit configuration to retain fulfillment");
+env.STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_annual";
 const prepared = await send("/memberships/sub_member/dispatches/2024-S08", token, {
   method: "POST",
   headers: { "Content-Type": "application/json" },

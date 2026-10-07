@@ -83,7 +83,7 @@ final class WickerDareTests: XCTestCase {
         XCTAssertEqual(surface.payload.metadata["voluntary"], "true")
         XCTAssertEqual(surface.payload.metadata["primaryLivedInvitation"], "true")
         XCTAssertTrue(surface.isReaderActionCommission)
-        XCTAssertTrue(surface.payload.body.contains("This is a dare, not a debt."))
+        XCTAssertTrue(surface.payload.body.contains("Skip it."))
         XCTAssertTrue(surface.payload.body.contains("Wicker"))
         XCTAssertTrue(surface.prompt.hasPrefix("I Dare You:"))
         XCTAssertFalse(surface.payload.body.contains("Wicker would"))
@@ -227,43 +227,93 @@ final class WickerDareTests: XCTestCase {
         }
     }
 
-    func testFirstLaterWickerPageResumesTheInkbonesThreadOnce() {
+    func testOnlyTheFirstDareRemembersTheOnboardingSceneAndItRemindsTheReader() throws {
         let now = Date(timeIntervalSince1970: 1_783_000_000)
-        let day = BookDay(id: "wicker-rematch", date: now, pages: [])
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [
-            onboardingFact("onboarding-wicker-mode", answer: "surprise", now: now),
-            onboardingFact("onboarding-wicker-tier", answer: "cost", now: now),
+            onboardingFact("onboarding-wicker-mode", answer: "slice-of-life", now: now),
+            onboardingFact("onboarding-wicker-tier", answer: "hold", now: now),
             onboardingFact(
                 "onboarding-wicker-thread",
-                answer: "He named the misfire. Named things come back.",
+                answer: "I mark the Rut as the place your next undeniable detail can prove him wrong again.",
                 now: now
             )
         ]
-
+        let day = BookDay(id: "wicker-first", date: now, pages: [])
         let first = WickerDarePageSourceAdapter().manualSurface(
-            for: day,
-            context: CuratorContext.make(for: day),
-            inputs: inputs,
-            now: now
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now
         )
-        XCTAssertTrue(first.payload.body.contains("You remember the Inkbones."))
-        XCTAssertTrue(first.payload.body.contains("Named things come back."))
-        XCTAssertEqual(first.payload.metadata["onboardingWickerMode"], "surprise")
-        XCTAssertEqual(first.payload.metadata["onboardingWickerTier"], "cost")
+        // Wicker says who he is and what happened, so nobody has to remember it.
+        XCTAssertTrue(first.payload.body.contains("Wicker here."))
+        XCTAssertTrue(first.payload.body.contains("picked up your first page and sneered at it"))
+        XCTAssertTrue(first.payload.body.contains("one small true thing from your real life"))
+        XCTAssertTrue(first.payload.body.contains("Your first dare."))
+        XCTAssertEqual(first.payload.metadata["wickerFirstDare"], "true")
+        // The stored thread is the Book's bookkeeping, never Wicker's words.
+        XCTAssertFalse(first.payload.body.contains("undeniable detail"))
 
-        inputs.surfaceHistory["wickers-dares:seen"] = SurfaceHistoryRecord(
-            lastShownAt: now,
-            recentShowCount: 1
+        // Same slot, already on the desk: the page keeps its opener.
+        inputs.surfaceHistory["source:wickers-dares"] = SurfaceHistoryRecord(
+            lastShownAt: now, recentShowCount: 1
         )
-        let later = WickerDarePageSourceAdapter().manualSurface(
-            for: day,
-            context: CuratorContext.make(for: day),
-            inputs: inputs,
-            now: now.addingTimeInterval(43_200)
+        let again = WickerDarePageSourceAdapter().manualSurface(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: now
         )
-        XCTAssertFalse(later.payload.body.contains("You remember the Inkbones."))
-        XCTAssertNil(later.payload.metadata["onboardingWickerThread"])
+        XCTAssertEqual(again.payload.metadata["wickerFirstDare"], "true")
+
+        // A later slot: no reference to the scene, ever.
+        for offset in 1..<40 {
+            let at = now.addingTimeInterval(Double(offset) * 43_200 + 86_400)
+            let laterDay = BookDay(id: "wicker-later-\(offset)", date: at, pages: [])
+            let later = WickerDarePageSourceAdapter().manualSurface(
+                for: laterDay, context: CuratorContext.make(for: laterDay), inputs: inputs, now: at
+            )
+            XCTAssertNil(later.payload.metadata["wickerFirstDare"])
+            let text = [later.payload.body, later.detail, later.prompt, later.reason].joined(separator: "\n")
+            for banned in ["Inkbones", "Inscription", "onboarding", "sneered at it", "first page", "Your first dare"] {
+                XCTAssertFalse(text.contains(banned), "\(banned) in \(later.payload.headline)")
+            }
+            XCTAssertNil(later.payload.metadata["onboardingWickerThread"])
+        }
+    }
+
+    func testFirstDareOpenerCoversEveryAnswerAndStaysPlainWithoutOne() {
+        for mode in ["slice-of-life", "arc", "surprise"] {
+            for tier in ["triumph", "hold", "glance", "cost"] {
+                let line = WickerDarePageSourceAdapter.firstDareOpener(mode: mode, tier: tier)
+                XCTAssertTrue(line.hasPrefix("Wicker here."), line)
+                XCTAssertTrue(line.hasSuffix("Your first dare."), line)
+                XCTAssertFalse(line.contains("Inkbones"), line)
+            }
+        }
+        let skipped = WickerDarePageSourceAdapter.firstDareOpener(mode: nil, tier: nil)
+        XCTAssertFalse(skipped.contains("We met"), "No scene happened, so none is remembered.")
+    }
+
+    func testAReaderWhoReturnedADareNeverGetsTheFirstOpener() {
+        let start = Date(timeIntervalSince1970: 1_783_000_000)
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = [onboardingFact("onboarding-wicker-mode", answer: "arc", now: start)]
+        inputs.days = [BookDay(
+            id: "wicker-done", date: start.addingTimeInterval(-86_400),
+            pages: [wickerReceiptPage(index: 0, completedAt: start.addingTimeInterval(-3_600))]
+        )]
+        let day = BookDay(id: "wicker-after", date: start, pages: [])
+        let page = WickerDarePageSourceAdapter().manualSurface(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: start
+        )
+        XCTAssertNil(page.payload.metadata["wickerFirstDare"])
+        XCTAssertTrue(page.payload.body.contains("You brought back"))
+    }
+
+    func testEveryDareIsPlainSpeechWithNoLegalHedging() {
+        for dare in WickerDareRegistry.immediate {
+            let text = "\(dare.title) \(dare.challenge) \(dare.proofPrompt)".lowercased()
+            for banned in ["your veto", "trapped yes", "let no be easy", "comfort edge", "inscription", "onboarding"] {
+                XCTAssertFalse(text.contains(banned), "\(banned) in \(dare.id)")
+            }
+            XCTAssertTrue(dare.proofPrompt.hasPrefix("Bring me") || dare.proofPrompt.hasPrefix("Tell me"), dare.id)
+        }
     }
 
     private func onboardingFact(_ questionID: String, answer: String, now: Date) -> SelfFact {

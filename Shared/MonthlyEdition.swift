@@ -1033,7 +1033,7 @@ enum SeasonTitler {
             .first {
             return SeasonTitleProposal(
                 title: held.name,
-                because: "\(held.name) held across \(held.count) months of it, which is what makes a season rather than a mood."
+                because: "\(held.name) held across \(held.count) months of it. That's what makes a season rather than a mood."
             )
         }
 
@@ -1150,7 +1150,7 @@ struct SeasonalDispatch: Codable, Equatable, Identifiable {
         let chapterWord = chapterCount == 1 ? "one month" : "\(chapterCount) months"
         if isAnnualVolume { return "the membership year, in \(chapterWord)" }
         if readerNamedSeason != nil { return "the season you named, in \(chapterWord)" }
-        if titleProposal != nil { return "a season I would call this, in \(chapterWord)" }
+        if titleProposal != nil { return "a season I'd call this, in \(chapterWord)" }
         return "\(chapterWord), bound"
     }
 
@@ -1435,13 +1435,13 @@ struct BoundYearMembership: Codable, Equatable {
 /// price the till does not honour.
 enum BoundYearPricing {
     static let monthlyCents = 2_499
-    static let annualCents = 24_900
+    static let annualCents = 27_900
 
     static var monthlyPrice: Decimal { Decimal(monthlyCents) / 100 }
     static var annualPrice: Decimal { Decimal(annualCents) / 100 }
 
     static var monthlyDisplayPrice: String { "$24.99" }
-    static var annualDisplayPrice: String { "$249" }
+    static var annualDisplayPrice: String { "$279" }
 
     /// Volumes posted per membership year: three seasonal softcovers and the
     /// hardcover that closes the year.
@@ -1843,7 +1843,7 @@ enum BoundVolumePublicationMatterBuilder {
             almanac.append(item(
                 id: "volume-outer-weather",
                 title: "The Sky's Favorite Tricks",
-                body: "I caught the outer weather on \(weatherByDay.count) \(weatherByDay.count == 1 ? "day" : "days"): \(naturalList(top)). Blank sky-days stayed blank; I did not dress them up from memory.",
+                body: "I caught the outer weather on \(weatherByDay.count) \(weatherByDay.count == 1 ? "day" : "days"): \(naturalList(top)). Blank sky-days stayed blank; I didn't dress them up from memory.",
                 date: weatherByDay.keys.sorted().first,
                 tags: ["bound-volume", "almanac", "outer-weather"]
             ))
@@ -1888,7 +1888,7 @@ enum BoundVolumePublicationMatterBuilder {
                 almanac.append(item(
                     id: "volume-inner-weather",
                     title: "Inkrest's Weather Jar",
-                    body: "Dr. Inkrest kept \(inner.count) inner-weather \(inner.count == 1 ? "note" : "notes") across \(innerDays) \(innerDays == 1 ? "day" : "days").\(windowLine) I counted the visits; I did not turn them into a diagnosis wearing a paper crown.",
+                    body: "Dr. Inkrest kept \(inner.count) inner-weather \(inner.count == 1 ? "note" : "notes") across \(innerDays) \(innerDays == 1 ? "day" : "days").\(windowLine) I counted the visits; I didn't turn them into a diagnosis wearing a paper crown.",
                     date: inner.first?.createdAt,
                     tags: ["bound-volume", "almanac", "private-weather"]
                 ))
@@ -2056,7 +2056,7 @@ enum MonthlyEditionBuilder {
             id: "tales-finished",
             title: tales.count == 1 ? "The Tale You Were Inside" : "The Tales You Were Inside",
             note: tales.count == 1
-                ? "One finished this month. I did not see the shape of it until it was over, which is usually how this goes."
+                ? "One finished this month. I didn't see the shape of it until it was over. That's usually how this goes."
                 : "\(tales.count) finished this month. I only ever recognise them on the way out.",
             items: items
         )
@@ -2393,7 +2393,7 @@ enum MonthlyEditionBuilder {
             coverSubline: {
                 if bindsAnnual { return "the membership year, in \(chapterWord)" }
                 if readerNamed != nil { return "the season you named, in \(chapterWord)" }
-                if proposal != nil { return "a season I would call this, in \(chapterWord)" }
+                if proposal != nil { return "a season I'd call this, in \(chapterWord)" }
                 return "\(chapterWord), bound"
             }(),
             // Carried so the app can show the reader what the Book chose and
@@ -2592,7 +2592,7 @@ enum MonthlyEditionBuilder {
             pageSection(
                 id: "daily-braids",
                 title: "The Nightly Braids",
-                note: "Every night of the month, in the order it happened. Read straight through, they are a story you were living without stopping to call it one.",
+                note: "Every night of the month, in the order it happened. Read straight through, they're a story you were living without stopping to call it one.",
                 pages: boundPages.filter { $0.type == .bookOfYou },
                 // Every braid the month produced, whole. A reader who wrote
                 // twice in one night should not lose one to an off-by-a-day cap.
@@ -2777,7 +2777,8 @@ enum MonthlyEditionBuilder {
                 + continuity.strongestSignals.prefix(5).map(\.line),
             seed: monthKey,
             dayBook: dayBook,
-            dayCount: max(1, calendar.dateComponents([.day], from: startDate, to: endDate).day.map { $0 + 1 } ?? 30)
+            dayCount: max(1, calendar.dateComponents([.day], from: startDate, to: endDate).day.map { $0 + 1 } ?? 30),
+            calendar: calendar
         )
         return assembled
     }
@@ -2891,7 +2892,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "grimoire",
             title: "What I Worked Out",
-            note: "Rules I found in your life by counting. They were true when this was bound. Some of them will not be true later, and I will say so.",
+            note: "Rules I found in your life by counting. They were true when this was bound. Some of them won't be true later, and I'll say so.",
             items: standing + crossedOut
         )
     }
@@ -3281,8 +3282,8 @@ enum MonthlyEditionBuilder {
         let pairedDays = pairedFuelWeatherDays(from: privatePages, calendar: calendar)
         if pairedDays > 0 {
             let line = pairedDays == 1
-                ? "On one day, fuel and inner weather found each other in my margins. I pinned the overlap down. It is weather, not diagnosis, and not proof of cause."
-                : "On \(pairedDays) days, fuel and inner weather found each other in my margins. I pinned the overlaps down. They are weather, not diagnosis, and not proof of cause."
+                ? "On one day, fuel and inner weather found each other in my margins. I pinned the overlap down. It's weather, not diagnosis, and not proof of cause."
+                : "On \(pairedDays) days, fuel and inner weather found each other in my margins. I pinned the overlaps down. They're weather, not diagnosis, and not proof of cause."
             items.append(MonthlyEditionItem(
                 id: "fuel-weather-overlaps",
                 kind: .continuity,
@@ -3543,7 +3544,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "what-the-cast-did",
             title: "What The Cast Did",
-            note: "The Academy has its own month, and it does not always behave. Kept here in their own words.",
+            note: "The Academy has its own month, and it doesn't always behave. Kept here in their own words.",
             items: window.prefix(24).map { record in
                 MonthlyEditionItem(
                     id: "cast-act-\(record.id)",
@@ -3606,7 +3607,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "voice-notes",
             title: "Voices Kept",
-            note: "Recordings stay playable in the living Book. These leaves carry the reader's locally transcribed words, or the honest duration and cadence when words could not be read.",
+            note: "Recordings stay playable in the living Book. These leaves carry the reader's locally transcribed words, or the honest duration and cadence when words couldn't be read.",
             items: voicePages.prefix(28).map(pageItem)
         )
     }
@@ -3897,7 +3898,7 @@ enum BookForewordWriter {
         //    have performed on themselves.
         if let sharpest = revelations.first {
             paragraphs.append(ReflectiveProse.pick([
-                "Reading it back, I found something you were not in a position to see. \(sharpest.title). \(sharpest.body)",
+                "Reading it back, I found something you weren't in a position to see. \(sharpest.title). \(sharpest.body)",
                 "One thing surfaced that I don't think you noticed while you were living it. \(sharpest.title). \(sharpest.body)",
                 "Here is what thirty days held still long enough to show me. \(sharpest.title). \(sharpest.body)"
             ], seed: beatSeed(seed, 23), salt: 0))
@@ -3952,7 +3953,7 @@ enum BookForewordWriter {
             let wrong = opened.count - right
             if wrong == 0 {
                 paragraphs.append(ReflectiveProse.pick([
-                    "Every wager I opened this month came true, which made my spine sit up straighter than was dignified.",
+                    "Every wager I opened this month came true. That made my spine sit up straighter than was dignified.",
                     "I guessed \(right == 1 ? "once" : "\(right) times") this month and was right every time. I'm trying not to make it my whole personality."
                 ], seed: beatSeed(seed, 37), salt: 0))
             } else if right == 0 {
@@ -3962,7 +3963,7 @@ enum BookForewordWriter {
                 ], seed: beatSeed(seed, 37), salt: 0))
             } else {
                 paragraphs.append(ReflectiveProse.pick([
-                    "Of the wagers I opened this month, \(right) came true and \(wrong) did not. I record both with the same ink, because the ink doesn't like favorites.",
+                    "Of the wagers I opened this month, \(right) came true and \(wrong) didn't. I record both with the same ink, because the ink doesn't like favorites.",
                     "\(right) right, \(wrong) wrong. Both halves stay. You should know how often I miss."
                 ], seed: beatSeed(seed, 37), salt: 0))
             }
@@ -3970,7 +3971,7 @@ enum BookForewordWriter {
         if !sealed.isEmpty {
             paragraphs.append(sealed.count == 1
                 ? "One wager is still sealed in the margins. It's trying very hard not to peek. We will both find out."
-                : "\(sealed.count) wagers are still sealed in the margins. They are trying very hard not to peek. We will both find out.")
+                : "\(sealed.count) wagers are still sealed in the margins. They're trying very hard not to peek. We will both find out.")
         }
 
         // 6. The sign-off. Once the Book has named the reader it closes on the
@@ -3979,16 +3980,16 @@ enum BookForewordWriter {
         if let role = readerRole {
             paragraphs.append(ReflectiveProse.pick([
                 "\(role.gloss) I decided that about you before this month began, and nothing in here argued with me.\n\nThe Book",
-                "Whatever else this month was, it got read. \(role.gloss) The evidence for that is bound behind this page.\n\nThe Book",
+                "Whatever else this month was, it got read. \(role.gloss) The evidence for that's bound behind this page.\n\nThe Book",
                 "I've read every page of this twice. Once as it arrived, once just now. Both times it read like yours. \(role.gloss)\n\nThe Book",
-                "None of it is going anywhere: I've checked the thread myself. \(role.gloss) Still true in \(monthTitle).\n\nThe Book"
+                "None of it's going anywhere: I've checked the thread myself. \(role.gloss) Still true in \(monthTitle).\n\nThe Book"
             ], seed: beatSeed(seed, 41), salt: 0))
         } else {
             paragraphs.append(ReflectiveProse.pick([
                 "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed.\n\nThe Book",
                 "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it.\n\nThe Book",
                 "I've read every page of this twice. Once as it arrived, once just now.\n\nThe Book",
-                "None of it is going anywhere. I've checked the thread myself.\n\nThe Book"
+                "None of it's going anywhere. I've checked the thread myself.\n\nThe Book"
             ], seed: beatSeed(seed, 41), salt: 0))
         }
 
@@ -4019,7 +4020,7 @@ enum BookForewordWriter {
         paragraphs.append(ReflectiveProse.pick([
             "So \(monthTitle) closes. I've read \(pageLine) back to you and to myself, and what could be kept has been kept. A month doesn't end so much as settle.",
             "That's \(monthTitle). \(pageLine.sentenceCased) read back, nothing left loose. The loud parts take off their shoes and what was true underneath stays where I can find it.",
-            "\(monthTitle) is finished, which isn't the same as over. I've read \(pageLine) and put them somewhere they can't be argued out of."
+            "\(monthTitle) is finished. That isn't the same as over. I've read \(pageLine) and put them somewhere they can't be argued out of."
         ], seed: beatSeed(seed, 13), salt: 0))
 
         // The closing takes the *second* revelation where it can, so the book
@@ -4034,7 +4035,7 @@ enum BookForewordWriter {
         } else if let strongest = continuity.strongestSignals.first {
             let line = strongest.line.hasSuffix(".") ? String(strongest.line.dropLast()) : strongest.line
             paragraphs.append(ReflectiveProse.pick([
-                "If this chapter leaves one thing in your hands, let it be this: \(line). I will be watching to see whether it holds, or turns, or asks for a different name.",
+                "If this chapter leaves one thing in your hands, let it be this: \(line). I'll be watching to see whether it holds, or turns, or asks for a different name.",
                 "Carry this one out with you: \(line). I like when a true thing knocks twice.",
                 "The line I'd keep, if I could only keep one: \(line). We will see whether it survives next month."
             ], seed: beatSeed(seed, 19), salt: 0))
@@ -4056,7 +4057,7 @@ enum BookForewordWriter {
             ], seed: beatSeed(seed, 29), salt: 0))
         } else if let theme {
             paragraphs.append(ReflectiveProse.pick([
-                "The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it is bound here now, sitting very still so it can't be unsaid.",
+                "The theme this month was \u{201C}\(theme.name)\u{201D}, and it had the last word as often as the first. Whether you chose it or it chose you, it's bound here now, sitting very still so it can't be unsaid.",
                 "\u{201C}\(theme.name)\u{201D} ran through the whole month. I've stopped asking whether you picked it."
             ], seed: beatSeed(seed, 29), salt: 0))
         } else if dayCount > 0 && dayCount < 7 {
@@ -4174,7 +4175,7 @@ enum BookForewordWriter {
             case 2: nameLine = "\(names[0]) and \(names[1])"
             default: nameLine = "\(names.dropLast().joined(separator: ", ")), and \(names.last ?? "")"
             }
-            paragraphs.append("Some threads ran long enough through the year that I gave them names and a place in the sky: \(nameLine). They are charted at the back of this volume, little lamps pinned high enough that any month can look up.")
+            paragraphs.append("Some threads ran long enough through the year that I gave them names and a place in the sky: \(nameLine). They're charted at the back of this volume, little lamps pinned high enough that any month can look up.")
         }
 
         let resolved = wagers.filter { $0.isSealed == false }
@@ -4187,7 +4188,7 @@ enum BookForewordWriter {
             } else if right == 0 {
                 scoreLine = "Every resolved wager this year went against me. I've bound each one in full. Being wrong, written down, is how I learned to read you better, even when the ink made a face."
             } else {
-                scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) did not. Both are set in the same ink, because both were honest and the ink can carry two baskets."
+                scoreLine = "Of the wagers resolved this year, \(right) came true and \(wrong) didn't. Both are set in the same ink, because both were honest and the ink can carry two baskets."
             }
             paragraphs.append(scoreLine)
         }
@@ -4903,7 +4904,7 @@ struct WeeklyIssue: Codable, Equatable {
         guard let tale = issue.talesFinished.first else { return nil }
         let title = tale.title.isEmpty ? tale.shape.commonName : tale.title
         if issue.talesFinished.count > 1 {
-            return "Two things finished this week. The one I would lead with is \(title)."
+            return "Two things finished this week. The one I'd lead with is \(title)."
         }
         return "This is the week \(title) finished. Everything else in here happened around that."
     }
@@ -5269,7 +5270,7 @@ enum BindingStoryPromptBuilder {
         }
         return BindingStoryPromptSpec(
             sourceID: "weekly-binding-story",
-            prompt: prompt(frame: "week", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; do not reconstruct an unrecorded day." : leaves, passageCompass: issue.passageCompass ?? []) + continuity
+            prompt: prompt(frame: "week", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; don't reconstruct an unrecorded day." : leaves, passageCompass: issue.passageCompass ?? []) + continuity
                 + storyContext,
             maxTokens: 700
         )
@@ -5294,7 +5295,7 @@ enum BindingStoryPromptBuilder {
         }.joined(separator: "\n\n")
         return BindingStoryPromptSpec(
             sourceID: "monthly-binding-story",
-            prompt: prompt(frame: "month", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; do not reconstruct unrecorded days." : leaves, passageCompass: edition.passageCompass ?? [])
+            prompt: prompt(frame: "month", leaves: leaves.isEmpty ? "No nightly braid was made. Use only the supplied committed story context and Reader passages; don't reconstruct unrecorded days." : leaves, passageCompass: edition.passageCompass ?? [])
                 + storyContext,
             maxTokens: 1_100
         )
@@ -5337,9 +5338,9 @@ enum BindingStoryPromptBuilder {
 
         let span = annual.publicationKind == .seasonal ? "seasonal" : "annual"
         let prompt = """
-        You are the private local writer inside the reader's Book. Read the following monthly bindings as the leaves of one \(span) binding.
+        You're the private local writer inside the reader's Book. Read the following monthly bindings as the leaves of one \(span) binding.
 
-        Requirements: (preserve the months' real sequence, contradictions, unresolved threads, and exact particulars;) choose the truest architecture the year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return; (do not force the year into one continuous plot or a single redemptive arc;) synthesize the monthly bindings themselves. Do not replace them with a month-by-month recap; (treat each month's Story-form mix, Rut-influence mix, and Register mix as separate evidence;) hardship without explicit Rut influence is not a Rut battle; (never claim that the Rut was permanently cured, and never turn unanswered or missing evidence into a verdict;) do not invent events, feelings, motives, diagnoses, or facts; (write in the Book's intimate first-person voice to the reader, using contractions;) end with an opening rather than a moral.
+        Requirements: (preserve the months' real sequence, contradictions, unresolved threads, and exact particulars;) choose the truest architecture the year earned: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return; (don't force the year into one continuous plot or a single redemptive arc;) synthesize the monthly bindings themselves. Don't replace them with a month-by-month recap; (treat each month's Story-form mix, Rut-influence mix, and Register mix as separate evidence;) hardship without explicit Rut influence isn't a Rut battle; (never claim that the Rut was permanently cured, and never turn unanswered or missing evidence into a verdict;) don't invent events, feelings, motives, diagnoses, or facts; (write in the Book's intimate first-person voice to the reader, using contractions;) end with an opening rather than a moral.
 
         MONTHLY BINDINGS, IN CHRONOLOGICAL ORDER:
         \(leaves)
@@ -5373,13 +5374,13 @@ enum BindingStoryPromptBuilder {
             READER-AUTHORED PASSAGE COMPASS:
             \(lines)
 
-            COMPASS RULE: (These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.) Let at least one passage become a turn, image, or consequence in the chosen architecture. Use the others only when they genuinely connect. (The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it does not authorize invention or require every passage.) Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
+            COMPASS RULE: (These passages were selected from meaningful parts of eligible keeps across the whole \(frame), not merely from page openings.) Let at least one passage become a turn, image, or consequence in the chosen architecture. Use the others only when they genuinely connect. (The chronological daily bindings still govern sequence and fact. The compass chooses emphasis; it doesn't authorize invention or require every passage.) Quote at most one short phrase. Never mention selection, scoring, embeddings, or an archive.
             """
         }
         return """
-        You are the private local writer inside the reader's Book. Write a binding of bindings from the following daily Book of You pages.
+        You're the private local writer inside the reader's Book. Write a binding of bindings from the following daily Book of You pages.
 
-        Requirements: (preserve the real sequence and the reader's exact meaningful details;) do not produce a day-by-day recap; (choose the truest architecture for this span: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return;) do not force the \(frame) into one continuous plot when juxtaposition, recurrence, or an unresolved vigil is truer; (find movement, recurrence, contrast, and consequence across the whole span;) Do not invent events, feelings, motives, diagnoses, or facts not present in the source bindings; (treat each leaf's Story form, Rut influence, and Register as separate evidence. Hardship without explicit Rut influence is not a Rut battle;) the Rut may shape the larger binding only where leaves explicitly name it. Keep mixed outcomes mixed and never claim a permanent cure; (write in intimate literary prose, grounded and specific, without explaining the method;) end with an opening rather than a moral.\(compassSection)
+        Requirements: (preserve the real sequence and the reader's exact meaningful details;) don't produce a day-by-day recap; (choose the truest architecture for this span: chronicle, mosaic, portrait, narrative drama, vigil, comedy, or return;) don't force the \(frame) into one continuous plot when juxtaposition, recurrence, or an unresolved vigil is truer; (find movement, recurrence, contrast, and consequence across the whole span;) Don't invent events, feelings, motives, diagnoses, or facts not present in the source bindings; (treat each leaf's Story form, Rut influence, and Register as separate evidence. Hardship without explicit Rut influence isn't a Rut battle;) the Rut may shape the larger binding only where leaves explicitly name it. Keep mixed outcomes mixed and never claim a permanent cure; (write in intimate literary prose, grounded and specific, without explaining the method;) end with an opening rather than a moral.\(compassSection)
 
         DAILY BINDINGS, IN CHRONOLOGICAL ORDER:
         \(leaves)
@@ -5495,7 +5496,13 @@ struct WeeklyIssueShareCard: Codable, Equatable {
 
     static func make(issue: WeeklyIssue, selfFacts: [SelfFact] = [], isDeluxe: Bool = false) -> WeeklyIssueShareCard {
         let readerRole = ReaderRoleRegistry.currentRole(from: selfFacts)
-        let motifs = publicMotifs(from: issue.highlights)
+        // A refrain is a word that came back on more than one page the reader wrote.
+        // It used to be counted over the highlight excerpts, which are scaffolding as
+        // often as words ("photograph, reader").
+        let pageMotifs = WeeklyCuration.refrain(from: issue.pages)
+        let motifs = pageMotifs.isEmpty
+            ? publicMotifs(from: issue.highlights).filter { !WeeklyCuration.isMetaWord($0) }
+            : pageMotifs
         let motifLine = motifs.isEmpty
             ? "The week kept its own weather."
             : "Refrain: \(motifs.joined(separator: ", "))"
@@ -5557,7 +5564,7 @@ struct WeeklyIssueShareCard: Codable, Equatable {
         }
         let open = [
             "Issue No. \(issueNumber + 1) is already gathering.",
-            "Next week has not been written on yet.",
+            "Next week hasn't been written on yet.",
             "The next seven pages are still uncut."
         ]
         return open[ConstellationKeeper.stableIndex(for: "weekly-tease-\(issueNumber)", count: open.count)]
@@ -5609,6 +5616,32 @@ struct KeptWeeklyIssueArtifact: Codable, Equatable {
     /// The exact reader-week window this immutable issue belongs to. Optional
     /// keeps issues bound before publication periods existed decodable.
     var periodID: PublicationPeriodID? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case issue, card, readerName, editorialNote, closingNote, cardPath, pdfPath, keptAt, periodID
+    }
+
+    /// The files live in this app's own folder, which iOS can move: a path saved before the move is
+    /// found again where the file is now, so the cover a braid shows does not come up broken.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        issue = try values.decode(WeeklyIssue.self, forKey: .issue)
+        card = try values.decode(WeeklyIssueShareCard.self, forKey: .card)
+        readerName = try values.decode(String.self, forKey: .readerName)
+        editorialNote = try values.decodeIfPresent(String.self, forKey: .editorialNote)
+        closingNote = try values.decodeIfPresent(String.self, forKey: .closingNote)
+        cardPath = MonthlyIssueMediaPath.resolving(try values.decode(String.self, forKey: .cardPath))
+        pdfPath = MonthlyIssueMediaPath.resolving(try values.decode(String.self, forKey: .pdfPath))
+        keptAt = try values.decode(Date.self, forKey: .keptAt)
+        periodID = try values.decodeIfPresent(PublicationPeriodID.self, forKey: .periodID)
+    }
+
+    init(issue: WeeklyIssue, card: WeeklyIssueShareCard, readerName: String, editorialNote: String?, closingNote: String?,
+         cardPath: String, pdfPath: String, keptAt: Date, periodID: PublicationPeriodID? = nil) {
+        self.issue = issue; self.card = card; self.readerName = readerName
+        self.editorialNote = editorialNote; self.closingNote = closingNote
+        self.cardPath = cardPath; self.pdfPath = pdfPath; self.keptAt = keptAt; self.periodID = periodID
+    }
 }
 
 /// The durable form of a monthly binding. The whole edition stays with its
@@ -5730,6 +5763,12 @@ extension MonthlyEdition {
             var copy = self
             copy.dayBook = lighter
             copy.daysLeftOut = (daysLeftOut ?? 0) + 1
+            return copy
+        }
+        // The month at a glance is the last thing a thinner book gives up.
+        if var keepsakes = handbook?.keepsakes, keepsakes.removeCore() {
+            var copy = self
+            copy.handbook?.keepsakes = keepsakes.isEmpty ? nil : keepsakes
             return copy
         }
         return nil
