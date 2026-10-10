@@ -1128,6 +1128,7 @@ enum GlowMenuAction {
     case openPlayfulMission
     case openBookSection(String)
     case openPagewright
+    case openBindery
     case bindWeeklyIssue
     case rebindWeeklyIssue
     case bindMonthlyEdition

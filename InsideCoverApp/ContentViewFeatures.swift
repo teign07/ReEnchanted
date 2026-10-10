@@ -3025,9 +3025,14 @@ extension ContentView {
                     dispatch.hasPosted ? dispatch : SeasonalDispatchWindow.confirmAddress(dispatch, at: Date())
                 }
             }
+            var welcome = vault.data.boundYearWelcomeWeekly
+            if let claim = remote.welcomeWeekly, claim.claimed, welcome?.membershipID == membershipID {
+                welcome?.adoptServerClaim(luluPrintJobID: claim.luluPrintJobID, at: Date())
+            }
             vault.mutate {
                 $0.boundYear = membership
                 $0.seasonalDispatches = dispatches
+                $0.boundYearWelcomeWeekly = welcome
             }
             setBoundYearDigitalAccess(membership.hasMonthlyContentAccess(at: Date()))
         } catch {
@@ -3328,6 +3333,141 @@ extension ContentView {
                 colophonBindingNote = "\(dispatch.coverLine) is still by the door. The print desk balked: \(error.localizedDescription)"
             }
         }
+    }
+
+    /// A new member's first full week, bound and posted on the house. Waits
+    /// for a week worth holding, sends it through the membership's own parcel
+    /// door, and says so on the desk once. Failures stay quiet and retry: the
+    /// Worker owns the claim, charges nothing and never prints it twice.
+    @MainActor
+    func postWelcomeWeeklyIfDue(now: Date = Date()) async {
+        noteBoundYearWelcomeWeekly(now: now)
+        guard let membershipID = vault.data.boundYearMembershipID,
+              let membership = vault.data.boundYear,
+              var welcome = vault.data.boundYearWelcomeWeekly,
+              welcome.membershipID == membershipID else { return }
+        if welcome.owesAnnouncement {
+            announceWelcomeWeekly(at: now)
+            return
+        }
+        let calendar = vault.data.publicationEpoch?.calendar() ?? .current
+        let candidates = PublicationPeriodCatalog.readerWeeks(
+            days: days,
+            today: today,
+            frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: calendar),
+            boundRevisionCounts: boundPublicationRevisionCounts,
+            now: now,
+            calendar: calendar
+        )
+        let decision = WelcomeWeeklyPolicy.decide(
+            welcome: welcome,
+            membership: membership,
+            weeks: PublicationPeriodCatalog.welcomeWeeklyTallies(
+                candidates: candidates, days: days, today: today, calendar: calendar
+            ),
+            now: now,
+            calendar: calendar
+        )
+        guard case .send(let period) = decision,
+              let ordinal = period.ordinal,
+              let edition = weeklyPrintEditions(now: now)
+                .first(where: { $0.publicationRecipeID == "weekly-issue-\(ordinal)" }) else { return }
+
+        // Marked before the first await, so a second pass waits it out.
+        welcome.lastAttemptAt = now
+        vault.mutate { $0.boundYearWelcomeWeekly = welcome }
+        do {
+            let spec = PrintSpec.saddleStitchedWeekly6x9
+            let directory = FileManager.default.temporaryDirectory
+            let interiorURL = directory.appendingPathComponent("ReEnchanted-Welcome-Weekly-Interior.pdf")
+            let coverURL = directory.appendingPathComponent("ReEnchanted-Welcome-Weekly-Cover.pdf")
+            let pageCount = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+            let editionID = "welcome-\(edition.publicationRecipeID ?? "weekly-issue-\(ordinal)")"
+            let slot = BoundYearWelcomeWeekly.slotKey
+            let client = PhysicalBookQuoteClient()
+            let preparation = try await client.prepareMembershipDispatch(
+                membershipID: membershipID,
+                seasonKey: slot,
+                request: BoundYearDispatchRequest(
+                    editionID: editionID,
+                    variant: PhysicalBookVariant.from(spec),
+                    pageCount: pageCount,
+                    selectedOptionIDs: [],
+                    editionTitle: edition.title
+                )
+            )
+            let order: PhysicalBookOrder
+            if let submitted = preparation.order {
+                order = submitted
+            } else {
+                guard let dispatchToken = preparation.dispatchToken,
+                      let exactCoverDimensions = preparation.coverDimensions else {
+                    throw NSError(domain: "Bindery", code: 15, userInfo: [NSLocalizedDescriptionKey: "The print desk didn't return the welcome issue's cover template."])
+                }
+                try MonthlyEditionPDFWriter.writeCoverWrap(
+                    edition,
+                    spec: spec,
+                    pageCount: pageCount,
+                    exactDimensions: exactCoverDimensions,
+                    to: coverURL
+                )
+                let printFiles: [(PhysicalBookHostedPrintFile.Kind, URL)] = [(.interior, interiorURL), (.cover, coverURL)]
+                for (kind, url) in printFiles {
+                    let data = try Data(contentsOf: url)
+                    _ = try await client.uploadMembershipDispatchPrintFile(
+                        kind: kind,
+                        fileURL: url,
+                        membershipID: membershipID,
+                        seasonKey: slot,
+                        editionID: editionID,
+                        dispatchToken: dispatchToken,
+                        md5: Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined(),
+                        sha256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+                    )
+                }
+                order = try await client.submitMembershipDispatch(
+                    membershipID: membershipID,
+                    seasonKey: slot,
+                    dispatchToken: dispatchToken
+                )
+            }
+            guard let printJobID = order.luluPrintJobID else {
+                throw NSError(domain: "Bindery", code: 16, userInfo: [NSLocalizedDescriptionKey: "The print desk took the welcome issue without a receipt."])
+            }
+            welcome.periodID = period.id.rawValue
+            welcome.postedAt = now
+            welcome.luluPrintJobID = printJobID
+            welcome.failedAttempts = 0
+            vault.mutate { $0.boundYearWelcomeWeekly = welcome }
+            announceWelcomeWeekly(at: now)
+        } catch {
+            // Quiet on purpose: a present that's late isn't news. The policy
+            // rests the next try for an hour, then six, then a day.
+            welcome.failedAttempts = (welcome.failedAttempts ?? 0) + 1
+            vault.mutate { $0.boundYearWelcomeWeekly = welcome }
+        }
+    }
+
+    /// Starts keeping the welcome's place the first time the Book sees a
+    /// current membership, so its first full week is counted from the join.
+    @MainActor
+    func noteBoundYearWelcomeWeekly(now: Date = Date()) {
+        let tracked = BoundYearWelcomeWeekly.tracking(
+            vault.data.boundYearWelcomeWeekly,
+            membershipID: vault.data.boundYearMembershipID,
+            membership: vault.data.boundYear,
+            now: now
+        )
+        guard tracked != vault.data.boundYearWelcomeWeekly else { return }
+        vault.mutate { $0.boundYearWelcomeWeekly = tracked }
+    }
+
+    @MainActor
+    private func announceWelcomeWeekly(at now: Date) {
+        guard var welcome = vault.data.boundYearWelcomeWeekly, welcome.owesAnnouncement else { return }
+        statusMessage = EditionOfferCopy.welcomeWeeklyDeskLine
+        welcome.announcedAt = now
+        vault.mutate { $0.boundYearWelcomeWeekly = welcome }
     }
 
     private func printSpec(forSeasonalVariantID variantID: String) -> PrintSpec? {
@@ -14642,6 +14782,10 @@ enum PagewrightPDFWriter {
         context.saveGState()
         context.translateBy(x: center.x, y: center.y)
         context.rotate(by: CGFloat(element.rotation * .pi / 180))
+        // The same lift the photo has on the worktable, so it sits on the paper
+        // instead of being printed into it.
+        context.setShadow(offset: CGSize(width: 0, height: 4), blur: 8,
+                          color: UIColor.black.withAlphaComponent(0.14).cgColor)
         image.draw(in: rect)
         context.restoreGState()
     }

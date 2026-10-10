@@ -165,15 +165,39 @@ class Issue:
         # read by file name at binding, so no pack file has to mention them.
         plates = self.config.get('plates')
         if plates:
-            for source in sorted((self.directory / plates['directory']).glob('*.png')):
+            sources = sorted(p for p in (self.directory / plates['directory']).iterdir()
+                             if p.suffix.lower() in ('.png', '.jpg', '.jpeg'))
+            for source in sources:
                 asset_id = plates['prefix'] + source.stem
-                add(asset_id, 'media', 'publication', source, asset_id + '.png')
+                fitted = fit_plate(source, target)
+                add(asset_id, 'media', 'publication', fitted, asset_id + fitted.suffix)
         if missing and not allow_missing_audio:
             raise IssueError('Missing recordings: ' + ', '.join(missing))
         entry = {'id': self.issue_id, 'packID': self.pack['id'], 'title': self.config['title']}
         entry.update(self.windows())
         entry['assets'] = assets
         return entry, missing
+
+
+# The phone refuses a publication file over 2 MB, and a month installs all or
+# nothing: one oversized plate would keep the whole issue off every phone.
+PLATE_LIMIT_BYTES = 2 * 1024 * 1024 - 64 * 1024
+
+
+def fit_plate(source, _target=None):
+    """A plate under the phone's publication limit: as given when it fits,
+    else a high-quality JPEG at print size (2400 px on the long side, then
+    lower quality, never below 70). Refuses rather than ship one too big."""
+    if source.stat().st_size <= PLATE_LIMIT_BYTES:
+        return source
+    fitted = Path(tempfile.mkdtemp(prefix='plate-')) / (source.stem + '.jpg')
+    for quality in (90, 85, 80, 75, 70):
+        subprocess.run(['sips', '-s', 'format', 'jpeg', '-s', 'formatOptions', str(quality),
+                        '-Z', '2400', str(source), '--out', str(fitted)],
+                       check=True, capture_output=True)
+        if fitted.stat().st_size <= PLATE_LIMIT_BYTES:
+            return fitted
+    raise IssueError(f'plate {source.name} is still over 2 MB at JPEG quality 70: make it smaller')
 
 
 def stage(issue_dirs, output, generated_at, allow_missing_audio=False, audio_directories=None):

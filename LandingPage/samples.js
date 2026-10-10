@@ -35,7 +35,7 @@
   });
   $('page-image').addEventListener('error', () => status('This Page could not load. Try the PDF above, or reload the Page.'));
   document.addEventListener('keydown', event => {
-    if (!issue || event.altKey || event.ctrlKey || event.metaKey || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName)) return;
+    if (!issue || window.PublicImageViewer?.isOpen() || event.altKey || event.ctrlKey || event.metaKey || /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(event.target.tagName)) return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
       event.preventDefault(); showPage(current + (event.key === 'ArrowLeft' ? -1 : 1));
     }

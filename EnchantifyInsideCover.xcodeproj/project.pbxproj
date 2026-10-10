@@ -62,6 +62,7 @@
 		0200000000000000000003FB /* BookThreads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FA /* BookThreads.swift */; };
 		0200000000000000000003FD /* BraidCrossing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003FC /* BraidCrossing.swift */; };
 		02000000000000000000041D /* WonderBraid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041C /* WonderBraid.swift */; };
+		02000000000000000000F107 /* AcademyCurriculum.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F106 /* AcademyCurriculum.swift */; };
 		02000000000000000000F105 /* HandbookKeepsakesPDF.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F104 /* HandbookKeepsakesPDF.swift */; };
 		02000000000000000000F103 /* HandbookKeepsakes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F102 /* HandbookKeepsakes.swift */; };
 		02000000000000000000F101 /* HandbookPuzzles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000F100 /* HandbookPuzzles.swift */; };
@@ -258,6 +259,7 @@
 		0200000000000000000003FA /* BookThreads.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookThreads.swift; sourceTree = "<group>"; };
 		0200000000000000000003FC /* BraidCrossing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidCrossing.swift; sourceTree = "<group>"; };
 		02000000000000000000041C /* WonderBraid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderBraid.swift; sourceTree = "<group>"; };
+		02000000000000000000F106 /* AcademyCurriculum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcademyCurriculum.swift; sourceTree = "<group>"; };
 		02000000000000000000F104 /* HandbookKeepsakesPDF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookKeepsakesPDF.swift; sourceTree = "<group>"; };
 		02000000000000000000F102 /* HandbookKeepsakes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookKeepsakes.swift; sourceTree = "<group>"; };
 		02000000000000000000F100 /* HandbookPuzzles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HandbookPuzzles.swift; sourceTree = "<group>"; };
@@ -536,6 +538,7 @@
 				0200000000000000000003FA /* BookThreads.swift */,
 				0200000000000000000003FC /* BraidCrossing.swift */,
 				02000000000000000000041C /* WonderBraid.swift */,
+				02000000000000000000F106 /* AcademyCurriculum.swift */,
 				02000000000000000000041E /* WeeklyCuration.swift */,
 				02000000000000000000F100 /* HandbookPuzzles.swift */,
 				02000000000000000000F102 /* HandbookKeepsakes.swift */,
@@ -874,6 +877,7 @@
 				0200000000000000000003FB /* BookThreads.swift in Sources */,
 				0200000000000000000003FD /* BraidCrossing.swift in Sources */,
 				02000000000000000000041D /* WonderBraid.swift in Sources */,
+				02000000000000000000F107 /* AcademyCurriculum.swift in Sources */,
 				02000000000000000000041F /* WeeklyCuration.swift in Sources */,
 				02000000000000000000F101 /* HandbookPuzzles.swift in Sources */,
 				02000000000000000000F103 /* HandbookKeepsakes.swift in Sources */,

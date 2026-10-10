@@ -22,15 +22,105 @@ final class HandbookTests: XCTestCase {
     }
 
     func testEveryClassAndClubHasALessonAndAWorksheet() {
-        let handbook = make()
-        XCTAssertFalse(handbook.classes.isEmpty)
-        XCTAssertFalse(handbook.societies.isEmpty)
-        for lesson in handbook.lessons {
+        let rooms = HandbookBuilder.lessons(from: [])
+        XCTAssertTrue(rooms.contains { !$0.isClub })
+        XCTAssertTrue(rooms.contains { $0.isClub })
+        for lesson in rooms {
             XCTAssertFalse(lesson.title.isEmpty, lesson.id)
             XCTAssertFalse(lesson.beats.isEmpty, lesson.id)
             XCTAssertFalse(lesson.invitation.isEmpty, lesson.id)
         }
-        XCTAssertTrue(handbook.lessons.contains { !$0.fields.isEmpty })
+        XCTAssertTrue(rooms.contains { !$0.fields.isEmpty })
+    }
+
+    // MARK: The curriculum
+
+    private func date(_ year: Int, _ month: Int) -> Date {
+        var parts = DateComponents(); parts.year = year; parts.month = month; parts.day = 12
+        return Calendar(identifier: .gregorian).date(from: parts)!
+    }
+
+    func testEveryCourseTeachesTwelveDifferentLessonsAYearInOrder() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        XCTAssertGreaterThanOrEqual(AcademyCurriculum.courses.count, 2)
+        for (room, course) in AcademyCurriculum.courses {
+            let year = (0..<12).compactMap { offset -> AcademyLessonModule? in
+                let month = calendar.date(byAdding: .month, value: offset, to: date(2026, 9))!
+                return AcademyCurriculum.lesson(for: room, on: month, calendar: calendar)
+            }
+            XCTAssertEqual(course.count, 12, room)
+            XCTAssertEqual(year.map(\.number), Array(1...12).map(Optional.init), room)
+            XCTAssertEqual(Set(year.map(\.id)).count, 12, room)
+            XCTAssertEqual(Set(year.compactMap(\.mode)).count, 12, "\(room): every lesson teaches a different way")
+            XCTAssertEqual(AcademyScheduleRegistry.lessonModules[room]?.id, course[0].id, "\(room): the standing lesson is lesson one")
+            for lesson in year {
+                XCTAssertEqual(lesson.sessionID, room, lesson.id)
+                XCTAssertFalse((lesson.lecture ?? "").isEmpty, lesson.id)
+                XCTAssertFalse((lesson.twoMinutes ?? "").isEmpty, lesson.id)
+                XCTAssertFalse((lesson.reading ?? "").isEmpty, lesson.id)
+                XCTAssertGreaterThanOrEqual(lesson.lectureBeats.count, 3, lesson.id)
+                // The Book's voice: no dashes standing in for commas.
+                for line in [lesson.concept, lesson.demonstration, lesson.lecture ?? "", lesson.twoMinutes ?? ""] {
+                    XCTAssertFalse(line.contains("—"), lesson.id)
+                }
+            }
+            XCTAssertEqual(AcademyCurriculum.lesson(for: room, on: date(2027, 9), calendar: calendar)?.number, 1, "\(room): the second year starts again")
+        }
+        XCTAssertEqual(AcademyCurriculum.lesson(for: "art-of-the-glint", on: date(2026, 10), calendar: calendar)?.id, "glint-gorilla-002")
+    }
+
+    func testALessonsOwnWorksheetBelongsToItsRoom() throws {
+        for (room, course) in AcademyCurriculum.courses {
+            for lesson in course {
+                let practice = try XCTUnwrap(AcademyActivityRegistry.activity(for: room, lessonID: lesson.id), lesson.id)
+                XCTAssertEqual(practice.sessionID, room, lesson.id)
+                XCTAssertEqual(practice.kind, AcademyActivityRegistry.activity(for: room)?.kind, lesson.id)
+                if lesson.practice != nil {
+                    // Its own worksheet is plain boxes on a plain card.
+                    XCTAssertTrue(practice.isLessonOwn, lesson.id)
+                    XCTAssertFalse(practice.fields.isEmpty, lesson.id)
+                } else {
+                    XCTAssertFalse(practice.isLessonOwn, lesson.id)
+                }
+            }
+        }
+        // A room with no course keeps its standing worksheet, with or without a lesson id.
+        XCTAssertEqual(AcademyActivityRegistry.activity(for: "ink-binding", lessonID: "ink-binding-souvenir-001")?.id,
+                       AcademyActivityRegistry.activity(for: "ink-binding")?.id)
+    }
+
+    func testTheBookPrintsTheLessonTheReaderSatNotTheMonthsLatest() throws {
+        var page = classPage("c1", session: "art-of-the-glint", outcome: "Three facts")
+        page.metadata?["lessonModuleID"] = "glint-specificity-001"
+        let lessons = HandbookBuilder.lessons(from: [page], term: date(2026, 10))
+        let glint = try XCTUnwrap(lessons.first { $0.id == "art-of-the-glint" })
+        XCTAssertEqual(glint.title, "The Doorknob Test")
+        XCTAssertEqual(glint.number, 1)
+        XCTAssertEqual(glint.lessonCount, 12)
+        // Without a sitting, the room prints the month's lesson.
+        let unsat = try XCTUnwrap(HandbookBuilder.lessons(from: [], term: date(2026, 10)).first { $0.id == "art-of-the-glint" })
+        XCTAssertEqual(unsat.title, "You See What You're Looking For")
+    }
+
+    func testRoomsTheReaderSatAreWrittenUpAndTwoMoreKeepASeat() throws {
+        let handbook = HandbookBuilder.make(
+            pages: [classPage("c1", session: "ink-binding", outcome: "Mine")],
+            castPresence: [], terms: [], seed: "2026-10", term: date(2026, 10)
+        )
+        XCTAssertEqual(handbook.lessons.map(\.id), ["ink-binding"])
+        let open = try XCTUnwrap(handbook.openSeats)
+        XCTAssertEqual(open.count, HandbookBuilder.openSeatLimit)
+        XCTAssertFalse(open.contains { $0.id == "ink-binding" })
+        // Rooms teaching a course come before rooms with a standing lesson.
+        XCTAssertTrue(open.allSatisfy { ($0.lessonCount ?? 1) > 1 })
+    }
+
+    func testAReaderWhoSatNothingStillGetsOneLessonInFull() {
+        let handbook = HandbookBuilder.make(pages: [], castPresence: [], terms: [], seed: "2026-10", term: date(2026, 10))
+        XCTAssertEqual(handbook.lessons.count, 1)
+        XCTAssertFalse(handbook.lessons[0].attended)
+        XCTAssertEqual(handbook.openSeats?.count, HandbookBuilder.openSeatLimit)
+        XCTAssertFalse(handbook.openSeats?.contains { $0.id == handbook.lessons[0].id } ?? true)
     }
 
     func testReaderEntryAppearsOnlyForTheRoomTheySat() throws {

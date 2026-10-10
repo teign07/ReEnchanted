@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="strict-origin-when-cross-origin">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self' https://buttondown.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https://community-api.reenchanted.app; upgrade-insecure-requests">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; form-action 'self' https://buttondown.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self'; connect-src 'self' https://community-api.reenchanted.app https://api.open-meteo.com; upgrade-insecure-requests">
     <meta
       name="description"
       content="The rain during that phone call. The song that landed too hard. ReEnchanted asks about your real day, keeps what was true, and writes it back as a fairy tale you're in."
@@ -76,7 +76,9 @@
     <title>ReEnchanted | Find the Hidden Magic in Your Life.</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="./book.css?v=54">
+    <link rel="stylesheet" href="./book.css?v=57">
+    <link rel="stylesheet" href="./image-viewer.css?v=1">
+    <script src="./image-viewer.js?v=2" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#manuscript">Skip to the pages</a>
@@ -90,7 +92,7 @@
           <nav class="binding-tabs" aria-label="Book bookmarks"><a href="#glow" aria-haspopup="dialog" aria-expanded="false" title="The Book’s menu: how it works, privacy, reading options, and the invite" class="tab-glow" aria-label="Glow, the Book’s menu">Glow</a><a href="#contents" aria-haspopup="dialog" aria-expanded="false" title="Jump to a chapter" class="tab-contents">Contents</a><a href="#capture" aria-haspopup="dialog" aria-expanded="false" class="tab-capture" aria-label="Capture, leave a sentence" title="Give the Book a little ink">Capture</a><a href="#body" aria-haspopup="dialog" aria-expanded="false" title="Printed Books, editions, gifts, and prices" class="tab-body" aria-label="Body, printed Books and editions">Body</a><a href="#place" aria-haspopup="dialog" aria-expanded="false" title="The Academy, the Stacks, and real places" class="tab-place" aria-label="Place, the Academy and your world">Place</a><a href="#radio-player" aria-haspopup="dialog" aria-expanded="false" title="Listen to the Book’s stations while you read" class="tab-radio" aria-label="Radio, play the Book’s stations">Radio</a></nav>
         </div>
         <div class="reading-controls"><button type="button" id="previous-page" aria-label="Previous page">←</button><span id="page-position" aria-live="polite" aria-atomic="true">The cover</span><button type="button" id="next-page" aria-label="Next page">→</button></div>
-        <div class="reading-footnotes"><p id="turn-hint">Drag a page corner, or use the arrows.</p><button id="book-sound-toggle" type="button" aria-pressed="true" aria-label="Mute Book sounds" hidden>♪ Sound on</button></div>
+        <div class="reading-footnotes"><p id="turn-hint">Drag a page corner, or use the arrows. Tap a picture to look closer.</p><button id="book-sound-toggle" type="button" aria-pressed="true" aria-label="Mute Book sounds" hidden>♪ Sound on</button></div>
         <aside class="desk-note making-note"><!-- slip:start --><p>A <span class="nowrap">Faerie-tale</span> book series of your life, made on your iPhone.</p><span class="desk-rule"></span><p>Free digital books, paid physical.</p><!-- slip:end --></aside>
       </div>
       <article id="manuscript" aria-label="The complete public edition"><section id="frontispiece" data-chapter="The cover" data-kind="title"><div class="title-page"><p class="imprint">A Book about your actual life</p><img class="cover-plate" src="./assets/book/outer-stacks-threshold.webp" width="1536" height="1024" alt="At dusk, a reader carrying groceries steps from a rain-wet street into the glowing, impossible library of the Outer Stacks"><h1>ReEnchanted</h1><p class="title-subtitle">There’s a Faerie tale<br>hiding in your ordinary life.</p><p class="title-invitation">I could be your Book. I’d like that.</p><a class="ink-button" href="#about">Open me <span aria-hidden="true">↗</span></a><p class="imprint title-imprint">For iPhone &amp; iPad · The digital Book is free</p></div></section><section id="about" data-chapter="A Book with character">
@@ -443,7 +445,7 @@
       </section><section id="sample-issues" data-chapter="Read the example issues">
         <p class="eyebrow">Open the proof</p>
         <h2>Here. A whole week.<br>A whole month.</h2>
-        <p class="sample-intro-copy"><a href="./samples.html?issue=weekly#kept-pages" target="_blank" rel="noopener"><img src="./assets/samples/pagewright-people-and-pets.webp" alt="An actual Pagewright sheet composed with personal photographs and app marginalia" loading="lazy" width="1224" height="1584"></a>A real app export from our October simulation. Original keeps, saved braids, real photos, and Pagewright sheets.</p>
+        <p class="sample-intro-copy"><a href="./samples.html?issue=weekly#kept-pages" target="_blank" rel="noopener"><img src="./assets/samples/pagewright-people-and-pets.webp?v=e86315e85b9c" alt="An actual Pagewright sheet composed with personal photographs and app marginalia" loading="lazy" width="1224" height="1584"></a>A real app export from our October simulation. Original keeps, saved braids, real photos, and Pagewright sheets.</p>
         <p class="sample-actions"><a href="./samples.html?issue=weekly" target="_blank" rel="noopener">Open the week ↗</a> · <a href="./samples.html?issue=monthly" target="_blank" rel="noopener">Open the month ↗</a></p>
 
         <figure class="sample-preview sample-issue-card" data-page-break="before">
@@ -536,7 +538,8 @@
               <p class="edition-plan-kicker">The Bound Year</p>
               <h4>$24.99 <span>monthly</span> <small>or $279 yearly</small></h4>
               <p>
-                Three seasonal softcovers and the year’s final hardcover. Both payment
+                Three seasonal softcovers and the year’s final hardcover. And your
+                first full week comes first: bound and posted, on me. Both payment
                 options cost less than buying the same four Books one at a time. Stripe
                 handles the payment and delivery details.
               </p>
@@ -587,11 +590,11 @@
 
         <div class="pagewright-gallery">
           <figure class="pagewright-finished">
-            <img src="./assets/screens/pagewright-finished.jpg" alt="A finished cream scrapbook Page combining a personal waterside photograph, kept Page scraps, a feather, a compass, and paper ephemera" loading="lazy" decoding="async" width="960" height="1242">
-            <figcaption>A finished Page, made from a life already in progress.</figcaption>
+            <img src="./assets/samples/pagewright-floating-home.webp?v=9036f9e2e625" alt="A small floating home: an actual Pagewright export with two boat-interior photographs, a kept souvenir, a compass and a shell on torn paper" loading="lazy" decoding="async" width="1224" height="1584">
+            <figcaption>A finished Page from our current sample month. Your photos, a kept scrap, and room to move them around.</figcaption>
           </figure>
           <figure class="pagewright-studio">
-            <img src="./assets/screens/pagewright-studio-tonight.jpg" alt="The Pagewright Scrapbook Studio on a wooden desk: a Page titled Tonight with two Story scraps, a photograph of fireworks over a harbour, and a bat cut-out, with paper scraps and a tool drawer below" loading="lazy" decoding="async" width="359" height="780">
+            <img src="./assets/screens/pagewright-studio-tonight-v1.webp" alt="The Pagewright Scrapbook Studio on a wooden desk: a Page titled Tonight with two Story scraps, a photograph of fireworks over a harbour, and a bat cut-out, with paper scraps and a tool drawer below" loading="lazy" decoding="async" width="359" height="780">
             <figcaption>Not a template gallery. A worktable.</figcaption>
           </figure>
         </div>
@@ -622,18 +625,18 @@
         </div>
         <div class="mechanics-grid">
           <article class="mechanic">
-            <div class="mechanic-shot"><img src="./assets/screens/spells.jpg" alt="Spells and Enchantments screen" loading="lazy" decoding="async" width="590" height="1280"></div>
             <h3>Spells &amp; Glow</h3>
+            <figure class="mechanic-shot"><img src="./assets/screens/magic-current-v1.webp" alt="The current Glow menu, with Magic, Compass Run and Spells on parchment" loading="lazy" decoding="async" width="800" height="1739"></figure>
             <p>Belief, held steady and faintly lit. Open a <a href="#note-compass-runs">Compass Run</a>, or aim an <a href="#note-enchantments">Enchantment</a> at something dull until it talks. The stapler will talk. Give it a minute.</p>
           </article>
           <article class="mechanic">
-            <div class="mechanic-shot"><img src="./assets/screens/wonder-compass.jpg" alt="Wonder Compass screen" loading="lazy" decoding="async" width="590" height="1280"></div>
             <h3><a href="#note-wonder-compass">Wonder Compass</a></h3>
+            <figure class="mechanic-shot"><img src="./assets/screens/compass-run-current-v1.webp" alt="A Compass Run opening on the current Book, asking where the run can happen" loading="lazy" decoding="async" width="800" height="1739"></figure>
             <p>A Compass Run is a mini-adventure I build for you, wherever you are. Four easy steps—Notice, Embark, Sense, Write—turn anything from one minute in your kitchen to a week-long vacation into a way back to the world. You bring your real day. I do the thinking. You come home with a memory.</p>
           </article>
           <article class="mechanic">
-            <div class="mechanic-shot"><img class="wicker-dare-shot" src="./assets/screens/wicker-dare-unreasonable-shelf.jpg" alt="A Wicker Dare asking the reader to inspect an unreasonable shelf" loading="lazy" decoding="async" width="359" height="780"></div>
             <h3>Missions, Dares &amp; Souvenirs</h3>
+            <figure class="mechanic-shot"><img class="wicker-dare-shot" src="./assets/screens/wicker-page-current-v1.webp" alt="Wicker Eddies, opening on a Page in the current Book" loading="lazy" decoding="async" width="800" height="1739"></figure>
             <p>Small prompts turn your attention outward, steal one real moment from Routine, and help you keep it.</p>
             <p><strong>Playful Missions</strong> give your senses a tiny game: hunt one impossible blue, or listen for five small sounds.</p>
             <p><strong>Wicker Dares</strong> add harmless mischief and a little more nerve. Wear the unreasonable colour. Compliment an object aloud. A dare isn’t a debt.</p>
@@ -822,14 +825,14 @@
           </p>
         </div>
         <div class="anchor-showcase" id="anchor-showcase">
-          <div class="anchor-phone" id="anchor-phone">
-            <img class="anchor-slide is-active" src="./assets/screens/anchor-1.jpg" alt="Anchoring a real place in ReEnchanted" loading="lazy" decoding="async" width="600" height="1300">
+          <figure class="anchor-phone" id="anchor-phone">
+            <img class="anchor-slide is-active" src="./assets/screens/anchor-current-v1.webp" alt="The current Anchor Page opening over the Book" loading="lazy" decoding="async" width="800" height="1739">
 
 
 
 
 
-          </div>
+          </figure>
           <div class="anchor-showcase-copy">
             <p class="eyebrow">Magic belongs to places, too</p>
             <h3>Nail down a real place. Watch its hidden room fill up.</h3>
@@ -945,10 +948,10 @@
         <div class="academy-feature">
           <div class="academy-gallery">
             <figure class="academy-phone back">
-              <img src="./assets/screens/belief-cast.jpg" alt="The Belief menu - give or take Belief among the cast" loading="lazy" decoding="async" width="600" height="1300">
+              <img src="./assets/screens/cast-belief-current-v1.webp" alt="The current Cast menu, with Give Belief and Take Belief" loading="lazy" decoding="async" width="800" height="1739">
             </figure>
             <figure class="academy-phone front">
-              <img src="./assets/screens/cast-roster.jpg" alt="Giving Belief to a cast member in ReEnchanted" loading="lazy" decoding="async" width="600" height="1300">
+              <img src="./assets/screens/cast-choice-current-v1.webp" alt="The current Wicker Eddies menu, offering About and Give Belief" loading="lazy" decoding="async" width="800" height="1739">
             </figure>
           </div>
 
@@ -1104,9 +1107,7 @@
             <figure class="story-page-shot prose">
               <img src="./assets/screens/story-page-weather-prose.jpg" alt="A Story Page prose scene titled Weather in the Stacks" loading="lazy" decoding="async" width="800" height="1268">
             </figure>
-            <figure class="story-page-shot choices">
-              <img src="./assets/screens/story-page-weather-choices.jpg" alt="A Story Page showing choices for how the page turns" loading="lazy" decoding="async" width="800" height="1268">
-            </figure>
+            <p class="story-page-example"><a href="./samples.html?issue=monthly">Read the real sample month ↗</a><br><small>Saved story, kept scraps, and finished Pages.</small></p>
           </div>
         </div>
 
@@ -1167,7 +1168,7 @@
         </div>
 
 
-      <figure><img src="./assets/screens/radio.jpg" width="720" height="1560" alt="The app’s analogue radio, with its station dial and playlist" loading="lazy"><figcaption>The Radio, inside the app.</figcaption></figure></section><section id="between-ebook" data-interleaf="true" data-chapter="Between the Pages" data-kind="quiet"><div class="quiet-composition quiet-illustration"><button type="button" class="plate-button" data-plate="OuterStacks" aria-label="Look closer at OuterStacks"><img src="./assets/book/OuterStacks.webp" alt="The Outer Stacks, an illustrated Library beyond the Academy" loading="lazy"></button></div></section><section id="ebook" data-chapter="The Wonder Compass">
+      <figure><img src="./assets/screens/radio-current-v1.webp" width="800" height="1739" alt="The current ReEnchanted Radio Page, tuned to 88.3 Fae-Fi" loading="lazy"><figcaption>The Radio, inside the app.</figcaption></figure></section><section id="between-ebook" data-interleaf="true" data-chapter="Between the Pages" data-kind="quiet"><div class="quiet-composition quiet-illustration"><button type="button" class="plate-button" data-plate="OuterStacks" aria-label="Look closer at OuterStacks"><img src="./assets/book/OuterStacks.webp" alt="The Outer Stacks, an illustrated Library beyond the Academy" loading="lazy"></button></div></section><section id="ebook" data-chapter="The Wonder Compass">
         <div class="ebook-copy">
           <p class="eyebrow">For when you can’t see any of it</p>
           <h2>Gone <a href="#note-the-nothing">grey</a>?</h2>
@@ -1257,13 +1258,13 @@
 
         <div class="stacks-search-art">
           <figure class="stacks-phone phone-empty">
-            <img src="./assets/screens/search-stacks-empty.jpg" alt="Search the Stacks input with suggested searches" loading="lazy" decoding="async" width="800" height="1734">
+            <img src="./assets/screens/search-current-v1.webp" alt="Search the Stacks in the current app, with suggested searches" loading="lazy" decoding="async" width="800" height="1739">
           </figure>
           <figure class="stacks-phone phone-results">
-            <img src="./assets/screens/search-stacks-results.jpg" alt="Semantic search results for everything with love" loading="lazy" decoding="async" width="800" height="1734">
+            <img src="./assets/screens/search-results-current-v1.webp" alt="Search results for Small Glow, showing matching Page families" loading="lazy" decoding="async" width="800" height="1739">
           </figure>
           <figure class="stacks-phone phone-reading">
-            <img src="./assets/screens/search-stacks-reading.jpg" alt="Private on-device reading card while the search index reads a question" loading="lazy" decoding="async" width="800" height="1734">
+            <img src="./assets/screens/search-reading-stand-current-v1.webp" alt="A search result opened on the current Book reading stand" loading="lazy" decoding="async" width="800" height="1739">
           </figure>
         </div>
       </section><section id="between-community" data-interleaf="true" data-chapter="Between the Pages" data-kind="quiet"><div class="quiet-composition quiet-illustration"><button type="button" class="plate-button" data-plate="Quillquarium" aria-label="Look closer at Quillquarium"><img src="./assets/book/Quillquarium.webp" alt="The Quillquarium, a submerged study where pens swim like living creatures" loading="lazy"></button></div></section><section id="community" data-chapter="The Public Margins">
@@ -1368,7 +1369,7 @@
 
         </div>
         <figure class="privacy-art">
-          <img src="./assets/screens/local-brain.jpg" alt="Local brain and privacy settings in ReEnchanted" loading="lazy" decoding="async" width="590" height="1280">
+          <img src="./assets/screens/privacy-current-v1.webp" alt="Current Colophon settings for the local brain, notifications and protecting the Book" loading="lazy" decoding="async" width="800" height="1739">
         </figure>
       </section><section id="between-promises" data-interleaf="true" data-chapter="Between the Pages" data-kind="quiet"><div class="quiet-composition quiet-marginalia quiet-variant-0"><img class="quiet-mark" src="./assets/book/MarginaliaGoblinReading.webp" alt="A small goblin reading a red book" loading="lazy"><img class="quiet-note" src="./assets/book/AcademyNoteMarginsAlive.webp" alt="The margins are alive. Look closer." loading="lazy"></div></section><section id="promises" data-chapter="A few promises">
         <ul class="promises">
@@ -1504,7 +1505,7 @@
     <script src="./book-encounters.js?v=14"></script>
     <script src="./story-pages.js?v=18"></script>
     <script src="./marginalia-catalogue.js?v=3"></script>
-    <script src="./first-reading.js?v=38"></script>
+    <script src="./first-reading.js?v=42"></script>
     <script src="./marginalia-deck.js?v=2"></script>
     <script src="./illumination-catalogue.js?v=1"></script>
     <script src="./illumination-deck.js?v=3"></script>
@@ -1513,7 +1514,7 @@
     <script src="./feast-leaf.js?v=3"></script>
     <script src="./book-day.js?v=3"></script>
     <script src="./book-souvenir.js?v=2" defer></script>
-    <script src="./book.js?v=48" defer></script>
+    <script src="./book.js?v=50" defer></script>
     <script src="./book-atmosphere.js?v=2" defer></script>
     <script src="./contact.js?v=3" defer></script>
   </body>

@@ -14957,6 +14957,18 @@ enum ReaderShelf: String, Codable, Equatable, CaseIterable {
         "scared the life out of", "afraid i'd laugh", "miss you already"
     ]
 
+    /// How people actually say a day was hard, in their own words: plainly,
+    /// and often by saying they won't say. Read only from the reader's own
+    /// writing, so a Book prompt that mentions a hard day never marks a page.
+    private static let hardDaySignals: [String] = [
+        "hard day", "rough day", "awful day", "terrible day", "horrible day", "worst day", "bad day",
+        "hard week", "rough week", "awful week", "bad week", "long hard",
+        "won't write all of it", "won't write about it", "can't write about it", "don't want to write about",
+        "not going to write about", "won't go into it", "don't want to talk about it",
+        "falling apart", "fell apart", "can't cope", "couldn't cope", "overwhelmed", "heartbroken",
+        "exhausted and", "at the end of my rope", "everything went wrong"
+    ]
+
     static let shadowTag = "shelf-shadow"
     static let lightTag = "shelf-light"
     /// The reader's fence: kept in the archive, never story material.
@@ -14973,7 +14985,10 @@ enum ReaderShelf: String, Codable, Equatable, CaseIterable {
             .lowercased()
         guard !text.isEmpty else { return .light }
         guard !lightRescues.contains(where: text.contains) else { return .light }
-        return shadowMarkers.contains(where: text.contains) ? .shadow : .light
+        if shadowMarkers.contains(where: text.contains) { return .shadow }
+        let own = page.readerAuthoredTexts.joined(separator: " ").lowercased()
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+        return hardDaySignals.contains(where: own.contains) ? .shadow : .light
     }
 
     /// Pages the reader sealed never reach either shelf. A seal is absolute and

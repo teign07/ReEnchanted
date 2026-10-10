@@ -107,7 +107,7 @@ def main():
             image.save(destination / target, 'WEBP', quality=90, method=6)
         digest = hashlib.sha256(image_path.read_bytes()).hexdigest()
         catalogue['pagewright'].append({'title': sheet['title'], 'image': './assets/samples/' + target + '?v=' + digest[:12],
-            'alt': f"{sheet['title']}: an actual Pagewright sheet with {len(sheet['photos'])} selected photographs, app marginalia, and kept scraps."})
+            'alt': f"{sheet['title']}: an actual Pagewright sheet with {sum(e['kind'] == 'photo' for e in sheet['elements'])} selected photographs, app marginalia, and kept scraps."})
     (destination / 'catalogue.json').write_text(json.dumps(catalogue, ensure_ascii=False, indent=2) + '\n')
     counts = {kind: len(value['pages']) for kind, value in catalogue['issues'].items()}
     print(json.dumps({'pages': counts, 'output': str(destination), 'review': str(audit)}, indent=2))

@@ -760,7 +760,7 @@ enum EditionOfferCopy {
         return finished + """
 
 
-        You can order just this one. Or start the Bound Year and I'll post you four a year without being asked: three seasons and a hardcover to close the year. It counts from the first of the month you join, so the sooner you start, the more of your year goes in. \(BoundYearPricing.annualDisplayPrice) a year, or \(BoundYearPricing.monthlyDisplayPrice) a month.
+        You can order just this one. Or start the Bound Year and I'll post you four a year without being asked: three seasons and a hardcover to close the year. It counts from the first of the month you join, so the sooner you start, the more of your year goes in. \(BoundYearPricing.annualDisplayPrice) a year, or \(BoundYearPricing.monthlyDisplayPrice) a month. \(boundYearWelcomeLine)
         """
     }
 
@@ -780,7 +780,7 @@ enum EditionOfferCopy {
         return finished + """
 
 
-        Order just \(label) if that's all you want. Or start a Bound Year and I'll post you the next four: three seasons, then the hardcover. \(BoundYearPricing.annualDisplayPrice) for the year, or \(BoundYearPricing.monthlyDisplayPrice) a month.
+        Order just \(label) if that's all you want. Or start a Bound Year and I'll post you the next four: three seasons, then the hardcover. \(BoundYearPricing.annualDisplayPrice) for the year, or \(BoundYearPricing.monthlyDisplayPrice) a month. \(boundYearWelcomeLine)
         """
     }
 
@@ -789,8 +789,14 @@ enum EditionOfferCopy {
         if isMember {
             return "\n\nWant it on paper too? The press will print it. It's yours either way."
         }
-        return "\n\nWant it on paper? The press will print it. Or start the Bound Year instead: four books a year, counted from the first of the month you join, so \(joinMonth) would go in the first one. \(BoundYearPricing.monthlyDisplayPrice) a month or \(BoundYearPricing.annualDisplayPrice) a year."
+        return "\n\nWant it on paper? The press will print it. Or start the Bound Year instead: four books a year, counted from the first of the month you join, so \(joinMonth) would go in the first one. \(BoundYearPricing.monthlyDisplayPrice) a month or \(BoundYearPricing.annualDisplayPrice) a year. \(boundYearWelcomeLine)"
     }
+
+    /// The Bound Year's welcome, said wherever the Book pitches it.
+    static let boundYearWelcomeLine = "And your first full week comes bound and posted, on me."
+
+    /// The one line on the desk when the welcome weekly goes to the press.
+    static let welcomeWeeklyDeskLine = "Your first week's on its way to you, bound. The staples are very proud of themselves."
 
     /// The weekly Page's closing paragraph: the month as a book in progress.
     /// Small on purpose. It sells nothing; it makes the month visible.
@@ -802,7 +808,7 @@ enum EditionOfferCopy {
     static func asideLine(for cadence: PublicationEditionKind) -> String {
         switch cadence {
         case .weekly:
-            return "Four books a year instead of one at a time? The Bound Year starts at \(BoundYearPricing.monthlyDisplayPrice) a month."
+            return "Four books a year instead of one at a time? The Bound Year starts at \(BoundYearPricing.monthlyDisplayPrice) a month, and your first full week comes posted, on me."
         case .monthly:
             return "Rather not do this every month? The Bound Year posts four books a year, from \(BoundYearPricing.monthlyDisplayPrice) a month."
         case .seasonal:
@@ -820,5 +826,167 @@ extension PublicationPeriodID {
         let parts = rawValue.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
         guard parts.count == 3, let recipe = PublicationPeriodRecipe(rawValue: parts[0]) else { return nil }
         self.init(recipe: recipe, startDayID: parts[1], endDayID: parts[2])
+    }
+}
+
+// MARK: - The welcome weekly
+
+/// Every new Bound Year member gets their first full week bound and posted,
+/// free: one saddle-stitched Tale of Your Week, once per membership. The
+/// Worker holds the real claim and refuses a second; this is the Book's own
+/// note of where it's got to, so it waits for the right week, retries quietly
+/// and says so on the desk exactly once.
+struct BoundYearWelcomeWeekly: Codable, Equatable {
+    /// The Worker's parcel slot beside the seasonal `yyyy-Smm` keys.
+    static let slotKey = "welcome-weekly"
+
+    var membershipID: String
+    /// When this Book first saw the membership. Only a reader week starting
+    /// on or after this day counts as the first full week.
+    var joinedAt: Date
+    /// The week that went, frozen once the press took it.
+    var periodID: String?
+    var postedAt: Date?
+    var luluPrintJobID: String?
+    /// When the Book said so on the desk. Nil on a posted welcome means the
+    /// line's still owed.
+    var announcedAt: Date?
+    var lastAttemptAt: Date?
+    var failedAttempts: Int?
+
+    var hasPosted: Bool { postedAt != nil }
+    var owesAnnouncement: Bool { hasPosted && announcedAt == nil }
+
+    /// The record to keep for this membership: the existing one, or a fresh
+    /// one the first time the Book sees a current membership. A new
+    /// membership id is a new member's welcome; nil means nothing to track.
+    static func tracking(
+        _ existing: BoundYearWelcomeWeekly?,
+        membershipID: String?,
+        membership: BoundYearMembership?,
+        now: Date
+    ) -> BoundYearWelcomeWeekly? {
+        guard let membershipID, let membership else { return existing }
+        if let existing, existing.membershipID == membershipID { return existing }
+        guard membership.isCurrent else { return existing }
+        return BoundYearWelcomeWeekly(membershipID: membershipID, joinedAt: now)
+    }
+
+    /// The Worker says the welcome's already at the press. Mark it posted;
+    /// only a Book that tried to send it itself still owes the desk line,
+    /// since another device will have said it already.
+    mutating func adoptServerClaim(luluPrintJobID: String?, at now: Date) {
+        guard !hasPosted else { return }
+        postedAt = now
+        self.luluPrintJobID = luluPrintJobID ?? self.luluPrintJobID
+        failedAttempts = 0
+        if lastAttemptAt == nil { announcedAt = now }
+    }
+}
+
+/// When the welcome weekly goes, and which week it is.
+enum WelcomeWeeklyPolicy {
+    /// A week with fewer kept days than this is too thin to be the first
+    /// thing a member holds. The Book waits for the next one.
+    static let minimumKeptDays = 3
+    /// How many first weeks it waits through before sending the fullest of
+    /// them anyway. The welcome is owed; it never quietly lapses.
+    static let weeksToWait = 4
+
+    /// One reader week, as the policy needs to see it.
+    struct WeekTally: Equatable {
+        var period: PublicationPeriod
+        /// Distinct days in the week with at least one kept page in them.
+        var keptDays: Int
+        /// Pages the issue would actually bind.
+        var eligiblePageCount: Int
+    }
+
+    enum Decision: Equatable {
+        /// Already at the press. Nothing more to do.
+        case posted
+        /// Not yet: no qualifying week has closed, the membership isn't
+        /// current, or a failed attempt is still resting.
+        case wait
+        case send(PublicationPeriod)
+    }
+
+    /// Quiet retries: an hour, then six, then a day at most between tries.
+    /// No failure is ever shown to the reader; the present just arrives late.
+    static func retryDelay(afterFailures failures: Int) -> TimeInterval {
+        switch failures {
+        // An attempt is under way, or the app closed in the middle of one.
+        case ..<1: return 600
+        case 1: return 3_600
+        case 2: return 6 * 3_600
+        default: return 24 * 3_600
+        }
+    }
+
+    static func decide(
+        welcome: BoundYearWelcomeWeekly,
+        membership: BoundYearMembership,
+        weeks: [WeekTally],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Decision {
+        if welcome.hasPosted { return .posted }
+        guard membership.isCurrent, membership.digitalPaymentVerified != false else { return .wait }
+        if let last = welcome.lastAttemptAt,
+           now < last.addingTimeInterval(retryDelay(afterFailures: welcome.failedAttempts ?? 0)) {
+            return .wait
+        }
+        let joinedDay = calendar.startOfDay(for: welcome.joinedAt)
+        let afterJoining = weeks
+            .filter { $0.period.startDate >= joinedDay }
+            .sorted { $0.period.startDate < $1.period.startDate }
+        let printable = { (week: WeekTally) in week.eligiblePageCount >= WeeklyIssue.minimumIssuePages }
+
+        let firstWeeks = afterJoining.prefix(weeksToWait)
+        for week in firstWeeks {
+            guard week.period.isClosed(at: now) else { return .wait }
+            if week.keptDays >= minimumKeptDays && printable(week) { return .send(week.period) }
+        }
+        guard firstWeeks.count == weeksToWait else { return .wait }
+        // Four thin weeks. Send the fullest of them rather than make a new
+        // member keep earning their own present.
+        if let fullest = firstWeeks
+            .filter({ $0.keptDays > 0 && printable($0) })
+            .max(by: { ($0.keptDays, $1.period.startDate) < ($1.keptDays, $0.period.startDate) }) {
+            return .send(fullest.period)
+        }
+        // Nothing at all to bind yet. The first later week with anything in it.
+        for week in afterJoining.dropFirst(weeksToWait) {
+            guard week.period.isClosed(at: now) else { return .wait }
+            if week.keptDays > 0 && printable(week) { return .send(week.period) }
+        }
+        return .wait
+    }
+}
+
+extension PublicationPeriodCatalog {
+    /// Reader weeks as the welcome policy counts them: kept days, not pages,
+    /// so one busy evening can't pass for a lived-in week.
+    static func welcomeWeeklyTallies(
+        candidates: [PublicationCandidate],
+        days: [BookDay],
+        today: BookDay? = nil,
+        calendar: Calendar = .current
+    ) -> [WelcomeWeeklyPolicy.WeekTally] {
+        let material = normalizedDays(days, today: today)
+            .flatMap(\.pages)
+            .filter { !isBoundPublicationArtifact($0) && publicationPageHasMaterial($0) }
+        return candidates
+            .filter { $0.period.recipe == .readerWeek }
+            .map { candidate in
+                let keptDays = Set(material
+                    .filter { candidate.period.contains($0.createdAt) }
+                    .map { calendar.startOfDay(for: $0.createdAt) })
+                return WelcomeWeeklyPolicy.WeekTally(
+                    period: candidate.period,
+                    keptDays: keptDays.count,
+                    eligiblePageCount: candidate.eligiblePageCount
+                )
+            }
     }
 }

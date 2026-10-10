@@ -7370,8 +7370,9 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
         now: Date
     ) -> SurfacePage {
         let isClub = session.kind == .club
-        let lesson = AcademyScheduleRegistry.lessonModules[session.id]
-        let activity = AcademyActivityRegistry.activity(for: session.id)
+        // The room teaches this month's lesson: the same one the month's book prints.
+        let lesson = AcademyCurriculum.lesson(for: session.id, on: now)
+        let activity = AcademyActivityRegistry.activity(for: session.id, lessonID: lesson?.id)
         var tags = [
             "academy",
             session.kind.rawValue,

@@ -29,7 +29,8 @@ enum BookThreads {
     static let idPrefix = "thread:"
     /// A thread whose last step is older than this is let go.
     static let patienceDays = 6
-    static let restDays = 14
+    /// Long enough that a month's printed book never tells the same game twice.
+    static let restDays = 45
 
     static let all: [Thread] = [
         Thread(id: "teacup", steps: [

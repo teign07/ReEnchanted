@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      @font-face { font-family: "Fraunces"; font-weight: 400; font-style: normal; src: url("fonts/Fraunces-Regular.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 600; font-style: normal; src: url("fonts/Fraunces-SemiBold.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 800; font-style: normal; src: url("fonts/Fraunces-ExtraBold.ttf") format("truetype"); }
+      @font-face { font-family: "Fraunces"; font-weight: 400; font-style: italic; src: url("fonts/Fraunces-Italic.ttf") format("truetype"); }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --night: #070611; --night3: #150f23;
+        --parchment: #fdf4e2; --parchment2: #f3e4bf;
+        --gold: #ffc874; --gold-deep: #c9883f; --gold-soft: #ffd89a;
+        --teal: #4cc0bd; --violet: #8a72c4; --ink: #241a0d;
+      }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--night); font-family: "Inter", sans-serif; }
+      .serif { font-family: "Fraunces", Georgia, serif; }
+
+      .beat { position: absolute; inset: 0; width: 1920px; height: 1080px; overflow: hidden; opacity: 0; }
+      .bg-night {
+        background:
+          radial-gradient(120% 90% at 50% 38%, rgba(255,200,116,0.12), rgba(7,6,17,0) 55%),
+          radial-gradient(140% 120% at 50% 120%, #150f23 0%, #0b0811 45%, #070611 100%);
+      }
+      .vignette::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 280px 90px rgba(3,2,10,0.9); }
+      .rings { position: absolute; width: 1500px; height: 1500px; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0.2; pointer-events: none;
+        background:
+          radial-gradient(circle, transparent 0 360px, rgba(255,200,116,0.5) 360px 361px, transparent 362px),
+          radial-gradient(circle, transparent 0 500px, rgba(255,200,116,0.35) 500px 501px, transparent 502px),
+          radial-gradient(circle, transparent 0 650px, rgba(255,200,116,0.25) 650px 651px, transparent 652px); }
+      .dust { position: absolute; inset: 0; pointer-events: none; }
+      .dust i { position: absolute; border-radius: 50%; background: var(--gold-soft); filter: blur(0.5px); }
+
+      .eyebrow { font-size: 26px; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: var(--gold); }
+      .h { font-size: 104px; font-weight: 600; color: #f6efe0; line-height: 1.04; }
+      .gold { color: var(--gold); }
+      .body { font-size: 38px; font-weight: 400; color: #d9cfbf; line-height: 1.4; }
+      .abs { position: absolute; }
+      .col { display: flex; flex-direction: column; }
+
+      /* phone */
+      .phone { position: absolute; width: 450px; height: 958px; border-radius: 62px; background: #05050d; border: 3px solid rgba(255,200,116,0.5); padding: 10px;
+        box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 0 90px rgba(255,200,116,0.22); }
+      .phone .screen { position: relative; width: 100%; height: 100%; border-radius: 52px; overflow: hidden; background: #070611; }
+      .phone video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      .glow { position: absolute; border-radius: 50%; background: radial-gradient(circle, rgba(255,200,116,0.26), rgba(255,200,116,0) 62%); pointer-events: none; }
+
+      /* parchment pieces */
+      .paper { background: radial-gradient(120% 120% at 50% 0%, #fff8ec 0%, var(--parchment) 45%, var(--parchment2) 100%); color: var(--ink);
+        box-shadow: 0 30px 70px rgba(0,0,0,0.6); border: 2px solid rgba(201,136,63,0.55); }
+      .plate { position: absolute; border-radius: 14px; overflow: hidden; border: 3px solid rgba(255,200,116,0.55); box-shadow: 0 34px 70px rgba(0,0,0,0.65), 0 0 50px rgba(255,200,116,0.14); background: #1a130b; }
+      .plate img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="35" data-width="1920" data-height="1080" style="position:relative;width:1920px;height:1080px;">
+
+      <!-- 1 · HOOK 0–4.8 -->
+      <div class="beat bg-night vignette" id="b1" style="opacity:1;">
+        <div class="rings" id="b1-rings"></div>
+        <div class="dust" data-dust="1"></div>
+        <div class="abs" style="left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:26px;">
+          <div class="serif" id="b1-a" style="font-size:150px;font-weight:400;color:#f3ead8;line-height:1;">Today happened.</div>
+          <div class="serif" id="b1-b" style="font-size:150px;font-weight:600;color:var(--gold);line-height:1;text-shadow:0 0 60px rgba(255,200,116,0.35);">Nobody wrote it down.</div>
+        </div>
+      </div>
+
+      <!-- 2 · WHAT IT IS 4.4–10.4 -->
+      <div class="beat bg-night vignette" id="b2">
+        <div class="dust" data-dust="2"></div>
+        <div class="glow" id="b2-glow" style="width:1100px;height:1100px;left:-140px;top:-10px;"></div>
+        <div class="plate" id="b2-cover" style="left:250px;top:110px;width:600px;height:860px;"><img src="assets/art/labyrinth-cover.webp" /></div>
+        <div class="abs col" style="left:960px;top:0;bottom:0;width:880px;justify-content:center;gap:30px;">
+          <div class="eyebrow" id="b2-eye">An iPhone book · it reads your day</div>
+          <div class="serif h" id="b2-h" style="font-size:112px;">Real life,<br/><span class="gold" style="font-weight:800;">ReEnchanted.</span></div>
+          <div class="body" id="b2-b">A book that turns the day you actually lived into a faerie tale.</div>
+        </div>
+      </div>
+
+      <!-- 3 · IT TALKS BACK 10–17.4 -->
+      <div class="beat bg-night vignette" id="b3">
+        <div class="dust" data-dust="3"></div>
+        <div class="glow" id="b3-glow" style="width:1000px;height:1000px;left:230px;top:40px;"></div>
+        <div class="abs col" style="left:140px;top:0;bottom:0;width:900px;justify-content:center;gap:34px;">
+          <div class="eyebrow" id="b3-eye">It's alive</div>
+          <div class="serif h" id="b3-h">A book that<br/><span class="gold">talks back.</span></div>
+          <div class="paper serif" id="b3-q" style="padding:44px 52px;border-radius:18px;font-size:44px;line-height:1.3;font-style:italic;max-width:800px;">
+            “Every day it takes a little bit of your life, and every day we take a little bit back.”
+            <div style="font-family:Inter,sans-serif;font-style:normal;font-size:22px;font-weight:600;letter-spacing:0.28em;text-transform:uppercase;color:var(--gold-deep);margin-top:22px;">— The Book</div>
+          </div>
+        </div>
+        <div class="phone" id="b3-phone" style="left:1180px;top:61px;"><div class="screen">
+          <video id="v-book" class="clip" data-start="10.6" data-duration="6.4" data-track-index="1" src="assets/clips/book.mp4" muted playsinline></video>
+        </div></div>
+      </div>
+
+      <!-- 4 · SMALL MAGIC 17–25 -->
+      <div class="beat bg-night vignette" id="b4">
+        <div class="dust" data-dust="4"></div>
+        <div class="glow" id="b4-glow" style="width:1000px;height:1000px;left:240px;top:40px;"></div>
+        <div class="phone" id="b4-phone" style="left:300px;top:61px;"><div class="screen">
+          <video id="v-glow" class="clip" data-start="17.6" data-duration="2.7" data-track-index="1" src="assets/clips/glow.mp4" muted playsinline></video>
+          <video id="v-magic" class="clip" data-start="20.3" data-duration="2.2" data-track-index="2" src="assets/clips/magic.mp4" data-media-start="1.4" muted playsinline></video>
+          <video id="v-spell" class="clip" data-start="22.5" data-duration="2.4" data-track-index="3" src="assets/clips/spell.mp4" data-media-start="1.4" muted playsinline></video>
+        </div></div>
+        <div class="abs col" style="left:960px;top:0;bottom:0;width:880px;justify-content:center;gap:30px;">
+          <div class="eyebrow" id="b4-eye">Small magic · keeps</div>
+          <div class="serif h" id="b4-h">Tiny spells for<br/><span class="gold">ordinary days.</span></div>
+          <div class="body" id="b4-b">Say it to the window. Carry a stone. Keep what’s true, and let the rest wait.</div>
+        </div>
+      </div>
+
+      <!-- 5 · THE WORLD 24.6–31.4 -->
+      <div class="beat bg-night vignette" id="b5">
+        <div class="dust" data-dust="5"></div>
+        <div class="glow" id="b5-glow" style="width:1300px;height:1300px;left:310px;top:-110px;"></div>
+        <div class="plate" id="b5-p1" style="left:70px;top:150px;width:432px;height:540px;"><img src="assets/art/cast-penny-blackletter.jpg" /></div>
+        <div class="plate" id="b5-p2" style="left:470px;top:60px;width:468px;height:585px;"><img src="assets/art/cast-wicker-eddies.jpg" /></div>
+        <div class="plate" id="b5-p3" style="left:940px;top:170px;width:432px;height:540px;"><img src="assets/art/fae-punctuation-pixie.jpg" /></div>
+        <div class="plate" id="b5-p4" style="left:1330px;top:70px;width:520px;height:780px;"><img src="assets/art/count-unbound-october-2026.webp" /></div>
+        <div class="abs col" style="left:90px;top:730px;width:1200px;gap:14px;">
+          <div class="serif h" id="b5-h" style="font-size:92px;">A whole Academy, <span class="gold">living in the margins.</span></div>
+          <div class="body" id="b5-b" style="font-size:36px;">…and a new story, every month.</div>
+        </div>
+      </div>
+
+      <!-- 6 · END CARD 31–35 -->
+      <div class="beat bg-night vignette" id="b6">
+        <div class="rings" id="b6-rings"></div>
+        <div class="dust" data-dust="6"></div>
+        <div class="glow" id="b6-glow" style="width:1300px;height:1300px;left:310px;top:-110px;"></div>
+        <div class="abs col" style="inset:0;justify-content:center;align-items:center;gap:26px;text-align:center;">
+          <div id="b6-star" class="serif gold" style="font-size:72px;line-height:1;">✦</div>
+          <div class="serif" id="b6-t" style="font-size:190px;font-weight:600;color:var(--gold);line-height:1;text-shadow:0 0 60px rgba(255,200,116,0.35);">ReEnchanted</div>
+          <div class="serif" id="b6-s" style="font-size:52px;font-style:italic;color:#efe7d6;">Play with pages. Keep some. Read your story.</div>
+          <div id="b6-l" style="font-size:28px;font-weight:600;letter-spacing:0.26em;text-transform:uppercase;color:#cfc6b8;margin-top:18px;">Free on iPhone · Local &amp; private · TestFlight opening soon</div>
+          <div id="b6-u" class="gold" style="font-size:34px;font-weight:600;letter-spacing:0.18em;">reenchanted.app</div>
+        </div>
+      </div>
+
+      <!-- AUDIO -->
+      <audio id="a-bed" data-start="0" data-duration="35" data-track-index="0" src="assets/audio/intro-bed.m4a" data-volume="0.95"></audio>
+      <audio id="a-sfx1" data-start="4.3" data-duration="1" data-track-index="4" src="assets/sfx/open-page.wav" data-volume="0.5"></audio>
+      <audio id="a-sfx2" data-start="10.0" data-duration="1" data-track-index="5" src="assets/sfx/select.wav" data-volume="0.45"></audio>
+      <audio id="a-sfx3" data-start="17.0" data-duration="1" data-track-index="6" src="assets/sfx/tap.wav" data-volume="0.45"></audio>
+      <audio id="a-sfx4" data-start="24.5" data-duration="1" data-track-index="7" src="assets/sfx/keep-page.wav" data-volume="0.5"></audio>
+      <audio id="a-sfx5" data-start="31.0" data-duration="2" data-track-index="8" src="assets/sfx/braid-complete.wav" data-volume="0.5"></audio>
+
+      <script>
+        // seeded dust (deterministic)
+        function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+        document.querySelectorAll("[data-dust]").forEach(function(el){
+          var r = mulberry32(parseInt(el.getAttribute("data-dust"),10)*977);
+          for (var i=0;i<46;i++){
+            var d=document.createElement("i"), s=2+r()*5;
+            d.style.cssText="left:"+(r()*1920)+"px;top:"+(r()*1080)+"px;width:"+s+"px;height:"+s+"px;opacity:"+(0.25+r()*0.6);
+            d.className="dp"; el.appendChild(d);
+          }
+        });
+
+        window.__timelines = window.__timelines || {};
+        var tl = gsap.timeline({ paused: true });
+
+        // ---- beat visibility (crossfades; outgoing stays fully visible until the incoming fades in over it)
+        var X = 0.6;
+        tl.set("#b1", { opacity: 1 }, 0);
+        [["#b2",4.4],["#b3",10.0],["#b4",17.0],["#b5",24.6],["#b6",31.0]].forEach(function(b){
+          tl.fromTo(b[0], { opacity: 0 }, { opacity: 1, duration: X, ease: "power1.inOut" }, b[1]);
+        });
+        // hide earlier beats after they are covered (z-order = DOM order, so later beats cover earlier ones)
+        [["#b1",5.0],["#b2",10.6],["#b3",17.6],["#b4",25.2],["#b5",31.6]].forEach(function(b){ tl.set(b[0], { opacity: 0 }, b[1]); });
+
+        // ---- ambient drift on dust
+        ["1","2","3","4","5","6"].forEach(function(n){
+          var q = document.querySelectorAll('[data-dust="'+n+'"] i');
+          var start = {"1":0,"2":4.4,"3":10,"4":17,"5":24.6,"6":31}[n];
+          tl.to(q, { y: -90, x: 30, duration: 8, ease: "none", stagger: 0.03 }, start);
+        });
+
+        // ---- B1
+        tl.to("#b1-rings", { rotation: 25, scale: 1.12, duration: 5, ease: "none" }, 0);
+        tl.from("#b1-a", { y: 40, opacity: 0, duration: 1.0, ease: "power3.out" }, 0.3);
+        tl.from("#b1-b", { y: 50, opacity: 0, scale: 0.96, duration: 1.1, ease: "expo.out" }, 1.9);
+
+        // ---- B2
+        tl.from("#b2-glow", { opacity: 0, scale: 0.6, duration: 1.6, ease: "power2.out" }, 4.5);
+        tl.from("#b2-cover", { y: 160, opacity: 0, rotation: -5, duration: 1.3, ease: "power3.out" }, 4.6);
+        tl.to("#b2-cover", { y: -26, rotation: 1.5, duration: 5.5, ease: "sine.inOut" }, 5.9);
+        tl.from("#b2-eye", { x: 40, opacity: 0, duration: 0.7, ease: "power2.out" }, 5.0);
+        tl.from("#b2-h", { y: 50, opacity: 0, duration: 1.0, ease: "expo.out" }, 5.3);
+        tl.from("#b2-b", { y: 30, opacity: 0, duration: 0.8, ease: "power2.out" }, 6.2);
+
+        // ---- B3
+        tl.from("#b3-glow", { opacity: 0, scale: 0.7, duration: 1.4, ease: "power2.out" }, 10.1);
+        tl.from("#b3-phone", { x: 120, y: 80, opacity: 0, rotation: 3, duration: 1.1, ease: "power3.out" }, 10.2);
+        tl.from("#b3-eye", { x: -40, opacity: 0, duration: 0.6, ease: "power2.out" }, 10.3);
+        tl.from("#b3-h", { y: 50, opacity: 0, duration: 0.9, ease: "expo.out" }, 10.6);
+        tl.from("#b3-q", { y: 60, opacity: 0, rotation: -1.5, duration: 1.0, ease: "back.out(1.3)" }, 12.3);
+
+        // ---- B4
+        tl.from("#b4-glow", { opacity: 0, scale: 0.7, duration: 1.4, ease: "power2.out" }, 17.1);
+        tl.from("#b4-phone", { x: -120, y: 80, opacity: 0, rotation: -3, duration: 1.1, ease: "power3.out" }, 17.2);
+        tl.from("#b4-eye", { x: 40, opacity: 0, duration: 0.6, ease: "power2.out" }, 17.5);
+        tl.from("#b4-h", { y: 50, opacity: 0, duration: 0.9, ease: "expo.out" }, 17.8);
+        tl.from("#b4-b", { y: 30, opacity: 0, duration: 0.8, ease: "power2.out" }, 19.0);
+
+        // ---- B5
+        tl.from("#b5-glow", { opacity: 0, duration: 1.2, ease: "power2.out" }, 24.7);
+        tl.from("#b5-p1", { x: -200, y: 120, opacity: 0, rotation: -8, duration: 1.1, ease: "power3.out" }, 24.8);
+        tl.from("#b5-p2", { y: -200, opacity: 0, rotation: 5, duration: 1.1, ease: "power3.out" }, 25.1);
+        tl.from("#b5-p3", { y: 220, opacity: 0, rotation: -5, duration: 1.1, ease: "back.out(1.2)" }, 25.4);
+        tl.from("#b5-p4", { x: 260, opacity: 0, rotation: 7, duration: 1.1, ease: "power3.out" }, 25.7);
+        tl.to("#b5-p1", { y: -16, rotation: -2, duration: 5, ease: "sine.inOut" }, 25.95);
+        tl.to("#b5-p2", { y: 14, rotation: 1.5, duration: 5, ease: "sine.inOut" }, 26.25);
+        tl.to("#b5-p3", { y: -12, rotation: 2, duration: 5, ease: "sine.inOut" }, 26.55);
+        tl.to("#b5-p4", { y: 12, rotation: -1.5, duration: 5, ease: "sine.inOut" }, 26.85);
+        tl.from("#b5-h", { y: 50, opacity: 0, duration: 0.9, ease: "expo.out" }, 26.4);
+        tl.from("#b5-b", { y: 30, opacity: 0, duration: 0.8, ease: "power2.out" }, 27.6);
+
+        // ---- B6 (final scene: may fade out)
+        tl.to("#b6-rings", { rotation: -20, scale: 1.1, duration: 4, ease: "none" }, 31);
+        tl.from("#b6-glow", { opacity: 0, scale: 0.6, duration: 1.4, ease: "power2.out" }, 31.1);
+        tl.from("#b6-star", { scale: 0, rotation: -90, opacity: 0, duration: 0.8, ease: "back.out(2)" }, 31.2);
+        tl.from("#b6-t", { y: 40, opacity: 0, duration: 1.0, ease: "expo.out" }, 31.4);
+        tl.from("#b6-s", { y: 24, opacity: 0, duration: 0.8, ease: "power2.out" }, 32.2);
+        tl.from("#b6-l", { y: 20, opacity: 0, duration: 0.7, ease: "power2.out" }, 32.8);
+        tl.from("#b6-u", { y: 20, opacity: 0, duration: 0.7, ease: "power2.out" }, 33.2);
+        tl.to("#b6", { opacity: 0, duration: 0.8, ease: "power1.in" }, 34.2);
+
+        window.__timelines["main"] = tl;
+      </script>
+    </div>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 import PDFKit
 
 // MARK: - The Field Book
@@ -37,6 +38,9 @@ struct FieldMarked: Equatable {
     var italics: [Range<Int>]   // character offsets into `text`
     /// Runs the reader wrote themselves, set in their hand and ink.
     var hands: [Range<Int>] = []
+    /// A lead-in set in small capitals, the way a book opens a section
+    /// without a drop cap.
+    var smallCaps: Range<Int>? = nil
 
     init(text: String, italics: [Range<Int>] = [], hands: [Range<Int>] = []) {
         self.text = text
@@ -113,7 +117,9 @@ struct FieldMarked: Equatable {
                 return upper > lower ? lower..<upper : nil
             }
         }
-        return FieldMarked(text: final, italics: shift(italics), hands: shift(hands))
+        var dropped = FieldMarked(text: final, italics: shift(italics), hands: shift(hands))
+        dropped.smallCaps = smallCaps.flatMap { shift([$0]).first }
+        return dropped
     }
 }
 
@@ -137,7 +143,8 @@ enum FieldText {
         paragraph.lineSpacing = lineSpacing
         paragraph.paragraphSpacing = paragraphSpacing
         paragraph.alignment = justified ? .justified : .natural
-        paragraph.hyphenationFactor = 0.9
+        // Body text hyphenates to keep its justified lines even; a heading never breaks a word.
+        paragraph.hyphenationFactor = font.pointSize >= 14 ? 0 : 0.9
         return [.font: font, .foregroundColor: color, .paragraphStyle: paragraph]
     }
 
@@ -158,6 +165,23 @@ enum FieldText {
                 let upper = String(chars[0..<range.upperBound]).utf16.count
                 if upper <= length, upper > lower {
                     result.addAttribute(.font, value: slanted, range: NSRange(location: lower, length: upper - lower))
+                }
+            }
+            if let caps = marked.smallCaps {
+                let chars = Array(marked.text)
+                if caps.upperBound <= chars.count {
+                    let lower = String(chars[0..<caps.lowerBound]).utf16.count
+                    let upper = String(chars[0..<caps.upperBound]).utf16.count
+                    let features: [[UIFontDescriptor.FeatureKey: Int]] = [
+                        [.type: kLowerCaseType, .selector: kLowerCaseSmallCapsSelector],
+                        [.type: kUpperCaseType, .selector: kUpperCaseSmallCapsSelector]
+                    ]
+                    let descriptor = base.fontDescriptor.addingAttributes([.featureSettings: features])
+                    if upper <= length, upper > lower {
+                        let range = NSRange(location: lower, length: upper - lower)
+                        result.addAttribute(.font, value: UIFont(descriptor: descriptor, size: base.pointSize), range: range)
+                        result.addAttribute(.kern, value: 0.6, range: range)
+                    }
                 }
             }
             if !marked.hands.isEmpty {
@@ -1205,13 +1229,29 @@ extension MonthlyEditionPDFWriter {
                 eyebrow += " · kept at \(clockString(date, calendar: calendar))"
             }
             drawEyebrow(eyebrow, style: style, leaf: &leaf)
-            let titleFont = UIFont.fbSerif(ofSize: 17, weight: .bold)
-            let titleHeight = FieldText.height(braid.title, font: titleFont, width: leaf.contentWidth, justified: false)
-            _ = FieldText.flow(braid.title, font: titleFont, color: ink, in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: titleHeight + 4),
-                               lineSpacing: 0, paragraphSpacing: 0, justified: false)
-            leaf.y += titleHeight + 8
-            var rest = FieldMarked(parsing: braid.body).markingHands(entrySentences(day.entries))
-            var capped = firstProse
+            // The phone names a night with a fragment; a weak one ("A people")
+            // is left off, and the eyebrow carries the night alone.
+            if !isWeakBraidTitle(braid.title) {
+                let titleFont = UIFont.fbSerifItalic(ofSize: 16)
+                let titleHeight = FieldText.height(braid.title, font: titleFont, width: leaf.contentWidth, justified: false)
+                _ = FieldText.flow(braid.title, font: titleFont, color: ink, in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: titleHeight + 4),
+                                   lineSpacing: 0, paragraphSpacing: 0, justified: false)
+                leaf.y += titleHeight + 6
+            } else {
+                leaf.y += 2
+            }
+            let parts = braidParts(braid.body)
+            var rest = FieldMarked(parsing: parts.telling).markingHands(entrySentences(day.entries))
+            // A drop cap opens a week, or a night that begins on a new letter;
+            // otherwise the first words open in small capitals. Twenty-one Y's
+            // down a month read like a stamp.
+            let firstLetter = rest.text.first.map { Character($0.uppercased()) }
+            var capped = firstProse && firstLetter != lastDropCapLetter
+            if capped { lastDropCapLetter = firstLetter } else if firstProse {
+                let words = rest.text.split(separator: " ", maxSplits: 3, omittingEmptySubsequences: true)
+                let lead = words.prefix(3).joined(separator: " ")
+                rest.smallCaps = 0..<min(lead.count, rest.text.count)
+            }
             var guardPasses = 0
             while !rest.isEmpty, guardPasses < 24 {
                 guardPasses += 1
@@ -1226,6 +1266,27 @@ extension MonthlyEditionPDFWriter {
                 if !rest.isEmpty { newContinuation() }
             }
             firstProse = false
+            // The Book's own thread, carried night to night (the biscuit bet, the
+            // dragon in the margin): set apart, so a reader can follow it.
+            if let thread = parts.thread {
+                let font = UIFont.fbSerifItalic(ofSize: 10)
+                let text = "✦  " + thread
+                let h = FieldText.height(text, font: font, width: leaf.contentWidth - 30, lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+                if leaf.bottom - leaf.y < h + 12 { newContinuation() }
+                _ = FieldText.flow(text, font: font, color: style.palette.accent.withAlphaComponent(0.9),
+                                   in: CGRect(x: leaf.left + 15, y: leaf.y, width: leaf.contentWidth - 30, height: h + 3),
+                                   lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+                leaf.y += h + 10
+            }
+            if let kept = parts.kept {
+                let font = UIFont.fbSerifItalic(ofSize: 10.2)
+                let h = FieldText.height(kept, font: font, width: leaf.contentWidth - 40, lineSpacing: 1.5, paragraphSpacing: 0, justified: false)
+                if leaf.bottom - leaf.y < h + 12 { newContinuation() }
+                let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineSpacing = 1.5
+                (kept as NSString).draw(in: CGRect(x: leaf.left + 20, y: leaf.y, width: leaf.contentWidth - 40, height: h + 4),
+                                        withAttributes: [.font: font, .foregroundColor: style.palette.accent, .paragraphStyle: para])
+                leaf.y += h + 12
+            }
         }
 
         // Everything else they kept that day, each dressed for what it is.
@@ -1369,7 +1430,8 @@ extension MonthlyEditionPDFWriter {
             sky += day.almanac.skyWords.prefix(3)
             if let feast = day.almanac.feast?.trimmingCharacters(in: .whitespaces), !feast.isEmpty { sky.append(feast) }
             let line = sky.filter { !$0.isEmpty }.joined(separator: " · ")
-            if !line.isEmpty, leaf.bottom - leaf.y > 90 {
+            // The date strip above already gives a day with a world side its sky.
+            if !day.hasWorldSide, !line.isEmpty, leaf.bottom - leaf.y > 90 {
                 leaf.y += 4
                 drawEyebrow("The sky that day", style: style, leaf: &leaf)
                 let height = FieldText.height(line, font: bodyFont, width: leaf.contentWidth, lineSpacing: 2, paragraphSpacing: 0, justified: false)
@@ -1381,7 +1443,18 @@ extension MonthlyEditionPDFWriter {
         }
 
         let remaining = leaf.bottom - leaf.y
-        if remaining > 100, let prompt = NotePromptDealer.next(.day, seed: day.id) {
+        // The foot of a day turns through three things, so a month of days
+        // doesn't end the same way thirty times: a place to write, the moon that
+        // night drawn as a field note, and a drawing pressed into the page.
+        let foot = dayFootCount
+        if remaining > 100 { dayFootCount += 1 }
+        if remaining > 100, foot % 3 == 1 {
+            drawMoonCard(day, calendar: calendar, style: style,
+                         in: CGRect(x: leaf.left, y: leaf.y + 4, width: leaf.contentWidth, height: min(remaining - 8, 160)))
+        } else if remaining > 140, foot % 3 == 2, let drawing = MarginaliaDealer.next(month: monthNumber) {
+            drawPressedDrawing(drawing, day: day, style: style,
+                               in: CGRect(x: leaf.left, y: leaf.y + 6, width: leaf.contentWidth, height: min(remaining - 10, 210)))
+        } else if remaining > 100, let prompt = NotePromptDealer.next(.day, seed: day.id) {
             drawNotesBlock(prompt, in: CGRect(x: leaf.left, y: leaf.y + 2, width: leaf.contentWidth, height: min(remaining - 6, 190)), style: style)
         } else if remaining > 80 {
             drawBotanical(month: monthNumber, seed: day.id + "-yours",
@@ -1827,6 +1900,7 @@ extension MonthlyEditionPDFWriter {
             let index = weekIndex(of: day)
             currentWeek = index
             if openedWeeks.insert(index).inserted, let week = weekByIndex[index] {
+                lastDropCapLetter = nil
                 drawWeekLeaf(week, book: book, monthNumber: monthNumber, calendar: calendar, style: style,
                              window: weekWindow, eyebrow: weekEyebrow, context: context, cursor: &cursor)
             }
@@ -2175,6 +2249,8 @@ extension MonthlyEditionPDFWriter {
         let calendar = Calendar.current
         let monthNumber = calendar.component(.month, from: edition.startDate)
         askedInThisBook = []
+        lastDropCapLetter = nil
+        dayFootCount = 0
         if let frontispiece = EditionPlates.frontispiece(month: monthNumber) {
             var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: "Frontispiece", headRight: monthFormatter.string(from: edition.startDate))
             let box = CGRect(x: leaf.left, y: leaf.y + 10, width: leaf.contentWidth, height: leaf.bottom - leaf.y - 60)
@@ -2628,6 +2704,8 @@ extension MonthlyEditionPDFWriter {
         MarginaliaDealer.reset()
         NotePromptDealer.reset()
         askedInThisBook = []
+        dayFootCount = 0
+        lastDropCapLetter = nil
         let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
         let pageBounds = CGRect(x: 0, y: 0, width: fullBleed.width * PrintSpec.pointsPerInch, height: fullBleed.height * PrintSpec.pointsPerInch)
         let m = spec.interiorMarginsPoints
@@ -2955,7 +3033,11 @@ extension MonthlyEditionPDFWriter {
                                     in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: leaf.bottom - leaf.y),
                                     dropCap: style.palette.accent, lineSpacing: 2.6, paragraphSpacing: 0, justified: false)
         leaf.y += opened.usedHeight + 10
-        if let telling = chapter.telling {
+        var bookThread: String?
+        if let fullTelling = chapter.telling {
+            let parts = braidParts(fullTelling)
+            bookThread = parts.thread
+            let telling = parts.telling
             // Where the telling quotes the reader, their words are in their hand.
             var rest = FieldMarked(parsing: telling).markingHands(entrySentences(day.entries))
             var passes = 0
@@ -2970,6 +3052,18 @@ extension MonthlyEditionPDFWriter {
                 rest = flow.rest
                 if !rest.isEmpty { leaf = continuationLeaf() }
             }
+        }
+
+        // The Book's own thread, night to night, set apart.
+        if let thread = bookThread {
+            let font = UIFont.fbSerifItalic(ofSize: 10)
+            let text = "✦  " + thread
+            let h = FieldText.height(text, font: font, width: leaf.contentWidth - 30, lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+            if leaf.bottom - leaf.y < h + 12 { leaf = continuationLeaf() }
+            _ = FieldText.flow(text, font: font, color: style.palette.accent.withAlphaComponent(0.9),
+                               in: CGRect(x: leaf.left + 15, y: leaf.y, width: leaf.contentWidth - 30, height: h + 3),
+                               lineSpacing: 1.6, paragraphSpacing: 0, justified: false)
+            leaf.y += h + 12
         }
 
         // What the reader wrote that day, in their own hand: whatever the
@@ -3834,8 +3928,11 @@ enum EditionPlates {
 
     /// A folder of plates for proofs, read beside the installed ones.
     static var proofDirectory: URL?
+    /// Set while the bindery measures what the plates add to a book (see `writePrintInterior`).
+    static var suppressed = false
 
     static func all() -> [Plate] {
+        guard !suppressed else { return [] }
         var found: [Plate] = []
         func scan(_ directory: URL?, requirePrefix: Bool) {
             guard let directory,
@@ -3862,7 +3959,44 @@ enum EditionPlates {
     private static func image(slot: String, month: Int?) -> UIImage? {
         let matches = all().filter { $0.slot == slot }
         let chosen = matches.first { $0.month == month } ?? matches.first { $0.month == nil } ?? matches.first
-        return chosen.flatMap { UIImage(contentsOfFile: $0.path) }
+        return chosen.flatMap { load($0.path) }
+    }
+
+    /// Plates arrive at up to 2400 px; a page never needs more than 300 dpi across its widest plate.
+    static let printPixels = 1800
+    private static let loaded: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 48 * 1024 * 1024
+        return cache
+    }()
+
+    /// A plate as JPEG bytes at print size, read once per book. Kept as JPEG on purpose: the PDF
+    /// embeds those bytes as they are, where a decoded bitmap went in raw and tripled the file and
+    /// the memory it took to write it.
+    static func load(_ path: String) -> UIImage? {
+        if let hit = loaded.object(forKey: path as NSString) { return hit }
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let longest = max(properties?[kCGImagePropertyPixelWidth] as? Int ?? 0, properties?[kCGImagePropertyPixelHeight] as? Int ?? 0)
+        var data: Data?
+        if longest > printPixels {
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: printPixels
+            ]
+            if let smaller = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) {
+                let out = NSMutableData()
+                if let destination = CGImageDestinationCreateWithData(out as CFMutableData, "public.jpeg" as CFString, 1, nil) {
+                    CGImageDestinationAddImage(destination, smaller, [kCGImageDestinationLossyCompressionQuality: 0.9] as CFDictionary)
+                    if CGImageDestinationFinalize(destination) { data = out as Data }
+                }
+            }
+        }
+        guard let bytes = data ?? (try? Data(contentsOf: url)), let image = UIImage(data: bytes) else { return nil }
+        loaded.setObject(image, forKey: path as NSString, cost: bytes.count)
+        return image
     }
 
     static func scene(_ contentID: String, month: Int?) -> UIImage? { image(slot: "scene.\(contentID)", month: month) }
@@ -3876,7 +4010,7 @@ enum EditionPlates {
                 && (plate.month == month || plate.month == nil)
         }
         .sorted { $0.slot < $1.slot }
-        .compactMap { UIImage(contentsOfFile: $0.path) }
+        .compactMap { load($0.path) }
     }
 }
 
@@ -3908,5 +4042,104 @@ extension MonthlyEditionPDFWriter {
         image.draw(in: frame)
         leaf.y = frame.maxY + 18
         return true
+    }
+}
+
+// MARK: - A night's braid, set for print
+
+extension MonthlyEditionPDFWriter {
+    /// The letter the last drop cap in this book opened on. Reset at each week.
+    static var lastDropCapLetter: Character?
+
+    /// A title the phone gave a night that reads poorly on a page: one word,
+    /// an article and one word ("A people"), or a stock word.
+    static func isWeakBraidTitle(_ title: String) -> Bool {
+        let words = title.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: " ")
+        let lower = title.lowercased()
+        if words.count <= 1 { return true }
+        if words.count == 2, ["a", "an"].contains(words[0].lowercased()) { return true }
+        return ["the month", "the day", "the night", "the table", "purest form", "book of you", "the night's braid", "a story"].contains(lower)
+    }
+
+    /// A braid split for print: the telling; the Book's own thread, its last
+    /// short line about itself ("I've bet the Index a biscuit…"); and the
+    /// colophon ("The Book kept the page: …"), each set as itself.
+    static func braidParts(_ body: String) -> (telling: String, thread: String?, kept: String?) {
+        let (telling, kept) = WeeklyTaleBuilder.split(braid: body)
+        var paragraphs = (telling ?? "").components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        var thread: String?
+        if paragraphs.count > 1, let last = paragraphs.last {
+            let opens = ["I'm ", "I've ", "I ", "Tonight I", "My ", "I’m ", "I’ve "]
+            if opens.contains(where: last.hasPrefix), last.split(separator: " ").count <= 45 {
+                thread = last
+                paragraphs.removeLast()
+            }
+        }
+        return (paragraphs.joined(separator: "\n\n"), thread, kept)
+    }
+}
+
+// MARK: - The foot of a day
+
+extension MonthlyEditionPDFWriter {
+    /// Which treatment the next day's foot gets. Reset at each book.
+    static var dayFootCount = 0
+
+    /// The moon that night as a naturalist would note it: drawn large, with
+    /// its name, how much of it was lit and how old it was.
+    static func drawMoonCard(_ day: BoundDay, calendar: Calendar, style: EditionStyle, in rect: CGRect) {
+        let ink = style.palette.ink
+        drawTracked("The moon that night", at: CGPoint(x: rect.minX, y: rect.minY), font: smallCaps(6.8), color: style.palette.accent, tracking: 1.4)
+        let radius = min(34, (rect.height - 30) / 2)
+        let center = CGPoint(x: rect.minX + radius + 10, y: rect.minY + 22 + radius)
+        let age = day.almanac.moonAgeDays
+        FieldMoon.draw(center: center, radius: radius, illuminated: day.almanac.moonIlluminated,
+                       waxing: age < MoonPhaseCalendar.synodicMonthDays / 2, ink: ink)
+        let x = center.x + radius + 18
+        let width = rect.maxX - x
+        var y = center.y - radius + 2
+        (day.almanac.moonName as NSString).draw(at: CGPoint(x: x, y: y),
+            withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 15), .foregroundColor: ink])
+        y += 22
+        let lit = Int((day.almanac.moonIlluminated * 100).rounded())
+        let days = Int(age.rounded())
+        let facts = "\(lit)% lit · \(days) \(days == 1 ? "day" : "days") old" + (day.almanac.skyWords.first.map { " · sky \($0)" } ?? "")
+        (facts as NSString).draw(at: CGPoint(x: x, y: y),
+            withAttributes: [.font: UIFont.fbSerif(ofSize: 9.6, weight: .regular), .foregroundColor: ink.withAlphaComponent(0.72)])
+        y += 16
+        let note: String
+        switch days {
+        case 0...1: note = "Too new to see. It was there anyway."
+        case 13...16: note = "Full, or near enough to be argued about."
+        case 2...6: note = "A thin one, low after sunset."
+        case 7...12: note = "Fattening. Up in the afternoon, if anyone looked."
+        case 17...22: note = "Late to rise and lit on its other side."
+        default: note = "Thin again, up before dawn for the early ones."
+        }
+        _ = FieldText.flow(note, font: .fbSerifItalic(ofSize: 9.6), color: ink.withAlphaComponent(0.66),
+                           in: CGRect(x: x, y: y, width: width, height: 30), lineSpacing: 1, paragraphSpacing: 0, justified: false)
+    }
+
+    /// A drawing from the month's art pressed between the pages: taped in, a
+    /// little crooked, with a pencilled line saying when.
+    static func drawPressedDrawing(_ image: UIImage, day: BoundDay, style: EditionStyle, in rect: CGRect) {
+        let box = CGRect(x: rect.midX - 90, y: rect.minY + 8, width: 180, height: rect.height - 36)
+        let scale = min(box.width / image.size.width, box.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let frame = CGRect(x: box.midX - size.width / 2, y: box.minY + (box.height - size.height) / 2, width: size.width, height: size.height)
+        let tilt = (frac("pressed-\(day.id)") - 0.5) * 0.12
+        if let cg = UIGraphicsGetCurrentContext() {
+            cg.saveGState()
+            cg.translateBy(x: frame.midX, y: frame.midY); cg.rotate(by: tilt); cg.translateBy(x: -frame.midX, y: -frame.midY)
+            image.draw(in: frame)
+            cg.restoreGState()
+        }
+        drawTapeStrip(center: CGPoint(x: frame.midX - frame.width * 0.3, y: frame.minY + 2), length: 34, angle: -0.5 + tilt, tint: style.palette.gold)
+        drawTapeStrip(center: CGPoint(x: frame.midX + frame.width * 0.3, y: frame.maxY - 2), length: 34, angle: -0.5 + tilt, tint: style.palette.gold)
+        let formatter = DateFormatter(); formatter.setLocalizedDateFormatFromTemplate("EEEE d MMMM")
+        let caption = "pressed here, \(formatter.string(from: day.date))" as NSString
+        let attrs: [NSAttributedString.Key: Any] = [.font: handFont(10), .foregroundColor: style.palette.ink.withAlphaComponent(0.6)]
+        let w = caption.size(withAttributes: attrs).width
+        caption.draw(at: CGPoint(x: rect.midX - w / 2, y: frame.maxY + 10), withAttributes: attrs)
     }
 }

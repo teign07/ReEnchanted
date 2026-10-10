@@ -16,6 +16,7 @@
     "test:gift-claim-runtime": "node test-gift-claim-runtime.mjs",
     "test:memberships": "node test-memberships.mjs && node test-membership-dispatch.mjs",
     "test:gifts": "node test-gifts.mjs",
+    "test:welcome-weekly": "node test-welcome-weekly.mjs",
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",

@@ -1,0 +1,347 @@
+{
+  "date": "2026-10-10",
+  "policy": "JPEG quality 90, full dimensions; reduce quality only to meet publication limit",
+  "encoder": "macOS sips",
+  "limitBytes": 2031616,
+  "assetPrefix": "count-unbound.v2.plate.",
+  "originalBytes": 156855603,
+  "optimizedBytes": 41308539,
+  "assets": [
+    {
+      "originalFile": "plates/frontispiece.png",
+      "originalBytes": 6410012,
+      "originalSHA256": "27337d27a2fe6ef1c80f8465ee9f7b8e844437400c758c2d43861a37e32080e0",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/frontispiece.png",
+      "file": "plates/frontispiece.jpg",
+      "quality": 90,
+      "bytes": 1792620,
+      "sha256": "8fe032e58ec146e664dcb8e6804266064e71e55a73fefc604276bad49de972c4"
+    },
+    {
+      "originalFile": "plates/scene.academy.school.chair-first.png",
+      "originalBytes": 6624046,
+      "originalSHA256": "0f1094b0509052fe25687263b28dacc92b2067fd8ae9c92c25323bc72408e0af",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.academy.school.chair-first.png",
+      "file": "plates/scene.academy.school.chair-first.jpg",
+      "quality": 90,
+      "bytes": 1711563,
+      "sha256": "6660b801bcdbead7b564dffe840bdb839b078750202d744074f08f9f8cbf3aa9"
+    },
+    {
+      "originalFile": "plates/scene.academy.school.sentence-coat.png",
+      "originalBytes": 6537020,
+      "originalSHA256": "74a87bc5533298035f8c5a2640bec38c02771d28e35e2432dd323d568135ba69",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.academy.school.sentence-coat.png",
+      "file": "plates/scene.academy.school.sentence-coat.jpg",
+      "quality": 90,
+      "bytes": 1667295,
+      "sha256": "27449ee9460350cb2e7709fc7624bf55ff5ce38e5e4d30b4542ae5cdcdc13e7e"
+    },
+    {
+      "originalFile": "plates/scene.academy.school.wrong-way.png",
+      "originalBytes": 6712727,
+      "originalSHA256": "ffcfd56e13e360343b5b0094418bf3e8ce5f8a3786531ccf80ae581f1734e349",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.academy.school.wrong-way.png",
+      "file": "plates/scene.academy.school.wrong-way.jpg",
+      "quality": 90,
+      "bytes": 1750616,
+      "sha256": "cc9f097ecc4b1135c6894c234be13f86c3d0e3b67cd8cc9e98d50fd301f53263"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.sunday-jump.png",
+      "originalBytes": 6652936,
+      "originalSHA256": "5135faad0fb8e9e60815fb8172f47906506fce3371ea031419fb343345e47801",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.sunday-jump.png",
+      "file": "plates/scene.count-unbound.scene.sunday-jump.jpg",
+      "quality": 90,
+      "bytes": 1757166,
+      "sha256": "8ebb88832ff34233edb27e2d1d3abafa29b44df0ca2d49613a2a352bb21c6449"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.east-stacks.png",
+      "originalBytes": 6867256,
+      "originalSHA256": "975b7ef7be3696f5e779b5716579342cf0e1684aede88b93f1448086492bf2ab",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.east-stacks.png",
+      "file": "plates/scene.count-unbound.scene.east-stacks.jpg",
+      "quality": 90,
+      "bytes": 1829136,
+      "sha256": "6f210ca1437ad782be7840670eb95a6d79c36ed7a4f0cd0d482a758464c8b3fa"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.school.map-room.png",
+      "originalBytes": 6584308,
+      "originalSHA256": "efe2492b85e3540f55f017c822e24d0e9641f1831e641087dc92bc728c42a174",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.school.map-room.png",
+      "file": "plates/scene.count-unbound.school.map-room.jpg",
+      "quality": 90,
+      "bytes": 1681702,
+      "sha256": "d9f3cac5cb23c32422d602fbf6799a6cafbedf1efebb8fcfcd204c41e0e6bd5f"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.man-reading-himself.png",
+      "originalBytes": 6510421,
+      "originalSHA256": "29574adf7ef416b735c88b280d88733c04442c241e8fbd071fc1bb635cf2442c",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.man-reading-himself.png",
+      "file": "plates/scene.count-unbound.scene.man-reading-himself.jpg",
+      "quality": 90,
+      "bytes": 1667424,
+      "sha256": "e3949993ec2cda45959e7e29d754006dd7118af8e4cc30b71c460a86cb99a1bc"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.wrong-castle.png",
+      "originalBytes": 6694327,
+      "originalSHA256": "9030d0bbc8fef031570d8d5883bcc3905ff3878a504bada97d18f7672a03eabd",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.wrong-castle.png",
+      "file": "plates/scene.count-unbound.scene.wrong-castle.jpg",
+      "quality": 90,
+      "bytes": 1722540,
+      "sha256": "f4bc040d1b4f75d40771c094ce279cc763fdaf1137a9e28466aaaf2ee4dbab7a"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.strategy.png",
+      "originalBytes": 6629103,
+      "originalSHA256": "ae4d8374a7f5eae98deaa1884861c7527ff66092e6bdbc53e5c07699ecd7635a",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.strategy.png",
+      "file": "plates/scene.count-unbound.strategy.jpg",
+      "quality": 90,
+      "bytes": 1724496,
+      "sha256": "bdd8972377c2823ee1c3c53a7d0cc999d9ab862997d805c38220feb60c0bd5f3"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.future-tense.png",
+      "originalBytes": 6769265,
+      "originalSHA256": "e36fced80d9d1cec537bb6a50062b6bd5e3799c61fecd428c727321f5f4cda68",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.future-tense.png",
+      "file": "plates/scene.count-unbound.scene.future-tense.jpg",
+      "quality": 90,
+      "bytes": 1802192,
+      "sha256": "b82c3c12945af217e8aad0f89af7d32f17319a0132c2a8e742376971cbb65a9e"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.scene.first-nightbound-morning.png",
+      "originalBytes": 6835863,
+      "originalSHA256": "441de0bd715fdce4e0f186075ec5f543a7c9d18bb1954770c07cfa0b8c336d38",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.scene.first-nightbound-morning.png",
+      "file": "plates/scene.count-unbound.scene.first-nightbound-morning.jpg",
+      "quality": 90,
+      "bytes": 1828785,
+      "sha256": "659cb026c5520472b8fe4bf84112b319e07afb64d8c86bfdcc0ee5ce964a2c2e"
+    },
+    {
+      "originalFile": "plates/scene.count-unbound.protocols.threshold.png",
+      "originalBytes": 6806450,
+      "originalSHA256": "4e96991ea2c3b17d37f5473844b95c8c5aff418cce0bf1601f4270747396e17e",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/scene.count-unbound.protocols.threshold.png",
+      "file": "plates/scene.count-unbound.protocols.threshold.jpg",
+      "quality": 90,
+      "bytes": 1823258,
+      "sha256": "538d4c7bcf6074a837ca9024d387260d02c33318285c85d8d97f87d8ae8329ab"
+    },
+    {
+      "originalFile": "plates/cast.serenity-brown.png",
+      "originalBytes": 5948572,
+      "originalSHA256": "30e0951827a1e8f95215b7ed1aa902e7fdef5e600e0306af2fbe4852e5f3a8a5",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/cast.serenity-brown.png",
+      "file": "plates/cast.serenity-brown.jpg",
+      "quality": 90,
+      "bytes": 1525420,
+      "sha256": "1bf34e118b4cbb5e1a7099620801dd8cff5f0b280687d4ca385e26b25cc163fc"
+    },
+    {
+      "originalFile": "plates/cast.wicker-eddies.png",
+      "originalBytes": 5756859,
+      "originalSHA256": "7c1a439f53761ad1096aa3c40e6e43cc63df72999b4becd2c44460196391eb71",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/cast.wicker-eddies.png",
+      "file": "plates/cast.wicker-eddies.jpg",
+      "quality": 90,
+      "bytes": 1442060,
+      "sha256": "f2123d38cb8ef40fcd7fbc595ba3d442022dc01c429314c52d5a624823e6f620"
+    },
+    {
+      "originalFile": "plates/cast.penny-blackletter.png",
+      "originalBytes": 5825777,
+      "originalSHA256": "a17363ad9177dc9afb703422bd508a5e1f9e6379aa3642f228d38c80ec06b543",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/cast.penny-blackletter.png",
+      "file": "plates/cast.penny-blackletter.jpg",
+      "quality": 90,
+      "bytes": 1473437,
+      "sha256": "d07a21efb3805c9aa39f5a8edd922228ffaa05c2916ea3b2718bc9400727ce44"
+    },
+    {
+      "originalFile": "plates/cast.professor-permancer.png",
+      "originalBytes": 6216529,
+      "originalSHA256": "dc620b5b2ed8c7ea29766f23ce0ae867285e13ec2224c2ed1d8ed14308ef42f0",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/cast.professor-permancer.png",
+      "file": "plates/cast.professor-permancer.jpg",
+      "quality": 90,
+      "bytes": 1708240,
+      "sha256": "dbc74535445d2e7dcb713c237d67561a5759584c360b893a170be88d5bb5a835"
+    },
+    {
+      "originalFile": "plates/cast.ambrose-trencher.png",
+      "originalBytes": 5917331,
+      "originalSHA256": "3d887690918ee451aa6e527cf34eae6fd82a4c355965092473aadf81f2c1c2fd",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/cast.ambrose-trencher.png",
+      "file": "plates/cast.ambrose-trencher.jpg",
+      "quality": 90,
+      "bytes": 1497833,
+      "sha256": "57666b5c4dd35b53d34a759acdb21a2054d4c1b8912cd26ce8ac61885d69d714"
+    },
+    {
+      "originalFile": "plates/lanterns-in-the-kitchens.png",
+      "originalBytes": 6839581,
+      "originalSHA256": "2866f232c3ba54652a7f843d87fe95ebdf61d01663b4212724d7a121f815b832",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/lanterns-in-the-kitchens.png",
+      "file": "plates/lanterns-in-the-kitchens.jpg",
+      "quality": 90,
+      "bytes": 1862159,
+      "sha256": "a42a223550b3bc35e9dc52e445b4d4e93d23fb54e172a61f416b4ddc9a48f9b2"
+    },
+    {
+      "originalFile": "plates/fog-on-the-north-stair.png",
+      "originalBytes": 5984704,
+      "originalSHA256": "d10fd1e960e0bf5586162ae55d4b1c160116a1292be87fe9dbfc823061a5b226",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/fog-on-the-north-stair.png",
+      "file": "plates/fog-on-the-north-stair.jpg",
+      "quality": 90,
+      "bytes": 1497297,
+      "sha256": "8d1e10806251da35b6cfc21a3257e4a297728f654da3b76880cff34a56950027"
+    },
+    {
+      "originalFile": "plates/east-stacks-after-the-fall.png",
+      "originalBytes": 7126998,
+      "originalSHA256": "b741d54e2ce0b977086b1ab482b8bba96f818373a808a4d895b9f21d230b9423",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/east-stacks-after-the-fall.png",
+      "file": "plates/east-stacks-after-the-fall.jpg",
+      "quality": 90,
+      "bytes": 1939518,
+      "sha256": "3905479e1656043125b8498d41a7d1eaaa5deecff9b999be9aec46d8b6784794"
+    },
+    {
+      "originalFile": "plates/great-hall-at-supper.png",
+      "originalBytes": 7050722,
+      "originalSHA256": "bd37e56b5b525d0453083b3402af99b26850bfa312e1a8c8543117028b029b07",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/great-hall-at-supper.png",
+      "file": "plates/great-hall-at-supper.jpg",
+      "quality": 90,
+      "bytes": 1936763,
+      "sha256": "d1b97ec6c48fadc31f4fcba95b3f7fb9c0d857004716f0c083b49e0dbfec02b4"
+    },
+    {
+      "originalFile": "plates/vault-of-doors-window.png",
+      "originalBytes": 6303595,
+      "originalSHA256": "507cea8b787a6ca2a22c3451c36a4b82117a506c84379931045aca4af84f3526",
+      "originalDimensions": [
+        1500,
+        2250
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/vault-of-doors-window.png",
+      "file": "plates/vault-of-doors-window.jpg",
+      "quality": 90,
+      "bytes": 1714317,
+      "sha256": "d7bf7e0f6e0561527d75914ad74dd552de0f711ab1c90b42e7b23cfba2fa6231"
+    },
+    {
+      "originalFile": "plates/the-map-half-drawn.png",
+      "originalBytes": 7251201,
+      "originalSHA256": "e8a724c650ffcde254236c3fec2a00dc93bac89b32be3845502291c13284d3bd",
+      "originalDimensions": [
+        2400,
+        1600
+      ],
+      "archivePath": "output/monthly-plate-masters/count-unbound-2026-10/the-map-half-drawn.png",
+      "file": "plates/the-map-half-drawn.jpg",
+      "quality": 90,
+      "bytes": 1952702,
+      "sha256": "d16c13868feb961b4b8a4e4b6075e2154f17a31135045d48263aff5e0463a6e3"
+    }
+  ]
+}

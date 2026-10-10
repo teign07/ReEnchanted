@@ -34,11 +34,16 @@ Put the files in the pack's `plates/` folder and add one line to `issue.json`:
 "plates": { "prefix": "<pack-slug>.plate.", "directory": "plates" }
 ```
 
-`scripts/monthly_issue.py` stages every PNG in that folder as publication media
-(`<pack-slug>.plate.<file stem>`). No pack file has to mention them, and no JSON
-schema changes, so an older app can't fail to install the month because of them.
-**Before the first real use, run a release rehearsal** to confirm the Worker and
-the installer accept the unreferenced media assets.
+`scripts/monthly_issue.py` stages every PNG or JPEG in that folder as
+publication media (`<pack-slug>.plate.<file stem>`). No pack file has to mention
+them, and no JSON schema changes, so an older app can't fail to install the month
+because of them. Rehearsed 2026-10-10: the Worker serves them at every window and
+the installer files them under the names the books read.
+
+**Size: the phone refuses any publication file over 2 MB, and a month installs
+all or nothing.** The script therefore re-encodes any plate over the limit as a
+high-quality JPEG at 2400 px (quality 90 down to 70) and refuses the release if
+one still won't fit. Hand over the full-size PNGs; the script does the rest.
 
 ## October 2026 (Count Unbound): the list
 

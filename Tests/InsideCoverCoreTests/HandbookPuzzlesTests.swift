@@ -270,23 +270,39 @@ final class ChosenLessonsTests: XCTestCase {
                        invitation: "I", fields: [], readerEntry: nil, attendedCount: attended)
     }
 
-    func testALightMonthPrintsFewRoomsAndAFullOneAll() {
-        let all = (1...12).map { lesson("c\($0)") }
-        XCTAssertEqual(HandbookBuilder.chosenLessons(all, keptPages: 20, seed: "2026-10").count, 4)
-        XCTAssertEqual(HandbookBuilder.chosenLessons(all, keptPages: 39, seed: "2026-10").count, 6)
-        XCTAssertEqual(HandbookBuilder.chosenLessons(all, keptPages: 200, seed: "2026-10").count, 12)
-    }
-
-    func testEveryRoomTheReaderSatIsPrintedAndTheRestRotateByMonth() {
+    func testOnlyTheRoomsTheReaderSatAreWrittenUpInFull() {
         var all = (1...12).map { lesson("c\($0)") }
         all[10] = lesson("c11", attended: 2)
         all[11] = lesson("c12", attended: 1)
-        let october = HandbookBuilder.chosenLessons(all, keptPages: 20, seed: "2026-10")
-        XCTAssertTrue(october.contains { $0.id == "c11" } && october.contains { $0.id == "c12" }, "sat rooms always come")
-        XCTAssertEqual(october.map(\.id), HandbookBuilder.chosenLessons(all, keptPages: 20, seed: "2026-10").map(\.id), "a reprint is the same book")
-        let others = (11...20).map { HandbookBuilder.chosenLessons(all, keptPages: 20, seed: "2026-\($0)").map(\.id) }
-        XCTAssertGreaterThan(Set(others.map { $0.joined() }).count, 3, "different months teach different rooms")
-        XCTAssertEqual(HandbookBuilder.chosenLessons(all, keptPages: 0, seed: "x").count, 4)
+        let october = HandbookBuilder.chosenLessons(all, seed: "2026-10")
+        XCTAssertEqual(Set(october.full.map(\.id)), ["c11", "c12"], "sat rooms always come, and only they")
+        XCTAssertEqual(october.open.count, HandbookBuilder.openSeatLimit)
+        XCTAssertTrue(Set(october.open.map(\.id)).isDisjoint(with: ["c11", "c12"]))
+    }
+
+    func testABusyMonthWritesUpThreeRoomsAndKeepsALineFromTheRest() {
+        var all = (1...12).map { lesson("c\($0)") }
+        for index in [0, 2, 4, 6, 8] { all[index] = lesson(all[index].id, attended: index == 6 ? 4 : 1) }
+        // Two of the five came back with something written; those come first, then the most visited.
+        all[2].readerEntry = "Mine"
+        all[8].readerEntry = "Also mine"
+        let month = HandbookBuilder.chosenLessons(all, seed: "2026-10")
+        XCTAssertEqual(month.full.count, HandbookBuilder.fullLessonLimit)
+        XCTAssertEqual(Set(month.full.map(\.id)), ["c3", "c9", "c7"], "written-in rooms first, then the room sat most")
+        XCTAssertEqual(Set(month.also.map(\.id)), ["c1", "c5"])
+        XCTAssertTrue(Set(month.open.map(\.id)).isDisjoint(with: ["c1", "c3", "c5", "c7", "c9"]), "a room they sat is never an open seat")
+        XCTAssertEqual(month.open.count, HandbookBuilder.openSeatLimit)
+    }
+
+    func testAnEmptySeatsMonthRotatesItsRoomsAndAReprintIsTheSameBook() {
+        let all = (1...12).map { lesson("c\($0)") }
+        let october = HandbookBuilder.chosenLessons(all, seed: "2026-10")
+        XCTAssertEqual(october.full.count, 1, "a reader who sat nothing still gets one room in full")
+        XCTAssertEqual(october.full.map(\.id) + october.open.map(\.id),
+                       HandbookBuilder.chosenLessons(all, seed: "2026-10").full.map(\.id)
+                        + HandbookBuilder.chosenLessons(all, seed: "2026-10").open.map(\.id), "a reprint is the same book")
+        let others = (11...20).map { HandbookBuilder.chosenLessons(all, seed: "2026-\($0)").full.map(\.id).joined() }
+        XCTAssertGreaterThan(Set(others).count, 3, "different months write up different rooms")
     }
 
     func testTheGenericRoomsAreGivenUpBeforeTheReadersPuzzles() {

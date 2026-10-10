@@ -25,6 +25,12 @@
     ['MarginaliaStar','The ceiling is also available for looking at.'],
     ['MarginaliaScrap','There’s no question on this Page.']
   ];
+  // A Page whose whole job is the TestFlight list. Same Buttondown list as #invitation;
+  // the source tells us which Page the Reader said yes on.
+  function invite(id,title,art,html,button){
+    leaf(id,title,`${mark(art)}${html}<form class="invite-leaf-form" data-invite-form action="https://buttondown.com/api/emails/embed-subscribe/potions" method="post" target="_blank"><input type="hidden" name="embed" value="1"><input type="hidden" name="tag" value="testflight"><input type="hidden" name="metadata__source" value="public-edition-${id}"><label for="${id}-email">Your email</label><input id="${id}-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com"><button class="ink-button" type="submit">${button} ↗</button></form><p class="capture-receipt" data-invite-status role="status"></p>`+
+      /* slip:start */`<p class="reading-whisper">Free TestFlight invite, iPhone &amp; iPad. Your email goes to Buttondown, only for that. <a href="#invitation">What you’ll need</a></p>`/* slip:end */,'invite');
+  }
   function hush(id,offset){const [art,words]=quietPool[(edition.seed+offset)%quietPool.length];leaf(id,'Between the Pages',`${mark(art)}<p class="hush-line">${words}</p>`,'hush');}
   leaf('first-anyway','What your sky is doing',`${mark('MarginaliaStar')}<p class="eyebrow">There’s a real day outside this tab</p><h2>Let me look<br>at your sky.</h2><p>Point me at your sky once. I’ll put its weather beside whatever you write.</p><p class="kept-sentence" data-sky-line hidden></p><button type="button" class="reading-option" data-read-sky>Let this Page read my weather</button><p class="reading-whisper">Only if you choose: your browser’s location is sent to Open-Meteo for the weather. It isn’t kept by this website.</p><p class="capture-receipt" data-sky-status role="status"></p>`,'day');
   encounter('write');
@@ -47,13 +53,15 @@
   hush('first-wait',4);
   leaf('first-wicker-echo','A scrap from Wicker',`${mark('MarginaliaScrap')}<p class="eyebrow">Wicker left this</p><div data-echo="dare"><div data-if-done hidden><h2><span data-dare-word-echo>The word</span> got out.</h2><p>Good. Keep the door shut a moment. It has never been outside by itself before.</p><p>You can have your respectable voice back now.</p></div><div data-if-waiting><h2>Still in there?</h2><p>Your word, I mean.</p><p>Keep it until there’s a good place to let it loose. I’m not collecting obedience.</p></div></div><p class="story-echo" data-story-stance hidden></p><p class="reading-whisper">An authored reply, written for this public edition. Wicker hasn’t heard or interpreted your word.</p>${link('note-wicker-eddies','Who let Wicker in?')}`,'wicker');
   story('bargain','A bargain, offered');
+  invite('first-yes','Say yes','MarginaliaSeal',`<p class="eyebrow">I meant it</p><h2>Let me be<br>your Book.</h2><p>I’m not open yet. A few Readers get to come in first and fight the Curse with me while I’m new. Leave your email. When testing starts, I’ll come and find you.</p>`,'Send me the TestFlight invite');
+  invite('first-yours','The next one is yours','MarginaliaFeather',`<p class="eyebrow">That was somebody else’s month</p><h2>The next one<br>could be yours.</h2><p>That was a pretend Reader from our October test. I’d rather make yours: your Tuesdays, your street, your name on the spine. You can have me when testing starts.</p>`,'I want my own Book');
   leaf('first-parting','Take something with you',`<p class="eyebrow">That’ll do for a beginning</p><h2>I want a Tuesday<br>of yours.</h2><p>A sentence was enough to start. Imagine what we could keep in a week.</p><a class="ink-button" href="#invitation">Send me the app invite ↗</a><p class="reading-whisper">In development for iPhone &amp; iPad. Join the list for a free TestFlight invite when it opens.</p><button type="button" class="reading-option" data-souvenir>Take a Page with you</button><p class="capture-receipt" data-souvenir-status role="status"></p><p class="reading-whisper">Your sentence, or an invitation. Yours to keep.</p>${link('contents','Keep wandering through the binding')}`,'parting');
   // Full chapters, with one or two Book Pages between each topic.
   // The science, physical editions, gifts and subscription all come first.
   // Story choices still precede their replies and the braid that remembers them.
   const readingOrder=[
-    'frontispiece','about','curse','first-write','first-magic',
-    'editions','sample-issues','gifting','plans','first-back','first-cats',
+    'frontispiece','about','first-yes','curse','first-write','first-magic',
+    'editions','sample-issues','first-yours','gifting','plans','first-back','first-cats',
     'how','first-anyway','first-return',
     'nightly-braid','first-proof','between-nightly-braid',
     'pagewright','between-pagewright','between-editions',
@@ -93,6 +101,11 @@
     window.BookSounds?.select();
     const shown=composition.querySelector('[data-proof-panel]:not([hidden])');
     shown.querySelector('button')?.focus({preventScroll:true});
+  });
+  document.addEventListener('submit',event=>{
+    const form=event.target.closest('[data-invite-form]');if(!form)return;
+    const status=form.parentElement.querySelector('[data-invite-status]');
+    if(status)status.textContent='Look in the new tab. Buttondown may ask you to confirm your email first.';
   });
   edition.hydrate();
 })();

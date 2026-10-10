@@ -2363,6 +2363,9 @@ struct PlayerVaultData: Codable, Equatable {
     /// They ship nothing, but remain resolved so a later paid season cannot be
     /// trapped behind the same empty window forever.
     var resolvedEmptyBoundYearSeasonKeys: [String]?
+    /// The member's first full week, bound and posted free. One per membership;
+    /// the Worker keeps the claim, this keeps the Book's place.
+    var boundYearWelcomeWeekly: BoundYearWelcomeWeekly?
     /// When the last tale closed, so the reader gets to be out of a story.
     var lastTaleClosedAt: Date?
     /// The laws finished tales left behind. These do not reset.

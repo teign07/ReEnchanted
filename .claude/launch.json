@@ -4,14 +4,38 @@
     {
       "name": "landing",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4599", "--directory", "LandingPage"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4599",
+        "--directory",
+        "LandingPage"
+      ],
       "port": 4599
     },
     {
       "name": "field-book-mock",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "4598", "--directory", "docs/field-book-mock"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4598",
+        "--directory",
+        "docs/field-book-mock"
+      ],
       "port": 4598
+    },
+    {
+      "name": "landing-alt",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "4597",
+        "--directory",
+        "LandingPage"
+      ],
+      "port": 4597
     }
   ]
 }

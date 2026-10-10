@@ -1115,20 +1115,20 @@ enum WeeklyTaleBuilder {
         headings(for: day, telling: telling, kept: kept, tags: tags).first ?? fallbackHeading
     }
 
-    /// Every honest "In which …" for a day, best first. All of them are the
-    /// Book's words or plain facts about the day; the reader's own sentence is
-    /// never turned into a title.
+    /// Every honest "In which …" for a day, best first. The reader's raw
+    /// sentence is never the title; a detail of theirs may be retold, in the
+    /// Book's storybook voice, the way a chapter of a tale is named.
     ///
-    /// 1. The authored line the night's telling carried: "The chimney stood in
-    ///    the sky with its hands in its pockets." Library lines are the Book's,
-    ///    written for ordinary things, and a wonder braid sets one in nearly
-    ///    every paragraph; only a line the telling really kept counts, since
-    ///    Gemma sometimes writes past it.
-    /// 2. The night's colophon, when the telling has one. The planner's stock
-    ///    colophons are the same seven lines all month, so they have headings
-    ///    of their own, written once.
-    /// 3. What the day held: the room the reader went into, a letter, a note
-    ///    from the Cast, a photograph.
+    /// 1. The night's colophon, when the Book chose it for this night alone:
+    ///    "In which the card came home from Portugal with your name still on it".
+    /// 2. A detail the reader wrote, retold: "Found a moth asleep inside the
+    ///    lampshade" becomes "In which you found a moth asleep inside the
+    ///    lampshade" (`readerDetailHeading`: past tense and a real thing in it),
+    ///    then a thing their fragment names ("In which there was a low grey sky").
+    /// 3. A page they made in the Pagewright that day.
+    /// 4. The authored library line the night's telling carried.
+    /// 5. A stock colophon (the planner's seven, written once each), then what
+    ///    the day held: the room, a letter, a Cast note, a photograph.
     static func headings(for day: BoundDay, telling: String?, kept: String?, tags: [String]) -> [String] {
         var found: [String] = []
         func add(_ heading: String?) {

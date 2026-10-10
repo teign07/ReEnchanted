@@ -4326,6 +4326,18 @@ struct AcademyLessonModule: Equatable {
     var demonstration: String
     var interactionPrompt: String
     var realWorldPractice: String
+    /// Where the lesson sits in its room's year, from 1 (see `AcademyCurriculum`).
+    var number: Int? = nil
+    /// How this lesson teaches: "A real experiment", "The common trap".
+    var mode: String? = nil
+    /// The leader's own words at the board: the part that does the teaching.
+    var lecture: String? = nil
+    /// The lesson made small enough to try in two minutes, for a reader who wasn't in the room.
+    var twoMinutes: String? = nil
+    /// The course reading the lesson is drawn from.
+    var reading: String? = nil
+    /// This lesson's own worksheet, when it isn't the room's standing one.
+    var practice: AcademyActivity? = nil
 }
 
 /// The hands-on portion of an Academy meeting.  Lessons keep their teaching
@@ -4362,6 +4374,11 @@ struct AcademyActivity: Equatable {
     var fields: [Field]
 
     var isCompassRun: Bool { kind == .compassRun }
+
+    /// A worksheet a month's lesson brought with it (see `AcademyCurriculum`), rather than the
+    /// room's standing one. Its boxes are the whole exercise, so it gets a plain card, not the
+    /// room's own staged card, which is written for the standing worksheet.
+    var isLessonOwn: Bool { AcademyActivityRegistry.activities[sessionID]?.id != id }
 }
 
 /// Registry rather than prompt-only copy: this gives every class and club a
@@ -4485,8 +4502,9 @@ enum AcademyActivityRegistry {
         )
     ]
 
-    static func activity(for sessionID: String) -> AcademyActivity? {
-        activities[sessionID]
+    /// The room's worksheet, or the lesson's own when the lesson brings one.
+    static func activity(for sessionID: String, lessonID: String? = nil) -> AcademyActivity? {
+        lessonID.flatMap { AcademyCurriculum.lesson(id: $0)?.practice } ?? activities[sessionID]
     }
 }
 
@@ -4735,187 +4753,19 @@ enum AcademyScheduleRegistry {
     ]
 
     static let lessonModules: [String: AcademyLessonModule] = [
-        "art-of-the-glint": AcademyLessonModule(
-            id: "glint-specificity-001",
-            sessionID: "art-of-the-glint",
-            title: "Specificity Breaks the Rut",
-            realSubject: "attention training and close observation",
-            concept: "A specific, observable detail interrupts habituation better than a general judgment.",
-            lectureBeats: [
-                "The mind wallpapers familiar rooms to save effort.",
-                "A concrete detail restores contact with the real object.",
-                "A good noticing names evidence before interpretation."
-            ],
-            demonstration: "Professor Boggle places three ordinary objects under lamplight and asks which one changed once it was described exactly.",
-            interactionPrompt: "Name one exact classroom detail before saying what it means.",
-            realWorldPractice: "Find one ignored object today and write three observable facts about it before any metaphor."
-        ),
-        "wayfinding-kineticism": AcademyLessonModule(
-            id: "wayfinding-threshold-001",
-            sessionID: "wayfinding-kineticism",
-            title: "Thresholds Before Escapes",
-            realSubject: "behavioral activation, route design, and intentional movement",
-            concept: "A small threshold crossed on purpose changes a stuck pattern more reliably than a dramatic escape.",
-            lectureBeats: [
-                "Motion isn't the same as arrival.",
-                "A threshold works when it's small enough to cross and specific enough to notice.",
-                "The first step should reduce friction, not demand a new identity."
-            ],
-            demonstration: "Professor Momort chalks three doorways on the floor and has students compare an escape route, an errand, and an intentional return.",
-            interactionPrompt: "Choose which doorway counts as a real threshold and say what changes after crossing it.",
-            realWorldPractice: "Take one short intentional route today and name the threshold before you cross it."
-        ),
-        "synesthetic-resonance": AcademyLessonModule(
-            id: "resonance-sensory-001",
-            sessionID: "synesthetic-resonance",
-            title: "The Senses Are Instruments",
-            realSubject: "sensory grounding, synesthetic metaphor, and embodied memory",
-            concept: "Sensory attention gives an experience measurable texture before the mind turns it into a story.",
-            lectureBeats: [
-                "A room can be read through sound, temperature, color, and pressure.",
-                "Synesthetic description is useful when it begins with actual sensory evidence.",
-                "Memory often keeps the body of a moment before it keeps the explanation."
-            ],
-            demonstration: "Professor Euphony rings a glass bell, dims one lamp, and asks students how the room's color seems to change without the walls moving.",
-            interactionPrompt: "Describe one sound in the room as a color, then name the real evidence underneath it.",
-            realWorldPractice: "Pause in one room today and record one sound, one color, and one body sensation."
-        ),
-        "ink-binding": AcademyLessonModule(
-            id: "ink-binding-souvenir-001",
-            sessionID: "ink-binding",
-            title: "One Sentence Can Carry Time",
-            realSubject: "sentence craft, compression, journaling, and memory selection",
-            concept: "A durable souvenir sentence keeps one true moment by choosing evidence and refusing ornament that isn't true.",
-            lectureBeats: [
-                "A souvenir sentence isn't a summary; it's a vessel.",
-                "Concrete nouns hold more time than abstract praise.",
-                "Revision removes beautiful lies so the true detail can breathe."
-            ],
-            demonstration: "Professor Villanelle writes three versions of the same moment on the board and crosses out the prettiest false word.",
-            interactionPrompt: "Pick the sentence that keeps the moment most honestly and say which word earns its place.",
-            realWorldPractice: "Write one sentence tonight that preserves a real moment without explaining why it mattered."
-        ),
-        "quiet-hours": AcademyLessonModule(
-            id: "quiet-hours-integration-001",
-            sessionID: "quiet-hours",
-            title: "Rest Is Not Absence",
-            realSubject: "rest, recovery, nervous system pacing, and integration",
-            concept: "Rest is active integration: stopping allows the nervous system to sort, repair, and make later action possible.",
-            lectureBeats: [
-                "Center isn't a direction; it's the ground beneath direction.",
-                "A pause can be chosen before collapse chooses it for you.",
-                "Integration asks what the day is still carrying."
-            ],
-            demonstration: "Professor Stonebrook turns an hourglass on its side and lets the unmoving sand become the lesson.",
-            interactionPrompt: "Name one thing a pause would protect rather than prevent.",
-            realWorldPractice: "Take a five-minute stop today and write what became clearer after nothing was demanded."
-        ),
-        "basic-enchantments": AcademyLessonModule(
-            id: "enchantments-object-voice-001",
-            sessionID: "basic-enchantments",
-            title: "Objects Answer Courtesy",
-            realSubject: "close observation, imaginative projection, and safe object-based writing",
-            concept: "An object voice becomes useful when attention stays courteous, specific, and tethered to what is actually present.",
-            lectureBeats: [
-                "Enchanting an object begins with description, not command.",
-                "The safest magic asks what the object already seems to know.",
-                "Accidents can teach, but the caster remains responsible for the frame."
-            ],
-            demonstration: "Professor Wispwood apologizes to a chipped mug, lists its visible facts, and lets its answer emerge from those facts.",
-            interactionPrompt: "Choose an object in the room and ask what its wear marks suggest.",
-            realWorldPractice: "Pick one ordinary object and write its answer using only details you can actually see."
-        ),
-        "book-jumping": AcademyLessonModule(
-            id: "book-jumping-return-001",
-            sessionID: "book-jumping",
-            title: "Every Door Requires a Return",
-            realSubject: "close reading, genre conventions, risk assessment, and narrative boundaries",
-            concept: "Entering a story safely means reading its rules before stepping in and keeping a return point visible.",
-            lectureBeats: [
-                "A genre is weather, not wallpaper.",
-                "Every fictional world has pressure, permissions, and costs.",
-                "A bookmark is a boundary agreement with the self who must come home."
-            ],
-            demonstration: "Professor Permancer lays three bookmarks beside a glowing page and rejects the prettiest one because it has no exit protocol.",
-            interactionPrompt: "Identify one rule of the story-door before deciding whether it's safe to open.",
-            realWorldPractice: "Before reading or watching something immersive today, name the mood you're entering and your return point."
-        ),
-        "compass-running": AcademyLessonModule(
-            id: "compass-running-loop-001",
-            sessionID: "compass-running",
-            title: "The Loop Must Return",
-            realSubject: "field observation, constraint design, reflective practice, and low-risk adventure",
-            concept: "A Compass Run works because North, East, South, West, and Center make attention complete instead of merely exciting.",
-            lectureBeats: [
-                "North notices before it changes anything.",
-                "East crosses a small threshold under clear constraints.",
-                "South senses, West writes, and Center lets the run become part of a life."
-            ],
-            demonstration: "Professor Stonebrook maps a full run with chalk stones, then removes every step that would cost too much energy.",
-            interactionPrompt: "Choose the constraint that makes a tiny adventure humane enough to finish.",
-            realWorldPractice: "Plan one no-cost Compass loop with a clear return and a one-sentence souvenir."
-        ),
-        "compass-society": AcademyLessonModule(
-            id: "compass-society-souvenirs-001",
-            sessionID: "compass-society",
-            title: "A Souvenir Grows When Shared",
-            realSubject: "reflective sharing, listening practice, and respectful field reports",
-            concept: "A field sentence becomes more durable when it's read aloud and received without mockery.",
-            lectureBeats: [
-                "The sentence is evidence, not performance.",
-                "Listeners protect the run by asking about one concrete detail.",
-                "Sharing should increase reality, not demand spectacle."
-            ],
-            demonstration: "Zara Finch reads one souvenir sentence twice: once for drama, once for truth, and lets the room hear the difference.",
-            interactionPrompt: "Ask one respectful question that would help a souvenir sentence become more specific.",
-            realWorldPractice: "Share one small true observation with someone, or write the question you would ask if no one is available."
-        ),
-        "marginalia-guild": AcademyLessonModule(
-            id: "marginalia-annotation-001",
-            sessionID: "marginalia-guild",
-            title: "Margins Are Future Conversation",
-            realSubject: "annotation, reader response, and long-form attention across time",
-            concept: "A good marginal note leaves a future reader evidence of contact, not a performance of cleverness.",
-            lectureBeats: [
-                "Annotation is a conversation with the page and a stranger not yet present.",
-                "The best margin notes point to a specific word, image, or question.",
-                "A note can disagree without flattening the book."
-            ],
-            demonstration: "Professor Boggle compares three margin notes and keeps the one that points to the strangest exact verb.",
-            interactionPrompt: "Write the kind of note a future reader could answer.",
-            realWorldPractice: "Mark or copy one sentence from something you read today and add one honest margin question."
-        ),
-        "inkwright-society": AcademyLessonModule(
-            id: "inkwright-workshop-001",
-            sessionID: "inkwright-society",
-            title: "Honest First, Kind Second",
-            realSubject: "creative writing workshop, revision, and critique practice",
-            concept: "Useful critique protects the living intention of a piece while telling the truth about what reaches the reader.",
-            lectureBeats: [
-                "Praise is useful only when it names what worked.",
-                "A critique should describe the effect before prescribing the fix.",
-                "Revision is an act of loyalty to the stronger version of the work."
-            ],
-            demonstration: "The circle reads one rough paragraph and separates the line that's alive from the line that's merely decorative.",
-            interactionPrompt: "Name one line that feels alive and one question that would help it grow.",
-            realWorldPractice: "Revise one sentence today by making its strongest noun or verb more exact."
-        ),
-        "book-jumpers": AcademyLessonModule(
-            id: "book-jumpers-landing-001",
-            sessionID: "book-jumpers",
-            title: "Choose the Spine, Then Argue About the Door",
-            realSubject: "collaborative planning, genre safety, and controlled imaginative play",
-            concept: "A group jump begins with one chosen book and is safest when everyone agrees what counts as its door, landing, and exit before wonder begins.",
-            lectureBeats: [
-                "Choose one book; a jump can't aim at the whole library.",
-                "Excitement isn't a landing protocol.",
-                "Every participant needs the same doorway definition.",
-                "A good exit is boring enough to work under pressure."
-            ],
-            demonstration: "Professor Permancer makes the club choose one spine from a crowded table, then lets them argue over three possible doors until Zara identifies the one with a return shadow.",
-            interactionPrompt: "Choose the book first, then choose which doorway has the clearest exit and defend it with evidence.",
-            realWorldPractice: "Before entering any immersive story today, name the book, the door, the landing, and the exit in one line."
-        )
+        // A room teaching a year-long course: its first lesson stands in wherever a date isn't known.
+        "art-of-the-glint": AcademyCurriculum.glint[0],
+        "wayfinding-kineticism": AcademyCurriculum.wayfinding[0],
+        "synesthetic-resonance": AcademyCurriculum.resonance[0],
+        "ink-binding": AcademyCurriculum.inkBinding[0],
+        "quiet-hours": AcademyCurriculum.quietHours[0],
+        "basic-enchantments": AcademyCurriculum.enchantments[0],
+        "book-jumping": AcademyCurriculum.bookJumping[0],
+        "compass-running": AcademyCurriculum.compassRunning[0],
+        "compass-society": AcademyCurriculum.compassSociety[0],
+        "marginalia-guild": AcademyCurriculum.marginaliaGuild[0],
+        "inkwright-society": AcademyCurriculum.inkwrightSociety[0],
+        "book-jumpers": AcademyCurriculum.bookJumpers[0]
     ]
 
     /// weekday uses Calendar's convention: 1 = Sunday ... 7 = Saturday.

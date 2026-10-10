@@ -201,6 +201,115 @@ enum WonderBraid {
         return nil
     }
 
+    /// The details as they will read in a telling. The plan labels some for the
+    /// plain brief ("9 days ago: …", "From an earlier page: …"); here they are
+    /// said in the Book's voice. A one-word label ("Exercise: …") is dropped,
+    /// and a poem's lines are joined into one sentence.
+    static func prepared(_ details: [String]) -> [String] {
+        let numbers = ["One": "one", "Two": "two", "Three": "three", "Four": "four", "Five": "five", "Six": "six",
+                       "Seven": "seven", "Eight": "eight", "Nine": "nine", "Ten": "ten", "Eleven": "eleven", "Twelve": "twelve"]
+        _ = numbers
+        func words(_ n: Int) -> String {
+            let names = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+                         "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty",
+                         "twenty-one", "twenty-two", "twenty-three", "twenty-four", "twenty-five", "twenty-six",
+                         "twenty-seven", "twenty-eight", "twenty-nine", "thirty", "thirty-one"]
+            return n < names.count ? names[n] : "\(n)"
+        }
+        func lowerFirst(_ text: String) -> String {
+            guard let first = text.first else { return text }
+            let lead = text.split(separator: " ").first.map(String.init) ?? ""
+            if lead == "I" || lead.hasPrefix("I'") || (lead.count > 1 && lead.dropFirst().contains(where: \.isUppercase)) { return text }
+            return first.lowercased() + text.dropFirst()
+        }
+        return details.enumerated().compactMap { index, raw -> String? in
+            let others = details.enumerated().filter { $0.offset != index }.map(\.element)
+            var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            // A poem kept as lines: one sentence, its line breaks as commas.
+            let lines = text.components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+            if lines.count > 1, lines.allSatisfy({ !".!?".contains($0.last ?? ".") }) {
+                text = lines.joined(separator: ", ") + "."
+            } else {
+                text = lines.joined(separator: " ")
+            }
+            // A callback to an earlier day is worth saying only when the earlier
+            // words stand up as a sentence of their own; a fragment ("rain by
+            // four-fifteen") quoted back out of its day reads as a slip.
+            func callback(_ when: String, _ remembered: String) -> String? {
+                let words = remembered.split(separator: " ").map(String.init)
+                guard words.count >= 6, let first = words.first else { return nil }
+                let lead = first.lowercased().trimmingCharacters(in: .punctuationCharacters)
+                let starters: Set<String> = ["you", "the", "a", "an", "your", "it", "there", "someone", "somebody", "everyone", "nobody", "my"]
+                // A capitalised word that isn't a starter is a name ("Shirley said…")
+                // unless it reads as a bare verb ("Walked the dog…").
+                let isName = first.first?.isUppercase == true && !starters.contains(lead)
+                    && !lead.hasSuffix("ed") && !["found", "made", "went", "saw", "took", "got", "ate", "wrote", "read", "sat", "ran", "kept", "told"].contains(lead)
+                guard starters.contains(lead) || isName else { return nil }
+                let sentence = remembered.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Said a few ways, so a month of them doesn't read as a stamp.
+                let key = normalized(sentence)
+                guard !others.contains(where: { normalized($0).contains(key) }) else { return nil }
+                let ways = ["That came back from \(when): \(sentence)",
+                            "I kept this from \(when): \(sentence)",
+                            "\(String(when.prefix(1)).uppercased() + when.dropFirst()), it was this: \(sentence)"]
+                return ways[Int(stableHash(key) % UInt64(ways.count))]
+            }
+            if let range = text.range(of: #"^(\d+) days ago: "#, options: .regularExpression) {
+                let n = Int(text[range].split(separator: " ")[0]) ?? 0
+                return callback("\(words(n)) days ago", String(text[range.upperBound...]))
+            }
+            for (word, lower) in numbers {
+                let label = "\(word) day\(word == "One" ? "" : "s") ago: "
+                if text.hasPrefix(label) {
+                    return callback(lower == "one" ? "yesterday" : "\(lower) days ago", String(text.dropFirst(label.count)))
+                }
+            }
+            if text.hasPrefix("From an earlier page: ") {
+                return callback("an earlier page", String(text.dropFirst("From an earlier page: ".count)))
+            }
+            // "Exercise: find something…", a label from a form, not a sentence.
+            // Only a form's own labels; a reader's "So: I did the washing" is theirs.
+            let formLabels: Set<String> = ["Exercise", "Prompt", "Task", "Practice", "Worksheet", "Question", "Answer", "Assignment"]
+            if let range = text.range(of: #"^[A-Z][a-z]+: "#, options: .regularExpression),
+               formLabels.contains(String(text[range].dropLast(2))) {
+                let rest = String(text[range.upperBound...])
+                guard rest.split(separator: " ").count >= 3 else { return text }
+                return String(rest.prefix(1)).uppercased() + rest.dropFirst()
+            }
+            return text
+        }
+    }
+
+    static func opensOnPronoun(_ text: String) -> Bool {
+        let first = text.split(separator: " ").first.map { $0.trimmingCharacters(in: .punctuationCharacters) } ?? ""
+        return ["It", "Its", "They", "Them", "He", "She", "His", "Her", "That", "This", "Those", "These"].contains(first)
+    }
+
+    /// Plain details set as paragraphs of a tale: sentences run together,
+    /// a new paragraph after about seventy words.
+    static func paragraphs(of details: [String]) -> [String] {
+        var out: [String] = []
+        var current: [String] = []
+        var count = 0
+        for detail in details {
+            var sentence = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            // "…in *Dracula.*" already ends; markup closing after the stop counts.
+            let ending = sentence.trimmingCharacters(in: CharacterSet(charactersIn: "*_"))
+            if let last = ending.last, !".!?\u{201D}\"".contains(last) { sentence += "." }
+            let n = sentence.split(whereSeparator: \.isWhitespace).count
+            if count > 0, count + n > 70 {
+                out.append(current.joined(separator: " "))
+                current = []
+                count = 0
+            }
+            current.append(sentence)
+            count += n
+        }
+        if !current.isEmpty { out.append(current.joined(separator: " ")) }
+        return out
+    }
+
     /// The reader's day in order. Short fragments ride with their neighbours;
     /// at most four paragraphs, with overflow merged into the last.
     static func beats(details: [String], dateKey: String, resting: Set<String>, limit: Int = 4, library: [Line]? = nil) -> [Beat] {
@@ -647,15 +756,36 @@ enum WonderBraid {
     /// braid, or Gemma failed so badly there is nothing honest to keep).
     static func write(_ input: Input, tell: Teller) async throws -> Output? {
         let beats = Self.beats(
-            details: input.details, dateKey: input.dateKey, resting: input.resting,
+            details: prepared(input.details), dateKey: input.dateKey, resting: input.resting,
             library: input.isHardNight ? [] : library(delivered: input.delivered, retiring: input.retiring)
         )
         guard !beats.isEmpty || !input.bookLines.isEmpty || input.tale?.isEmpty == false
                 || input.business?.isEmpty == false else { return nil }
         var paragraphs: [String] = []
         var fellBack = 0
+        // A true detail with no seed is told as it is: there is nothing for
+        // Gemma to add, and asking only risks it changing the reader's words.
+        // Runs of them are set as one paragraph, the way a tale is, not a list.
+        var plain: [String] = []
+        func flushPlain() {
+            guard !plain.isEmpty else { return }
+            paragraphs.append(contentsOf: Self.paragraphs(of: plain))
+            plain = []
+        }
 
         for beat in beats {
+            if beat.lines.isEmpty {
+                // "It moved its head" belongs with the heron, not after whatever
+                // comes between: a detail that opens on a pronoun rides with the
+                // paragraph before it.
+                if plain.isEmpty, let last = paragraphs.indices.last, Self.opensOnPronoun(beat.detail) {
+                    paragraphs[last] += " " + Self.paragraphs(of: [beat.detail]).joined(separator: " ")
+                    continue
+                }
+                plain.append(beat.detail)
+                continue
+            }
+            flushPlain()
             let beatTale: String? = nil
             if let text = try await readerParagraph(beat: beat, tale: beatTale, tell: tell, patience: input.patience) {
                 paragraphs.append(text)
@@ -664,6 +794,13 @@ enum WonderBraid {
                 let detail = beat.detail.trimmingCharacters(in: .whitespacesAndNewlines)
                 paragraphs.append(([detail.hasSuffix(".") ? detail : detail + "."] + beat.lines).joined(separator: " "))
             }
+        }
+        flushPlain()
+        // A night is only published when the model is there to write it, even
+        // one whose details needed nothing added: ask once, so a model that
+        // isn't answering ends the night instead of a pasted one going out.
+        if !beats.isEmpty, beats.allSatisfy({ $0.lines.isEmpty }) {
+            _ = try await readerParagraph(beat: beats[0], tale: nil, tell: tell, patience: input.patience)
         }
         // Fictional news has its own provenance and its own paragraph. Asking
         // the model to mingle it into a true detail made both less trustworthy.
@@ -682,7 +819,15 @@ enum WonderBraid {
         if let weather = input.weather {
             switch weatherMode {
             case .beat:
-                weatherBeat = await bookParagraph(opening: weather, user: weatherBeatPrompt(opening: weather), tell: tell, patience: input.patience) ?? weather
+                if let written = await bookParagraph(opening: weather, user: weatherBeatPrompt(opening: weather), tell: tell, patience: input.patience) {
+                    weatherBeat = written
+                } else if !paragraphs.isEmpty {
+                    // Without the Book's paragraph the sky is one plain line: it
+                    // sits at the end of the day it belongs to, not on its own.
+                    paragraphs[0] += " " + weather
+                } else {
+                    weatherBeat = weather
+                }
             case .mention:
                 if !paragraphs.isEmpty {
                     let sentence = await weatherSentence(world: weather, tell: tell, patience: input.patience) ?? weather
@@ -792,6 +937,61 @@ enum WonderBraid {
     /// The Book's own sentences from Pages it wrote and the reader kept (a Margin
     /// Atlas, say): carried whole, never paraphrased and never given to the
     /// reader. Instructions to tap or pinch are screen furniture, not story.
+    /// Who wrote a kept Page in their own voice: the writer of a letter, the
+    /// Cast member behind a note. Nil for the Book's own pages.
+    static func castVoice(of page: BookPage) -> (name: String, isLetter: Bool)? {
+        guard let kind = BoundDayKeep.Kind.of(page), kind == .letter || kind == .castNote else { return nil }
+        let meta = page.metadata ?? [:]
+        let slug = meta["castID"] ?? meta["speakerSlug"] ?? meta["speakerID"]
+        let name = meta["speakerName"] ?? meta["castName"] ?? meta["fromName"]
+            ?? slug.flatMap { KeepMarginalia.voice(forSlug: $0)?.name }
+        guard let name, !name.isEmpty else { return nil }
+        return (name, kind == .letter)
+    }
+
+    /// A Cast member's words from a kept Page, credited to them and quoted, so
+    /// the telling never says them in the Book's own voice. Wicker's "I didn't
+    /// leave the pen in your bag" is Wicker's line, not the Book's.
+    static func attributedLine(name: String, isLetter: Bool, sentences: [String]) -> String? {
+        // Whole sentences only, up to about forty words; never cut mid-thought.
+        var picked: [String] = []
+        var count = 0
+        for sentence in sentences.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !sentence.isEmpty {
+            let n = sentence.split(whereSeparator: \.isWhitespace).count
+            if !picked.isEmpty, count + n > 40 { break }
+            picked.append(sentence)
+            count += n
+        }
+        guard !picked.isEmpty else { return nil }
+        let clipped = picked.joined(separator: " ")
+        return isLetter
+            ? "A letter came from \(name). \u{201C}\(clipped)\u{201D}"
+            : "\(name) left a note: \u{201C}\(clipped)\u{201D}"
+    }
+
+    /// The kept-fiction lines a night's telling carries, from its scene plan:
+    /// the Book's own scenes as its words, a letter or a Cast note credited to
+    /// its writer. Shared by the phone and the Mac braid lab.
+    static func bookLines(plan: BraidScenePlan, day: BookDay) -> [String] {
+        let evidence = plan.placements
+            .compactMap { plan.evidence(for: $0.evidenceID) }
+            .filter { $0.kind == .keptFiction }
+        var order: [String] = []
+        for item in evidence where !order.contains(item.pageID) { order.append(item.pageID) }
+        var bookSentences: [String] = []
+        var credited: [String] = []
+        for pageID in order {
+            // Cleaned like the reader's details: a poem's lines joined, a form label dropped.
+            let sentences = prepared(evidence.filter { $0.pageID == pageID }.map(\.text)).flatMap(Self.sentences)
+            if let page = day.capturedPages.first(where: { $0.id == pageID }), let voice = castVoice(of: page) {
+                if let line = attributedLine(name: voice.name, isLetter: voice.isLetter, sentences: sentences) { credited.append(line) }
+            } else {
+                bookSentences.append(contentsOf: sentences)
+            }
+        }
+        return bookLines(from: bookSentences) + credited.prefix(2)
+    }
+
     static func bookLines(from sentences: [String], limit: Int = 3) -> [String] {
         let imperative = try! NSRegularExpression(
             pattern: "^(open|tap|pinch|drag|swipe|press|write|try|look|pick|choose|bring|notice|find|take|go|come|read|ask|tell|keep|add|return|carry|leave)\\b",

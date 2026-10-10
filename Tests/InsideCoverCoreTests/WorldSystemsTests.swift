@@ -118,9 +118,9 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
 
         let lesson = AcademyScheduleRegistry.lessonModules["art-of-the-glint"]
         XCTAssertEqual(lesson?.sessionID, "art-of-the-glint")
-        XCTAssertEqual(lesson?.title, "Specificity Breaks the Rut")
+        XCTAssertEqual(lesson?.title, "The Doorknob Test")
         XCTAssertFalse(lesson?.lectureBeats.isEmpty ?? true)
-        XCTAssertTrue(lesson?.realWorldPractice.contains("observable facts") ?? false)
+        XCTAssertTrue(lesson?.realWorldPractice.contains("three plain facts") ?? false)
     }
 
     func testAcademyTurnClassIsQuietAndLessonPreservingClubIsActive() throws {

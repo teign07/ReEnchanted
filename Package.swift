@@ -72,6 +72,7 @@ let package = Package(
                 "BookThreads.swift",
                 "BraidCrossing.swift",
                 "WonderBraid.swift",
+                "AcademyCurriculum.swift",
                 "WeeklyCuration.swift",
                 "HandbookPuzzles.swift",
                 "HandbookKeepsakes.swift",

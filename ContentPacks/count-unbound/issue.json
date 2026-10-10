@@ -2,6 +2,10 @@
   "issueID": "count-unbound-2026-10",
   "title": "The Count Unbound",
   "runID": "count-unbound:2026",
+  "plates": {
+    "prefix": "count-unbound.v2.plate.",
+    "directory": "plates"
+  },
   "files": [
     {
       "id": "count-unbound.runtime.v8",

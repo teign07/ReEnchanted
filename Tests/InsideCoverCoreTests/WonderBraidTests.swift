@@ -276,7 +276,8 @@ final class WonderBraidTests: XCTestCase {
       "You watched the heron by the river. You moved its head once and stood still beside the reeds. The river kept the reeds waiting."
     }
     let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: teller))
-    XCTAssertEqual(output.jobsFellBack, 1)
+    // A detail with no seed is told as the reader wrote it; the model's version is never used.
+    XCTAssertEqual(output.jobsFellBack, 0)
     XCTAssertTrue(output.prose.hasPrefix(source))
     XCTAssertFalse(output.prose.contains("You moved its head"))
   }
@@ -491,4 +492,73 @@ private final class Counter: @unchecked Sendable {
   private let lock = NSLock()
   private var value = 0
   func next() -> Int { lock.lock(); defer { lock.unlock() }; value += 1; return value }
+}
+
+final class WonderBraidCastVoiceTests: XCTestCase {
+  func testACastNoteIsCreditedToItsWriterNotSaidByTheBook() throws {
+    var note = BookPage(type: .gossip, promptText: "A note", userInput: "I did not leave the pen in your bag. Check the other bag.")
+    note.metadata = ["castID": "wicker-eddies"]
+    let voice = try XCTUnwrap(WonderBraid.castVoice(of: note))
+    XCTAssertFalse(voice.isLetter)
+    let line = try XCTUnwrap(WonderBraid.attributedLine(name: voice.name, isLetter: false,
+                                                        sentences: WonderBraid.sentences(note.userInput)))
+    XCTAssertTrue(line.hasPrefix("\(voice.name) left a note: \u{201C}"))
+    XCTAssertTrue(line.contains("I did not leave the pen"))
+  }
+
+  func testALetterNamesWhoWroteIt() throws {
+    var letter = BookPage(type: .letter, promptText: "A letter from Zara Finch",
+                          userInput: "I have been meaning to write. What did it say?")
+    letter.metadata = ["speakerName": "Zara Finch", "castID": "zara-finch"]
+    let voice = try XCTUnwrap(WonderBraid.castVoice(of: letter))
+    XCTAssertEqual(voice.name, "Zara Finch")
+    XCTAssertTrue(voice.isLetter)
+    XCTAssertEqual(WonderBraid.attributedLine(name: voice.name, isLetter: true, sentences: ["I have been meaning to write."]),
+                   "A letter came from Zara Finch. \u{201C}I have been meaning to write.\u{201D}")
+  }
+
+  func testTheBooksOwnScenesHaveNoCastVoice() {
+    let scene = BookPage(type: .narrativeOS, promptText: "A story", userInput: "The kettle had been working up to it for years.")
+    XCTAssertNil(WonderBraid.castVoice(of: scene))
+  }
+}
+
+
+final class WonderBraidAssemblyTests: XCTestCase {
+  func testPlanLabelsAreSaidInTheBooksVoice() {
+    let prepared = WonderBraid.prepared([
+      "9 days ago: The light in the hall at eight is the colour of weak tea.",
+      "From an earlier page: You kept the bus ticket.",
+      "Exercise: find something ordinary and make it answer. You chose a doorknob.",
+      "Rain on the bus window\nthe market closing its doors\nyour hands, finally warm"
+    ])
+    XCTAssertTrue(prepared[0].lowercased().contains("nine days ago") && prepared[0].hasSuffix(": The light in the hall at eight is the colour of weak tea."))
+    XCTAssertEqual(prepared[1], "Find something ordinary and make it answer. You chose a doorknob.",
+                   "An earlier page too short to stand on its own is left out.")
+    XCTAssertEqual(prepared[2], "Rain on the bus window, the market closing its doors, your hands, finally warm.")
+    XCTAssertEqual(WonderBraid.prepared(["15 days ago: rain by four-fifteen."]), [], "A fragment is never quoted back.")
+    XCTAssertTrue(WonderBraid.prepared(["15 days ago: Shirley said it was typical of you."]).first?
+                    .hasSuffix(": Shirley said it was typical of you.") ?? false, "A name keeps its capital.")
+    XCTAssertEqual(WonderBraid.prepared(["Shirley said it was typical of you.", "15 days ago: Shirley said it was typical of you."]),
+                   ["Shirley said it was typical of you."], "A callback never repeats a line the night already tells.")
+    XCTAssertTrue(WonderBraid.opensOnPronoun("It moved its head about an inch."))
+    XCTAssertEqual(WonderBraid.prepared(["So: you did the washing."]), ["So: you did the washing."],
+                   "A reader's own colon is never taken for a form label.")
+    XCTAssertEqual(WonderBraid.prepared(["3 days ago: Walked the dog from next door at Amanda's."]), [])
+    XCTAssertFalse(prepared.contains { $0.first?.isNumber == true }, "No plan label reaches the page.")
+  }
+
+  func testPlainDetailsReadAsParagraphsNotAList() {
+    let paragraphs = WonderBraid.paragraphs(of: ["Low grey sky sitting right on the roofs like a lid", "You like it more than you should.", "It makes the street feel like a room."])
+    XCTAssertEqual(paragraphs, ["Low grey sky sitting right on the roofs like a lid. You like it more than you should. It makes the street feel like a room."])
+  }
+
+  func testALetterIsQuotedInWholeSentences() throws {
+    let line = try XCTUnwrap(WonderBraid.attributedLine(name: "Zara Finch", isLetter: true, sentences: [
+      "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen.",
+      "The truth is simpler: you were in the corridor on Tuesday, looking at the stair as if it had said something, and I didn't ask what."
+    ]))
+    XCTAssertFalse(line.contains("…"))
+    XCTAssertTrue(line.hasSuffix("avoiding the pen.\u{201D}"))
+  }
 }

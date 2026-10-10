@@ -128,6 +128,17 @@ struct PagesRisingContentsEntry: Identifiable {
     var detail: String
     var systemImage: String
     var action: () -> Void
+    var section: String = "The Book"
+    var isEnabled: Bool = true
+    var shareURL: URL? = nil
+    var choices: [PagesRisingContentsChoice] = []
+}
+
+struct PagesRisingContentsChoice: Identifiable {
+    var id: String
+    var title: String
+    var role: ButtonRole? = nil
+    var action: () -> Void
 }
 
 private struct FolioResponseDraft: Equatable {
@@ -1782,6 +1793,17 @@ private struct FolioContentsLeaf: View {
     let onSelect: (PagesRisingContentsEntry) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var expandedSections: Set<String> = []
+
+    private static let expandableSections: Set<String> = [
+        "The Wonder Compass Book", "Magic", "The Cast", "Binding and Copies", "Index of Pages"
+    ]
+
+    private var sections: [String] {
+        entries.reduce(into: []) { result, entry in
+            if result.last != entry.section { result.append(entry.section) }
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1789,19 +1811,27 @@ private struct FolioContentsLeaf: View {
 
             ScrollViewReader { scroller in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(entries) { entry in
-                            FolioContentsRow(
-                                entry: entry,
-                                action: { onSelect(entry) }
-                            )
-                            .id(entry.id)
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(sections, id: \.self) { section in
+                            sectionHeading(section)
+                                .id("contents-section-\(section)")
 
-                            if entry.id != entries.last?.id {
-                                Rectangle()
-                                    .fill(BookPalette.ink.opacity(0.10))
-                                    .frame(height: 0.7)
-                                    .padding(.leading, 34)
+                            if !Self.expandableSections.contains(section) || expandedSections.contains(section) {
+                                ForEach(entries.filter { $0.section == section }) { entry in
+                                    FolioContentsRow(
+                                        entry: entry,
+                                        action: { onSelect(entry) }
+                                    )
+                                    .padding(.leading, Self.expandableSections.contains(section) ? 12 : 0)
+                                    .id(entry.id)
+
+                                    if entry.id != entries.last?.id {
+                                        Rectangle()
+                                            .fill(BookPalette.ink.opacity(0.10))
+                                            .frame(height: 0.7)
+                                            .padding(.leading, Self.expandableSections.contains(section) ? 46 : 34)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1812,7 +1842,12 @@ private struct FolioContentsLeaf: View {
                     // contents leaf does the same thing, without announcing it
                     // and without moving the row out of its printed order.
                     guard let worn = entries.first(where: { $0.wear.fallsOpen }) else { return }
-                    scroller.scrollTo(worn.id, anchor: .center)
+                    expandedSections.insert(worn.section)
+                    // Reveal the gathering before asking the scroller for its
+                    // row, which may have been tucked inside a closed section.
+                    DispatchQueue.main.async {
+                        scroller.scrollTo(worn.id, anchor: .center)
+                    }
                 }
             }
 
@@ -1828,6 +1863,46 @@ private struct FolioContentsLeaf: View {
                 .padding(.vertical, 8)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private func sectionHeading(_ section: String) -> some View {
+        if Self.expandableSections.contains(section) {
+            Button {
+                BookFeedback.play(.select)
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    if expandedSections.contains(section) {
+                        expandedSections.remove(section)
+                    } else {
+                        expandedSections.insert(section)
+                    }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Text(section)
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                    Spacer(minLength: 8)
+                    Image(systemName: expandedSections.contains(section) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(BookPalette.ink)
+                .padding(.leading, 34)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(section)
+            .accessibilityValue(expandedSections.contains(section) ? "Expanded" : "Collapsed")
+            .accessibilityHint(expandedSections.contains(section) ? "Hide the entries in this section" : "Show the entries in this section")
+        } else {
+            Text(section)
+                .font(.system(size: 11, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(.leading, 34)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
+                .accessibilityAddTraits(.isHeader)
         }
     }
 
@@ -1889,77 +1964,102 @@ private struct FolioContentsRow: View {
     let action: () -> Void
 
     @State private var isPressed = false
+    @State private var showsChoices = false
 
     var body: some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: entry.systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(BookPalette.lampGold.opacity(entry.wear.isUncut ? 0.42 : 0.86))
-                    .frame(width: 24, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(entry.title)
-                        .font(.system(size: 15, weight: .semibold, design: .serif))
-                        // Handled paper takes ink darker. The step is small on
-                        // purpose: this has to read as the same row, older.
-                        .foregroundStyle(BookPalette.ink.opacity(titleInk))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    if !entry.detail.isEmpty {
-                        Text(entry.detail)
-                            .font(.system(size: 11, design: .serif))
-                            .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.40 : 0.54))
-                            .fixedSize(horizontal: false, vertical: true)
+        Group {
+            if let url = entry.shareURL {
+                ShareLink(item: url) { rowLabel }
+            } else {
+                Button {
+                    if entry.choices.isEmpty {
+                        action()
+                    } else {
+                        showsChoices = true
                     }
-                }
-
-                // An uncut gathering has no leader carrying the eye across,
-                // because there is nowhere yet for the eye to be carried to.
-                // It has the closed fold instead.
-                if entry.wear.isUncut {
-                    FolioUncutBolt()
-                        .frame(height: 9)
-                        .layoutPriority(-1)
-                } else {
-                    FolioLeaderDots()
-                        .frame(height: 9)
-                        .layoutPriority(-1)
-                }
-
-                Image(systemName: entry.wear.isUncut ? "scissors" : "chevron.right")
-                    .font(.system(size: entry.wear.isUncut ? 10 : 9, weight: .black))
-                    .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.26 : 0.34))
+                } label: { rowLabel }
             }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-            .background(alignment: .trailing) {
-                // The thumb goes at the fore-edge, so the soiling does too.
-                FolioThumbSoil(amount: entry.wear.soiling)
-                    .frame(width: 46)
-                    .allowsHitTesting(false)
-            }
-            .background(alignment: .leading) {
-                if entry.wear.fallsOpen {
-                    FolioPressedCrease()
-                        .frame(width: 3)
-                        .allowsHitTesting(false)
-                }
-            }
-            .background(
-                BookPalette.lampGold.opacity(isPressed ? 0.10 : 0),
-                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-            )
         }
         .buttonStyle(.plain)
+        .disabled(!entry.isEnabled)
+        .opacity(entry.isEnabled ? 1 : 0.48)
+        .confirmationDialog(entry.title, isPresented: $showsChoices, titleVisibility: .visible) {
+            Button("Open \(entry.title)", action: action)
+            ForEach(entry.choices) { choice in
+                Button(choice.title, role: choice.role, action: choice.action)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             withAnimation(.easeOut(duration: 0.16)) { isPressed = pressing }
         }, perform: {})
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint(
-            entry.wear.isUncut
-                ? "Still folded shut. Opening it cuts it open for good"
-                : "Turns the Book to this part of itself"
+            entry.shareURL != nil ? "Opens the share sheet"
+                : entry.wear.isUncut
+                    ? "Still folded shut. Opening it cuts it open for good"
+                    : "Turns the Book to this part of itself"
+        )
+    }
+
+    private var rowLabel: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: entry.systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BookPalette.lampGold.opacity(entry.wear.isUncut ? 0.42 : 0.86))
+                .frame(width: 24, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.title)
+                    .font(.system(size: 15, weight: .semibold, design: .serif))
+                    // Handled paper takes ink darker. The step is small on
+                    // purpose: this has to read as the same row, older.
+                    .foregroundStyle(BookPalette.ink.opacity(titleInk))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if !entry.detail.isEmpty {
+                    Text(entry.detail)
+                        .font(.system(size: 11, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.40 : 0.54))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            // An uncut gathering has no leader carrying the eye across,
+            // because there is nowhere yet for the eye to be carried to.
+            // It has the closed fold instead.
+            if entry.wear.isUncut {
+                FolioUncutBolt()
+                    .frame(height: 9)
+                    .layoutPriority(-1)
+            } else {
+                FolioLeaderDots()
+                    .frame(height: 9)
+                    .layoutPriority(-1)
+            }
+
+            Image(systemName: entry.shareURL != nil ? "square.and.arrow.up" : entry.wear.isUncut ? "scissors" : "chevron.right")
+                .font(.system(size: entry.wear.isUncut ? 10 : 9, weight: .black))
+                .foregroundStyle(BookPalette.ink.opacity(entry.wear.isUncut ? 0.26 : 0.34))
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .background(alignment: .trailing) {
+            // The thumb goes at the fore-edge, so the soiling does too.
+            FolioThumbSoil(amount: entry.wear.soiling)
+                .frame(width: 46)
+                .allowsHitTesting(false)
+        }
+        .background(alignment: .leading) {
+            if entry.wear.fallsOpen {
+                FolioPressedCrease()
+                    .frame(width: 3)
+                    .allowsHitTesting(false)
+            }
+        }
+        .background(
+            BookPalette.lampGold.opacity(isPressed ? 0.10 : 0),
+            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
         )
     }
 

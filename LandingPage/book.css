@@ -357,3 +357,17 @@ body{background:#0a0816;isolation:isolate}.book-atmosphere{position:fixed;inset:
 .leaf-content .sample-intro-copy { display:flow-root; }
 .leaf-content .sample-intro-copy a { float:right; width:34%; margin:0 0 8px 12px; }
 .leaf-content .sample-intro-copy img { display:block; width:100%; height:auto; max-height:180px; object-fit:contain; }
+/* Invite Pages: the TestFlight list, inside the reading. */
+.folio-leaf[data-theme="invite"] .reading-mark{rotate:-4deg}
+.invite-leaf-form{margin:18px 0 4px;display:flex;flex-direction:column;gap:9px}
+.invite-leaf-form label{font:10px/1.4 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:#725d43}
+.invite-leaf-form input[type="email"]{width:100%;background:#fff9e866;border:1px solid #94744899;color:var(--ink);padding:12px 13px;border-radius:2px;font:16px var(--serif)}
+.invite-leaf-form input[type="email"]:focus-visible{outline:2px solid #b67a32;outline-offset:2px}
+.invite-leaf-form .ink-button{width:100%;justify-content:center;text-align:center}
+.reading-composition .invite-leaf-form + .capture-receipt:empty{display:none}
+#manuscript>[data-theme="invite"] .reading-composition{max-width:420px}
+@media(max-width:600px){.invite-leaf-form{margin-top:12px;gap:7px}.invite-leaf-form input[type="email"]{padding:10px 12px}}
+.folio-leaf[data-theme="invite"] .reading-composition h2{margin-bottom:14px}
+.folio-leaf[data-theme="invite"] .reading-composition .eyebrow{margin:4px 0 12px}
+@media(max-width:600px),(max-height:860px){.folio-leaf[data-theme="invite"] .reading-mark{display:none}}
+.folio-leaf[data-theme="invite"] .reading-composition p{margin-bottom:12px}

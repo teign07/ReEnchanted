@@ -564,3 +564,23 @@ final class ReaderStoryTests: XCTestCase {
         ISO8601DateFormatter().date(from: value)!
     }
 }
+
+final class ReaderShelfHardDayTests: XCTestCase {
+  func testAPlainlySaidHardDayIsShelvedGently() {
+    let page = BookPage(type: .diary, promptText: "What happened?",
+                        userInput: "Hard day. I won't write all of it. I called my brother.", origin: .userAuthored)
+    XCTAssertEqual(ReaderShelf.of(page), .shadow)
+  }
+
+  func testABookPromptThatMentionsAHardDayDoesNotMarkThePage() {
+    let page = BookPage(type: .diary, promptText: "After a hard day, what helps?",
+                        userInput: "Toast, and the radio.", origin: .userAuthored)
+    XCTAssertEqual(ReaderShelf.of(page), .light)
+  }
+
+  func testAnOrdinaryDayStaysLight() {
+    let page = BookPage(type: .diary, promptText: "What happened?",
+                        userInput: "Walked the dog from next door. Small thing. Still counts.", origin: .userAuthored)
+    XCTAssertEqual(ReaderShelf.of(page), .light)
+  }
+}

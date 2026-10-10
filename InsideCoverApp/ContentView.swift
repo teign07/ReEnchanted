@@ -3234,6 +3234,7 @@ struct ContentView: View {
                         }
                         openDueSeasonalDispatchIfNeeded(now: publishingNow)
                         await postDueSeasonalDispatchesIfNeeded(now: publishingNow)
+                        await postWelcomeWeeklyIfDue(now: publishingNow)
                         tendWorldEventLifecycle(now: publishingNow)
                         refreshMonthlyIssueDelivery(now: publishingNow)
                         // Time may have crossed a Calendar, session, pulse, or
@@ -4028,6 +4029,7 @@ struct ContentView: View {
                 $0.boundYear = membership
                 if let membershipID { $0.boundYearMembershipID = membershipID }
             }
+            noteBoundYearWelcomeWeekly()
         }
         shop.onBoundYearDigitalAccessChanged = { isActive in
             setBoundYearDigitalAccess(isActive)
@@ -4740,6 +4742,7 @@ struct ContentView: View {
         await reconcileBoundYearForDispatchIfNeeded()
         openDueSeasonalDispatchIfNeeded()
         await postDueSeasonalDispatchesIfNeeded()
+        await postWelcomeWeeklyIfDue()
         tendBookJump()
         restoreRadioIfNeeded()
         if generation.preparedStoryPageSurface == nil,
@@ -5160,6 +5163,7 @@ struct ContentView: View {
                 await reconcileBoundYearForDispatchIfNeeded()
                 openDueSeasonalDispatchIfNeeded(now: publishingNow)
                 await postDueSeasonalDispatchesIfNeeded(now: publishingNow)
+                await postWelcomeWeeklyIfDue(now: publishingNow)
             }
 
             // Step beyond an exact boundary before selecting again. This is not
@@ -7486,6 +7490,12 @@ struct ContentView: View {
     func dismissGlowMenuThenPresent(
         _ presentation: @escaping @MainActor () -> Void
     ) {
+        // Contents shares these destinations without opening the Glow card.
+        // Its leaf does not need a command-card retreat before the arrival.
+        guard isGlowMenuPresented else {
+            DispatchQueue.main.async { presentation() }
+            return
+        }
         closeGlowMenu()
         Task { @MainActor in
             try? await Task.sleep(
@@ -7574,7 +7584,7 @@ struct ContentView: View {
             dismissGlowMenuThenPresent {
                 isPagewrightPresented = true
             }
-        case .bindWeeklyIssue:
+        case .openBindery, .bindWeeklyIssue:
             dismissGlowMenuThenPresent {
                 bookShopInitialDestination = .bindery
                 currentStall = buildGoblinStall()
@@ -10571,7 +10581,7 @@ struct ContentView: View {
                 fallsOpen: room == cracked
             )
         }
-        return [
+        var rooms = [
             PagesRisingContentsEntry(
                 id: "bookshop",
                 wear: marks(.bookshop),
@@ -10707,6 +10717,209 @@ struct ContentView: View {
                 action: { openBookDivision(.colophon) }
             )
         ]
+        for index in rooms.indices {
+            switch rooms[index].id {
+            case "pages-rising", "book-today": rooms[index].section = "Opening Leaves"
+            case "book-of-you", "margins", "returned": rooms[index].section = "The Living Pages"
+            case "cast": rooms[index].section = "The Cast"
+            case "correspondences", "bestiary", "gazetteer", "atlas", "labyrinth-map":
+                rooms[index].section = "Maps and Field Guides"
+            case "bookshop": rooms[index].section = "The Bookshop"
+            case "pagewright": rooms[index].section = "Binding and Copies"
+            case "index": rooms[index].section = "Index of Pages"
+            case "colophon": rooms[index].section = "Colophon"
+            default: break
+            }
+        }
+        let entries = rooms + pagesRisingContentsTools + pagesRisingContentsGlowDestinations
+        // The shop earns an early opening. Main text follows the front matter;
+        // reference matter, copies, the index and colophon sit farther back.
+        let sections = [
+            "Opening Leaves", "The Bookshop", "The Wonder Compass Book", "The Living Pages", "Pages",
+            "Magic", "The Cast", "Maps and Field Guides",
+            "At the Binding", "Binding and Copies", "Index of Pages", "Colophon"
+        ]
+        return sections.flatMap { section in
+            let sectionEntries = entries.filter { $0.section == section }
+            if section == "Opening Leaves" {
+                let openingOrder = ["flyleaf", "book-today", "story-so-far", "pages-rising"]
+                return openingOrder.compactMap { id in sectionEntries.first { $0.id == id } }
+            }
+            if section == "The Bookshop" {
+                let shopOrder = ["bookshop", "subscriptions", "bindery", "print-studio"]
+                return shopOrder.compactMap { id in sectionEntries.first { $0.id == id } }
+            }
+            return sectionEntries
+        }
+    }
+
+    private var pagesRisingContentsTools: [PagesRisingContentsEntry] {
+        [
+            PagesRisingContentsEntry(
+                id: "search", title: "Search", detail: "Tell me what you are hunting for.",
+                systemImage: "magnifyingglass", action: { presentStacks() }, section: "At the Binding"
+            ),
+            PagesRisingContentsEntry(
+                id: "almanac", title: "Almanac", detail: "Your days, laid out where we can find them.",
+                systemImage: "calendar", action: { presentAlmanac() }, section: "At the Binding"
+            ),
+            PagesRisingContentsEntry(
+                id: "capture", title: "Capture", detail: "Give me a bit of the world outside.",
+                systemImage: "camera", action: { presentInputChoices() }, section: "At the Binding"
+            ),
+            PagesRisingContentsEntry(
+                id: "body", title: "Body", detail: "Let me hear how your body is doing.",
+                systemImage: "heart", action: { Task { await pressBodySeal() } }, section: "At the Binding"
+            ),
+            PagesRisingContentsEntry(
+                id: "location", title: "Place", detail: "Show me where your feet have landed.",
+                systemImage: "mappin", action: { presentLocationSealChoices() }, section: "At the Binding"
+            ),
+            PagesRisingContentsEntry(
+                id: "radio", title: "Radio", detail: "The little voice between the songs.",
+                systemImage: "radio", action: { Task { await pressRadioSeal() } }, section: "At the Binding"
+            )
+        ]
+    }
+
+    /// The complete directory uses the same live offerings, locks and actions
+    /// as the Glow bookmark. Resolve it only when the contents leaf is visible.
+    private var pagesRisingContentsGlowDestinations: [PagesRisingContentsEntry] {
+        func destination(
+            _ id: String, _ title: String, _ detail: String, _ image: String,
+            section: String, enabled: Bool = true, action: GlowMenuAction
+        ) -> PagesRisingContentsEntry {
+            PagesRisingContentsEntry(
+                id: id, title: title, detail: detail, systemImage: image,
+                action: {
+                    BookFeedback.play(.openPage)
+                    handleGlowMenuAction(action)
+                }, section: section, isEnabled: enabled
+            )
+        }
+        func share(_ id: String, _ title: String, _ detail: String, _ url: URL?) -> PagesRisingContentsEntry? {
+            guard let url else { return nil }
+            return PagesRisingContentsEntry(
+                id: id, title: title, detail: detail, systemImage: "square.and.arrow.up",
+                action: {}, section: "The Bindery", shareURL: url
+            )
+        }
+
+        var entries = [
+            destination("flyleaf", "The Flyleaf", "The unfinished things are tugging at this corner.", "bookmark.fill",
+                        section: "Opening Leaves", action: .openFlyleaf),
+            destination("playful-mission", "Playful Mission", "Take a little mischief out with you.", "figure.play",
+                        section: "Pages", action: .openPlayfulMission),
+            destination("pact-map", "The Pact Map", "The Talismans have left fingerprints. Look.", "map",
+                        section: "Pages", action: .openPactMap)
+        ]
+        if let title = StorySoFarPageSourceAdapter.menuTitle(now: Date()) {
+            entries.append(destination("story-so-far", title, "I kept your place in the trouble.", "text.book.closed",
+                                       section: "Opening Leaves", action: .openStorySoFar))
+        }
+        entries += glowPageMenuItems.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }.map { page in
+            var entry = destination("page-\(page.id)", page.title, page.detail, page.symbolName,
+                                    section: "Index of Pages", action: .openPage(page.type))
+            entry.choices = [
+                PagesRisingContentsChoice(id: "give", title: "Give Belief to \(page.title)",
+                                          action: { handleGlowMenuAction(.givePageBelief(page)) }),
+                PagesRisingContentsChoice(id: "take", title: "Take Belief from \(page.title)", role: .destructive,
+                                          action: { handleGlowMenuAction(.takePageBelief(page)) })
+            ]
+            return entry
+        }
+        entries.append(destination("people-of-the-book", "The People of the Book", "The real people your days have brought me.", "person.2.wave.2",
+                                   section: "The Cast", action: .openPeopleOfTheBook))
+        entries.append(PagesRisingContentsEntry(
+            id: "invite-cast", title: "Invite a new Cast Member", detail: "Tell me what it is. Or show me a photograph.",
+            systemImage: "plus.circle", action: {
+                dismissGlowMenuThenPresent {
+                    BookFeedback.play(.openPage)
+                    isCustomCastSheetPresented = true
+                }
+            }, section: "The Cast"
+        ))
+        entries += glowEntityMenuItems.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }.map { entity in
+            var entry = destination("cast-\(entity.id)", entity.name, entity.line, "person.crop.circle",
+                                    section: "The Cast", action: .openCastMember(entity))
+            entry.choices = [
+                PagesRisingContentsChoice(id: "give", title: "Give Belief to \(entity.name)",
+                                          action: { handleGlowMenuAction(.giveBelief(entity)) }),
+                PagesRisingContentsChoice(id: "take", title: "Take Belief from \(entity.name)", role: .destructive,
+                                          action: { handleGlowMenuAction(.takeBelief(entity)) })
+            ]
+            return entry
+        }
+        entries.append(destination("compass-run", "Compass Run", "Follow the tug. Bring something back.", "safari",
+                                   section: "Magic", action: .spellCompass))
+        entries.append(destination("living-almanac", "The Living Almanac", "What has got into me this month.", "calendar.badge.clock",
+                                   section: "Magic", action: .openAlmanac))
+        entries += glowSpellMenuItems.map { spell in
+            destination("spell-\(spell.id)", spell.title, "\(spell.detail) \(spell.attribution)", "sparkles",
+                        section: "Magic", action: .openSpell(spell))
+        }
+        entries += glowEnchantmentMenuItems.map { enchantment in
+            destination("enchantment-\(enchantment.id)", enchantment.title, enchantment.detail, "wand.and.stars",
+                        section: "Magic", action: .openEnchantment(enchantment))
+        }
+
+        let onlyBoundYear = !DigitalStandingOrder.isOffered && !PackEntitlements.hasStandingOrder
+        let canBindWeekly = bindableWeeklyPublicationCandidates.first != nil
+        let canBindMonthly = monthlyPublicationCandidates.contains(where: \.isBindable)
+        let canBindSeasonal = seasonalPublicationCandidates.contains(where: \.isBindable)
+        let hasWeekly = glowWeeklyIssuePDFURL != nil || glowWeeklyIssueCardURL != nil
+        entries += [
+            destination("bindery", "The Bindery", "Choose the kept leaves. I'll find them a cover.", "books.vertical",
+                        section: "The Bindery", action: .openBindery),
+            destination("subscriptions", onlyBoundYear ? "The Bound Year" : "Subscriptions",
+                        "The books coming by post. Change the order, or stop it here.", "seal",
+                        section: "The Bindery", action: .openSubscriptions),
+            destination("publish-seasonal", "Publish a Seasonal Volume", "Three finished months. Let's take them to the press.", "leaf.fill",
+                        section: "The Bindery", action: .publishSeasonalVolume),
+            destination("weekly-issue", hasWeekly ? "Read Weekly Issue" : "Bind Weekly Issue",
+                        canBindWeekly ? "The week's kept leaves, sewn together." : "I need more kept leaves for this binding.", "newspaper",
+                        section: "The Bindery", enabled: canBindWeekly, action: .bindWeeklyIssue)
+        ]
+        if hasWeekly {
+            entries.append(destination("rebind-weekly", "Re-bind Weekly Issue", "Let me sew the week again.", "arrow.triangle.2.circlepath",
+                                       section: "The Bindery", enabled: canBindWeekly, action: .rebindWeeklyIssue))
+        }
+        entries += [
+            destination("monthly-edition", glowMonthlyEditionURL == nil ? "Bind Monthly Edition" : "Open Monthly Edition",
+                        canBindMonthly ? "This month's kept leaves, under one cover." : "I need more kept leaves for this binding.", "book.pages",
+                        section: "The Bindery", enabled: glowMonthlyEditionURL != nil || canBindMonthly, action: .bindMonthlyEdition),
+            destination("seasonal-edition", glowSeasonalEditionURL == nil ? "Bind Seasonal Edition" : "Open Seasonal Edition",
+                        canBindSeasonal ? "Three finished months fit under this cover." : "I need a finished season of kept leaves.", "leaf",
+                        section: "The Bindery", enabled: glowSeasonalEditionURL != nil || canBindSeasonal, action: .bindSeasonalEdition),
+            destination("annual-edition", glowAnnualEditionURL == nil ? "Bind Annual Volume" : "Open Annual Volume",
+                        "A whole year of you. That needs a spine.", "books.vertical",
+                        section: "The Bindery", action: .bindAnnualEdition),
+            destination("plain-ink", "Copy Out Plain Ink", "All your kept Pages, in ordinary ink.", "doc.plaintext",
+                        section: "The Bindery", action: .exportPlainInk),
+            destination("sealed-copy", "Seal a Copy", "Pages, photographs, memories. A copy of all of me.", "book.closed",
+                        section: "The Bindery", action: .exportSealedCopy),
+            destination("print-studio", "Print Studio", "Come close. The press is waiting.", "printer",
+                        section: "The Bindery", action: .openPrintStudio)
+        ]
+        entries += [
+            share("share-pagewright", "Share Last Scrapbook Page", "The last Page you made with my scissors.", preparedPagewrightPDFURL),
+            share("share-weekly-pdf", "Share Weekly Issue PDF", "Let the week's reading copy out.", glowWeeklyIssuePDFURL),
+            share("share-weekly-card", "Share Weekly Social Card", "A little illustrated piece of the week.", glowWeeklyIssueCardURL),
+            share("share-monthly", "Share Monthly Edition", "Let this month's reading copy out.", glowMonthlyEditionURL),
+            share("share-seasonal", "Share Seasonal Edition", "Let the season's reading copy out.", glowSeasonalEditionURL),
+            share("share-annual", "Share Annual Volume", "Let the year's reading copy out.", glowAnnualEditionURL),
+            share("share-plain-ink", "Share Plain Ink", "Your kept Pages, copied into plain text.", preparedPlainInkURL),
+            share("share-sealed-copy", "Share Sealed Copy", "The copy with everything tucked inside.", preparedSaveFileURL)
+        ].compactMap { $0 }
+        entries += glowBookSectionMenuItems.map { chapter in
+            destination("source-book-\(chapter.id)", chapter.title, chapter.detail, "text.book.closed",
+                        section: "The Wonder Compass Book", action: .openBookSection(chapter.id))
+        }
+        for index in entries.indices where entries[index].section == "The Bindery" {
+            entries[index].section = ["bindery", "subscriptions", "print-studio"].contains(entries[index].id)
+                ? "The Bookshop" : "Binding and Copies"
+        }
+        return entries
     }
 
     /// The reader went somewhere in the Book on their own.
@@ -11086,8 +11299,9 @@ struct ContentView: View {
     }
 
     private var pagesRisingFolioBook: some View {
-        PagesRisingFolio(
-            surfaces: pagesRisingFolioSurfaces,
+        let folioSurfaces = pagesRisingFolioSurfaces
+        return PagesRisingFolio(
+            surfaces: folioSurfaces,
             readerSentences: pagesRisingMarginaliaSentences,
             grimoireResidue: vault.data.grimoire?.quietLeafResidue,
             placeLeaf: Gazetteer.quietLeaf(
@@ -11098,7 +11312,7 @@ struct ContentView: View {
             selectedOfficialCoverID: pagesRisingSelectedOfficialMonthlyCover?.id,
             sealTabs: pagesRisingSealTabs,
             charms: pagesRisingBookCharms,
-            contentsEntries: pagesRisingContentsEntries,
+            contentsEntries: isFolioContentsOpen || folioSurfaces.isEmpty ? pagesRisingContentsEntries : [],
             isContentsOpen: $isFolioContentsOpen,
             savedRibbon: vault.data.savedPageRibbon,
             showsGlow: shouldShowGlowPill,

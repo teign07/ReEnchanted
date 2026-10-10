@@ -7,7 +7,9 @@
   <title>Read an example issue · ReEnchanted</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./samples.css?v=1">
-  <script src="./samples.js?v=1" defer></script>
+  <script src="./samples.js?v=2" defer></script>
+  <link rel="stylesheet" href="./image-viewer.css?v=1">
+  <script src="./image-viewer.js?v=2" defer></script>
 </head>
 <body>
   <header class="reader-header">
@@ -29,6 +31,7 @@
         <button type="button" id="zoom" aria-pressed="false">Larger Page</button>
       </div>
       <p id="reader-status" class="reader-status" role="status" aria-live="polite">Finding the issue…</p>
+      <p class="reader-status">Tap a page or picture to look closer.</p>
       <div id="page-window" class="page-window"><img id="page-image" alt="" hidden></div>
       <details class="page-text"><summary>Read this Page’s text</summary><div id="page-text"></div></details>
     </section>

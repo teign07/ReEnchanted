@@ -106,13 +106,23 @@ enum EditionProofHarness {
                 markIndex += 1
             }
         }
-        // Placeholder plates, the way a month's pack ships them, so the proofs
-        // show where commissioned illustrations land.
+        // The month's real plates when they've been sent over (edition-proof-input/plates, named as
+        // the pack names them); otherwise placeholders, so the proofs still show where plates land.
         let plates = directory.appendingPathComponent("plates", isDirectory: true)
         try? FileManager.default.createDirectory(at: plates, withIntermediateDirectories: true)
-        for (slot, label, hue) in [("frontispiece", "Frontispiece: Count Unbound", 0.08), ("scene.count-unbound.scene.east-stacks", "The East Stacks Incident", 0.58),
-                                   ("scene.count-unbound.school.map-room", "The map with room left", 0.33), ("cast.serenity-brown", "Serenity Brown, in October", 0.9),
-                                   ("harvest-lanterns", "Lanterns in the Kitchens", 0.12), ("stair-fog", "Fog on the North Stair", 0.65)] {
+        let realPlates = ((try? FileManager.default.contentsOfDirectory(
+            at: markDirectory.appendingPathComponent("plates", isDirectory: true), includingPropertiesForKeys: nil)) ?? [])
+            .filter { ["png", "jpg", "jpeg"].contains($0.pathExtension.lowercased()) }
+        for url in realPlates {
+            try? FileManager.default.copyItem(at: url, to: plates.appendingPathComponent("count-unbound.plate.\(url.lastPathComponent)"))
+        }
+        if !realPlates.isEmpty { status.append("real plates: \(realPlates.count)") }
+        let placeholders: [(String, String, Double)] = realPlates.isEmpty ? [
+            ("frontispiece", "Frontispiece: Count Unbound", 0.08), ("scene.count-unbound.scene.east-stacks", "The East Stacks Incident", 0.58),
+            ("scene.count-unbound.school.map-room", "The map with room left", 0.33), ("cast.serenity-brown", "Serenity Brown, in October", 0.9),
+            ("harvest-lanterns", "Lanterns in the Kitchens", 0.12), ("stair-fog", "Fog on the North Stair", 0.65)
+        ] : []
+        for (slot, label, hue) in placeholders {
             let size = CGSize(width: 1200, height: slot.hasPrefix("cast.") || slot == "frontispiece" ? 1600 : 900)
             let image = UIGraphicsImageRenderer(size: size).image { renderer in
                 let cg = renderer.cgContext
@@ -1078,11 +1088,26 @@ enum FieldBookFixture {
                                               (25, "Quiet Hours", "The Walled Garden", "Professor Momort", "Ten minutes in the garden with nothing to do. You counted eleven kinds of green and one of grey."),
                                               (30, "Ink-Binding", "Wing 1: The Inkworks", "Professor Villanelle", "A review of the month's sentences. Villanelle underlined three and wrote 'more of this' beside them.")] {
             var meta = ["sessionName": name, "sessionRoom": room, "sessionProfessor": prof]
-            let sessionIDs = ["Wayfinding": "wayfinding-kineticism", "Resonance": "synesthetic-resonance", "The Glint": "art-of-the-glint"]
+            let sessionIDs = ["Wayfinding": "wayfinding-kineticism", "Resonance": "synesthetic-resonance", "The Glint": "art-of-the-glint",
+                              "Ink-Binding": "ink-binding", "Basic Enchantments": "basic-enchantments", "Quiet Hours": "quiet-hours"]
             if let id = sessionIDs[name] { meta["sessionID"] = id }
             // Two sittings brought a worksheet back, in the reader's hand.
-            if name == "Wayfinding", day == 15 { meta["academyActivityOutcome"] = "Where it starts: the green door on Mill Lane. Where it goes: the bench by the water. How I get back: the same way, but slower, with my hood down." }
-            if name == "The Glint" { meta["academyActivityOutcome"] = "A brass key, warm from my pocket. The scratch on the lamp base shaped like a comma. The smell of the radiator when it first comes on." }
+            if name == "Quiet Hours" {
+                meta["academyActivityOutcome"] = "What you usually do to rest: the phone, on the sofa. Fuller or emptier: emptier, if I'm honest."
+            }
+            if name == "Ink-Binding", day == 30 {
+                meta["academyActivityOutcome"] = "The moment: the last bus, empty, and the driver humming. The real thing in it: his flask on the dashboard, steaming."
+            }
+            if name == "Wayfinding", day == 15 {
+                // October's Wayfinding is Lesson II, Write the Ticket.
+                meta["lessonModuleID"] = "wayfinding-ticket-002"
+                meta["academyActivityOutcome"] = "Where: the bench by the water, past the green door on Mill Lane. When: Saturday, nine o'clock, before anyone else is up. How: on foot, the long way, with the flask and my hood down."
+            }
+            if name == "The Glint" {
+                // October's Glint is Lesson II, the Gorilla Count; the page remembers which lesson it was.
+                meta["lessonModuleID"] = "glint-gorilla-002"
+                meta["academyActivityOutcome"] = "What I hunted for: red umbrellas. How many I found: eleven, two of them inside out. What I nearly walked past: a heron on the canal wall, standing so still I took it for a post."
+            }
             add(page(.academyClass, day, 11, prompt: name, body: text, meta: meta), day: day)
         }
         for (day, type, title, text) in [(7, BookPageType.supportGuild, "The Marginalia Guild", "The guild met in the Corridor of Whispered Secrets. Someone had left a note in a book from 1974: 'Look up.' You added one underneath."),
@@ -1431,9 +1456,16 @@ private enum PublicSampleEditionProof {
         init(_ description: String) { self.description = description }
     }
     struct Photo: Decodable { var id: String; var file: String; var day: Int; var caption: String }
+    /// One thing the Reader placed on the sheet, drawn in list order.
+    /// `ref` is a photo ID, a kept Page ID, a marginalia asset name, or a note's text.
+    struct Element: Decodable {
+        var kind: String; var ref: String; var style: String?
+        var x: CGFloat; var y: CGFloat; var width: CGFloat; var rotation: Double
+    }
     struct Sheet: Decodable {
         var id: String; var day: Int; var title: String; var note: String
-        var photos: [String]; var sourceIDs: [String]; var marks: [String]; var paper: String
+        var paper: String; var background: String; var marginalia: String; var elements: [Element]
+        func refs(_ kind: String) -> [String] { elements.filter { $0.kind == kind }.map(\.ref) }
     }
     struct Input: Decodable {
         var readerName: String; var provenance: String; var photos: [Photo]; var sheets: [Sheet]
@@ -1502,39 +1534,46 @@ private enum PublicSampleEditionProof {
             let allPages = Dictionary(uniqueKeysWithValues: days.flatMap(\.pages).map { ($0.id, $0) })
             let availableMarks = Set(IlluminationPackRegistry.unlockedPacks.flatMap(\.allAssets).map(\.assetName))
             for sheet in input.sheets {
-                let photos = try sheet.photos.map { id -> PagewrightPersonalPhoto in
+                let photos = try sheet.refs("photo").map { id -> PagewrightPersonalPhoto in
                     guard let photo = photosByID[id] else { throw ProofError("missing sheet photo \(id)") }
                     return photo
                 }
-                let scraps = try sheet.sourceIDs.map { id -> BookPage in
+                let scraps = try sheet.refs("scrap").map { id -> BookPage in
                     guard let page = allPages[id] else { throw ProofError("missing sheet scrap \(id)") }
                     return page
                 }
-                guard sheet.marks.allSatisfy({ availableMarks.contains($0) && UIImage(named: $0) != nil }) else {
-                    throw ProofError("missing Pagewright mark in \(sheet.id)")
+                if let missing = sheet.refs("mark").first(where: { !availableMarks.contains($0) || UIImage(named: $0) == nil }) {
+                    throw ProofError("missing Pagewright mark \(missing) in \(sheet.id)")
                 }
+                guard let paper = PagewrightPaperTintPreset(rawValue: sheet.paper),
+                      let background = PagewrightBackground(rawValue: sheet.background),
+                      let marginalia = PagewrightMarginaliaStyle(rawValue: sheet.marginalia) else {
+                    throw ProofError("unknown paper, background or marginalia in \(sheet.id)")
+                }
+                var notes: [PagewrightPinnedNote] = []
                 var elements: [PagewrightCanvasElement] = []
-                for (index, photo) in photos.enumerated() {
-                    let four = photos.count > 2
-                    elements.append(PagewrightCanvasElement(kind: .personalPhoto, sourceID: photo.id,
-                        x: index % 2 == 0 ? 0.28 : 0.73,
-                        y: four ? (index < 2 ? 0.39 : 0.74) : 0.52,
-                        width: four ? 0.33 : 0.38, rotation: index % 2 == 0 ? -3 : 3, z: index))
+                for (z, item) in sheet.elements.enumerated() {
+                    let kind: PagewrightCanvasElement.Kind
+                    var sourceID = item.ref
+                    switch item.kind {
+                    case "photo": kind = .personalPhoto
+                    case "scrap": kind = .page
+                    case "mark": kind = .marginaliaAsset
+                    case "note":
+                        guard let style = PagewrightPinnedNoteStyle(rawValue: item.style ?? "") else {
+                            throw ProofError("unknown note style in \(sheet.id)")
+                        }
+                        let note = PagewrightPinnedNote(id: "\(sheet.id)-note-\(z)", text: item.ref, style: style)
+                        notes.append(note); kind = .note; sourceID = note.id
+                    default: throw ProofError("unknown element \(item.kind) in \(sheet.id)")
+                    }
+                    elements.append(PagewrightCanvasElement(kind: kind, sourceID: sourceID,
+                        x: item.x, y: item.y, width: item.width, rotation: item.rotation, z: z))
                 }
-                for (index, scrap) in scraps.enumerated() {
-                    elements.append(PagewrightCanvasElement(kind: .page, sourceID: scrap.id,
-                        x: 0.46, y: 0.82, width: 0.64, rotation: -2, z: 10 + index))
-                }
-                for (index, mark) in sheet.marks.enumerated() {
-                    elements.append(PagewrightCanvasElement(kind: .marginaliaAsset, sourceID: mark,
-                        x: index == 0 ? 0.09 : 0.89, y: index == 0 ? 0.24 : 0.88,
-                        width: 0.13, rotation: index == 0 ? -7 : 9, z: 20 + index))
-                }
-                let tint = (PagewrightPaperTintPreset(rawValue: sheet.paper) ?? .parchment).tint
                 let draft = PagewrightDraft(title: sheet.title, note: sheet.note, format: .scrapPage,
-                    template: .polaroidScatter, pages: scraps, pullQuotes: [:], pinnedNotes: [],
-                    personalPhotos: photos, elements: elements, background: .ragHandmade,
-                    paperTint: tint, marginalia: .tornTape, marginaliaPackID: "public-sample")
+                    template: .polaroidScatter, pages: scraps, pullQuotes: [:], pinnedNotes: notes,
+                    personalPhotos: photos, elements: elements, background: background,
+                    paperTint: paper.tint, marginalia: marginalia, marginaliaPackID: "public-sample")
                 let png = output.appendingPathComponent("pagewright-\(sheet.id).png")
                 try PagewrightPDFWriter.writePNG(draft: draft, to: png)
                 try PagewrightPDFWriter.write(draft: draft, to: output.appendingPathComponent("pagewright-\(sheet.id).pdf"))
@@ -1542,9 +1581,9 @@ private enum PublicSampleEditionProof {
                     createdAt: SyntheticReaderYear.date(2026, 10, sheet.day, hour: 20),
                     promptText: sheet.title, userInput: sheet.note,
                     tags: ["pagewright", "scrapbook", "kept-page", "scrapPage", "format:scrapPage",
-                           "photo-count:\(photos.count)", "mark-count:\(sheet.marks.count)",
+                           "photo-count:\(photos.count)", "mark-count:\(sheet.refs("mark").count)",
                            "source-count:\(scraps.count)", "public-sample"], sourceID: "pagewright", origin: .userAuthored)
-                page.metadata = ["sourcePageIDs": sheet.sourceIDs.joined(separator: ","), "sampleProvenance": input.provenance]
+                page.metadata = ["sourcePageIDs": sheet.refs("scrap").joined(separator: ","), "sampleProvenance": input.provenance]
                 page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: png.path,
                     caption: sheet.title, sourceID: "pagewright", metadata: ["mediaRole": "scrapbookPreview",
                     "monthlyEditionPresentation": "fullPage", "pagewright": "true", "export": "png"])]

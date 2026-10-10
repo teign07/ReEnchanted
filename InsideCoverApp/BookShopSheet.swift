@@ -241,8 +241,8 @@ struct BookShopSheet: View {
     /// naming as its gift while the Standing Order still sells them.
     private var boundYearDoorDetail: String {
         DigitalStandingOrder.isOffered
-            ? "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly."
-            : "Three seasonal softcovers and the year in cloth and foil arrive by post. Pay monthly or yearly."
+            ? "Every monthly content pack in digital form, included as a free gift. Three seasonal softcovers and the year in cloth and foil arrive by post, and your first full week comes bound and posted, on us. Pay monthly or yearly."
+            : "Three seasonal softcovers and the year in cloth and foil arrive by post, and your first full week comes bound and posted, on us. Pay monthly or yearly."
     }
     private var standingOrderOffers: [BookShopOffer] {
         let order = Dictionary(
@@ -802,8 +802,8 @@ struct BookShopSheet: View {
                     eyebrow: DigitalStandingOrder.isOffered ? "PHYSICAL + DIGITAL" : "BY POST",
                     title: "The Bound Year",
                     detail: DigitalStandingOrder.isOffered
-                        ? "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover."
-                        : "The post gathers your year into three seasonal softcovers and one annual hardcover. Every month's story is already free in the Book."
+                        ? "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover. Your first full week comes first, bound and posted, on us."
+                        : "The post gathers your year into three seasonal softcovers and one annual hardcover. Your first full week comes first, bound and posted, on us. Every month's story is already free in the Book."
                 )
                 boundYearLedgerCard(showCadenceImmediately: true)
                 legalLinksRow
@@ -1535,6 +1535,7 @@ struct BookShopSheet: View {
             }
             boundYearPromiseLine("leaf.fill", "Three seasonal softcovers")
             boundYearPromiseLine("books.vertical.fill", "The annual cloth-and-foil hardcover")
+            boundYearPromiseLine("gift.fill", "Your first full week, bound and posted, on us")
             boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or the Book's choice: included")
             boundYearPromiseLine("character.cursor.ibeam", "A dedication in every volume")
             boundYearPromiseLine("hand.raised.fill", "A seven-day naming window, with hold instead of skip")
@@ -6112,6 +6113,14 @@ struct PhysicalBookQuoteClient {
         )
     }
 
+    /// A season's parcel lives under its season key; the welcome weekly has
+    /// its own door, owed once per membership instead of once per season.
+    static func membershipParcelPath(membershipID: String, seasonKey: String) -> String {
+        seasonKey == BoundYearWelcomeWeekly.slotKey
+            ? "memberships/\(membershipID)/\(BoundYearWelcomeWeekly.slotKey)"
+            : "memberships/\(membershipID)/dispatches/\(seasonKey)"
+    }
+
     func prepareMembershipDispatch(
         membershipID: String,
         seasonKey: String,
@@ -6120,7 +6129,7 @@ struct PhysicalBookQuoteClient {
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(url: siblingEndpointURL(
             from: endpointURL,
-            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)"
+            endpointName: Self.membershipParcelPath(membershipID: membershipID, seasonKey: seasonKey)
         ))
         return try await send(
             request: &request,
@@ -6142,7 +6151,7 @@ struct PhysicalBookQuoteClient {
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(url: siblingEndpointURL(
             from: endpointURL,
-            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)/print-files/\(kind.rawValue)"
+            endpointName: "\(Self.membershipParcelPath(membershipID: membershipID, seasonKey: seasonKey))/print-files/\(kind.rawValue)"
         ))
         request.httpMethod = "POST"
         request.setValue("application/pdf", forHTTPHeaderField: "Content-Type")
@@ -6164,7 +6173,7 @@ struct PhysicalBookQuoteClient {
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(url: siblingEndpointURL(
             from: endpointURL,
-            endpointName: "memberships/\(membershipID)/dispatches/\(seasonKey)/orders"
+            endpointName: "\(Self.membershipParcelPath(membershipID: membershipID, seasonKey: seasonKey))/orders"
         ))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -8231,6 +8240,7 @@ struct StandingOrderSheet: View {
                     VStack(alignment: .leading, spacing: 7) {
                         planShapeLine("Three seasonal softcovers. Your own Book of You, one for each quarter of your year.")
                         planShapeLine("One annual hardcover, cloth and foil, closing the year.")
+                        planShapeLine("Your first full week, bound and posted, on us.")
                         planShapeLine("Your words, your photographs, your kept Pages, with covers and spines and a place on your shelf.")
                     }
                 } else {

@@ -217,6 +217,15 @@ struct BoundYearMembershipStatus: Codable, Equatable {
     var shippingAddressPresent: Bool? = nil
     var shippingAddressSummary: String? = nil
     var paymentVerified: Bool? = nil
+    /// Whether this membership's free first week has gone to the press.
+    /// Missing from older Workers.
+    var welcomeWeekly: WelcomeWeeklyClaim? = nil
+
+    struct WelcomeWeeklyClaim: Codable, Equatable {
+        var claimed: Bool
+        var claimedAt: String? = nil
+        var luluPrintJobID: String? = nil
+    }
 
     var periodEndsAt: Date? {
         currentPeriodEnd.map { Date(timeIntervalSince1970: TimeInterval($0)) }

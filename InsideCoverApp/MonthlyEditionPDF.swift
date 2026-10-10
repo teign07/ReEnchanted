@@ -745,8 +745,17 @@ enum MonthlyEditionPDFWriter {
         // The Handbook's evergreen pages are the same for everyone: they may
         // fill a book up to the generic ceiling, never past it. Only the
         // reader's own month makes a book thicker (and dearer) than that.
-        let genericTarget = min(target, PrintSpec.genericPageCeiling(for: edition.publicationKind ?? .monthly))
+        var genericTarget = min(target, PrintSpec.genericPageCeiling(for: edition.publicationKind ?? .monthly))
         let first = try writeUncappedPrintInterior(edition, spec: spec, to: url)
+        // The month's plates are the month, not padding: whatever pages they take are added to the
+        // ceiling, so they never push the Handbook out. Measured, not guessed: the same book once
+        // more without them. Still never past the cap.
+        if first > genericTarget, genericTarget < target {
+            EditionPlates.suppressed = true
+            defer { EditionPlates.suppressed = false }
+            let bare = try writeUncappedPrintInterior(edition, spec: spec, to: url)
+            genericTarget = min(target, genericTarget + max(0, first - bare))
+        }
         let slimCandidate = edition.pageTier == nil && edition.publicationKind == .monthly
             && first > PhysicalBookPricing.slimMonthlyMaxPages && first <= PhysicalBookPricing.slimMonthlyMaxPages + 40
         if first <= genericTarget && !slimCandidate { return first }
@@ -7045,7 +7054,8 @@ enum WeeklyIssuePDFWriter {
             terms: [issue.resolvedEditorialTitle] + issue.highlights + [issue.readerRole?.gloss ?? ""],
             seed: "week-\(issue.number)",
             dayBook: field.dayBook,
-            dayCount: WeeklyIssue.weekDays
+            dayCount: WeeklyIssue.weekDays,
+            term: issue.startDate
         )
         return field
     }

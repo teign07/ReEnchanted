@@ -587,6 +587,7 @@ async function readBoundYearMembership(membershipID, env) {
     paymentVerified: verifiedMembershipPayment(subscription, env),
     shippingAddressPresent: Boolean(customer?.shipping?.address?.line1),
     shippingAddressSummary: shippingAddressSummary(customer?.shipping),
+    welcomeWeekly: publicWelcomeWeeklyClaim(await readWelcomeWeeklyClaim(env, subscription.id)),
   };
 }
 
@@ -1551,6 +1552,30 @@ async function routeRequest(request, env) {
     ), { status: 201 });
   }
 
+  // The welcome weekly: prepared, filled and sent like a seasonal parcel, but
+  // owed once per membership rather than once per season, and never charged.
+  const welcomeMatch = path.match(/^\/(?:api\/physical-books\/)?memberships\/([A-Za-z0-9_]+)\/welcome-weekly(?:\/(print-files\/(interior|cover)|orders))?$/);
+  if (welcomeMatch && request.method === "POST") {
+    await requireClientSession(request, env);
+    await requireBoundYearOwner(request, env, welcomeMatch[1]);
+    requireCheckoutEnabled(env);
+    if (!welcomeMatch[2]) {
+      await requireRateLimit(request, env, "membership-dispatch");
+      return jsonResponse(await prepareWelcomeWeekly(welcomeMatch[1], await request.json(), env), { status: 201 });
+    }
+    if (welcomeMatch[3]) {
+      await requireRateLimit(request, env, "membership-dispatch-upload");
+      return jsonResponse(await uploadWelcomeWeeklyPrintFile(request, env, welcomeMatch[1], welcomeMatch[3]), { status: 201 });
+    }
+    await requireRateLimit(request, env, "membership-dispatch-order");
+    return jsonResponse(await createMembershipDispatchOrder(
+      welcomeMatch[1],
+      WELCOME_WEEKLY_SLOT,
+      requiredHeader(request, "X-Membership-Dispatch-Token"),
+      env,
+    ), { status: 201 });
+  }
+
   // The upsell catalogue for a given binding. Read-only and price-bearing, so
   // it needs a session like everything else, but no checkout capability — the
   // reader is still deciding.
@@ -2404,12 +2429,117 @@ async function createMembershipDispatchOrder(membershipID, seasonKey, dispatchTo
   return body;
 }
 
+// The welcome weekly.
+//
+// Every Bound Year gets its member's first full week bound and posted, free:
+// one saddle-stitched Tale of Your Week, once per membership, with no charge
+// and no checkout. It rides the seasonal dispatch rails under its own slot, so
+// the same parcel token, print-file custody and coordinator serialise it. The
+// stored order is the claim: once it exists, preparing again returns it and no
+// second Lulu job can be made for this membership.
+const WELCOME_WEEKLY_SLOT = "welcome-weekly";
+const WELCOME_WEEKLY_VARIANT_ID = "saddle-stitched-weekly-6x9";
+
+function welcomeWeeklyClaimKey(membershipID) {
+  return `${membershipDispatchStorageKey(membershipID, WELCOME_WEEKLY_SLOT)}/order`;
+}
+
+async function readWelcomeWeeklyClaim(env, membershipID) {
+  return readStoredOrder(env, welcomeWeeklyClaimKey(membershipID));
+}
+
+function publicWelcomeWeeklyClaim(order) {
+  return order
+    ? { claimed: true, claimedAt: order.createdAt ?? null, luluPrintJobID: order.luluPrintJobID ?? null }
+    : { claimed: false, claimedAt: null, luluPrintJobID: null };
+}
+
+/// A welcome belongs to a member who is a member now: active, with a settled,
+/// unrefunded payment and a paid-through date still ahead. A lapsed, unpaid or
+/// refunded membership is refused, and so is anything that is not a Bound Year.
+async function requireWelcomeWeeklyEntitlement(membershipID, env) {
+  const subscription = await readMembershipPayment(membershipID, env);
+  if (subscription?.id !== membershipID || !verifiedMembershipPayment(subscription, env)) {
+    throw new HTTPError(402, "welcome_weekly_requires_active_membership", "The welcome issue belongs to an active, paid Bound Year.");
+  }
+  const customer = await membershipCustomer(subscription, env);
+  const shippingAddress = stripeShippingToPhysicalAddress(customer?.shipping);
+  shippingAddress.recipientTaxID = await readMembershipCustomsID(
+    env,
+    stripeCustomerID(customer),
+    shippingAddress.countryCode,
+  );
+  requireRecipientTaxID(shippingAddress);
+  return { subscription, customer, shippingAddress };
+}
+
+async function prepareWelcomeWeekly(membershipID, request, env) {
+  requireOrderStorage(env);
+  const claimed = await readWelcomeWeeklyClaim(env, membershipID);
+  if (claimed) return { membershipID, seasonKey: WELCOME_WEEKLY_SLOT, alreadySubmitted: true, order: claimed };
+  const entitlement = await requireWelcomeWeeklyEntitlement(membershipID, env);
+  const variant = request?.variant || {};
+  const packageID = ALLOWED_VARIANTS.get(WELCOME_WEEKLY_VARIANT_ID);
+  if (variant.id !== WELCOME_WEEKLY_VARIANT_ID || variant.luluPackageID !== packageID) {
+    throw new HTTPError(400, "membership_binding_mismatch", "The welcome issue is a saddle-stitched weekly.");
+  }
+  if (Array.isArray(request?.selectedOptionIDs) && request.selectedOptionIDs.length > 0) {
+    throw new HTTPError(402, "membership_extras_require_checkout", "Paid extras need their own checkout.");
+  }
+  const limits = VARIANT_PAGE_LIMITS.get(WELCOME_WEEKLY_VARIANT_ID);
+  const pageCount = request?.pageCount;
+  if (!request?.editionID || !Number.isInteger(pageCount) || pageCount < limits.minimum ||
+      pageCount > Math.min(limits.maximum, EDITION_PAGE_CAPS.get("weekly")) || pageCount % limits.multiple !== 0) {
+    throw new HTTPError(400, "invalid_membership_dispatch", "That weekly issue is not ready for the press.");
+  }
+  const editionID = sanitizeObjectPathSegment(request.editionID);
+  const editionTitle = canonicalPrintTitle(request.editionTitle);
+  const luluToken = await fetchLuluAccessToken(env);
+  const coverDimensions = await fetchLuluCoverDimensions(env, luluToken, packageID, pageCount);
+  const dispatchToken = randomToken();
+  await env.PHYSICAL_BOOK_ORDERS.put(membershipDispatchStorageKey(membershipID, WELCOME_WEEKLY_SLOT), JSON.stringify({
+    kind: "welcomeWeekly",
+    membershipID,
+    seasonKey: WELCOME_WEEKLY_SLOT,
+    editionID,
+    editionTitle,
+    pageCount,
+    variant: { id: WELCOME_WEEKLY_VARIANT_ID, luluPackageID: packageID },
+    coverDimensions,
+    foilStamp: null,
+    dispatchTokenHash: await sha256Hex(dispatchToken),
+    preparedAt: new Date().toISOString(),
+  }), { expirationTtl: MEMBERSHIP_DISPATCH_TTL_SECONDS });
+  return {
+    membershipID,
+    seasonKey: WELCOME_WEEKLY_SLOT,
+    editionID,
+    dispatchToken,
+    alreadySubmitted: false,
+    shippingAddressSummary: shippingAddressSummary(entitlement.customer?.shipping),
+    coverDimensions,
+  };
+}
+
+async function uploadWelcomeWeeklyPrintFile(request, env, membershipID, kind) {
+  if (await readWelcomeWeeklyClaim(env, membershipID)) {
+    throw new HTTPError(409, "welcome_weekly_already_claimed", "This membership's welcome issue has already gone to the press.");
+  }
+  return uploadMembershipDispatchPrintFile(request, env, membershipID, WELCOME_WEEKLY_SLOT, kind);
+}
+
 async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken, env, submitPrintJob) {
   const record = await requireMembershipDispatchRecord(env, membershipID, seasonKey, dispatchToken);
   const storageKey = `${membershipDispatchStorageKey(membershipID, seasonKey)}/order`;
   const existing = await readStoredOrder(env, storageKey);
   if (existing) return existing;
-  const entitlement = await requireEarnedMembershipSeason(membershipID, seasonKey, env);
+  const isWelcome = seasonKey === WELCOME_WEEKLY_SLOT;
+  if (isWelcome !== (record.kind === "welcomeWeekly")) {
+    throw new HTTPError(409, "membership_dispatch_mismatch", "That parcel does not belong to this slot.");
+  }
+  const entitlement = isWelcome
+    ? await requireWelcomeWeeklyEntitlement(membershipID, env)
+    : await requireEarnedMembershipSeason(membershipID, seasonKey, env);
   const [interior, cover] = await Promise.all([
     readStoredOrder(env, membershipDispatchPrintFileKey(membershipID, seasonKey, "interior")),
     readStoredOrder(env, membershipDispatchPrintFileKey(membershipID, seasonKey, "cover")),

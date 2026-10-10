@@ -651,22 +651,22 @@
   "pagewright": [
     {
       "title": "A small floating home",
-      "image": "./assets/samples/pagewright-floating-home.webp?v=8e469a6ff04d",
+      "image": "./assets/samples/pagewright-floating-home.webp?v=9036f9e2e625",
       "alt": "A small floating home: an actual Pagewright sheet with 2 selected photographs, app marginalia, and kept scraps."
     },
     {
       "title": "Room for the light",
-      "image": "./assets/samples/pagewright-cabin-light.webp?v=357307a687d5",
-      "alt": "Room for the light: an actual Pagewright sheet with 2 selected photographs, app marginalia, and kept scraps."
+      "image": "./assets/samples/pagewright-cabin-light.webp?v=1a728751203b",
+      "alt": "Room for the light: an actual Pagewright sheet with 3 selected photographs, app marginalia, and kept scraps."
     },
     {
       "title": "Outside, slowly",
-      "image": "./assets/samples/pagewright-outside-slowly.webp?v=3ad3336af15e",
-      "alt": "Outside, slowly: an actual Pagewright sheet with 2 selected photographs, app marginalia, and kept scraps."
+      "image": "./assets/samples/pagewright-outside-slowly.webp?v=df78c3f0e139",
+      "alt": "Outside, slowly: an actual Pagewright sheet with 3 selected photographs, app marginalia, and kept scraps."
     },
     {
       "title": "These ones stay",
-      "image": "./assets/samples/pagewright-people-and-pets.webp?v=7146d010407f",
+      "image": "./assets/samples/pagewright-people-and-pets.webp?v=e86315e85b9c",
       "alt": "These ones stay: an actual Pagewright sheet with 4 selected photographs, app marginalia, and kept scraps."
     }
   ]

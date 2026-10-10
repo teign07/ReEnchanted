@@ -79,6 +79,10 @@ python3 "$REPO_ROOT/scripts/sync-web-feasts.py"
 # The same recorded Book cues, decoded to browser-compatible audio.
 python3 "$REPO_ROOT/scripts/sync-web-sounds.py"
 
+# Keep synced artwork and screenshots modest enough for the public Book.
+# This only resizes/encodes website images, and never builds the app.
+python3 "$REPO_ROOT/scripts/optimize-landing-images.py" --site "$SRC"
+
 # ── refresh a pristine checkout of the deploy repo ──
 if [[ -d "$CACHE_DIR/.git" ]]; then
   git -C "$CACHE_DIR" fetch --quiet origin "$DEPLOY_BRANCH"

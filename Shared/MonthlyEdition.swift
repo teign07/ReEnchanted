@@ -2832,6 +2832,7 @@ enum MonthlyEditionBuilder {
             seed: monthKey,
             dayBook: dayBook,
             dayCount: max(1, calendar.dateComponents([.day], from: startDate, to: endDate).day.map { $0 + 1 } ?? 30),
+            term: startDate,
             calendar: calendar
         )
         return assembled

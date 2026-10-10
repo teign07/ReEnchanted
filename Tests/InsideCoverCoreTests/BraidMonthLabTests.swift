@@ -111,7 +111,8 @@ final class BraidMonthLabTests: XCTestCase {
       let dayEnd = dayStart.addingTimeInterval(86_399)
 
       var context = BraidPromptBuilder.Context.empty
-      context.recentDays = Array(days[max(0, index - 21)..<index])
+      // As on the phone, which hands the planner the reader's whole archive.
+      context.recentDays = Array(days[..<index])
       context.authoredStoryReceipts = MonthlyIssueBraidMatter.ordered(
         receipts.filter { $0.recordedAt >= dayStart && $0.recordedAt <= dayEnd })
       let liveDay = calendar.component(.day, from: day.date) - 1
@@ -178,13 +179,9 @@ final class BraidMonthLabTests: XCTestCase {
     guard !scenePlan.placements.isEmpty || !scenePlan.quietDayBeats.isEmpty
             || scenePlan.authoredStoryReceipts?.isEmpty == false else { return nil }
 
-    // The wonder braid first.
+    // The wonder braid first (BRAID_MONTH_PATH=plain skips it, to compare).
     var wonder: WonderBraid.Output?
-    do {
-      let keptFiction = scenePlan.placements
-        .compactMap { scenePlan.evidence(for: $0.evidenceID) }
-        .filter { $0.kind == .keptFiction }
-        .map(\.text)
+    if ProcessInfo.processInfo.environment["BRAID_MONTH_PATH"] != "plain" { do {
       let weatherWord = day.capturedPages.sorted { $0.createdAt > $1.createdAt }
         .compactMap(\.context).flatMap(\.weatherTags).first
       let input = WonderBraid.Input(
@@ -194,7 +191,7 @@ final class BraidMonthLabTests: XCTestCase {
         business: scenePlan.bookBusiness?.text,
         weather: WonderBraid.weatherLine(weather: weatherWord, place: nil,
                                          moonPhaseName: MoonPhaseCalendar.phase(on: day.date).name),
-        bookLines: WonderBraid.bookLines(from: keptFiction.flatMap(WonderBraid.sentences)),
+        bookLines: WonderBraid.bookLines(plan: scenePlan, day: day),
         resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date),
         isHardNight: scenePlan.isHardNight)
       if let output = try await WonderBraid.write(input, tell: { system, user, temperature, topP, maxTokens in
@@ -204,7 +201,7 @@ final class BraidMonthLabTests: XCTestCase {
           .filter(\.isReaderTrustFailure)
         if trust.isEmpty { wonder = output } else { print("  wonder failed trust: \(trust)") }
       }
-    }
+    } }
 
     let prose: String
     var scrubbed = false
@@ -253,8 +250,12 @@ final class BraidMonthLabTests: XCTestCase {
     }
     var seen = Set<String>()
     tags = tags.filter { seen.insert($0).inserted }
+    // As on the phone: the month's story passages the reader read are bound
+    // into the night after its first paragraph.
+    var bound = BookPage(type: .bookOfYou, createdAt: day.date, promptText: "", userInput: tellingText, tags: tags)
+    bound = MonthlyIssueBraidMatter.binding(scenePlan.authoredStoryReceipts ?? [], into: bound)
     return Night(day: day.id, path: wonder == nil ? (scenePlan.isHardNight ? "plain-hard" : "plain") : "wonder",
-                 title: scenePlan.title(), body: tellingText, tags: tags,
+                 title: scenePlan.title(), body: bound.userInput, tags: bound.tags,
                  words: prose.split(whereSeparator: \.isWhitespace).count,
                  findings: issues.map(\.rawValue), attempts: 1)
   }

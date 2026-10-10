@@ -12726,7 +12726,9 @@ struct CapturePageSheet: View {
               let sessionID = surface.payload.metadata["sessionID"]?.nonEmpty else {
             return nil
         }
-        return AcademyActivityRegistry.activity(for: sessionID)
+        return AcademyActivityRegistry.activity(
+            for: sessionID, lessonID: surface.payload.metadata["lessonModuleID"]?.nonEmpty
+        )
     }
 
     @ViewBuilder
@@ -12741,7 +12743,12 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
 
-            if activity.isCompassRun {
+            // A lesson's own worksheet gets plain boxes, except where the room's card is the class
+            // itself: the quiet minute, the spellbook, the Compass Run, the club's book-picker.
+            if activity.isLessonOwn, !activity.fields.isEmpty,
+               ![.restCheckIn, .enchantmentCasting, .compassRun, .doorProtocol].contains(activity.kind) {
+                lessonPracticeCard(activity, draft: draft)
+            } else if activity.isCompassRun {
                 Button {
                     onNavigateToSurface(academyCompassRunSurface(activity: activity, draft: draft))
                 } label: {
@@ -12874,6 +12881,21 @@ struct CapturePageSheet: View {
         What exact attention changed: \(glintInterpretation.trimmingCharacters(in: .whitespacesAndNewlines))
         """
         completeAcademyActivity(activity, draft: draft, outcome: outcome)
+    }
+
+    /// This month's lesson's own worksheet: its boxes, and the button to bring it back.
+    @ViewBuilder
+    private func lessonPracticeCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
+        activityFields(activity.fields)
+        Button {
+            completeAcademyActivity(activity, draft: draft)
+        } label: {
+            Label(activity.actionTitle, systemImage: "arrow.turn.down.right")
+                .font(.headline.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 10)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(BookPalette.teal)
+        .disabled(!academyActivityIsReady(activity))
     }
 
     @ViewBuilder

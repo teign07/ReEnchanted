@@ -32,6 +32,21 @@ import NaturalLanguage
 /// one page and two facts, and a rewrite that recombines them into "you called
 /// Sam about the plants" preserves every word of the page while inventing the
 /// evening. Claims are checked per contribution, never per page.
+extension SceneEvidence {
+    /// A Bleed article or a notice opens with its headline on a line of its
+    /// own ("Where Things Are Now"). Split into sentences, the headline runs
+    /// into the first one; it is a heading, not a sentence of the world.
+    static func withoutHeadline(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+        guard let first = lines.first?.trimmingCharacters(in: .whitespaces), !first.isEmpty,
+              let nextIndex = lines.dropFirst().firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }),
+              let nextFirst = lines[nextIndex].trimmingCharacters(in: .whitespaces).first, nextFirst.isUppercase || nextFirst == "*",
+              first.split(separator: " ").count <= 8,
+              let last = first.last, !".!?:;,\u{201D}\"".contains(last) else { return text }
+        return lines[nextIndex...].joined(separator: "\n")
+    }
+}
+
 struct SceneEvidence: Equatable, Codable, Identifiable {
     enum Kind: String, Codable, Equatable {
         /// A line the reader wrote.
@@ -1497,7 +1512,7 @@ enum BraidScenePlanBuilder {
         let isAuthoredScene = page.tags.contains("authored-story-scene")
         if !isAuthoredScene, BraidPromptBuilder.isLabyrinthReceipt(page) {
             let text = DeterministicBraidwright.strippedScaffolding(
-                page.userInput.nonEmpty ?? page.promptText.nonEmpty ?? ""
+                SceneEvidence.withoutHeadline(page.userInput.nonEmpty ?? page.promptText.nonEmpty ?? "")
             )
             guard !text.isEmpty else { return [] }
             // Same grain and same id rule as lived material, so an id can be
@@ -3766,7 +3781,13 @@ enum SceneWorldCanon {
         // A night holding something hard is offered only pulses that have a
         // quiet way of being said; the rest of the Tale waits for a kinder night.
         let hardNight = !plan.mustRemainUnresolved.isEmpty
-        let eventPool = hardNight ? freshEvents.filter { $0.tender != nil || !$0.id.contains(":pulse:") } : freshEvents
+        let gentleEvents = hardNight ? freshEvents.filter { $0.tender != nil || !$0.id.contains(":pulse:") } : freshEvents
+        // Monthly content still comes first, but a line the reader hasn't seen
+        // this week goes before one they have: the same sentence twice in a
+        // month reads, on paper, like the Book repeating itself.
+        let seenThisMonth = spentWorldFactIDs(in: recentDays, limit: 31)
+        let unseenEvents = gentleEvents.filter { !seenThisMonth.contains($0.id) }
+        let eventPool = unseenEvents.isEmpty ? gentleEvents : unseenEvents
         let pool: [Fact]
         if !eventPool.isEmpty {
             pool = eventPool

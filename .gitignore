@@ -34,3 +34,7 @@ AgentBulletin/
 
 # Raw ElevenLabs instrument takes (~94 MB). The sliced note bank in scripts/instrument_bank/ is what the sound generator reads.
 scripts/instrument_takes/
+
+# Raw screen captures and draft renders for the promo videos; the finished renders are tracked.
+videos/*/capture/*.mp4
+videos/*/renders/draft*.mp4

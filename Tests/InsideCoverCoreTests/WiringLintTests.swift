@@ -192,7 +192,10 @@ final class WiringLintTests: XCTestCase {
             if unwiredAwaitingDecision.contains(name) { continue }
             let declarations = count("\\bfunc\\s+\(name)\\s*\\(", in: all)
             let mentions = count("(?<![A-Za-z0-9_])\(name)\\s*\\(", in: all)
-            if mentions <= declarations { offenders[name] = paths.sorted() }
+            // A producer handed over by name ("onPrepareDeeper: preparePagesRisingDeeperPull")
+            // is wired: whoever holds it calls it.
+            let passedAsValue = count("(?<=[:=(,]\\s)\(name)(?=\\s*[,)\\n])", in: all)
+            if mentions + passedAsValue <= declarations { offenders[name] = paths.sorted() }
         }
         XCTAssertTrue(
             offenders.isEmpty,

@@ -1252,10 +1252,6 @@ struct MLXBookBraider: Braider {
               !UserDefaults.standard.bool(forKey: "wonderBraidDisabled") else { return nil }
         let details = scenePlan.readerDayNarration
 
-        let keptFiction = scenePlan.placements
-            .compactMap { scenePlan.evidence(for: $0.evidenceID) }
-            .filter { $0.kind == .keptFiction }
-            .map(\.text)
         let weatherWord = day.capturedPages
             .sorted { $0.createdAt > $1.createdAt }
             .compactMap(\.context)
@@ -1273,7 +1269,7 @@ struct MLXBookBraider: Braider {
                 place: UserDefaults.standard.string(forKey: "lastCoarseLocationContextLabel"),
                 moonPhaseName: MoonPhaseCalendar.phase(on: day.date).name
             ),
-            bookLines: WonderBraid.bookLines(from: keptFiction.flatMap(WonderBraid.sentences)),
+            bookLines: WonderBraid.bookLines(plan: scenePlan, day: day),
             resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date),
             delivered: installedPacks.flatMap { $0.wonderLines ?? [] },
             retiring: Set(installedPacks.flatMap { $0.retiredWonderLineIDs ?? [] }),
