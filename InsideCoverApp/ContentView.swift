@@ -12206,9 +12206,9 @@ struct ContentView: View {
         )
     }
 
-    /// The Labyrinth and the Academy inside it, drawn as far as the Book has
-    /// been. The rooms come from `AcademyGeography`; a room goes on the map
-    /// when a story, a kept Page or the room's own memory puts it there.
+    /// The Book's surveyed Academy inside the Labyrinth. Its walls come
+    /// from `AcademyGeography`; stories and remembered events give the rooms
+    /// new marginal notes while the Cast live their own day.
     ///
     /// It's a living map. People are placed by the month's staging, the Pages
     /// on the desk right now, Pages kept in the last few hours, the timetable,
@@ -12216,15 +12216,21 @@ struct ContentView: View {
     /// every minute.
     var labyrinthMapShelf: some View {
         let now = Date()
+        let cast = (NarrativePackRegistry.entities + customCastMembers.map(\.entity)).filter { $0.kind == .character }
+        let events = WorldEventRegistry.enabledEvents().map(\.event)
+        let rooms = AcademyEventStaging.from(events: events, now: now).rooms
         var map = AcademyMapView(inputs: AcademyChartInputs(
             days: days,
             placeStates: vault.data.placeStates ?? [:],
             storySettingAffinities: vault.data.storySettingAffinities ?? [:],
             sky: skyOnTheLeaf?.condition,
             anchorNames: anchorLedger.map(\.name),
-            deskScenes: surfacedPages.compactMap { AcademyScene(metadata: $0.payload.metadata, at: now, pageID: $0.id) },
-            worldEvents: WorldEventRegistry.enabledEvents().map(\.event),
-            now: now
+            anchors: anchorLedger,
+            deskScenes: surfacedPages.compactMap { AcademyScene(metadata: $0.payload.metadata, at: now, pageID: $0.id, cast: cast, rooms: rooms) },
+            worldEvents: events,
+            now: now,
+            cast: cast,
+            readerChapterID: boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.id }
         ))
         // One statement per handler: each closure captures this whole view.
         map.onOpenPage = { openKeptPage($0) }
@@ -15197,16 +15203,30 @@ struct ContentView: View {
     /// writes only when something new has stuck.
     @MainActor
     func tendCastStoryMemories(now: Date = Date()) {
-        let source = monthlyRuntimeCatalog.castMemorySource
-        guard !source.isEmpty else { return }
-        let harvested = CastStoryMemoryHarvest.memories(
-            source: source,
-            receipts: vault.data.authoredContentReceipts ?? .empty,
-            lifecycle: vault.data.worldEventLifecycle ?? .empty,
-            now: now
-        )
         let current = vault.data.castStoryMemories ?? .empty
-        let next = current.absorbing(harvested)
+        var next = current
+        let source = monthlyRuntimeCatalog.castMemorySource
+        if !source.isEmpty {
+            next = next.absorbing(CastStoryMemoryHarvest.memories(
+                source: source,
+                receipts: vault.data.authoredContentReceipts ?? .empty,
+                lifecycle: vault.data.worldEventLifecycle ?? .empty,
+                now: now
+            ))
+        }
+        // The news gets round. Worked out from the ledger alone, so it keeps
+        // spreading after the month's pack has gone.
+        if !next.memories.isEmpty {
+            next = next.absorbing(CastStoryGossip.spread(
+                ledger: next,
+                listeners: CastStoryGossip.listeners(from: NarrativePackRegistry.entities),
+                closeness: CastStoryGossip.closeness(
+                    authored: NarrativePackRegistry.relationships,
+                    field: vault.data.relationshipField ?? [:]
+                ),
+                now: now
+            ))
+        }
         guard next != current else { return }
         vault.mutate { $0.castStoryMemories = next }
         vault.save()

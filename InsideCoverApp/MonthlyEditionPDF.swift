@@ -477,7 +477,7 @@ enum MonthlyEditionPDFWriter {
         }
 
         beginComposedPage(context, style: style, cursor: &cursor)
-        drawContents(edition, style: style, cursor: &cursor)
+        drawContents(edition, style: style, context: context, cursor: &cursor)
 
         if let matter = edition.publicationMatter {
             // The Field Book's almanac page carries these two facts itself.
@@ -512,6 +512,11 @@ enum MonthlyEditionPDFWriter {
             )
         }
 
+        // What the reader wrote at the press, in their hand, before the days.
+        if let account = edition.bindingAccount {
+            drawBindingAccount(account, edition: edition, style: style, context: context, cursor: &cursor)
+        }
+
         // The Field Book: the almanac, the charts, the Cast, and the days. It
         // replaces the flowed braids, souvenirs and images, which the days carry.
         if let book = edition.dayBook {
@@ -528,9 +533,12 @@ enum MonthlyEditionPDFWriter {
         // sentences set as the reader's own words: the archive leaves those out.
         let printedInDays = Set(edition.dayBook?.days.flatMap(\.printedPageIDs) ?? [])
         for var section in edition.sections where section.id != "the-months-theme" && !fieldBookReplaces(section.id, in: edition) {
-            if section.id == "other-kept-pages", !printedInDays.isEmpty {
+            // Nothing the Days already printed is printed twice: a letter set
+            // whole on its day is not set again under Letters and Voices.
+            if !printedInDays.isEmpty {
+                let before = section.items.count
                 section.items.removeAll { printedInDays.contains($0.id) }
-                if section.items.isEmpty { continue }
+                if section.items.isEmpty, before > 0 { continue }
             }
             if section.id == "what-the-cast-did" {
                 drawCastDivider(edition.castLead, style: style, context: context, cursor: &cursor)
@@ -596,7 +604,7 @@ enum MonthlyEditionPDFWriter {
         if let handbook = edition.handbook, !handbook.isEmpty {
             drawHandbook(
                 handbook, readerName: edition.coverReaderName,
-                termLabel: "\(edition.monthName) \(Calendar.current.component(.year, from: edition.startDate))",
+                termLabel: edition.monthName, // already "October 2026"
                 monthNumber: Calendar.current.component(.month, from: edition.startDate),
                 style: style, context: context, cursor: &cursor
             )
@@ -734,8 +742,14 @@ enum MonthlyEditionPDFWriter {
         let cap = PrintSpec.pageCap(for: edition.publicationKind ?? .monthly)
         // A thickness the reader chose is a smaller cap, never a larger one.
         let target = edition.pageTier.map { min($0, cap) } ?? cap
+        // The Handbook's evergreen pages are the same for everyone: they may
+        // fill a book up to the generic ceiling, never past it. Only the
+        // reader's own month makes a book thicker (and dearer) than that.
+        let genericTarget = min(target, PrintSpec.genericPageCeiling(for: edition.publicationKind ?? .monthly))
         let first = try writeUncappedPrintInterior(edition, spec: spec, to: url)
-        if first <= target { return first }
+        let slimCandidate = edition.pageTier == nil && edition.publicationKind == .monthly
+            && first > PhysicalBookPricing.slimMonthlyMaxPages && first <= PhysicalBookPricing.slimMonthlyMaxPages + 40
+        if first <= genericTarget && !slimCandidate { return first }
 
         // Trimming is cheap and rendering is not. Lay out the whole trim
         // sequence first, then bisect it for the least-trimmed edition that fits.
@@ -749,6 +763,42 @@ enum MonthlyEditionPDFWriter {
             if first <= cap { return first }
             throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
                 "This edition needs \(first) pages even at its leanest; its cap is \(cap)."])
+        }
+        // The leading steps that leave the reader's days whole (the Handbook,
+        // the sampled archive): these alone are spent to bring a book down to
+        // the generic ceiling.
+        let handbookOnly = steps.prefix { $0.dayBook == edition.dayBook }.count
+        // A light month, where the reader didn't choose a thickness, is bound
+        // Slim when the evergreen pages alone can bring it there: every page of
+        // theirs kept, the book the entry price. We'd rather give than pad.
+        if edition.pageTier == nil, edition.publicationKind == .monthly, handbookOnly > 0 {
+            let slim = PhysicalBookPricing.slimMonthlyMaxPages
+            var low = 0, high = handbookOnly - 1
+            var fitted: Int?
+            while low <= high {
+                let mid = (low + high) / 2
+                let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+                if pages <= slim { fitted = mid; high = mid - 1 } else { low = mid + 1 }
+            }
+            if let fitted { return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url) }
+        }
+        // Slim was out of reach and the book already fit: bind it whole.
+        if first <= genericTarget { return try writeUncappedPrintInterior(edition, spec: spec, to: url) }
+        if genericTarget < target, handbookOnly > 0 {
+            var low = 0, high = handbookOnly - 1
+            var fitted: Int?
+            while low <= high {
+                let mid = (low + high) / 2
+                let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+                if pages <= genericTarget { fitted = mid; high = mid - 1 } else { low = mid + 1 }
+            }
+            if let fitted { return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url) }
+            // The Handbook is as thin as it goes and the book is still past the
+            // ceiling: that length is the reader's own, and it may run to the cap.
+            let lean = try writeUncappedPrintInterior(steps[handbookOnly - 1], spec: spec, to: url)
+            if lean <= target { return lean }
+        } else if first <= target {
+            return first
         }
         var low = 0, high = steps.count - 1   // steps[high] is the leanest
         var fitted: Int?
@@ -2451,9 +2501,9 @@ enum MonthlyEditionPDFWriter {
         ]
         (head as NSString).draw(at: CGPoint(x: cursor.left, y: 30), withAttributes: headAttributes)
 
-        drawText("Book Memory Spine", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
+        drawText("What Stayed With Me", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
         drawText(
-            "The nightly Book of You pages, read again as a year of callbacks, refrains, cover stories, and questions still warm.",
+            "The threads I’m keeping from a year of nightly tellings, and the questions still warm.",
             font: .serifItalicFont(ofSize: 10.5),
             color: style.palette.ink.withAlphaComponent(0.65),
             cursor: &cursor,
@@ -3763,31 +3813,72 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Contents and sections
 
-    private static func drawContents(_ edition: MonthlyEdition, style: EditionStyle, cursor: inout PDFCursor) {
-        drawRunningHead(edition, style: style, cursor: cursor)
-        drawText("Contents", font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
-        drawAccentRule(style, cursor: &cursor)
+    private static func drawContents(_ edition: MonthlyEdition, style: EditionStyle,
+                                     context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
+        func heading(continued: Bool) {
+            drawRunningHead(edition, style: style, cursor: cursor)
+            drawText(continued ? "Contents · continued" : "Contents", font: .serifFont(ofSize: 22, weight: .bold),
+                     color: style.palette.ink, cursor: &cursor, spacingAfter: 6)
+            drawAccentRule(style, cursor: &cursor)
+        }
+        func nextPage() {
+            beginComposedPage(context, style: style, cursor: &cursor)
+            heading(continued: true)
+        }
+        heading(continued: false)
+        var entries: [(title: String, note: String)] = []
         if edition.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty != nil {
-            drawText("The Month, Bound", font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
-            drawText("The nightly bindings read as one story.", font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+            entries.append(("The Month, Bound", "The nightly bindings read as one story."))
+        }
+        if let account = edition.bindingAccount,
+           !account.answered(monthName: edition.startDate.formatted(.dateTime.month(.wide))).isEmpty {
+            entries.append(("Your Account", "What you wrote at the press, before the month was bound."))
         }
         if edition.dayBook != nil {
-            for (title, note) in [
+            entries += [
                 ("The Almanac", "The month's moons, and the nights, scenes and photographs it kept."),
                 ("The Labyrinth", "Where everyone was, and where you were."),
                 ("The Cast", "Who was in the room."),
-                ("The Days", "Each date, the world's side and yours.")
-            ] {
-                drawText(title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
-                drawText(note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
-            }
+                ("The Days", "Each date: what the Labyrinth did, and what you did."),
+                ("The Month's Tale", "The story you read, bound whole, with your choices written in.")
+            ]
         }
+        let printedInDays = Set(edition.dayBook?.days.flatMap(\.printedPageIDs) ?? [])
+        var listed = Set<String>()
         for section in edition.sections where !fieldBookReplaces(section.id, in: edition) {
-            drawText(section.title, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
-            drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.6), cursor: &cursor, spacingAfter: 10)
+            if !section.items.isEmpty, section.items.allSatisfy({ printedInDays.contains($0.id) }) { continue }
+            guard !section.title.isEmpty, listed.insert(section.title).inserted else { continue }
+            entries.append((section.title, section.note))
         }
-        for leaf in edition.playLeaves ?? [] {
-            drawText(leaf.definition.contentsListing, font: .systemFont(ofSize: 13, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        entries += (edition.playLeaves ?? []).map { ($0.definition.contentsListing, "") }
+
+        let titleFont = UIFont.fbSerif(ofSize: 13.5, weight: .semibold)
+        let noteFont = UIFont.serifItalicFont(ofSize: 10)
+        for entry in entries {
+            let needed = FieldText.height(entry.title, font: titleFont, width: cursor.contentWidth,
+                                          lineSpacing: 3, paragraphSpacing: 0, justified: false)
+                + FieldText.height(entry.note, font: noteFont, width: cursor.contentWidth,
+                                   lineSpacing: 3, paragraphSpacing: 0, justified: false) + 16
+            // Keep a normal listing and its note together. Unusually long text
+            // can itself flow across leaves; no text is drawn below the margin.
+            if cursor.y + needed > cursor.bottom { nextPage() }
+            for (text, font, color, gap) in [
+                (entry.title, titleFont, style.palette.ink, CGFloat(2)),
+                (entry.note, noteFont, style.palette.ink.withAlphaComponent(0.6), CGFloat(10))
+            ] {
+                var rest = FieldMarked(parsing: text)
+                while !rest.isEmpty {
+                    if cursor.bottom - cursor.y < font.lineHeight + 6 { nextPage() }
+                    let flow = FieldText.flow(rest, font: font, color: color,
+                                              in: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth,
+                                                         height: cursor.bottom - cursor.y),
+                                              lineSpacing: 3, paragraphSpacing: 0, justified: false)
+                    cursor.y += flow.usedHeight
+                    rest = flow.rest
+                    if !rest.isEmpty { nextPage() }
+                }
+                cursor.y += gap
+            }
         }
     }
 
@@ -3845,11 +3936,22 @@ enum MonthlyEditionPDFWriter {
         safeInsets: UIEdgeInsets
     ) {
         let leaf = boundLeaf.definition
-        UIColor.white.setFill()
-        UIRectFill(bounds)
+        // A colouring leaf is white, so marker reads true; a leaf for a pen sits
+        // on the book's own paper like every other page.
+        if leaf.form == .coloring {
+            UIColor.white.setFill()
+            UIRectFill(bounds)
+        } else {
+            drawComposedBackground(style: style, seed: "play-\(boundLeaf.definition.id)-\(part)", in: bounds)
+        }
 
-        // Marker and pencil must not ghost into somebody else's page.
+        // Marker and pencil must not ghost into somebody else's page. The
+        // reverse stays clear, and says so once, small, at its foot.
         if leaf.footprint.hasBlankReverse, part == 1 {
+            let note = "I left this side empty on purpose, so your marker can't come through and spoil anything." as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.italicSystemFont(ofSize: 7.6), .foregroundColor: style.palette.ink.withAlphaComponent(0.42)]
+            let width = note.size(withAttributes: attrs).width
+            note.draw(at: CGPoint(x: bounds.midX - width / 2, y: bounds.maxY - max(safeInsets.bottom, 40) - 4), withAttributes: attrs)
             return
         }
 
@@ -5197,14 +5299,50 @@ enum MonthlyEditionPDFWriter {
         // Parchment base wash.
         drawVerticalWash(in: bounds, top: paper.top, bottom: paper.bottom, cg: cg)
 
-        // Foxing: a couple of broad, very faint stains drifting in from the edges.
-        for index in 0..<3 {
+        // Mottling: broad, soft-edged unevenness in the paper itself. Built
+        // from a few nested faint ovals: a PDF drops a gradient's alpha.
+        for index in 0..<2 {
             let cx = frac("\(seed)-stainx\(index)") * bounds.width
             let cy = frac("\(seed)-stainy\(index)") * bounds.height
-            let r = 60 + frac("\(seed)-stainr\(index)") * 90
-            let blot = CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2)
-            paper.stain.withAlphaComponent(0.035).setFill()
-            UIBezierPath(ovalIn: blot).fill()
+            let r = 90 + frac("\(seed)-stainr\(index)") * 120
+            for ring in 0..<6 {
+                let rr = r * (1 - CGFloat(ring) * 0.15)
+                paper.stain.withAlphaComponent(0.006).setFill()
+                UIBezierPath(ovalIn: CGRect(x: cx - rr, y: cy - rr * 0.8, width: rr * 2, height: rr * 1.6)).fill()
+            }
+        }
+        // Foxing: small rust specks, clustered toward an edge, the way old paper spots.
+        let edgeSide = ConstellationKeeper.stableIndex(for: "\(seed)-foxside", count: 4)
+        for index in 0..<(8 + ConstellationKeeper.stableIndex(for: "\(seed)-foxn", count: 10)) {
+            let along = frac("\(seed)-foxa\(index)")
+            let depth = pow(frac("\(seed)-foxd\(index)"), 2.2) * 70
+            let point: CGPoint
+            switch edgeSide {
+            case 0: point = CGPoint(x: along * bounds.width, y: 8 + depth)
+            case 1: point = CGPoint(x: along * bounds.width, y: bounds.height - 8 - depth)
+            case 2: point = CGPoint(x: 8 + depth, y: along * bounds.height)
+            default: point = CGPoint(x: bounds.width - 8 - depth, y: along * bounds.height)
+            }
+            let r = 0.5 + pow(frac("\(seed)-foxr\(index)"), 3) * 2.6
+            let squash = 0.6 + frac("\(seed)-foxq\(index)") * 0.5
+            paper.stain.withAlphaComponent(0.10 + frac("\(seed)-foxo\(index)") * 0.14).setFill()
+            UIBezierPath(ovalIn: CGRect(x: point.x - r, y: point.y - r * squash, width: r * 2, height: r * 2 * squash)).fill()
+        }
+        // Now and then a tide-mark: the faint ring a cup leaves, never filled.
+        if frac("\(seed)-tide") < 0.22 {
+            let cx = bounds.width * (0.15 + frac("\(seed)-tidex") * 0.7)
+            let cy = bounds.height * (0.12 + frac("\(seed)-tidey") * 0.76)
+            let r = 34 + frac("\(seed)-tider") * 18
+            let ring = UIBezierPath()
+            for step in 0...48 {
+                let a = CGFloat(step) / 48 * .pi * 2
+                let wobble = 1 + (frac("\(seed)-tidew\(step % 12)") - 0.5) * 0.06
+                let p = CGPoint(x: cx + cos(a) * r * wobble, y: cy + sin(a) * r * wobble)
+                step == 0 ? ring.move(to: p) : ring.addLine(to: p)
+            }
+            paper.stain.withAlphaComponent(0.07).setStroke()
+            ring.lineWidth = 1.4
+            ring.stroke()
         }
 
         // Paper grain: fine fibres scattered across the leaf.

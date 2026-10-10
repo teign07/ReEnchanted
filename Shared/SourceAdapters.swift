@@ -11801,6 +11801,8 @@ struct CastMemberLivingRecord: Codable, Equatable {
         var aside: String?
         var withReader: Bool
         var happenedAt: Date
+        /// Who told them, when they only heard about it.
+        var heardFrom: String? = nil
     }
 
     static let metadataKey = "castLivingRecordV1"
@@ -11846,7 +11848,8 @@ struct CastMemberLivingRecord: Codable, Equatable {
             .prefix(5)
             .map {
                 StoryMemory(id: $0.id, storyTitle: $0.storyTitle, momentTitle: $0.momentTitle, memory: $0.memory,
-                            aside: $0.aside, withReader: $0.witness == .withReader, happenedAt: $0.happenedAt)
+                            aside: $0.aside, withReader: $0.witness == .withReader, happenedAt: $0.happenedAt,
+                            heardFrom: $0.witness == .heard ? ($0.heardFromName ?? "everyone") : nil)
             }
         storyMemories = told.isEmpty ? nil : Array(told)
 

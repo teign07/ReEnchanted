@@ -90,6 +90,8 @@ final class BoundSpanShapeTests: XCTestCase {
     func testAQuietSpanSaysSoWithoutApologising() {
         let line = BoundSpanShape.colophon(for: read([]), span: "month")
         XCTAssertTrue(line.contains("not going to invent one"), line)
+        XCTAssertFalse(line.contains("Nothing in this"), line)
+        XCTAssertTrue(line.contains("don’t need a plot") || line.contains("don't need a plot"), line)
         XCTAssertFalse(line.lowercased().contains("sorry"), line)
     }
 

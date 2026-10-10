@@ -58,6 +58,17 @@ final class BraidSceneWriterTests: XCTestCase {
         }
     }
 
+    func testTheBookDoesNotJoinTheReadersGroup() {
+        XCTAssertEqual(BraidSceneWriter.secondPerson("I called my brother and we talked for forty minutes."),
+                       "You called your brother and you talked for forty minutes.")
+        XCTAssertEqual(BraidSceneWriter.secondPerson("We took our coats. We've been there before."),
+                       "You took your coats. You've been there before.")
+        XCTAssertEqual(BraidSceneWriter.secondPerson("She said, ‘We should go.’ Then we left."),
+                       "She said, ‘We should go.’ Then you left.")
+        XCTAssertEqual(BraidSceneWriter.secondPerson("The blue door, 7:52 a.m. I waited."),
+                       "The blue door, 7:52 a.m. You waited.")
+    }
+
     func testTurningTheReaderDoesNotTakeOverAQuotedVoice() {
         XCTAssertEqual(
             BraidSceneWriter.secondPerson("I told the window, \"I am tired.\" Then I sat down."),

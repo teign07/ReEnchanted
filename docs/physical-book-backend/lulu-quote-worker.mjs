@@ -937,7 +937,7 @@ const VARIANT_PAGE_LIMITS = new Map([
 // MUST match PrintSpec.pageCap(for:) in Shared/MonthlyEdition.swift.
 const EDITION_PAGE_CAPS = new Map([
   ["weekly", 48],
-  ["monthly", 128],
+  ["monthly", 160],
   ["seasonal", 176],
   ["annual", 256],
   ["special", 256],
@@ -1730,7 +1730,9 @@ function healthCheck(env) {
     // Configuration presence only; provider acceptance is a separate rehearsal.
     boundYearTestReady: testReady && boundYearMonthlyPriceConfigured && boundYearAnnualPriceConfigured,
     pricing: {
-      weeklyIssueFloorCents: 1_999,
+      weeklyIssueFloorCents: null,
+      weeklyIssueContributionCents: WEEKLY_CONTRIBUTION_CENTS,
+      monthlyPageCap: EDITION_PAGE_CAPS.get("monthly"),
       monthlySoftcoverFloorCents: 4_999,
       seasonalSoftcoverFloorCents: 6_999,
       illustratedHardcoverFloorCents: 8_999,
@@ -3681,6 +3683,8 @@ function standardPricingPolicy() {
 const SLIM_MAX_PAGES = 72;
 const SLIM_FLOOR_CENTS = 3999;
 const SLIM_CONTRIBUTION_CENTS = 2500;
+// The weekly's whole margin. Must match weeklyContributionCents in PhysicalBookOrders.swift.
+const WEEKLY_CONTRIBUTION_CENTS = 1000;
 
 function isSlimMonthly(variant, editionKind, pageCount) {
   return variant?.coverTreatment === "perfectBound" && editionKind === "monthly"
@@ -3690,7 +3694,9 @@ function isSlimMonthly(variant, editionKind, pageCount) {
 function minimumProductPriceCentsPerCopy(variant, editionKind = null, pageCount = null) {
   if (isSlimMonthly(variant, editionKind, pageCount)) return SLIM_FLOOR_CENTS;
   switch (variant?.coverTreatment) {
-    case "saddleStitch": return 1999;
+    // The weekly is the cheap way in: cost plus WEEKLY_CONTRIBUTION_CENTS, no
+    // shelf floor, so the price falls with the page count.
+    case "saddleStitch": return null;
     case "perfectBound":
       switch (editionKind) {
         case "monthly": return 4999;
@@ -3712,7 +3718,7 @@ function retailMarkupSubtotalCents(variant, manufacturingCents, quantity, policy
   const contributionPerCopy = slim
     ? Math.min(SLIM_CONTRIBUTION_CENTS, policy.markupPerCopyCents)
     : variant?.coverTreatment === "saddleStitch"
-      ? 1500
+      ? WEEKLY_CONTRIBUTION_CENTS
       : policy.markupPerCopyCents;
   const contributionFloor = contributionPerCopy * quantity;
   const productFloor = minimumProductPriceCentsPerCopy(variant, editionKind, pageCount);

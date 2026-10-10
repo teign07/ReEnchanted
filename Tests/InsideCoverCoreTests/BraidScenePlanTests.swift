@@ -33,6 +33,16 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertTrue(plan.evidence.allSatisfy { $0.id.hasPrefix("two-facts#") })
     }
 
+    func testEvidenceKeepsTimesAndClosingMarksWhole() {
+        let page = BookPage(
+            id: "time", type: .diary, createdAt: date("2026-10-02T09:00:00Z"),
+            promptText: "?", userInput: "The blue door, 7:52 a.m. I read *Dracula.* Then I waited.",
+            origin: .userAuthored)
+        let plan = BraidScenePlanBuilder.plan(for: day([page]))
+        XCTAssertEqual(plan.evidence.filter { $0.pageID == page.id }.map(\.text),
+                       ["The blue door, 7:52 a.m.", "I read *Dracula.*", "Then I waited."])
+    }
+
     /// Atom ids have to mean the same thing every time, or a claim cannot be
     /// checked against one.
     func testEvidenceIdsAreStable() {
@@ -576,6 +586,9 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertEqual(ret.daysSince, 9)
         XCTAssertTrue(ret.isSpine)
         XCTAssertTrue(ret.priorText.contains("recorder"))
+        let plan = BraidScenePlanBuilder.plan(for: tonight, context: .empty, archive: archive,
+                                             calendar: Calendar(identifier: .gregorian))
+        XCTAssertTrue(plan.readerDayNarration.contains { $0.hasPrefix("9 days ago:") && $0.contains("recorder") })
     }
 
     /// A gap the reader had to cross deliberately. Two days is an echo.

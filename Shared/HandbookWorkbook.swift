@@ -180,7 +180,7 @@ struct HandbookReportCard: Codable, Equatable {
             case .merit: return "Merit"
             case .pass: return "Pass"
             case .resit: return "Resit"
-            case .incomplete: return "Incomplete"
+            case .incomplete: return "Still open"
             }
         }
     }
@@ -193,6 +193,9 @@ struct HandbookReportCard: Codable, Equatable {
         var mark: Mark
         /// Set only on a Resit: the errand that clears it.
         var resitErrand: String?
+        /// Set only when a subject is still open: one real thing waiting for
+        /// the reader there, named, so what they missed reads as a door.
+        var invitation: String? = nil
     }
 
     var proctorSlug: String
@@ -256,7 +259,7 @@ enum HandbookWorkbookBuilder {
             ordering: ordering(days: days, seed: seed),
             exam: exam(dayBook: dayBook, seed: seed),
             reportCard: reportCard(pages: pages, dayBook: dayBook, dayCount: dayCount,
-                                   proctorSlug: proctorSlug, onLeave: onLeave),
+                                   proctorSlug: proctorSlug, onLeave: onLeave, seed: seed),
             cloze: cloze(days: days, seed: seed),
             anagrams: anagrams(terms: terms, dayBook: dayBook, seed: seed),
             vowels: vowels(dayBook: dayBook, seed: seed),
@@ -417,7 +420,8 @@ enum HandbookWorkbookBuilder {
         dayBook: BoundDayBook?,
         dayCount: Int,
         proctorSlug: String,
-        onLeave: Bool
+        onLeave: Bool,
+        seed: String = ""
     ) -> HandbookReportCard {
         let proctor = HandbookReportCard.proctors[proctorSlug] != nil ? proctorSlug : HandbookReportCard.defaultProctorSlug
         let proctorName = HandbookReportCard.proctors[proctor] ?? "Headmistress Thorne"
@@ -462,13 +466,44 @@ enum HandbookWorkbookBuilder {
                 id: subject.id, name: subject.name,
                 receipt: "\(subject.count) \(subject.unit)",
                 mark: mark,
-                resitErrand: mark == .resit ? subject.errand : nil
+                resitErrand: mark == .resit ? subject.errand : nil,
+                invitation: mark == .incomplete ? invitation(for: subject.id, pages: pages, seed: seed) : nil
             )
         }
         return HandbookReportCard(
             proctorSlug: proctor, proctorName: proctorName, onLeave: false,
             subjects: marked, verdict: verdict(for: marked, proctorName: proctorName)
         )
+    }
+
+    /// One real thing waiting in a subject the reader hasn't opened yet: a spell
+    /// still uncast, a creature nobody has filed, a class with a seat kept.
+    /// Every name comes from the Academy's own catalogues; nothing is invented.
+    static func invitation(for subjectID: String, pages: [BookPage], seed: String) -> String? {
+        func pick<T>(_ items: [T], _ salt: String) -> T? {
+            items.isEmpty ? nil : items[ConstellationKeeper.stableIndex(for: "\(seed)|\(salt)", count: items.count)]
+        }
+        switch subjectID {
+        case "noticing":
+            return "Keep a page before bed and I'll braid the night into a story. I've been leaving the lamp on."
+        case "initiative":
+            let cast = Set(HandbookBuilder.spells(from: pages).filter { $0.timesCast > 0 }.map(\.id))
+            guard let spell = pick(StoryEnchantmentCatalog.spells.filter { !cast.contains($0.id) }, "spell") else { return nil }
+            return "\(spell.title) is still in the spellbook, uncast. \(spell.detail)"
+        case "fieldwork":
+            let filed = Set(pages.flatMap { $0.creatureSightings ?? [] }.map { $0.creature.lowercased() })
+            guard let row = pick(CreatureLore.rowsByCreature.filter { !filed.contains($0.0) }, "creature") else { return nil }
+            let creature = row.1
+            return "Nobody's filed a \(creature.subject.lowercased()) yet. \(creature.subject): \(creature.sense). Keep your eyes open on the way home."
+        case "curiosity":
+            let sessions = Array(AcademyScheduleRegistry.classes.values).sorted { $0.name < $1.name }
+            guard let session = pick(sessions, "class") else { return nil }
+            return "\(session.name) keeps a seat for you, in \(session.room), with \(session.leader)."
+        case "deeds":
+            return "Wicker keeps a dare in his pocket for anyone who asks. It's usually a small one. Usually."
+        default:
+            return nil
+        }
     }
 
     /// Absence is Incomplete and never a penalty; a Resit means the reader was
@@ -488,7 +523,7 @@ enum HandbookWorkbookBuilder {
         let resits = counts[.resit] ?? 0
         let incomplete = counts[.incomplete] ?? 0
         if incomplete == subjects.count {
-            return "Nothing was entered. Incomplete isn't a mark against you; it's a seat that was kept."
+            return "Every subject is still open: five doors, all of them unlocked. I've left you notes."
         }
         if distinctions >= 3 {
             return "The Academy doesn't hand these out. It has noted that you earned them."
@@ -497,7 +532,7 @@ enum HandbookWorkbookBuilder {
             return "A Resit isn't a failure. It's the Academy saying it can see you were there, and wants more of it."
         }
         if incomplete > 0 {
-            return "What you entered is marked. What you didn't is simply open."
+            return "What you entered is marked. The rest are still open, and I've left you notes."
         }
         return "A good month. The Academy has written that down, and means it."
     }

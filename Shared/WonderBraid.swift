@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(NaturalLanguage)
+import NaturalLanguage
+#endif
 
 /// The wonder braid: a nightly telling made of small jobs.
 ///
@@ -17,7 +20,7 @@ import Foundation
 ///   - the reader's own words are kept.
 ///
 /// Everything here is pure: the model is a closure, so the whole thing is tested
-/// with a fake. Nothing here runs on a hard night; those keep the tender path.
+/// with a fake. Hard nights keep their true words without the object mischief.
 enum WonderBraid {
     // MARK: - The library
 
@@ -130,13 +133,39 @@ enum WonderBraid {
     /// nouns only speak when nothing acts; and the day rotates which line a noun
     /// says so it does not say the same thing twice running.
     static func pick(text: String, dateKey: String, excluding used: Set<String>, library: [Line]? = nil) -> Line? {
-        let lowered = text.lowercased()
-        let tokens = lowercasedTokens(text)
+        // A comparison doesn't put its object in the room. Light the colour
+        // of tea is still light; it isn't a cup or a teabag.
+        let literal = text.replacingOccurrences(
+            of: #"\b(?:the colou?r of|like|as if|as though)\b[^.!?,;]*"#,
+            with: "", options: [.regularExpression, .caseInsensitive])
+        let lowered = literal.lowercased()
+        let tokens = lowercasedTokens(literal)
+        let actualNouns = nouns(in: literal)
+        let entries = library ?? lines
+        let abstract: Set<String> = Set(["word", "sentence", "thought", "question", "opinion", "secret", "list", "name",
+            "time", "hour", "morning", "night", "midnight", "bedtime", "autumn", "october", "noise", "sound", "sleep",
+            "stillness", "silence", "quiet", "feeling", "smell", "memory", "dream", "idea", "work", "day", "year",
+            "week", "minute", "second", "colour", "color", "way", "place", "order", "turn", "permission", "tact",
+            "grudge", "nerves", "argument", "spite", "shape", "warmth", "heat", "degree", "news", "mistake", "right",
+            "voice", "sentence", "end", "answer", "patience", "rumour", "rumor", "wish", "confidence", "respect",
+            "middle", "side", "bit", "reason", "chance", "people", "person", "someone", "nobody", "everybody",
+            // Anthropomorphic parts belong to the object; they aren't props
+            // brought into the Reader's room.
+            "head", "ear", "hand", "arm", "face", "eye", "mouth", "spine", "heart"].map(stem))
         var groups: [Group: [Line]] = [:]
         var presentNouns: [Group: Set<String>] = [:]
-        for line in library ?? lines {
+        for line in entries {
+            guard !has(youVerbPattern, in: normalized(line.text)), !has(inventedReaderPattern, in: line.text) else { continue }
             let here = line.nouns.filter { present($0, in: lowered, tokens: tokens) }
             guard !here.isEmpty else { continue }
+            // Library trigger words include aliases and ambiguous words such
+            // as "flights". The thing speaking in the line must itself be in
+            // the detail; a roof doesn't authorise a chimney or an aeroplane.
+            let lineNouns = nouns(in: line.text)
+            if let subject = leadingNoun(in: line.text), !actualNouns.contains(subject) { continue }
+            // The authored seed also has to fit. A dog with no stick isn't
+            // given one, and garlic in a window box doesn't become garlic in a pan.
+            if !lineNouns.subtracting(abstract).isSubset(of: actualNouns) { continue }
             if !line.needs.isEmpty, !line.needs.contains(where: { present($0, in: lowered, tokens: tokens) }) { continue }
             let group = Group(nouns: line.nouns, specific: !line.needs.isEmpty)
             groups[group, default: []].append(line)
@@ -172,18 +201,24 @@ enum WonderBraid {
         return nil
     }
 
-    /// The reader's day as beats. A short fragment rides with the sentence before
-    /// it; a beat that found a line leads; at most four paragraphs, with any overflow merged into the last.
+    /// The reader's day in order. Short fragments ride with their neighbours;
+    /// at most four paragraphs, with overflow merged into the last.
     static func beats(details: [String], dateKey: String, resting: Set<String>, limit: Int = 4, library: [Line]? = nil) -> [Beat] {
         var used = resting
+        var seen = Set<String>()
         var raw: [Beat] = []
         for detail in details {
-            let text = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+            var text = detail.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { continue }
+            guard seen.insert(normalized(text)).inserted else { continue }
             if text.split(whereSeparator: \.isWhitespace).count < 5, var last = raw.popLast() {
                 last.detail += " " + text
                 raw.append(last)
                 continue
+            }
+            if let first = raw.last, raw.count == 1, first.detail.split(whereSeparator: \.isWhitespace).count < 5 {
+                raw.removeLast()
+                text = first.detail + " " + text
             }
             if let line = pick(text: text, dateKey: dateKey, excluding: used, library: library) {
                 used.insert(line.id)
@@ -192,7 +227,9 @@ enum WonderBraid {
                 raw.append(Beat(detail: text, lines: [], lineIDs: []))
             }
         }
-        var ordered = raw.filter { !$0.lines.isEmpty } + raw.filter { $0.lines.isEmpty }
+        // Keep a pronoun beside the thing it refers to. Moving the magical
+        // paragraphs first used to separate "It moved its head" from the heron.
+        var ordered = raw
         // Nothing the plan placed is left out: the "what was used" receipts credit every
         // placed Page, so a beat past the cap rides in the last paragraph's material.
         if ordered.count > limit, limit > 0 {
@@ -250,7 +287,8 @@ enum WonderBraid {
     static func weatherLine(weather: String?, place: String?, moonPhaseName: String?) -> String? {
         guard let weather = weather?.trimmingCharacters(in: .whitespaces).lowercased(), !weather.isEmpty,
               weather != "not recorded" else { return nil }
-        var sentence = "It was \(weather)"
+        let adjective = ["rain": "raining", "wind": "windy", "cloud": "cloudy", "snow": "snowing"][weather] ?? weather
+        var sentence = "It was \(adjective)"
         if let place = place?.trimmingCharacters(in: .whitespaces), !place.isEmpty, place.lowercased() != "current place" {
             sentence += " over \(place)"
         }
@@ -279,6 +317,9 @@ enum WonderBraid {
         case youVerb(String)
         case repeatedSentence
         case readerWordsLost
+        case readerDetailChanged
+        case magicSprawl
+        case unrelatedMagic
         case taleLost
         case tic
         case contradictsWeather
@@ -286,7 +327,7 @@ enum WonderBraid {
         /// A paragraph that fails any of these is never kept as a best effort.
         var isHard: Bool {
             switch self {
-            case .firstPerson, .inventedReader, .youVerb, .repeatedSentence, .contradictsWeather: return true
+            case .firstPerson, .inventedReader, .youVerb, .repeatedSentence, .readerDetailChanged, .readerWordsLost, .magicSprawl, .unrelatedMagic, .contradictsWeather: return true
             default: return false
             }
         }
@@ -306,8 +347,7 @@ enum WonderBraid {
             + "|\\byou (?:felt|seemed|noticed|realised|realized|wondered|thought|decided|drifted|dozed|smiled|sighed|laughed|were (?:nervous|happy|sad|tired|worried|anxious|relieved))\\b",
         options: [.caseInsensitive]
     )
-    private static let youVerbPattern = try! NSRegularExpression(pattern: "\\byou(?:'d|'ve)?\\s+(\\w+)", options: [.caseInsensitive])
-    private static let ticPattern = try! NSRegularExpression(pattern: "\\bdid [a-z]+\\b", options: [.caseInsensitive])
+    private static let youVerbPattern = try! NSRegularExpression(pattern: "\\byou(?:'d|'ve|'ll)?\\s+(?:(?:just|still|also|never|always|only|even|really|not|[a-z]+ly)\\s+)*(\\w+)", options: [.caseInsensitive])
 
     private static func has(_ regex: NSRegularExpression, in text: String) -> Bool {
         regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil
@@ -376,20 +416,25 @@ enum WonderBraid {
     }
 
     private static let allowedYouVerbs: Set<String> = [
-        "were", "was", "had", "did", "didn't", "could", "would", "saw", "just", "still", "also", "may", "might", "have", "don't",
-        "can", "never", "always", "only", "even", "all", "ever", "got", "watched", "looked", "heard", "stood", "sat", "went",
-        "watch", "see", "look", "hear", "stand", "sit", "go"
+        "were", "was", "had", "did", "could", "would", "may", "might", "have", "can",
+        "watched", "looked", "heard", "saw", "watch", "look", "hear", "see"
     ]
+
+    /// Only an explicit Reader subject grants a Reader action. "It moved"
+    /// and a Cast member's actions never grant permission for "you moved".
+    private static func readerVerbs(in text: String) -> Set<String> {
+        Set(captures(youVerbPattern, in: normalized(text)).map(stem))
+    }
 
     /// What is wrong with a paragraph of the reader's day.
     static func check(_ text: String, beat: Beat, tale: String?) -> [Problem] {
         var problems: [Problem] = []
         let count = text.split(whereSeparator: \.isWhitespace).count
-        if count < 22 || count > 95 { problems.append(.length(count)) }
+        if count < 22 || count > max(95, beat.detail.split(whereSeparator: \.isWhitespace).count + 40) { problems.append(.length(count)) }
         if has(firstPersonPattern, in: text) { problems.append(.firstPerson) }
         if has(stockPattern, in: text) { problems.append(.stock) }
         if has(inventedReaderPattern, in: text), !has(inventedReaderPattern, in: beat.detail) { problems.append(.inventedReader) }
-        let allowed = Set(lowercasedTokens(beat.detail + " " + (tale ?? "")).map(stem)).union(allowedYouVerbs)
+        let allowed = readerVerbs(in: beat.detail).union(allowedYouVerbs.map(stem))
         for verb in captures(youVerbPattern, in: text) {
             let lowered = verb.lowercased()
             if !allowed.contains(stem(lowered)) && !allowed.contains(lowered) {
@@ -410,6 +455,74 @@ enum WonderBraid {
         return problems
     }
 
+    /// For new tellings the true part is protected whole. The model only
+    /// supplies a small object-led addition after it, not another Reader action.
+    static func tellingProblems(_ text: String, beat: Beat, tale: String?) -> [Problem] {
+        var problems = check(text, beat: beat, tale: tale)
+        let detail = normalized(beat.detail)
+        let telling = normalized(text)
+        guard telling.hasPrefix(detail) else { return problems + [.readerDetailChanged] }
+        problems.removeAll { problem in
+            if case .length(let count) = problem { return count < 22 }
+            return false
+        }
+        let tail = String(telling.dropFirst(detail.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        if has(youVerbPattern, in: tail) || has(inventedReaderPattern, in: tail) {
+            problems.append(.inventedReader)
+        }
+        if sentences(tail).count > 2 || tail.split(whereSeparator: \.isWhitespace).count > 40 {
+            problems.append(.magicSprawl)
+        }
+        if !tail.isEmpty {
+            // No seed means no invented event. With a seed, its concrete
+            // vocabulary is the boundary: no new dolls, copper shards or props.
+            let supplied = beat.detail + " " + beat.lines.joined(separator: " ")
+            if beat.lines.isEmpty || !nouns(in: tail).isSubset(of: nouns(in: supplied)) {
+                problems.append(.unrelatedMagic)
+            }
+        }
+        return problems
+    }
+
+    private static func nouns(in text: String) -> Set<String> {
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass, .lemma])
+        tagger.string = text.lowercased()
+        let source = tagger.string!
+        var words = Set<String>()
+        tagger.enumerateTags(in: source.startIndex..<source.endIndex, unit: .word,
+                             scheme: .lexicalClass, options: [.omitWhitespace, .omitPunctuation]) { tag, range in
+            if tag == .noun {
+                let (lemma, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma)
+                words.insert(stem(lemma?.rawValue ?? String(source[range])))
+            }
+            return true
+        }
+        return words
+        #else
+        return Set(contentWords(text).map(stem))
+        #endif
+    }
+
+    private static func leadingNoun(in text: String) -> String? {
+        #if canImport(NaturalLanguage)
+        let tagger = NLTagger(tagSchemes: [.lexicalClass, .lemma])
+        let source = text.lowercased()
+        tagger.string = source
+        var noun: String?
+        tagger.enumerateTags(in: source.startIndex..<source.endIndex, unit: .word,
+                             scheme: .lexicalClass, options: [.omitWhitespace, .omitPunctuation]) { tag, range in
+            guard tag == .noun else { return true }
+            let (lemma, _) = tagger.tag(at: range.lowerBound, unit: .word, scheme: .lemma)
+            noun = stem(lemma?.rawValue ?? String(source[range]))
+            return false
+        }
+        return noun
+        #else
+        return nil
+        #endif
+    }
+
     /// The app's scrub does this for the plain braid: drop the sentence that
     /// carries the cliche, keep the rest. Authored lines are never dropped.
     static func repaired(_ text: String, keeping lines: [String]) -> String? {
@@ -424,9 +537,10 @@ enum WonderBraid {
 
     static let readerSystem = "You write one paragraph of a contemporary domestic faerie tale: exact, physical, a little funny, sometimes cozy, "
         + "sometimes terrible. Plain words, contractions, past tense. You tell it to the reader as 'you'. "
-        + "Never invent people, places, objects or feelings that are not given. Never write 'I' or 'my'."
+        + "Keep the true detail exactly as given, including who did each thing. Never invent people, places, objects or feelings. "
+        + "Magic belongs to an object already there. One small impossible thing is enough. Never write 'I' or 'my'."
 
-    static let bookSystem = "You are the Book: an old, mischievous, good-hearted book who keeps a day and has business of its own. "
+    static let bookSystem = "You are the Book: a curious, unruly, good-hearted living book who keeps a day and has business of its own. "
         + "Short plain words, contractions, past tense. You say 'I' for yourself and 'you' for the reader. "
         + "You cannot touch or smell or taste: you only notice, and you read, and you listen to the building. "
         + "Never describe your body or your feelings. Never invent people. State odd things as plain fact."
@@ -435,39 +549,23 @@ enum WonderBraid {
         var parts = ["Something true from the reader's day: \(beat.detail)"]
         for line in beat.lines {
             parts.append("A seed for the small impossible thing an ordinary object here might have done or wanted: \"\(line)\" "
-                + "Use it, bend it, or invent a better one of your own. Have fun with it.")
+                + "Keep it small and attached to that object. Do not add props, a new scene, or a chain of magical events.")
         }
-        if let tale { parts.append("Something odd also happened nearby, to work in as one sentence: \(tale)") }
-        parts.append("Write 40-60 words, 3 or 4 sentences, one paragraph, in the past tense, to the reader as 'you'. "
-            + "Tell the true thing in your own plain words"
-            + (beat.lines.isEmpty ? "" : ", then let one ordinary thing in it do or want one small impossible thing, stated as plain fact")
-            + ". Do not invent anything the reader did or felt.")
+        if let tale { parts.append("Separate fictional news, never a Reader action: \(tale)") }
+        parts.append("Begin with the true detail exactly as given above. Do not shorten it or change its subject, action, or objects. "
+            + (beat.lines.isEmpty ? "Return only that detail. Add nothing. The real moment is enough."
+               : "After it, add one short sentence using the supplied seed. Keep its object and its small impossible act; introduce no other object. Use plain words. Do not invent anything the reader did or felt.") )
         return parts.joined(separator: "\n")
-    }
-
-    static func playPrompt(told: [String], tale: String?, idea: String?) -> String {
-        var parts = ["Already told, do not repeat it: " + told.map { $0.hasSuffix(".") ? $0 : $0 + "." }.joined(separator: " ")]
-        if let tale { parts.append("The Labyrinth's odd news, to carry on from: \(tale)") }
-        if let idea { parts.append("One idea you may use, bend, or beat: \(idea)") }
-        parts.append("Write 55-85 words, one paragraph, past tense: what happened NEXT. Follow the odd news (or one ordinary thing) as it wandered "
-            + "off through the building and got into small, funny, impossible trouble. Be specific and a bit silly, with a named object or two. "
-            + "You may say 'I' as the Book watching, but never say what the reader did or felt beyond what is given.")
-        return parts.joined(separator: "\n")
-    }
-
-    static func businessPrompt(opening: String) -> String {
-        "Begin with this sentence exactly: \"\(opening)\"\nSay one small thing the hunt turned up. It is not the answer.\n"
-            + "Write 25-45 words, 2 or 3 sentences, one paragraph, past tense. Add one small odd thing, stated as fact. Do not solve or finish anything."
     }
 
     static func weatherBeatPrompt(opening: String) -> String {
         "Begin with this sentence exactly: \"\(opening)\"\nSay what the sky was doing, plainly, and one odd small thing the dark did about it.\n"
-            + "Write 25-45 words, 2 or 3 sentences, one paragraph, past tense. Add one small odd thing, stated as fact. Do not solve or finish anything."
+            + "Write 25-45 words, 2 or 3 sentences, one paragraph, past tense. Keep any small odd thing in the sky, weather, or dark. Add no other objects or events. Do not solve or finish anything."
     }
 
     static func weatherSentencePrompt(world: String) -> String {
-        "The weather tonight: \(world)\nWrite ONE sentence, 12-22 words, past tense, of the Book noticing it at the window, "
-            + "with one small odd thing the weather did. Do not say how it felt or smelled."
+        "The weather tonight: \(world)\nBegin with that sentence exactly. Add at most one short sentence about one small odd thing the weather did at the window. "
+            + "Keep the weather and moon true. Add no other objects or events. Do not say how it felt or smelled."
     }
 
     // MARK: - Orchestration
@@ -491,6 +589,8 @@ enum WonderBraid {
         /// What the month's installed packs add to, and take out of, the library.
         var delivered: [Delivered] = []
         var retiring: Set<String> = []
+        /// A difficult day keeps the true words without object mischief.
+        var isHardNight = false
         /// How the model is waited on. It can be busy (a margin reply from the keep
         /// that prompted a re-braid is still being written) or briefly short of
         /// room; neither is a reason to assemble the night without it.
@@ -504,7 +604,7 @@ enum WonderBraid {
         var pauseSeconds: Double = 2
         /// Waits allowed for a reader's paragraph: about a minute by default.
         var waits = 30
-        /// Waits for the optional paragraphs (play, weather, business), which can go without.
+        /// Waits for optional weather, which can go without.
         var optionalWaits = 3
     }
 
@@ -548,14 +648,15 @@ enum WonderBraid {
     static func write(_ input: Input, tell: Teller) async throws -> Output? {
         let beats = Self.beats(
             details: input.details, dateKey: input.dateKey, resting: input.resting,
-            library: library(delivered: input.delivered, retiring: input.retiring)
+            library: input.isHardNight ? [] : library(delivered: input.delivered, retiring: input.retiring)
         )
-        guard !beats.isEmpty else { return nil }
+        guard !beats.isEmpty || !input.bookLines.isEmpty || input.tale?.isEmpty == false
+                || input.business?.isEmpty == false else { return nil }
         var paragraphs: [String] = []
         var fellBack = 0
 
-        for (index, beat) in beats.enumerated() {
-            let beatTale = (index == 1 || (index == 0 && beats.count == 1)) ? input.tale : nil
+        for beat in beats {
+            let beatTale: String? = nil
             if let text = try await readerParagraph(beat: beat, tale: beatTale, tell: tell, patience: input.patience) {
                 paragraphs.append(text)
             } else {
@@ -564,26 +665,27 @@ enum WonderBraid {
                 paragraphs.append(([detail.hasSuffix(".") ? detail : detail + "."] + beat.lines).joined(separator: " "))
             }
         }
+        // Fictional news has its own provenance and its own paragraph. Asking
+        // the model to mingle it into a true detail made both less trustworthy.
+        if let tale = input.tale?.trimmingCharacters(in: .whitespacesAndNewlines), !tale.isEmpty {
+            paragraphs.append(tale)
+        }
         // The Book's own words from kept Pages, whole, after the first paragraph.
         if !input.bookLines.isEmpty {
             paragraphs.insert(input.bookLines.joined(separator: " "), at: min(1, paragraphs.count))
         }
-        // A thin day gets room to play, because there is little else to carry the page.
+        // A small number of entries is not a hole that needs filling with
+        // invented activity. The Reader's moment sets the size of the telling.
         let thin = beats.count <= 2
-        if thin, let play = await playParagraph(
-            told: beats.map(\.detail), tale: input.tale, idea: beats.compactMap(\.lines.first).first, tell: tell,
-            patience: input.patience
-        ) {
-            paragraphs.append(play)
-        }
-        let weatherMode = input.weather == nil ? WeatherMode.skip : Self.weatherMode(dateKey: input.dateKey)
+        let weatherMode = input.weather == nil || input.isHardNight ? WeatherMode.skip : Self.weatherMode(dateKey: input.dateKey)
         var weatherBeat: String?
         if let weather = input.weather {
             switch weatherMode {
             case .beat:
-                weatherBeat = await bookParagraph(opening: weather, user: weatherBeatPrompt(opening: weather), tell: tell, patience: input.patience)
+                weatherBeat = await bookParagraph(opening: weather, user: weatherBeatPrompt(opening: weather), tell: tell, patience: input.patience) ?? weather
             case .mention:
-                if let sentence = await weatherSentence(world: weather, tell: tell, patience: input.patience), !paragraphs.isEmpty {
+                if !paragraphs.isEmpty {
+                    let sentence = await weatherSentence(world: weather, tell: tell, patience: input.patience) ?? weather
                     paragraphs[0] += " " + sentence
                 }
             case .skip:
@@ -592,8 +694,9 @@ enum WonderBraid {
         }
         if let weatherBeat { paragraphs.append(weatherBeat) }
         if let business = input.business?.trimmingCharacters(in: .whitespacesAndNewlines), !business.isEmpty {
-            let text = await bookParagraph(opening: business, user: businessPrompt(opening: business), tell: tell, patience: input.patience)
-            paragraphs.append(text ?? business)
+            // This is already the Book's authored thread. A model-added hunt
+            // result would invent continuity (and used to add a stone or feather nightly).
+            paragraphs.append(business)
         }
         return Output(
             paragraphs: paragraphs,
@@ -609,12 +712,13 @@ enum WonderBraid {
         for _ in 0..<4 {
             // A model that cannot be reached is not a bad paragraph: wait for it, or give the telling up.
             var text = try await ask(
-                tell, readerSystem, jobPrompt(beat: beat, tale: tale), 0.70, 0.90, 170,
+                tell, readerSystem, jobPrompt(beat: beat, tale: tale), 0.70, 0.90,
+                min(768, max(170, beat.detail.utf8.count / 3 + 100)),
                 waits: patience.waits, pauseSeconds: patience.pauseSeconds
             )
             text = firstParagraph(text)
-            var problems = check(text, beat: beat, tale: tale)
-            if problems.contains(.stock), let fixed = repaired(text, keeping: beat.lines), check(fixed, beat: beat, tale: tale).isEmpty {
+            var problems = tellingProblems(text, beat: beat, tale: tale)
+            if problems.contains(.stock), let fixed = repaired(text, keeping: beat.lines), tellingProblems(fixed, beat: beat, tale: tale).isEmpty {
                 text = fixed
                 problems = []
             }
@@ -626,26 +730,6 @@ enum WonderBraid {
         return usable.min { $0.problems.count < $1.problems.count }?.text
     }
 
-    private static func playParagraph(told: [String], tale: String?, idea: String?, tell: Teller, patience: Patience) async -> String? {
-        let allowedStems = Set(told.flatMap { lowercasedTokens($0) }.map(stem))
-        for _ in 0..<4 {
-            guard let raw = try? await ask(tell, bookSystem, playPrompt(told: told, tale: tale, idea: idea), 0.95, 0.95, 170, waits: patience.optionalWaits, pauseSeconds: patience.pauseSeconds) else { continue }
-            let text = firstParagraph(raw)
-            let count = text.split(whereSeparator: \.isWhitespace).count
-            let badYou = captures(youVerbPattern, in: text).contains {
-                let v = $0.lowercased()
-                return !allowedStems.contains(stem(v)) && !allowedYouVerbs.contains(v)
-            }
-            let hard = text.range(
-                of: "\\b(shimmer\\w*|iridescent|ethereal|tapestry|motes?|suddenly|testament|symphony|palpable|felt|smell\\w*|tast\\w*)\\b",
-                options: [.regularExpression, .caseInsensitive]
-            ) != nil
-            let tic = captures(ticPattern, in: text).count > 1 || text.range(of: "\\bseeds?\\b", options: [.regularExpression, .caseInsensitive]) != nil
-            if (40...110).contains(count), !badYou, !hard, !tic { return text }
-        }
-        return nil
-    }
-
     private static func bookParagraph(opening: String, user: String, tell: Teller, patience: Patience) async -> String? {
         for _ in 0..<4 {
             guard let raw = try? await ask(tell, bookSystem, user, 0.70, 0.90, 120, waits: patience.optionalWaits, pauseSeconds: patience.pauseSeconds) else { continue }
@@ -655,7 +739,7 @@ enum WonderBraid {
                 of: "\\b(felt|smell\\w*|tast\\w*|my (?:fingers?|hands?|eyes?|teeth|skin|heart)|did [a-z]+)\\b",
                 options: [.regularExpression, .caseInsensitive]
             ) != nil
-            if normalized(text).contains(normalized(opening)), (18...60).contains(count), !has(stockPattern, in: text), !body {
+            if weatherTailIsGrounded(text, opening: opening), (18...60).contains(count), !has(stockPattern, in: text), !body, !has(youVerbPattern, in: text), !has(inventedReaderPattern, in: text) {
                 return text
             }
         }
@@ -672,11 +756,20 @@ enum WonderBraid {
             let contradicts = sky && text.range(of: "\\b(stars?|sun|sunny|sunshine|blue)\\b", options: [.regularExpression, .caseInsensitive]) != nil
             let usesTag = lowercasedTokens(text).contains { tag.contains(stem($0)) }
             let body = text.range(of: "\\b(felt|smell\\w*|tast\\w*|did [a-z]+)\\b", options: [.regularExpression, .caseInsensitive]) != nil
-            if (9...28).contains(count), text.filter({ $0 == "." }).count <= 1, !has(stockPattern, in: text), !contradicts, usesTag, !body {
+            if weatherTailIsGrounded(text, opening: world), (9...45).contains(count), text.filter({ $0 == "." }).count <= 2, !has(stockPattern, in: text), !contradicts, usesTag, !body, !has(youVerbPattern, in: text), !has(inventedReaderPattern, in: text) {
                 return text
             }
         }
         return nil
+    }
+
+    private static func weatherTailIsGrounded(_ text: String, opening: String) -> Bool {
+        let whole = normalized(text), source = normalized(opening)
+        guard whole.hasPrefix(source) else { return false }
+        let tail = String(whole.dropFirst(source.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        let skyWords = Set("sky dark darkness night moon cloud rain wind snow window glass light streak line ray shadow star silence quiet voice word question thought".split(separator: " ").map { stem(String($0)) })
+        return sentences(tail).count <= 2 && tail.split(whereSeparator: \.isWhitespace).count <= 40
+            && nouns(in: tail).isSubset(of: nouns(in: opening).union(skyWords))
     }
 
     private static func firstParagraph(_ raw: String) -> String {

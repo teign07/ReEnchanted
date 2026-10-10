@@ -7,7 +7,8 @@
   still.className='room-stars';lettersCanvas.className='room-letters';pixieCanvas.className='room-pixie';pixieCanvas.setAttribute('aria-hidden','true');
   background.append(still,lettersCanvas);
   for(const [asset,cls] of [['MarginaliaLavender','room-lavender'],['MarginaliaStar','room-star']]){
-    const mark=document.createElement('img');mark.src='./assets/book/'+asset+'.webp';mark.alt='';mark.className=cls;background.append(mark);
+    const id=asset.replace(/([a-z])([A-Z])/g,'$1-$2').toLowerCase();
+    const mark=document.createElement('img');mark.src=window.PublicMarginalia?.marks.find(drawing=>drawing.id===id)?.src || './assets/book/'+asset+'.webp';mark.alt='';mark.className=cls;background.append(mark);
   }
   document.body.prepend(background);document.body.append(pixieCanvas);
   const bg=still.getContext('2d'),ink=lettersCanvas.getContext('2d'),light=pixieCanvas.getContext('2d');

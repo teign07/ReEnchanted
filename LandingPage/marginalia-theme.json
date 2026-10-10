@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "pack": "ContentPacks/count-unbound/margins.reenchantedpack.json",
+  "artDirectory": "ContentPacks/count-unbound/seasonal-marginalia"
+}

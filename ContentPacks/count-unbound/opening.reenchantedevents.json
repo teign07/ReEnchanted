@@ -715,7 +715,8 @@
               {
                 "entityID": "wicker-eddies",
                 "key": "count-unbound.lunch.bread",
-                "memory": "At lunch on the first day of October, Wicker passed Serenity the bigger half of the loaf."
+                "memory": "At lunch on the first day of October, Wicker passed Serenity the bigger half of the loaf.",
+                "gossip": "{teller} says Wicker gave Serenity the bigger half of the bread. No joke with it. I'd have paid to see that."
               }
             ]
           },
@@ -730,7 +731,8 @@
                 "entityID": "soren-ng",
                 "key": "count-unbound.stair.bird",
                 "memory": "Soren left Serenity a folded paper bird with her boat on its belly, and waited three steps up the stair with chalk in each hand.",
-                "aside": "She found the bird. I'd folded four before that one. The other three were worse at waiting."
+                "aside": "She found the bird. I'd folded four before that one. The other three were worse at waiting.",
+                "gossip": "{teller} says Soren's been folding paper birds with tiny boats on them. For Serenity. Very small boats."
               }
             ]
           },
@@ -745,7 +747,8 @@
                 "entityID": "wicker-eddies",
                 "key": "count-unbound.jump.verb",
                 "memory": "In the source margin of Dracula, Wicker wrote one sentence: for one sentence, let him choose the verb.",
-                "aside": "I gave him one verb. One. I keep doing the sum and it keeps coming out wrong."
+                "aside": "I gave him one verb. One. I keep doing the sum and it keeps coming out wrong.",
+                "gossip": "{teller} says Wicker wrote a sentence inside Dracula. Inside it. With a pen. I've had to sit down about it."
               },
               {
                 "entityID": "professor-permancer",
@@ -757,7 +760,8 @@
                 "entityID": "penny-blackletter",
                 "key": "count-unbound.jump.complete",
                 "memory": "Penny read the Jump roster twice after the class came home from Dracula. Every name answered.",
-                "aside": "Complete. I said it out loud, so it was true. I checked it again after supper anyway."
+                "aside": "Complete. I said it out loud, so it was true. I checked it again after supper anyway.",
+                "gossip": "{teller} says Penny read the Jump roll twice and every ribbon answered. She won't say anything else about it."
               }
             ]
           },
@@ -787,7 +791,8 @@
                 "entityID": "serenity-brown",
                 "key": "count-unbound.stacks.found",
                 "memory": "Dracula deliberately harmed Serenity and used her as a living claim to stay in the Academy. She survived, and closed books began to sound like doors to her.",
-                "aside": "Closed books sound like doors now. Knocking, mostly. I'm told that's not normal. I'm told a lot of things."
+                "aside": "Closed books sound like doors now. Knocking, mostly. I'm told that's not normal. I'm told a lot of things.",
+                "gossip": "{teller} says something hurt Serenity in the East Stacks. I keep checking behind the shelves now."
               }
             ]
           },
@@ -802,13 +807,15 @@
                 "entityID": "soren-ng",
                 "key": "count-unbound.kitchens.harbours",
                 "memory": "Soren brought Serenity tracing paper with her boat drawn into six harbours, the last one in the crook of an oak.",
-                "aside": "Six harbours. She said the tree needs a ladder. She's right. I'm drawing a taller one."
+                "aside": "Six harbours. She said the tree needs a ladder. She's right. I'm drawing a taller one.",
+                "gossip": "{teller} says Soren drew Serenity's boat into six harbours, and one of them's up a tree. I want to see the tree one."
               },
               {
                 "entityID": "serenity-brown",
                 "key": "count-unbound.kitchens.toast",
                 "memory": "Serenity built a tower of toast crusts in the Kitchens and named it Permancer. It leaned.",
-                "aside": "He's not falling over. He's leaning. It's different."
+                "aside": "He's not falling over. He's leaning. It's different.",
+                "gossip": "{teller} says Serenity built a toast tower and named it Permancer. It leans. Don't tell the professor."
               }
             ]
           },
@@ -830,7 +837,8 @@
                 "entityID": "serenity-brown",
                 "key": "count-unbound.reading-room.branches",
                 "memory": "The Count left the Old Reading Room through several books, and the black line on Serenity's map split into branches.",
-                "aside": "The line on my map's gone everywhere. More ways than yesterday. Still true."
+                "aside": "The line on my map's gone everywhere. More ways than yesterday. Still true.",
+                "gossip": "{teller} says the black line on Serenity's map split and went every way at once, like frost. I don't like that."
               }
             ]
           },
@@ -845,7 +853,8 @@
                 "entityID": "serenity-brown",
                 "key": "count-unbound.castle.claim",
                 "memory": "The Academy learned that only Serenity could send the Count back, by withdrawing the living claim herself.",
-                "aside": "Only I can let go of it. Everyone says it gently, like I might drop it. I won't."
+                "aside": "Only I can let go of it. Everyone says it gently, like I might drop it. I won't.",
+                "gossip": "{teller} says only Serenity can send the Count back. She put her own hand on the card."
               }
             ]
           },
@@ -867,7 +876,8 @@
                 "entityID": "serenity-brown",
                 "key": "count-unbound.return.withdrawn",
                 "memory": "Serenity pulled the black line free of her map and withdrew the living claim herself. Dracula went back to his source.",
-                "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word."
+                "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word.",
+                "gossip": "{teller} says Serenity pulled the black line out of her map with two fingers, and that was that. He went home."
               },
               {
                 "entityID": "ambrose-trencher",
@@ -906,7 +916,8 @@
                 "entityID": "serenity-brown",
                 "key": "count-unbound.morning.nightbound",
                 "memory": "Serenity still heard the page-turns, and at breakfast she chose the name for it: Nightbound.",
-                "aside": "Nightbound. It's my word. Penny wrote it on a card, but she waited until I nodded."
+                "aside": "Nightbound. It's my word. Penny wrote it on a card, but she waited until I nodded.",
+                "gossip": "{teller} says Serenity's got a word for what she hears now. Nightbound. It's a good word. I'm a bit jealous."
               },
               {
                 "entityID": "professor-permancer",
@@ -927,7 +938,8 @@
                 "entityID": "wicker-eddies",
                 "key": "count-unbound.morning.not-today",
                 "memory": "Wicker asked Serenity if he could come into the Kitchens. She said not today.",
-                "aside": "She said not today. I said all right. Easiest thing I've said all month, and the hardest."
+                "aside": "She said not today. I said all right. Easiest thing I've said all month, and the hardest.",
+                "gossip": "{teller} says Serenity told Wicker not today, and he just said all right and went. Wicker. No speech at all."
               }
             ]
           },
@@ -942,7 +954,8 @@
                 "entityID": "professor-permancer",
                 "key": "count-unbound.protocols.eight",
                 "memory": "Permancer wrote eight Threshold Protocols beside the Vault. The last says to check what came back different.",
-                "aside": "Eight rules now. The old list was perfectly good. It just never asked what to do when someone wants to come back with you."
+                "aside": "Eight rules now. The old list was perfectly good. It just never asked what to do when someone wants to come back with you.",
+                "gossip": "{teller} says there are eight rules by the Vault door now. Eight. The old list barely had any."
               },
               {
                 "entityID": "penny-blackletter",
@@ -963,7 +976,8 @@
                 "entityID": "wicker-eddies",
                 "key": "count-unbound.kitchens.case",
                 "memory": "Wicker mended Serenity's map case and set the new clasp a little crooked, because she fastens it with one hand.",
-                "aside": "I mended a map case. It took all night. Nobody's said thank you, which is fine, because nobody's supposed to know."
+                "aside": "I mended a map case. It took all night. Nobody's said thank you, which is fine, because nobody's supposed to know.",
+                "gossip": "{teller} says somebody mended Serenity's map case overnight. Everybody knows who. Nobody's saying."
               },
               {
                 "entityID": "soren-ng",
@@ -4403,19 +4417,22 @@
                   "entityID": "serenity-brown",
                   "key": "count-unbound.lunch.reader-beside-map",
                   "memory": "The reader took the chair beside Serenity's map on the first day of October, and she slid her little sea away from their sleeve.",
-                  "aside": "You sat by my map. You didn't spill anything. People usually spill something."
+                  "aside": "You sat by my map. You didn't spill anything. People usually spill something.",
+                  "gossip": "{teller} says you took the chair by Serenity's map on your very first day. Bold. I like you already."
                 },
                 {
                   "entityID": "wicker-eddies",
                   "key": "count-unbound.lunch.reader-beside-map",
                   "memory": "Wicker watched the reader take the chair beside Serenity's map, and went very still.",
-                  "aside": "You took the chair by her map on your first day. It took me a fortnight to get the one across from it."
+                  "aside": "You took the chair by her map on your first day. It took me a fortnight to get the one across from it.",
+                  "gossip": "{teller} says you took the chair by Serenity's map on your very first day. Bold. I like you already."
                 },
                 {
                   "entityID": "ambrose-trencher",
                   "key": "count-unbound.lunch.reader-beside-map",
                   "memory": "The chair Ambrose keeps out in case was sat in, for once, by the reader.",
-                  "aside": "Somebody sat in the chair. First time this term. Nearly dropped the ladle."
+                  "aside": "Somebody sat in the chair. First time this term. Nearly dropped the ladle.",
+                  "gossip": "{teller} says you took the chair by Serenity's map on your very first day. Bold. I like you already."
                 }
               ]
             },
@@ -4473,7 +4490,8 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.lunch.bread",
               "memory": "At lunch on the first day of October, Wicker gave Serenity the bigger half of the loaf and moved one of his stepping stones a crumb closer.",
-              "aside": "I moved one stepping stone. One. About the width of a crumb. Nobody needs to make anything of it."
+              "aside": "I moved one stepping stone. One. About the width of a crumb. Nobody needs to make anything of it.",
+              "gossip": "{teller} says Wicker gave Serenity the bigger half of the bread. No joke with it. I'd have paid to see that."
             },
             {
               "entityID": "serenity-brown",
@@ -4526,7 +4544,8 @@
           "entityID": "professor-vivian-villanelle",
           "key": "count-unbound.inkworks.orange",
           "memory": "Villanelle rubbed the grand words off a sentence on the Inkworks board and wrote an orange on a wet bus-stop bench in their place.",
-          "aside": "I still think about that orange. It was a real one. I didn't eat it. I nearly missed the bus."
+          "aside": "I still think about that orange. It was a real one. I didn't eat it. I nearly missed the bus.",
+          "gossip": "{teller} says Villanelle wrote an orange on the Inkworks board and the whole room smelled of it. I've been hungry since."
         },
         {
           "entityID": "penny-blackletter",
@@ -4544,7 +4563,8 @@
           "entityID": "wicker-eddies",
           "key": "count-unbound.inkworks.blank",
           "memory": "Villanelle set a blank sheet in front of Wicker, and for once he had nothing to say to it.",
-          "aside": "A blank page beat me in an argument. It didn't even say anything. That's the trick, apparently."
+          "aside": "A blank page beat me in an argument. It didn't even say anything. That's the trick, apparently.",
+          "gossip": "{teller} says a blank page beat Wicker in an argument. It didn't say a word. I'd like that framed."
         }
       ]
     },
@@ -4637,13 +4657,15 @@
               "entityID": "soren-ng",
               "key": "count-unbound.stair.bird",
               "memory": "Soren left a folded paper bird with Serenity's boat drawn on its belly, and waited three steps up the North Staircase for her to find it.",
-              "aside": "She found the bird. I'd folded four before that one. The other three were worse at waiting."
+              "aside": "She found the bird. I'd folded four before that one. The other three were worse at waiting.",
+              "gossip": "{teller} says Soren's been folding paper birds with tiny boats on them. For Serenity. Very small boats."
             },
             {
               "entityID": "serenity-brown",
               "key": "count-unbound.stair.bird",
               "memory": "Serenity found Soren's paper bird on a windowsill, with her own boat drawn on its belly, and finished its fold with him on the stair.",
-              "aside": "Soren put my boat on a bird. Without asking. It's a very good bird, which is annoying."
+              "aside": "Soren put my boat on a bird. Without asking. It's a very good bird, which is annoying.",
+              "gossip": "{teller} says Soren's been folding paper birds with tiny boats on them. For Serenity. Very small boats."
             },
             {
               "entityID": "wicker-eddies",
@@ -4877,7 +4899,8 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.jump.verb",
               "memory": "Inside Dracula, Wicker wrote one sentence into the gutter of the book: for one sentence, let him choose the verb.",
-              "aside": "I gave him one verb. One. I keep doing the sum and it keeps coming out wrong."
+              "aside": "I gave him one verb. One. I keep doing the sum and it keeps coming out wrong.",
+              "gossip": "{teller} says Wicker wrote a sentence inside Dracula. Inside it. With a pen. I've had to sit down about it."
             },
             {
               "entityID": "penny-blackletter",
@@ -4906,13 +4929,15 @@
               "entityID": "penny-blackletter",
               "key": "count-unbound.jump.complete",
               "memory": "Back in the Vault, Penny ran her finger down the list and every ribbon answered. She said complete.",
-              "aside": "Complete. I said it out loud, so it was true. I checked it again after supper anyway."
+              "aside": "Complete. I said it out loud, so it was true. I checked it again after supper anyway.",
+              "gossip": "{teller} says Penny read the Jump roll twice and every ribbon answered. She won't say anything else about it."
             },
             {
               "entityID": "wicker-eddies",
               "key": "count-unbound.jump.knee",
               "memory": "Wicker sat on the Vault floor after the Jump with a stripe of ink on his knee, and at supper his soup went cold before he ate it.",
-              "aside": "There's still ink on my knee from the Jump. I've stopped trying to get it off. It seems fair, somehow."
+              "aside": "There's still ink on my knee from the Jump. I've stopped trying to get it off. It seems fair, somehow.",
+              "gossip": "{teller} says Wicker's still got ink on his knee from the Jump. He won't wash it off. Nobody's asking why."
             }
           ]
         },
@@ -5013,7 +5038,8 @@
                   "entityID": "serenity-brown",
                   "key": "count-unbound.stacks.reader-moved-map",
                   "memory": "On the floor of the East Stacks, the reader pushed Serenity's map within reach, and her hand closed on its edge.",
-                  "aside": "Somebody pushed my map to me in the Stacks. I know it was you. My hand remembers, even if the rest of me was busy."
+                  "aside": "Somebody pushed my map to me in the Stacks. I know it was you. My hand remembers, even if the rest of me was busy.",
+                  "gossip": "{teller} says you pushed Serenity's map back into her hand in the Stacks. That was the right thing. I'm saying so."
                 }
               ]
             },
@@ -5069,7 +5095,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.stacks.found",
               "memory": "Serenity was found in the East Stacks with two small wounds at her neck, her map still pinned under her elbow.",
-              "aside": "I kept hold of the map. I don't remember deciding to. My hand just wouldn't let go."
+              "aside": "I kept hold of the map. I don't remember deciding to. My hand just wouldn't let go.",
+              "gossip": "{teller} says something hurt Serenity in the East Stacks. I keep checking behind the shelves now."
             },
             {
               "entityID": "penny-blackletter",
@@ -5081,13 +5108,15 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.stacks.ladle",
               "memory": "Ambrose put down his ladle, which he never does, and was first into the gap in the shelves where Serenity lay.",
-              "aside": "Put the ladle down. Don't make a thing of it."
+              "aside": "Put the ladle down. Don't make a thing of it.",
+              "gossip": "{teller} says Ambrose put his ladle down. Ambrose. Put it down. Things must've been very bad."
             },
             {
               "entityID": "wicker-eddies",
               "key": "count-unbound.stacks.jug",
               "memory": "Wicker ran for water, came back holding an empty jug, went again, and set it by Serenity's hand without spilling a drop.",
-              "aside": "I fetched an empty jug. All the way there and back. Empty. Ambrose said water first, so I went again."
+              "aside": "I fetched an empty jug. All the way there and back. Empty. Ambrose said water first, so I went again.",
+              "gossip": "{teller} says Wicker ran for water and came back with an empty jug, then went again. Nobody's teasing him for it."
             },
             {
               "entityID": "professor-permancer",
@@ -5194,7 +5223,8 @@
           "entityID": "soren-ng",
           "key": "count-unbound.kitchens.harbours",
           "memory": "Soren brought Serenity tracing paper with her little boat drawn into six harbours, the last one up an oak tree.",
-          "aside": "Six harbours. She said the tree needs a ladder. She's right. I'm drawing a taller one."
+          "aside": "Six harbours. She said the tree needs a ladder. She's right. I'm drawing a taller one.",
+          "gossip": "{teller} says Soren drew Serenity's boat into six harbours, and one of them's up a tree. I want to see the tree one."
         },
         {
           "entityID": "serenity-brown",
@@ -5206,13 +5236,15 @@
           "entityID": "serenity-brown",
           "key": "count-unbound.kitchens.toast",
           "memory": "Three days out of bed, Serenity built a tower of toast crusts in the Kitchens and named it Permancer. It leaned.",
-          "aside": "He's not falling over. He's leaning. It's different."
+          "aside": "He's not falling over. He's leaning. It's different.",
+          "gossip": "{teller} says Serenity built a toast tower and named it Permancer. It leans. Don't tell the professor."
         },
         {
           "entityID": "wicker-eddies",
           "key": "count-unbound.kitchens.case",
           "memory": "Wicker mended Serenity's torn map case overnight with a new brass clasp, then turned the repair toward his coat when he saw Soren's harbours.",
-          "aside": "I mended a map case. It took all night. Nobody's said thank you, which is fine, because nobody's supposed to know."
+          "aside": "I mended a map case. It took all night. Nobody's said thank you, which is fine, because nobody's supposed to know.",
+          "gossip": "{teller} says somebody mended Serenity's map case overnight. Everybody knows who. Nobody's saying."
         },
         {
           "entityID": "ambrose-trencher",
@@ -5317,7 +5349,8 @@
               "entityID": "penny-blackletter",
               "key": "count-unbound.reading-room.margin",
               "memory": "Penny caught Dracula writing in the margin of his own book that he wouldn't have said this.",
-              "aside": "He was annotating himself. In pencil. I've met students like that. None of them were vampires."
+              "aside": "He was annotating himself. In pencil. I've met students like that. None of them were vampires.",
+              "gossip": "{teller} says the Count's been writing in the margins of his own book. In pencil. The cheek of it."
             }
           ]
         },
@@ -5333,7 +5366,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.reading-room.branches",
               "memory": "Dracula escaped the old reading room through three opened books, and the black line on Serenity's map split into a hundred branches.",
-              "aside": "The line on my map's gone everywhere. More ways than yesterday. I said that. It's still true."
+              "aside": "The line on my map's gone everywhere. More ways than yesterday. I said that. It's still true.",
+              "gossip": "{teller} says the black line on Serenity's map split and went every way at once, like frost. I don't like that."
             },
             {
               "entityID": "penny-blackletter",
@@ -5448,7 +5482,8 @@
               "entityID": "penny-blackletter",
               "key": "count-unbound.castle.notice",
               "memory": "Penny pinned a notice at the foot of the castle stair: the East Stacks are several places, please use one at a time.",
-              "aside": "My notice said one place at a time. Nobody's read it. The stair certainly hasn't."
+              "aside": "My notice said one place at a time. Nobody's read it. The stair certainly hasn't.",
+              "gossip": "{teller} says Penny put up a notice telling the East Stacks to be one place at a time. It hasn't listened."
             },
             {
               "entityID": "professor-permancer",
@@ -5487,7 +5522,8 @@
               "entityID": "professor-permancer",
               "key": "count-unbound.castle.we-did",
               "memory": "When Dracula said the Academy had damaged his source, Permancer answered: we did.",
-              "aside": "We did. Two words. It took me eleven years and a vampire to say them."
+              "aside": "We did. Two words. It took me eleven years and a vampire to say them.",
+              "gossip": "{teller} says Permancer told the Count: we did. Two words. A professor owning up. I didn't know they could."
             },
             {
               "entityID": "penny-blackletter",
@@ -5499,7 +5535,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.castle.claim",
               "memory": "Serenity put her hand flat over the card that said living claim. That one was hers.",
-              "aside": "Living claim. It's my name on that card, even if nobody wrote it. I'll be the one who lets go."
+              "aside": "Living claim. It's my name on that card, even if nobody wrote it. I'll be the one who lets go.",
+              "gossip": "{teller} says only Serenity can send the Count back. She put her own hand on the card."
             }
           ]
         }
@@ -5681,7 +5718,8 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.supper.chair",
               "memory": "Ambrose invited Dracula to supper by pulling out a chair, and left his bowl empty without remarking on it.",
-              "aside": "Pulled out a chair for a vampire. Same as anyone. Soup doesn't care who's sitting."
+              "aside": "Pulled out a chair for a vampire. Same as anyone. Soup doesn't care who's sitting.",
+              "gossip": "{teller} says Ambrose pulled out a chair for Dracula and left his bowl empty, very politely. That's Ambrose all over."
             },
             {
               "entityID": "serenity-brown",
@@ -5710,7 +5748,8 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.supper.apple",
               "memory": "Ambrose set a baked apple at every place at the terms supper, including in front of the Count's empty bowl.",
-              "aside": "Put an apple at his place anyway. Spoon too. Don't ask why. Same as the chair."
+              "aside": "Put an apple at his place anyway. Spoon too. Don't ask why. Same as the chair.",
+              "gossip": "{teller} says Ambrose put a baked apple in front of the Count anyway. The Count didn't eat it. Ambrose didn't mind."
             }
           ]
         },
@@ -5786,7 +5825,8 @@
               "entityID": "penny-blackletter",
               "key": "count-unbound.hunt.outline",
               "memory": "Penny drew a chalk outline round the place in the Great Hall where the door had stood.",
-              "aside": "I drew round a door that isn't there. No body. Unhelpful. Very satisfying chalk, though."
+              "aside": "I drew round a door that isn't there. No body. Unhelpful. Very satisfying chalk, though.",
+              "gossip": "{teller} says Penny drew a chalk outline round a door that isn't there. No body. She called it unhelpful."
             },
             {
               "entityID": "professor-permancer",
@@ -5918,7 +5958,8 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.gambit.menus",
               "memory": "Wicker covered the Great Hall floor with spoiled menus and folded a room out of their blank backs.",
-              "aside": "Every spoiled menu in the school. Blank on the back. The paper was cross with me. I blame the Tuesday Specials."
+              "aside": "Every spoiled menu in the school. Blank on the back. The paper was cross with me. I blame the Tuesday Specials.",
+              "gossip": "{teller} says Wicker covered the Great Hall in spoiled menus and folded a whole room out of them. A room."
             },
             {
               "entityID": "wicker-eddies",
@@ -6006,7 +6047,8 @@
                   "entityID": "ambrose-trencher",
                   "key": "count-unbound.return.reader-terms",
                   "memory": "The reader chose to send the Count back by terms, and Ambrose steadied the old supper table at the threshold with a menu under its short leg.",
-                  "aside": "You picked the terms. Good. Table's got a short leg. Always has. Menu under it. Works every time."
+                  "aside": "You picked the terms. Good. Table's got a short leg. Always has. Menu under it. Works every time.",
+                  "gossip": "{teller} says you picked the terms to send the Count home. Supper and paper. Very Ambrose of you."
                 }
               ]
             },
@@ -6026,7 +6068,8 @@
                   "entityID": "penny-blackletter",
                   "key": "count-unbound.return.reader-rule",
                   "memory": "The reader chose to send the Count back by rule, and Penny set the three cards at the corners of the threshold.",
-                  "aside": "You picked the rule. I squared the cards. The Count called it a technicality. He fitted through one."
+                  "aside": "You picked the rule. I squared the cards. The Count called it a technicality. He fitted through one.",
+                  "gossip": "{teller} says you picked the rule to send the Count home. Penny's cards. She'll pretend she isn't pleased."
                 }
               ]
             },
@@ -6046,7 +6089,8 @@
                   "entityID": "wicker-eddies",
                   "key": "count-unbound.return.reader-ruse",
                   "memory": "The reader chose to send the Count back by a trick, and Wicker took hold of the paper room's last fold.",
-                  "aside": "You picked the trick. Mine. I'd like to say I wasn't nervous. My wrist would like a word."
+                  "aside": "You picked the trick. Mine. I'd like to say I wasn't nervous. My wrist would like a word.",
+                  "gossip": "{teller} says you picked Wicker's trick to send the Count home. He'll be impossible about it for weeks."
                 }
               ]
             }
@@ -6093,7 +6137,8 @@
               "entityID": "professor-permancer",
               "key": "count-unbound.return.signed",
               "memory": "Permancer signed the Academy's admission under the Count's signature: the door was opened, and its return wrongly declared safe.",
-              "aside": "I signed it. Every letter cost something. I'd sign it again. That's how you know it was right."
+              "aside": "I signed it. Every letter cost something. I'd sign it again. That's how you know it was right.",
+              "gossip": "{teller} says Permancer signed a paper saying the Academy got it wrong. In ink. With his whole name."
             }
           ]
         },
@@ -6109,7 +6154,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.return.withdrawn",
               "memory": "Serenity drew the black line out of her map with finger and thumb and withdrew the living claim herself. The Count went back to his source.",
-              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word."
+              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word.",
+              "gossip": "{teller} says Serenity pulled the black line out of her map with two fingers, and that was that. He went home."
             },
             {
               "entityID": "serenity-brown",
@@ -6121,7 +6167,8 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.return.her-chair",
               "memory": "After the return, Ambrose pulled out a chair, and this time it was for Serenity.",
-              "aside": "Pulled the chair out for her this time. About time it got used by the right person."
+              "aside": "Pulled the chair out for her this time. About time it got used by the right person.",
+              "gossip": "{teller} says Ambrose finally pulled out a chair for Serenity. It only took him all month."
             },
             {
               "entityID": "penny-blackletter",
@@ -6171,7 +6218,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.return.withdrawn",
               "memory": "Serenity drew the black line out of her map with finger and thumb and withdrew the living claim herself. The Count went back to his source.",
-              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word."
+              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word.",
+              "gossip": "{teller} says Serenity pulled the black line out of her map with two fingers, and that was that. He went home."
             },
             {
               "entityID": "serenity-brown",
@@ -6183,7 +6231,8 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.return.her-chair",
               "memory": "After the return, Ambrose pulled out a chair, and this time it was for Serenity.",
-              "aside": "Pulled the chair out for her this time. About time it got used by the right person."
+              "aside": "Pulled the chair out for her this time. About time it got used by the right person.",
+              "gossip": "{teller} says Ambrose finally pulled out a chair for Serenity. It only took him all month."
             },
             {
               "entityID": "penny-blackletter",
@@ -6217,7 +6266,8 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.return.held-chapter",
               "memory": "Wicker held the paper room's last fold with the Count inside it, his whole arm shaking, and waited for Serenity.",
-              "aside": "I held a chapter shut with a menu. My arm's still complaining. She said wait, so I waited."
+              "aside": "I held a chapter shut with a menu. My arm's still complaining. She said wait, so I waited.",
+              "gossip": "{teller} says Wicker held a whole chapter shut with a menu. His arm's still shaking."
             }
           ]
         },
@@ -6233,7 +6283,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.return.withdrawn",
               "memory": "Serenity drew the black line out of her map with finger and thumb and withdrew the living claim herself. The Count went back to his source.",
-              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word."
+              "aside": "What he changed in me is mine now. I said that out loud, in front of everybody. I meant every word.",
+              "gossip": "{teller} says Serenity pulled the black line out of her map with two fingers, and that was that. He went home."
             },
             {
               "entityID": "serenity-brown",
@@ -6245,7 +6296,8 @@
               "entityID": "ambrose-trencher",
               "key": "count-unbound.return.her-chair",
               "memory": "After the return, Ambrose pulled out a chair, and this time it was for Serenity.",
-              "aside": "Pulled the chair out for her this time. About time it got used by the right person."
+              "aside": "Pulled the chair out for her this time. About time it got used by the right person.",
+              "gossip": "{teller} says Ambrose finally pulled out a chair for Serenity. It only took him all month."
             },
             {
               "entityID": "penny-blackletter",
@@ -6307,7 +6359,8 @@
               "entityID": "serenity-brown",
               "key": "count-unbound.morning.nightbound",
               "memory": "Serenity named what she could hear Nightbound, and added her own line to the new Jump notice: anyone mapping what she hears must ask her first.",
-              "aside": "Nightbound. It's my word. Penny wrote it on a card, but she waited until I nodded."
+              "aside": "Nightbound. It's my word. Penny wrote it on a card, but she waited until I nodded.",
+              "gossip": "{teller} says Serenity's got a word for what she hears now. Nightbound. It's a good word. I'm a bit jealous."
             },
             {
               "entityID": "professor-permancer",
@@ -6331,7 +6384,8 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.morning.not-today",
               "memory": "Wicker asked Serenity if he could come in. She said not today, and he said all right, and went.",
-              "aside": "She said not today. I said all right. Easiest thing I've said all month, and the hardest."
+              "aside": "She said not today. I said all right. Easiest thing I've said all month, and the hardest.",
+              "gossip": "{teller} says Serenity told Wicker not today, and he just said all right and went. Wicker. No speech at all."
             }
           ]
         }
@@ -6377,7 +6431,8 @@
               "entityID": "professor-permancer",
               "key": "count-unbound.protocols.eight",
               "memory": "Permancer posted eight Threshold Protocols by the Vault door. The last one says to check what came back different.",
-              "aside": "Eight rules now. The old list was perfectly good. It just never asked what to do when someone wants to come back with you."
+              "aside": "Eight rules now. The old list was perfectly good. It just never asked what to do when someone wants to come back with you.",
+              "gossip": "{teller} says there are eight rules by the Vault door now. Eight. The old list barely had any."
             },
             {
               "entityID": "penny-blackletter",
@@ -6738,13 +6793,15 @@
               "entityID": "wicker-eddies",
               "key": "count-unbound.november.answer",
               "memory": "At the long Kitchens table, Serenity asked Wicker what he'd do differently at the next door. He said: ask who has to live on the other side of it.",
-              "aside": "She asked what I'd do at the next door. I said ask who lives on the other side. No joke. I checked."
+              "aside": "She asked what I'd do at the next door. I said ask who lives on the other side. No joke. I checked.",
+              "gossip": "{teller} says Wicker gave Serenity a straight answer at the Kitchens table. No joke on it. I didn't know he had those."
             },
             {
               "entityID": "serenity-brown",
               "key": "count-unbound.november.answer",
               "memory": "Serenity asked Wicker what he'd do differently at the next door, and he answered plainly, with no joke on it.",
-              "aside": "He answered the question I asked. Plainly. That's one question. I've got others."
+              "aside": "He answered the question I asked. Plainly. That's one question. I've got others.",
+              "gossip": "{teller} says Wicker gave Serenity a straight answer at the Kitchens table. No joke on it. I didn't know he had those."
             }
           ]
         },
@@ -6785,7 +6842,8 @@
                   "entityID": "serenity-brown",
                   "key": "count-unbound.november.moth-names",
                   "memory": "Serenity let Penny into the greenhouse, and they spent an hour giving a sleeping moth terrible names.",
-                  "aside": "Penny and I named a moth. Sir Fluffington was hers. I'd like that on the record."
+                  "aside": "Penny and I named a moth. Sir Fluffington was hers. I'd like that on the record.",
+                  "gossip": "{teller} says Penny and Serenity named a sleeping moth Sir Fluffington. I've got better names. Nobody asked me."
                 }
               ]
             },

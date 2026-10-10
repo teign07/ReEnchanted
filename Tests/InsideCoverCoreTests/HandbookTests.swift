@@ -193,7 +193,7 @@ final class HandbookTests: XCTestCase {
         XCTAssertEqual(HandbookWorkbookBuilder.mark(count: 10, target: 10), .distinction)
     }
 
-    func testReportCardResitCarriesAnErrandAndNothingElseDoes() {
+    func testReportCardResitCarriesAnErrandAndNothingElseDoes() throws {
         let braids = (1...2).map { day($0, braid: "Night \($0)") }
         let card = HandbookWorkbookBuilder.reportCard(
             pages: [], dayBook: BoundDayBook(days: braids, weeks: [], chart: LabyrinthMonthChart(roomVisits: [:], route: [], cast: [], timetableOnly: true), quietDates: []),
@@ -202,6 +202,15 @@ final class HandbookTests: XCTestCase {
         XCTAssertEqual(card.subjects.first { $0.id == "noticing" }?.mark, .resit)
         XCTAssertNotNil(card.subjects.first { $0.id == "noticing" }?.resitErrand)
         XCTAssertTrue(card.subjects.filter { $0.id != "noticing" }.allSatisfy { $0.mark == .incomplete && $0.resitErrand == nil })
+        // A subject still open is a door with a note on it: one real thing waiting there.
+        XCTAssertEqual(HandbookReportCard.Mark.incomplete.title, "Still open")
+        let open = card.subjects.filter { $0.mark == .incomplete }
+        XCTAssertTrue(open.allSatisfy { ($0.invitation ?? "").count > 20 })
+        let curiosity = try XCTUnwrap(open.first { $0.id == "curiosity" }?.invitation)
+        XCTAssertTrue(AcademyScheduleRegistry.classes.values.contains { curiosity.contains($0.name) && curiosity.contains($0.room) },
+                      "The class it names is a real one, with its real room.")
+        let initiative = try XCTUnwrap(open.first { $0.id == "initiative" }?.invitation)
+        XCTAssertTrue(StoryEnchantmentCatalog.spells.contains { initiative.hasPrefix($0.title) })
     }
 
     func testOnLeaveMonthCarriesNoMarks() {
@@ -256,9 +265,10 @@ final class HandbookTests: XCTestCase {
     // MARK: Thickness
 
     func testOnlyTiersTheContentCanFillAreOffered() {
-        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 40), [64])
-        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 100), [64, 96])
-        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 128), [64, 96, 128])
+        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 40), [128])
+        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 100), [128])
+        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 128), [128])
+        XCTAssertEqual(PrintThickness.available(for: .monthly, naturalPages: 158), [128, 160])
         XCTAssertEqual(PrintThickness.available(for: .weekly, naturalPages: 33), [24, 32, 40])
     }
 

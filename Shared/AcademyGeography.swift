@@ -155,7 +155,7 @@ enum AcademyGeography {
 
     // MARK: - The rooms
 
-    static let rooms: [AcademyRoom] = [
+    private static let foundingRooms: [AcademyRoom] = [
         // The Labyrinth
         AcademyRoom(
             id: "location-outer-stacks", name: "The Outer Stacks", zone: .labyrinth, compass: nil,
@@ -322,11 +322,11 @@ enum AcademyGeography {
             id: "location-book-burrow", name: "The Book Burrow", zone: .warm, compass: nil,
             stability: .fixed, point: .init(0.15, 0.79), startsDrawn: true,
             names: ["Book Burrow"],
-            note: "The common room. Low ceiling, lots of blankets. The armchairs shuffle over to whoever needs company.",
+            note: "Everybody's common room. Low ceiling, lots of blankets. The armchairs shuffle over to whoever needs company.",
             form: .room, size: .init(0.2, 0.06)
         ),
         AcademyRoom(
-            id: dormID, name: "The Dorm", zone: .warm, compass: nil,
+            id: dormID, name: "My Dorm", zone: .warm, compass: nil,
             stability: .fixed, point: .init(0.35, 0.86), startsDrawn: true,
             names: [],
             note: "Your room. I don't draw what's in it. That's yours.",
@@ -357,9 +357,168 @@ enum AcademyGeography {
         )
     ]
 
+    /// A surveyed campus, with the teaching school above its residential
+    /// courts. The same coordinates are used by walls, doors and footprints.
+    private static let campus: [String: (AcademyMapPoint, AcademyMapPoint)] = [
+        "location-outer-stacks": (.init(0.5, 0.027), .init(0.4, 0.038)),
+        "location-stacks": (.init(0.5, 0.54), .init(0.97, 0.97)),
+        "location-east-stacks": (.init(0.935, 0.19), .init(0.105, 0.07)),
+        "location-vault-of-doors": (.init(0.82, 0.075), .init(0.19, 0.048)),
+        "location-bibliophonic-hall": (.init(0.15, 0.22), .init(0.2, 0.065)),
+        "location-corridor-whispered": (.init(0.285, 0.311), .init(0.26, 0.022)),
+        "location-old-reading-room": (.init(0.755, 0.19), .init(0.15, 0.045)),
+        "location-shelf-misfiled-days": (.init(0.19, 0.09), .init(0.16, 0.026)),
+        "location-rain-room": (.init(0.08, 0.745), .init(0.12, 0.045)),
+        "location-great-hall": (.init(0.51, 0.405), .init(0.32, 0.14)),
+        "location-still-room": (.init(0.5, 0.545), .init(0.16, 0.05)),
+        "location-binding-hall": (.init(0.66, 0.565), .init(0.16, 0.048)),
+        "location-north-staircase": (.init(0.74, 0.345), .init(0.1, 0.026)),
+        "location-headmistress-tower": (.init(0.5, 0.13), .init(0.11, 0.066)),
+        "location-glint-hall": (.init(0.5, 0.235), .init(0.25, 0.08)),
+        "location-momentum-yard": (.init(0.77, 0.43), .init(0.15, 0.105)),
+        "location-resonance-chamber": (.init(0.5, 0.65), .init(0.25, 0.075)),
+        "location-inkworks": (.init(0.15, 0.405), .init(0.2, 0.11)),
+        "location-spark-annex": (.init(0.75, 0.285), .init(0.18, 0.056)),
+        "location-quillquarium": (.init(0.94, 0.37), .init(0.1, 0.075)),
+        "location-kitchens": (.init(0.235, 0.55), .init(0.2, 0.078)),
+        "location-pantry": (.init(0.08, 0.54), .init(0.1, 0.06)),
+        "location-book-burrow": (.init(0.15, 0.66), .init(0.2, 0.07)),
+        "location-dorm": (.init(0.25, 0.735), .init(0.1, 0.032)),
+        "location-open-field-gate": (.init(0.9, 0.58), .init(0.16, 0.055)),
+        "location-walled-garden": (.init(0.765, 0.655), .init(0.22, 0.085)),
+        "location-secret-garden-prose": (.init(0.91, 0.725), .init(0.14, 0.05)),
+    ]
+
+    static let rooms: [AcademyRoom] = foundingRooms.map { original in
+        var room = original
+        if let layout = campus[room.id] { room.point = layout.0; room.size = layout.1 }
+        if case .drifting = room.stability {
+            room.stability = .drifting(spots: [.init(0.19, 0.09), .init(0.62, 0.07), .init(0.30, 0.125)])
+        }
+        return room
+    } + residentialRooms
+
+    static func commonRoomID(_ chapterID: String) -> String { "location-common-\(chapterID)" }
+    static func dormitoriesID(_ chapterID: String) -> String { "location-dorms-\(chapterID)" }
+    static let facultyID = "location-faculty-quarters"
+    static let guestID = "location-guest-rooms"
+
+    /// Residential architecture follows all five Chapters; it isn't another
+    /// sorting system. Their established philosophies choose the fittings.
+    private static let residentialRooms: [AcademyRoom] = {
+        let chapters = AcademyChapterRegistry.chapters
+        let notes: [String: String] = [
+            "emberheart": "The hearth's impatient. People write things at the long tables and go out to try them.",
+            "mossbloom": "Roots have got into the flagstones. Nobody minds. The chairs face the garden.",
+            "tidecrest": "Round windows, a tide of cushions. The best seat changes while you're sitting in it.",
+            "riddlewind": "One big table. Nothing gets finished by just one hand. Even the chairs are in an argument.",
+            "duskthorn": "A thorn-dark study. The chairs don't let anybody get too comfortable with a lie."
+        ]
+        return chapters.enumerated().flatMap { index, chapter -> [AcademyRoom] in
+            let x = 0.13 + Double(index) * 0.185
+            let y = 0.82 + (index >= 2 ? 0.01 : 0)
+            return [
+                AcademyRoom(id: commonRoomID(chapter.id), name: "\(chapter.name) Common Room", zone: .warm, compass: nil,
+                            stability: .fixed, point: .init(x, y), startsDrawn: true,
+                            names: ["\(chapter.name) Common Room"], note: notes[chapter.id] ?? "A room for the Chapter to gather.",
+                            form: .room, size: .init(0.15, 0.082)),
+                AcademyRoom(id: dormitoriesID(chapter.id), name: "\(chapter.name) Dormitories", zone: .warm, compass: nil,
+                            stability: .fixed, point: .init(x, y + 0.095), startsDrawn: true,
+                            names: ["\(chapter.name) Dormitories"], note: "Up the stairs from \(chapter.name). The doors keep their own counsel.",
+                            form: .room, size: .init(0.15, 0.048))
+            ]
+        } + [
+            AcademyRoom(id: facultyID, name: "Faculty & Staff Quarters", zone: .warm, compass: nil,
+                        stability: .fixed, point: .init(0.46, 0.735), startsDrawn: true,
+                        names: ["Faculty Quarters", "Staff Quarters"], note: "Even professors go to bed. Some take their marking with them.",
+                        form: .room, size: .init(0.32, 0.062)),
+            AcademyRoom(id: guestID, name: "The Guest Rooms", zone: .warm, compass: nil,
+                        stability: .fixed, point: .init(0.71, 0.745), startsDrawn: true,
+                        names: ["Guest Rooms"], note: "For somebody who hasn't got a door of their own yet. I've left a lamp on.",
+                        form: .room, size: .init(0.15, 0.038))
+        ]
+    }()
+
+    /// My Dorm moves only when the Reader is bound. No Cast member's bedroom
+    /// is ever substituted for it, and nothing is invented about its inside.
+    static func homeRoom(chapterID: String?) -> AcademyRoom {
+        var home = room(id: dormID)!
+        if let chapterID, let dorms = room(id: dormitoriesID(chapterID)) {
+            home.point = .init(dorms.point.x, dorms.point.y + 0.06)
+        }
+        return home
+    }
+
+    static func homePassages(chapterID: String?) -> [AcademyPassage] {
+        guard let chapterID, room(id: dormitoriesID(chapterID)) != nil else { return passages }
+        return passages.filter { !$0.touches(dormID) }
+            + [.init(from: dormitoriesID(chapterID), to: dormID, kind: .door)]
+    }
+
+    /// A monthly room keeps its authored place when it fits. If the campus
+    /// now occupies that paper, it finds free paper beside its joining rooms.
+    /// Resolve this once per chart, before either walls or feet use it.
+    static func surveyedBorrowedRooms(_ borrowed: [AcademyRoom], passages: [AcademyPassage], chapterID: String?) -> [AcademyRoom] {
+        var occupied = rooms.filter { $0.form != .ring }.map {
+            $0.id == dormID ? homeRoom(chapterID: chapterID) : $0
+        }
+        // Leave all three places of the moving shelf free, even between days.
+        for room in rooms {
+            if case .drifting(let spots) = room.stability {
+                occupied += spots.map { point in var moved = room; moved.point = point; return moved }
+            }
+        }
+        func fits(_ room: AcademyRoom, at point: AcademyMapPoint) -> Bool {
+            guard point.x - room.size.x / 2 >= 0.025, point.x + room.size.x / 2 <= 0.975,
+                  point.y - room.size.y / 2 >= 0.035, point.y + room.size.y / 2 <= 0.995 else { return false }
+            return !occupied.contains { other in
+                abs(point.x - other.point.x) < (room.size.x + other.size.x) / 2 + 0.01
+                    && abs(point.y - other.point.y) < (room.size.y + other.size.y) / 2 + 0.007
+            }
+        }
+        return borrowed.map { original in
+            var room = original
+            if !fits(room, at: room.point) {
+                let neighbours = passages.filter { $0.touches(original.id) }
+                    .compactMap { $0.other(than: original.id) }
+                    .compactMap { id in occupied.first { $0.id == id }?.point }
+                let desired = neighbours.isEmpty ? original.point : AcademyMapPoint(
+                    neighbours.map(\.x).reduce(0, +) / Double(neighbours.count),
+                    neighbours.map(\.y).reduce(0, +) / Double(neighbours.count))
+                var nearest: AcademyMapPoint?
+                var distance = Double.infinity
+                // Test actual wall clearances, not a coarse coordinate grid:
+                // a narrow opening can sit between two grid lines.
+                let xs = Set([desired.x, original.point.x, 0.025 + room.size.x / 2, 0.975 - room.size.x / 2]
+                    + occupied.flatMap { other in
+                        let gap = (room.size.x + other.size.x) / 2 + 0.010001
+                        return [other.point.x - gap, other.point.x + gap]
+                    }).sorted()
+                let ys = Set([desired.y, original.point.y, 0.035 + room.size.y / 2, 0.995 - room.size.y / 2]
+                    + occupied.flatMap { other in
+                        let gap = (room.size.y + other.size.y) / 2 + 0.007001
+                        return [other.point.y - gap, other.point.y + gap]
+                    }).sorted()
+                for y in ys {
+                    for x in xs {
+                        let point = AcademyMapPoint(x, y)
+                        let dx = point.x - desired.x, dy = (point.y - desired.y) * 1.6
+                        let candidate = dx * dx + dy * dy
+                        if candidate < distance, fits(room, at: point) {
+                            nearest = point; distance = candidate
+                        }
+                    }
+                }
+                if let nearest { room.point = nearest }
+            }
+            occupied.append(room)
+            return room
+        }
+    }
+
     // MARK: - The ways between them
 
-    static let passages: [AcademyPassage] = [
+    private static let foundingPassages: [AcademyPassage] = [
         .init(from: "location-outer-stacks", to: "location-stacks", kind: .corridor),
         .init(from: "location-stacks", to: "location-bibliophonic-hall", kind: .stair),
         .init(from: "location-stacks", to: "location-vault-of-doors", kind: .door),
@@ -394,6 +553,15 @@ enum AcademyGeography {
         .init(from: "location-open-field-gate", to: "location-walled-garden", kind: .path),
         .init(from: "location-walled-garden", to: "location-secret-garden-prose", kind: .hidden)
     ]
+
+    static let passages: [AcademyPassage] = foundingPassages
+        + [.init(from: "location-book-burrow", to: facultyID, kind: .corridor),
+           .init(from: facultyID, to: guestID, kind: .corridor)]
+        + AcademyChapterRegistry.chapters.flatMap { chapter -> [AcademyPassage] in
+            [.init(from: "location-book-burrow", to: commonRoomID(chapter.id), kind: .corridor),
+             .init(from: commonRoomID(chapter.id), to: dormitoriesID(chapter.id), kind: .stair)]
+        }
+
 }
 
 // MARK: - What the Book has drawn
@@ -402,6 +570,8 @@ enum AcademyGeography {
 enum AcademyRoomSighting: Equatable, Sendable {
     /// Every reader has stood in it.
     case fromTheStart
+    /// A surveyed room; knowing its walls does not claim a Reader visit.
+    case charted
     /// A story was set there.
     case storyWentThere
     /// Something happened there that the room remembers.
@@ -422,8 +592,7 @@ struct AcademyChartRoom: Identifiable, Equatable {
     var point: AcademyMapPoint
     /// Everything the Book writes beside the room, first line first.
     var lines: [String]
-    /// Who's in there right now. Empty for a blank room: the Book can't see
-    /// into rooms it hasn't drawn.
+    /// Who's in there right now. All surveyed Academy rooms can hold Cast.
     var people: [AcademyWhereabout] = []
     /// Kept Pages that mention the room, newest first.
     var pages: [BookPage] = []
@@ -434,8 +603,7 @@ struct AcademyChartRoom: Identifiable, Equatable {
 
 struct AcademyChart: Equatable {
     var rooms: [AcademyChartRoom]
-    /// Only passages with at least one drawn end. A path to a blank room is
-    /// drawn as far as the paper that's been walked.
+    /// Physical connections between the rooms currently on the paper.
     var passages: [AcademyPassage]
 
     var drawnCount: Int { rooms.filter(\.isDrawn).count }
@@ -444,20 +612,27 @@ struct AcademyChart: Equatable {
 
     func isDrawn(_ id: String) -> Bool { room(id)?.isDrawn ?? false }
 
-    /// Cast members who are somewhere the Book hasn't drawn, in timetable
-    /// order. The Book notices them go, and can't follow.
+    /// Compatibility for charts supplied by other callers. The cartographer
+    /// gives every current resident a drawn address, so its list stays empty.
     var unseen: [AcademyWhereabout] = []
-    /// Rooms the month's story has shut.
+    /// Rooms closed by the story or by their actual weather requirement.
     var closedRoomIDs: Set<String> = []
     /// Every way between rooms in play, drawn or not.
     var allPassages: [AcademyPassage] = AcademyGeography.passages
-    /// People whose room changed this minute, and where they were before.
+    /// People still walking after a recent change of room, and where they set off.
     /// They're on their way, and the map shows them walking.
     var arrivals: [String: AcademyArrival] = [:]
+    /// The Reader's real Anchors open beyond the Outer Stacks. Kept apart
+    /// from the Cast's route graph: a drawn door isn't a fictional visit.
+    var anchorRooms: [AcademyAnchorRoom] = []
 
     /// The Book's line under the whole map.
     var footer: String {
-        "I've drawn \(drawnCount) rooms so far. The blank bits are where I haven't been yet."
+        let count = rooms.flatMap(\.people).count
+        let academy = "\(drawnCount) rooms. \(count) names. The walls stay. The feet don't."
+        guard !anchorRooms.isEmpty else { return academy }
+        let doors = anchorRooms.count == 1 ? "One door" : "\(anchorRooms.count) doors"
+        return academy + " \(doors) in the Outer Stacks \(anchorRooms.count == 1 ? "opens" : "open") onto your places."
     }
 
     /// Somebody's gone somewhere off the map.
@@ -503,6 +678,102 @@ struct AcademyChart: Equatable {
     }
 }
 
+/// A room that already exists in the Anchor ledger, with its own kept Pages.
+/// This is a projection for the map, not another store of Reader memories.
+struct AcademyAnchorRoom: Identifiable, Equatable {
+    var anchor: AnchorRecord
+    var entry: GazetteerEntry
+    var pages: [BookPage]
+    var foldedWords: AcademyAnchorWords? = nil
+    /// Days since the last recorded check-in, not a claim about where the
+    /// Reader has actually been when the Book wasn't there.
+    var quietDays: Int? = nil
+
+    var id: String { "academy-anchor:\(anchor.id)" }
+    var imprint: AcademyAnchorImprint { AcademyAnchorImprint.from(anchor) }
+
+    static func project(anchors: [AnchorRecord], days: [BookDay], now: Date = Date(), calendar: Calendar = .current) -> [AcademyAnchorRoom] {
+        var seen: Set<String> = []
+        let anchors = anchors.filter {
+            !$0.id.isEmpty && $0.name.nonEmpty != nil && seen.insert($0.id).inserted
+        }
+        // The existing ledger appends new Anchors. Preserve that order,
+        // including two made on the same day; returns never move a door.
+        guard !anchors.isEmpty else { return [] }
+        let entries = Dictionary(uniqueKeysWithValues: Gazetteer.entries(anchors: anchors, days: days).map { ($0.id, $0) })
+        var pages: [String: [BookPage]] = [:]
+        for page in days.flatMap(\.pages) {
+            guard let anchorID = page.context?.nearbyAnchorID?.nonEmpty else { continue }
+            pages[anchorID, default: []].append(page)
+        }
+        return anchors.compactMap { anchor in
+            guard let entry = entries[anchor.id] else { return nil }
+            var pageIDs: Set<String> = []
+            let kept = (pages[anchor.id] ?? []).sorted {
+                $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt > $1.createdAt
+            }.filter { pageIDs.insert($0.id).inserted }
+            // A generated Page can contain both Book prose and a Reader's
+            // reply. Only the Reader's sentence atoms go into the folded ink.
+            let written = kept.compactMap { page -> AcademyAnchorWords? in
+                guard let words = page.readerAuthoredTexts.first?.nonEmpty else { return nil }
+                return AcademyAnchorWords(text: words, page: page)
+            }.first ?? anchor.playerWords.nonEmpty.map { AcademyAnchorWords(text: $0, page: nil) }
+            let elapsed = Gazetteer.daysSinceVisit(anchor, now: now, calendar: calendar)
+            return AcademyAnchorRoom(
+                anchor: anchor, entry: entry, pages: Array(kept.prefix(AcademyCartographer.pagesShown)),
+                foldedWords: written,
+                quietDays: elapsed.flatMap { $0 >= Gazetteer.goneQuietDays ? $0 : nil }
+            )
+        }
+    }
+}
+
+struct AcademyAnchorWords: Equatable {
+    var text: String
+    /// Nil for the words given when the Anchor was made. A kept sentence
+    /// carries its actual Page all the way to the map's opening callback.
+    var page: BookPage?
+}
+
+/// Drawing instructions for the Book's fictional chamber. The noun comes
+/// from material already kept for this Anchor; no new world facts are made.
+struct AcademyAnchorImprint: Equatable {
+    enum Motif: String, CaseIterable {
+        case water, grove, hearth, library, way, lantern, threshold
+    }
+    enum Source: Equatable { case reader, place, book, spell }
+    var motif: Motif
+    var source: Source
+
+    static func from(_ anchor: AnchorRecord) -> AcademyAnchorImprint {
+        let cues: [(Motif, Set<String>)] = [
+            (.water, ["river", "stream", "pond", "lake", "shore", "sea", "coast", "brook", "water", "rain", "beach"]),
+            (.grove, ["tree", "trees", "forest", "woods", "garden", "orchard", "leaf", "leaves", "fern", "park", "allotment"]),
+            (.hearth, ["kettle", "tea", "teapot", "teacup", "coffee", "cafe", "kitchen", "bakery", "stove", "hearth"]),
+            (.library, ["book", "books", "bookshop", "bookstore", "library", "shelf", "shelves", "paper", "ink"]),
+            (.way, ["path", "road", "lane", "bridge", "trail", "railway", "station", "train", "stairs"]),
+            (.lantern, ["window", "lamp", "light", "candle", "lantern", "moon", "star", "stars", "sky", "sunset", "dawn"])
+        ]
+        func motif(in text: String) -> Motif? {
+            let words = Set(text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                .components(separatedBy: CharacterSet.letters.inverted).filter { !$0.isEmpty })
+            return cues.first { !$0.1.isDisjoint(with: words) }?.0
+        }
+        // Fixed material chooses the architecture. New kept sentences fill
+        // its drawers; they do not rebuild the room around yesterday's mood.
+        if let found = motif(in: anchor.playerWords + " " + anchor.name) {
+            return AcademyAnchorImprint(motif: found, source: .reader)
+        }
+        if let found = anchor.place.flatMap({ motif(in: $0.category) }) {
+            return AcademyAnchorImprint(motif: found, source: .place)
+        }
+        if let found = motif(in: anchor.outerStacksRoom) {
+            return AcademyAnchorImprint(motif: found, source: .book)
+        }
+        return AcademyAnchorImprint(motif: .threshold, source: .spell)
+    }
+}
+
 struct AcademyChartInputs {
     var days: [BookDay] = []
     var placeStates: [String: PlaceState] = [:]
@@ -511,6 +782,9 @@ struct AcademyChartInputs {
     var sky: SkyCondition?
     /// The reader's own places, by name. Each is a door in the Outer Stacks.
     var anchorNames: [String] = []
+    /// The same ledger used by the Atlas and Gazetteer. Names alone remain
+    /// supported for older callers, but only real records become drawn rooms.
+    var anchors: [AnchorRecord] = []
     /// Pages on the desk right now. Whatever they're about is happening now.
     var deskScenes: [AcademyScene] = []
     /// What the live month's story says about the Academy.
@@ -520,6 +794,11 @@ struct AcademyChartInputs {
     var worldEvents: [WorldEvent]? = nil
     var now: Date = Date()
     var calendar: Calendar = .current
+
+    /// Registered Cast, including the Reader's custom characters. Monthly
+    /// visitors remain temporary guests rather than entering this roster.
+    var cast: [NarrativeWorldEntity] = NarrativePackRegistry.entities.filter { $0.kind == .character }
+    var readerChapterID: String? = nil
 
     /// The same inputs, at another moment.
     func at(_ date: Date) -> AcademyChartInputs {
@@ -545,6 +824,15 @@ enum AcademyCartographer {
         if let worldEvents = inputs.worldEvents {
             inputs.events = AcademyEventStaging.from(events: worldEvents, now: inputs.now, calendar: inputs.calendar)
         }
+        // The Rain Room stays on the paper, with its door shut when the
+        // actual sky hasn't opened it. Nobody is routed through a shut door.
+        for room in AcademyGeography.rooms {
+            if case .weatherGated(let skies) = room.stability,
+               inputs.sky.map({ skies.contains($0) }) != true {
+                inputs.events.closedRoomIDs.insert(room.id)
+            }
+        }
+        inputs.events.borrowedRooms = AcademyGeography.surveyedBorrowedRooms(inputs.events.borrowedRooms, passages: inputs.events.borrowedPassages, chapterID: inputs.readerChapterID)
         let staging = inputs.events
         let mentions = mentions(in: inputs.days)
         let session = AcademyScheduleRegistry.sessionInProgress(at: inputs.now, calendar: inputs.calendar)?.session
@@ -552,23 +840,18 @@ enum AcademyCartographer {
             at: inputs.now,
             calendar: inputs.calendar,
             scenes: inputs.deskScenes + recentScenes(inputs),
-            staging: staging
+            staging: staging, cast: inputs.cast
         )
         let staged = Set(staging.staging.map(\.roomID))
             .union(staging.closedRoomIDs)
             .union(staging.roomNotes.keys)
             .union(staging.borrowedRooms.map(\.id))
 
-        let rooms = staging.rooms.map { room -> AcademyChartRoom in
+        let rooms = staging.rooms.map { original -> AcademyChartRoom in
+            let room = original.id == AcademyGeography.dormID
+                ? AcademyGeography.homeRoom(chapterID: inputs.readerChapterID) : original
             let sighting = sighting(of: room, inputs: inputs, named: mentions[room.id]?.firstNamed)
-                ?? (staged.contains(room.id) && room.id != AcademyGeography.dormID ? .theMonthSaysSo : nil)
-            guard sighting != nil else {
-                return AcademyChartRoom(
-                    room: room, sighting: nil,
-                    point: AcademyGeography.point(of: room, on: inputs.now, calendar: inputs.calendar),
-                    lines: []
-                )
-            }
+                ?? (staged.contains(room.id) && room.id != AcademyGeography.dormID ? .theMonthSaysSo : .charted)
             let people = everyone.filter { $0.roomID == room.id }
             return AcademyChartRoom(
                 room: room,
@@ -579,29 +862,8 @@ enum AcademyCartographer {
                 pages: mentions[room.id]?.recent ?? []
             )
         }
-        // Who moved this minute: everyone as they were a minute ago, against
-        // everyone now. The walk starts on the minute and takes a while.
-        let minute = inputs.calendar.dateInterval(of: .minute, for: inputs.now)?.start ?? inputs.now
-        var before = inputs.at(minute.addingTimeInterval(-60))
-        if let worldEvents = before.worldEvents {
-            before.events = AcademyEventStaging.from(events: worldEvents, now: before.now, calendar: before.calendar)
-        }
-        let earlier = Dictionary(
-            AcademyWhereabouts.everyone(
-                at: before.now, calendar: before.calendar,
-                scenes: inputs.deskScenes + recentScenes(before), staging: before.events
-            ).map { ($0.characterID, $0.roomID) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var arrivals: [String: AcademyArrival] = [:]
-        for person in everyone {
-            if let from = earlier[person.characterID], from != person.roomID {
-                arrivals[person.characterID] = AcademyArrival(fromRoomID: from, startedAt: minute)
-            }
-        }
-
         let drawn = Set(rooms.filter(\.isDrawn).map(\.id))
-        let allPassages = AcademyGeography.passages + staging.borrowedPassages
+        let allPassages = AcademyGeography.homePassages(chapterID: inputs.readerChapterID) + staging.borrowedPassages
         let passages = allPassages.filter { drawn.contains($0.from) || drawn.contains($0.to) }
         return AcademyChart(
             rooms: rooms,
@@ -609,8 +871,58 @@ enum AcademyCartographer {
             unseen: everyone.filter { !drawn.contains($0.roomID) },
             closedRoomIDs: staging.closedRoomIDs,
             allPassages: allPassages,
-            arrivals: arrivals
+            arrivals: journeys(for: everyone, inputs: inputs, staging: staging, passages: allPassages),
+            anchorRooms: AcademyAnchorRoom.project(anchors: inputs.anchors, days: inputs.days, now: inputs.now, calendar: inputs.calendar)
         )
+    }
+
+    /// Recover recent departures even when nobody had the map open. Each
+    /// walk belongs to a real change of address, never a roll of the dice.
+    private static func journeys(for everyone: [AcademyWhereabout], inputs: AcademyChartInputs,
+                                 staging: AcademyEventStaging, passages: [AcademyPassage]) -> [String: AcademyArrival] {
+        let since = inputs.now.addingTimeInterval(-AcademyArrival.longestWalk)
+        let minute = inputs.calendar.dateInterval(of: .minute, for: inputs.now)?.start ?? inputs.now
+        var boundaries = Set((0...Int(AcademyArrival.longestWalk / 60)).map {
+            minute.addingTimeInterval(-Double($0) * 60)
+        })
+        // Story Pages may arrive between minute ticks, or release their Cast
+        // when a scene stops lingering. Keep the actual story clock.
+        let scenes = inputs.deskScenes + staging.scenes + recentScenes(inputs) + recentScenes(inputs.at(since))
+        for scene in scenes {
+            boundaries.insert(scene.at)
+            boundaries.insert(scene.at.addingTimeInterval(AcademyWhereabouts.sceneLingers))
+        }
+        let roomIDs = Set(staging.rooms.map(\.id))
+        var pending = Dictionary(everyone.map { ($0.characterID, $0) }, uniquingKeysWith: { first, _ in first })
+        var arrivals: [String: AcademyArrival] = [:]
+        for boundary in boundaries.filter({ $0 > since && $0 <= inputs.now }).sorted(by: >) {
+            var before = inputs.at(boundary.addingTimeInterval(-0.001))
+            if let worldEvents = before.worldEvents {
+                before.events = AcademyEventStaging.from(events: worldEvents, now: before.now, calendar: before.calendar)
+            }
+            before.events.closedRoomIDs.formUnion(staging.closedRoomIDs.filter { id in
+                guard let room = AcademyGeography.room(id: id) else { return false }
+                if case .weatherGated = room.stability { return true }
+                return false
+            })
+            let earlier = Dictionary(AcademyWhereabouts.everyone(
+                at: before.now, calendar: before.calendar,
+                scenes: inputs.deskScenes + recentScenes(before), staging: before.events, cast: inputs.cast
+            ).map { ($0.characterID, $0.roomID) }, uniquingKeysWith: { first, _ in first })
+            for (id, person) in pending {
+                guard earlier[id] != person.roomID else { continue }
+                // Stop at the latest move. A newly appearing visitor or a
+                // vanished borrowed room has no walkable departure to invent.
+                pending.removeValue(forKey: id)
+                guard let from = earlier[id], roomIDs.contains(from), roomIDs.contains(person.roomID),
+                      let arrival = AcademyArrival.departing(person, from: from, at: boundary,
+                                                           passages: passages, closedRoomIDs: staging.closedRoomIDs),
+                      arrival.isUnderway(at: inputs.now) else { continue }
+                arrivals[id] = arrival
+            }
+            if pending.isEmpty { break }
+        }
+        return arrivals
     }
 
     /// Scenes from Pages kept in the last few hours, and from things the
@@ -621,7 +933,10 @@ enum AcademyCartographer {
             .filter { $0.date >= inputs.calendar.startOfDay(for: since) }
             .flatMap(\.pages)
             .filter { $0.createdAt >= since }
-            .compactMap(\.academyScene)
+            .compactMap { page in
+                page.metadata.flatMap { AcademyScene(metadata: $0, at: page.createdAt, pageID: page.id,
+                                                     cast: inputs.cast, rooms: inputs.events.rooms) }
+            }
         let remembered = inputs.placeStates.values.flatMap { state in
             state.incidents
                 .filter { $0.occurredAt >= since && !$0.participantIDs.isEmpty }
@@ -636,8 +951,8 @@ enum AcademyCartographer {
         inputs: AcademyChartInputs,
         named: Date?
     ) -> AcademyRoomSighting? {
-        // A weather room is there when the weather is, however well the Book
-        // knows it. On a dry day it's blank paper again.
+        // Weather records an open door. The surveyed walls remain charted
+        // even when the actual sky has closed it.
         if case .weatherGated(let skies) = room.stability {
             guard let sky = inputs.sky, skies.contains(sky) else { return nil }
             return .theSkyOpenedIt
@@ -658,8 +973,8 @@ enum AcademyCartographer {
 
     /// Where the Book's own prose names each room, from the archive.
     ///
-    /// Only Pages the Book wrote count, so a reader's own pantry never draws
-    /// the Academy's. A generated Page often keeps the Book's prose in
+    /// Only Pages the Book wrote count as Academy references; the Reader's
+    /// own pantry never becomes a visit to the Academy's. A generated Page often keeps the Book's prose in
     /// `userInput` rather than `promptText`, so both are read.
     /// Memoised: the whole archive is read, and only a kept Page changes it.
     static func mentions(in days: [BookDay]) -> [String: Mentions] {
@@ -690,10 +1005,17 @@ enum AcademyCartographer {
         people: [AcademyWhereabout] = []
     ) -> [String] {
         var lines = [room.note]
+        if case .weatherGated = room.stability, inputs.events.closedRoomIDs.contains(room.id) {
+            lines = ["The door's shut. It wants rain."]
+        }
 
         if room.id == "location-outer-stacks" {
-            for name in inputs.anchorNames.prefix(anchorDoorsShown) {
+            let names = inputs.anchors.isEmpty ? inputs.anchorNames : inputs.anchors.map(\.name)
+            for name in names.prefix(anchorDoorsShown) {
                 lines.append("There's a door here that opens onto \(name).")
+            }
+            if names.count > anchorDoorsShown {
+                lines.append("There are more. Follow the shelves up the map.")
             }
         }
 
@@ -742,6 +1064,7 @@ enum AcademyCartographer {
         say(people.filter { $0.why == .scene }, "here because of today's Page.", "here because of today's Page.")
         let meal = hour < 10 ? "breakfast" : hour < 16 ? "lunch" : "supper"
         say(people.filter { $0.why == .eating }, "having \(meal) in here.", "having \(meal) in here.")
+        say(people.filter { $0.why == .sleeping }, "asleep. Mind your feet.", "asleep. Mind your feet.")
         say(people.filter { $0.why == .attending || $0.why == .haunt }, "in here right now.", "in here right now.")
         return lines
     }
@@ -778,6 +1101,8 @@ struct AcademyWhereabout: Equatable, Sendable {
         case attending
         /// It's a mealtime.
         case eating
+        /// Their authored routine has taken them to their own quarters.
+        case sleeping
         /// Nothing's on. This is just where they tend to be at this hour.
         case haunt
     }
@@ -820,7 +1145,9 @@ struct AcademyScene: Equatable, Sendable {
     }
 
     /// Nil when the metadata doesn't name a room on the map, or names nobody.
-    init?(metadata: [String: String], at: Date, pageID: String? = nil) {
+    init?(metadata: [String: String], at: Date, pageID: String? = nil,
+          cast roster: [NarrativeWorldEntity] = NarrativePackRegistry.entities.filter { $0.kind == .character },
+          rooms: [AcademyRoom] = AcademyGeography.rooms) {
         let room = [
             metadata[Self.roomKey],
             metadata["storySettingID"],
@@ -828,7 +1155,7 @@ struct AcademyScene: Equatable, Sendable {
             metadata["sessionRoom"].flatMap { AcademyGeography.room(forTimetableName: $0)?.id }
         ]
         .compactMap { $0?.nonEmpty }
-        .first { AcademyGeography.room(id: $0) != nil }
+        .first { id in rooms.contains { $0.id == id } }
         guard let room else { return nil }
 
         let listed = [metadata[Self.castKey], metadata["selectedEntityIDs"], metadata["undertakingCast"], metadata["actorIDs"]]
@@ -837,11 +1164,14 @@ struct AcademyScene: Equatable, Sendable {
             .map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } } ?? []
         let single = [metadata["actorID"], metadata["characterID"], metadata["sessionLeaderEntityID"], metadata["storyRecipeLeadID"]]
             .compactMap { $0?.nonEmpty }
+        let knownCast = Set(roster.filter { $0.kind == .character }.map(\.id))
+        let names = Dictionary(roster.filter { $0.kind == .character }.map { ($0.name.lowercased(), $0.id) },
+                               uniquingKeysWith: { first, _ in first })
         let companions = (metadata["sessionCompanions"] ?? "")
             .split(separator: ",")
-            .compactMap { AcademyWhereabouts.id(forName: $0.trimmingCharacters(in: .whitespaces)) }
+            .compactMap { names[$0.trimmingCharacters(in: .whitespaces).lowercased()] }
         var seen: Set<String> = []
-        let cast = (listed + single + companions).filter { AcademyWhereabouts.haunt($0) != nil && seen.insert($0).inserted }
+        let cast = (listed + single + companions).filter { knownCast.contains($0) && seen.insert($0).inserted }
         guard !cast.isEmpty else { return nil }
         self.init(roomID: room, castIDs: cast, at: at, pageID: pageID)
     }
@@ -1047,8 +1377,8 @@ enum AcademyWhereabouts {
         var day: [String]
         /// After supper.
         var evening: [String]
-        /// Most people are asleep somewhere the Book hasn't drawn. Empty
-        /// means off the map for the night.
+        /// Explicit night haunts for the people who stay awake. Empty means
+        /// they go to their Chapter's dormitories or the faculty quarters.
         var night: [String] = []
         /// Where they eat. Nil means they don't stop for meals.
         var meals: String? = AcademyWhereabouts.greatHall
@@ -1168,33 +1498,38 @@ enum AcademyWhereabouts {
         at date: Date,
         calendar: Calendar = .current,
         scenes: [AcademyScene] = [],
-        staging: AcademyEventStaging = AcademyEventStaging()
+        staging: AcademyEventStaging = AcademyEventStaging(),
+        cast: [NarrativeWorldEntity] = NarrativePackRegistry.entities.filter { $0.kind == .character }
     ) -> [AcademyWhereabout] {
+        var rosterIDs: Set<String> = []
+        let roster = cast.filter { $0.kind == .character && rosterIDs.insert($0.id).inserted }
         let hour = calendar.component(.hour, from: date)
         let dayIndex = GrimoireDay.index(for: date, calendar: calendar)
         let session = AcademyScheduleRegistry.sessionInProgress(at: date, calendar: calendar)?.session
         let closed = staging.closedRoomIDs
+        let refuge = [greatHall, "location-book-burrow", "location-stacks"].first { !closed.contains($0) }
+            ?? staging.rooms.first { $0.id != AcademyGeography.dormID && !closed.contains($0.id) }?.id
         // A class held in a shut room moves to the Great Hall. Everybody
         // squeezes in.
         let sessionRoom = session
             .flatMap { AcademyGeography.room(forTimetableName: $0.room)?.id }
-            .map { closed.contains($0) ? greatHall : $0 }
+            .flatMap { closed.contains($0) ? refuge : $0 }
 
         var storyRoom: [String: (room: String, why: AcademyWhereabout.Why, note: String?)] = [:]
         let recent = (scenes + staging.scenes)
-            .filter { date.timeIntervalSince($0.at) < sceneLingers && $0.at.timeIntervalSince(date) < 60 }
+            .filter { date.timeIntervalSince($0.at) >= 0 && date.timeIntervalSince($0.at) < sceneLingers }
             .sorted { $0.at < $1.at }
-        for scene in recent {
+        for scene in recent where staging.room(id: scene.roomID) != nil && !closed.contains(scene.roomID) {
             for id in scene.castIDs { storyRoom[id] = (scene.roomID, .scene, nil) }
         }
         // Staging outranks a passing scene: it's the month's whole story.
-        for staged in staging.staging where staging.room(id: staged.roomID) != nil {
+        for staged in staging.staging where staging.room(id: staged.roomID) != nil && !closed.contains(staged.roomID) {
             storyRoom[staged.castID] = (staged.roomID, .staged, staged.note?.nonEmpty)
         }
         // People out of other books. They only go where the story puts them.
         var seenVisitors: Set<String> = []
         let visitors = staging.staging
-            .filter { hauntsByID[$0.castID] == nil && staging.room(id: $0.roomID) != nil && $0.roomID != AcademyGeography.dormID }
+            .filter { !rosterIDs.contains($0.castID) && staging.room(id: $0.roomID) != nil && !closed.contains($0.roomID) && $0.roomID != AcademyGeography.dormID }
             .reversed()
             .filter { seenVisitors.insert($0.castID).inserted }
             .map { staged in
@@ -1203,13 +1538,25 @@ enum AcademyWhereabouts {
                                   why: .staged, note: staged.note?.nonEmpty, isVisitor: true)
             }
 
-        return visitors + haunts.compactMap { haunt in
-            let name = castNames[haunt.characterID] ?? haunt.mapName
+        return visitors + roster.compactMap { entity in
+            let chapterID = AcademyChapterRegistry.chapter(named: entity.chapter)?.id
+            let quarters = residence(for: entity)
+            let common = chapterID.map(AcademyGeography.commonRoomID) ?? "location-book-burrow"
+            var haunt = hauntsByID[entity.id] ?? Haunt(
+                characterID: entity.id, mapName: shortName(entity), day: [common, "location-stacks"], evening: [common]
+            )
+            if haunt.night.isEmpty { haunt.night = [quarters] }
+            // Supper is still supper. The quiet hours before bed belong to
+            // the Chapter; professors can retreat to their own landing.
+            if hour >= 19 && hour < 22 {
+                haunt.evening = [isStaff(entity) ? quarters : common]
+            }
+            let name = entity.name
             func here(_ room: String, _ why: AcademyWhereabout.Why, _ note: String? = nil) -> AcademyWhereabout {
                 AcademyWhereabout(characterID: haunt.characterID, name: name, mapName: haunt.mapName,
                                   roomID: room, why: why, note: note)
             }
-            if let story = storyRoom[haunt.characterID], story.room != AcademyGeography.dormID {
+            if let story = storyRoom[haunt.characterID], story.room != AcademyGeography.dormID, !closed.contains(story.room) {
                 return here(story.room, story.why, story.note)
             }
             if let session, let sessionRoom {
@@ -1220,9 +1567,33 @@ enum AcademyWhereabouts {
                     return here(sessionRoom, .attending)
                 }
             }
-            return routine(for: haunt, hour: hour, dayIndex: dayIndex, closed: closed)
-                .map { here($0.room, $0.why) }
+            if let usual = routine(for: haunt, hour: hour, dayIndex: dayIndex, closed: closed) {
+                return here(usual.room, (hour >= 22 || hour < 7) && usual.room == quarters ? .sleeping : usual.why)
+            }
+            // A month can shut both their usual rooms and the Great Hall.
+            // They still have feet: find an open landing elsewhere.
+            return ([quarters, common].first { !closed.contains($0) } ?? refuge).map { here($0, .haunt) }
         }
+    }
+
+    private static func isStaff(_ entity: NarrativeWorldEntity) -> Bool {
+        entity.tags.contains { ["professor", "faculty", "support-faculty", "staff", "headmistress"].contains($0) }
+            || entity.id.hasPrefix("professor-") || entity.id == "lydia-boggle"
+    }
+
+    static func residence(for entity: NarrativeWorldEntity) -> String {
+        if isStaff(entity) { return AcademyGeography.facultyID }
+        if let chapter = AcademyChapterRegistry.chapter(named: entity.chapter) {
+            return AcademyGeography.dormitoriesID(chapter.id)
+        }
+        return AcademyGeography.guestID
+    }
+
+    private static func shortName(_ entity: NarrativeWorldEntity) -> String {
+        let bare = entity.name.components(separatedBy: " (").first ?? entity.name
+        let titles: Set<String> = ["Professor", "Dr.", "Headmistress", "The"]
+        let parts = bare.split(separator: " ").map(String.init).filter { !titles.contains($0) }
+        return (isStaff(entity) ? parts.last : parts.first) ?? entity.name
     }
 
     /// Where someone's own day puts them at this hour.
@@ -1253,7 +1624,7 @@ enum AcademyWhereabouts {
             // Everywhere they'd go is shut. They end up where everyone does.
             return rooms.isEmpty || closed.contains(greatHall) ? nil : (greatHall, .haunt)
         }
-        let pick = abs("\(haunt.characterID)|\(dayIndex)|\(slot)".stableHash) % open.count
+        let pick = Int(UInt64(truncatingIfNeeded: "\(haunt.characterID)|\(dayIndex)|\(slot)".stableHash) % UInt64(open.count))
         return (open[pick], .haunt)
     }
 }
@@ -1264,6 +1635,31 @@ enum AcademyWhereabouts {
 struct AcademyArrival: Equatable, Sendable {
     var fromRoomID: String
     var startedAt: Date
+    var duration: TimeInterval = 45
+
+    static let longestWalk: TimeInterval = 240
+
+    func isUnderway(at date: Date) -> Bool {
+        let elapsed = date.timeIntervalSince(startedAt)
+        return elapsed >= 0 && elapsed < duration
+    }
+
+    /// A short passage takes less time than a journey across the Academy.
+    /// Familiar feet keep their own pace, also after closing and reopening.
+    static func departing(_ person: AcademyWhereabout, from roomID: String, at date: Date,
+                          passages: [AcademyPassage], closedRoomIDs: Set<String> = []) -> AcademyArrival? {
+        guard let route = AcademyRoute.rooms(from: roomID, to: person.roomID,
+                                             passages: passages, avoiding: closedRoomIDs), route.count > 1 else { return nil }
+        let pace: Double
+        switch person.why {
+        case .attending, .teaching: pace = 18
+        case .scene, .staged: pace = 22
+        case .eating, .haunt, .sleeping: pace = 30
+        }
+        let linger = Double(UInt64(truncatingIfNeeded: person.characterID.stableHash) % 41)
+        return AcademyArrival(fromRoomID: roomID, startedAt: date,
+                              duration: min(longestWalk, max(45, Double(route.count - 1) * pace + linger)))
+    }
 }
 
 enum AcademyMotion: Equatable, Sendable {
@@ -1271,9 +1667,6 @@ enum AcademyMotion: Equatable, Sendable {
     case stationary
     /// Up and down the room.
     case pacing
-
-    /// How long a walk from one room to another takes on the map.
-    static let walkSeconds: TimeInterval = 45
 
     /// The people who can't keep still.
     static let restless: Set<String> = [
@@ -1285,7 +1678,7 @@ enum AcademyMotion: Equatable, Sendable {
         switch person.why {
         case .teaching, .scene:
             return .pacing
-        case .eating:
+        case .eating, .sleeping:
             return .stationary
         case .staged, .attending, .haunt:
             return restless.contains(person.characterID) ? .pacing : .stationary
@@ -1326,5 +1719,264 @@ enum AcademyRoute {
             }
         }
         return nil
+    }
+}
+
+// MARK: - The illustrated, multi-level atlas
+
+/// Leaves of one Academy, not four independent worlds. Story room IDs and
+/// the canonical passage graph stay unchanged; only their paper addresses move.
+enum AcademyMapLevel: String, CaseIterable, Identifiable, Hashable, Sendable {
+    case undercroft, ground, upper, labyrinth
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .undercroft: return "The Undercroft"
+        case .ground: return "School & Gardens"
+        case .upper: return "The Upper Rooms"
+        case .labyrinth: return "Tower & Stacks"
+        }
+    }
+    var shortTitle: String {
+        switch self {
+        case .undercroft: return "Below"
+        case .ground: return "Ground"
+        case .upper: return "Above"
+        case .labyrinth: return "Stacks"
+        }
+    }
+    var assetName: String { "AcademyAtlas-\(rawValue)-v1" }
+    var note: String {
+        switch self {
+        case .undercroft: return "The roots got here first."
+        case .ground: return "The walls stay. The feet don't."
+        case .upper: return "Mind the stair. It knows your name."
+        case .labyrinth: return "The shelves have been moving again."
+        }
+    }
+}
+
+struct AcademyAtlasDoor: Identifiable, Equatable {
+    var from: String
+    var to: String
+    var level: AcademyMapLevel
+    var id: String { from + "|" + to }
+}
+
+struct AcademyAtlasJourneySegment: Equatable {
+    var rooms: [String]
+    var starts: Double
+    var finishes: Double
+    var enters: Bool
+    var leaves: Bool
+}
+
+enum AcademyIllustratedAtlas {
+    /// Door-to-door surveys of the illustrated passage floors. These curves
+    /// follow the artwork, rather than laying a second CAD plan over it.
+    static let walks: [String: [AcademyMapPoint]] = {
+        var result: [String: [AcademyMapPoint]] = [:]
+        func add(_ a: String, _ b: String, _ points: [(Double, Double)]) {
+            result[a + "|" + b] = points.map { .init($0.0, $0.1) }
+        }
+        add("location-great-hall", "location-north-staircase", [(0.5,0.325),(0.5,0.25),(0.5,0.20),(0.5,0.14)])
+        add("location-great-hall", "location-binding-hall", [(0.5,0.325),(0.5,0.387),(0.5,0.435),(0.5,0.50)])
+        add("location-great-hall", "location-corridor-whispered", [(0.5,0.325),(0.35,0.32),(0.31,0.32)])
+        add("location-corridor-whispered", "location-inkworks", [(0.31,0.32),(0.26,0.32),(0.17,0.31)])
+        add("location-great-hall", "location-momentum-yard", [(0.5,0.325),(0.64,0.32),(0.695,0.32),(0.82,0.31)])
+        add("location-book-burrow", "location-rain-room", [(0.17,0.507),(0.17,0.57),(0.15,0.64)])
+        add("location-momentum-yard", "location-open-field-gate", [(0.82,0.31),(0.82,0.398),(0.74,0.415),(0.74,0.448),(0.91,0.448)])
+        add("location-open-field-gate", "location-walled-garden", [(0.91,0.448),(0.89,0.475),(0.83,0.50)])
+        add("location-walled-garden", "location-secret-garden-prose", [(0.83,0.50),(0.73,0.50),(0.73,0.57),(0.68,0.63),(0.69,0.68),(0.81,0.71),(0.86,0.78),(0.86,0.827)])
+        let burrow = [(0.17,0.507),(0.343,0.507),(0.35,0.63),(0.42,0.636),(0.42,0.685),(0.42,0.756)]
+        add("location-book-burrow", "location-common-emberheart", burrow + [(0.30,0.757)])
+        add("location-book-burrow", "location-common-mossbloom", burrow + [(0.50,0.756)])
+        add("location-book-burrow", "location-common-tidecrest", burrow + [(0.50,0.756),(0.60,0.756),(0.70,0.756)])
+        add("location-book-burrow", "location-common-riddlewind", burrow + [(0.42,0.80),(0.39,0.817),(0.39,0.875)])
+        add("location-book-burrow", "location-common-duskthorn", burrow + [(0.50,0.756),(0.505,0.82),(0.61,0.82),(0.61,0.882)])
+        add("location-still-room", "location-resonance-chamber", [(0.50,0.215),(0.50,0.30),(0.50,0.38),(0.50,0.455),(0.49,0.61)])
+        add("location-kitchens", "location-pantry", [(0.79,0.39),(0.66,0.45),(0.66,0.53),(0.72,0.585),(0.83,0.59),(0.81,0.70)])
+        add("location-glint-hall", "location-spark-annex", [(0.51,0.25),(0.697,0.27),(0.752,0.27),(0.84,0.26)])
+        add("location-faculty-quarters", "location-guest-rooms", [(0.26,0.46),(0.44,0.46),(0.51,0.412),(0.60,0.46),(0.77,0.46)])
+        add("location-outer-stacks", "location-stacks", [(0.64,0.13),(0.61,0.206),(0.59,0.235),(0.55,0.275),(0.50,0.315),(0.49,0.35),(0.54,0.40),(0.55,0.48)])
+        add("location-stacks", "location-vault-of-doors", [(0.55,0.48),(0.67,0.49),(0.75,0.545),(0.80,0.584),(0.82,0.70)])
+        add("location-stacks", "location-shelf-misfiled-days", [(0.55,0.48),(0.39,0.448),(0.35,0.41),(0.28,0.37),(0.28,0.30)])
+        add("location-stacks", "location-headmistress-tower", [(0.55,0.48),(0.37,0.49),(0.32,0.55),(0.27,0.61),(0.27,0.685)])
+        add("location-vault-of-doors", "location-east-stacks", [(0.82,0.70),(0.82,0.585),(0.94,0.552),(0.94,0.47),(0.86,0.47)])
+        add("location-east-stacks", "location-quillquarium", [(0.86,0.47),(0.94,0.55),(0.85,0.59),(0.68,0.62),(0.60,0.71),(0.56,0.75),(0.56,0.85)])
+        return result
+    }()
+
+    static func walk(from a: String, to b: String) -> [AcademyMapPoint]? {
+        if let points = walks[a + "|" + b] { return points }
+        return walks[b + "|" + a].map { Array($0.reversed()) }
+    }
+
+    /// These are surveyed OPEN FLOORS in the generated plates, normalized to
+    /// the full image. Illustration walls are never regenerated by the view.
+    struct Floor: Equatable {
+        var level: AcademyMapLevel
+        var center: AcademyMapPoint
+        var size: AcademyMapPoint
+        init(_ level: AcademyMapLevel, _ x: Double, _ y: Double, _ w: Double, _ h: Double) {
+            self.level = level; center = .init(x, y); size = .init(w, h)
+        }
+    }
+
+    static let floors: [String: Floor] = [
+        "location-great-hall": .init(.ground, 0.5, 0.325, 0.23, 0.09),
+        "location-binding-hall": .init(.ground, 0.5, 0.5, 0.13, 0.08),
+        "location-inkworks": .init(.ground, 0.17, 0.31, 0.14, 0.075),
+        "location-momentum-yard": .init(.ground, 0.82, 0.31, 0.17, 0.1),
+        "location-book-burrow": .init(.ground, 0.17, 0.507, 0.15, 0.065),
+        "location-rain-room": .init(.ground, 0.15, 0.64, 0.17, 0.045),
+        "location-north-staircase": .init(.ground, 0.5, 0.14, 0.08, 0.05),
+        "location-open-field-gate": .init(.ground, 0.91, 0.448, 0.06, 0.026),
+        "location-walled-garden": .init(.ground, 0.83, 0.5, 0.13, 0.065),
+        "location-secret-garden-prose": .init(.ground, 0.86, 0.827, 0.095, 0.037),
+        "location-corridor-whispered": .init(.ground, 0.31, 0.32, 0.06, 0.026),
+        "location-common-emberheart": .init(.ground, 0.3, 0.757, 0.16, 0.055),
+        "location-common-mossbloom": .init(.ground, 0.5, 0.756, 0.13, 0.06),
+        "location-common-tidecrest": .init(.ground, 0.7, 0.756, 0.13, 0.06),
+        "location-common-riddlewind": .init(.ground, 0.39, 0.875, 0.15, 0.04),
+        "location-common-duskthorn": .init(.ground, 0.61, 0.882, 0.13, 0.055),
+        "location-still-room": .init(.undercroft, 0.50, 0.215, 0.22, 0.10),
+        "location-resonance-chamber": .init(.undercroft, 0.49, 0.61, 0.29, 0.115),
+        "location-bibliophonic-hall": .init(.undercroft, 0.20, 0.375, 0.19, 0.115),
+        "location-kitchens": .init(.undercroft, 0.79, 0.39, 0.21, 0.12),
+        "location-pantry": .init(.undercroft, 0.81, 0.70, 0.13, 0.08),
+        "location-glint-hall": .init(.upper, 0.51, 0.25, 0.23, 0.105),
+        "location-spark-annex": .init(.upper, 0.84, 0.26, 0.13, 0.07),
+        "location-old-reading-room": .init(.upper, 0.20, 0.26, 0.15, 0.075),
+        "location-faculty-quarters": .init(.upper, 0.26, 0.46, 0.24, 0.07),
+        "location-guest-rooms": .init(.upper, 0.77, 0.46, 0.23, 0.07),
+        "location-dorms-emberheart": .init(.upper, 0.19, 0.65, 0.20, 0.065),
+        "location-dorms-mossbloom": .init(.upper, 0.51, 0.655, 0.20, 0.065),
+        "location-dorms-tidecrest": .init(.upper, 0.81, 0.655, 0.20, 0.065),
+        "location-dorms-riddlewind": .init(.upper, 0.28, 0.845, 0.25, 0.07),
+        "location-dorms-duskthorn": .init(.upper, 0.75, 0.845, 0.24, 0.07),
+        "location-dorm": .init(.upper, 0.51, 0.54, 0.105, 0.026),
+        "location-outer-stacks": .init(.labyrinth, 0.64, 0.13, 0.30, 0.09),
+        "location-stacks": .init(.labyrinth, 0.55, 0.48, 0.30, 0.12),
+        "location-east-stacks": .init(.labyrinth, 0.86, 0.47, 0.12, 0.10),
+        "location-headmistress-tower": .init(.labyrinth, 0.27, 0.685, 0.17, 0.095),
+        "location-vault-of-doors": .init(.labyrinth, 0.82, 0.70, 0.18, 0.105),
+        "location-quillquarium": .init(.labyrinth, 0.56, 0.85, 0.18, 0.08),
+        "location-shelf-misfiled-days": .init(.labyrinth, 0.28, 0.30, 0.16, 0.055),
+    ]
+
+    static func level(of id: String, in chart: AcademyChart) -> AcademyMapLevel {
+        if let floor = floors[id] { return floor.level }
+        // Temporary rooms grow onto the leaf of their authored entrance.
+        // Prefer a permanent neighbour, so borrowed rooms cannot recursively
+        // move one another between leaves.
+        let neighbours = chart.allPassages.filter { $0.touches(id) }
+            .compactMap { $0.other(than: id) }.compactMap { floors[$0]?.level }
+        return neighbours.contains(.labyrinth) ? .labyrinth : neighbours.first ?? .ground
+    }
+
+    static func floor(of room: AcademyChartRoom, in chart: AcademyChart) -> Floor {
+        if var floor = floors[room.id] {
+            if room.id == "location-shelf-misfiled-days" {
+                // Three genuinely different alcoves on this leaf. The daily
+                // drift still comes from the canonical chart's moving shelf.
+                if room.point.x > 0.5 { floor.center = .init(0.80, 0.24) }
+                else if room.point.y > 0.1 { floor.center = .init(0.25, 0.17) }
+            }
+            if room.id == AcademyGeography.dormID,
+               let entrance = chart.allPassages.first(where: { $0.touches(room.id) })?.other(than: room.id),
+               entrance.hasPrefix("location-dorms-"), let dorms = floors[entrance] {
+                floor.center = .init(dorms.center.x, dorms.center.y + 0.084)
+            }
+            return floor
+        }
+        let level = Self.level(of: room.id, in: chart)
+        let borrowed = chart.rooms.filter { floors[$0.id] == nil && self.level(of: $0.id, in: chart) == level }
+            .sorted { $0.id < $1.id }
+        let index = borrowed.firstIndex(where: { $0.id == room.id }) ?? 0
+        // Borrowed chambers extend onto fresh paper beneath the illustrated
+        // leaf, never cover its architecture, and have no population cap.
+        return Floor(level, index % 2 == 0 ? 0.28 : 0.72,
+                     1.075 + Double(index / 2) * 0.15, 0.33, 0.11)
+    }
+
+    static func projectedRoom(_ original: AcademyChartRoom, in chart: AcademyChart) -> AcademyChartRoom {
+        let floor = Self.floor(of: original, in: chart)
+        var room = original
+        room.point = .init((floor.center.x - 0.04) / 0.92, (floor.center.y - 0.03) / 0.88)
+        room.room.size = .init(floor.size.x / 0.92, floor.size.y / 0.88)
+        // The Stacks are an illustrated open library floor on their own leaf,
+        // no longer a gigantic rectangular ring around every other room.
+        if room.room.form == .ring { room.room.form = .room }
+        return room
+    }
+
+    static func chart(_ source: AcademyChart, on level: AcademyMapLevel) -> AcademyChart {
+        var chart = source
+        chart.rooms = source.rooms.filter { self.level(of: $0.id, in: source) == level }
+            .map { projectedRoom($0, in: source) }
+        let ids = Set(chart.rooms.map(\.id))
+        chart.passages = source.passages.filter { ids.contains($0.from) && ids.contains($0.to) }
+        // Keep the whole graph for walking across stairs. The drawing knows
+        // only this leaf's rooms, so it clips a journey at its stair landing.
+        chart.unseen = source.rooms.flatMap(\.people).filter { person in
+            guard let arrival = source.arrivals[person.characterID] else { return false }
+            return journey(from: arrival.fromRoomID, to: person.roomID, in: source, on: level).contains { $0.leaves }
+            }
+        if level != .labyrinth { chart.anchorRooms = [] }
+        return chart
+    }
+
+    /// The leaf carrying someone's feet now, including a departure gallery
+    /// or intermediate landing before their destination comes into view.
+    static func level(of person: AcademyWhereabout, at date: Date, in chart: AcademyChart) -> AcademyMapLevel {
+        guard let arrival = chart.arrivals[person.characterID], arrival.isUnderway(at: date) else {
+            return level(of: person.roomID, in: chart)
+        }
+        let progress = date.timeIntervalSince(arrival.startedAt) / arrival.duration
+        return AcademyMapLevel.allCases.first { leaf in
+            journey(from: arrival.fromRoomID, to: person.roomID, in: chart, on: leaf)
+                .contains { progress >= $0.starts && progress < $0.finishes }
+        } ?? level(of: person.roomID, in: chart)
+    }
+
+    static func doors(in chart: AcademyChart, on level: AcademyMapLevel) -> [AcademyAtlasDoor] {
+        chart.allPassages.compactMap { passage in
+            guard chart.room(passage.from) != nil, chart.room(passage.to) != nil else { return nil }
+            let from = self.level(of: passage.from, in: chart), to = self.level(of: passage.to, in: chart)
+            guard from != to else { return nil }
+            if from == level { return AcademyAtlasDoor(from: passage.from, to: passage.to, level: to) }
+            if to == level { return AcademyAtlasDoor(from: passage.to, to: passage.from, level: from) }
+            return nil
+        }.sorted { $0.id < $1.id }
+    }
+
+    static func borrowedRows(in chart: AcademyChart, on level: AcademyMapLevel) -> Int {
+        let count = chart.rooms.filter { floors[$0.id] == nil && self.level(of: $0.id, in: chart) == level }.count
+        return (count + 1) / 2
+    }
+
+    /// Split one canonical walk into its visible stretches on a leaf. Stair
+    /// crossings divide the shared journey clock halfway between rooms,
+    /// including walks that leave a leaf and later return to it.
+    static func journey(from start: String, to goal: String, in chart: AcademyChart,
+                        on level: AcademyMapLevel) -> [AcademyAtlasJourneySegment] {
+        guard let path = AcademyRoute.rooms(from: start, to: goal, passages: chart.allPassages,
+                                            avoiding: chart.closedRoomIDs), path.count > 1 else { return [] }
+        let edges = Double(path.count - 1)
+        var segments: [AcademyAtlasJourneySegment] = []
+        var index = 0
+        while index < path.count {
+            guard self.level(of: path[index], in: chart) == level else { index += 1; continue }
+            let first = index
+            while index + 1 < path.count, self.level(of: path[index + 1], in: chart) == level { index += 1 }
+            let last = index
+            segments.append(AcademyAtlasJourneySegment(rooms: Array(path[first...last]),
+                starts: max(0, (Double(first) - 0.5) / edges),
+                finishes: min(1, (Double(last) + 0.5) / edges),
+                enters: first > 0, leaves: last < path.count - 1))
+            index += 1
+        }
+        return segments
     }
 }

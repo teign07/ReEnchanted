@@ -739,6 +739,9 @@ enum PhysicalBookPricing {
     static let slimMonthlyMaxPages = 72
     static let slimMonthlyFloorCents = 3_999
     static let slimMonthlyContributionCents = 2_500
+    /// The weekly is an easy, cheap way in to the bigger books: cost plus ten
+    /// dollars and no shelf floor. Must match WEEKLY_CONTRIBUTION_CENTS in the Worker.
+    static let weeklyContributionCents = 1_000
 
     static func isSlimMonthly(variant: PhysicalBookVariant, editionKind: PublicationEditionKind?, pageCount: Int?) -> Bool {
         variant.coverTreatment == .perfectBound && editionKind == .monthly
@@ -754,7 +757,7 @@ enum PhysicalBookPricing {
             return slimMonthlyFloorCents
         }
         switch variant.coverTreatment {
-        case .saddleStitch: return 1_999
+        case .saddleStitch: return nil
         case .perfectBound:
             switch editionKind {
             case .monthly: return 4_999
@@ -787,7 +790,7 @@ enum PhysicalBookPricing {
         if isSlimMonthly(variant: variant, editionKind: editionKind, pageCount: pageCount) {
             return min(slimMonthlyContributionCents, policy.markupPerCopyCents)
         }
-        return variant.coverTreatment == .saddleStitch ? 1_500 : policy.markupPerCopyCents
+        return variant.coverTreatment == .saddleStitch ? weeklyContributionCents : policy.markupPerCopyCents
     }
 
     static func retailMarkupSubtotalCents(

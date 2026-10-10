@@ -1,0 +1,174 @@
+{
+  "provenance": {
+    "kind": "development-simulation",
+    "reader": "synthetic",
+    "inputSource": "EditionProofHarness / FieldBookFixture heavy October, exported by the braid-days step",
+    "braidSource": "docs/fixtures/real-braids-october-2026.json",
+    "runner": "Tests/InsideCoverCoreTests/BraidMonthLabTests.swift",
+    "rendering": "Saved braid text is displayed verbatim; the later braid is an explicitly labelled excerpt."
+  },
+  "earlierPage": {
+    "day": "2026-10-02",
+    "id": "682EC52C-F4EE-4BD5-B8B1-EB07D0BA4358",
+    "type": "souvenir",
+    "origin": "userAuthored",
+    "promptText": "One thing from today you'd rather not lose.",
+    "userInput": "The man at the bakery remembered I like the end piece.",
+    "createdAt": 812682000
+  },
+  "day": "2026-10-23",
+  "pages": [
+    {
+      "id": "AB173E26-E19F-4301-B325-FBFE27582386",
+      "type": "diary",
+      "origin": "userAuthored",
+      "promptText": "Write one true thing about today.",
+      "userInput": "Learned the name of the bakery cat after work. It rained again right after.",
+      "createdAt": 814453200
+    },
+    {
+      "id": "44BE2E3D-68D6-4187-B112-650C8E6C6B70",
+      "type": "enchantment",
+      "origin": "generated",
+      "promptText": "Mirror, Mirror",
+      "userInput": "The mirror said you looked like someone who had been listening to a long story and had just reached the good part.",
+      "createdAt": 814485600
+    },
+    {
+      "id": "5150A9D4-3B8E-4198-9127-66CFE5681178",
+      "type": "diary",
+      "origin": "userAuthored",
+      "promptText": "What happened?",
+      "userInput": "I tried the thing from the Wayfinding class, mapping the street by smell, on the way home. Bakery, then the laundrette (hot cotton), then the bins behind the chip shop, then nothing for a long stretch, then woodsmoke from somebody's chimney two roads over. I'd never have noticed the woodsmoke if I hadn't been playing. I stood at the corner for a while just breathing it in like a weirdo.\n\nI think that's what this whole Book is for, honestly. Making me stand on corners.",
+      "createdAt": 814500000
+    }
+  ],
+  "worldBeat": {
+    "detail": "Rooms that belong in other books lean in at the windows to see how the Academy does things.",
+    "kind": "worldEvent",
+    "id": "world-event:count-unbound:pulse:rc-leaning-rooms",
+    "title": "The ongoing story"
+  },
+  "braid": {
+    "attempts": 1,
+    "body": "The bakery\n\nLearned the name of the bakery cat after work.\n\nThe mirror said you looked like someone who had been listening to a long story and had just reached the good part.\n\nIt rained again right after.\n\nYou tried the thing from the Wayfinding class, mapping the street by smell, on the way home.\n\nBakery, then the laundrette (hot cotton), then the bins behind the chip shop, then nothing for a long stretch, then woodsmoke from somebody's chimney two roads over. You'd never have noticed the woodsmoke if you hadn't been playing. You stood at the corner for a while just breathing it in like a weirdo. You think that's what this whole Book is for, honestly. Making you stand on corners. 21 days ago: The man at the bakery remembered you like the end piece.\n\nRooms that belong in other books lean in at the windows to see how the Academy does things.\n\nI'm practising being quiet. I'm bad at it.",
+    "day": "2026-10-23",
+    "findings": [
+      "tooShort",
+      "missingContinuityBeat"
+    ],
+    "path": "wonder",
+    "tags": [
+      "braid",
+      "local-model",
+      "mlx",
+      "gemma",
+      "braid-plan-guided",
+      "braid-gemma-plain-prose",
+      "braid-gemma-single-telling",
+      "braid-wonder",
+      "braid-wonder-fallback",
+      "braid-claim:lived:AB173E26-E19F-4301-B325-FBFE27582386#0.0",
+      "braid-claim:lived:AB173E26-E19F-4301-B325-FBFE27582386#0.1",
+      "braid-claim:world:44BE2E3D-68D6-4187-B112-650C8E6C6B70#0.0",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.0",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.1",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.2",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.3",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.4",
+      "braid-claim:lived:5150A9D4-3B8E-4198-9127-66CFE5681178#0.5",
+      "braid-claim:world:world-event:count-unbound:pulse:rc-leaning-rooms",
+      "braid-contribution-page:AB173E26-E19F-4301-B325-FBFE27582386",
+      "braid-contribution-page:44BE2E3D-68D6-4187-B112-650C8E6C6B70",
+      "braid-contribution-page:5150A9D4-3B8E-4198-9127-66CFE5681178",
+      "braid-contribution-world:eyJkZXRhaWwiOiJSb29tcyB0aGF0IGJlbG9uZyBpbiBvdGhlciBib29rcyBsZWFuIGluIGF0IHRoZSB3aW5kb3dzIHRvIHNlZSBob3cgdGhlIEFjYWRlbXkgZG9lcyB0aGluZ3MuIiwia2luZCI6IndvcmxkRXZlbnQiLCJpZCI6IndvcmxkLWV2ZW50OmNvdW50LXVuYm91bmQ6cHVsc2U6cmMtbGVhbmluZy1yb29tcyIsInRpdGxlIjoiVGhlIG9uZ29pbmcgc3RvcnkifQ==",
+      "braid-residue-relation:ret",
+      "braid-residue-salient:Learned the name of the bakery cat after work.",
+      "braid-plan-form:returnForm",
+      "braid-plan-motion:recurrence",
+      "braid-plan-pressure:rhyme",
+      "braid-plan-scale:full",
+      "braid-plan-spine:Learned the name of the bakery cat after work.",
+      "braid-plan-return:21|Learned the name of the bakery cat after work.",
+      "braid-plan-crossing:Learned the name of the bakery cat after work.",
+      "braid-plan-evidence:AB173E26-E19F-4301-B325-FBFE27582386",
+      "braid-plan-evidence:5150A9D4-3B8E-4198-9127-66CFE5681178",
+      "braid-audit-best-effort"
+    ],
+    "title": "The bakery",
+    "words": 161
+  },
+  "laterPages": [
+    {
+      "day": "2026-10-27",
+      "id": "B767CAD1-2F08-492F-B37D-B8235088CB6E",
+      "type": "quip",
+      "origin": "userAuthored",
+      "promptText": "What surprised you?",
+      "userInput": "That I missed writing in here on the two days I didn't.",
+      "createdAt": 814834800
+    },
+    {
+      "day": "2026-10-30",
+      "id": "F0537907-E166-4370-86EE-7C733C6474C9",
+      "type": "diary",
+      "origin": "userAuthored",
+      "promptText": "What happened?",
+      "userInput": "Last real day of October. I read back through the month on the bus and there's more in it than I thought. The heron. The stair. The bees. The woodsmoke. None of it is anything, and all of it is the month. I want to remember that it was a month where I started looking up.",
+      "createdAt": 815104800
+    }
+  ],
+  "laterBraid": {
+    "attempts": 1,
+    "body": "The back step\n\nWrote your brother a postcard on the back step.\n\nThe Count Returned\n\nDracula is back in *Dracula.* The borrowed rooms have gone home to their books, the stair is a stair in a story again, and the drawbridge has been returned to the Quillquarium's nibs with an apology and a quantity of ink. Serenity Brown still hears the crossings.\n\nYou don't know why it stayed with you.\n\nLast real day of October.\n\nYou read back through the month on the bus and there's more in it than you thought. The heron. The stair. The bees. The woodsmoke. None of it's anything, and all of it's the month. You want to remember that it was a month where you started looking up. 19 days ago: You sat on the back step for ten minutes with your coat on and watched next door's cat try to get into the recycling.\n\nIt was clear, and the moon was a waning gibbous. The sky showed thin, high clouds moving fast. A single star blinked out once.\n\nI'm giving everything in the room an opinion.",
+    "day": "2026-10-30",
+    "findings": [
+      "underBand",
+      "missingContinuityBeat"
+    ],
+    "path": "wonder",
+    "tags": [
+      "braid",
+      "local-model",
+      "mlx",
+      "gemma",
+      "braid-plan-guided",
+      "braid-gemma-plain-prose",
+      "braid-gemma-single-telling",
+      "braid-authored-interlude",
+      "braid-wonder",
+      "braid-wonder-fallback",
+      "braid-claim:lived:030E93E7-5437-4ADB-82C9-6F276F278B00#0.0",
+      "braid-claim:lived:030E93E7-5437-4ADB-82C9-6F276F278B00#0.1",
+      "braid-claim:world:26579E39-2886-449C-90B7-E84705683866#0.0",
+      "braid-claim:world:26579E39-2886-449C-90B7-E84705683866#0.1",
+      "braid-claim:world:26579E39-2886-449C-90B7-E84705683866#0.2",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.0",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.1",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.2",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.3",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.4",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.5",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.6",
+      "braid-claim:lived:F0537907-E166-4370-86EE-7C733C6474C9#0.7",
+      "braid-contribution-page:030E93E7-5437-4ADB-82C9-6F276F278B00",
+      "braid-contribution-page:26579E39-2886-449C-90B7-E84705683866",
+      "braid-contribution-page:F0537907-E166-4370-86EE-7C733C6474C9",
+      "braid-residue-relation:ret",
+      "braid-residue-salient:Wrote my brother a postcard on the back step.",
+      "braid-plan-form:returnForm",
+      "braid-plan-motion:recurrence",
+      "braid-plan-pressure:rhyme",
+      "braid-plan-scale:full",
+      "braid-plan-spine:Wrote my brother a postcard on the back step.",
+      "braid-plan-return:19|Wrote my brother a postcard on the back step.",
+      "braid-plan-crossing:The stair.",
+      "braid-plan-evidence:030E93E7-5437-4ADB-82C9-6F276F278B00",
+      "braid-plan-evidence:F0537907-E166-4370-86EE-7C733C6474C9",
+      "braid-audit-best-effort",
+      "braid-thread:opinions:0"
+    ],
+    "title": "The back step",
+    "words": 180
+  }
+}

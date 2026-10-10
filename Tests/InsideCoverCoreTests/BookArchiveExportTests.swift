@@ -185,12 +185,12 @@ final class BookArchiveExportTests: XCTestCase {
         )
 
         let spine = edition.sections.first { $0.id == "book-memory-spine" }
-        XCTAssertEqual(spine?.title, "Book Memory Spine")
+        XCTAssertEqual(spine?.title, "What Stayed With Me")
         XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-cover-story" && $0.body.contains("Rain At The Window") } == true)
         // One braid names rain once: a single mention is not a refrain.
         XCTAssertFalse(spine?.items.contains { $0.id == "memory-spine-refrain" } == true)
         XCTAssertTrue(spine?.items.contains { $0.id == "memory-spine-callbacks" && $0.body.contains("rain made the lamp brave") } == true)
-        XCTAssertTrue(edition.memorySpinePromptLines.contains { $0.contains("Cover Story") && $0.contains("Rain At The Window") })
+        XCTAssertTrue(edition.memorySpinePromptLines.contains { $0.contains("From the Nightly Telling") && $0.contains("Rain At The Window") })
     }
 
     func testMonthlyEditionGroupsRepeatedWordSignals() {

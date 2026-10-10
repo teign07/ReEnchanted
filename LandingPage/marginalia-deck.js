@@ -27,8 +27,20 @@
   // Whole figures go to the leaves a reader turns to first. The punctuation
   // charms are narrow little things, so they wait at the back of the hand and
   // are only reached if every goblin and pixie is already out on a page.
-  const hand = [].concat(shuffled('portrait'), shuffled('fieldNote'), shuffled('classic'),
-                         shuffled('ornament'), shuffled('sigil'));
+  const ordinary = [].concat(shuffled('classic'), shuffled('fieldNote'), shuffled('portrait'),
+                            shuffled('ornament'), shuffled('sigil'));
+  const seasonal = (catalogue.seasonal || []).slice();
+  for (let i = seasonal.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [seasonal[i], seasonal[j]] = [seasonal[j], seasonal[i]];
+  }
+  // Alternate the month's objects with the app's permanent cabinet. The
+  // opening gets leaves, lamps and keys as well as goblins and pixies.
+  const hand = [];
+  for (let i = 0; i < Math.max(ordinary.length, seasonal.length); i++) {
+    if (seasonal[i]) hand.push(seasonal[i]);
+    if (ordinary[i]) hand.push(ordinary[i]);
+  }
   // The Academy's pinned scraps are shuffled on their own, so a leaf's note
   // and its mark never run out together.
   const pinned = catalogue.notes ? catalogue.notes.slice() : [];
@@ -36,14 +48,18 @@
     const j = Math.floor(random() * (i + 1));
     [pinned[i], pinned[j]] = [pinned[j], pinned[i]];
   }
-  let dealt = 0, note = 0;
+  let dealt = 0, note = 0, pageDealt = 0;
 
-  function deal() { return hand[dealt++ % hand.length]; }
+  function deal() { return hand[dealt++] || null; }
+  // Reflow uses the same remaining drawings without consuming another hand.
+  function beginPages() { pageDealt = dealt; }
+  function dealPage() { return hand[pageDealt++] || null; }
   function dealNote() { return pinned.length ? pinned[note++ % pinned.length] : null; }
 
   function dress(image) {
     if (!image || image.dataset.mark) return;
     const mark = deal();
+    if (!mark) { image.hidden = true; return; }
     image.dataset.mark = mark.id;
     image.src = mark.src;
     image.width = mark.w;
@@ -67,7 +83,7 @@
     image.alt = '';
   }
 
-  const marks = '.quiet-mark,.reading-mark,.encounter-mark';
+  const marks = '.opening-mark img,.quiet-mark,.reading-mark,.encounter-mark';
   function dressAll(root) {
     const scope = root || document;
     scope.querySelectorAll(marks).forEach(dress);
@@ -75,5 +91,5 @@
   }
   dressAll();
 
-  window.PublicMarginaliaDeck = { deal, dress, dressAll, marks: hand.length, notes: pinned.length };
+  window.PublicMarginaliaDeck = { deal, dress, dressAll, beginPages, dealPage, marks: hand.length, notes: pinned.length };
 })();

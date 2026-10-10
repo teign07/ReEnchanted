@@ -85,3 +85,30 @@ replaced by publishing the previous candidate again.
   bytes under a published asset ID.
 - A signature that doesn't verify against the app's public key, or an asset
   whose size or digest differs from the manifest (publish script).
+
+## Running a finished issue again next year
+
+A monthly issue is one authored run (the validator rejects `annual`), so the
+second run is a fork with new identity, not a replay:
+
+```bash
+python3 scripts/monthly_issue.py reissue ContentPacks/count-unbound --year 2027
+```
+
+This copies the pack to `ContentPacks/count-unbound-2027/` and changes only the
+year-keyed identity: issue, run, pack and receipt-scope IDs, the shelf's asset IDs
+(prefix `count-unbound-2027.`), `startYear`, `issueYear` and `eventStartYear` on
+placement triggers, `Month 2026` strings, and file names that carry the year. Scene
+and beat IDs keep their names. Then it prints what a script can't judge:
+
+- **Years left in shipped JSON.** Usually generation dates; leave them.
+- **Weekday drift.** The calendar dates are fixed but the weekdays move: October 1 is
+  a Thursday in 2026 and a Friday in 2027, so there are five Sundays, not four. Every
+  `Sunday` in the story text (and every Sunday-pinned window) needs a look.
+- **Generators** that hardcode the year (`make_*.py`); only rerun them to regenerate art.
+
+Then `rehearse` the fork and run `swift test --filter MonthlyIssue` (the suite
+globs every `ContentPacks/*/issue.json`, so the fork is checked in place). Do the
+fork in late summer, not on the day: weekday drift and engine drift are the
+work, and both are cheaper to find in August. Keep the 2026 folder untouched and
+in the tree; its tests are what tell you the engine still reads the pack.

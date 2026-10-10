@@ -1,0 +1,2199 @@
+[
+  {
+    "date": 812520000,
+    "id": "2026-10-01",
+    "pages": [
+      {
+        "userInput": "Today the class walked the yard blindfolded, following a thread, and you were the only one who found the end by listening for the knot.",
+        "usedInBookOfYou": false,
+        "promptText": "Wayfinding",
+        "createdAt": 812559600,
+        "origin": "generated",
+        "type": "academyClass",
+        "id": "454B37A8-6DB3-4B9B-90EA-BF705BCEAE42",
+        "sourceID": "academyClass",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {
+          "sessionRoom": "Wing 2: The Momentum Yard",
+          "sessionProfessor": "Professor Stonebrook",
+          "sessionName": "Wayfinding",
+          "sessionID": "wayfinding-kineticism"
+        }
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 812548800,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "playerReply": "",
+        "userInput": "First of the month. I decided to actually write in this thing instead of just tapping keep. The kettle took forever and I let it. The light in the hall at eight is the colour of weak tea and I've walked through it every morning for two years without once looking at it.",
+        "type": "diary",
+        "promptText": "What happened?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "673F2A54-D86E-4839-82BB-500F19DEB33A",
+        "tags": [
+          "diary"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 812606400,
+    "id": "2026-10-02",
+    "pages": [
+      {
+        "userInput": "You looked at the stairs for a long time. I counted.",
+        "usedInBookOfYou": false,
+        "promptText": "A note",
+        "createdAt": 812660400,
+        "origin": "generated",
+        "type": "gossip",
+        "id": "45788E7A-57B4-4A13-8CAC-F5FB16BEF75C",
+        "sourceID": "gossip",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {
+          "castID": "penny-blackletter"
+        }
+      },
+      {
+        "userInput": "morning, the tap",
+        "usedInBookOfYou": false,
+        "promptText": "Write one true thing about today.",
+        "createdAt": 812638800,
+        "origin": "generated",
+        "type": "diary",
+        "id": "74A26035-BD46-47A9-A1B2-DE3D0ED3AD24",
+        "sourceID": "diary",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [
+          {
+            "id": "7BD2FC7C-CB9F-4098-9662-32697DE3E105",
+            "reference": "fixture://heavy-lamp.png",
+            "caption": "morning, the tap",
+            "metadata": {},
+            "kind": "renderedImageFile",
+            "sourceID": "fixture"
+          }
+        ],
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "metadata": {}
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 812682000,
+        "origin": "userAuthored",
+        "sourceID": "souvenir",
+        "userInput": "The man at the bakery remembered I like the end piece.",
+        "playerReply": "",
+        "type": "souvenir",
+        "promptText": "One thing from today you'd rather not lose.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "682EC52C-F4EE-4BD5-B8B1-EB07D0BA4358",
+        "tags": [
+          "souvenir"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 812692800,
+    "id": "2026-10-03",
+    "pages": [
+      {
+        "userInput": "",
+        "usedInBookOfYou": false,
+        "promptText": "“Attention is the rarest and purest form of generosity.” — Simone Weil",
+        "createdAt": 812721600,
+        "origin": "generated",
+        "type": "quotes",
+        "id": "037C2A7D-FC50-4F46-86B2-5D5831A4ACCE",
+        "sourceID": "quotes",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {}
+      }
+    ]
+  },
+  {
+    "date": 812779200,
+    "id": "2026-10-04",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "createdAt": 812844000,
+        "origin": "generated",
+        "sourceID": "theBleed",
+        "playerReply": "",
+        "userInput": "",
+        "type": "theBleed",
+        "promptText": "Every Listed Jumper Home\n\nA supervised Jump into *Dracula* ended early on Sunday after Wicker Eddies wrote an unauthorized sentence in the source margin. The sentence read: *For one sentence, let him choose the verb.*\n\nProfessor Permancer opened the return. Every registered entrant answered the bookmark's check, and the Vault's roll was read twice. The source is closed while the annotation is examined.\n\nAsked afterwards whether it was a prank, Eddies said, “I meant it.” He did not say what he'd meant. He was sitting on the Vault floor at the time with ink on his knee, and the Bleed noted that he did not look like a boy who was enjoying himself.\n\nPenny Blackletter, who held the list, reports that all names were accounted for. The Bleed would like it on record that this was true when she said it.\n\nPermancer has asked the Bleed to print the exact sentence. We have.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "7848CC50-48B1-4F22-9BBB-3D69498014DF",
+        "tags": []
+      },
+      {
+        "userInput": "You looked at the brass tap in the hall until it told you the story of every hand that ever turned it, which was mostly impatient.",
+        "usedInBookOfYou": false,
+        "promptText": "Everything Speaks",
+        "createdAt": 812844000,
+        "origin": "generated",
+        "type": "enchantment",
+        "id": "635BAC3F-FD96-4528-B752-978E6381E8CD",
+        "sourceID": "enchantment",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [
+          {
+            "metadata": {},
+            "caption": "Everything Speaks",
+            "kind": "renderedImageFile",
+            "reference": "fixture://heavy-lamp.png",
+            "sourceID": "fixture",
+            "id": "1B968ECC-AB01-43D3-8E99-66DA14FD7971"
+          }
+        ],
+        "tags": [],
+        "metadata": {}
+      },
+      {
+        "userInput": "the lamp, lit",
+        "usedInBookOfYou": false,
+        "promptText": "Write one true thing about today.",
+        "createdAt": 812811600,
+        "origin": "generated",
+        "type": "diary",
+        "id": "1F82D8E2-ECD3-4EBD-87B1-EAFAFCADCCC8",
+        "sourceID": "diary",
+        "privacy": "privateLocal",
+        "playerReply": "",
+        "mediaAssets": [
+          {
+            "metadata": {},
+            "caption": "the lamp, lit",
+            "kind": "renderedImageFile",
+            "reference": "fixture://heavy-dusk.png",
+            "sourceID": "fixture",
+            "id": "29BF039F-FEDC-4B18-BCFB-E4FD42532782"
+          }
+        ],
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "metadata": {}
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 812826000,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "playerReply": "",
+        "userInput": "Long walk. I took the path by the water because the main road was loud, and there was a heron standing in the shallows so still that two kids were arguing about whether it was real. It moved its head about an inch and one of them screamed. I laughed out loud on my own like an idiot and didn't care.\n\nHome by four. Rain by four-fifteen. Good timing for once.",
+        "type": "diary",
+        "promptText": "What happened?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "5AB22610-58D1-4C89-8D3A-80325F7139C2",
+        "tags": [
+          "diary"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 812865600,
+    "id": "2026-10-05",
+    "pages": [
+      {
+        "userInput": "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen. The truth is simpler: you were in the corridor on Tuesday, looking at the stair as if it had said something, and I did not ask what. I regret that. So I am asking now, on paper, where I cannot see your face change.\n\nWhat did it say?",
+        "usedInBookOfYou": false,
+        "promptText": "A letter from Zara Finch",
+        "createdAt": 812901600,
+        "origin": "generated",
+        "type": "letter",
+        "id": "A5187E88-303E-495C-A388-3D663ADF4C9B",
+        "sourceID": "letter",
+        "privacy": "privateLocal",
+        "playerReply": "Dear Zara, it said nothing, which was the problem. It was the stair by the coat hooks and it has a tread that creaks only on the way down, never up, and I was standing there trying to work out what that means about stairs. I think it means they mind being left more than being climbed. Ask me again on Tuesday.",
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {
+          "castID": "zara-finch",
+          "speakerName": "Zara Finch"
+        }
+      },
+      {
+        "createdAt": 812905200,
+        "playerReply": "",
+        "promptText": "Ink-Binding",
+        "mediaAssets": [],
+        "tags": [],
+        "privacy": "privateLocal",
+        "id": "7EC4913F-0721-4D36-A029-E2F45997D14E",
+        "usedInBookOfYou": false,
+        "metadata": {
+          "sessionProfessor": "Professor Villanelle",
+          "sessionRoom": "Wing 1: The Inkworks",
+          "sessionName": "Ink-Binding"
+        },
+        "type": "academyClass",
+        "origin": "generated",
+        "sourceID": "academyClass",
+        "userInput": "A sentence has to be bound before it can leave the page. Yours leaned against the margin and refused to be tied. Villanelle approved."
+      }
+    ]
+  },
+  {
+    "date": 812952000,
+    "id": "2026-10-06",
+    "pages": [
+      {
+        "createdAt": 812984400,
+        "playerReply": "",
+        "promptText": "Write one true thing about today.",
+        "mediaAssets": [],
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "privacy": "privateLocal",
+        "id": "948CD1DA-CCC5-4B05-B884-577746C80B37",
+        "usedInBookOfYou": false,
+        "type": "diary",
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "context": {
+          "dayPart": "morning",
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400
+        },
+        "userInput": "Tidied the shelf of things I never use at Amanda's. I kept thinking about it on the bus."
+      },
+      {
+        "promptText": "A note",
+        "userInput": "The kettle in the Kitchens has opinions about you. Do not ask.",
+        "metadata": {
+          "castID": "ambrose-trencher"
+        },
+        "privacy": "privateLocal",
+        "type": "gossip",
+        "mediaAssets": [],
+        "sourceID": "gossip",
+        "id": "3BA06129-918C-40ED-88D2-07F8EAC5959A",
+        "usedInBookOfYou": false,
+        "origin": "generated",
+        "createdAt": 813006000,
+        "tags": [],
+        "playerReply": ""
+      },
+      {
+        "promptText": "The Lighthouse Keeper's Coat",
+        "userInput": "There was once a coat that remembered a lighthouse. It hung in a hall where nobody went, and every autumn it grew a little salt on the collar.\n\nOn the night the wind came off the water, the coat stood up on its own and walked down the stairs.\n\nNobody saw it go. The hall has smelled of the sea since.",
+        "metadata": {},
+        "privacy": "privateLocal",
+        "type": "narrativeOS",
+        "mediaAssets": [],
+        "sourceID": "narrativeOS",
+        "id": "CB381850-7317-4397-83CD-ADAB902A3A87",
+        "usedInBookOfYou": false,
+        "origin": "generated",
+        "createdAt": 813024000,
+        "tags": [],
+        "playerReply": ""
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813031200,
+        "origin": "userAuthored",
+        "sourceID": "mood",
+        "userInput": "Frayed. Too many emails, and all of them wanted something by Friday.",
+        "playerReply": "",
+        "type": "mood",
+        "promptText": "What word fits today?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "B1599181-C798-433D-8522-0AFFC0FE7BD4",
+        "tags": [
+          "mood"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 813038400,
+    "id": "2026-10-07",
+    "pages": [
+      {
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "dayPart": "morning",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "userInput": "Tried a new route to work at the library. I told Amanda about it later.",
+        "privacy": "privateLocal",
+        "type": "diary",
+        "mediaAssets": [],
+        "sourceID": "diary",
+        "id": "B12E630A-92C5-41C9-BF4A-BE13129AFE5A",
+        "usedInBookOfYou": false,
+        "origin": "userAuthored",
+        "createdAt": 813070800,
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "playerReply": ""
+      },
+      {
+        "promptText": "“Why, sometimes I've believed as many as six impossible things before breakfast.” — Lewis Carroll",
+        "mediaAssets": [],
+        "origin": "generated",
+        "sourceID": "quotes",
+        "privacy": "privateLocal",
+        "userInput": "",
+        "createdAt": 813085200,
+        "tags": [
+          "quote",
+          "attention",
+          "wonder"
+        ],
+        "playerReply": "",
+        "type": "quotes",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "dayPart": "afternoon",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "id": "A5280648-1C2B-4403-ABAD-1A5E7F023EAB",
+        "usedInBookOfYou": false
+      },
+      {
+        "promptText": "The Marginalia Guild",
+        "mediaAssets": [],
+        "metadata": {
+          "sessionName": "The Marginalia Guild",
+          "sessionID": "marginalia-guild"
+        },
+        "origin": "generated",
+        "sourceID": "supportGuild",
+        "privacy": "privateLocal",
+        "userInput": "The guild met in the Corridor of Whispered Secrets. Someone had left a note in a book from 1974: 'Look up.' You added one underneath.",
+        "createdAt": 813106800,
+        "tags": [],
+        "playerReply": "",
+        "type": "supportGuild",
+        "id": "A1ADFDF6-FEC8-4193-830A-7F3C19D9C154",
+        "usedInBookOfYou": false
+      }
+    ]
+  },
+  {
+    "pages": [
+      {
+        "promptText": "Resonance",
+        "mediaAssets": [],
+        "metadata": {
+          "sessionName": "Resonance",
+          "sessionID": "synesthetic-resonance",
+          "sessionProfessor": "Professor Euphony",
+          "sessionRoom": "Wing 3: The Resonance Chamber"
+        },
+        "origin": "generated",
+        "sourceID": "academyClass",
+        "privacy": "privateLocal",
+        "userInput": "You hummed one note until the chamber hummed it back. Euphony said it was the first honest note this term.",
+        "createdAt": 813164400,
+        "tags": [],
+        "playerReply": "",
+        "type": "academyClass",
+        "id": "E5E24BC9-CAEB-4B16-AB53-23E067CF1641",
+        "usedInBookOfYou": false
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813150000,
+        "origin": "userAuthored",
+        "sourceID": "weather",
+        "userInput": "Low grey sky sitting right on the roofs like a lid. I like it more than I should. It makes the street feel like a room.",
+        "playerReply": "",
+        "type": "weather",
+        "promptText": "Look outside. Write what the sky is doing and whether you like it.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "DFCDE322-55B6-48E8-B8C9-B25112F01FE8",
+        "tags": [
+          "weather"
+        ]
+      }
+    ],
+    "id": "2026-10-08",
+    "date": 813124800
+  },
+  {
+    "pages": [
+      {
+        "promptText": "What did you keep today?",
+        "mediaAssets": [],
+        "origin": "userAuthored",
+        "sourceID": "souvenir",
+        "privacy": "privateLocal",
+        "userInput": "Carried the heavy shopping up all four flights in the park by the war memorial. Shirley said it was typical of me.",
+        "createdAt": 813243600,
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "playerReply": "",
+        "type": "souvenir",
+        "context": {
+          "dayPart": "morning",
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "rain"
+          ]
+        },
+        "id": "45520A31-C527-45F7-AC5A-A31187748256",
+        "usedInBookOfYou": false
+      },
+      {
+        "promptText": "“Hope is the thing with feathers that perches in the soul.” — Emily Dickinson",
+        "mediaAssets": [],
+        "origin": "generated",
+        "sourceID": "quotes",
+        "privacy": "privateLocal",
+        "userInput": "",
+        "createdAt": 813258000,
+        "tags": [
+          "quote",
+          "attention",
+          "wonder"
+        ],
+        "playerReply": "",
+        "type": "quotes",
+        "context": {
+          "dayPart": "afternoon",
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "rain"
+          ]
+        },
+        "id": "D8C25E59-2C0A-4A3C-894B-8B2CCC2EDA10",
+        "usedInBookOfYou": false
+      },
+      {
+        "promptText": "What was the sky doing?",
+        "mediaAssets": [],
+        "origin": "userAuthored",
+        "sourceID": "weather",
+        "privacy": "privateLocal",
+        "userInput": "Clear and sharp. My breath showed at the bus stop.",
+        "createdAt": 813272400,
+        "tags": [
+          "weather",
+          "preview"
+        ],
+        "playerReply": "",
+        "type": "weather",
+        "context": {
+          "dayPart": "evening",
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "rain"
+          ]
+        },
+        "id": "99D42551-6410-4811-BFE8-7E5594DDE523",
+        "usedInBookOfYou": false
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813276000,
+        "origin": "generated",
+        "sourceID": "theBleed",
+        "userInput": "",
+        "playerReply": "",
+        "type": "theBleed",
+        "promptText": "Serenity Brown Awake\n\nSerenity Brown is awake in the Kitchens after an attack in the East Stacks on Thursday. Count Dracula, who crossed out of his source during Sunday's return, deliberately used her to hold himself inside the Academy.\n\nBrown can hear page-turns from books that are closed. She says it's like someone in the next room reading slowly. She's deciding what help she wants to give, and the Bleed has been asked to print that the deciding is hers. Reports go to Penny Blackletter. Visits go through Ambrose Trencher, who is strict about it and has put a ladle on the door.\n\nNo further injury has been reported. The East Stacks are closed to everyone, including the books.\n\nProfessor Permancer has confirmed that he opened the return invitation, and Wicker Eddies has confirmed his alteration to the source. Both are assisting with the investigation, and both have been seen carrying water.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "FEDCBF54-8A04-4E87-A3DF-74F3529A8E73",
+        "tags": []
+      },
+      {
+        "promptText": "A note",
+        "mediaAssets": [],
+        "metadata": {
+          "castID": "wicker-eddies"
+        },
+        "origin": "generated",
+        "sourceID": "gossip",
+        "privacy": "privateLocal",
+        "userInput": "I did not leave the pen in your bag. Check the other bag.",
+        "createdAt": 813265200,
+        "tags": [],
+        "playerReply": "I checked the other bag. It was in the other bag. I am not saying thank you.",
+        "type": "gossip",
+        "id": "DF251100-0471-4E0B-A047-2DE19C8796F7",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [
+          {
+            "id": "76F16D26-3E96-4DF4-A458-9C105AA98B43",
+            "sourceID": "fixture",
+            "reference": "fixture://heavy-window.png",
+            "caption": "The window at dusk",
+            "kind": "renderedImageFile",
+            "metadata": {}
+          }
+        ],
+        "tags": [],
+        "metadata": {},
+        "usedInBookOfYou": false,
+        "createdAt": 813272400,
+        "promptText": "The window, illuminated",
+        "userInput": "The window at dusk, with the whole street in it.",
+        "privacy": "privateLocal",
+        "sourceID": "illuminatedPhoto",
+        "id": "7512345B-C47A-455D-A152-F59C8660DA32",
+        "type": "illuminatedPhoto",
+        "origin": "generated",
+        "playerReply": ""
+      }
+    ],
+    "id": "2026-10-09",
+    "date": 813211200
+  },
+  {
+    "pages": [
+      {
+        "mediaAssets": [],
+        "tags": [
+          "quote",
+          "attention",
+          "wonder"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813330000,
+        "promptText": "“I went to the woods because I wished to live deliberately.” — Henry David Thoreau",
+        "userInput": "",
+        "privacy": "privateLocal",
+        "context": {
+          "dayPart": "morning",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "sourceID": "quotes",
+        "id": "AC3751F6-ECA2-43EF-82EE-6A635F3937F7",
+        "type": "quotes",
+        "origin": "generated",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [],
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813344400,
+        "promptText": "What did you keep today?",
+        "userInput": "Burned the toast and ate it anyway before breakfast. My brother would have loved it.",
+        "privacy": "privateLocal",
+        "context": {
+          "dayPart": "afternoon",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "sourceID": "souvenir",
+        "id": "E6B22A06-6D3C-47B4-AB63-8996E9EA1935",
+        "type": "souvenir",
+        "origin": "userAuthored",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [],
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813358800,
+        "promptText": "Write one true thing about today.",
+        "userInput": "Swapped recipes with the woman from 3B after work. I'm writing it down so I remember.",
+        "privacy": "privateLocal",
+        "context": {
+          "dayPart": "evening",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "sourceID": "diary",
+        "id": "6417A8E0-D625-45EE-B74D-A15550FA5776",
+        "type": "diary",
+        "origin": "userAuthored",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {},
+        "usedInBookOfYou": false,
+        "createdAt": 813362400,
+        "promptText": "Everything's a Haiku",
+        "userInput": "Rain on the bus window\nthe market closing its doors\nyour hands, finally warm",
+        "privacy": "privateLocal",
+        "sourceID": "enchantment",
+        "id": "A7DD84C0-D1CC-4A7E-A39E-B055C02CA975",
+        "type": "enchantment",
+        "origin": "generated",
+        "playerReply": ""
+      }
+    ],
+    "id": "2026-10-10",
+    "date": 813297600
+  },
+  {
+    "pages": [
+      {
+        "mediaAssets": [],
+        "tags": [
+          "weather",
+          "preview"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813416400,
+        "promptText": "What was the sky doing?",
+        "userInput": "Clear and sharp. My breath showed at the bus stop.",
+        "privacy": "privateLocal",
+        "context": {
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "morning",
+          "utcOffsetSeconds": -14400
+        },
+        "sourceID": "weather",
+        "id": "9D4B625A-A89B-4C7A-B2A8-8B60DA399098",
+        "type": "weather",
+        "origin": "userAuthored",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [],
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813430800,
+        "promptText": "What did you keep today?",
+        "userInput": "Walked the dog from next door at Amanda's. Small thing. Still counts.",
+        "privacy": "privateLocal",
+        "context": {
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "afternoon",
+          "utcOffsetSeconds": -14400
+        },
+        "sourceID": "souvenir",
+        "id": "A55CFDAE-12CD-432B-9A70-881BD5A1B219",
+        "type": "souvenir",
+        "origin": "userAuthored",
+        "playerReply": ""
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813448800,
+        "origin": "generated",
+        "sourceID": "theBleed",
+        "userInput": "",
+        "playerReply": "",
+        "type": "theBleed",
+        "promptText": "The Week, With Corrections\n\nFor anyone who missed it, and the Bleed has noticed that several readers did: a supervised Jump into *Dracula* ended early after Wicker Eddies wrote one unauthorized sentence in the source margin. Every listed jumper came home. Count Dracula had crossed out of his book during the return, and he used Serenity Brown to hold himself inside the Academy.\n\nThe East Stacks are shut. Serenity is awake in the Kitchens and can hear page-turns from closed books. She is choosing, one day at a time, who visits. Professor Permancer opened the return invitation, and Eddies altered the source. Both are helping with the investigation, and both have been asked to stop saying technically.\n\nAmbrose is feeding everyone. The pear tart has been rationed. The Quillquarium still splashes uphill.\n\nThat is the entire weather.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "2F6BDE6E-9B9A-437F-9DFC-B54F9528B17D",
+        "tags": []
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813456000,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "userInput": "Nothing happened today, which I'm writing down because the Book keeps saying nothing is wasted. So: I did the washing. I ate toast standing up. I sat on the back step for ten minutes with my coat on and watched next door's cat try to get into the recycling. It failed. It tried again. Respect.\n\nI keep thinking about the stair that creaks only on the way down. I tested it tonight. It's true. I don't know why that pleases me so much, but it does.",
+        "playerReply": "",
+        "type": "diary",
+        "promptText": "What happened?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "EF8F31F1-CC46-433B-AFAB-39C34129BDB3",
+        "tags": [
+          "diary"
+        ]
+      }
+    ],
+    "id": "2026-10-11",
+    "date": 813384000
+  },
+  {
+    "pages": [
+      {
+        "mediaAssets": [],
+        "tags": [],
+        "metadata": {
+          "castID": "soren-ng",
+          "speakerName": "Soren Ng"
+        },
+        "usedInBookOfYou": false,
+        "createdAt": 813506400,
+        "promptText": "A letter from Soren Ng",
+        "userInput": "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen. The truth is simpler: you were in the corridor on Tuesday, looking at the wall as if it had said something, and I did not ask what. I regret that. So I am asking now, on paper, where I cannot see your face change.\n\nWhat did it say?",
+        "privacy": "privateLocal",
+        "sourceID": "letter",
+        "id": "71042FFE-1897-4649-8609-F10FD0A5D5A2",
+        "type": "letter",
+        "origin": "generated",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [
+          {
+            "sourceID": "fixture",
+            "caption": "grey over the roofs",
+            "metadata": {},
+            "reference": "fixture://heavy-window.png",
+            "kind": "renderedImageFile",
+            "id": "2471D4E0-DBC4-416B-A668-829AB5B5255C"
+          }
+        ],
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "metadata": {},
+        "usedInBookOfYou": false,
+        "createdAt": 813502800,
+        "promptText": "Write one true thing about today.",
+        "userInput": "grey over the roofs",
+        "privacy": "privateLocal",
+        "sourceID": "diary",
+        "id": "0AB3DCAC-69CF-4F59-A416-DB3E0E831CA3",
+        "type": "diary",
+        "origin": "generated",
+        "playerReply": ""
+      }
+    ],
+    "id": "2026-10-12",
+    "date": 813470400
+  },
+  {
+    "pages": [
+      {
+        "mediaAssets": [],
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "usedInBookOfYou": false,
+        "createdAt": 813589200,
+        "promptText": "Write one true thing about today.",
+        "userInput": "Wrote a list and then lost it at the library. It was nearly dark by then.",
+        "privacy": "privateLocal",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "rain"
+          ],
+          "dayPart": "morning"
+        },
+        "sourceID": "diary",
+        "id": "A4C214FA-CFC8-4484-9ED8-D0CA8068C3FC",
+        "type": "diary",
+        "origin": "userAuthored",
+        "playerReply": ""
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "academyClass",
+        "playerReply": "",
+        "metadata": {
+          "sessionName": "Basic Enchantments",
+          "sessionRoom": "The Still Room",
+          "sessionProfessor": "Dr. Vellum"
+        },
+        "id": "A06ECD2B-F200-4ACD-8516-4C98AFB276B6",
+        "type": "academyClass",
+        "promptText": "Basic Enchantments",
+        "createdAt": 813596400,
+        "userInput": "Exercise: find something ordinary and make it answer. You chose a doorknob. It answered in a small cold voice.",
+        "tags": []
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "quotes",
+        "playerReply": "",
+        "metadata": {},
+        "id": "62F18CE3-DD2E-48EB-BE4C-6133E3815A44",
+        "type": "quotes",
+        "promptText": "“Keep a green bough in your heart and the singing bird will come.” — Chinese proverb",
+        "createdAt": 813585600,
+        "userInput": "",
+        "tags": []
+      }
+    ],
+    "id": "2026-10-13",
+    "date": 813556800
+  },
+  {
+    "pages": [
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "gossip",
+        "playerReply": "",
+        "metadata": {
+          "castID": "soren-ng"
+        },
+        "id": "D31A44EF-03D3-4FA6-8867-DDCF321AF1C6",
+        "type": "gossip",
+        "promptText": "A note",
+        "createdAt": 813697200,
+        "userInput": "A door by the north stair has begun to listen. It likes your footsteps.",
+        "tags": []
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813708000,
+        "origin": "userAuthored",
+        "sourceID": "location",
+        "userInput": "The library's back door has a brass plate worn silver in exactly the shape of a thumb.",
+        "playerReply": "",
+        "type": "location",
+        "promptText": "One thing about where you were that only someone standing there would know.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "3C761835-016D-422C-A37E-99772FFB7F22",
+        "tags": [
+          "location"
+        ]
+      }
+    ],
+    "id": "2026-10-14",
+    "date": 813643200
+  },
+  {
+    "pages": [
+      {
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "diary",
+        "playerReply": "",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "dayPart": "morning",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "id": "EF16887C-27D7-4259-83C5-9C2864EC7A65",
+        "type": "diary",
+        "promptText": "Write one true thing about today.",
+        "createdAt": 813762000,
+        "userInput": "Found a coin with a hole through it by the river. I should do that more often.",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ]
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "academyClass",
+        "playerReply": "",
+        "metadata": {
+          "sessionRoom": "Wing 2: The Momentum Yard",
+          "sessionID": "wayfinding-kineticism",
+          "sessionProfessor": "Professor Stonebrook",
+          "sessionName": "Wayfinding",
+          "academyActivityOutcome": "Where it starts: the green door on Mill Lane. Where it goes: the bench by the water. How I get back: the same way, but slower, with my hood down."
+        },
+        "id": "6D39717F-21EE-4F73-8D2A-B8AB034BDB94",
+        "type": "academyClass",
+        "promptText": "Wayfinding",
+        "createdAt": 813769200,
+        "userInput": "The class mapped the school by smell. Yours was mostly toast, ink and the inside of old coats.",
+        "tags": []
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "narrativeOS",
+        "playerReply": "",
+        "metadata": {},
+        "id": "5B179AF7-A031-4975-9B39-99A7AC458683",
+        "type": "narrativeOS",
+        "promptText": "The Door That Changed Colour",
+        "createdAt": 813801600,
+        "userInput": "A door at the end of a lane grew tired of being green. It spent a week thinking about blue and a night deciding.\n\nIn the morning a woman walked past and stopped, because the door had finally done it, and she was the first to know.\n\nShe did not tell anyone. Doors like that.",
+        "tags": []
+      }
+    ],
+    "id": "2026-10-15",
+    "date": 813729600
+  },
+  {
+    "pages": [
+      {
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "diary",
+        "playerReply": "",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "clear",
+            "wind"
+          ],
+          "dayPart": "morning"
+        },
+        "id": "6CA04942-8FB3-4445-B583-33B880E3322A",
+        "type": "diary",
+        "promptText": "Write one true thing about today.",
+        "createdAt": 813848400,
+        "userInput": "Heard someone practising the trumpet on my lunch break. It was colder than it looked.",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ]
+      },
+      {
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "diary",
+        "playerReply": "",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "clear",
+            "wind"
+          ],
+          "dayPart": "afternoon"
+        },
+        "id": "5892CB8B-22E1-42E0-ACF4-C8A9B7FD50F4",
+        "type": "diary",
+        "promptText": "Write one true thing about today.",
+        "createdAt": 813862800,
+        "userInput": "Ironed a shirt for no reason on the way home. Nobody else noticed.",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ]
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "sourceID": "quotes",
+        "playerReply": "",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "dayPart": "evening",
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "clear",
+            "wind"
+          ]
+        },
+        "id": "7CED0D2C-3EF0-4053-81BA-2EB1B01B469D",
+        "type": "quotes",
+        "promptText": "“I celebrate myself, and sing myself.” — Walt Whitman",
+        "createdAt": 813877200,
+        "userInput": "",
+        "tags": [
+          "quote",
+          "attention",
+          "wonder"
+        ]
+      },
+      {
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "privacy": "privateLocal",
+        "mediaAssets": [
+          {
+            "sourceID": "fixture",
+            "metadata": {},
+            "kind": "renderedImageFile",
+            "reference": "fixture://heavy-garden.png",
+            "id": "07B98BA3-ECB5-4130-9A06-70D0AB3A17EE",
+            "caption": "the long way home"
+          }
+        ],
+        "sourceID": "diary",
+        "playerReply": "",
+        "metadata": {},
+        "id": "D547CF53-A36B-45A9-9E48-161484B45CCF",
+        "type": "diary",
+        "promptText": "Write one true thing about today.",
+        "createdAt": 813848400,
+        "userInput": "the long way home",
+        "tags": [
+          "diary",
+          "photo"
+        ]
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 813891600,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "userInput": "Hard day. I won't write all of it. I called my brother and we talked about nothing for forty minutes, which was the point. When I hung up the flat was very quiet and I put the radio on just to have someone else in the room. It was a programme about bees. I listened to the whole thing.",
+        "playerReply": "",
+        "type": "diary",
+        "promptText": "What happened?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "C7824D35-6826-44CC-8AF3-AA8EFE0CECAA",
+        "tags": [
+          "diary"
+        ]
+      }
+    ],
+    "id": "2026-10-16",
+    "date": 813816000
+  },
+  {
+    "date": 813902400,
+    "id": "2026-10-17",
+    "pages": [
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 813934800,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "morning",
+          "utcOffsetSeconds": -14400,
+          "weatherTags": [
+            "rain"
+          ]
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "3AF2172B-5914-4AFC-9460-711FDE26BFC8",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Helped a stranger read a bus timetable while the kettle boiled. I nearly missed it.",
+        "playerReply": ""
+      },
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 813949200,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "afternoon",
+          "utcOffsetSeconds": -14400,
+          "weatherTags": [
+            "rain"
+          ]
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "78BE8772-7CC9-42DD-B502-89556A8E8817",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Changed the bulb in the bathroom on the top deck of the bus. I didn't take a photo, on purpose.",
+        "playerReply": ""
+      },
+      {
+        "type": "enchantment",
+        "metadata": {},
+        "sourceID": "enchantment",
+        "createdAt": 813967200,
+        "mediaAssets": [
+          {
+            "metadata": {},
+            "reference": "fixture://heavy-window.png",
+            "id": "B326C9AA-FFCC-4E90-ADAC-A64E81120797",
+            "caption": "Everything's Stories",
+            "sourceID": "fixture",
+            "kind": "renderedImageFile"
+          }
+        ],
+        "promptText": "Everything's Stories",
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "059D2DFE-DDBB-49A3-9E82-D9657F0CF1DE",
+        "tags": [],
+        "origin": "generated",
+        "userInput": "The man with the ladder had been a lighthouse keeper once, in another life, and still looked up at ceilings as if expecting ships.",
+        "playerReply": ""
+      }
+    ]
+  },
+  {
+    "date": 813988800,
+    "id": "2026-10-18",
+    "pages": [
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814021200,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "morning",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "C630509F-49A5-4517-B763-D11B44E28E4A",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Ate lunch on a bench facing the wrong way in the rain. My hands smelled of it all evening.",
+        "playerReply": ""
+      },
+      {
+        "type": "souvenir",
+        "sourceID": "souvenir",
+        "createdAt": 814035600,
+        "mediaAssets": [],
+        "promptText": "What did you keep today?",
+        "context": {
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "afternoon",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "7DE62B5F-E11E-4BFF-A951-CD166CF7A36E",
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Planted garlic in the window box in the hallway. That was the best part of the day.",
+        "playerReply": ""
+      },
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814050000,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "evening",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "AAA1B9B8-373D-4E89-BAC6-BAA023FC6DD0",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Untangled a necklace for twenty minutes in the park by the war memorial. The light was doing something odd.",
+        "playerReply": ""
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 814053600,
+        "origin": "generated",
+        "sourceID": "theBleed",
+        "userInput": "",
+        "playerReply": "",
+        "type": "theBleed",
+        "promptText": "Two Weeks In, Briefly\n\nThe story so far: the Count is out of his book, the East Stacks are shut, and Serenity Brown is deciding what help she wants to give.\n\nThis week the Academy did paperwork, which is how it fights. Professor Villanelle put Wicker Eddies's sentence on the board, and nobody laughed. Permancer has been in the Vault since before breakfast. This reporter went round the back of the chalk door to see what's there. It has a back. Permancer followed. We both came out again, and neither of us will say what we saw.\n\nThe Count has been found in the Old Reading Room, reading his own book with a pencil. Serenity went in to speak to him. She came out and went directly to lunch.\n\nHer map still moves when nobody touches it. It isn't subtle.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "F0E66F0F-BB38-468A-8C7A-AE3BBA5200C7",
+        "tags": []
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 814017600,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "userInput": "the blue door, 7:52 a.m.",
+        "playerReply": "",
+        "type": "diary",
+        "promptText": "Write one true thing about today.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [
+          {
+            "kind": "renderedImageFile",
+            "reference": "fixture://fixture-door.png",
+            "id": "23E38F57-00BF-4735-95AC-48D1528C62DE",
+            "sourceID": "fixture",
+            "metadata": {},
+            "caption": "the blue door, 7:52 a.m."
+          }
+        ],
+        "id": "CE4778A6-4809-433D-A544-159F8AF42707",
+        "tags": [
+          "diary",
+          "photo"
+        ]
+      },
+      {
+        "type": "bookJump",
+        "metadata": {
+          "sessionName": "Book Jump Club"
+        },
+        "sourceID": "bookJump",
+        "createdAt": 814057200,
+        "mediaAssets": [],
+        "promptText": "Book Jump Club",
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "FA31F579-E7E6-4572-8EA1-DB79EAECE0D3",
+        "tags": [],
+        "origin": "generated",
+        "userInput": "The club jumped into a short story about a lighthouse. You came back with salt on your sleeve and a line you could not stop saying.",
+        "playerReply": ""
+      }
+    ]
+  },
+  {
+    "date": 814075200,
+    "id": "2026-10-19",
+    "pages": [
+      {
+        "type": "quotes",
+        "sourceID": "quotes",
+        "createdAt": 814107600,
+        "mediaAssets": [],
+        "promptText": "“Why, sometimes I've believed as many as six impossible things before breakfast.” — Lewis Carroll",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "morning",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ]
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "17D95B29-D435-44EF-BCC8-C4B132CC8BC7",
+        "tags": [
+          "quote",
+          "attention",
+          "wonder"
+        ],
+        "origin": "generated",
+        "userInput": "",
+        "playerReply": ""
+      },
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814122000,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "afternoon",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ]
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "68D891BF-CC2F-4F25-824C-FD6DF0EE8B60",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Gave the plant by the window a new pot at the diner. It took three tries.",
+        "playerReply": ""
+      },
+      {
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814136400,
+        "mediaAssets": [],
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "dayPart": "evening",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ]
+        },
+        "privacy": "privateLocal",
+        "usedInBookOfYou": false,
+        "id": "C7064FC3-401E-4C10-A3E9-299EDA5C15DE",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "origin": "userAuthored",
+        "userInput": "Watched rain run down the bus window at the market. I kept thinking about it on the bus.",
+        "playerReply": ""
+      },
+      {
+        "mediaAssets": [],
+        "type": "letter",
+        "sourceID": "letter",
+        "createdAt": 814111200,
+        "playerReply": "Ambrose. It said the soup was too salty. It was right. I added water, like you would have, and then I stood in the kitchen for a long time with the spoon, not eating, just being somewhere warm. That is the honest answer.",
+        "tags": [],
+        "metadata": {
+          "castID": "ambrose-trencher",
+          "speakerName": "Ambrose Trencher"
+        },
+        "promptText": "A letter from Ambrose Trencher",
+        "id": "E8DE64C6-760C-4D34-B4AA-440132D3AB82",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen. The truth is simpler: you were in the corridor on Tuesday, looking at the lamp as if it had said something, and I did not ask what. I regret that. So I am asking now, on paper, where I cannot see your face change.\n\nWhat did it say?",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [
+          {
+            "reference": "fixture://heavy-lamp.png",
+            "id": "7F4CE579-DBC2-49F1-87E2-831E599F6567",
+            "kind": "renderedImageFile",
+            "caption": "The lamp",
+            "metadata": {},
+            "sourceID": "fixture"
+          }
+        ],
+        "type": "illuminatedPhoto",
+        "sourceID": "illuminatedPhoto",
+        "createdAt": 814136400,
+        "playerReply": "",
+        "tags": [],
+        "metadata": {},
+        "promptText": "The lamp, illuminated",
+        "id": "F49109E9-FE41-4E4B-99D7-8E0D6508D648",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "The lamp I did not turn off.",
+        "privacy": "privateLocal"
+      }
+    ]
+  },
+  {
+    "date": 814161600,
+    "id": "2026-10-20",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "createdAt": 814194000,
+        "origin": "userAuthored",
+        "sourceID": "souvenir",
+        "userInput": "Frost on the car roof in the shape of a map of somewhere that doesn't exist.",
+        "playerReply": "",
+        "type": "souvenir",
+        "promptText": "One thing from today you'd rather not lose.",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "E7B3B2B3-6C23-4F6C-B0E2-2CDFB6454C20",
+        "tags": [
+          "souvenir"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 814248000,
+    "id": "2026-10-21",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "type": "gossip",
+        "sourceID": "gossip",
+        "createdAt": 814302000,
+        "playerReply": "",
+        "tags": [],
+        "metadata": {
+          "castID": "professor-vivian-villanelle"
+        },
+        "promptText": "A note",
+        "id": "824F9362-9379-4702-8156-E06528205A26",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "Your handwriting got braver this week. Do not tell anyone I said so.",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [
+          {
+            "caption": "the table, set for one",
+            "kind": "renderedImageFile",
+            "metadata": {},
+            "id": "C3D978C0-4F8A-4C33-B8A8-E326ABFE32BE",
+            "reference": "fixture://heavy-dusk.png",
+            "sourceID": "fixture"
+          }
+        ],
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814280400,
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "metadata": {},
+        "promptText": "Write one true thing about today.",
+        "id": "4A221DD0-1B77-4B65-A995-59577B8B6F06",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "the table, set for one",
+        "privacy": "privateLocal"
+      }
+    ]
+  },
+  {
+    "date": 814334400,
+    "id": "2026-10-22",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "context": {
+          "utcOffsetSeconds": -14400,
+          "dayPart": "morning",
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "clear"
+          ]
+        },
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814366800,
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "promptText": "Write one true thing about today.",
+        "id": "FF3F5E56-F69D-4A1A-9773-1C4896BD09BA",
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "userInput": "Bought flowers for no one in particular before breakfast. It was nearly dark by then.",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [],
+        "type": "academyClass",
+        "sourceID": "academyClass",
+        "createdAt": 814374000,
+        "playerReply": "",
+        "tags": [],
+        "metadata": {
+          "sessionProfessor": "Professor Wispwood",
+          "sessionID": "art-of-the-glint",
+          "sessionName": "The Glint",
+          "academyActivityOutcome": "A brass key, warm from my pocket. The scratch on the lamp base shaped like a comma. The smell of the radiator when it first comes on.",
+          "sessionRoom": "Wing 4: The Glint Hall"
+        },
+        "promptText": "The Glint",
+        "id": "716EF720-7F0C-4C18-AA3F-573658B42444",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "Light, today, in the form of one stubborn lamp. You were asked to make it say something kind. It said 'later'.",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [],
+        "type": "quotes",
+        "sourceID": "quotes",
+        "createdAt": 814363200,
+        "playerReply": "",
+        "tags": [],
+        "metadata": {},
+        "promptText": "Everything ordinary is on its way to being a story.",
+        "id": "8EB00970-03C7-4078-80F9-5D8AA7DB5469",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "",
+        "privacy": "privateLocal"
+      }
+    ]
+  },
+  {
+    "date": 814420800,
+    "id": "2026-10-23",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "context": {
+          "dayPart": "morning",
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York",
+          "weatherTags": [
+            "cloud",
+            "wind"
+          ]
+        },
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814453200,
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "promptText": "Write one true thing about today.",
+        "id": "AB173E26-E19F-4301-B325-FBFE27582386",
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "userInput": "Learned the name of the bakery cat after work. It rained again right after.",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [],
+        "type": "enchantment",
+        "sourceID": "enchantment",
+        "createdAt": 814485600,
+        "playerReply": "",
+        "tags": [],
+        "metadata": {},
+        "promptText": "Mirror, Mirror",
+        "id": "44BE2E3D-68D6-4187-B112-650C8E6C6B70",
+        "origin": "generated",
+        "usedInBookOfYou": false,
+        "userInput": "The mirror said you looked like someone who had been listening to a long story and had just reached the good part.",
+        "privacy": "privateLocal"
+      },
+      {
+        "privacy": "privateLocal",
+        "createdAt": 814500000,
+        "origin": "userAuthored",
+        "sourceID": "diary",
+        "userInput": "I tried the thing from the Wayfinding class, mapping the street by smell, on the way home. Bakery, then the laundrette (hot cotton), then the bins behind the chip shop, then nothing for a long stretch, then woodsmoke from somebody's chimney two roads over. I'd never have noticed the woodsmoke if I hadn't been playing. I stood at the corner for a while just breathing it in like a weirdo.\n\nI think that's what this whole Book is for, honestly. Making me stand on corners.",
+        "playerReply": "",
+        "type": "diary",
+        "promptText": "What happened?",
+        "usedInBookOfYou": false,
+        "mediaAssets": [],
+        "id": "5150A9D4-3B8E-4198-9127-66CFE5681178",
+        "tags": [
+          "diary"
+        ]
+      }
+    ]
+  },
+  {
+    "date": 814507200,
+    "id": "2026-10-24",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "context": {
+          "weatherTags": [
+            "clear",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York",
+          "utcOffsetSeconds": -14400,
+          "dayPart": "morning"
+        },
+        "type": "diary",
+        "sourceID": "diary",
+        "createdAt": 814539600,
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "promptText": "Write one true thing about today.",
+        "id": "1619C4B4-B206-46E6-A13B-71443998E46B",
+        "usedInBookOfYou": false,
+        "origin": "userAuthored",
+        "userInput": "Oiled the squeaky kitchen door late at night. Shirley said it was typical of me.",
+        "privacy": "privateLocal"
+      },
+      {
+        "mediaAssets": [],
+        "id": "BC303728-5F18-43CA-9388-0400A1ED7DF5",
+        "type": "souvenir",
+        "playerReply": "",
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "createdAt": 814554000,
+        "origin": "userAuthored",
+        "context": {
+          "weatherTags": [
+            "clear",
+            "wind"
+          ],
+          "timeZoneIdentifier": "America/New_York",
+          "utcOffsetSeconds": -14400,
+          "dayPart": "afternoon"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Counted the steps to the post box at Amanda's. Nobody else noticed.",
+        "promptText": "What did you keep today?",
+        "sourceID": "souvenir",
+        "usedInBookOfYou": false
+      },
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [
+          {
+            "id": "B6A29648-5567-480C-B49A-8D2B002CB128",
+            "reference": "fixture://fixture-river.png",
+            "sourceID": "fixture",
+            "kind": "renderedImageFile",
+            "caption": "the river, going gold",
+            "metadata": {}
+          }
+        ],
+        "userInput": "the river, going gold",
+        "id": "1E525384-20E7-4597-A7EB-FA9D83104AF2",
+        "type": "diary",
+        "playerReply": "",
+        "sourceID": "diary",
+        "usedInBookOfYou": false,
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "createdAt": 814536000,
+        "promptText": "Write one true thing about today.",
+        "origin": "userAuthored"
+      },
+      {
+        "mediaAssets": [],
+        "id": "41037D70-509A-4278-9AD6-4DE1F23AC069",
+        "type": "gossip",
+        "playerReply": "",
+        "tags": [],
+        "createdAt": 814561200,
+        "origin": "generated",
+        "metadata": {
+          "castID": "serenity-brown"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Somebody should have taught you to read a map backwards. I volunteer.",
+        "promptText": "A note",
+        "sourceID": "gossip",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [],
+        "id": "44BDA3BA-6017-4D97-8401-443E348C4F8F",
+        "type": "narrativeOS",
+        "playerReply": "",
+        "tags": [],
+        "createdAt": 814579200,
+        "origin": "generated",
+        "metadata": {},
+        "privacy": "privateLocal",
+        "userInput": "The kettle had been working up to it for years. Tuesday, it said, in a small steam voice, and nothing else.\n\nSo on Tuesday nothing was done about anything, and it was a very good day.",
+        "promptText": "What the Kettle Said",
+        "sourceID": "narrativeOS",
+        "usedInBookOfYou": false
+      }
+    ]
+  },
+  {
+    "date": 814593600,
+    "id": "2026-10-25",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "id": "9A5213FD-71DC-46FD-BD2A-39E534DAEBD9",
+        "type": "diary",
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "createdAt": 814626000,
+        "origin": "userAuthored",
+        "context": {
+          "dayPart": "morning",
+          "weatherTags": [
+            "rain"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Wore odd socks all day at the library. I laughed out loud on my own.",
+        "promptText": "Write one true thing about today.",
+        "sourceID": "diary",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [],
+        "id": "07941FC9-B688-4E45-8AD8-817FAC189E39",
+        "type": "souvenir",
+        "playerReply": "",
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "createdAt": 814640400,
+        "origin": "userAuthored",
+        "context": {
+          "dayPart": "afternoon",
+          "weatherTags": [
+            "rain"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Sat with Amanda while she waited for news by the river. The radio was playing something old.",
+        "promptText": "What did you keep today?",
+        "sourceID": "souvenir",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [],
+        "id": "4B29693A-C5D0-444D-8A59-ECD79EFA0470",
+        "type": "souvenir",
+        "playerReply": "",
+        "tags": [
+          "souvenir",
+          "check-in-window:evening"
+        ],
+        "createdAt": 814654800,
+        "origin": "userAuthored",
+        "context": {
+          "dayPart": "evening",
+          "weatherTags": [
+            "rain"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Tidied the shelf of things I never use on my lunch break. I didn't take a photo, on purpose.",
+        "promptText": "What did you keep today?",
+        "sourceID": "souvenir",
+        "usedInBookOfYou": false
+      },
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "",
+        "id": "72870824-19C8-4980-8968-D3F6578FDCB1",
+        "type": "theBleed",
+        "playerReply": "",
+        "sourceID": "theBleed",
+        "usedInBookOfYou": false,
+        "tags": [],
+        "createdAt": 814658400,
+        "promptText": "Where Things Are Now\n\nIf one column gets read this week, make it this one. The Academy has company.\n\nA composite castle has grown through the East Stacks, which remain shut. A drawbridge now crosses the Quillquarium. It's real, it's polite, and it's closed to visitors. A window from a neighboring book's nursery has appeared in a corridor. Please don't take it home. A stair has opened between the supper tables, going up to a hall nobody was invited to. The soup is warm up there. Do not follow the soup.\n\nSending everything home takes three things: the source, the invitation, and Serenity Brown's withdrawal of the living claim. Ambrose has proposed terms. Eddies has proposed a paper room, and been told to fix the window.\n\nSerenity has agreed to the return. The last condition is hers.",
+        "origin": "generated"
+      },
+      {
+        "mediaAssets": [],
+        "id": "A93E0E35-51F3-4617-ADFD-A7A385D39D01",
+        "type": "academyClass",
+        "playerReply": "",
+        "tags": [],
+        "createdAt": 814633200,
+        "origin": "generated",
+        "metadata": {
+          "sessionProfessor": "Professor Momort",
+          "sessionRoom": "The Walled Garden",
+          "sessionName": "Quiet Hours"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Ten minutes in the garden with nothing to do. You counted eleven kinds of green and one of grey.",
+        "promptText": "Quiet Hours",
+        "sourceID": "academyClass",
+        "usedInBookOfYou": false
+      }
+    ]
+  },
+  {
+    "date": 814680000,
+    "id": "2026-10-26",
+    "pages": [
+      {
+        "mediaAssets": [],
+        "id": "58646C3F-429E-451B-8E00-189E8BAC8306",
+        "type": "diary",
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "createdAt": 814712400,
+        "origin": "userAuthored",
+        "context": {
+          "dayPart": "morning",
+          "utcOffsetSeconds": -14400,
+          "weatherTags": [
+            "clear"
+          ],
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "privacy": "privateLocal",
+        "userInput": "Tried a new route to work on the way home. It made me late, which was fine.",
+        "promptText": "Write one true thing about today.",
+        "sourceID": "diary",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [],
+        "id": "D1F7BD6D-A896-475B-94BF-5C0DBF6F87F5",
+        "type": "letter",
+        "playerReply": "",
+        "tags": [],
+        "createdAt": 814716000,
+        "origin": "generated",
+        "metadata": {
+          "castID": "penny-blackletter",
+          "speakerName": "Penny Blackletter"
+        },
+        "privacy": "privateLocal",
+        "userInput": "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen. The truth is simpler: you were in the corridor on Tuesday, looking at the window as if it had said something, and I did not ask what. I regret that. So I am asking now, on paper, where I cannot see your face change.\n\nWhat did it say?",
+        "promptText": "A letter from Penny Blackletter",
+        "sourceID": "letter",
+        "usedInBookOfYou": false
+      },
+      {
+        "mediaAssets": [
+          {
+            "metadata": {},
+            "id": "C8B65C83-5C07-4401-AF70-FD23F80819DA",
+            "kind": "renderedImageFile",
+            "reference": "fixture://heavy-garden.png",
+            "caption": "last light",
+            "sourceID": "fixture"
+          }
+        ],
+        "id": "4BAC3737-B4C9-4594-8501-4ED0772C0D87",
+        "type": "diary",
+        "playerReply": "",
+        "tags": [
+          "diary",
+          "photo"
+        ],
+        "createdAt": 814712400,
+        "origin": "generated",
+        "metadata": {},
+        "privacy": "privateLocal",
+        "userInput": "last light",
+        "promptText": "Write one true thing about today.",
+        "sourceID": "diary",
+        "usedInBookOfYou": false
+      }
+    ]
+  },
+  {
+    "date": 814766400,
+    "id": "2026-10-27",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "tags": [],
+        "playerReply": "",
+        "createdAt": 814827600,
+        "mediaAssets": [
+          {
+            "kind": "renderedImageFile",
+            "sourceID": "fixture",
+            "reference": "fixture://heavy-window.png",
+            "metadata": {},
+            "id": "E14622BC-D231-447E-AC7A-380D2B056391",
+            "caption": "The window again"
+          }
+        ],
+        "userInput": "Same window. Different grey.",
+        "type": "illuminatedPhoto",
+        "id": "4F884FFA-C8E4-4304-A201-D582C4E43445",
+        "origin": "generated",
+        "metadata": {},
+        "usedInBookOfYou": false,
+        "promptText": "The window again",
+        "sourceID": "illuminatedPhoto"
+      },
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "That I missed writing in here on the two days I didn't.",
+        "id": "B767CAD1-2F08-492F-B37D-B8235088CB6E",
+        "type": "quip",
+        "playerReply": "",
+        "sourceID": "quip",
+        "usedInBookOfYou": false,
+        "tags": [
+          "quip"
+        ],
+        "promptText": "What surprised you?",
+        "createdAt": 814834800,
+        "origin": "userAuthored"
+      }
+    ]
+  },
+  {
+    "date": 814852800,
+    "id": "2026-10-28",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "tags": [],
+        "playerReply": "",
+        "createdAt": 814921200,
+        "mediaAssets": [],
+        "userInput": "The society walked the school's perimeter and wrote down everything that had changed since September. Seventeen things. One was you.",
+        "type": "supportGuild",
+        "id": "2751A66F-DE80-404A-803D-54A677B7D376",
+        "origin": "generated",
+        "metadata": {
+          "sessionName": "The Compass Society",
+          "sessionID": "compass-society"
+        },
+        "usedInBookOfYou": false,
+        "promptText": "The Compass Society",
+        "sourceID": "supportGuild"
+      }
+    ]
+  },
+  {
+    "date": 814939200,
+    "id": "2026-10-29",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "",
+        "id": "66C58851-8921-4703-BCF2-171A1AB857AE",
+        "type": "theBleed",
+        "playerReply": "",
+        "sourceID": "theBleed",
+        "usedInBookOfYou": false,
+        "tags": [],
+        "promptText": "Several Places, One Entrance\n\nA composite castle has grown through the East Stacks overnight. It's built, in order, of a library, a fortress, and a nursery. The Quillquarium drawbridge is real and closed to visitors. The nibs beneath it would like it noted that they didn't ask for this.\n\nThe nursery window belongs to a neighboring book. Please don't take it home.\n\nDracula's absence from his source is pulling other stories into the gap. A stair has opened between the supper tables. The soup is warm up there. Do not follow the soup.\n\nThe Academy has reconstructed the return conditions: an open source, an invitation the Count will recognize, and withdrawal of the living claim. The first two can be built. The third can't be built by anyone but the person who holds it.\n\nSerenity Brown has agreed to the controlled return. The final condition is hers to release.",
+        "createdAt": 815004000,
+        "origin": "generated"
+      },
+      {
+        "privacy": "privateLocal",
+        "tags": [],
+        "playerReply": "",
+        "createdAt": 815004000,
+        "mediaAssets": [
+          {
+            "kind": "renderedImageFile",
+            "caption": "Everything's Magic",
+            "id": "78E81549-695E-46F6-A134-1A67107E9B50",
+            "sourceID": "fixture",
+            "reference": "fixture://heavy-lamp.png",
+            "metadata": {}
+          }
+        ],
+        "userInput": "In the spice drawer there is a small brown envelope marked only 'for later'. It is the best thing in the flat.",
+        "type": "enchantment",
+        "id": "D9462ADC-F5B0-4A3A-A8FF-587DC2A77FF9",
+        "origin": "generated",
+        "metadata": {},
+        "usedInBookOfYou": false,
+        "promptText": "Everything's Magic",
+        "sourceID": "enchantment"
+      }
+    ]
+  },
+  {
+    "date": 815025600,
+    "id": "2026-10-30",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "tags": [
+          "diary",
+          "ink-for-today"
+        ],
+        "playerReply": "",
+        "createdAt": 815058000,
+        "mediaAssets": [],
+        "userInput": "Wrote my brother a postcard on the back step. I don't know why it stayed with me.",
+        "type": "diary",
+        "id": "030E93E7-5437-4ADB-82C9-6F276F278B00",
+        "origin": "userAuthored",
+        "usedInBookOfYou": false,
+        "promptText": "Write one true thing about today.",
+        "context": {
+          "dayPart": "morning",
+          "weatherTags": [
+            "clear"
+          ],
+          "utcOffsetSeconds": -14400,
+          "timeZoneIdentifier": "America/New_York"
+        },
+        "sourceID": "diary"
+      },
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "",
+        "id": "26579E39-2886-449C-90B7-E84705683866",
+        "type": "theBleed",
+        "playerReply": "",
+        "sourceID": "theBleed",
+        "usedInBookOfYou": false,
+        "tags": [],
+        "promptText": "The Count Returned\n\nDracula is back in *Dracula.* The borrowed rooms have gone home to their books, the stair is a stair in a story again, and the drawbridge has been returned to the Quillquarium's nibs with an apology and a quantity of ink.\n\nSerenity Brown still hears the crossings. She has named the change Nightbound and asked the Bleed to print it. We're printing it. She was in the Kitchens this morning, complaining about her cards, which keep coming up moons.\n\nThe Vault's new return list names every permitted traveller and must be checked from both sides. Professor Permancer has suspended ordinary teaching Jumps while the safeguards are fitted, and has asked that the school be patient. The school will publish the reopening when it has one.\n\nWicker Eddies helped close the breach. The original annotation remains in the record, and so does the fact that he held the last fold.",
+        "createdAt": 815090400,
+        "origin": "generated"
+      },
+      {
+        "privacy": "privateLocal",
+        "tags": [],
+        "playerReply": "",
+        "createdAt": 815065200,
+        "mediaAssets": [],
+        "userInput": "A review of the month's sentences. Villanelle underlined three and wrote 'more of this' beside them.",
+        "type": "academyClass",
+        "id": "90A8FCC6-4D3E-4B7A-8B33-52D077A2C73A",
+        "origin": "generated",
+        "metadata": {
+          "sessionRoom": "Wing 1: The Inkworks",
+          "sessionProfessor": "Professor Villanelle",
+          "sessionName": "Ink-Binding"
+        },
+        "usedInBookOfYou": false,
+        "promptText": "Ink-Binding",
+        "sourceID": "academyClass"
+      },
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "Last real day of October. I read back through the month on the bus and there's more in it than I thought. The heron. The stair. The bees. The woodsmoke. None of it is anything, and all of it is the month. I want to remember that it was a month where I started looking up.",
+        "id": "F0537907-E166-4370-86EE-7C733C6474C9",
+        "type": "diary",
+        "playerReply": "",
+        "sourceID": "diary",
+        "usedInBookOfYou": false,
+        "tags": [
+          "diary"
+        ],
+        "promptText": "What happened?",
+        "createdAt": 815104800,
+        "origin": "userAuthored"
+      }
+    ]
+  },
+  {
+    "date": 815112000,
+    "id": "2026-10-31",
+    "pages": [
+      {
+        "privacy": "privateLocal",
+        "mediaAssets": [],
+        "userInput": "",
+        "id": "3A162FEB-67B6-43F9-BE60-07B7DED70BEC",
+        "type": "theBleed",
+        "playerReply": "",
+        "sourceID": "theBleed",
+        "usedInBookOfYou": false,
+        "tags": [],
+        "promptText": "October, Corrected\n\nThe month, for the record. A Jump went wrong on a Sunday, the Count came out of his book, and the East Stacks shut. A composite castle, a drawbridge and a nursery window moved in. All of them are home now, and so is he.\n\nSerenity Brown still hears the crossings. She has named the change Nightbound and asked us to print it. We have. Professor Permancer has pinned a return list to the Vault door and written on both sides of it, in case one side lies. Ordinary teaching Jumps are suspended while the safeguards are fitted.\n\nWicker Eddies helped close the breach. The annotation stays in the record: *For one sentence, let him choose the verb.* The Bleed has noticed that he has stopped looking at the Kitchens door when he walks past it. We're told this means something. We're not going to say what.\n\nThe tart has been restocked.",
+        "createdAt": 815176800,
+        "origin": "generated"
+      }
+    ]
+  }
+]

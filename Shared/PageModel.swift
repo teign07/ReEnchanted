@@ -4152,7 +4152,17 @@ extension BookPage {
             append(.sentence, text: reply)
         }
 
-        let input = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        var input = userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A Pagewright page stores the reader's note, then its own list of the
+        // scraps it used ("Scraps bound here: Photograph: …"). Only the note is
+        // theirs; a page kept without a note holds no sentence of theirs at all.
+        if sourceID == "pagewright" || tags.contains("pagewright") {
+            if let range = input.range(of: "\n\nScraps bound here:") {
+                input = String(input[..<range.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else if input.split(separator: "\n").allSatisfy({ $0.contains(": ") }) {
+                input = ""
+            }
+        }
         let hasEmbeddedLabels = hasEmbeddedReaderContributionLabels
         let dynamicallyBookWritten = tags.contains("earned-label")
             || tags.contains("sentence-mastery")

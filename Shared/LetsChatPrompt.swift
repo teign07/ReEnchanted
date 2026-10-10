@@ -64,6 +64,9 @@ enum LetsChatPrompt {
         /// One thing from the Book's own life that this reply may mention.
         /// Chosen by `LetsChatPersonality.pick`, which is deliberately rare.
         var onMyMind: LetsChatOnMyMind? = nil
+        /// What the Cast members this message names remember from the
+        /// month's story. Small and authored, so it's never budgeted away.
+        var castRecalls: [LetsChatCastMemory.Recall] = []
     }
 
     struct Budget: Equatable {
@@ -158,6 +161,9 @@ enum LetsChatPrompt {
             \(inputs.knowledgeNotes.prefix(budget.knowledgeNotes).joined(separator: "\n"))
             """)
         }
+
+        let castMemory = LetsChatCastMemory.promptSection(inputs.castRecalls)
+        if !castMemory.isEmpty { sections.append(castMemory) }
 
         if !memory.searchedWholeBook, budget.recentPages > 0, !inputs.recentPages.isEmpty {
             sections.append("""

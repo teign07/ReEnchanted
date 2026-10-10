@@ -58,3 +58,27 @@ const slimSeasonal = priceBreakdown({ ...request("seasonal"), pageCount: 64 }, 0
 check(slimSeasonal.manufacturingSubtotal.cents + slimSeasonal.markup.cents === 6999, "Slim pricing never applies to a season");
 check(minimumProductPriceCentsPerCopy(softcover, "monthly", 64) === 3999, "Slim floor is $39.99");
 check(minimumProductPriceCentsPerCopy(softcover, "monthly") === 4999, "no page count keeps the monthly floor");
+
+// The weekly: cost plus ten dollars, no shelf floor, so a thin issue is cheap.
+const weeklyVariant = {
+  id: "saddle-stitched-weekly-6x9",
+  coverTreatment: "saddleStitch",
+  manufacturingBasePriceCentsUSD: 378,
+  manufacturingPerPagePriceTenThousandthsUSD: 1389,
+};
+const weekly24 = priceBreakdown({ ...request("weekly"), variant: weeklyVariant, pageCount: 24 }, 0);
+check(weekly24.markup.cents === 1000, "a weekly contributes exactly $10");
+check(weekly24.manufacturingSubtotal.cents + weekly24.markup.cents === 1711, "a 24-page weekly is $17.11 before shipping");
+check(minimumProductPriceCentsPerCopy(weeklyVariant, "weekly") === null, "the weekly has no shelf floor");
+
+// A full monthly uses the current premium-colour rate, not the older B&W fixture.
+const monthlyVariant = { ...softcover,
+  manufacturingBasePriceCentsUSD: 198,
+  manufacturingPerPagePriceTenThousandthsUSD: 1389,
+};
+const monthly128 = priceBreakdown({ ...request("monthly"), variant: monthlyVariant, pageCount: 128 }, 0);
+const monthly160 = priceBreakdown({ ...request("monthly"), variant: monthlyVariant, pageCount: 160 }, 0);
+check(monthly128.manufacturingSubtotal.cents + monthly128.markup.cents === 5476, "128-page monthly softcover is $54.76 before shipping, tax and fees");
+check(monthly160.manufacturingSubtotal.cents + monthly160.markup.cents === 5920, "160-page monthly softcover is $59.20 before shipping, tax and fees");
+check(monthly128.markup.cents === 3500 && monthly160.markup.cents === 3500, "extra monthly pages change printing cost, not the $35 contribution");
+check(monthly160.total.cents > monthly128.total.cents, "the final monthly total grows with the printed page count");

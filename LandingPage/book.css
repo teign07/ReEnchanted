@@ -310,3 +310,50 @@ body{background:#0a0816;isolation:isolate}.book-atmosphere{position:fixed;inset:
   .folio-leaf .story-page h2 { font-size:29px; margin-bottom:12px; }
   .folio-leaf .story-page [data-story-opening] p { font-size:16px; line-height:1.45; }
 }
+
+/* Small illustrated turns at the beginning, using the app's shared cabinet. */
+.opening-beat { padding:20px 0 28px; }
+.opening-mark { margin:0 0 20px; height:112px; }
+.opening-mark img { display:block; width:150px; height:100%; max-width:100%; object-fit:contain; }
+.opening-mark-left img { margin-right:auto; rotate:-5deg; }
+.opening-mark-right img { margin-left:auto; rotate:4deg; }
+.opening-mark-center img { margin-inline:auto; rotate:-2deg; }
+.leaf-content .opening-mark { margin:0 0 17px; height:104px; }
+.leaf-content .opening-mark img { width:150px; height:100%; max-height:none; mix-blend-mode:multiply; }
+.is-opening .leaf-content { line-height:1.45; }
+.is-opening .leaf-content p { margin:0 0 13px; }
+.is-opening .leaf-content h2 { font-size:30px; margin:0 0 17px; }
+.is-opening .leaf-content h3 { margin:0 0 16px; }
+.is-opening .leaf-content .campaign-answer { margin-top:8px; }
+.is-opening .leaf-content .eyebrow { margin-bottom:11px; }
+.is-opening .leaf-content .opening-callout { font-size:22px; line-height:1.25; margin-block:19px; font-style:italic; }
+.is-opening .leaf-content .opening-source { font-size:11px; line-height:1.45; margin-top:16px; }
+.is-opening .trust-row { font-size:12px; line-height:1.35; }
+.is-opening .trust-row li { margin-bottom:0; }
+#manuscript .opening-mark img { max-height:112px; }
+@media(max-width:600px) {
+  .leaf-content .opening-mark { height:86px; margin-bottom:13px; }
+  .is-opening .leaf-content h2 { font-size:26px; }
+  .is-opening .leaf-content h3 { font-size:23px; }
+  .is-opening .leaf-content p { margin-bottom:11px; }
+}
+@media(max-width:600px) and (max-height:740px) {
+  .leaf-content .opening-mark { height:65px; margin-bottom:10px; }
+}
+.is-opening .leaf-content .trust-row { display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; padding:0; list-style:none; margin:20px 0 0; }
+.is-opening .trust-row li { border-top:1px solid #80613f44; padding-top:5px; }
+.leaf-content .opening-mark-breather { height:190px; margin-block:18px 30px; }
+@media(max-width:600px) { .leaf-content .opening-mark-breather { height:160px; } }
+
+/* Actual sample editions: visible reading and download controls in the binding. */
+.leaf-content .sample-discovery small { display:block; font-size:12px; line-height:1.5; margin-top:8px; }
+.leaf-content .sample-actions { line-height:1.8; margin-block:14px; }
+.leaf-content .sample-actions .ink-button { margin-bottom:8px; }
+.leaf-content .sample-preview { margin:16px 0; }
+.leaf-content .sample-preview img { display:block; width:auto; height:170px; max-width:100%; margin:auto; box-shadow:0 4px 12px #3a281b30; }
+.leaf-content .sample-preview figcaption { font-size:12px; line-height:1.5; text-align:center; margin-top:10px; }
+@media(max-width:600px) and (max-height:740px) { .leaf-content .sample-preview img { height:135px; } }
+
+.leaf-content .sample-intro-copy { display:flow-root; }
+.leaf-content .sample-intro-copy a { float:right; width:34%; margin:0 0 8px 12px; }
+.leaf-content .sample-intro-copy img { display:block; width:100%; height:auto; max-height:180px; object-fit:contain; }

@@ -258,4 +258,151 @@ final class CastStoryMemoryTests: XCTestCase {
             #"{"id":"c","title":"t","prompt":"p","result":"r","effectLine":"","consequenceTags":[]}"#.utf8))
         XCTAssertNil(choice.castMemories)
     }
+
+    // MARK: Second-hand
+
+    private var listeners: [CastStoryGossip.Listener] {
+        CastStoryGossip.listeners(from: NarrativePackRegistry.bundledPacks.flatMap(\.entities))
+    }
+
+    private func told(_ ledger: CastStoryMemoryLedger, now: Date,
+                      closeness: @escaping (String, String) -> Int = { _, _ in 0 }) -> [CastStoryMemory] {
+        CastStoryGossip.spread(ledger: ledger, listeners: listeners, closeness: closeness, now: now, calendar: calendar)
+    }
+
+    func testTheNewsReachesTwoPeopleWhoWerentThere() throws {
+        // Lunch on day 0 is public at once; the bread gets round.
+        let ledger = CastStoryMemoryLedger.empty.absorbing(try harvest([], now: date(10, 6)))
+        let heard = told(ledger, now: date(10, 6))
+        let bread = heard.filter { $0.key == "count-unbound.lunch.bread" }
+        XCTAssertEqual(bread.count, 2)
+        for memory in bread {
+            XCTAssertEqual(memory.witness, .heard)
+            XCTAssertEqual(memory.heardFromID, "ambrose-trencher", "told by the bystander, not by Wicker")
+            XCTAssertFalse(["wicker-eddies", "serenity-brown", "ambrose-trencher"].contains(memory.entityID),
+                           "nobody's told about their own lunch")
+            XCTAssertTrue(memory.aside?.hasPrefix("Ambrose says Wicker") == true, memory.aside ?? "")
+            XCTAssertGreaterThanOrEqual(memory.happenedAt.timeIntervalSince(date(10, 1, hour: 0)), 86_400, "a day at least")
+        }
+        XCTAssertFalse(heard.contains { $0.key == "count-unbound.lunch.chair" }, "only gossip-worthy moments spread")
+        // Told once, to the same ears, however often it's worked out.
+        let after = ledger.absorbing(heard)
+        XCTAssertEqual(after.absorbing(told(after, now: date(10, 7))).memories.filter {
+            $0.key == "count-unbound.lunch.bread" && $0.witness == .heard
+        }.count, 2)
+        XCTAssertEqual(Set(told(ledger, now: date(10, 6)).map(\.id)), Set(heard.map(\.id)), "deterministic")
+    }
+
+    func testNewsWaitsADayAndCloseFriendsHearFirst() {
+        var news = memory("bread", entity: "wicker-eddies", at: date(10, 10))
+        news.gossip = "{teller} says there was bread."
+        news.presentIDs = ["wicker-eddies"]
+        let ledger = CastStoryMemoryLedger(memories: [news])
+        XCTAssertTrue(told(ledger, now: date(10, 10, hour: 20)).isEmpty, "not the same day")
+        let friend = listeners.first { $0.id != "wicker-eddies" && $0.id != "serenity-brown" }!.id
+        let heard = told(ledger, now: date(10, 20)) { a, b in
+            Set([a, b]) == Set(["wicker-eddies", friend]) ? 50 : 0
+        }
+        XCTAssertTrue(heard.contains { $0.entityID == friend })
+        XCTAssertEqual(heard.first { $0.entityID == friend }?.aside, "Everyone says there was bread.",
+                       "nobody tells on themselves; with no bystander it's going round")
+        XCTAssertNil(heard.first?.heardFromID)
+    }
+
+    func testWhoeverOnlyHeardItNeverTellsIt() {
+        var news = memory("bread", entity: "wicker-eddies", at: date(10, 1))
+        news.gossip = "{teller} says there was bread."
+        news.presentIDs = ["wicker-eddies"]
+        var heard = memory("bread", entity: "penny-blackletter", at: date(10, 2), witness: .heard)
+        heard.id = CastStoryMemory.id(runID: runID, key: "bread", entityID: "penny-blackletter")
+        heard.heardFromName = nil
+        let second = told(CastStoryMemoryLedger(memories: [news, heard]), now: date(10, 30))
+        XCTAssertEqual(second.count, 1)
+        XCTAssertNil(second.first?.heardFromID, "Penny only heard it")
+        XCTAssertNotEqual(second.first?.entityID, "penny-blackletter")
+    }
+
+    func testHearsayIsntPassedOnAndGivesWayToBeingThere() {
+        var rumour = memory("bread", entity: "penny-blackletter", at: date(10, 10), witness: .heard)
+        rumour.gossip = nil
+        XCTAssertTrue(told(CastStoryMemoryLedger(memories: [rumour]), now: date(10, 30)).isEmpty, "one hop")
+        var lived = rumour
+        lived.witness = .lived
+        let ledger = CastStoryMemoryLedger(memories: [rumour]).absorbing([lived])
+        XCTAssertEqual(ledger.memories.first?.witness, .lived)
+        XCTAssertEqual(CastStoryMemoryLedger(memories: [lived]).absorbing([rumour]).memories.first?.witness, .lived)
+    }
+
+    func testTheCastPageSaysWhoTold() throws {
+        let zara = try XCTUnwrap(NarrativePackRegistry.bundledPacks.flatMap(\.entities).first { $0.kind == .character })
+        var heard = memory("bread", entity: zara.id, at: date(10, 4), witness: .heard)
+        heard.heardFromName = "Wicker"
+        let record = CastMemberLivingRecord(
+            entity: zara, cast: [zara], memories: [], days: [], movements: [], authoredRelationships: [],
+            relationshipField: [:], storyMemories: [heard], now: date(10, 6))
+        XCTAssertEqual(record.storyMemories?.first?.heardFrom, "Wicker")
+        XCTAssertTrue(CastStoryMemoryProjection.entityMemories(CastStoryMemoryLedger(memories: [heard]))
+            .first?.summary.contains("heard from Wicker") == true)
+    }
+
+    // MARK: Let's Chat
+
+    private var castNames: [(id: String, name: String)] {
+        NarrativePackRegistry.bundledPacks.flatMap(\.entities).filter { $0.kind == .character }.map { (id: $0.id, name: $0.name) }
+    }
+
+    func testAskingWhatSomeoneRemembersIsAnsweredFromTheLedger() throws {
+        let receipts = [node("academy.school.chair-first", "academy.school.chair-first.after", at: date(10, 1))]
+        let ledger = CastStoryMemoryLedger.empty.absorbing(try harvest(receipts, now: date(10, 3)))
+        let recalls = LetsChatCastMemory.recalls(for: "What does Wicker remember?", ledger: ledger, cast: castNames, now: date(10, 3))
+        XCTAssertEqual(recalls.map(\.entityID), ["wicker-eddies"])
+        let answer = try XCTUnwrap(LetsChatCastMemory.answer(to: "What does Wicker remember?", recalls: recalls))
+        XCTAssertTrue(answer.hasPrefix("Wicker's carrying"))
+        XCTAssertTrue(answer.contains("stepping stone"))
+        XCTAssertTrue(answer.contains("You were there for that one."))
+        XCTAssertNil(LetsChatCastMemory.answer(to: "Wicker is funny", recalls: recalls), "only the direct question")
+        XCTAssertTrue(LetsChatCastMemory.recalls(for: "what about the weather", ledger: ledger, cast: castNames).isEmpty)
+    }
+
+    func testSomeoneWithNothingToTellSaysSo() {
+        let recalls = LetsChatCastMemory.recalls(for: "Has Permancer heard about it?", ledger: .empty, cast: castNames)
+        XCTAssertEqual(recalls.first?.entityID, "professor-permancer", "a professor answers to his surname")
+        XCTAssertEqual(LetsChatCastMemory.answer(to: "Has Permancer heard about it?", recalls: recalls)?
+            .hasPrefix("Professor Permancer hasn't told me anything"), true)
+    }
+
+    func testTheChatPromptCarriesWhatTheyRemember() throws {
+        var heard = memory("bread", entity: "serenity-brown", at: date(10, 2), witness: .heard)
+        heard.heardFromName = "Wicker"
+        let recalls = LetsChatCastMemory.recalls(
+            for: "Is Serenity okay?", ledger: CastStoryMemoryLedger(memories: [heard]), cast: castNames, now: date(10, 3))
+        let prompt = LetsChatPrompt.render(
+            LetsChatPrompt.Inputs(message: "Is Serenity okay?", route: LetsChatRouter.route("Is Serenity okay?"),
+                                  castRecalls: recalls),
+            budget: LetsChatPrompt.Budget(evidenceCount: 0, historyTurns: 0, knowledgeNotes: 0,
+                                          interiorCharacters: 0, recentPages: 0))
+        XCTAssertTrue(prompt.contains("WHAT SERENITY BROWN REMEMBERS FROM THE STORY"))
+        XCTAssertTrue(prompt.contains("(heard it from Wicker)"))
+        XCTAssertTrue(prompt.contains("don't add to them"))
+    }
+
+    func testNobodyIsToldAboutThemselvesOrHearsTheWholeMonth() throws {
+        let ledger = CastStoryMemoryLedger.empty.absorbing(try harvest([], now: date(11, 5)))
+        let heard = told(ledger, now: date(11, 5)) { _, _ in 12 }
+        XCTAssertFalse(heard.isEmpty)
+        let names = Dictionary(listeners.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        var load: [String: Int] = [:]
+        for memory in heard {
+            let aside = try XCTUnwrap(memory.aside)
+            XCTAssertFalse(aside.contains("{teller}"))
+            if let teller = memory.heardFromName {
+                let short = teller.split(separator: " ").last.map(String.init) ?? teller
+                XCTAssertFalse(aside.dropFirst(teller.count).contains(short), "\(teller) tells on themselves: \(aside)")
+            }
+            XCTAssertFalse(CastStoryNames.mentions(memory.memory + " " + aside, name: names[memory.entityID] ?? ""),
+                           "\(memory.entityID) hears about themselves")
+            load[memory.entityID, default: 0] += 1
+        }
+        XCTAssertLessThanOrEqual(load.values.max() ?? 0, 4, "the month's news is spread about: \(load)")
+    }
 }

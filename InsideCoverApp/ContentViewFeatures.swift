@@ -5080,7 +5080,7 @@ extension ContentView {
         source.editorialTitle = nil
         source.castConversation = nil
         source.looseThread = nil
-        return try PublicationBindingCheckpointStore.fingerprint(of: source)
+        return "weekly-tale-2:" + (try PublicationBindingCheckpointStore.fingerprint(of: source))
     }
 
     private func monthlyBindingSourceFingerprint(for edition: MonthlyEdition) throws -> String {
@@ -5174,11 +5174,7 @@ extension ContentView {
                 for: checkpoint.payload.issue,
                 character: character
             )
-            // The pull quote and the bound story are printed around this note, so a
-            // sentence it shares with them is dropped: Issue 6 said one line seven times.
-            checkpoint.payload.editorialNote = editorial.map {
-                WeeklyCuration.removingRepeats(from: $0, of: weeklySpentLines(for: checkpoint.payload.issue))
-            }
+            checkpoint.payload.editorialNote = editorial
             checkpoint.markCompleted(editorialStage)
             try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
             await LocalBrainPublicationStageBoundary.persisted(editorialStage)
@@ -5191,12 +5187,7 @@ extension ContentView {
                 for: checkpoint.payload.issue,
                 character: character
             )
-            checkpoint.payload.closingNote = closing.map {
-                WeeklyCuration.removingRepeats(
-                    from: $0,
-                    of: weeklySpentLines(for: checkpoint.payload.issue) + WonderBraid.sentences(checkpoint.payload.editorialNote ?? "")
-                )
-            }
+            checkpoint.payload.closingNote = closing
             checkpoint.markCompleted(closingStage)
             try PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
             await LocalBrainPublicationStageBoundary.persisted(closingStage)
@@ -5284,39 +5275,19 @@ extension ContentView {
 
     @MainActor
     private func gemmaWeeklyIssueTitle(for issue: WeeklyIssue, character: String) async -> String? {
-        let evidence = (issue.revelations.prefix(2).map { "\($0.title): \($0.body)" }
-            + issue.highlights.prefix(3))
-            .joined(separator: "\n")
-        let prompt = """
-        Name this exact issue of The Book of You.
-        \(character)
-
-        The week's bound story:
-        \(issue.bindingStory.map { String($0.prefix(1_300)) } ?? "No larger binding cleared the press.")
-
-        Evidence:
-        \(evidence)
-
-        Write one literary magazine cover title of 2 to 8 words. It should feel inevitable only after the issue is read: concrete, specific, surprising, and grounded in the supplied week. Don't use the reader's name, a date, “week,” “issue,” “journey,” “chapter,” or generic praise. Don't invent anything. Output the title only.
-        """
+        let reading = WeeklyTaleReading(issue: issue)
+        guard let titlePrompt = reading.titlePrompt else { return nil }
+        let prompt = "\(character)\n\n\(titlePrompt)"
         guard let raw = await LocalBrainProse.write(
             prompt: prompt,
-            instructions: BraidInstructions.bookOfYou,
+            instructions: WeeklyTaleReading.instructions,
             maxTokens: 48,
             sourceID: "weekly-issue-title",
             tags: ["edition", "weekly-issue", "cover-title", "gemma"],
-            temperature: 0.70,
+            temperature: 0.65,
             topP: 0.88
         ) else { return nil }
-        let title = raw
-            .components(separatedBy: .newlines)
-            .first?
-            .replacingOccurrences(of: "TITLE:", with: "", options: .caseInsensitive)
-            .trimmingCharacters(in: CharacterSet(charactersIn: " \t\"“”'*_#.!?"))
-        guard let title = title?.nonEmpty,
-              title.count <= 72,
-              (2...8).contains(title.split(whereSeparator: \.isWhitespace).count) else { return nil }
-        return title
+        return reading.acceptedTitle(raw)
     }
 
     @MainActor
@@ -5348,55 +5319,35 @@ extension ContentView {
 
     @MainActor
     private func gemmaWeeklyIssueEditorialNote(for issue: WeeklyIssue, character: String) async -> String? {
-        let highlights = issue.highlights.isEmpty
-            ? "- No highlight lines were available."
-            : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
-        let findings = issue.revelations.prefix(2).map { "- \($0.title): \($0.body)" }.joined(separator: "\n")
-        let tale = WeeklyIssue.taleLine(for: issue) ?? "No tale finished inside this issue."
-        let prompt = """
-        Write the editor's note for Issue No. \(issue.number) of The Book of You Weekly Issue, in the Book's own voice, addressed to the reader. It covers \(issue.dateRange) and gathers \(issue.keptCount) kept pages.
-        \(character)
-        Highlights:
-        \(highlights)
-        What the Book could support with receipts:
-        \(findings.isEmpty ? "- no finding cleared the evidence threshold" : findings)
-        Tale desk: \(tale)
-        Set-aside note: \(issue.setAsideLine ?? "none")
-        Write 1 or 2 short paragraphs as an actual magazine editor opening this exact issue. Point to one concrete thing inside, and give the reader a reason to turn the page. Make the week feel whole without pretending it was grand. Don't repeat the binding story or any highlight line word for word, and don't invent events. Point at something the highlights don't already say.
-        """
-        guard let raw = await LocalBrainProse.write(
-            prompt: prompt,
-            instructions: BraidInstructions.bookOfYou,
-            maxTokens: 260,
-            sourceID: "weekly-issue-editorial",
-            tags: ["edition", "weekly-issue", "gemma"]
-        ) else { return nil }
-        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? nil : cleaned
+        await gemmaWeeklyTaleNote(for: issue, at: .opening, character: character)
     }
 
     @MainActor
     private func gemmaWeeklyIssueClosingNote(for issue: WeeklyIssue, character: String) async -> String? {
-        let highlights = issue.highlights.isEmpty
-            ? "- No highlight lines were available."
-            : issue.highlights.map { "- \($0)" }.joined(separator: "\n")
-        let prompt = """
-        Write the closing note for Issue No. \(issue.number) of The Book of You Weekly Issue, in the Book's own voice, addressed to the reader. It covers \(issue.dateRange) and gathers \(issue.keptCount) kept pages.
-        \(character)
-        Highlights:
-        \(highlights)
-        Set-aside note: \(issue.setAsideLine ?? "none")
-        Write one short paragraph, 1 to 3 sentences. Let the week feel kept; mention that the month and year are still gathering only if it feels natural. Don't invent events, and don't repeat a highlight line word for word.
-        """
-        guard let raw = await LocalBrainProse.write(
-            prompt: prompt,
-            instructions: BraidInstructions.bookOfYou,
-            maxTokens: 160,
-            sourceID: "weekly-issue-closing",
-            tags: ["edition", "weekly-issue", "closing", "gemma"]
-        ) else { return nil }
-        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? nil : cleaned
+        await gemmaWeeklyTaleNote(for: issue, at: .closing, character: character)
+    }
+
+    @MainActor
+    private func gemmaWeeklyTaleNote(
+        for issue: WeeklyIssue, at position: WeeklyTaleReading.Position, character: String
+    ) async -> String {
+        let reading = WeeklyTaleReading(issue: issue)
+        guard reading.focus(for: position) != nil else { return reading.note(at: position) }
+        for _ in 0..<2 {
+            guard let raw = await LocalBrainProse.write(
+                prompt: "\(character)\n\n\(reading.prompt(at: position))",
+                instructions: WeeklyTaleReading.instructions,
+                maxTokens: 130,
+                sourceID: position == .opening ? "weekly-issue-editorial" : "weekly-issue-closing",
+                tags: ["edition", "weekly-issue", position.rawValue, "gemma"],
+                temperature: 0.65,
+                topP: 0.88
+            ) else { break }
+            if let lines = reading.acceptedBookLines(raw, at: position) {
+                return reading.note(at: position, bookLines: lines)
+            }
+        }
+        return reading.note(at: position)
     }
 
     @MainActor

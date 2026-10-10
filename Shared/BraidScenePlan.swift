@@ -1586,16 +1586,17 @@ enum BraidScenePlanBuilder {
     /// question mark loses whether the reader was asking.
     private static func sentences(in text: String) -> [String] {
         var result: [String] = []
-        var current = ""
-        for character in text {
-            current.append(character)
-            if character == "." || character == "!" || character == "?" {
-                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.count > 1 { result.append(trimmed) }
-                current = ""
-            }
+        // A dot inside a time or number is not a sentence boundary. Keep
+        // closing quotation/Markdown marks with the sentence they belong to.
+        let boundaries = try! NSRegularExpression(pattern: #"[.!?]+["”’')\]\*]*(?=\s|$)"#)
+        var start = text.startIndex
+        for match in boundaries.matches(in: text, range: NSRange(text.startIndex..<text.endIndex, in: text)) {
+            guard let range = Range(match.range, in: text) else { continue }
+            let trimmed = text[start..<range.upperBound].trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.count > 1 { result.append(trimmed) }
+            start = range.upperBound
         }
-        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        let tail = text[start...].trimmingCharacters(in: .whitespacesAndNewlines)
         if tail.count > 1 { result.append(tail) }
         return result.isEmpty ? [text] : result
     }
@@ -2905,10 +2906,11 @@ extension BraidScenePlan {
             }
         }
         if let rememberedEvidenceID, let remembered = evidence(for: rememberedEvidenceID) {
-            lines.append(BraidSceneWriter.secondPerson(remembered.text))
+            lines.append("From an earlier page: \(BraidSceneWriter.secondPerson(remembered.text))")
         }
         if let carriedReturn {
-            lines.append(BraidSceneWriter.secondPerson(carriedReturn.priorText))
+            let ago = carriedReturn.daysSince == 1 ? "One day ago" : "\(carriedReturn.daysSince) days ago"
+            lines.append("\(ago): \(BraidSceneWriter.secondPerson(carriedReturn.priorText))")
         }
         return lines
     }
@@ -3303,17 +3305,16 @@ enum BraidSceneWriter {
     /// and sentence openings are restored afterwards - otherwise "My mother said
     /// I never write" became "Your mother said You never write".
     private static func capitalisingSentences(in text: String) -> String {
-        var result = ""
-        var atOpening = true
-        for character in text {
-            if atOpening, character.isLetter {
-                result += String(character).uppercased()
-                atOpening = false
-            } else {
-                result.append(character)
-                if character == "." || character == "!" || character == "?" { atOpening = true }
-            }
+        // Restore moved pronouns, not every letter after a dot. The broader
+        // pass turned the Reader's "7:52 a.m." into "7:52 a.M.".
+        var result = text
+        let pattern = try! NSRegularExpression(pattern: #"(^|[.!?]\s+)(you(?:r|rs|rself|rselves)?\b)"#)
+        for match in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).reversed() {
+            guard let range = Range(match.range(at: 2), in: result) else { continue }
+            let word = String(result[range])
+            result.replaceSubrange(range, with: word.prefix(1).uppercased() + word.dropFirst())
         }
+        if let first = result.first, first.isLetter { result.replaceSubrange(result.startIndex...result.startIndex, with: String(first).uppercased()) }
         return result
     }
 
@@ -3342,6 +3343,15 @@ enum BraidSceneWriter {
         case "me": replacement = "you"
         case "mine": replacement = "yours"
         case "myself": replacement = "yourself"
+        case "we": replacement = "you"
+        case "us": replacement = "you"
+        case "our": replacement = "your"
+        case "ours": replacement = "yours"
+        case "ourselves": replacement = "yourselves"
+        case "we're", "we’re": replacement = "you're"
+        case "we've", "we’ve": replacement = "you've"
+        case "we'd", "we’d": replacement = "you'd"
+        case "we'll", "we’ll": replacement = "you'll"
         case "i'm", "i’m": replacement = "you're"
         case "i've", "i’ve": replacement = "you've"
         case "i'd", "i’d": replacement = "you'd"

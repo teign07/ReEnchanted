@@ -492,6 +492,8 @@ struct MonthlyEdition: Codable, Equatable {
     var constellations: [Constellation]
     var foreword: String
     var sections: [MonthlyEditionSection]
+    /// What the reader wrote at the press before binding ("Before I bind this").
+    var bindingAccount: BindingAccount? = nil
     var continuity: LiteraryContinuityDigest
     var howYouSee: HowYouSee.SeeingReceipt?
     /// Gemma's chronological re-reading of the nightly Book of You pages: the
@@ -1020,6 +1022,26 @@ enum SeasonTitler {
             )
         }
 
+        // 1½. The reader's own words, which move them more than any reading of
+        //     ours could. First a month they named themselves ("I want to
+        //     remember it was a month where I started looking up"), the latest
+        //     one; then a line they kept writing across the season.
+        if let named = chapters.reversed().first(where: { chapter in
+            guard let theme = chapter.theme else { return false }
+            return theme.motifs.isEmpty && theme.line.hasPrefix("You wrote:")
+        }), let theme = named.theme {
+            return SeasonTitleProposal(
+                title: theme.name,
+                because: "You wrote it in \(named.monthName.split(separator: " ").first.map(String.init) ?? named.monthName), and it's the truest name this season has."
+            )
+        }
+        if let refrain = readerRefrain(in: chapters) {
+            return SeasonTitleProposal(
+                title: refrain.phrase,
+                because: "You wrote \u{201C}\(refrain.phrase.lowercased())\u{201D} \(refrain.count) times, across \(refrain.months) months. A season is what keeps coming back."
+            )
+        }
+
         // 2. A theme that held across more than one month of the season. One
         //    month is weather; two is a season.
         let themes = chapters.compactMap(\.theme)
@@ -1064,6 +1086,31 @@ enum SeasonTitler {
         }
 
         return nil
+    }
+
+    /// The opening of a sentence the reader wrote again and again, in more than
+    /// one month: "The harbour kept its minutes". Their words, in their order.
+    static func readerRefrain(in chapters: [MonthlyEdition]) -> (phrase: String, count: Int, months: Int)? {
+        var counts: [String: (phrase: String, count: Int, months: Set<Int>)] = [:]
+        let joiners: Set<String> = ["on", "the", "a", "an", "of", "in", "at", "to", "and", "for", "with", "my", "by"]
+        for (month, chapter) in chapters.enumerated() {
+            for entry in chapter.dayBook?.days.flatMap(\.entries) ?? [] {
+                guard let sentence = WonderBraid.sentences(entry.text).first else { continue }
+                var words = sentence.split(separator: " ").prefix(5).map { $0.trimmingCharacters(in: .punctuationCharacters) }
+                while let last = words.last, joiners.contains(last.lowercased()) { words.removeLast() }
+                guard words.count >= 3 else { continue }
+                let phrase = words.joined(separator: " ")
+                let key = phrase.lowercased()
+                var record = counts[key] ?? (phrase, 0, [])
+                record.count += 1
+                record.months.insert(month)
+                counts[key] = record
+            }
+        }
+        return counts.values
+            .filter { $0.count >= 6 && $0.months.count >= 2 }
+            .max { ($0.count, $1.phrase) < ($1.count, $0.phrase) }
+            .map { ($0.phrase, $0.count, $0.months.count) }
     }
 }
 
@@ -2494,13 +2541,15 @@ enum MonthlyEditionBuilder {
         )
 
         let monthKey = BookThemeEngine.monthKey(for: startDate, calendar: calendar)
-        let theme = BookThemeEngine.theme(forMonth: monthKey, in: themes)
+        let theme = MonthlyReaderReading.theme(in: pages, monthKey: monthKey, now: generatedAt, calendar: calendar)
+            ?? BookThemeEngine.theme(forMonth: monthKey, in: themes)
             ?? BookThemeEngine.theme(
-                for: pages,
+                for: MonthlyReaderReading.themePages(in: pages),
                 digest: continuity,
                 constellations: constellations,
                 monthKey: monthKey,
-                now: generatedAt
+                now: generatedAt,
+                calendar: calendar
             )
         let chapterNumber = chapterNumber(forMonthStarting: startDate, in: days, calendar: calendar)
 
@@ -2517,7 +2566,12 @@ enum MonthlyEditionBuilder {
             now: generatedAt,
             calendar: calendar,
             limit: 6
-        )
+        ).filter { finding in
+            // When the Reader has named what their month meant, incidental
+            // word/hour/weather tallies should not compete with that account.
+            guard MonthlyReaderReading.reflection(in: pages) != nil else { return true }
+            return ![BindingRevelations.Kind.recurringWord, .hourOfHonesty, .weatherAndInk].contains(finding.kind)
+        }
         var passageInputs = BookSourceInputs.empty
         passageInputs.days = monthDays
         passageInputs.continuity = continuity
@@ -2900,16 +2954,44 @@ enum MonthlyEditionBuilder {
     private static func memorySpineSection(from days: [BookDay], generatedAt: Date) -> MonthlyEditionSection {
         let digest = BindingMemorySpine.digest(days: days, now: generatedAt, limit: 31)
         guard !digest.braids.isEmpty else {
-            return MonthlyEditionSection(id: "book-memory-spine", title: "Book Memory Spine", note: "", items: [])
+            return MonthlyEditionSection(id: "book-memory-spine", title: "What Stayed With Me", note: "", items: [])
         }
 
         var items: [MonthlyEditionItem] = []
-        if let lead = digest.braids.first {
+        let readerPages = days.flatMap(\.pages)
+        // Memory tags are deliberately short for model prompts. A printed
+        // quotation must go back to its Page and carry the complete sentence.
+        func printedCallback(_ memory: BindingMemoryDigest.BraidMemory, candidate: String) -> String? {
+            guard let page = readerPages.first(where: { $0.id == memory.pageID }),
+                  let needle = WonderBraid.sentences(candidate).first else { return nil }
+            let sentences = BraidPageDetails.details(for: page).body.components(separatedBy: "\n\n")
+                .flatMap(WonderBraid.sentences)
+            return sentences.first { WonderBraid.normalized($0).contains(WonderBraid.normalized(needle)) }
+        }
+        let moments = MonthlyReaderReading.moments(in: readerPages)
+        if let reflection = MonthlyReaderReading.reflection(in: readerPages) {
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-reader-account", kind: .continuity, title: "You Said It",
+                body: "You wrote: \u{201C}\(MonthlyReaderReading.detailsFromReflection(reflection))\u{201D}\n\nI went back and read the days beside it. They stay together.",
+                date: reflection.date, pageType: .diary, sourceID: nil, mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "reader-account"]
+            ))
+        } else if !moments.isEmpty {
+            let indices = Set([0, moments.count / 2, moments.count - 1]).sorted()
+            items.append(MonthlyEditionItem(
+                id: "memory-spine-reader-account", kind: .continuity, title: "Some Things You Kept",
+                body: indices.map { "\u{201C}\(MonthlyReaderReading.excerpt(moments[$0]))\u{201D}" }.joined(separator: "\n\n"),
+                date: moments.first?.date, pageType: .diary, sourceID: nil, mediaAssets: [],
+                tags: ["monthly-edition", "book-memory-spine", "reader-account"]
+            ))
+        }
+        if let lead = digest.braids.first,
+           let line = printedCallback(lead, candidate: lead.residue.callbackCandidate ?? lead.residue.keptLine) {
             items.append(MonthlyEditionItem(
                 id: "memory-spine-cover-story",
                 kind: .continuity,
-                title: "Cover Story",
-                body: cleanedBookText("\(lead.residue.title)\n\n\(lead.residue.callbackCandidate ?? lead.residue.keptLine)"),
+                title: "From the Nightly Telling",
+                body: cleanedBookText("\(lead.residue.title)\n\n\(line)"),
                 date: lead.date,
                 pageType: .bookOfYou,
                 sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
@@ -2921,13 +3003,13 @@ enum MonthlyEditionBuilder {
         // A refrain is a motif that came back. "letter (1), light (1)" is a
         // list of things mentioned once.
         let refrains = digest.motifCounts.filter { $0.count >= 2 }
-        if !refrains.isEmpty {
-            let motifs = refrains.prefix(8).map { "\($0.motif) (\($0.count))" }
+        if moments.isEmpty, !refrains.isEmpty {
+            let motifs = refrains.prefix(8).map(\.motif)
             items.append(MonthlyEditionItem(
                 id: "memory-spine-refrain",
                 kind: .continuity,
                 title: "The Month's Refrain",
-                body: "Across the nightly braids, these motifs kept returning: \(naturalList(Array(motifs))).",
+                body: "These kept coming back in my nightly tellings: \(naturalList(Array(motifs))).",
                 date: digest.braids.first?.date,
                 pageType: .bookOfYou,
                 sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id,
@@ -2938,7 +3020,8 @@ enum MonthlyEditionBuilder {
 
         let callbacks = digest.braids
             .compactMap { memory -> String? in
-                guard let callback = memory.residue.callbackCandidate?.nonEmpty else { return nil }
+                guard let candidate = memory.residue.callbackCandidate?.nonEmpty,
+                      let callback = printedCallback(memory, candidate: candidate) else { return nil }
                 return "\(memory.residue.title): \(callback)"
             }
             .prefix(6)
@@ -2975,8 +3058,8 @@ enum MonthlyEditionBuilder {
 
         return MonthlyEditionSection(
             id: "book-memory-spine",
-            title: "Book Memory Spine",
-            note: "The nightly Book of You pages, read as callbacks, refrains, and open questions.",
+            title: "What Stayed With Me",
+            note: "Your words first. Then the threads I’m keeping from my nightly tellings.",
             items: items
         )
     }
@@ -3031,17 +3114,20 @@ enum MonthlyEditionBuilder {
         let reading = BoundSpanShape.read(
             pages: pages, tales: tales, from: startDate, to: endDate
         )
-        // A span with nothing in it is not a book, and saying "nothing here
-        // arranged itself into a story" about a span with no pages at all
-        // would be the Book talking to itself. The quiet register is for a
-        // month the reader lived and did not make a plot out of - not for an
-        // empty one.
+        // Don't invent a reading for an empty span. When the Reader gave
+        // their own account of the month, keep that beside the quiet register.
         guard !pages.isEmpty else {
             return MonthlyEditionSection(
                 id: "what-this-was", title: "", note: "", items: [], placement: .frontMatter
             )
         }
-        let body = BoundSpanShape.colophon(for: reading, span: span)
+        let body: String
+        if reading.isQuiet, let reflection = MonthlyReaderReading.reflection(in: pages) {
+            let words = MonthlyReaderReading.rememberedSentence(reflection) ?? MonthlyReaderReading.excerpt(reflection)
+            body = "You wrote: \u{201C}\(words)\u{201D}\n\nI’m keeping the days with it. Little things go missing fastest."
+        } else {
+            body = BoundSpanShape.colophon(for: reading, span: span)
+        }
         return MonthlyEditionSection(
             id: "what-this-was",
             title: "What This \(span.capitalized) Was",
@@ -3072,7 +3158,7 @@ enum MonthlyEditionBuilder {
                 id: theme.id,
                 kind: .continuity,
                 title: theme.name,
-                body: cleanedBookText("\(theme.line)\n\n\(theme.stabilityDetail)"),
+                body: cleanedBookText(theme.line),
                 date: nil,
                 pageType: nil,
                 sourceID: nil,
@@ -3095,10 +3181,11 @@ enum MonthlyEditionBuilder {
                 tags: ["theme-excerpt"]
             ))
         }
+        let readerNamed = theme.motifs.isEmpty && MonthlyReaderReading.reflection(in: pages) != nil
         return MonthlyEditionSection(
             id: "the-months-theme",
-            title: "The Month's Theme",
-            note: theme.isStable
+            title: readerNamed ? "What You Called This Month" : "The Month's Theme",
+            note: readerNamed ? "Your own words for what you wanted to remember." : theme.isStable
                 ? "One current I found running under the month, named and held up to the light."
                 : "One early current I found running under the month, still marked provisional.",
             items: items
@@ -3111,12 +3198,21 @@ enum MonthlyEditionBuilder {
         setAsideLine: String? = nil
     ) -> MonthlyEditionSection {
         var items: [MonthlyEditionItem] = []
+        let namedMoments = MonthlyReaderReading.namedMoments(in: pages)
+        for named in namedMoments {
+            items.append(MonthlyEditionItem(
+                id: "month-named-\(named.moment.pageID)-\(named.name.stableHash)", kind: .continuity,
+                title: named.name, body: "You wrote: \u{201C}\(named.moment.text)\u{201D}",
+                date: named.moment.date, pageType: .diary, sourceID: nil, mediaAssets: [],
+                tags: ["monthly-edition", "reader-account", "reader-source:\(named.moment.pageID)"]
+            ))
+        }
         let typeCounts = Dictionary(grouping: pages, by: \.type).mapValues(\.count)
         let strongest = typeCounts.sorted { left, right in
             if left.value == right.value { return left.key.title < right.key.title }
             return left.value > right.value
         }.prefix(5)
-        if !strongest.isEmpty {
+        if namedMoments.isEmpty, !strongest.isEmpty {
             items.append(MonthlyEditionItem(
                 id: "month-shape",
                 kind: .continuity,
@@ -3137,7 +3233,7 @@ enum MonthlyEditionBuilder {
         }
         let signals = continuity.strongestSignals
         let patternSignals = signals.filter { $0.kind == .pattern }
-        if !patternSignals.isEmpty {
+        if namedMoments.isEmpty, !patternSignals.isEmpty {
             items.append(MonthlyEditionItem(
                 id: "returning-language",
                 kind: .continuity,
@@ -3150,7 +3246,7 @@ enum MonthlyEditionBuilder {
                 tags: ["monthly-edition", "language", "pattern"]
             ))
         }
-        for signal in signals.filter({ $0.kind != .pattern }).prefix(5) {
+        for signal in signals.filter({ $0.kind != .pattern && namedMoments.isEmpty }).prefix(5) {
             items.append(MonthlyEditionItem(
                 id: signal.id,
                 kind: .continuity,
@@ -3181,7 +3277,8 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "the-book-notices",
             title: "What I Noticed",
-            note: "Connections, absences, durations, and living Beliefs gathered from the month.",
+            note: namedMoments.isEmpty ? "Connections, absences, durations, and living Beliefs gathered from the month."
+                : "You put these side by side at the end. I went back and found the days they came from.",
             items: items
         )
     }
@@ -3491,11 +3588,11 @@ enum MonthlyEditionBuilder {
         from revelations: [BindingRevelations.Revelation]
     ) -> MonthlyEditionSection {
         guard !revelations.isEmpty else {
-            return MonthlyEditionSection(id: "what-i-noticed", title: "What I Noticed", note: "", items: [])
+            return MonthlyEditionSection(id: "what-i-noticed", title: "What Else I Noticed", note: "", items: [])
         }
         return MonthlyEditionSection(
             id: "what-i-noticed",
-            title: "What I Noticed",
+            title: "What Else I Noticed",
             note: "Connections that only show up when a whole month is held still at once.",
             items: revelations.map { revelation in
                 var body = revelation.body
@@ -3809,6 +3906,120 @@ private extension String {
     }
 }
 
+/// The Reader's own sentences lead the binding. Nightly fiction is never
+/// evidence for what the Reader did, or for what their month meant to them.
+enum MonthlyReaderReading {
+    struct Moment: Equatable {
+        var pageID: String
+        var date: Date
+        var text: String
+    }
+
+    struct NamedMoment: Equatable {
+        var name: String
+        var moment: Moment
+    }
+
+    static func moments(in pages: [BookPage]) -> [Moment] {
+        var seen = Set<String>()
+        return pages.sorted {
+            $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
+        }.filter { page in
+            !EditionCurator.defaultPrivateTypes.contains(page.type)
+                && (page.type != .bookOfYou || !page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }.flatMap { page in
+            page.readerContributions.compactMap { contribution -> Moment? in
+                guard contribution.kind == .sentence, let text = contribution.text,
+                      text.split(whereSeparator: \.isWhitespace).count >= 4,
+                      seen.insert(text).inserted else { return nil }
+                return Moment(pageID: page.id, date: page.createdAt, text: text)
+            }
+        }
+    }
+
+    /// An explicit retrospective outranks a machine's frequency count. Don't
+    /// mistake a diary entry about wanting to remember lunch for a month-reading.
+    static func reflection(in pages: [BookPage]) -> Moment? {
+        moments(in: pages).last { moment in
+            let lower = moment.text.lowercased().replacingOccurrences(of: "’", with: "'")
+            return lower.contains("month") && (lower.contains("i want to remember")
+                || lower.contains("i read back") || lower.contains("this month taught me"))
+        }
+    }
+
+    static func excerpt(_ moment: Moment) -> String {
+        // A complete sentence, never a clipped preview passed off as a quote.
+        WonderBraid.sentences(moment.text).first ?? moment.text
+    }
+
+    static func openingExcerpt(_ moment: Moment) -> String {
+        // An entry can begin "Monday" or "First of the month". Carry the
+        // first complete sentence with some life in it, not that date label.
+        WonderBraid.sentences(moment.text).first {
+            $0.split(whereSeparator: \.isWhitespace).count >= 8
+        } ?? excerpt(moment)
+    }
+
+    static func rememberedSentence(_ moment: Moment) -> String? {
+        WonderBraid.sentences(moment.text).last { $0.lowercased().contains("i want to remember") }
+    }
+
+    static func detailsFromReflection(_ moment: Moment) -> String {
+        let sentences = WonderBraid.sentences(moment.text)
+            .filter { !$0.lowercased().contains("i want to remember") }
+        return sentences.suffix(5).joined(separator: " ")
+    }
+
+    /// Follow a Reader's explicit list back to the actual entries. A missing
+    /// object stays missing; generated braids cannot supply its source day.
+    static func namedMoments(in pages: [BookPage]) -> [NamedMoment] {
+        guard let reflection = reflection(in: pages) else { return [] }
+        let earlier = moments(in: pages).filter { $0.date < reflection.date }
+        var found: [NamedMoment] = []
+        for sentence in WonderBraid.sentences(reflection.text) {
+            guard sentence.split(whereSeparator: \.isWhitespace).count <= 4 else { continue }
+            let words = WonderBraid.contentWords(sentence)
+            guard words.count == 1, let word = words.first else { continue }
+            let pattern = "\\b" + NSRegularExpression.escapedPattern(for: word) + "\\b"
+            for moment in earlier {
+                guard let quote = WonderBraid.sentences(moment.text).first(where: {
+                    $0.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+                }) else { continue }
+                let name = sentence.trimmingCharacters(in: CharacterSet(charactersIn: ".!? "))
+                found.append(NamedMoment(name: name, moment: Moment(pageID: moment.pageID, date: moment.date, text: quote)))
+                break
+            }
+        }
+        return Array(found.prefix(4))
+    }
+
+    static func theme(in pages: [BookPage], monthKey: String, now: Date, calendar: Calendar) -> BookTheme? {
+        guard let reflection = reflection(in: pages), let sentence = rememberedSentence(reflection) else { return nil }
+        let pattern = #"(?i)\bI want to remember\s+(?:that\s+)?(?:it was\s+)?(?:a month (?:where|when)\s+)?(.+?)[.!?]?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)),
+              let range = Range(match.range(at: 1), in: sentence) else { return nil }
+        let name = String(sentence[range]).trimmingCharacters(in: CharacterSet(charactersIn: ".!? "))
+        guard !name.isEmpty, name.count <= 72 else { return nil }
+        let observed = Set(moments(in: pages).map { BookDay.id(for: $0.date, calendar: calendar) }).count
+        return BookTheme(
+            id: "theme-\(monthKey)", monthKey: monthKey, name: name.sentenceCased,
+            motifs: [], line: "You wrote: \u{201C}\(sentence)\u{201D} I’m keeping your words at the front.",
+            strength: 100, evidencePageIDs: [reflection.pageID], excerptLines: [],
+            discoveredAt: now, stability: .stable, observedDayCount: observed, settledAt: now
+        )
+    }
+
+    /// The automatic theme may still find a refrain, but only among actual
+    /// Reader words. Weather tags and generated braid objects don't get a vote.
+    static func themePages(in pages: [BookPage]) -> [BookPage] {
+        moments(in: pages).map { moment in
+            BookPage(id: moment.pageID, type: .diary, createdAt: moment.date,
+                     promptText: "", userInput: moment.text, origin: .userAuthored)
+        }
+    }
+}
+
 enum BookForewordWriter {
 
     /// One month's stable voice-seed. The same month always reads the same way;
@@ -3884,6 +4095,13 @@ enum BookForewordWriter {
             ], seed: beatSeed(seed, 11), salt: 0))
         }
 
+        if let first = MonthlyReaderReading.moments(in: pages).first {
+            let address = readerRole.map { "\($0.fullName). " } ?? ""
+            paragraphs[0] = address + "Before I count anything, this: \u{201C}\(MonthlyReaderReading.openingExcerpt(first))\u{201D} "
+                + "You gave me that in \(monthTitle). I’m keeping it."
+                + (dayCount > 0 && dayCount < 7 ? " This is a first binding; the month is still arriving." : "")
+        }
+
         // 2. Why the Book binds at all. Said differently every month, because a
         //    reason repeated verbatim stops being a reason.
         paragraphs.append(ReflectiveProse.pick([
@@ -3893,10 +4111,12 @@ enum BookForewordWriter {
             "Binding is the least mystical thing I do. It's just refusing to let a month become a rumour."
         ], seed: beatSeed(seed, 17), salt: 0))
 
-        // 3. The strongest thing the Book actually found. A revelation outranks
-        //    a continuity signal here: it is the reading the reader could not
-        //    have performed on themselves.
-        if let sharpest = revelations.first {
+        // The Reader's own account of what the month held outranks our counts.
+        if let reflection = MonthlyReaderReading.reflection(in: pages) {
+            let words = MonthlyReaderReading.rememberedSentence(reflection) ?? reflection.text
+            paragraphs.append("Near the end, you wrote: \u{201C}\(words)\u{201D} I went back to the earlier pages with that beside me. "
+                + "I don’t have to guess what you wanted to keep. You told me.")
+        } else if let sharpest = revelations.first {
             paragraphs.append(ReflectiveProse.pick([
                 "Reading it back, I found something you weren't in a position to see. \(sharpest.title). \(sharpest.body)",
                 "One thing surfaced that I don't think you noticed while you were living it. \(sharpest.title). \(sharpest.body)",
@@ -4026,7 +4246,10 @@ enum BookForewordWriter {
         // The closing takes the *second* revelation where it can, so the book
         // does not end on the note it opened with.
         let closingFinding = revelations.dropFirst().first ?? revelations.first
-        if let closingFinding, revelations.count > 1 {
+        if let reflection = MonthlyReaderReading.reflection(in: pages) {
+            paragraphs[0] = "At the end of \(monthTitle), you wrote: \u{201C}\(reflection.text)\u{201D}"
+            paragraphs.append("That belongs beside the days themselves. I won’t make it grander. I’ve put thread through it so it can’t wander off.")
+        } else if let closingFinding, revelations.count > 1 {
             paragraphs.append(ReflectiveProse.pick([
                 "One more thing before I shut the cover. \(closingFinding.title). \(closingFinding.body)",
                 "I held this one back for the end. \(closingFinding.title). \(closingFinding.body)",
@@ -4041,6 +4264,11 @@ enum BookForewordWriter {
             ], seed: beatSeed(seed, 19), salt: 0))
         }
 
+        if MonthlyReaderReading.reflection(in: pages) == nil,
+           let last = MonthlyReaderReading.moments(in: pages).last {
+            paragraphs[0] = "One last thing from \(monthTitle): \u{201C}\(MonthlyReaderReading.excerpt(last))\u{201D} You wrote that. It’s here now."
+        }
+
         let named = ConstellationKeeper.namedConstellations(constellations)
         if let firstNamed = named.first {
             paragraphs.append(ReflectiveProse.pick([
@@ -4050,7 +4278,9 @@ enum BookForewordWriter {
             ], seed: beatSeed(seed, 23), salt: 0))
         }
 
-        if let theme, !theme.isStable || (dayCount > 0 && dayCount < 7) {
+        if MonthlyReaderReading.reflection(in: pages) != nil {
+            // The Reader's closing above already names the month in their words.
+        } else if let theme, !theme.isStable || (dayCount > 0 && dayCount < 7) {
             paragraphs.append(ReflectiveProse.pick([
                 "The early thread this month was \u{201C}\(theme.name)\u{201D}. I'm not calling it the whole sky yet; I'm only saying these words kept tapping the glass, and the glass looked back.",
                 "\u{201C}\(theme.name)\u{201D} kept surfacing. Too early to call it the weather. Early enough to write it down."
@@ -4462,14 +4692,24 @@ struct PrintSpec: Equatable {
     /// The most pages an edition of this kind may print. Premium colour costs
     /// 13.89c a page, so every edition is bounded. The Field Book earns its
     /// pages (the month's story as read, the days, the maps, the Cast), so the
-    /// caps sit where a full month, season and year land: 128, 176 and 256. A
+    /// caps sit where a full month, season and year land: 160, 176 and 256.
+    /// A monthly holds everything a reader who journals every evening writes
+    /// (a devoted month measured 144 pages at its leanest); the margin is a
+    /// flat contribution, so each extra page costs the reader only Lulu's
+    /// price for it. A
     /// Bound Year member-year (three seasonal softcovers, the linen annual,
     /// four parcels) then costs about $162 against $249. The Worker enforces
     /// the same caps (EDITION_PAGE_CAPS), so a client cannot order past them.
+    /// How far the Handbook's evergreen pages (the same for every reader) may
+    /// carry a book. Past this, pages must be the reader's own month.
+    static func genericPageCeiling(for kind: PublicationEditionKind) -> Int {
+        kind == .monthly ? 128 : pageCap(for: kind)
+    }
+
     static func pageCap(for kind: PublicationEditionKind) -> Int {
         switch kind {
         case .weekly: return 48
-        case .monthly: return 128
+        case .monthly: return 160
         case .seasonal: return 176
         case .annual, .special: return 256
         }
@@ -4822,8 +5062,11 @@ struct WeeklyIssue: Codable, Equatable {
         let dailyBraids = allDays
             .flatMap(\.pages)
             .filter { $0.type == .bookOfYou && $0.createdAt >= start && $0.createdAt < end }
+        // A scrapbook page is something the reader made by hand: the curator's
+        // sample never decides whether it comes along.
+        let madeByHand = weekPages.filter(EditionCurator.isScrapbookPage)
         let gatheredPages = Dictionary(
-            (curated.pages + dailyBraids).map { ($0.id, $0) },
+            (curated.pages + dailyBraids + madeByHand).map { ($0.id, $0) },
             uniquingKeysWith: { first, _ in first }
         ).values.sorted { left, right in
             if left.createdAt == right.createdAt { return left.id < right.id }
@@ -4920,6 +5163,10 @@ struct WeeklyIssue: Codable, Equatable {
             let title = tale.title.isEmpty ? tale.shape.commonName : tale.title
             return "The Week \(title) Finished"
         }
+        // A phrase from the reader's own week, when there is a good one; never
+        // "Thursday, Kept" for seven days.
+        if let title = WeeklyTaleReading(issue: self).title, !title.hasSuffix(", Kept"),
+           (2...6).contains(title.split(separator: " ").count) { return title }
         switch revelations.first?.kind {
         case .recurringSubject: return "The Things That Looked Back"
         case .recurringPalette: return "The Color That Kept Returning"
@@ -5034,8 +5281,12 @@ struct WeeklyPublicationMatter: Codable, Equatable {
     }
 
     var preferredPhysicalPageCount: Int {
-        // A week told day by day is bound at the thickness the reader picked.
-        if let dayBook, !dayBook.days.isEmpty { return resolvedPageTier }
+        // The Tale of Your Week is as long as the week: a title leaf and the
+        // chapter list, about two pages a day, and The End, on a signature of four.
+        if let dayBook, !dayBook.days.isEmpty {
+            let raw = 4 + dayBook.days.count * 2
+            return min(WeeklyPrintEditorialPolicy.technicalMaximumPages, max(12, (raw + 3) / 4 * 4))
+        }
         return WeeklyPrintEditorialPolicy.preferredPageCount(for: issue)
     }
 }
@@ -5726,7 +5977,7 @@ extension MonthlyEdition {
         }
         if dayBook != nil,
            !sections.contains(where: { $0.id == "other-kept-pages" && $0.items.count > 0 }),
-           let smaller = dayBook?.trimmedForPrint() {
+           let smaller = dayBook?.trimmedForPrint(sparingNights: true) {
             var copy = self
             copy.dayBook = smaller
             return copy
@@ -5757,18 +6008,24 @@ extension MonthlyEdition {
             }
             return copy
         }
+        // The month at a glance goes before any of the reader's nights.
+        if var keepsakes = handbook?.keepsakes, keepsakes.removeCore() {
+            var copy = self
+            copy.handbook?.keepsakes = keepsakes.isEmpty ? nil : keepsakes
+            return copy
+        }
+        // The nights themselves, last of everything the reader made.
+        if let smaller = dayBook?.trimmedForPrint() {
+            var copy = self
+            copy.dayBook = smaller
+            return copy
+        }
         // A thickness the reader asked for outranks the natural length: the
         // fullest days stay, the lightest go, and the colophon says so.
         if pageTier != nil, let lighter = dayBook?.droppingLightestDay() {
             var copy = self
             copy.dayBook = lighter
             copy.daysLeftOut = (daysLeftOut ?? 0) + 1
-            return copy
-        }
-        // The month at a glance is the last thing a thinner book gives up.
-        if var keepsakes = handbook?.keepsakes, keepsakes.removeCore() {
-            var copy = self
-            copy.handbook?.keepsakes = keepsakes.isEmpty ? nil : keepsakes
             return copy
         }
         return nil

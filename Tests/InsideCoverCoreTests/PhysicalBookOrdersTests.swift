@@ -258,6 +258,21 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(seasonal.markup.cents, 3_500)
     }
 
+    func testFullMonthlyPriceFollowsPrintedPages() {
+        let destination = PhysicalBookShippingDestination(countryCode: "US", stateCode: "ME", postalCode: "04915")
+        let prices = [128, 160].map { pages in
+            PhysicalBookPricing.priceBreakdown(
+                request: PhysicalBookQuoteRequest(editionID: "2026-10", editionKind: .monthly,
+                    variant: .from(.perfectBoundSoftcover6x9), pageCount: pages, shipTo: destination),
+                shippingCents: 0
+            )
+        }
+        XCTAssertEqual(prices[0].manufacturingSubtotal.cents + prices[0].markup.cents, 5_476)
+        XCTAssertEqual(prices[1].manufacturingSubtotal.cents + prices[1].markup.cents, 5_920)
+        XCTAssertEqual(prices.map { $0.markup.cents }, [3_500, 3_500])
+        XCTAssertGreaterThan(prices[1].total.cents, prices[0].total.cents)
+    }
+
     func testWeeklyIssueKeepsSmallerMagazineMarginAndPrice() {
         let request = PhysicalBookQuoteRequest(
             editionID: "weekly-2026-08-15",
@@ -273,9 +288,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 799)
 
         XCTAssertEqual(price.manufacturingSubtotal.cents, 822)
-        XCTAssertEqual(price.markup.cents, 1500)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 125)
-        XCTAssertEqual(price.total.cents, 3246)
+        XCTAssertEqual(price.markup.cents, 1000)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 110)
+        XCTAssertEqual(price.total.cents, 2731)
     }
 
     func testOrderRequestCarriesPaymentShippingAndHostedPrintFiles() throws {

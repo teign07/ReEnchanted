@@ -554,7 +554,7 @@ extension MonthlyEditionPDFWriter {
             (subject.receipt as NSString).draw(at: CGPoint(x: x, y: inner.y + 17),
                 withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 9), .foregroundColor: ink.withAlphaComponent(0.6)])
             let mark = subject.mark.title.uppercased() as NSString
-            let markAttrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 9, weight: .heavy),
+            let markAttrs: [NSAttributedString.Key: Any] = [.font: UIFont.fbSerif(ofSize: 9, weight: .semibold),
                                                            .foregroundColor: markColor(subject.mark, style: style), .kern: 1.6]
             let markSize = mark.size(withAttributes: markAttrs)
             let badge = CGRect(x: x + width - markSize.width - 14, y: inner.y + 2, width: markSize.width + 14, height: 20)
@@ -596,6 +596,25 @@ extension MonthlyEditionPDFWriter {
             let h = FieldText.height(text, font: font, width: width, lineSpacing: 1.8, paragraphSpacing: 0, justified: false)
             FieldText.flow(text, font: font, color: markColor(.resit, style: style),
                            in: CGRect(x: x, y: inner.y, width: width, height: h + 2),
+                           lineSpacing: 1.8, paragraphSpacing: 0, justified: false)
+            inner.y += h + 8
+        }
+
+        // A subject still open carries a note: one real thing waiting there.
+        // Three at most, the most curious first, so the card stays a card.
+        let order = ["curiosity", "initiative", "fieldwork", "deeds", "noticing"]
+        let open = card.subjects.filter { $0.invitation != nil }
+            .sorted { (order.firstIndex(of: $0.id) ?? 9) < (order.firstIndex(of: $1.id) ?? 9) }
+            .prefix(3)
+        for subject in open {
+            guard let invitation = subject.invitation else { continue }
+            let font = UIFont.fbSerifItalic(ofSize: 9.6)
+            let text = "\(subject.name): \(invitation)"
+            let h = FieldText.height(text, font: font, width: width - 14, lineSpacing: 1.8, paragraphSpacing: 0, justified: false)
+            guard inner.y + h < frame.maxY - 96 else { break }
+            ("✦" as NSString).draw(at: CGPoint(x: x, y: inner.y), withAttributes: [.font: UIFont.systemFont(ofSize: 8), .foregroundColor: style.palette.gold])
+            FieldText.flow(text, font: font, color: style.palette.accent,
+                           in: CGRect(x: x + 14, y: inner.y, width: width - 14, height: h + 2),
                            lineSpacing: 1.8, paragraphSpacing: 0, justified: false)
             inner.y += h + 8
         }

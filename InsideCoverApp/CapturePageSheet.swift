@@ -8368,17 +8368,18 @@ struct CapturePageSheet: View {
             }
 
             if !story.isEmpty {
-                castLivingRecordHeading("What happened to them", symbol: "book.closed")
+                castLivingRecordHeading("From the story", symbol: "book.closed")
                 ForEach(story) { memory in
                     // Their own words first, where they have any; the plain
                     // fact underneath, so nobody has to guess what they mean.
                     castLivingRecordRow(
                         eyebrow: [memory.storyTitle, castRecordDate(memory.happenedAt),
-                                  memory.withReader ? "You were there" : nil]
+                                  memory.withReader ? "You were there" : nil,
+                                  memory.heardFrom.map { "Heard from \($0)" }]
                             .compactMap { $0 }.joined(separator: " · "),
                         title: memory.aside.map { "\u{201C}\($0)\u{201D}" } ?? memory.memory,
                         detail: memory.aside == nil ? memory.momentTitle : memory.memory,
-                        symbol: memory.withReader ? "person.2.fill" : "bookmark.fill"
+                        symbol: memory.withReader ? "person.2.fill" : memory.heardFrom != nil ? "ear" : "bookmark.fill"
                     )
                 }
             }
@@ -16065,11 +16066,23 @@ struct CapturePageSheet: View {
             return
         }
 
+        // A message that names someone in the Cast brings what they remember
+        // from the month's story. "What does Wicker remember?" is answered
+        // from the ledger itself, with nothing to invent and no search.
+        let castRecalls = LetsChatCastMemory.recalls(
+            for: prompt,
+            ledger: PlayerVault.shared.data.castStoryMemories ?? .empty,
+            cast: NarrativePackRegistry.entities
+                .filter { $0.kind == .character }
+                .map { (id: $0.id, name: $0.name) }
+        )
+        let castAnswer = LetsChatCastMemory.answer(to: prompt, recalls: castRecalls)
+
         do {
             // Only a question about the reader's own history pays for the
             // archive. Everything else answers from the conversation.
             var memory = AskTheBookMemoryPacket.empty
-            if route.needsArchive {
+            if route.needsArchive, castAnswer == nil {
                 askLive.setCurrent(LetsChatStatusCopy.lookingLine(for: prompt))
                 memory = await askTheBookMemoryLookup(prompt, askTurns)
                 askLive.advance(
@@ -16097,7 +16110,10 @@ struct CapturePageSheet: View {
             }
 
             let answer: String
-            if route.mayAnswerFromInterior,
+            if let remembered = castAnswer {
+                answer = remembered
+                appLog.info("Let’s Chat answered from the Cast's story memory.")
+            } else if route.mayAnswerFromInterior,
                let interiorAnswer = BookInteriorAnswerGrounder.answer(to: prompt, interior: bookInterior) {
                 answer = interiorAnswer
                 appLog.info("Let’s Chat answered from durable Book interior state.")
@@ -16137,7 +16153,8 @@ struct CapturePageSheet: View {
                     bookVoicePatina: bookVoicePatina,
                     onPartial: streamTo,
                     onStage: reportStage,
-                    onMyMind: onMyMind
+                    onMyMind: onMyMind,
+                    castRecalls: castRecalls
                 )
                 appLog.info("Let’s Chat Gemma reply returned; reply characters: \(generated.count, privacy: .public)")
                 #else

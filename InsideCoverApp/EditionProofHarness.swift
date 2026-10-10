@@ -21,6 +21,10 @@ enum EditionProofHarness {
     static let flag = "--smoke-edition-proofs"
 
     static func runIfRequested() {
+        if ProcessInfo.processInfo.arguments.contains("--public-sample-editions") {
+            PublicSampleEditionProof.run()
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains(WeeklyIssueSixProof.flag) {
             WeeklyIssueSixProof.run()
             return
@@ -102,6 +106,27 @@ enum EditionProofHarness {
                 markIndex += 1
             }
         }
+        // Placeholder plates, the way a month's pack ships them, so the proofs
+        // show where commissioned illustrations land.
+        let plates = directory.appendingPathComponent("plates", isDirectory: true)
+        try? FileManager.default.createDirectory(at: plates, withIntermediateDirectories: true)
+        for (slot, label, hue) in [("frontispiece", "Frontispiece: Count Unbound", 0.08), ("scene.count-unbound.scene.east-stacks", "The East Stacks Incident", 0.58),
+                                   ("scene.count-unbound.school.map-room", "The map with room left", 0.33), ("cast.serenity-brown", "Serenity Brown, in October", 0.9),
+                                   ("harvest-lanterns", "Lanterns in the Kitchens", 0.12), ("stair-fog", "Fog on the North Stair", 0.65)] {
+            let size = CGSize(width: 1200, height: slot.hasPrefix("cast.") || slot == "frontispiece" ? 1600 : 900)
+            let image = UIGraphicsImageRenderer(size: size).image { renderer in
+                let cg = renderer.cgContext
+                UIColor(hue: hue, saturation: 0.25, brightness: 0.92, alpha: 1).setFill(); cg.fill(CGRect(origin: .zero, size: size))
+                UIColor(hue: hue, saturation: 0.45, brightness: 0.55, alpha: 1).setFill()
+                cg.fillEllipse(in: CGRect(x: size.width * 0.2, y: size.height * 0.2, width: size.width * 0.6, height: size.height * 0.5))
+                let font = UIFont(name: "BradleyHandITCTT-Bold", size: 60) ?? .systemFont(ofSize: 60)
+                ("PLATE · " + label as NSString).draw(in: CGRect(x: 60, y: size.height - 160, width: size.width - 120, height: 140),
+                                                      withAttributes: [.font: font, .foregroundColor: UIColor(white: 0.2, alpha: 1)])
+            }
+            try? image.pngData()?.write(to: plates.appendingPathComponent("count-unbound.plate.\(slot).png"))
+        }
+        EditionPlates.proofDirectory = plates
+
         let reader = SyntheticReaderYear.readerName
         status.append("library: \(days.count) days, \(days.flatMap(\.pages).count) pages")
         status.append("October mark fixtures: \(markIndex) of \(markURLs.count)")
@@ -154,6 +179,52 @@ enum EditionProofHarness {
             }
         }
 
+        // Every week of the year, not two hand-picked ones: each is bound and
+        // read back against the rules a printed Tale must keep.
+        step("matrix-weekly") {
+            // Judged as a customer receives it: ruin pages ship switched off.
+            PrintFeatureFlags.ruinPagesEnabled = false
+            defer { PrintFeatureFlags.ruinPagesEnabled = true }
+            let yearEnd = SyntheticReaderYear.date(2026, 12, 31)
+            let all = PublicationPeriodCatalog.readerWeeks(days: weekDays, now: yearEnd, calendar: calendar).filter(\.isBindable)
+            var report: [String] = []
+            var failures = 0
+            var pageTotals: [Int] = []
+            let url = directory.appendingPathComponent("matrix-weekly.pdf")
+            for candidate in all {
+                guard let issue = WeeklyIssue.issue(for: candidate.period, days: weekDays, now: yearEnd, calendar: calendar) else { continue }
+                var matter = WeeklyPublicationMatter(issue: issue, card: WeeklyIssueShareCard.make(issue: issue), readerName: reader,
+                                                     editorialNote: nil, closingNote: nil)
+                guard let book = BoundDayBookBuilder.make(pages: issue.pages, receipts: weekReceipts, castActs: [],
+                                                          startDate: issue.startDate, endDate: issue.endDate, calendar: calendar) else { continue }
+                matter.dayBook = book
+                matter.bindingID = "matrix-week-\(issue.number)"
+                let pages = try WeeklyIssuePDFWriter.writePrintInterior(matter, dedication: nil, spec: .saddleStitchedWeekly6x9, to: url)
+                pageTotals.append(pages)
+                var problems = EditionQualityLint.repeatedSentences(in: url).map { "repeats ×\($0.count): “\($0.sentence.prefix(60))”" }
+                if pages % 4 != 0 || pages > 48 { problems.append("\(pages) pages") }
+                let chapters = WeeklyTaleBuilder.chapters(of: book, from: issue.startDate, to: issue.endDate.addingTimeInterval(-1), calendar: calendar)
+                let headings = chapters.map(\.heading)
+                if Set(headings.map { $0.lowercased() }).count != headings.count { problems.append("duplicate chapter titles") }
+                for heading in headings where !heading.hasPrefix("In which") || heading.count > 84 {
+                    problems.append("title “\(heading)”")
+                }
+                if headings.filter({ $0 == WeeklyTaleBuilder.fallbackHeading }).count > 1 { problems.append("fallback title twice") }
+                let sparse = PrintPageLint.sparsePages(in: url, threshold: 0.005)
+                if sparse.count > max(2, pages / 8) { problems.append("\(sparse.count) sparse pages \(sparse)") }
+                report.append("No. \(issue.number) \(issue.dateRange): \(pages)pp, \(chapters.count) ch — " + headings.joined(separator: " | ")
+                              + (problems.isEmpty ? "" : "\n    !! " + problems.joined(separator: "\n    !! ")))
+                if !problems.isEmpty {
+                    failures += 1
+                    // Keep the first two flagged weeks to look at; the rest are only reported.
+                    if failures <= 2 { try? FileManager.default.copyItem(at: url, to: directory.appendingPathComponent("matrix-weekly-flagged-\(failures).pdf")) }
+                }
+            }
+            try report.joined(separator: "\n").write(to: directory.appendingPathComponent("matrix-weekly.txt"), atomically: true, encoding: .utf8)
+            let range = pageTotals.isEmpty ? "-" : "\(pageTotals.min()!)–\(pageTotals.max()!)pp"
+            return "\(report.count) weeks bound, \(failures) with problems, \(range) (details in matrix-weekly.txt)"
+        }
+
         // Can a camera find the page again? Print the week, then photograph it badly.
         for (label, width, degrees, blur) in [("tidy", 1400.0, 1.0, 0.6), ("handheld", 1000.0, 3.5, 1.4)] {
             step("folio-photo-\(label)") {
@@ -199,6 +270,57 @@ enum EditionProofHarness {
             }
         }
 
+        // The heavy October's pages without its fixture braids, for the Mac to
+        // braid with the phone's Gemma (BraidBenchTests.testBraidAMonthWhenAsked).
+        step("braid-days") {
+            var fieldDays = try FieldBookFixture.heavy(days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar),
+                                                       directory: directory, calendar: calendar)
+            fieldDays = fieldDays.filter { calendar.component(.month, from: $0.date) == 10 }
+            for index in fieldDays.indices { fieldDays[index].pages.removeAll { $0.type == .bookOfYou } }
+            try JSONEncoder().encode(fieldDays).write(to: directory.appendingPathComponent("october-days.json"))
+            return "\(fieldDays.count) October days, \(fieldDays.flatMap(\.pages).count) pages"
+        }
+
+        // Every month of the year that has pages: bound, then checked.
+        step("matrix-monthly") {
+            // Judged as a customer receives it: ruin pages ship switched off.
+            PrintFeatureFlags.ruinPagesEnabled = false
+            defer { PrintFeatureFlags.ruinPagesEnabled = true }
+            let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
+            let receipts = try FieldBookFixture.receipts(calendar: calendar)
+            var report: [String] = []
+            var failures = 0
+            let url = directory.appendingPathComponent("matrix-monthly.pdf")
+            for month in 1...12 {
+                let start = SyntheticReaderYear.date(2026, month, 1)
+                guard let end = calendar.date(byAdding: DateComponents(month: 1, second: -1), to: start) else { continue }
+                guard fieldDays.contains(where: { $0.date >= start && $0.date <= end && !$0.pages.isEmpty }) else { continue }
+                var edition = MonthlyEditionBuilder.edition(
+                    from: fieldDays, readerName: reader, startDate: start, endDate: end,
+                    generatedAt: end.addingTimeInterval(1), calendar: calendar,
+                    authoredReceipts: receipts, packTitle: month == 10 ? "Count Unbound" : nil
+                )
+                edition.bindingID = "matrix-month-\(month)"
+                let pages: Int
+                do { pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: url) }
+                catch { failures += 1; report.append("\(month): FAILED \(error)"); continue }
+                var problems = EditionQualityLint.repeatedSentences(in: url).map { "repeats ×\($0.count): “\($0.sentence.prefix(60))”" }
+                let text = EditionQualityLint.text(of: url)
+                let nights = edition.dayBook?.braidCount ?? 0
+                let printedNights = text.components(separatedBy: "N I G H T B R A I D").count - 1
+                if printedNights < nights { problems.append("\(printedNights) of \(nights) nights printed") }
+                if pages > PrintSpec.pageCap(for: .monthly) { problems.append("\(pages) pages over cap") }
+                let sparse = PrintPageLint.sparsePages(in: url, threshold: 0.005)
+                if sparse.count > pages / 8 { problems.append("\(sparse.count) sparse pages \(sparse)") }
+                let words = edition.dayBook?.days.reduce(0) { $0 + $1.readerWordCount } ?? 0
+                report.append("\(month): \(pages)pp, \(nights) nights, \(words) reader words, \(edition.dayBook?.taleChapters.count ?? 0) tale chapters"
+                              + (problems.isEmpty ? "" : "\n    !! " + problems.joined(separator: "\n    !! ")))
+                if !problems.isEmpty { failures += 1 }
+            }
+            try report.joined(separator: "\n").write(to: directory.appendingPathComponent("matrix-monthly.txt"), atomically: true, encoding: .utf8)
+            return "\(report.count) months bound, \(failures) with problems (details in matrix-monthly.txt)"
+        }
+
         step("monthly") {
             let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
             let receipts = try FieldBookFixture.receipts(calendar: calendar)
@@ -241,8 +363,18 @@ enum EditionProofHarness {
                 generatedAt: SyntheticReaderYear.date(2026, 11, 1), calendar: calendar,
                 authoredReceipts: receipts, packTitle: "Count Unbound"
             )
+            // What a reader writes at the press, "Before I bind this".
+            var account = BindingAccount()
+            let questions = BindingAccount.questions(monthName: "October")
+            account.answers[questions[0]] = "The heron. Two kids arguing about whether it was real, and then it moved its head."
+            account.answers[questions[3]] = "Green, the Mill Lane green. I didn't go through. I stood outside it a lot."
+            account.answers[questions[4]] = "More corners to stand on. Fewer emails."
+            if let quiet = edition.dayBook.map({ BindingAccount.quietDays(in: $0) }), let first = quiet.first {
+                account.dayLines[first.id] = "I don't remember this day at all, which is its own kind of answer."
+            }
+            let bound = edition.applying(account)
             let interior = directory.appendingPathComponent("monthly-heavy-interior.pdf")
-            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: interior)
+            let pages = try MonthlyEditionPDFWriter.writePrintInterior(bound, spec: .perfectBoundSoftcover6x9, to: interior)
             let sparse = PrintPageLint.sparsePages(in: interior)
             let book = edition.dayBook
             var mix: [String: Int] = [:]
@@ -251,6 +383,125 @@ enum EditionProofHarness {
             let reports = book?.scenes.filter(\.isReport).count ?? 0
             let radio = book?.days.reduce(0) { $0 + $1.radio.count } ?? 0
             return "heavy: \(edition.pageCount) kept, \(book?.days.count ?? 0) days, \(book?.braidCount ?? 0) nights, scenes \(book?.scenes.count ?? 0) (\(reports) reports), radio \(radio), keeps [\(mixLine)], \(pages) print pages (cap \(PrintSpec.pageCap(for: .monthly))), sparse: \(sparse.isEmpty ? "none" : sparse.map(String.init).joined(separator: ","))"
+        }
+
+        // A reader who really writes: the heavy month plus about 180 words most days.
+        // Measures whether the cap holds a writer's month without cutting their nights.
+        step("monthly-devoted") {
+            var fieldDays = try FieldBookFixture.heavy(days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar),
+                                                       directory: directory, calendar: calendar)
+            fieldDays = FieldBookFixture.devoted(days: fieldDays, calendar: calendar)
+            let receipts = try FieldBookFixture.heavyReceipts(calendar: calendar)
+            let edition = MonthlyEditionBuilder.edition(
+                from: fieldDays, readerName: reader,
+                startDate: SyntheticReaderYear.date(2026, 10, 1),
+                endDate: SyntheticReaderYear.date(2026, 10, 31).addingTimeInterval(86_399),
+                generatedAt: SyntheticReaderYear.date(2026, 11, 1), calendar: calendar,
+                authoredReceipts: receipts, packTitle: "Count Unbound"
+            )
+            let words = edition.dayBook?.days.reduce(0) { $0 + $1.readerWordCount } ?? 0
+            let interior = directory.appendingPathComponent("monthly-devoted-interior.pdf")
+            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: interior)
+            let text = PDFDocument(url: interior).map { doc in (0..<doc.pageCount).compactMap { doc.page(at: $0)?.string }.joined(separator: "\n") } ?? ""
+            let braidsPrinted = text.components(separatedBy: "NIGHT BRAID").count - 1
+            return "devoted: \(words) reader words, \(edition.dayBook?.braidCount ?? 0) nights kept, \(braidsPrinted) printed, \(pages) print pages (cap \(PrintSpec.pageCap(for: .monthly)))"
+        }
+
+        // The heavy month with real braids: the phone's Gemma and braid code,
+        // run on the Mac over these same days (docs/fixtures/real-braids-october-2026.json).
+        step("monthly-realbraids") {
+            let fieldDays = try RealBraidFixture.swapped(into: try FieldBookFixture.heavy(
+                days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar),
+                directory: directory, calendar: calendar), calendar: calendar)
+            let edition = MonthlyEditionBuilder.edition(
+                from: fieldDays, readerName: reader,
+                startDate: SyntheticReaderYear.date(2026, 10, 1),
+                endDate: SyntheticReaderYear.date(2026, 10, 31).addingTimeInterval(86_399),
+                generatedAt: SyntheticReaderYear.date(2026, 11, 1), calendar: calendar,
+                authoredReceipts: try FieldBookFixture.heavyReceipts(calendar: calendar), packTitle: "Count Unbound"
+            )
+            let interior = directory.appendingPathComponent("monthly-realbraids-interior.pdf")
+            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: interior)
+            let sparse = PrintPageLint.sparsePages(in: interior)
+            let words = edition.dayBook?.days.flatMap(\.braids).map { $0.body.split(whereSeparator: \.isWhitespace).count } ?? []
+            return "real braids: \(edition.dayBook?.braidCount ?? 0) nights kept (\(words.min() ?? 0)-\(words.max() ?? 0) words, \(words.reduce(0, +)) total), \(pages) print pages (cap \(PrintSpec.pageCap(for: .monthly))), sparse: \(sparse.isEmpty ? "none" : sparse.map(String.init).joined(separator: ","))"
+        }
+
+        // A week of the same real nights, as The Tale of Your Week.
+        step("weekly-realbraids") {
+            let fieldDays = try RealBraidFixture.swapped(into: try FieldBookFixture.heavy(
+                days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar),
+                directory: directory, calendar: calendar), calendar: calendar)
+            let receipts = try FieldBookFixture.heavyReceipts(calendar: calendar)
+            let now = SyntheticReaderYear.date(2026, 11, 2)
+            let wanted = SyntheticReaderYear.date(2026, 10, RealBraidFixture.weekDay)
+            guard let week = PublicationPeriodCatalog.readerWeeks(days: fieldDays, now: now, calendar: calendar)
+                    .first(where: { $0.period.startDate <= wanted && wanted <= $0.period.endDate }),
+                  var issue = WeeklyIssue.issue(for: week.period, days: fieldDays, now: now, calendar: calendar) else {
+                throw ProofError("no reader week holds October \(RealBraidFixture.weekDay)")
+            }
+            let modelNotes = try WeeklyTaleProofNotes.notes(for: issue, calendar: calendar)
+            issue.editorialTitle = modelNotes?.title
+            let issueEncoder = JSONEncoder(); issueEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try issueEncoder.encode(issue).write(to: directory.appendingPathComponent("weekly-source.json"))
+            let card = WeeklyIssueShareCard.make(issue: issue)
+            var matter = WeeklyPublicationMatter(issue: issue, card: card, readerName: reader,
+                                                 editorialNote: modelNotes?.opening, closingNote: modelNotes?.closing)
+            matter.dayBook = BoundDayBookBuilder.make(pages: issue.pages, receipts: receipts, castActs: [],
+                                                      startDate: issue.startDate, endDate: issue.endDate, calendar: calendar)
+            matter.handbook = HandbookBuilder.make(
+                pages: issue.pages, castPresence: matter.dayBook?.chart.cast ?? [],
+                terms: [issue.resolvedEditorialTitle] + issue.highlights, seed: "week-\(issue.number)",
+                dayBook: matter.dayBook, dayCount: 7)
+            matter.bindingID = "proof-binding-weekly-realbraids"
+            let interior = directory.appendingPathComponent("weekly-realbraids-interior.pdf")
+            let pages = try WeeklyIssuePDFWriter.writePrintInterior(matter, dedication: nil, spec: .saddleStitchedWeekly6x9, to: interior)
+            let headings = matter.dayBook.map { book in
+                WeeklyTaleBuilder.chapters(of: book, from: issue.startDate, to: issue.endDate, calendar: calendar).map(\.heading)
+            } ?? []
+            let sparse = PrintPageLint.sparsePages(in: interior)
+            return "week \(issue.dateRange): \(matter.dayBook?.braidCount ?? 0) nights, \(pages) print pages, sparse: \(sparse.isEmpty ? "none" : sparse.map(String.init).joined(separator: ",")); headings: \(headings.joined(separator: " | "))"
+        }
+
+        step("weekly-sparse") {
+            let start = SyntheticReaderYear.date(2026, 2, 8)
+            let end = SyntheticReaderYear.date(2026, 2, 15)
+            let entry = BookPage(id: "thin-proof", type: .diary, createdAt: SyntheticReaderYear.date(2026, 2, 10),
+                                promptText: "One true thing", userInput: "I miss Dad. I still put two cups on the table.")
+            var issue = WeeklyIssue(number: 7, startDate: start, endDate: end, dateRange: "Feb 8–14",
+                                    keptCount: 1, highlights: [], setAsideLine: nil, pages: [entry])
+            let notes = try WeeklyTaleProofNotes.notes(for: issue, calendar: calendar)
+            issue.editorialTitle = notes?.title
+            var matter = WeeklyPublicationMatter(issue: issue, card: WeeklyIssueShareCard.make(issue: issue), readerName: reader,
+                                                 editorialNote: notes?.opening, closingNote: notes?.closing)
+            matter.dayBook = BoundDayBookBuilder.make(pages: issue.pages, receipts: .empty, castActs: [],
+                                                      startDate: start, endDate: end, calendar: calendar)
+            let url = directory.appendingPathComponent("weekly-sparse-interior.pdf")
+            let pages = try WeeklyIssuePDFWriter.writePrintInterior(matter, dedication: nil, spec: .saddleStitchedWeekly6x9, to: url)
+            return "one Reader day, \(pages) print pages; no invented ending or missing days"
+        }
+
+        step("weekly-long") {
+            let start = SyntheticReaderYear.date(2026, 7, 8)
+            let end = SyntheticReaderYear.date(2026, 7, 15)
+            let words = "I want to remember " + String(repeating: "the small blue stone and ", count: 35) + "the red feather."
+            let choice = "Keep the page open while " + String(repeating: "the last words are still arriving and ", count: 18) + "wait until the whole sentence is finished."
+            let entry = BookPage(id: "long-proof", type: .diary, createdAt: start, promptText: "One true thing", userInput: words)
+            let receipt = AuthoredContentReceipt(contentID: "long-choice-proof", occurrenceID: "long-choice-proof",
+                                                 channel: .storyScene, state: .completed, recordedAt: start,
+                                                 choiceID: choice, storyText: "The Book held the page open.",
+                                                 printedTitle: "The Last Words", printedBody: "The page is still filling. The Book waits.",
+                                                 printedChoiceLabel: choice)
+            let ledger = AuthoredContentReceiptLedger(receipts: [receipt])
+            let issue = WeeklyIssue(number: 27, startDate: start, endDate: end, dateRange: "Jul 8–14", keptCount: 1,
+                                    highlights: [], setAsideLine: nil, pages: [entry])
+            var matter = WeeklyPublicationMatter(issue: issue, card: WeeklyIssueShareCard.make(issue: issue), readerName: reader,
+                                                 editorialNote: nil, closingNote: nil)
+            matter.dayBook = BoundDayBookBuilder.make(pages: issue.pages, receipts: ledger, castActs: [],
+                                                      startDate: start, endDate: end, calendar: calendar)
+            let url = directory.appendingPathComponent("weekly-long-interior.pdf")
+            let pages = try WeeklyIssuePDFWriter.writePrintInterior(matter, dedication: nil, spec: .saddleStitchedWeekly6x9, to: url)
+            return "long complete Reader sentence and choice, \(pages) print pages"
         }
 
         // A shorter month with photographs and room to spare: where the keepsakes show whole.
@@ -791,9 +1042,12 @@ enum FieldBookFixture {
         }
         // Letters.
         for (day, from, slug) in [(5, "Zara Finch", "zara-finch"), (12, "Soren Ng", "soren-ng"), (19, "Ambrose Trencher", "ambrose-trencher"), (26, "Penny Blackletter", "penny-blackletter")] {
-            add(page(.letter, day, 10, prompt: "A letter from \(from)",
+            var letter = page(.letter, day, 10, prompt: "A letter from \(from)",
                      body: "I have been meaning to write, which is a thing people say when they mean they have been avoiding the pen. The truth is simpler: you were in the corridor on Tuesday, looking at the \(["wall", "stair", "window", "lamp"][day % 4]) as if it had said something, and I did not ask what. I regret that. So I am asking now, on paper, where I cannot see your face change.\n\nWhat did it say?",
-                     meta: ["speakerName": from, "castID": slug]), day: day)
+                     meta: ["speakerName": from, "castID": slug])
+            // An engaged reader answers some of their letters.
+            letter.playerReply = heavyLetterReplies[day] ?? ""
+            add(letter, day: day)
         }
         // Cast notes.
         for (day, text, slug) in [(2, "You looked at the stairs for a long time. I counted.", "penny-blackletter"),
@@ -802,7 +1056,9 @@ enum FieldBookFixture {
                                   (14, "A door by the north stair has begun to listen. It likes your footsteps.", "soren-ng"),
                                   (21, "Your handwriting got braver this week. Do not tell anyone I said so.", "professor-vivian-villanelle"),
                                   (24, "Somebody should have taught you to read a map backwards. I volunteer.", "serenity-brown")] {
-            add(page(.gossip, day, 15, prompt: "A note", body: text, meta: ["castID": slug]), day: day)
+            var note = page(.gossip, day, 15, prompt: "A note", body: text, meta: ["castID": slug])
+            if day == 9 { note.playerReply = "I checked the other bag. It was in the other bag. I am not saying thank you." }
+            add(note, day: day)
         }
         // Enchantments.
         for (day, title, body, media) in [(4, "Everything Speaks", "You looked at the brass tap in the hall until it told you the story of every hand that ever turned it, which was mostly impatient.", warm),
@@ -855,8 +1111,72 @@ enum FieldBookFixture {
         for (day, text) in [(3, "“Attention is the rarest and purest form of generosity.” — Simone Weil"), (13, "“Keep a green bough in your heart and the singing bird will come.” — Chinese proverb"), (22, "Everything ordinary is on its way to being a story.")] {
             add(page(.quotes, day, 8, prompt: text, body: ""), day: day)
         }
+        // What an engaged reader actually writes: some lines, some real entries.
+        for (day, hour, type, prompt, text) in heavyEntries {
+            var entry = BookPage(type: type, createdAt: at(day, hour), promptText: prompt, userInput: text, origin: .userAuthored)
+            entry.tags = [type.rawValue]
+            add(entry, day: day)
+        }
         return days.sorted { $0.date < $1.date }
     }
+
+    /// The heavy month, written in most days at length: what a reader who
+    /// journals in the Book every evening gives it. Sentences are dealt from a
+    /// pool by day, so no two entries match.
+    static func devoted(days: [BookDay], calendar: Calendar) -> [BookDay] {
+        var days = days
+        let pool = [
+            "I got up before the alarm and lay there listening to the radiator tick.", "The bus was late again and nobody minded much.",
+            "There was a woman on the platform reading a paperback with the cover torn off.", "I bought clementines because they were the only bright thing in the shop.",
+            "Work was the usual: three meetings that should have been one.", "At lunch I walked to the river and back without my phone.",
+            "The light came in sideways at four and turned the desk gold for about a minute.", "I tried to notice one thing on the way home that I had never seen before.",
+            "Today it was a tiny painted door at the bottom of a garden wall, the size of a book.", "I made the soup again and got it right this time.",
+            "My brother sent a photo of his dog asleep in a laundry basket.", "I read for an hour and didn't once check the time.",
+            "The neighbours were playing piano badly and I loved it.", "I keep thinking about what the Book said about doors.",
+            "There is a crack in the bathroom ceiling that looks like a coastline.", "I named the coastline. It is called the Mild Shore.",
+            "The wind got into the stairwell and the whole building sighed.", "I wrote a letter I'm not going to send.",
+            "Someone had chalked a hopscotch on the pavement and I did it, quickly, when nobody was looking.", "The kettle has started to whistle in a lower note. I think it's tired.",
+            "I fell asleep on the sofa and woke up with the lamp still on and a strange feeling of being looked after.", "Rain all day. I didn't mind it.",
+            "I found an old train ticket in a coat pocket from a trip I'd forgotten.", "The man at the corner shop has started calling me by name.",
+            "I sat on the back step until my hands were cold.", "There were geese going over, very high, arguing.",
+            "I counted the lit windows on the street opposite. Eleven.", "I'm sleeping better. I don't know why. I'm not asking.",
+            "Tonight the moon looked like it had been folded in half.", "I want to remember how quiet the flat was at ten o'clock, like held breath."
+        ]
+        for day in 1...31 where ![7, 16, 27].contains(day) {
+            let date = SyntheticReaderYear.date(2026, 10, day, hour: 23)
+            var lines: [String] = []
+            for k in 0..<12 { lines.append(pool[(day * 7 + k * 5) % pool.count]) }
+            let text = lines.prefix(6).joined(separator: " ") + "\n\n" + lines.dropFirst(6).joined(separator: " ")
+            var page = BookPage(type: .diary, createdAt: date, promptText: "What happened?", userInput: text, origin: .userAuthored)
+            page.tags = ["diary", "devoted"]
+            if let index = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
+                days[index].pages.append(page)
+            } else {
+                days.append(BookDay(id: BookDay.id(for: date, calendar: calendar), date: calendar.startOfDay(for: date), pages: [page]))
+            }
+        }
+        return days.sorted { $0.date < $1.date }
+    }
+
+    private static let heavyLetterReplies: [Int: String] = [
+        5: "Dear Zara, it said nothing, which was the problem. It was the stair by the coat hooks and it has a tread that creaks only on the way down, never up, and I was standing there trying to work out what that means about stairs. I think it means they mind being left more than being climbed. Ask me again on Tuesday.",
+        19: "Ambrose. It said the soup was too salty. It was right. I added water, like you would have, and then I stood in the kitchen for a long time with the spoon, not eating, just being somewhere warm. That is the honest answer."
+    ]
+
+    private static let heavyEntries: [(Int, Int, BookPageType, String, String)] = [
+        (1, 8, .diary, "What happened?", "First of the month. I decided to actually write in this thing instead of just tapping keep. The kettle took forever and I let it. The light in the hall at eight is the colour of weak tea and I've walked through it every morning for two years without once looking at it."),
+        (2, 21, .souvenir, "One thing from today you'd rather not lose.", "The man at the bakery remembered I like the end piece."),
+        (4, 13, .diary, "What happened?", "Long walk. I took the path by the water because the main road was loud, and there was a heron standing in the shallows so still that two kids were arguing about whether it was real. It moved its head about an inch and one of them screamed. I laughed out loud on my own like an idiot and didn't care.\n\nHome by four. Rain by four-fifteen. Good timing for once."),
+        (6, 22, .mood, "What word fits today?", "Frayed. Too many emails, and all of them wanted something by Friday."),
+        (8, 7, .weather, "Look outside. Write what the sky is doing and whether you like it.", "Low grey sky sitting right on the roofs like a lid. I like it more than I should. It makes the street feel like a room."),
+        (11, 20, .diary, "What happened?", "Nothing happened today, which I'm writing down because the Book keeps saying nothing is wasted. So: I did the washing. I ate toast standing up. I sat on the back step for ten minutes with my coat on and watched next door's cat try to get into the recycling. It failed. It tried again. Respect.\n\nI keep thinking about the stair that creaks only on the way down. I tested it tonight. It's true. I don't know why that pleases me so much, but it does."),
+        (14, 18, .location, "One thing about where you were that only someone standing there would know.", "The library's back door has a brass plate worn silver in exactly the shape of a thumb."),
+        (16, 21, .diary, "What happened?", "Hard day. I won't write all of it. I called my brother and we talked about nothing for forty minutes, which was the point. When I hung up the flat was very quiet and I put the radio on just to have someone else in the room. It was a programme about bees. I listened to the whole thing."),
+        (20, 9, .souvenir, "One thing from today you'd rather not lose.", "Frost on the car roof in the shape of a map of somewhere that doesn't exist."),
+        (23, 22, .diary, "What happened?", "I tried the thing from the Wayfinding class, mapping the street by smell, on the way home. Bakery, then the laundrette (hot cotton), then the bins behind the chip shop, then nothing for a long stretch, then woodsmoke from somebody's chimney two roads over. I'd never have noticed the woodsmoke if I hadn't been playing. I stood at the corner for a while just breathing it in like a weirdo.\n\nI think that's what this whole Book is for, honestly. Making me stand on corners."),
+        (27, 19, .quip, "What surprised you?", "That I missed writing in here on the two days I didn't."),
+        (30, 22, .diary, "What happened?", "Last real day of October. I read back through the month on the bus and there's more in it than I thought. The heron. The stair. The bees. The woodsmoke. None of it is anything, and all of it is the month. I want to remember that it was a month where I started looking up.")
+    ]
 
     /// The heavy reader's receipts: the real scenes as read, one read as a
     /// report only, and the dial played on a dozen days.
@@ -937,7 +1257,111 @@ enum FieldBookFixture {
             page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: url.path, caption: caption, sourceID: "fixture")]
             add(page, day: day)
         }
+        // Scrapbook pages the reader made in the Pagewright: a full page of
+        // their own layout, kept as a picture, with the tags the Pagewright writes.
+        for (name, day, title, note, photos, marks, tint) in [
+            ("river", 10, "Sunday at the river", "I want this one on the wall. The light did the thing.", 2, 3, UIColor(red: 0.96, green: 0.92, blue: 0.84, alpha: 1)),
+            ("tickets", 12, "Ticket stubs", "", 0, 1, UIColor(red: 0.92, green: 0.95, blue: 0.90, alpha: 1)),
+            ("kitchen", 13, "The kitchen at night", "Everyone asleep but the kettle.", 1, 2, UIColor(red: 0.93, green: 0.90, blue: 0.96, alpha: 1)),
+            ("leaves", 22, "Leaves I picked up", "Five kinds of yellow on one street.", 1, 4, UIColor(red: 0.97, green: 0.93, blue: 0.80, alpha: 1))
+        ] as [(String, Int, String, String, Int, Int, UIColor)] {
+            let size = CGSize(width: 900, height: 1350)
+            let image = UIGraphicsImageRenderer(size: size).image { renderer in
+                let cg = renderer.cgContext
+                tint.setFill(); cg.fill(CGRect(origin: .zero, size: size))
+                for (index, rect) in [CGRect(x: 90, y: 230, width: 460, height: 340), CGRect(x: 360, y: 640, width: 450, height: 330)].enumerated() where index < max(1, photos) {
+                    cg.saveGState()
+                    cg.translateBy(x: rect.midX, y: rect.midY); cg.rotate(by: index == 0 ? -0.06 : 0.05); cg.translateBy(x: -rect.midX, y: -rect.midY)
+                    UIColor.white.setFill(); cg.fill(rect.insetBy(dx: -16, dy: -16))
+                    UIColor(red: 0.25 + 0.2 * CGFloat(index), green: 0.40, blue: 0.55 - 0.1 * CGFloat(index), alpha: 1).setFill(); cg.fill(rect)
+                    UIColor(red: 0.9, green: 0.75, blue: 0.45, alpha: 0.7).setFill(); cg.fill(CGRect(x: rect.midX - 60, y: rect.minY - 30, width: 120, height: 34))
+                    cg.restoreGState()
+                }
+                let hand = UIFont(name: "BradleyHandITCTT-Bold", size: 64) ?? .systemFont(ofSize: 64)
+                (title as NSString).draw(at: CGPoint(x: 80, y: 80), withAttributes: [.font: hand, .foregroundColor: UIColor(red: 0.2, green: 0.2, blue: 0.35, alpha: 1)])
+                if !note.isEmpty {
+                    (note as NSString).draw(in: CGRect(x: 90, y: 1060, width: 720, height: 200),
+                                            withAttributes: [.font: hand.withSize(40), .foregroundColor: UIColor(red: 0.25, green: 0.22, blue: 0.3, alpha: 1)])
+                }
+                for star in 0..<marks {
+                    let center = CGPoint(x: 700 + CGFloat(star % 2) * 90, y: 140 + CGFloat(star) * 60)
+                    UIColor(red: 0.85, green: 0.6, blue: 0.2, alpha: 1).setFill()
+                    cg.fillEllipse(in: CGRect(x: center.x - 14, y: center.y - 14, width: 28, height: 28))
+                }
+            }
+            let url = directory.appendingPathComponent("pagewright-\(name).png")
+            try image.pngData()?.write(to: url)
+            let summary = "Photograph: \(title.lowercased())"
+            var page = BookPage(type: .plainPage, createdAt: SyntheticReaderYear.date(2026, 10, day, hour: 20),
+                                promptText: title,
+                                userInput: note.isEmpty ? summary : "\(note)\n\nScraps bound here:\n\(summary)",
+                                tags: ["pagewright", "scrapbook", "kept-page", "scrapPage", "format:scrapPage",
+                                       "photo-count:\(photos)", "mark-count:\(marks)", "note-count:\(note.isEmpty ? 0 : 1)", "source-count:2"].sorted(),
+                                sourceID: "pagewright", origin: .userAuthored)
+            page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: url.path, caption: title, sourceID: "pagewright",
+                                                   metadata: ["mediaRole": "scrapbookPreview", "monthlyEditionPresentation": "fullPage", "pagewright": "true", "export": "png"])]
+            add(page, day: day)
+        }
         return days.sorted { $0.date < $1.date }
+    }
+}
+
+/// Real nightly braids for the heavy October: the phone's braid code and Gemma,
+/// run on the Mac over the harness's own days (`braid-days`, then
+/// `BraidMonthLabTests.testBraidAMonthWhenAsked`). They replace the fixture
+/// braids so the books are proofed with what a reader's nights look like.
+enum RealBraidFixture {
+    /// The proofed week is the reader week holding this day of October.
+    static var weekDay: Int {
+        ProcessInfo.processInfo.arguments.compactMap { $0.hasPrefix("--proof-week-day=") ? Int($0.dropFirst(17)) : nil }.first ?? 14
+    }
+
+    struct Night: Decodable { var day: String; var body: String; var tags: [String] }
+
+    static func nights() throws -> [Night] {
+        let name = "real-braids-october-2026.json"
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("edition-proof-input/\(name)")
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let url = FileManager.default.fileExists(atPath: documents.path) ? documents : root.appendingPathComponent("docs/fixtures/\(name)")
+        return try JSONDecoder().decode([Night].self, from: Data(contentsOf: url))
+    }
+
+    /// October with its braids replaced by the real ones, each kept at ten at night.
+    static func swapped(into days: [BookDay], calendar: Calendar) throws -> [BookDay] {
+        let nights = try nights()
+        var days = days
+        for index in days.indices where calendar.component(.month, from: days[index].date) == 10 {
+            days[index].pages.removeAll { $0.type == .bookOfYou }
+            let key = BookDay.id(for: days[index].date, calendar: calendar)
+            for night in nights where night.day == key {
+                days[index].pages.append(BookPage(
+                    id: "real-braid-\(key)", type: .bookOfYou, createdAt: calendar.startOfDay(for: days[index].date).addingTimeInterval(22 * 3600),
+                    promptText: "The local Book brain braided today.", userInput: night.body, tags: night.tags,
+                    usedInBookOfYou: true, origin: .generated))
+            }
+        }
+        return days
+    }
+}
+
+/// Optional synthetic QA notes made by WeeklyTaleLabTests using the phone's
+/// Gemma writing jobs. No model fixture is read by an ordinary Reader flow.
+enum WeeklyTaleProofNotes {
+    struct Notes: Decodable {
+        var startDate: Date
+        var title: String?
+        var opening: String
+        var closing: String
+    }
+
+    static func notes(for issue: WeeklyIssue, calendar: Calendar) throws -> Notes? {
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("edition-proof-input/weekly-tale-notes.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try JSONDecoder().decode([Notes].self, from: Data(contentsOf: url)).first {
+            calendar.isDate($0.startDate, inSameDayAs: issue.startDate)
+        }
     }
 }
 
@@ -945,6 +1369,36 @@ enum FieldBookFixture {
 
 /// A page with almost no ink on it is a page nobody paid to read. Renders each
 /// leaf small and counts how much of it is darker than the paper.
+/// Reads a bound PDF back as a reader would, for what a layout can't see.
+enum EditionQualityLint {
+    static func text(of url: URL) -> String {
+        guard let document = PDFDocument(url: url) else { return "" }
+        return (0..<document.pageCount).compactMap { document.page(at: $0)?.string }.joined(separator: "\n")
+    }
+
+    /// Whole sentences of eight words or more that a book prints three or more
+    /// times. Once in a chapter and once in a quotation is a callback; a third
+    /// time is the book running out of things to say.
+    static func repeatedSentences(in url: URL, atLeast: Int = 3) -> [(sentence: String, count: Int)] {
+        let joined = text(of: url)
+            .replacingOccurrences(of: "-\n", with: "")
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "[“”\"]", with: "", options: .regularExpression)
+        var counts: [String: Int] = [:]
+        var original: [String: String] = [:]
+        for raw in joined.components(separatedBy: CharacterSet(charactersIn: ".!?")) {
+            let sentence = raw.trimmingCharacters(in: .whitespaces)
+            let words = sentence.split(separator: " ")
+            // Tracked running heads ("T H E D A Y S") are letters, not sentences.
+            guard words.count >= 8, words.filter({ $0.count == 1 }).count < words.count / 2 else { continue }
+            let key = sentence.lowercased().split(whereSeparator: { !$0.isLetter }).joined(separator: " ")
+            counts[key, default: 0] += 1
+            original[key] = original[key] ?? sentence
+        }
+        return counts.filter { $0.value >= atLeast }.map { (original[$0.key] ?? $0.key, $0.value) }.sorted { $0.1 > $1.1 }
+    }
+}
+
 enum PrintPageLint {
     static func sparsePages(in url: URL, threshold: Double = 0.012) -> [Int] {
         guard let document = PDFDocument(url: url) else { return [] }
@@ -969,6 +1423,172 @@ enum PrintPageLint {
     }
 }
 
+/// The public samples use the same saved input Pages as the landing braid.
+/// All input is explicit QA material; this path never opens a Reader's vault.
+private enum PublicSampleEditionProof {
+    private struct ProofError: Error, CustomStringConvertible {
+        var description: String
+        init(_ description: String) { self.description = description }
+    }
+    struct Photo: Decodable { var id: String; var file: String; var day: Int; var caption: String }
+    struct Sheet: Decodable {
+        var id: String; var day: Int; var title: String; var note: String
+        var photos: [String]; var sourceIDs: [String]; var marks: [String]; var paper: String
+    }
+    struct Input: Decodable {
+        var readerName: String; var provenance: String; var photos: [Photo]; var sheets: [Sheet]
+    }
+
+    static func run() {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let inputDirectory = documents.appendingPathComponent("edition-proof-input", isDirectory: true)
+        let output = documents.appendingPathComponent("public-sample-editions", isDirectory: true)
+        try? FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        func status(_ line: String) {
+            try? line.write(to: output.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+        }
+        status("RUNNING public samples")
+        do {
+            let decoder = JSONDecoder()
+            let input = try decoder.decode(Input.self, from: Data(contentsOf: inputDirectory.appendingPathComponent("sample.json")))
+            let calendar = SyntheticReaderYear.calendar
+            var days = try decoder.decode([BookDay].self, from: Data(contentsOf: inputDirectory.appendingPathComponent("october-days.json")))
+            guard days.allSatisfy({ calendar.component(.year, from: $0.date) == 2026 && calendar.component(.month, from: $0.date) == 10 }) else {
+                throw ProofError("public input must contain only the simulated October")
+            }
+            let nights = try decoder.decode([RealBraidFixture.Night].self,
+                from: Data(contentsOf: inputDirectory.appendingPathComponent("real-braids-october-2026.json")))
+            // Preserve the original text and IDs. Remove fake visual fixtures;
+            // their words remain kept text. Real photo keeps are separate below,
+            // so an old 'blue door' sentence cannot miscaption a boat photograph.
+            for d in days.indices {
+                days[d].pages.removeAll { $0.type == .bookOfYou || $0.sourceID == "pagewright" }
+                for p in days[d].pages.indices {
+                    days[d].pages[p].mediaAssets.removeAll { $0.kind == .renderedImageFile || $0.kind == .photoLibraryAsset }
+                    days[d].pages[p].tags.removeAll { $0 == "photo" }
+                    if days[d].pages[p].type == .illuminatedPhoto { days[d].pages[p].type = .plainPage }
+                }
+                for night in nights where night.day == days[d].id {
+                    days[d].pages.append(BookPage(id: "real-braid-\(night.day)", type: .bookOfYou,
+                        createdAt: days[d].date.addingTimeInterval(22 * 3600), promptText: "The local Book brain braided today.",
+                        userInput: night.body, tags: night.tags, usedInBookOfYou: true, origin: .generated))
+                }
+            }
+            func add(_ page: BookPage) {
+                if let index = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: page.createdAt) }) {
+                    days[index].pages.append(page)
+                } else {
+                    let date = calendar.startOfDay(for: page.createdAt)
+                    days.append(BookDay(id: BookDay.id(for: date, calendar: calendar), date: date, pages: [page]))
+                }
+            }
+            var photosByID: [String: PagewrightPersonalPhoto] = [:]
+            for photo in input.photos {
+                // Paths are generated by prepare-landing-sample-input.py, never
+                // taken from a vault or arbitrary absolute file reference.
+                guard photo.file.hasPrefix("photos/"), !photo.file.contains("..") else { throw ProofError("invalid photo path") }
+                let url = inputDirectory.appendingPathComponent(photo.file)
+                let data = try Data(contentsOf: url)
+                guard let image = UIImage(data: data), image.size.height > 0 else { throw ProofError("missing photo \(photo.id)") }
+                photosByID[photo.id] = PagewrightPersonalPhoto(id: photo.id, data: data, aspectRatio: image.size.width / image.size.height)
+                var page = BookPage(id: "public-photo-\(photo.id)", type: .illuminatedPhoto,
+                    createdAt: SyntheticReaderYear.date(2026, 10, photo.day, hour: 16),
+                    promptText: photo.caption, userInput: photo.caption,
+                    tags: ["photo", "public-sample", "illustrative-photo"], sourceID: "public-sample-photo", origin: .userAuthored)
+                page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: url.path,
+                    caption: photo.caption, sourceID: "public-sample-photo")]
+                add(page)
+            }
+            let allPages = Dictionary(uniqueKeysWithValues: days.flatMap(\.pages).map { ($0.id, $0) })
+            let availableMarks = Set(IlluminationPackRegistry.unlockedPacks.flatMap(\.allAssets).map(\.assetName))
+            for sheet in input.sheets {
+                let photos = try sheet.photos.map { id -> PagewrightPersonalPhoto in
+                    guard let photo = photosByID[id] else { throw ProofError("missing sheet photo \(id)") }
+                    return photo
+                }
+                let scraps = try sheet.sourceIDs.map { id -> BookPage in
+                    guard let page = allPages[id] else { throw ProofError("missing sheet scrap \(id)") }
+                    return page
+                }
+                guard sheet.marks.allSatisfy({ availableMarks.contains($0) && UIImage(named: $0) != nil }) else {
+                    throw ProofError("missing Pagewright mark in \(sheet.id)")
+                }
+                var elements: [PagewrightCanvasElement] = []
+                for (index, photo) in photos.enumerated() {
+                    let four = photos.count > 2
+                    elements.append(PagewrightCanvasElement(kind: .personalPhoto, sourceID: photo.id,
+                        x: index % 2 == 0 ? 0.28 : 0.73,
+                        y: four ? (index < 2 ? 0.39 : 0.74) : 0.52,
+                        width: four ? 0.33 : 0.38, rotation: index % 2 == 0 ? -3 : 3, z: index))
+                }
+                for (index, scrap) in scraps.enumerated() {
+                    elements.append(PagewrightCanvasElement(kind: .page, sourceID: scrap.id,
+                        x: 0.46, y: 0.82, width: 0.64, rotation: -2, z: 10 + index))
+                }
+                for (index, mark) in sheet.marks.enumerated() {
+                    elements.append(PagewrightCanvasElement(kind: .marginaliaAsset, sourceID: mark,
+                        x: index == 0 ? 0.09 : 0.89, y: index == 0 ? 0.24 : 0.88,
+                        width: 0.13, rotation: index == 0 ? -7 : 9, z: 20 + index))
+                }
+                let tint = (PagewrightPaperTintPreset(rawValue: sheet.paper) ?? .parchment).tint
+                let draft = PagewrightDraft(title: sheet.title, note: sheet.note, format: .scrapPage,
+                    template: .polaroidScatter, pages: scraps, pullQuotes: [:], pinnedNotes: [],
+                    personalPhotos: photos, elements: elements, background: .ragHandmade,
+                    paperTint: tint, marginalia: .tornTape, marginaliaPackID: "public-sample")
+                let png = output.appendingPathComponent("pagewright-\(sheet.id).png")
+                try PagewrightPDFWriter.writePNG(draft: draft, to: png)
+                try PagewrightPDFWriter.write(draft: draft, to: output.appendingPathComponent("pagewright-\(sheet.id).pdf"))
+                var page = BookPage(id: "public-pagewright-\(sheet.id)", type: .plainPage,
+                    createdAt: SyntheticReaderYear.date(2026, 10, sheet.day, hour: 20),
+                    promptText: sheet.title, userInput: sheet.note,
+                    tags: ["pagewright", "scrapbook", "kept-page", "scrapPage", "format:scrapPage",
+                           "photo-count:\(photos.count)", "mark-count:\(sheet.marks.count)",
+                           "source-count:\(scraps.count)", "public-sample"], sourceID: "pagewright", origin: .userAuthored)
+                page.metadata = ["sourcePageIDs": sheet.sourceIDs.joined(separator: ","), "sampleProvenance": input.provenance]
+                page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: png.path,
+                    caption: sheet.title, sourceID: "pagewright", metadata: ["mediaRole": "scrapbookPreview",
+                    "monthlyEditionPresentation": "fullPage", "pagewright": "true", "export": "png"])]
+                add(page)
+            }
+            days.sort { $0.date < $1.date }
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            try encoder.encode(days).write(to: output.appendingPathComponent("sample-source.json"))
+            try Data(contentsOf: inputDirectory.appendingPathComponent("sample.json")).write(to: output.appendingPathComponent("sample.json"))
+            // Do not manufacture commissioned October plates for a public issue.
+            // This exporter can use installed pack art; ordinary app marks still
+            // run through the shared dealer used by the actual publications.
+            EditionPlates.proofDirectory = nil
+            let receipts = try FieldBookFixture.heavyReceipts(calendar: calendar)
+            let now = SyntheticReaderYear.date(2026, 11, 2)
+            let wanted = SyntheticReaderYear.date(2026, 10, 23)
+            guard let week = PublicationPeriodCatalog.readerWeeks(days: days, now: now, calendar: calendar)
+                .first(where: { $0.period.startDate <= wanted && wanted <= $0.period.endDate }),
+                var issue = WeeklyIssue.issue(for: week.period, days: days, now: now, calendar: calendar) else { throw ProofError("no sample week") }
+            let notes = try decoder.decode([WeeklyTaleProofNotes.Notes].self,
+                from: Data(contentsOf: inputDirectory.appendingPathComponent("weekly-tale-notes.json")))
+                .first { calendar.isDate($0.startDate, inSameDayAs: issue.startDate) }
+            issue.editorialTitle = notes?.title
+            try encoder.encode(issue).write(to: output.appendingPathComponent("weekly-source.json"))
+            status("RUNNING weekly export")
+            let sampleNote = "A development sample. Wren’s October is simulated. The photographs are real and were taken across several years. Photo keeps and Pagewright sheets were added for this sample after the saved nightly braids."
+            try WeeklyIssuePDFWriter.write(issue, readerName: input.readerName,
+                editorialNote: sampleNote + "\n\n" + (notes?.opening ?? ""), closingNote: notes?.closing, receipts: receipts,
+                to: output.appendingPathComponent("weekly-issue.pdf"))
+            var edition = MonthlyEditionBuilder.edition(from: days, readerName: input.readerName,
+                startDate: SyntheticReaderYear.date(2026, 10, 1),
+                endDate: SyntheticReaderYear.date(2026, 10, 31).addingTimeInterval(86_399),
+                generatedAt: now, calendar: calendar, authoredReceipts: receipts, packTitle: "Count Unbound")
+            edition.foreword = sampleNote + "\n\n" + edition.foreword
+            status("RUNNING monthly export")
+            _ = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9,
+                to: output.appendingPathComponent("monthly-edition.pdf"))
+            let weeklyCount = PDFDocument(url: output.appendingPathComponent("weekly-issue.pdf"))?.pageCount ?? 0
+            let monthlyCount = PDFDocument(url: output.appendingPathComponent("monthly-edition.pdf"))?.pageCount ?? 0
+            guard weeklyCount > 0 && monthlyCount > 0 else { throw ProofError("empty exported sample") }
+            status("OK public samples: \(weeklyCount) weekly pages, \(monthlyCount) monthly pages; \(input.photos.count) real photographs, \(input.sheets.count) actual Pagewright sheets; \(nights.count) saved nights")
+        } catch { status("FAILED public samples: \(error)") }
+    }
+}
 #endif
 
 

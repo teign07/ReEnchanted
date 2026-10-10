@@ -124,9 +124,62 @@ final class BoundDayBookTests: XCTestCase {
         ])
         let day = try XCTUnwrap(book.days.first)
         XCTAssertTrue(day.words.contains("Planted garlic in the window box in the hallway."))
-        XCTAssertGreaterThanOrEqual(day.specimens.count, 2)
-        XCTAssertTrue(day.specimens.allSatisfy { $0.clock != nil })
+        // Both are printed whole as the day's entries, so neither is listed again as a specimen.
+        XCTAssertEqual(day.entries.map(\.pageID), ["s1", "d1"])
+        XCTAssertTrue(day.entries.allSatisfy { $0.clock != nil })
+        XCTAssertTrue(day.specimens.isEmpty)
         XCTAssertEqual(day.braids.count, 1)
+    }
+
+    func testALongEntryIsKeptWholeAndEveryEntryOfTheDayPrints() throws {
+        let long = String(repeating: "I sat on the back step until my hands were cold and watched the geese go over. ", count: 6)
+        let book = try make(pages: [
+            page("d1", .diary, day: 18, hour: 8, text: long),
+            page("d2", .diary, day: 18, hour: 12, text: "The bakery remembered the end piece."),
+            page("d3", .souvenir, day: 18, hour: 18, text: "Frost on the car roof like a map."),
+            page("d4", .weather, day: 18, hour: 21, text: "Low grey sky sitting right on the roofs.")
+        ])
+        let day = try XCTUnwrap(book.days.first)
+        XCTAssertEqual(day.entries.count, 4, "A day prints every entry, not the first two.")
+        XCTAssertEqual(day.entries.first?.text, long.trimmingCharacters(in: .whitespaces), "Nothing is shortened.")
+        XCTAssertGreaterThan(day.readerWordCount, 90)
+        XCTAssertFalse(day.isThinYourSide, "A day with a real entry is never gathered as thin.")
+    }
+
+    func testAReplyOnAKeptLetterPrintsWithTheLetter() throws {
+        var letter = page("l1", .letter, day: 12, text: "I have been meaning to write. What did it say?")
+        letter.playerReply = "It said nothing, which was the problem."
+        let book = try make(pages: [letter])
+        let keep = try XCTUnwrap(book.days.first?.keeps.first)
+        XCTAssertEqual(keep.kind, .letter)
+        XCTAssertEqual(keep.readerReply, "It said nothing, which was the problem.")
+        XCTAssertTrue(book.days.first?.entries.isEmpty ?? false, "A reply sits with its letter, not again among the entries.")
+    }
+
+    func testTheTaleNumbersEachSceneOnceInReadingOrder() throws {
+        let book = try make(pages: [], receipts: [
+            receipt("scene.a", occurrence: "a1", day: 3, title: "First", body: "One. Two three four five six seven."),
+            receipt("scene.b", occurrence: "b1", day: 5, title: "Second", body: "Eight nine ten eleven twelve thirteen."),
+            receipt("scene.a", occurrence: "a2", day: 6, title: "First, again", body: "More of the first scene, later.")
+        ])
+        let chapters = book.taleChapters
+        XCTAssertEqual(chapters.map(\.contentID), ["scene.a", "scene.b"])
+        XCTAssertEqual(chapters.map(\.number), [1, 2])
+        XCTAssertEqual(chapters.first?.parts.count, 2)
+    }
+
+    func testAWeeklyChapterIsNamedForWhatTheBookKept() throws {
+        let book = try make(pages: [
+            page("b", .bookOfYou, day: 8, hour: 22, text: "The Kettle\n\nYou put the kettle on.\n\nThe Book kept the page: the kettle got its whole speech."),
+            page("d", .diary, day: 9, hour: 9, text: "Nothing much. Toast, standing up, and a long walk home.")
+        ])
+        let chapters = WeeklyTaleBuilder.chapters(of: book, from: date(8), to: date(14, hour: 23), calendar: calendar)
+        XCTAssertEqual(chapters.count, 2)
+        XCTAssertEqual(chapters[0].heading, "In which the kettle got its whole speech")
+        XCTAssertEqual(chapters[0].keptLine, "The Book kept the page: the kettle got its whole speech.")
+        XCTAssertFalse(chapters[0].telling?.contains("The Book kept the page") ?? true, "The colophon closes the chapter, not the telling.")
+        XCTAssertTrue(chapters[0].opener.hasPrefix("Once upon a "))
+        XCTAssertFalse(chapters[1].heading.contains("Toast"), "A heading is never the reader's own sentence.")
     }
 
     // MARK: Scenes the reader read
@@ -432,5 +485,56 @@ final class BoundDayBookTests: XCTestCase {
             pages: [braid], keepablePages: [braid, note, twin], receipts: .empty, castActs: [],
             startDate: date(1, hour: 0), endDate: date(31, hour: 23), calendar: calendar))
         XCTAssertEqual(again.days.first?.keeps.count, 1)
+    }
+
+    // MARK: The Tale's chapter titles and the reader's scrapbook
+
+    func testAChapterRetellsTheReadersDetailInTheBooksVoice() {
+        XCTAssertEqual(WeeklyTaleBuilder.readerDetailHeading("Found a moth asleep inside the lampshade. Left it there."),
+                       "In which you found a moth asleep inside the lampshade")
+        XCTAssertEqual(WeeklyTaleBuilder.readerDetailHeading("Clear and sharp. My breath showed at the bus stop."),
+                       "In which your breath showed at the bus stop")
+        XCTAssertEqual(WeeklyTaleBuilder.readerDetailHeading("Wrote a list and then lost it at the library."),
+                       "In which you wrote a list and then lost it at the library")
+        XCTAssertNil(WeeklyTaleBuilder.readerDetailHeading("I like it more than I should."),
+                     "No thing in it, and nothing happened: not a title.")
+        XCTAssertNil(WeeklyTaleBuilder.readerDetailHeading("Grey all day."))
+    }
+
+    func testAColophonThatAlreadyHasAVerbIsNotGivenAnother() {
+        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("The Book kept the page: you heard the geese, even without seeing them.", readerWords: []),
+                       "In which you heard the geese, even without seeing them")
+        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("The Book kept the page: the cat on the long way.", readerWords: []),
+                       "In which there was the cat on the long way")
+    }
+
+    private func pagewright(_ id: String, day: Int, title: String, note: String?, photos: Int) -> BookPage {
+        var page = BookPage(id: id, type: .plainPage, createdAt: date(day, hour: 20), promptText: title,
+                            userInput: note.map { "\($0)\n\nScraps bound here:\nPhotograph: the river" } ?? "Photograph: the river",
+                            tags: ["pagewright", "scrapbook", "kept-page", "photo-count:\(photos)", "mark-count:1", "source-count:2"],
+                            sourceID: "pagewright", origin: .userAuthored)
+        page.mediaAssets = [BookPageMediaAsset(kind: .renderedImageFile, reference: "/tmp/\(id).png", caption: title, sourceID: "pagewright",
+                                               metadata: ["mediaRole": "scrapbookPreview", "export": "png"])]
+        return page
+    }
+
+    func testOnlyTheReadersNoteOnAScrapbookPageIsTheirWriting() {
+        XCTAssertEqual(pagewright("p1", day: 10, title: "River", note: "I want this one on the wall.", photos: 1).readerAuthoredTexts,
+                       ["I want this one on the wall."])
+        XCTAssertTrue(pagewright("p2", day: 10, title: "River", note: nil, photos: 1).readerAuthoredTexts.isEmpty,
+                      "The Pagewright's list of scraps is never the reader's sentence.")
+    }
+
+    func testScrapbookPagesKeepTheirDayAndTheMostMadeOverPrintFullSize() throws {
+        let book = try XCTUnwrap(BoundDayBookBuilder.make(
+            pages: [pagewright("a", day: 8, title: "A", note: "One.", photos: 3),
+                    pagewright("b", day: 9, title: "B", note: nil, photos: 0),
+                    pagewright("c", day: 10, title: "C", note: "Three.", photos: 2)],
+            receipts: ledger([]), castActs: [], startDate: date(8, hour: 0), endDate: date(15, hour: 0), calendar: calendar))
+        let pages = book.days.flatMap(\.scrapbook)
+        XCTAssertEqual(pages.map(\.id), ["a", "b", "c"], "Every page the reader made is in the book.")
+        XCTAssertEqual(Set(pages.filter(\.fullPage).map(\.id)), ["a", "c"], "A week prints its two most made-over pages full size.")
+        XCTAssertTrue(book.days.allSatisfy { $0.entries.allSatisfy { !$0.text.contains("Scraps bound here") } })
+        XCTAssertTrue(book.days.flatMap(\.printedPageIDs).contains("b"), "A small print is still printed, so the archive won't repeat it.")
     }
 }

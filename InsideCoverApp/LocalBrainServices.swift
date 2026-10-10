@@ -1127,7 +1127,7 @@ struct MLXBookBraider: Braider {
             let scrub = BraidTellingScrub.scrubbed(
                 wonder.prose,
                 readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
-                isHardNight: false
+                isHardNight: scenePlan.isHardNight
             )
             scrubDropped = scrub.dropped
             prose = scrub.text
@@ -1233,8 +1233,9 @@ struct MLXBookBraider: Braider {
     }
 
     /// The wonder braid (see `WonderBraid`), or nil when the night is not for it
-    /// or it could not make a telling the reader can trust. Hard nights never
-    /// come here; the tender path keeps them. Switch it off for a device with
+    /// or it could not make a telling the reader can trust. Hard nights keep
+    /// the Reader's words, with object mischief and weather play switched off.
+    /// Switch this path off for a device with
     /// `defaults write ... wonderBraidDisabled -bool YES` while testing.
     ///
     /// A busy or briefly refusing model is waited for (a re-braid usually follows
@@ -1247,10 +1248,9 @@ struct MLXBookBraider: Braider {
         context: BraidPromptBuilder.Context,
         judgedContext: BraidPromptBuilder.Context
     ) async throws -> WonderBraid.Output? {
-        guard mode == .bookOfYou, !scenePlan.isHardNight,
+        guard mode == .bookOfYou,
               !UserDefaults.standard.bool(forKey: "wonderBraidDisabled") else { return nil }
         let details = scenePlan.readerDayNarration
-        guard !details.isEmpty else { return nil }
 
         let keptFiction = scenePlan.placements
             .compactMap { scenePlan.evidence(for: $0.evidenceID) }
@@ -1276,7 +1276,8 @@ struct MLXBookBraider: Braider {
             bookLines: WonderBraid.bookLines(from: keptFiction.flatMap(WonderBraid.sentences)),
             resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date),
             delivered: installedPacks.flatMap { $0.wonderLines ?? [] },
-            retiring: Set(installedPacks.flatMap { $0.retiredWonderLineIDs ?? [] })
+            retiring: Set(installedPacks.flatMap { $0.retiredWonderLineIDs ?? [] }),
+            isHardNight: scenePlan.isHardNight
         )
         let tell: WonderBraid.Teller = { system, user, temperature, topP, maxTokens in
             try await MLXLocalTextGenerator.run(
@@ -1300,11 +1301,9 @@ struct MLXBookBraider: Braider {
             throw unavailable.underlying
         }
         guard let output else { return nil }
-        // A stub is not a telling.
-        guard output.prose.split(whereSeparator: \.isWhitespace).count >= 45 else {
-            appLog.info("Wonder braid came out too short; the plain braid will run")
-            return nil
-        }
+        // The protected Reader detail can be brief. Do not replace an honest
+        // small telling with the plain generator just to meet a word quota.
+        guard !output.prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         let trust = BraidOutputAudit.issues(in: "\(scenePlan.title())\n\n\(output.prose)", for: day, context: judgedContext)
             .filter(\.isReaderTrustFailure)
         guard trust.isEmpty else {
@@ -1786,7 +1785,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         bookVoicePatina: BookVoicePatina,
         onPartial: (@Sendable (String) -> Void)?,
         onStage: (@Sendable (LetsChatStage) -> Void)? = nil,
-        onMyMind: LetsChatOnMyMind? = nil
+        onMyMind: LetsChatOnMyMind? = nil,
+        castRecalls: [LetsChatCastMemory.Recall] = []
     ) async throws -> String {
         // The prompt grew with the knowledge packet, six turns of history and
         // everything the archive search returned, then asked for a KV cache to
@@ -1814,7 +1814,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             lexicon: readerLexicon,
             recentPages: recentPages,
             knowledgeNotes: BookKnowledgePromptBuilder.relevantNotes(for: prompt, limit: route.knowledgeLimit),
-            onMyMind: onMyMind
+            onMyMind: onMyMind,
+            castRecalls: castRecalls
         )
         let composed = LetsChatPrompt.compose(inputs, maxCharacters: inputBudgetTokens * 3)
         var finalPrompt = composed.prompt

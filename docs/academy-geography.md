@@ -33,9 +33,11 @@ Everything marked **proposed** is new here, and bj can change it.
 
 ## 1. Principles
 
-1. **The map grows.** A room is drawn only after the story has been there. The
-   rest stays blank parchment. Each monthly pack that sets a scene somewhere
-   new adds that room, so the map grows at the same rate as the world.
+1. **The Academy is a complete place.** Its surveyed walls are drawn before
+   the first story visits them. Discoveries add remembered Pages, incidents
+   and marginal notes; they never hide someone's current address. Monthly
+   borrowed rooms and the Reader's Anchor chambers still extend the map.
+   This replaces the original blank-room rule following bj's 2026-10-08 review.
 2. **The Academy can be charted. The Labyrinth resists being charted.** The
    school has walls that stay put. The Labyrinth around it moves: the map marks
    its rooms "seen here on…", and sometimes the Book has to cross one out.
@@ -46,7 +48,7 @@ Everything marked **proposed** is new here, and bj can change it.
    Stacks is where a real place becomes a room. The reader's Anchors show
    up there as doors. This is the only place the real-world Atlas and the
    Academy map touch.
-5. **The Dorm is the reader's.** It's always on the map, because it's home. But
+5. **My Dorm is the Reader's.** It's always on the map, because it's home. But
    the map never makes up what's in it (NarrativeCore's own fault line for the Dorm).
 
 ---
@@ -338,10 +340,15 @@ The map is live. Who's where comes from these sources, strongest first:
    three hours, read from the Page's metadata (kept Pages keep it).
 3. **The timetable.**
 4. **Everyone's own day**: meals at 7, 12 and 18 in the Great Hall; haunts
-   re-picked every two hours; bed, and off the map, from 22 to 7.
+   re-picked every two hours; Chapter common rooms from 19 to 22; dormitories
+   from 22 to 7. Authored night wanderers retain their night haunts. This
+   residential fallback replaces the earlier disappearance at bedtime.
 
 When someone's room changes, they walk the route there through the passages,
-over about 45 seconds. Teachers mid-class, people in a scene, and the restless
+for 45 seconds to four minutes, depending on the route, the reason for moving,
+and that person's pace. Opening the map during a journey reconstructs the
+original departure and shows its current progress. Teachers mid-class,
+people in a scene, and the restless
 characters (`AcademyMotion.restless`) pace; everyone else stands still. Shut
 rooms are walked around.
 
@@ -378,3 +385,148 @@ long as it does. Nobody is ever staged into the Dorm.
 
 `complete_small_media.py` carries the beat rooms (`BEAT_ROOMS`), so re-running
 it keeps them.
+
+## 11. The Reader's doors (source implementation, 2026-10-08)
+
+The Academy map now receives the same Anchor ledger as the Atlas and Gazetteer.
+`AcademyAnchorRoom.project` draws every named Anchor as a chamber beyond the
+Outer Stacks, using its existing room description, keeper, rule and kept Pages.
+Pages are linked by their recorded `nearbyAnchorID`, not by words matching a
+place name. These chambers stay outside the Cast's room graph: drawing a door
+does not stage a character there or record a real-world visit.
+
+The parchment extends north in staggered pairs around a crooked aisle.
+Ledger order keeps old doors still as new Anchors are appended, including
+Anchors made on the same day. Names retain their drawing size; the leaf shows
+the nearest doors, while the opened map pans through the whole growing sheet.
+“Your places” finds any door. Opening one shows the Reader's words separately
+from the fictional room, links its newest kept Pages, and reuses the Gazetteer's
+Apple map plate and existing name-veiling rules. Returning adds books to the
+chamber's shelves. New walls ink in when motion is enabled.
+
+Each chamber has a drawn imprint: water and a paper boat, garden beds, a kettle,
+a crooked library, a bridge, a lantern, or a door and key. Whole words in the
+Reader's original Anchor words/name choose the motif first, then the confirmed
+place category, then the existing fictional room. Private Maps names and
+localities are not mined for imagery. These are fictional chambers, not real
+building plans. Names sit below the drawings. Only the selected chamber's
+water, steam or lantern moves; Reduce Motion and leaf previews keep it still.
+The long passage is painted in strips with backing heights of at most 512
+drawing points rather than one unbounded Canvas.
+
+Hold a chamber or touch its folded note to unfold a sentence. The note uses the
+newest actual Reader sentence atom from a Page recorded at this Anchor, with a
+link to that exact Page, even when it falls beyond the five recent Page links.
+Book-only prose and fictional choices are never quoted as Reader sentences.
+When no such sentence exists, the original anchoring words can be folded
+instead; without either, there is no fabricated note. Unfolding lasts for the
+opened map and does not create a new persisted store or discovery counter.
+
+At the Gazetteer's existing quiet threshold, a little dust appears. The note
+names days since the last **recorded** check-in, not the Reader's absence from
+the real place. A recorded return clears it; the door is never locked.
+
+Swift syntax and source-layout checks were performed, including room spacing,
+stable door positions and selection framing through 201 doors and five viewport
+sizes. A separate vector drawing study was inspected for the seven motifs and
+long names. Regression tests were added for ledger order, Page identity, full
+Anchor coverage, veiled plates, atomic sentence provenance, imprint sources and
+recorded check-in timing. At that source pass, no app build, test-suite run,
+install or on-device visual proof was performed.
+
+Rabbit follow-up for the Anchor iteration, 2026-10-08: all 74 `AcademyGeographyTests` passed. The complete
+current workspace built successfully with the Debug `InsideCoverApp` scheme;
+the signed app bundle and its Share/Widget extensions were checked, and no
+workspace files changed during the build. Installation and launch on Rabbit
+both succeeded. On-device map appearance and interaction still need visual
+review; compilation, tests and launch do not establish that proof.
+
+
+## 12. A complete inhabited Academy (source iteration, 2026-10-08)
+
+After Rabbit review, bj asked for a real magical map and every Cast member on
+it. The campus now has 39 permanent rooms connected by 42 passages. A single
+survey arranges the compass teaching wings around the Great Hall, with outer
+masonry, corner turrets, paved courts, window slits, table and workshop plans,
+and the enclosing Stacks. The enlarged 920 by 1500 drawing keeps room lettering
+and names readable when opened and zoomed. These are native vector drawings.
+
+All five existing Chapters have distinct common rooms and attached dormitory
+stairs: Emberheart's hearth, Mossbloom's growing beds, Tidecrest's round room,
+Riddlewind's shared table, and Duskthorn's thorn study. Faculty and staff quarters and
+guest rooms give the rest of the roster an address. The Book Burrow remains
+shared. The map says **My Dorm**, preserves its existing `location-dorm` ID,
+and draws nothing about its private interior. After Binding, its door joins
+the dormitories of the Chapter resolved through the existing talisman registry.
+Before Binding, it stays off the Book Burrow. Cast never enter it.
+
+The roster comes from enabled narrative packs plus the Reader's custom Cast,
+rather than just the original 23 authored haunts. An unfamiliar character gets
+a Chapter-based routine; an unknown Chapter gets the guest rooms at night.
+Scenes use this same roster, including kept Page metadata and borrowed rooms.
+Monthly staging still outranks recent scenes, which outrank the timetable and
+ordinary routines. Sleeping people keep their name and still feet on the map;
+Penny, Wicker, Damien and Thorne retain their explicit night whereabouts. Invalid
+or closed story addresses fall back to the person's day rather than dropping
+them into an unseen room. The Rain Room's walls remain visible; the actual sky
+opens or shuts its door.
+
+Every name has its own footprint pair and ribbon. The three-person drawing cap
+and its `+N` marker are gone. Crowded rooms put names beside the feet in closer
+rows. **Find a name** lists full names and current addresses, marks walkers as
+on the way to their destination, centres their current footsteps (including
+other floors), and highlights the selected ribbon. Floor counts include
+people passing through. The viewer observes room changes between minute ticks
+as well as reconstructing recent timetable, routine, and story departures. A
+view-local cache reuses the passage survey while the Reader pans or zooms. Reduce
+Motion keeps the feet still and the name-finding camera jump immediate.
+
+Borrowed rooms keep their authored position when it fits. When the surveyed
+campus now occupies that paper, the chart finds clear paper nearest its joining rooms,
+preserving room IDs and passages. The Ballroom grows off the Great Hall; the
+Wrong Castle can lean between the East Stacks and the Quillquarium. The survey reserves all three moving-shelf
+positions and resolves borrowed rooms before the drawing and footprints use
+coordinates. The Reader's existing Anchor extension remains separate from this
+Cast graph and continues to unfold north.
+
+Validation for this source iteration: Swift syntax parsing and `git diff
+--check` passed. A separate source geometry check exercised 36 combinations of
+unbound/all five bound Chapters, three shelf positions, and October's borrowed
+rooms: no room intersections, route fallbacks, or routes through unrelated
+room walls. A standalone drawing study was inspected; it is not a native app
+screenshot. The rescaled Anchor extension was also checked through 201 doors
+and five viewport sizes, retaining bounded 512-point drawing strips. Regression coverage was updated and expanded for complete hourly
+roster coverage across a week, residential connections, private home Binding,
+custom characters and Page metadata, bedtime, closures, and borrowed-room
+placement. These updated tests have not run. No app build or Rabbit install was
+performed for this iteration; Rabbit still has the preceding Anchor build.
+
+
+Rabbit deployment attempt for the inhabited campus, 2026-10-08: all 84 updated
+`AcademyGeographyTests` passed. The complete current workspace built with the
+Debug `InsideCoverApp` scheme for `generic/platform=iOS`; its signed app bundle,
+Share extension and Widget extension were checked. The workspace snapshot
+reported no files changed during the build. Both CoreDevice and Xcode's device
+inventory reported Rabbit unavailable. The installation attempt failed with
+CoreDevice error 1011 because it could not locate Rabbit. The completed bundle
+is ready at `/private/tmp/ReEnchanted-Rabbit-Campus-20261008/Build/Products/Debug-iphoneos/InsideCoverApp.app`.
+Rabbit reconnected on the subsequent retry at 21:11 UTC. The completed signed
+bundle installed successfully and launched successfully through CoreDevice,
+without rebuilding. Installation and launch are confirmed; on-device visual
+review of the map remains pending.
+
+Illustrated atlas iteration, 2026-10-09: bj asked for image-generated parchment
+and multiple levels. Four original plates now underlie live room labels,
+Cast ribbons, footprints, closures and navigation: the Undercroft, School &
+Gardens, Upper Rooms, and Tower & Stacks. `AcademyIllustratedAtlas` surveys
+39 permanent floors onto those plates while preserving room IDs and the
+existing story/timetable/scene graph. Level tabs show counts; finding a Cast
+member changes leaves, and room/stair links cross between them. The private
+My Dorm follows the Reader's bound Chapter. Reader Anchor doors remain on
+the growing Stacks extension; borrowed rooms unfold onto paper below their
+entrance leaf. Daily shelf drift and timed cross-level footsteps remain live.
+The artwork, full prompts, paths and verification limits are recorded in
+`docs/academy-atlas-art.md`. Source parsing, asset references, whitespace and
+18 home/shelf geometry variants passed; browser registration review is a
+drawing study. Nine added regression tests have not run. This iteration has
+not been built or installed on Rabbit.

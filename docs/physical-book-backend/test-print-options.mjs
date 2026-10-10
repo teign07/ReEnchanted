@@ -181,9 +181,13 @@ check(plain.status === 200, "a quote with no extras still works");
 check(plain.body.coverDimensions?.widthPoints === 882, "a quote carries Lulu's exact cover canvas");
 check(plain.body.request?.editionKind === "monthly", "the server preserves the edition kind that owns the price floor");
 
-const overCap = await quoteRequest({ ...quoteBody([]), pageCount: 130 });
+const overCap = await quoteRequest({ ...quoteBody([]), pageCount: 162 });
 check(overCap.status === 400 && overCap.body?.error === "edition_too_long",
-  "a monthly past its 128-page cap is refused before pricing");
+  "a monthly past its 160-page cap is refused before pricing");
+
+const fullMonthly = await quoteRequest({ ...quoteBody([]), pageCount: 160 });
+check(fullMonthly.status === 200 && fullMonthly.body.request?.pageCount === 160,
+  "a full 160-page monthly reaches Lulu pricing with its actual page count");
 
 const legacyWithinCap = await quoteRequest({ ...quoteBody([]), editionKind: undefined, pageCount: 256 });
 check(legacyWithinCap.status === 200 && legacyWithinCap.body.request?.editionKind === null,

@@ -106,6 +106,7 @@
   async function openSheet(id, sound = true) {
     const source = document.getElementById(id);
     if (!source) return false;
+    if (id==='radio-player') loadRadio();
     if (dialog.open) await closeDialog();
     dialogReturnFocus = document.activeElement;
     borrowed = source;
@@ -149,6 +150,13 @@
   const phrasing = new Set(['A','SPAN','STRONG','EM','B','I','SMALL','BR','CITE','SUP','SUB','IMG']);
   function blocksFrom(element, inherited = []) {
     const ids = [...inherited, ...(element.id ? [element.id] : [])];
+    if (element.matches('.opening-beat')) {
+      const art = element.querySelector(':scope > .opening-mark');
+      const blocks = [...element.children].filter(child => child !== art).flatMap((child, index) => blocksFrom(child, index ? [] : ids));
+      blocks.forEach((block, index) => { block.openingArt = art; block.openingStart = index === 0; });
+      return blocks;
+    }
+    if (element.matches('.trust-row') && element.closest('.opening-beat')) return [{ node: element.cloneNode(true), ids }];
     if (atomic.has(element.tagName) || element.matches('.title-page,.monthly-cover-face,.quiet-composition,.reading-composition,.encounter-anchor')) return [{ node: element.cloneNode(true), ids }];
     if (element.matches('ul,ol')) return [...element.children].flatMap((item, index) => {
       const list = element.cloneNode(false);
@@ -225,7 +233,7 @@
     const clone = node.cloneNode(false); clone.append(range.cloneContents()); return clone;
   }
   function splitToFit(node, content) {
-    if (node.matches('figure,video,.title-page') || node.querySelector('img,video,input,button')) return null;
+    if (node.matches('figure,video,.title-page,.trust-row') || node.querySelector('img,video,input,button')) return null;
     const points = textPoints(node);
     let lo = 0, hi = points.length - 1, best = -1;
     while (lo <= hi) {
@@ -245,6 +253,8 @@
 
   function paginate() {
     pages.length = 0; anchors.clear();
+    const deck = window.PublicMarginaliaDeck;
+    deck?.beginPages();
     const measure = document.createElement('div'); measure.className = 'pagination-measure';
     measure.style.width = stage.style.width; measure.style.height = stage.style.height;
     document.body.append(measure);
@@ -252,34 +262,69 @@
       for (const chapter of chapters) {
         const queue = [...chapter.children].flatMap(child => blocksFrom(child));
         anchors.set(chapter.id,pages.length);
-        let leaf = makeLeaf(chapter), content = leaf.querySelector('.leaf-content');
+        let leaf = makeLeaf(chapter), content = leaf.querySelector('.leaf-content'), openingArt = null;
         function mount() { leaf.style.width = stage.style.width; leaf.style.height = stage.style.height; measure.replaceChildren(leaf); }
-        function finish() { if(content.children.length) pages.push(leaf); leaf=makeLeaf(chapter,true); content=leaf.querySelector('.leaf-content'); mount(); }
+        function addOpeningArt(original = false) {
+          if (!openingArt) return;
+          leaf.classList.add('is-opening');
+          const art = removeDuplicateIds(openingArt.cloneNode(true));
+          if (!original) {
+            const drawing = deck?.dealPage();
+            if (!drawing) return;
+            const image = art.querySelector('img');
+            image.src = drawing.src; image.width = drawing.w; image.height = drawing.h;
+            image.dataset.mark = drawing.id;
+          }
+          content.append(art);
+        }
+        function hasText() { return [...content.children].some(child => !child.matches('.opening-mark')); }
+        function finish() { if(hasText()) pages.push(leaf); leaf=makeLeaf(chapter,true); content=leaf.querySelector('.leaf-content'); addOpeningArt(); mount(); }
         mount();
         for (let index=0;index<queue.length;index++) {
           const block=queue[index];
+          if (block.openingStart) {
+            openingArt = null;
+            if (hasText()) finish();
+            openingArt = block.openingArt;
+            addOpeningArt(true);
+          }
           const node=removeDuplicateIds(block.node.cloneNode(true));
+          // Authored page starts take precedence over the space left on a leaf.
+          if (node.dataset.pageBreak === 'before' && hasText()) finish();
           content.append(node);
           if (['cover','title','quiet','composed'].includes(chapter.dataset.kind)) { collectAnchors(block,pages.length); continue; }
-          // Keep a heading with the beginning of the following paragraph.
+          // Keep a heading with its photograph, or the start of the next paragraph.
           if (fits(content) && node.matches('h1,h2,h3,h4,.eyebrow') && queue[index+1]) {
-            const probe=document.createElement('p'); probe.textContent=queue[index+1].node.textContent.slice(0,110); content.append(probe);
+            const following=queue[index+1].node;
+            const probe=following.matches('figure,video') ? removeDuplicateIds(following.cloneNode(true)) : document.createElement('p');
+            if (!following.matches('figure,video')) probe.textContent=following.textContent.slice(0,110);
+            content.append(probe);
             const orphan=!fits(content); probe.remove();
-            if(orphan && content.children.length>1) { node.remove(); finish(); content.append(node); }
+            if(orphan && content.children.length>(openingArt ? 2 : 1)) { node.remove(); finish(); content.append(node); }
           }
           if (!fits(content)) {
             node.remove();
-            if (content.children.length && (node.matches('h1,h2,h3,h4,figure,video') || node.textContent.length<250)) finish();
+            // A study credit travels with the preceding explanation, rather
+            // than becoming an otherwise empty continuation page.
+            if (openingArt && node.matches('.opening-source')) {
+              const explanation = content.lastElementChild;
+              if (explanation && explanation.matches('p:not(.opening-mark)')) {
+                explanation.remove(); finish(); content.append(explanation, node);
+                collectAnchors(block,pages.length);
+                continue;
+              }
+            }
+            if (hasText() && (node.matches('h1,h2,h3,h4,figure,video') || node.textContent.length<250)) finish();
             let split=splitToFit(node,content);
             if(split) {
               collectAnchors(block,pages.length); content.append(split[0]);
-              queue.splice(index+1,0,{node:split[1],ids:[]}); finish(); continue;
+              queue.splice(index+1,0,{node:split[1],ids:[],openingArt}); finish(); continue;
             }
-            if(content.children.length) finish();
+            if(hasText()) finish();
             content.append(node);
             if(!fits(content)) {
               node.remove(); split=splitToFit(node,content);
-              if(split) { collectAnchors(block,pages.length);content.append(split[0]);queue.splice(index+1,0,{node:split[1],ids:[]});finish();continue; }
+              if(split) { collectAnchors(block,pages.length);content.append(split[0]);queue.splice(index+1,0,{node:split[1],ids:[],openingArt});finish();continue; }
               content.append(node);
               // An unusual indivisible object is scrollable, never silently clipped.
               if(!fits(content)) { content.style.overflowY='auto'; content.tabIndex=0; content.setAttribute('aria-label','Page content, scroll to read the rest'); }
@@ -294,9 +339,8 @@
         if(content.children.length) pages.push(leaf);
       }
       // Like the app's compositor, put a mark only into measured empty paper.
-      const marks=['MarginaliaGoblinReading','MarginaliaFeather','MarginaliaGoblinWritingCrouched','MarginaliaStar','MarginaliaLavender','MarginaliaGoblinSleeping'];
       pages.forEach((page,index)=>{
-        if(page.matches('.is-title,.is-quiet,.is-composed,.is-cover') || index%3!==1) return;
+        if(page.matches('.is-title,.is-quiet,.is-composed,.is-cover,.is-opening') || index%3!==1) return;
         measure.replaceChildren(page);
         const field=page.querySelector('.leaf-content');
         const last=field.lastElementChild;
@@ -304,8 +348,10 @@
         const bottom=last.getBoundingClientRect().bottom-field.getBoundingClientRect().top;
         const available=field.clientHeight-bottom-20;
         if(available<65) return;
+        const drawing = deck?.dealPage();
+        if (!drawing) return;
         const mark=document.createElement('img');mark.className='page-marginalia';
-        mark.src='./assets/book/'+marks[index%marks.length]+'.webp';mark.alt='';mark.setAttribute('aria-hidden','true');mark.loading='lazy';mark.draggable=false;
+        mark.src=drawing.src;mark.width=drawing.w;mark.alt='';mark.setAttribute('aria-hidden','true');mark.loading='lazy';mark.draggable=false;
         mark.style.height=Math.min(104,available)+'px';
         mark.style.top=(field.offsetTop+bottom+14)+'px';
         mark.style.right=(index%2?35:55)+'px';
@@ -325,16 +371,11 @@
     const destination=Math.max(0,Math.min(pages.length-1,index));
     current=destination;
     previous.disabled=current===0; next.disabled=current===pages.length-1;
-    next.setAttribute('aria-label',pages[current].dataset.chapter==='first-parting'?'Keep wandering through the binding':'Next page');
+    next.setAttribute('aria-label','Next page');
     stage.classList.toggle('is-closed',pages[current].classList.contains('is-cover'));
     document.querySelector('#turn-hint').textContent=pages[current].classList.contains('is-cover')?'Open the cover. There’s a Book inside.':'Drag a page corner, or use the arrows.';
-    // Everything that isn't the reference appendix is the first reading —
-    // the cover, the title page, the opening chapter and the composed leaves.
-    const firstCount=pages.filter(page=>page.dataset.reference!=='true').length;
-    const inReference=pages[current].dataset.reference==='true';
-    position.textContent=pages[current].dataset.title+' · '+(inReference?'The complete chapters':String(current+1).padStart(2,'0')+' / '+firstCount);
-    const returnLink=document.querySelector('.reading-return');
-    if(returnLink){returnLink.hidden=!inReference;returnLink.href='#'+(window.PublicEdition?.readingBookmark||'about');}
+    // One reading, including the full information chapters and Book Pages.
+    position.textContent=pages[current].dataset.title+' · '+String(current+1).padStart(2,'0')+' / '+pages.length;
     if(pages[current].dataset.reading)window.PublicEdition.readingBookmark=pages[current].dataset.chapter;
     if(!isRiffling) window.PublicEdition?.visit(pages[current],current);
     pages.forEach((page,i) => {
@@ -516,7 +557,7 @@
     const raw=hash.replace(/^#/,'') || 'cover';
     let decoded; try { decoded=decodeURIComponent(raw); } catch { return null; }
     const [id,offsetText]=decoded.split('~');
-    const aliases={top:'cover',book:'about','encounter-write':'first-write','encounter-mission':'first-mission','encounter-dare':'first-dare','encounter-map':'first-map','encounter-kept':'first-kept','encounter-remembered':'first-remembered'};
+    const aliases={top:'cover',book:'about','first-arrival':'about','first-curse':'curse','first-how':'how','first-night':'nightly-braid','first-world':'academy','first-compass':'ebook','first-paper':'editions','first-privacy':'privacy','encounter-write':'first-write','encounter-mission':'first-mission','encounter-dare':'first-dare','encounter-map':'first-map','encounter-kept':'first-kept','encounter-remembered':'first-remembered'};
     const key=aliases[id] && anchors.has(aliases[id]) ? aliases[id] : id;
     if(!anchors.has(key)) return null;
     const base=anchors.get(key), offset=Number(offsetText)||0;
@@ -637,7 +678,7 @@
     if(event.key==='ArrowRight' || event.key==='PageDown') {event.preventDefault();go(current+1);}
     if(event.key==='ArrowLeft' || event.key==='PageUp') {event.preventDefault();go(current-1);}
     if(event.key==='Home') {event.preventDefault();go(0);}
-    if(event.key==='End') {event.preventDefault();go(pages[current].dataset.reference?pages.length-1:(anchors.get('first-parting')??pages.length-1));}
+    if(event.key==='End') {event.preventDefault();go(pages.length-1);}
   });
   window.addEventListener('hashchange',()=>{
     if(!active) return;
@@ -667,6 +708,15 @@
     play.parentElement.after(controls);
     const seek=controls.querySelector('#radio-seek'),volume=controls.querySelector('#radio-volume'),time=controls.querySelector('#radio-time');
     let stations=[],stationIndex=-1,trackIndex=0,isBreak=false,powered=false;
+    // The playout plan: songs come out of a shuffled bag, a few at a time, and the DJ cuts in between blocks.
+    let plan=null,warmer=null;
+    const rand=n=>Math.floor(Math.random()*n);
+    const clampBlock=size=>Math.min(size,Math.max(1,stations[stationIndex]?.tracks.length||1));
+    const openingBlock=()=>clampBlock(2+rand(2));
+    const laterBlock=()=>clampBlock([1,2,2,3,3][rand(5)]);
+    const dayPart=hour=>hour>=5&&hour<8?'dawn':hour>=8&&hour<17?'day':hour>=17&&hour<21?'dusk':'night';
+    function freshPlan(){plan={bag:[],recent:[],blockSize:openingBlock(),sinceBreak:0,heard:new Set(),lastCategory:'',upNext:null};}
+    freshPlan();
     audio.volume=.6;play.disabled=true;skip.disabled=true;
     const format=seconds=>Math.floor(seconds/60)+':'+String(Math.floor(seconds%60)).padStart(2,'0');
     function announce() {
@@ -679,7 +729,8 @@
       seek.disabled=stationIndex<0;
     }
     async function listen(item,asBreak=false) {
-      isBreak=asBreak;message.textContent=stations[stationIndex]?.hidden?'UNLISTED TRANSMISSION · Signal origin withheld.':'';
+      isBreak=asBreak;
+      message.textContent=stations[stationIndex]?.hidden?'UNLISTED TRANSMISSION · Signal origin withheld.':(asBreak&&item.caption?item.caption:'');
       audio.loop=false;
       audio.src=item.src || item.blessedSrc;
       now.textContent=asBreak?stations[stationIndex].host+' · on air':item.title+' · '+item.artist;
@@ -710,8 +761,66 @@
     function startSignal() {
       if(stationIndex<0){staticSignal();return;}
       const station=stations[stationIndex];
-      const intro=station.banters.find(b=>b.category==='stationID' && !b.conditions);
-      listen(intro || station.tracks[trackIndex],!!intro);
+      plan.sinceBreak=0;plan.blockSize=openingBlock();plan.upNext=null;
+      const ids=(station.banters||[]).filter(b=>b.category==='stationID' && bantersFit(b));
+      if(ids.length){const id=ids[rand(ids.length)];plan.lastCategory='stationID';listen(id,true);warm(station.tracks[peekSong()]);}
+      else advance();
+    }
+    function bantersFit(banter){
+      const c=banter.conditions;if(!c)return true;
+      if(Object.keys(c).some(key=>key!=='timeOfDay' && key!=='weekdays'))return false;
+      const now=new Date();
+      if(c.timeOfDay && !c.timeOfDay.includes(dayPart(now.getHours())))return false;
+      if(c.weekdays && !c.weekdays.includes(now.getDay()+1))return false; // 1 = Sunday, as the app counts
+      return true;
+    }
+    function refillBag(){
+      const n=stations[stationIndex].tracks.length,order=[...Array(n).keys()];
+      for(let i=n-1;i>0;i--){const j=rand(i+1);[order[i],order[j]]=[order[j],order[i]];}
+      // The songs just played sit at the back of the new shuffle, so nothing comes round again at once.
+      const recent=plan.recent.slice(-Math.min(2,n-1));
+      plan.bag=[...order.filter(i=>recent.includes(i)),...order.filter(i=>!recent.includes(i))];
+    }
+    function peekSong(){if(!plan.bag.length)refillBag();return plan.bag[plan.bag.length-1];}
+    function warm(item){
+      // Quietly fetch what comes next so the cut is clean; skipped on Data Saver.
+      const src=item?.src || item?.blessedSrc;
+      if(!src || navigator.connection?.saveData)return;
+      if(!warmer){warmer=new Audio();warmer.preload='auto';}
+      if(warmer.getAttribute('src')!==src)warmer.src=src;
+    }
+    function chooseBreak(justPlayed,upcoming){
+      const station=stations[stationIndex];
+      const pool=(station.banters||[]).filter(b=>b.category!=='stationID' && bantersFit(b) && (!b.track ||
+        (b.placement==='outro' && b.track===justPlayed?.title) || (b.placement==='intro' && b.track===upcoming?.title)));
+      if(!pool.length)return null;
+      let fresh=pool.filter(b=>!plan.heard.has(b.id));
+      if(!fresh.length){pool.forEach(b=>plan.heard.delete(b.id));fresh=pool;}   // the bag emptied: shuffle it again
+      const varied=fresh.filter(b=>b.category!==plan.lastCategory);
+      if(varied.length)fresh=varied;
+      const bound=fresh.filter(b=>b.track);                                      // a break about the song beside it lands best
+      if(bound.length && Math.random()<.7)fresh=bound;
+      let roll=Math.random()*fresh.reduce((sum,b)=>sum+(b.weight||1),0);
+      return fresh.find(b=>(roll-=(b.weight||1))<0) || fresh[fresh.length-1];
+    }
+    function playSong(index){
+      const station=stations[stationIndex];
+      plan.bag=plan.bag.filter(i=>i!==index);plan.recent=[...plan.recent.slice(-2),index];plan.sinceBreak++;trackIndex=index;
+      const after=peekSong();
+      plan.upNext=plan.sinceBreak>=plan.blockSize?chooseBreak(station.tracks[index],station.tracks[after]):null;
+      listen(station.tracks[index]);
+      warm(plan.upNext||station.tracks[after]);
+    }
+    function playBreak(banter){
+      const station=stations[stationIndex];
+      plan.heard.add(banter.id);plan.lastCategory=banter.category;plan.sinceBreak=0;
+      plan.blockSize=laterBlock();
+      listen(banter,true);warm(station.tracks[peekSong()]);
+    }
+    function advance(){
+      // Whatever just ended or was skipped, the plan decides what's next: a DJ cut, or the next song in the shuffle.
+      if(plan.upNext){const banter=plan.upNext;plan.upNext=null;playBreak(banter);return;}
+      playSong(peekSong());
     }
     function tuneFrequency() {
       const frequency=Number(dial.value),index=nearestFrequency(frequency);
@@ -722,7 +831,7 @@
       dial.dataset.ready='true';
       audio.pause();audio.removeAttribute('src');audio.load();
       audio.loop=false;
-      stationIndex=index;trackIndex=0;isBreak=false;
+      stationIndex=index;trackIndex=0;isBreak=false;freshPlan();
       const station=stations[index];
       document.querySelector('#radio-player').classList.toggle('is-pirate',!!station?.hidden);
       description.textContent=station?.tagline || 'Keep turning. Something might be hiding in the noise.';
@@ -731,11 +840,10 @@
       seek.value=0;time.textContent='0:00';
       tracks.replaceChildren(...(station?.tracks || []).map((track,idx)=>{
         const li=document.createElement('li'),button=document.createElement('button');button.type='button';
-        button.textContent=track.title;button.addEventListener('click',()=>{window.BookSounds?.select();powered=true;trackIndex=idx;listen(track);});li.append(button);return li;
+        button.textContent=track.title;button.addEventListener('click',()=>{window.BookSounds?.select();powered=true;plan.sinceBreak=0;plan.blockSize=openingBlock();playSong(idx);});li.append(button);return li;
       }));
       announce();if(powered)startSignal();
     }
-    function nextSong(){trackIndex=(trackIndex+1)%stations[stationIndex].tracks.length;listen(stations[stationIndex].tracks[trackIndex]);}
     dial.addEventListener('input',tuneFrequency);
     play.addEventListener('click',async()=>{
       window.BookSounds?.play('tap');
@@ -743,8 +851,8 @@
       if(!powered){audio.pause();announce();return;}
       startSignal();
     });
-    skip.addEventListener('click',()=>{window.BookSounds?.select();powered=true;if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
-    audio.addEventListener('ended',()=>{if(!powered || stationIndex<0)return;if(isBreak){listen(stations[stationIndex].tracks[trackIndex]);}else nextSong();});
+    skip.addEventListener('click',()=>{window.BookSounds?.select();powered=true;advance();});
+    audio.addEventListener('ended',()=>{if(!powered || stationIndex<0)return;advance();});
     audio.addEventListener('play',announce);audio.addEventListener('pause',announce);
     audio.addEventListener('error',()=>{powered=false;message.textContent='That recording couldn’t be reached. Try another frequency.';announce();});
     audio.addEventListener('timeupdate',()=>{
@@ -777,6 +885,16 @@
       room.hidden=true;document.body.classList.remove('book-active');active=false;
     }
   }
-  prepareRadio();
+  // The Radio costs nothing until someone reaches for it: no catalogue fetch, no audio, no listeners.
+  let radioPrepared=null;
+  const loadRadio=()=>radioPrepared||(radioPrepared=prepareRadio());
+  const radioSheet=document.getElementById('radio-player');
+  if(radioSheet && 'IntersectionObserver' in window){
+    const watcher=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting)){watcher.disconnect();loadRadio();}},{rootMargin:'300px'});
+    watcher.observe(radioSheet);
+  }
+  const radioTab=document.querySelector('.tab-radio');
+  ['pointerenter','focus','touchstart'].forEach(type=>radioTab?.addEventListener(type,loadRadio,{once:true,passive:true}));
+  window.addEventListener('hashchange',()=>{if(location.hash==='#radio-player')loadRadio();});
   start();
 })();

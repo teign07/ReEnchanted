@@ -493,8 +493,8 @@ window.PublicMarginalia={
    "id": "marginalia-lavender",
    "role": "classic",
    "alt": "A margin mark, lavender",
-   "src": "./assets/book/marginalia/marginalia-lavender.webp",
-   "w": 146,
+   "src": "./assets/book/marginalia/marginalia-lavender-v2.webp",
+   "w": 320,
    "h": 320
   },
   {
@@ -517,9 +517,9 @@ window.PublicMarginalia={
    "id": "marginalia-shell",
    "role": "classic",
    "alt": "A margin mark, shell",
-   "src": "./assets/book/marginalia/marginalia-shell.webp",
-   "w": 277,
-   "h": 265
+   "src": "./assets/book/marginalia/marginalia-shell-v2.webp",
+   "w": 320,
+   "h": 320
   },
   {
    "id": "marginalia-stamp",
@@ -928,6 +928,172 @@ window.PublicMarginalia={
    "src": "./assets/book/notes/academy-warning-you-were-expected.webp",
    "w": 277,
    "h": 200
+  }
+ ],
+ "theme": {
+  "id": "count-unbound-margins-pagepack",
+  "label": "The Count Unbound Margins"
+ },
+ "seasonal": [
+  {
+   "id": "count-unbound.seasonal.v2.bat-in-flight",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, bat in flight",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.bat-in-flight.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.black-cat",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, black cat",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.black-cat.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.witch-hat",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, witch hat",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.witch-hat.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.harvest-pumpkin",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, harvest pumpkin",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.harvest-pumpkin.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.jack-o-lantern",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, jack o lantern",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.jack-o-lantern.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.lantern",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, lantern",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.lantern.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.broom",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, broom",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.broom.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.cauldron",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, cauldron",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.cauldron.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.spiderweb",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, spiderweb",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.spiderweb.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.candle",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, candle",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.candle.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.old-key",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, old key",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.old-key.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.crow",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, crow",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.crow.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.night-moth",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, night moth",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.night-moth.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.crescent-moon",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, crescent moon",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.crescent-moon.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.oak-leaf",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, oak leaf",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.oak-leaf.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.maple-leaf",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, maple leaf",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.maple-leaf.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.acorn",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, acorn",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.acorn.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.apple",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, apple",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.apple.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.mushroom",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, mushroom",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.mushroom.webp",
+   "w": 320,
+   "h": 320
+  },
+  {
+   "id": "count-unbound.seasonal.v2.marigold",
+   "role": "seasonal",
+   "alt": "A monthly margin drawing, marigold",
+   "src": "./assets/book/monthly-marginalia/count-unbound.seasonal.v2.marigold.webp",
+   "w": 320,
+   "h": 320
   }
  ]
 };

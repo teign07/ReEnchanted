@@ -213,6 +213,9 @@ struct BookShopSheet: View {
     /// The thickness the reader chose for a weekly or monthly. Nil prints the
     /// book at its natural length.
     @State private var physicalBookPageTier: Int?
+    /// "Before I bind this": the reader's answers and day lines for a monthly.
+    @State private var bindingAccountDraft = BindingAccount()
+    @State private var bindingAccountEditionKey: String?
     /// Names the volume being prepared. A new id for every change to the book,
     /// so the folios' addresses always belong to exactly one set of leaves.
     @State private var physicalBookBindingID = UUID().uuidString
@@ -2915,9 +2918,10 @@ struct BookShopSheet: View {
     @ViewBuilder
     private func physicalBookThicknessChooser(edition: MonthlyEdition) -> some View {
         let kind = PhysicalBookEditionIdentity.kind(for: edition)
-        if kind == .weekly || kind == .monthly {
+        // The weekly is the Tale of Your Week: as long as the week, nothing to choose.
+        if kind == .monthly {
             let tiers = PrintThickness.tiers(for: kind)
-            let current = physicalBookPageTier ?? (kind == .weekly ? WeeklyPublicationMatter.defaultPageTier : nil)
+            let current = physicalBookPageTier
             VStack(alignment: .leading, spacing: 6) {
                 Text("How thick")
                     .font(.system(.caption, design: .serif).weight(.semibold))
@@ -2949,12 +2953,77 @@ struct BookShopSheet: View {
                         .accessibilityAddTraits(chosen ? .isSelected : [])
                     }
                 }
-                Text(kind == .weekly
-                     ? "A weekly is a magazine: 32 pages unless you ask for more or less. The Handbook fills what your week leaves."
-                     : "A thinner book keeps your fullest days and says which it left out. Slim books are the entry price. Nothing is padded to reach a number.")
+                Text("A month usually fills 128–160 pages. More pages cost a little more to print. A thinner book keeps your fullest days and says which it left out. The final price follows the pages in your print proof.")
                     .font(.system(.caption, design: .serif).italic())
                     .foregroundStyle(BookPalette.ink.opacity(0.64))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// "Before I bind this": a few questions about the month, answered or not,
+    /// and a line for each quiet day. What the reader writes prints in their
+    /// hand; a blank prints nothing. The draft is kept if the sheet closes.
+    @ViewBuilder
+    private func physicalBookBindingAccountPanel(edition: MonthlyEdition) -> some View {
+        if PhysicalBookEditionIdentity.kind(for: edition) == .monthly {
+            let key = BookThemeEngine.monthKey(for: edition.startDate)
+            let monthName = edition.startDate.formatted(.dateTime.month(.wide))
+            let quiet = edition.dayBook.map { BindingAccount.quietDays(in: $0) } ?? []
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(BindingAccount.ask)
+                        .font(.system(.caption, design: .serif).italic())
+                        .foregroundStyle(BookPalette.ink.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(BindingAccount.questions(monthName: monthName), id: \.self) { question in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(question)
+                                .font(.system(.caption, design: .serif).weight(.semibold))
+                                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                            TextField("", text: Binding(
+                                get: { bindingAccountDraft.answers[question] ?? "" },
+                                set: { bindingAccountDraft.answers[question] = $0; bindingAccountDraft.saveDraft(for: key) }
+                            ), axis: .vertical)
+                            .lineLimit(1...5)
+                            .font(.system(.callout, design: .serif))
+                            .padding(7)
+                            .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        }
+                    }
+                    if !quiet.isEmpty {
+                        Text(BindingAccount.quietAsk)
+                            .font(.system(.caption, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.7))
+                            .padding(.top, 4)
+                        ForEach(quiet, id: \.id) { day in
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(day.date.formatted(.dateTime.weekday(.abbreviated).day()))
+                                    .font(.system(.caption2, design: .serif).weight(.semibold))
+                                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                                    .frame(width: 52, alignment: .leading)
+                                TextField("", text: Binding(
+                                    get: { bindingAccountDraft.dayLines[day.id] ?? "" },
+                                    set: { bindingAccountDraft.dayLines[day.id] = $0; bindingAccountDraft.saveDraft(for: key) }
+                                ))
+                                .font(.system(.callout, design: .serif))
+                                .padding(6)
+                                .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 6)
+            } label: {
+                Text("Before I bind this")
+                    .font(.system(.caption, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.8))
+            }
+            .onAppear {
+                if bindingAccountEditionKey != key {
+                    bindingAccountDraft = BindingAccount.draft(for: key)
+                    bindingAccountEditionKey = key
+                }
             }
         }
     }
@@ -2964,6 +3033,7 @@ struct BookShopSheet: View {
             subsectionLabel("Look Inside")
             if preparedPrintInteriorURL == nil {
                 physicalBookThicknessChooser(edition: edition)
+                physicalBookBindingAccountPanel(edition: edition)
             }
             if let interior = preparedPrintInteriorURL, let cover = preparedPrintCoverURL {
                 Text("Set. These are the exact leaves and cover that will go to the press.")
@@ -3589,6 +3659,9 @@ struct BookShopSheet: View {
         case .monthly:
             tiered.pageTier = physicalBookPageTier
             tiered.bindingID = physicalBookBindingID
+            if bindingAccountEditionKey == BookThemeEngine.monthKey(for: edition.startDate) {
+                tiered = tiered.applying(bindingAccountDraft)
+            }
         default:
             break
         }
@@ -5620,6 +5693,13 @@ private enum PhysicalBookEditionIdentity {
 private func physicalBookEstimatedPageCount(edition: MonthlyEdition, spec: PrintSpec) -> Int {
     var rawPages = edition.weeklyPublication?.preferredPhysicalPageCount
         ?? max(edition.pageCount, spec.minimumPages)
+    if PhysicalBookEditionIdentity.kind(for: edition) == .monthly {
+        // Kept Pages are not printed leaves: front matter, the Handbook, and
+        // the reader's month give a normal monthly 128–160 printed pages.
+        // The prepared PDF replaces this shelf estimate before a live quote.
+        rawPages = min(PrintSpec.pageCap(for: .monthly),
+                       max(rawPages, PrintSpec.genericPageCeiling(for: .monthly)))
+    }
     // A chosen thickness is a ceiling: a thin month does not grow to meet it.
     if edition.weeklyPublication == nil, let tier = edition.pageTier {
         rawPages = max(spec.minimumPages, min(rawPages, tier))
@@ -8972,15 +9052,13 @@ struct WeeklyIssueReader: Identifiable, Equatable {
     /// The editor's note, falling back to the same deterministic lead the PDF uses.
     var editorialLead: String {
         editorialNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-            ?? (issue.isFirstIssue
-                ? "Your first week, bound. Seven days after I opened, \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to become a literary magazine."
-                : "Your week became a literary magazine. Another seven days closed, and \(issue.keptCount) \(issue.keptCount == 1 ? "page" : "pages") had enough ink to hold together.")
+            ?? WeeklyTaleReading(issue: issue).note(at: .opening)
     }
 
     /// The closing note, falling back to the PDF's deterministic sign-off.
     var closingLine: String {
         closingNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-            ?? "The month and the year are still gathering. This week is already whole."
+            ?? WeeklyTaleReading(issue: issue).note(at: .closing)
     }
 }
 

@@ -23,6 +23,8 @@ ASSETS = ROOT / 'InsideCoverApp/Assets.xcassets'
 PLATES = ROOT / 'LandingPage/assets/book/marginalia'
 NOTES = ROOT / 'LandingPage/assets/book/notes'
 CATALOGUE = ROOT / 'LandingPage/marginalia-catalogue.js'
+THEME = ROOT / 'LandingPage/marginalia-theme.json'
+MONTHLY = ROOT / 'LandingPage/assets/book/monthly-marginalia'
 
 # How wide a mark is ever drawn on the site, doubled for retina.
 LONGEST_EDGE = 320
@@ -88,7 +90,12 @@ for mark in marks.values():
     metadata = json.loads((imageset / 'Contents.json').read_text())
     filename = next(image['filename'] for image in metadata['images'] if 'filename' in image)
     origin = imageset / filename
-    target = PLATES / (mark['id'] + '.webp')
+    # Keep logical asset names stable in the app, but give replacement art a
+    # fresh public URL. A source such as MarginaliaShell-v2.png exports as
+    # marginalia-shell-v2.webp rather than reusing the cached damaged cutout.
+    revision = re.fullmatch(re.escape(mark['asset']) + r'(-v\d+)', Path(filename).stem)
+    mark['webFile'] = mark['id'] + (revision[1] if revision else '') + '.webp'
+    target = PLATES / mark['webFile']
     if not target.exists() or target.stat().st_mtime < origin.stat().st_mtime:
         with Image.open(origin) as image:
             image = image.convert('RGBA')
@@ -100,7 +107,7 @@ for mark in marks.values():
     mark['alt'] = described(mark)
 
 # Stale plates would keep being published long after the registry dropped them.
-keep = {mark['id'] + '.webp' for mark in marks.values()}
+keep = {mark['webFile'] for mark in marks.values()}
 for orphan in PLATES.glob('*.webp'):
     if orphan.name not in keep:
         orphan.unlink()
@@ -143,13 +150,65 @@ deck = []
 for role in ROLES:
     for mark in sorted((m for m in marks.values() if m['role'] == role), key=lambda m: m['id']):
         deck.append({'id': mark['id'], 'role': role, 'alt': mark['alt'],
-                     'src': './assets/book/marginalia/' + mark['id'] + '.webp',
+                     'src': './assets/book/marginalia/' + mark['webFile'],
                      'w': mark['w'], 'h': mark['h']})
+
+# The same monthly pack the app imports supplies the seasonal objects. This
+# small selection file is deliberately manual: an unfinished future issue
+# must not go public merely because the calendar changed.
+seasonal = []
+theme = None
+selection = json.loads(THEME.read_text()) if THEME.exists() else {}
+if selection.get('enabled'):
+    def local_path(value):
+        path = (ROOT / value).resolve()
+        if not path.is_relative_to(ROOT):
+            raise ValueError('Monthly marginalia paths must stay in the repository.')
+        return path
+
+    pack = json.loads(local_path(selection['pack']).read_text())
+    art_directory = local_path(selection['artDirectory'])
+    theme = {'id': pack['id'], 'label': pack['displayName']}
+    MONTHLY.mkdir(parents=True, exist_ok=True)
+    for drawing in pack['marginaliaPack']['doodles']:
+        if drawing.get('directedOnly') or 'monthly-content' not in drawing.get('tags', []):
+            continue
+        asset = re.fullmatch(r'\{\{asset-path:([A-Za-z0-9._-]+)\}\}', drawing['assetName'])
+        if not asset:
+            raise ValueError('Monthly marginalia must name an immutable pack asset.')
+        asset_id = asset[1]
+        filename = selection.get('files', {}).get(asset_id, asset_id.rsplit('.', 1)[-1] + '.png')
+        origin = (art_directory / filename).resolve()
+        if not origin.is_relative_to(art_directory):
+            raise ValueError('Monthly drawings must stay in the selected art directory.')
+        target = MONTHLY / (asset_id + '.webp')
+        if not target.exists() or target.stat().st_mtime < origin.stat().st_mtime:
+            with Image.open(origin) as image:
+                image = image.convert('RGBA')
+                image.thumbnail((LONGEST_EDGE, LONGEST_EDGE))
+                image.save(target, 'WEBP', quality=84, method=6)
+            written += 1
+        with Image.open(target) as image:
+            width, height = image.size
+        seasonal.append({'id': asset_id, 'role': 'seasonal',
+                         'alt': 'A monthly margin drawing, ' + origin.stem.replace('-', ' '),
+                         'src': './assets/book/monthly-marginalia/' + target.name,
+                         'w': width, 'h': height})
+    if not seasonal:
+        raise ValueError('The selected pack has no monthly marginalia to export.')
+
+if MONTHLY.exists():
+    keep_monthly = {mark['id'] + '.webp' for mark in seasonal}
+    for orphan in MONTHLY.glob('*.webp'):
+        if orphan.name not in keep_monthly:
+            orphan.unlink()
 
 CATALOGUE.write_text(
     '// Generated from Shared/Illumination.swift by scripts/sync-web-marginalia.py.\n'
-    'window.PublicMarginalia=' + json.dumps({'marks': deck, 'notes': pinned}, indent=1, ensure_ascii=False) + ';\n')
+    'window.PublicMarginalia=' + json.dumps({'marks': deck, 'notes': pinned, 'theme': theme, 'seasonal': seasonal}, indent=1, ensure_ascii=False) + ';\n')
 
 counts = {role: sum(1 for m in deck if m['role'] == role) for role in ROLES}
 print('Synced %d marks (%s) and %d Academy notes. %d plates rewritten. No app build.'
       % (len(deck), ', '.join(f'{k} {v}' for k, v in counts.items() if v), len(pinned), written))
+if theme:
+    print('Monthly marginalia: %s — %d drawings.' % (theme['label'], len(seasonal)))

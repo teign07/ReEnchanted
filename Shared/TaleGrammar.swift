@@ -2375,7 +2375,7 @@ enum BoundSpanShape {
         var opened: [LivingTale]
         var closed: [LivingTale]
 
-        /// A span with no story in it. Common, and not a failure.
+        /// A span with no recognized tale beats. It may still hold a rich life.
         var isQuiet: Bool { beats.isEmpty && opened.isEmpty && closed.isEmpty }
     }
 
@@ -2437,10 +2437,8 @@ enum BoundSpanShape {
 
     /// What the Book says a span was, in one short paragraph.
     ///
-    /// Three registers, and the quiet one is not a lesser one. A volume that
-    /// admits nothing arranged itself into a story is telling the truth, and
-    /// the reader can feel the difference between that and a Book straining to
-    /// find meaning in a normal month.
+    /// Three registers, and the quiet one is not a lesser one. No recognized
+    /// tale is not evidence that the Reader's life had no story or meaning.
     static func colophon(for reading: Reading, span: String) -> String {
         if let finished = reading.closed.last, !finished.title.isEmpty {
             return "This is the \(span) \u{201C}\(finished.title)\u{201D} finished. "
@@ -2448,9 +2446,8 @@ enum BoundSpanShape {
         }
 
         guard let last = reading.beats.last else {
-            return "Nothing in this \(span) arranged itself into a story, and I am not going to "
-                + "invent one. It was a \(span). You were in it. That is already more than most "
-                + "things manage."
+            return "I haven't found a single plot to tie this \(span) up with. I'm not going to invent one. "
+                + "The things you kept don't need a plot to belong here. They happened. I want them to stay."
         }
 
         return "Something has been running under this \(span). \(noticing(last.beat)) "

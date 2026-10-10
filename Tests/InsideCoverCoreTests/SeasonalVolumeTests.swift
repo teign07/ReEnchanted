@@ -39,9 +39,27 @@ final class SeasonalVolumeTests: XCTestCase {
         }
     }
 
-    private func season(named name: String?) -> AnnualEdition {
+    /// Three months where nothing came back: every line its own.
+    private func quietDays() -> [BookDay] {
+        let things = ["a heron", "cold toast", "the late bus", "wet gloves", "a red kite", "the bakery queue", "chalk on steps",
+                      "a lost umbrella", "radiator ticking", "fog at nine", "a borrowed pen", "the ferry horn", "moss on brick",
+                      "an empty swing", "plum jam", "a dropped glove", "cinnamon smell", "the stairwell echo", "a paper crown",
+                      "lemon peel", "the night tram", "a cracked mug", "frost ferns", "the lift bell", "a blue scarf",
+                      "starlings at four", "pine sap", "the noon gun", "a moth", "rain on slate"]
+        return (0..<90).compactMap { offset -> BookDay? in
+            guard offset % 3 == 0,
+                  let date = calendar.date(byAdding: .day, value: offset, to: seasonStart) else { return nil }
+            let dayID = BookDay.id(for: date, calendar: calendar)
+            return BookDay(id: dayID, date: calendar.startOfDay(for: date), pages: [
+                BookPage(id: "q-\(dayID)", type: .souvenir, createdAt: date, promptText: "One true sentence",
+                         userInput: "Noticed \(things[(offset / 3) % things.count]).")
+            ])
+        }
+    }
+
+    private func season(named name: String?, quiet: Bool = false) -> AnnualEdition {
         MonthlyEditionBuilder.seasonal(
-            from: days(),
+            from: quiet ? quietDays() : days(),
             startingMonth: seasonStart,
             readerName: "Reader",
             readerRole: BoundReaderRole(
@@ -177,9 +195,17 @@ final class SeasonalVolumeTests: XCTestCase {
     // MARK: The naming rule
 
     func testAnUnnamedSeasonIsTitledByItsMonthsAndInventsNothing() {
-        let volume = season(named: nil)
+        let volume = season(named: nil, quiet: true)
         XCTAssertEqual(volume.resolvedCoverLine(), "March 2026 – May 2026")
         XCTAssertEqual(volume.resolvedCoverSubline(), "3 months, bound")
+    }
+
+    /// A line the reader kept writing all season names it, in their own words.
+    func testASeasonTheReaderKeptWritingIsNamedInTheirWords() {
+        let volume = season(named: nil)
+        XCTAssertEqual(volume.seasonTitleProposal?.title, "The harbour kept its minutes")
+        XCTAssertTrue(volume.seasonTitleProposal?.because.contains("You wrote") ?? false)
+        XCTAssertEqual(volume.resolvedCoverLine(), "The harbour kept its minutes")
     }
 
     func testAReadersOwnNameForTheSeasonWinsTheCover() {
@@ -190,7 +216,7 @@ final class SeasonalVolumeTests: XCTestCase {
     }
 
     func testABlankSeasonNameIsNotAName() {
-        XCTAssertEqual(season(named: "   ").resolvedCoverLine(), "March 2026 – May 2026")
+        XCTAssertEqual(season(named: "   ", quiet: true).resolvedCoverLine(), "March 2026 – May 2026")
     }
 
     /// An annual bound before seasons existed must read exactly as it did.
@@ -345,7 +371,7 @@ final class SeasonalVolumeTests: XCTestCase {
 
     /// A quiet season should not be flattered with a grand title.
     func testASeasonWithNothingToGoOnStaysTitledByItsMonths() {
-        let volume = season(named: nil)
+        let volume = season(named: nil, quiet: true)
         XCTAssertNil(volume.seasonTitleProposal)
         XCTAssertEqual(volume.resolvedCoverLine(), "March 2026 – May 2026")
     }

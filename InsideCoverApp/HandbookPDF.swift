@@ -19,10 +19,18 @@ extension MonthlyEditionPDFWriter {
         spacing: CGFloat = 23, style: EditionStyle
     ) {
         guard let cg = UIGraphicsGetCurrentContext(), endY - startY >= spacing else { return }
-        // A writing area sits on a soft paper-white panel: less ink under the pen on coated stock.
+        // A writing area is a lighter sheet pasted onto the page, deckled at
+        // the edges with a red margin line: less ink under the pen on coated
+        // stock, and it reads as paper someone tipped in, not a form field.
         if endY - startY >= spacing * 2.5 {
-            UIColor.white.withAlphaComponent(0.3).setFill()
-            UIBezierPath(roundedRect: CGRect(x: left - 4, y: startY + 3, width: right - left + 8, height: endY - startY - 1), cornerRadius: 3).fill()
+            let sheet = CGRect(x: left - 6, y: startY + 2, width: right - left + 12, height: endY - startY + 2)
+            drawTornScrap(in: sheet, rotation: 0, fill: UIColor(red: 0.995, green: 0.99, blue: 0.97, alpha: 0.55),
+                          seed: "sheet-\(Int(startY))-\(Int(left))")
+            let margin = UIBezierPath()
+            margin.move(to: CGPoint(x: left + 16, y: sheet.minY + 4)); margin.addLine(to: CGPoint(x: left + 16, y: sheet.maxY - 4))
+            UIColor(red: 0.78, green: 0.32, blue: 0.3, alpha: 0.32).setStroke()
+            margin.lineWidth = 0.5
+            margin.stroke()
         }
         cg.saveGState()
         cg.setStrokeColor(style.palette.ink.withAlphaComponent(0.17).cgColor)
@@ -97,7 +105,9 @@ extension MonthlyEditionPDFWriter {
             }
         }
         drawDossiers(handbook.dossiers, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
-        drawLoreShelf(handbook.lore + handbook.compass, head: "The Lore Shelf", kicker: "Set down for you",
+        // The Wonder Compass is a guide in another voice ("You've been grinding
+        // for six months"); its chapters stay in the app, not in the Book's lore.
+        drawLoreShelf(handbook.lore, head: "The Lore Shelf", kicker: "Set down for you",
                       style: style, context: context, cursor: &cursor)
         drawBestiary(handbook.bestiary, style: style, context: context, cursor: &cursor)
         drawSpellSheets(handbook.spells, style: style, context: context, cursor: &cursor)
@@ -565,7 +575,12 @@ extension MonthlyEditionPDFWriter {
     ) {
         let ink = style.palette.ink
         let width: CGFloat = max(220, cursor.contentWidth)
-        let items = spells.map { spell -> StackItem in
+        // A spell the reader cast keeps its lines, for the next time. The ones
+        // still waiting are named together in a short list, not given a ruled
+        // block each: three pages of "not yet cast" is paper with nothing on it.
+        let cast = spells.filter { $0.timesCast > 0 }
+        let waiting = spells.filter { $0.timesCast == 0 }
+        var items = cast.map { spell -> StackItem in
             let detailH = FieldText.height(spell.detail, font: .fbSerifItalic(ofSize: 10), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
             let total = 20 + detailH + 8 + 46
             return StackItem(height: total) { rect in
@@ -582,7 +597,39 @@ extension MonthlyEditionPDFWriter {
                 hbRules(from: rect.minY + 22 + detailH, to: rect.maxY, left: rect.minX, right: rect.maxX, spacing: 22, style: style)
             }
         }
-        drawStack(items, head: "The Spellbook", kicker: "Fourteen enchantments, and a line for each of yours", headRight: "Handbook",
+        if !waiting.isEmpty {
+            let columnGap: CGFloat = 16
+            let column = (width - columnGap) / 2
+            let titleFont = UIFont.fbSerif(ofSize: 11, weight: .semibold)
+            let detailFont = UIFont.fbSerifItalic(ofSize: 9)
+            func entryHeight(_ spell: HandbookSpell) -> CGFloat {
+                16 + FieldText.height(spell.detail, font: detailFont, width: column, lineSpacing: 1, paragraphSpacing: 0, justified: false) + 8
+            }
+            let rows = stride(from: 0, to: waiting.count, by: 2).map { index in
+                max(entryHeight(waiting[index]), index + 1 < waiting.count ? entryHeight(waiting[index + 1]) : 0)
+            }
+            let lead = cast.isEmpty ? "None cast yet. They're all here, waiting for the day something ordinary needs one." : "Still waiting to be cast:"
+            let leadHeight = FieldText.height(lead, font: .fbSerifItalic(ofSize: 10.4), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
+            items.append(StackItem(height: leadHeight + 10 + rows.reduce(0, +)) { rect in
+                FieldText.flow(lead, font: .fbSerifItalic(ofSize: 10.4), color: ink.withAlphaComponent(0.75),
+                               in: CGRect(x: rect.minX, y: rect.minY, width: width, height: leadHeight + 2),
+                               lineSpacing: 2, paragraphSpacing: 0, justified: false)
+                var y = rect.minY + leadHeight + 10
+                for (row, height) in rows.enumerated() {
+                    for side in 0..<2 {
+                        let index = row * 2 + side
+                        guard index < waiting.count else { continue }
+                        let x = rect.minX + CGFloat(side) * (column + columnGap)
+                        (waiting[index].title as NSString).draw(at: CGPoint(x: x, y: y), withAttributes: [.font: titleFont, .foregroundColor: ink])
+                        FieldText.flow(waiting[index].detail, font: detailFont, color: ink.withAlphaComponent(0.7),
+                                       in: CGRect(x: x, y: y + 15, width: column, height: height - 15),
+                                       lineSpacing: 1, paragraphSpacing: 0, justified: false)
+                    }
+                    y += height
+                }
+            })
+        }
+        drawStack(items, head: "The Spellbook", kicker: "Fourteen enchantments, and a line for each you cast", headRight: "Handbook",
                   style: style, context: context, cursor: &cursor, gap: 12)
     }
 }

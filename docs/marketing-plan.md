@@ -187,6 +187,23 @@ fixed overhead. The two member cohorts are disjoint. Gift copies and included
 membership parcels are not separately paid orders. This is a steady-state
 scenario; use actual invoices and fulfillment obligations for period reporting.
 
+**Business overhead — bj's October 9 planning allocation:** ChatGPT $20/month
+and Claude $20/month, totaling $40/month ($480/year). These are bj-reported
+subscription amounts allocated to the business for this worksheet; receipts and
+tax deductibility have not been verified. Domain renewal and hosting remain
+unknown and additional. Using the same dated contribution assumptions above,
+the full-retention target for $36,000/year after this $480 overhead is **390
+annual-pay members or 334 monthly-pay members** (each is an alternative all-one-
+plan scenario). Calculate `ceiling((36000 + 480) / member-year contribution)`.
+Apple Developer enrollment is a **planned $99/year business expense**, per bj,
+starting when he is ready to enroll; it is not recorded as paid or currently
+incurred. Including that future fee brings these allocated costs to $579/year
+($48.25/month equivalent) and the corresponding full-retention target to **392
+annual-pay members or 335 monthly-pay members**. Calculate
+`ceiling((36000 + 480 + 99) / member-year contribution)`; cash payment is annual.
+Acquisition, support, tester gifts, other overhead and owner income tax remain
+additional; this is not a take-home-income forecast.
+
 **Audience lanes:** streak-anxious solo journalers and archive-rich non-printers,
 as Silvie explicitly confirmed on the pact thread. These are research hypotheses,
 not conversion results; keep other/unknown responses rather than force a fit.

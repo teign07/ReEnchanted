@@ -1067,3 +1067,28 @@ alignment, the app's live publishable key/mode, and required tax registration
 remain prerequisites for the coordinated cutover. Live IDs are recorded as
 comments in `wrangler.toml`; active test bindings were not replaced prematurely.
 No backend deployment, app build, payment, or manufacturing job occurred.
+
+## Page-count pricing deployment — 2026-10-08
+
+Deployed Worker version `b69a67f5-6f24-4f68-b983-6067f16f7250` with a
+160-page monthly cap and a weekly manufacturing-cost-plus-$10 price, without a
+weekly product floor. Before deployment, a synthetic 160-page monthly quote
+returned `edition_too_long`; after deployment the same kind of quote succeeded,
+with Lulu sandbox manufacturing at $24.21. A synthetic 24-page weekly quote
+returned $7.11 manufacturing. `/health` confirms the $10 weekly contribution,
+no weekly floor, and the 160-page monthly cap.
+
+Pricing, print-options and gift-flow tests passed, including 128/160-page
+monthly price estimates and the 162-page rejection. The local premium-colour
+monthly softcover estimate is $54.76–$59.20 before shipping, tax and payment
+fees; the quote uses Lulu's actual cost rather than that estimate. Landing
+commit `66bddf7` publishes these variable monthly prices and the weekly $10
+contribution. Checkout remains in its configured Stripe test / Lulu sandbox
+mode. No payment, subscription or print order was created for this verification.
+
+All 27 focused Swift pricing/order tests and 30 Handbook tests passed. The
+current workspace built successfully as Debug for Rabbit and installed with
+bundle identifier `com.openclaw.enchantify.insidecover`. Its quote endpoint is
+the Worker above. Launch initially failed because iOS reported Rabbit locked,
+then succeeded after the user unlocked it. The installed pricing screen has
+not been visually inspected on the device.

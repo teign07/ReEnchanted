@@ -9,6 +9,8 @@
                                             Worker code at every window edge
     release ISSUE_DIR... [--previous M]     the same with the publisher key, into
                                             ~/.reenchanted-publishing/releases
+    reissue ISSUE_DIR --year Y              fork a finished issue to run again
+                                            next year, with new identity
 
 Each issue folder carries an issue.json (see ContentPacks/count-unbound). The
 delivery windows are read from the pack's own event calendar, never typed in,
@@ -158,6 +160,14 @@ class Issue:
         for asset_id, scope in sorted(self.reference_scopes().items()):
             source, suffix = self.media_source(asset_id, audio_directory)
             add(asset_id, 'media', scope, source, asset_id + suffix)
+        # The month's print plates: illustrations named by what they are for
+        # (frontispiece, scene.<id>, cast.<slug>, or any other name). They are
+        # read by file name at binding, so no pack file has to mention them.
+        plates = self.config.get('plates')
+        if plates:
+            for source in sorted((self.directory / plates['directory']).glob('*.png')):
+                asset_id = plates['prefix'] + source.stem
+                add(asset_id, 'media', 'publication', source, asset_id + '.png')
         if missing and not allow_missing_audio:
             raise IssueError('Missing recordings: ' + ', '.join(missing))
         entry = {'id': self.issue_id, 'packID': self.pack['id'], 'title': self.config['title']}
@@ -320,6 +330,112 @@ material. Replace it, then mark each atom `ready` in the authoring manifest.
     return directory
 
 
+WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+YEAR_TOKEN = re.compile(r'[A-Za-z][A-Za-z0-9_.:-]*{year}[A-Za-z0-9_.:-]*')
+MONTH_YEAR = re.compile(r'\b(January|February|March|April|May|June|July|August|September|October|November|December) {year}\b')
+REISSUE_SKIP = ('.DS_Store', '__pycache__')
+
+
+def reissue(source, year, output=None):
+    """Fork a finished issue to run again in another year.
+
+    A monthly issue is one authored run, so next October is a new issue with new
+    identity, not a replay: the issue, run, pack and receipt-scope IDs, the
+    shelf's asset IDs (changed bytes need new ones) and the calendar year all
+    change, and nothing else is touched. What a script can't judge is printed:
+    every year left in the text, and the weekday drift between the two years.
+    The fork is a draft until `rehearse` and the Swift suite pass on it."""
+    source = Path(source).resolve()
+    issue = Issue(source)
+    event = issue.pack['events'][0]['calendar']
+    old = event.get('startYear')
+    if old is None or year <= old:
+        raise IssueError(f'{source.name} runs in {old}; reissue needs a later year, not {year}')
+    base = source.name
+    slug = f'{base}-{year}'
+    target = Path(output).resolve() if output else CONTENT / slug
+    if target.exists():
+        raise IssueError(f'{target} already exists')
+    year_token = re.compile(YEAR_TOKEN.pattern.replace('{year}', str(old)))
+    month_year = re.compile(MONTH_YEAR.pattern.replace('{year}', str(old)))
+
+    def fix_text(text):
+        text = text.replace(f'asset-path:{base}.', f'asset-path:{slug}.')
+        text = year_token.sub(lambda m: m.group(0).replace(str(old), str(year)), text)
+        for key in ('issueYear', 'eventStartYear'):
+            text = text.replace(f'"{key}": {old}', f'"{key}": {year}')
+        return month_year.sub(lambda m: f'{m.group(1)} {year}', text)
+
+    def fix_issue_json(config):
+        """Asset IDs only: scene and beat IDs keep their names."""
+        def retarget(value):
+            return slug + value[len(base):] if value.startswith(base + '.') else value
+        for entry in config['files']:
+            entry['id'] = retarget(entry['id'])
+        for rule in config.get('media', []):
+            rule['prefix'] = retarget(rule['prefix'])
+        if config.get('plates'):
+            config['plates']['prefix'] = retarget(config['plates']['prefix'])
+        if config.get('audio'):
+            config['audio']['files'] = {retarget(k): v for k, v in config['audio']['files'].items()}
+        return config
+
+    shutil.copytree(source, target, ignore=shutil.ignore_patterns(*REISSUE_SKIP))
+    for path in sorted(target.rglob('*'), key=lambda p: len(p.parts), reverse=True):
+        renamed = fix_text(path.name)
+        if renamed != path.name:
+            path.rename(path.with_name(renamed))
+    for path in sorted(target.rglob('*.json')):
+        text = path.read_text()
+        if path.name == 'issue.json':
+            text = json.dumps(fix_issue_json(json.loads(text)), ensure_ascii=False, indent=2) + '\n'
+        path.write_text(fix_text(text))
+    pack_path = next(target.glob('*.reenchantedevents.json'))
+    pack = json.loads(pack_path.read_text())
+    pack['events'][0]['calendar']['startYear'] = year
+    pack_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2) + '\n')
+    readme = target / 'README.md'
+    banner = (f'> Forked from `{source.name}` ({old}) by `monthly_issue.py reissue`. Everything below describes the\n'
+              f'> {old} run; check each claim against this {year} fork before relying on it.\n\n')
+    readme.write_text(banner + (readme.read_text() if readme.exists() else ''))
+
+    print(f'Forked {source.name} ({old}) to {target} ({year}).')
+    leftovers = []
+    for path in sorted(target.rglob('*')):
+        # Shipped data only; the .md logs and .py generators are history and tooling.
+        if path.is_file() and path.suffix == '.json':
+            for number, line in enumerate(path.read_text().splitlines(), 1):
+                if str(old) in line:
+                    leftovers.append(f'  {path.relative_to(target)}:{number}: {line.strip()[:110]}')
+    print(f'{len(leftovers)} lines of shipped JSON still mention {old}. Judge each; dates may be correct as they stand.')
+    scripts = [p.name for p in sorted(target.glob('*.py')) if str(old) in p.read_text()]
+    if scripts:
+        print(f'  Generators that hardcode {old} (rerun them only if you regenerate art): ' + ', '.join(scripts))
+    for line in leftovers[:40]:
+        print(line)
+    first_old = datetime(old, event['startMonth'], event['startDay']).weekday()
+    first_new = datetime(year, event['startMonth'], event['startDay']).weekday()
+    length = event['durationDays']
+
+    def count(y, weekday):
+        start = datetime(y, event['startMonth'], event['startDay'])
+        return sum((start + timedelta(days=d)).weekday() == weekday for d in range(length))
+    print(f'Weekday drift: day 1 is a {WEEKDAYS[first_old]} in {old} and a {WEEKDAYS[first_new]} in {year}.')
+    for weekday in range(7):
+        if count(old, weekday) != count(year, weekday):
+            print(f'  {WEEKDAYS[weekday]}s in the run: {count(old, weekday)} -> {count(year, weekday)}')
+    mentions = {}
+    for path in target.glob('*.reenchantedevents.json'):
+        for day in WEEKDAYS:
+            n = len(re.findall(rf'\b{day}s?\b', path.read_text()))
+            if n:
+                mentions[day] = mentions.get(day, 0) + n
+    print('  Weekday names in the story text (each is pinned to a date that moved): '
+          + (', '.join(f'{d} x{n}' for d, n in mentions.items()) or 'none'))
+    print(f'Next: python3 scripts/monthly_issue.py rehearse {target}  then  swift test --filter MonthlyIssue')
+    return target
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -328,6 +444,10 @@ def main():
     make.add_argument('--title', required=True)
     make.add_argument('--year', type=int, required=True)
     make.add_argument('--month', type=int, required=True)
+    again = sub.add_parser('reissue')
+    again.add_argument('issue', type=Path)
+    again.add_argument('--year', type=int, required=True)
+    again.add_argument('--output', type=Path, help='default: ContentPacks/<name>-<year>')
     staging = sub.add_parser('stage')
     staging.add_argument('issues', nargs='+', type=Path)
     staging.add_argument('--output', type=Path, required=True)
@@ -340,6 +460,8 @@ def main():
     try:
         if args.command == 'new':
             print(f'Scaffolded {new(args.slug, args.title, args.year, args.month)}')
+        elif args.command == 'reissue':
+            reissue(args.issue, args.year, args.output)
         elif args.command == 'stage':
             count, missing = stage(args.issues, args.output, iso(datetime.now(timezone.utc)), args.allow_missing_audio)
             print(f'Staged {count} assets. Missing recordings: {len(missing)}. Nothing signed or uploaded.')

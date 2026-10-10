@@ -91,24 +91,71 @@ The asides keep the triangle unsettled. They're each person's own frame and
 never a verdict ("She used the case. Closed it, click. Nodded at me. A whole
 nod. I'm not making anything of it.").
 
+## Second-hand: the news gets round (October 7)
+
+A third witness, `heard`. `CastStoryGossip.spread` works from the ledger alone,
+so news keeps travelling after a pack retires. It's pure and idempotent like the
+harvest, and runs inside `tendCastStoryMemories()` after it.
+
+- **Only news spreads.** A moment travels only if its memory carries an
+  authored `gossip` line. October has 36 of them on 58 memories: the bread, the
+  verb in Dracula, Ambrose putting his ladle down, the toast tower named
+  Permancer, Sir Fluffington. Each line starts `{teller} says`, so anyone in the
+  Cast can say it.
+- **A bystander tells it.** The teller is somebody who was there (on the
+  scene's cast, or holding the moment first-hand) and isn't named in it. Wicker
+  never goes round telling people what Wicker did: Ambrose, who served the soup,
+  does. With no bystander, it's "Everyone says…".
+- **One hop.** Whoever only heard it never passes it on.
+- **Two ears per moment,** a day or two after it happened (one day at least),
+  never someone who was there or someone the news is about. Closeness to the
+  teller (authored ties plus the live relationship field) counts, halved and
+  capped, against a stable bit of luck. Anyone already holding a lot of news
+  loses two points per item, so the month spreads round. A simulated October
+  reached 21 different Cast members, nobody more than three times, including
+  ones who were never in the story.
+- Hearsay is the weakest witness. A later first-hand or record memory of the
+  same moment replaces it. The Cast page says "Heard from Ambrose" (or
+  "everyone"); prompts read "heard from Ambrose"; a heard aside can be said in
+  the margin, ranked after first-hand ones.
+
+## Let's Chat reads it (October 7)
+
+`LetsChatCastMemory` lets a message that names a Cast member pull in what they
+carry. It matches given names, or surnames for professors ("Has Permancer heard
+about it?"), and takes at most two people with four memories each.
+
+- **A direct question** ("what does Wicker remember?", "what's happened to
+  Serenity?", "has Penny heard…") is answered straight from the ledger in the
+  Book's voice, before any archive search: up to three moments with their
+  asides, "You were there for that one", or "Wicker wasn't there. Ambrose
+  told." Somebody with nothing yet: "…hasn't told me anything from the story
+  yet."
+- **Any other mention** gives Gemma a "WHAT WICKER EDDIES REMEMBERS FROM THE
+  STORY" section, with each line marked by who witnessed it. The model may pass
+  these on in its own words, but not add to them, and says the person hasn't
+  told it anything beyond what's there. The section is small and authored, so
+  the budget never cuts it.
+
 ## Release
 
-The pack bytes changed: `issue.json` runtime asset is v6 to v7. A signed
-candidate is waiting at
+The pack bytes changed again on October 7: `issue.json` runtime is now v8. The
+unpublished v7 candidate was moved aside to
+`2026-10-count-unbound-superseded-2026-10-07-v7`. The signed candidate is
 `~/.reenchanted-publishing/releases/2026-10-07-count-unbound-2026-10-candidate`,
 with 1 new asset out of 37. Publish it with `scripts/ship_release.sh`. Old apps
-ignore the new keys. The app's runtime version is now 11, but October still
-asks for 10, so every installed app can take it. Memories need the new app
-build.
+ignore the new keys. October still asks for runtime 10. Memories, gossip and
+the chat need the new app build.
 
 ## Not built yet
 
-- **Gossip.** The Cast who weren't there hear about it second-hand (Penny tells
-  Ambrose), as a third witness.
 - **Asides in Gemma's hands.** The deterministic aside is the floor. On device
   the brain could vary it, or answer a letter with it, under the existing
   echo-guard.
 - **November recalls.** The mechanism is live, but there's no content until the
   November scenes are written. Every continuing monthly story should author
-  `castMemories` on its scenes and record, and use `recalls` for callbacks.
-- **Let's Chat.** "What does Wicker remember?" should read the ledger.
+  `castMemories` (and `gossip` on its best news) and use `recalls` for
+  callbacks.
+- **Gossip that changes people.** Hearing news could nudge the relationship
+  field (Damien hears about the bread and gets ideas). Kept out deliberately for
+  now: gossip informs, it doesn't act.

@@ -53,7 +53,7 @@ final class WonderBraidTests: XCTestCase {
     XCTAssertNotEqual(first.id, second.id)
   }
 
-  func testBeatsLeadWithLinesAndShortFragmentsRideAlong() {
+  func testBeatsKeepTheReadersOrderAndShortFragmentsRideAlong() {
     let beats = WonderBraid.beats(
       details: [
         "You wrote three pages and kept half a sentence.",
@@ -63,7 +63,7 @@ final class WonderBraidTests: XCTestCase {
       ],
       dateKey: "2026-10-04", resting: []
     )
-    XCTAssertEqual(beats.first?.lineIDs.count, 1, "a beat with a line leads")
+    XCTAssertEqual(beats.first?.detail, "You wrote three pages and kept half a sentence.")
     XCTAssertTrue(beats.contains { $0.detail.hasSuffix("Eventually.") }, "a fragment rides with the sentence before it")
     XCTAssertLessThanOrEqual(beats.count, 4)
   }
@@ -123,7 +123,7 @@ final class WonderBraidTests: XCTestCase {
       WonderBraid.weatherLine(weather: "overcast", place: "Belfast", moonPhaseName: "Last Quarter"),
       "It was overcast over Belfast, and the moon was at its last quarter."
     )
-    XCTAssertEqual(WonderBraid.weatherLine(weather: "rain", place: "Current place", moonPhaseName: "New Moon"), "It was rain, and there was no moon.")
+    XCTAssertEqual(WonderBraid.weatherLine(weather: "rain", place: "Current place", moonPhaseName: "New Moon"), "It was raining, and there was no moon.")
     XCTAssertNil(WonderBraid.weatherLine(weather: "not recorded", place: "Belfast", moonPhaseName: "Full Moon"))
     XCTAssertNil(WonderBraid.weatherLine(weather: nil, place: nil, moonPhaseName: nil))
   }
@@ -132,6 +132,37 @@ final class WonderBraidTests: XCTestCase {
     XCTAssertEqual(WonderBraid.dayNumber("1970-01-01"), 0)
     XCTAssertEqual(WonderBraid.dayNumber("2000-03-01"), 11_017)
     XCTAssertEqual((WonderBraid.dayNumber("2026-10-04") ?? 0) - (WonderBraid.dayNumber("2026-10-03") ?? 0), 1)
+  }
+
+  func testAWeatherTellingCannotChangeTheRecordedMoon() async throws {
+    let world = "It was overcast, and the moon was at its first quarter."
+    let date = (1...31).map { String(format: "2026-10-%02d", $0) }.first { WonderBraid.weatherMode(dateKey: $0) == .mention }!
+    let input = WonderBraid.Input(details: ["You put the kettle on and waited for the click."], dateKey: date, weather: world)
+    let good = fakeTeller()
+    let teller: WonderBraid.Teller = { system, user, t, p, m in
+      if user.contains("The weather tonight:") { return "I read that the window showed dark clouds and no moon shone through." }
+      return try await good(system, user, t, p, m)
+    }
+    let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: teller))
+    XCTAssertTrue(output.prose.contains(world))
+    XCTAssertFalse(output.prose.contains("no moon shone"))
+  }
+
+  func testWeatherCannotBringUnrecordedPropsIntoTheDay() async throws {
+    let world = "It was clear, and the moon was a waning gibbous."
+    for mode in [WonderBraid.WeatherMode.mention, .beat] {
+      let date = (1...31).map { String(format: "2026-10-%02d", $0) }.first { WonderBraid.weatherMode(dateKey: $0) == mode }!
+      let input = WonderBraid.Input(details: ["You put the kettle on and waited for the click."], dateKey: date, weather: world)
+      let good = fakeTeller()
+      let teller: WonderBraid.Teller = { system, user, t, p, m in
+        if user.contains(world) { return world + " A single stone rolled down the slope." }
+        return try await good(system, user, t, p, m)
+      }
+      let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: teller))
+      XCTAssertTrue(output.prose.contains(world))
+      XCTAssertFalse(output.prose.contains("stone"))
+      XCTAssertFalse(output.prose.contains("slope"))
+    }
   }
 
   // MARK: - Checks
@@ -164,6 +195,90 @@ final class WonderBraidTests: XCTestCase {
     let text = "You watched the last egg roll across the tiles in a perfect half circle and stop, unbroken, against the bin. "
       + "The egg had been eyeing the bin all week, and it looked pleased."
     XCTAssertEqual(WonderBraid.check(text, beat: beat, tale: nil), [])
+  }
+
+  func testAnObjectsActionNeverBecomesTheReadersAction() {
+    let heron = WonderBraid.Beat(
+      detail: "You watched the heron by the river. It moved its head once and stood still beside the reeds.",
+      lines: ["The river kept the reeds waiting."], lineIDs: ["test-river"]
+    )
+    let changed = "You watched the heron by the river. You moved its head once and stood still beside the reeds. The river kept the reeds waiting."
+    XCTAssertTrue(WonderBraid.check(changed, beat: heron, tale: nil).contains(.youVerb("moved")))
+    XCTAssertTrue(WonderBraid.tellingProblems(changed, beat: heron, tale: nil).contains(.readerDetailChanged))
+    XCTAssertTrue(WonderBraid.tellingProblems(heron.detail + " The river kept the reeds waiting.", beat: heron, tale: nil).isEmpty)
+  }
+
+  func testFictionAndOtherPeopleDontGrantReaderActions() {
+    let detail = WonderBraid.Beat(detail: "You watched the heron. Your brother baked bread while the heron stood still by the river.", lines: [], lineIDs: [])
+    let text = "You watched the heron. You baked bread while the heron stood still by the river. The river waited for the bread to cool."
+    XCTAssertTrue(WonderBraid.check(text, beat: detail, tale: "Ambrose baked bread.").contains(.youVerb("baked")))
+    XCTAssertTrue(WonderBraid.check(text.replacingOccurrences(of: "You baked", with: "You quietly baked"), beat: detail, tale: nil).contains(.youVerb("baked")))
+  }
+
+  func testNewTellingsProtectObjectsAndLimitTheirAddition() {
+    let detail = WonderBraid.Beat(detail: "You stopped at the bakery. The man remembered you liked the end piece of bread.", lines: [], lineIDs: [])
+    let replaced = detail.detail.replacingOccurrences(of: "end piece of bread", with: "round loaf") + " The bread kept its place."
+    XCTAssertTrue(WonderBraid.tellingProblems(replaced, beat: detail, tale: nil).contains(.readerDetailChanged))
+    let anotherAction = detail.detail + " You stopped at a second bakery for another loaf."
+    XCTAssertTrue(WonderBraid.tellingProblems(anotherAction, beat: detail, tale: nil).contains(.inventedReader), "even an already allowed verb cannot add a new Reader event")
+    let sprawl = detail.detail + " The bread woke up. It fetched a spoon. The spoon summoned a map. The map opened a door."
+    XCTAssertTrue(WonderBraid.tellingProblems(sprawl, beat: detail, tale: nil).contains(.magicSprawl))
+  }
+
+  func testTheMagicCannotBringNewPropsIntoTheReadersMoment() {
+    let kettle = WonderBraid.Beat(detail: "The kettle took forever and you let it.",
+                                lines: ["The kettle wanted to finish a sentence."], lineIDs: ["test-kettle"])
+    XCTAssertTrue(WonderBraid.tellingProblems(kettle.detail + " The kettle wanted to finish a sentence.", beat: kettle, tale: nil).isEmpty)
+    for addition in [" A porcelain doll turned into a butterfly.", " The kettle summoned a copper shard."] {
+      XCTAssertTrue(WonderBraid.tellingProblems(kettle.detail + addition, beat: kettle, tale: nil).contains(.unrelatedMagic))
+    }
+    let bakery = WonderBraid.Beat(detail: "The man at the bakery remembered you liked the end piece.", lines: [], lineIDs: [])
+    XCTAssertTrue(WonderBraid.tellingProblems(bakery.detail + " It was a small copper shard.", beat: bakery, tale: nil).contains(.unrelatedMagic))
+  }
+
+  func testAComparisonDoesntMakeItsObjectReal() {
+    let line = WonderBraid.pick(text: "The light in the hall is the colour of weak tea.", dateKey: "2026-10-01", excluding: [])
+    XCTAssertFalse(line?.nouns.contains("tea") == true)
+    XCTAssertNil(WonderBraid.pick(text: "The light looked like a porcelain doll.", dateKey: "2026-10-01", excluding: []))
+  }
+
+  func testAliasesDontSummonObjectsTheReaderNeverMentioned() {
+    XCTAssertNil(WonderBraid.pick(text: "You carried the heavy shopping up four flights.", dateKey: "2026-10-09", excluding: []))
+    let line = WonderBraid.pick(text: "Low grey sky sitting right on the roofs like a lid.", dateKey: "2026-10-08", excluding: [])
+    XCTAssertFalse(line?.text.contains("chimney") == true)
+    let dog = WonderBraid.pick(text: "You walked the dog from next door.", dateKey: "2026-10-14", excluding: [])
+    XCTAssertFalse(dog?.text.contains("stick") == true)
+    let garlic = WonderBraid.pick(text: "You planted garlic in the window box.", dateKey: "2026-10-18", excluding: [])
+    XCTAssertFalse(garlic?.text.contains("pan") == true)
+    let frost = WonderBraid.pick(text: "Frost on the car roof in the shape of a map.", dateKey: "2026-10-20", excluding: [])
+    XCTAssertFalse(frost?.text.contains("windscreen") == true)
+  }
+
+  func testTheSameDetailDoesNotGetToldTwice() {
+    let beats = WonderBraid.beats(details: ["Shirley said it was typical of you.", "Shirley said it was typical of you."], dateKey: "2026-10-24", resting: [])
+    XCTAssertEqual(beats.count, 1)
+    XCTAssertEqual(beats[0].detail, "Shirley said it was typical of you.")
+  }
+
+  func testADifficultNightKeepsItsDetailWithoutMagicalActivity() async throws {
+    var input = WonderBraid.Input(details: ["You sat with Amanda while she waited for news by the river."], dateKey: "2026-10-15", weather: "It was clear.")
+    input.isHardNight = true
+    let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: fakeTeller()))
+    XCTAssertEqual(output.prose, input.details[0])
+    XCTAssertTrue(output.lineIDs.isEmpty)
+    XCTAssertEqual(output.weather, .skip)
+  }
+
+  func testAFalseTellingFallsBackToTheTrueDetail() async throws {
+    let source = "You watched the heron by the river. It moved its head once and stood still beside the reeds."
+    let input = WonderBraid.Input(details: [source], dateKey: "2026-10-02")
+    let teller: WonderBraid.Teller = { _, _, _, _, _ in
+      "You watched the heron by the river. You moved its head once and stood still beside the reeds. The river kept the reeds waiting."
+    }
+    let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: teller))
+    XCTAssertEqual(output.jobsFellBack, 1)
+    XCTAssertTrue(output.prose.hasPrefix(source))
+    XCTAssertFalse(output.prose.contains("You moved its head"))
   }
 
   func testRepairDropsTheClicheAndKeepsTheLine() {
@@ -222,12 +337,12 @@ final class WonderBraidTests: XCTestCase {
     )
   }
 
-  func testAThinDayGetsRoomToPlayAndNeverTheTemplateClosing() async throws {
+  func testAThinDayKeepsItsMomentWithoutAnInventedAdventure() async throws {
     let output = try await XCTUnwrapAsync(try await WonderBraid.write(thinDay, tell: fakeTeller()))
     XCTAssertTrue(output.thin)
     XCTAssertEqual(output.paragraphs[1], "I drew this out of the clock. The pins enjoy being handled.", "the Book's kept words follow paragraph one")
-    XCTAssertTrue(output.paragraphs.contains { $0.contains("bumped a stack of old maps") }, "the play paragraph carries the Tale on")
-    XCTAssertTrue(output.paragraphs.last?.hasPrefix("I'm hunting for the smallest door in the building.") == true, "the Book's business closes")
+    XCTAssertFalse(output.paragraphs.contains { $0.contains("bumped a stack of old maps") }, "few entries do not need an invented adventure")
+    XCTAssertEqual(output.paragraphs.last, thinDay.business, "the authored Book thread closes without a made-up hunt result")
     XCTAssertFalse(output.prose.contains("The Book kept the page"))
     XCTAssertEqual(output.jobsFellBack, 0)
   }
@@ -278,8 +393,18 @@ final class WonderBraidTests: XCTestCase {
   func testNothingToBraidIsNotForThisPath() async throws {
     var input = thinDay
     input.details = []
+    input.tale = nil
+    input.business = nil
+    input.bookLines = []
     let output = try await WonderBraid.write(input, tell: fakeTeller())
     XCTAssertNil(output)
+  }
+
+  func testAQuietReaderDayCanCarryFictionWithoutInventingReaderActions() async throws {
+    let input = WonderBraid.Input(details: [], dateKey: "2026-10-02", tale: "Soren dropped his chalk.", business: "I've raised the biscuit bet.")
+    let output = try await XCTUnwrapAsync(try await WonderBraid.write(input, tell: fakeTeller()))
+    XCTAssertEqual(output.paragraphs, ["Soren dropped his chalk.", "I've raised the biscuit bet."])
+    XCTAssertFalse(output.prose.contains("You"))
   }
 
   // MARK: - The "what kept pages made this braid" receipts

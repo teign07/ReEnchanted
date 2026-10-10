@@ -111,6 +111,11 @@ struct Handbook: Codable, Equatable {
     func trimmedOnce() -> Handbook? {
         var copy = self
         if copy.compass.count > 0 { copy.compass.removeLast(); return copy }
+        // A spell the reader never cast is a line of the catalogue, not of their month.
+        if copy.spells.contains(where: { $0.timesCast == 0 }) {
+            copy.spells.removeAll { $0.timesCast == 0 }
+            return copy
+        }
         // The generic part goes first: a room the reader never sat costs two leaves and is the same for
         // everyone, while a puzzle is a fraction of a leaf made of this reader's own days.
         if copy.lessons.count > Handbook.minimumLessons,
@@ -139,6 +144,14 @@ struct Handbook: Codable, Equatable {
         // `MonthlyEdition.trimmedForPrint`).
         if var keepsakes = copy.keepsakes, keepsakes.removeExtra() {
             copy.keepsakes = keepsakes.isEmpty ? nil : keepsakes
+            return copy
+        }
+        // Last of the evergreen layer: the remaining Cast files, the spellbook,
+        // and any room the reader sat but wrote nothing in.
+        if !copy.dossiers.isEmpty { copy.dossiers.removeAll(); return copy }
+        if !copy.spells.isEmpty { copy.spells.removeAll(); return copy }
+        if let index = copy.lessons.lastIndex(where: { ($0.readerEntry ?? "").isEmpty }) {
+            copy.lessons.remove(at: index)
             return copy
         }
         return nil
@@ -536,7 +549,7 @@ enum PrintThickness {
     static func tiers(for kind: PublicationEditionKind) -> [Int] {
         switch kind {
         case .weekly: return WeeklyPublicationMatter.pageTiers
-        case .monthly: return [64, 96, 128]
+        case .monthly: return [128, 160]
         case .seasonal: return [128, 176]
         case .annual, .special: return [192, 256]
         }
@@ -548,7 +561,8 @@ enum PrintThickness {
             switch tier {
             case ...64: return "Slim"
             case 65...96: return "Standard"
-            default: return "Full"
+            case 97...128: return "Full"
+            default: return "Grand"
             }
         case .weekly:
             switch tier {

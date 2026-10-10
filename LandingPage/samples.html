@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Read a complete ReEnchanted weekly issue or monthly edition, see the kept Pages behind it, and download the PDF.">
+  <title>Read an example issue · ReEnchanted</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./samples.css?v=1">
+  <script src="./samples.js?v=1" defer></script>
+</head>
+<body>
+  <header class="reader-header">
+    <a class="brand" href="./#sample-issues">ReEnchanted <span>Back to the living Book ↗</span></a>
+    <nav aria-label="Sample editions"><a href="?issue=weekly" data-issue="weekly">The week</a><a href="?issue=monthly" data-issue="monthly">The month</a></nav>
+  </header>
+  <main>
+    <div class="reader-intro">
+      <p class="eyebrow">A complete issue. Take your time.</p>
+      <h1 id="issue-title">Opening the binding…</h1>
+      <p id="issue-description"></p>
+      <div class="reader-links"><a id="download-pdf" hidden download>Keep the PDF ↓</a><a id="open-pdf" hidden target="_blank" rel="noopener">Open PDF ↗</a><a href="#kept-pages">See what fed it ↓</a></div>
+    </div>
+    <section aria-label="Issue reader" class="issue-reader">
+      <div class="reader-toolbar">
+        <button type="button" id="previous" disabled aria-label="Previous Page">←</button>
+        <label for="page-picker">Page <select id="page-picker" disabled aria-label="Choose a Page"></select></label>
+        <button type="button" id="next" disabled aria-label="Next Page">→</button>
+        <button type="button" id="zoom" aria-pressed="false">Larger Page</button>
+      </div>
+      <p id="reader-status" class="reader-status" role="status" aria-live="polite">Finding the issue…</p>
+      <div id="page-window" class="page-window"><img id="page-image" alt="" hidden></div>
+      <details class="page-text"><summary>Read this Page’s text</summary><div id="page-text"></div></details>
+    </section>
+    <section id="kept-pages" class="kept-pages" aria-labelledby="kept-title">
+      <p class="eyebrow">The small things underneath</p>
+      <h2 id="kept-title">What went into the binding.</h2>
+      <p>The week and the month come from the same October app simulation. These are some of the original kept Pages. The nightly braid carries their words forward; the editions bind those saved nights beside the Reader’s keeps, the Academy’s story, and composed Pages.</p>
+      <p id="braid-pages" class="reader-links"></p>
+      <div id="source-pages" class="source-pages"></div>
+      <h3>Photos, scraps, and room to play.</h3>
+      <p>These sheets were composed with the app’s Pagewright and carried into the editions as kept Pages. They use real photos, paper, text scraps, and app marginalia.</p>
+      <div id="pagewright-sheets" class="pagewright-sheets"></div>
+      <p class="provenance" id="sample-provenance"></p>
+      <a class="back-link" href="./#nightly-braid">Read the complete example braid ↗</a>
+    </section>
+  </main>
+  <noscript><p class="noscript">Read or download the <a href="./assets/samples/weekly-issue.pdf">weekly issue</a> or <a href="./assets/samples/monthly-edition.pdf">monthly edition</a>. JavaScript enables the Page browser.</p></noscript>
+</body>
+</html>

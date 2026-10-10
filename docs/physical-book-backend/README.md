@@ -43,11 +43,15 @@ Stripe payment, a Lulu-accepted PDF, or a physically inspected book.
 
 The quote contract carries `editionKind`. A monthly perfect-bound softcover has
 a $49.99 product floor; a seasonal, annual, or special softcover has a $69.99
-floor. Illustrated hardcovers remain $89.99, cloth-and-foil remains $99.99,
-and weekly stitched issues remain $19.99. Requests from older app versions that
+floor. Illustrated hardcovers start at $89.99, cloth-and-foil at $99.99.
+Weekly stitched issues have no product floor: manufacturing cost plus $10.
+Monthly books usually run 128–160 pages; at the current premium-colour estimate,
+a monthly softcover is about $54.76–$59.20 before shipping, tax and payment fees.
+The final price uses Lulu's manufacturing quote for the actual printed page count.
+Requests from older app versions that
 do not carry an edition kind retain the former $79.99 softcover floor so an old
 saved quote cannot be repriced after it was shown to its reader. New quotes from
-those clients have the largest current edition cap, 208 pages; omitting the kind
+those clients have the largest current edition cap, 256 pages; omitting the kind
 does not reopen the old 800-page press limit. Manufacturing
 cost can still lift any product above its floor to preserve the contribution
 margin.
