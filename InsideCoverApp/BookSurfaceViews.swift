@@ -4370,9 +4370,11 @@ struct SourceSettingsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 12) {
-                        publicMarginsDoorways
+                        if PublicMarginsAPI.isAvailable || publicMarginsReceiptCount > 0 {
+                            publicMarginsDoorways
+                        }
 
-                        ForEach(sources) { source in
+                        ForEach(visibleSources) { source in
                             SourceToggleRow(
                                 source: source,
                                 isEnabled: preferences[source.id] ?? source.isActive,
@@ -4403,41 +4405,52 @@ struct SourceSettingsSheet: View {
         }
     }
 
+    private var visibleSources: [BookPageSource] {
+        guard !PublicMarginsAPI.isAvailable else { return sources }
+        return sources.filter { !$0.id.hasPrefix("public-margins") }
+    }
+
     private var publicMarginsDoorways: some View {
         VStack(alignment: .leading, spacing: 14) {
             Label("The Public Margins", systemImage: "person.3.sequence.fill")
                 .font(.headline)
                 .foregroundStyle(BookPalette.ink)
 
-            Text("Two separate doors. Both begin closed. Opening either one never opens the other.")
-                .font(.caption)
-                .foregroundStyle(BookPalette.ink.opacity(0.66))
+            if PublicMarginsAPI.isAvailable {
+                Text("Two separate doors. Both begin closed. Opening either one never opens the other.")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
 
-            Toggle(isOn: $publicMarginsIncomingOptIn) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Bring the Public Margins into my Book")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Fetch automatically screened community souvenirs. No social feed or reader identity comes with them.")
-                        .font(.caption)
-                        .foregroundStyle(BookPalette.ink.opacity(0.60))
+                Toggle(isOn: $publicMarginsIncomingOptIn) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Bring the Public Margins into my Book")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Fetch automatically screened community souvenirs. No social feed or reader identity comes with them.")
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.60))
+                    }
                 }
-            }
-            .tint(BookPalette.teal)
-            .bookToggleSound(publicMarginsIncomingOptIn)
+                .tint(BookPalette.teal)
+                .bookToggleSound(publicMarginsIncomingOptIn)
 
-            Divider().overlay(BookPalette.ink.opacity(0.10))
+                Divider().overlay(BookPalette.ink.opacity(0.10))
 
-            Toggle(isOn: $publicMarginsOutgoingOptIn) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Offer me ways to add to the Public Margins")
-                        .font(.subheadline.weight(.semibold))
-                    Text("Shows invitations only. Every sentence and quiet choice still requires its own exact public confirmation.")
-                        .font(.caption)
-                        .foregroundStyle(BookPalette.ink.opacity(0.60))
+                Toggle(isOn: $publicMarginsOutgoingOptIn) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Offer me ways to add to the Public Margins")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Shows invitations only. Every sentence and quiet choice still requires its own exact public confirmation.")
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.60))
+                    }
                 }
+                .tint(BookPalette.lampGold)
+                .bookToggleSound(publicMarginsOutgoingOptIn)
+            } else {
+                Text("Shut for now. Your Book stays yours. Anything you already sent can still come back.")
+                    .font(.caption)
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
             }
-            .tint(BookPalette.lampGold)
-            .bookToggleSound(publicMarginsOutgoingOptIn)
 
             if publicMarginsReceiptCount > 0 {
                 Divider().overlay(BookPalette.ink.opacity(0.10))

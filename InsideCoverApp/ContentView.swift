@@ -1353,7 +1353,7 @@ struct ContentView: View {
         inputs.pocket = decodedPocketLedger()
         inputs.chosenQuill = decodedChosenQuill()
         inputs.people = vault.data.people ?? PeopleLedger()
-        inputs.publicMargins = publicMarginsIncomingOptIn ? publicMarginsSnapshot : nil
+        inputs.publicMargins = PublicMarginsAPI.isAvailable && publicMarginsIncomingOptIn ? publicMarginsSnapshot : nil
         inputs.calendarEvents = calendarEvents
         inputs.calendarIntegrationEnabled = bookCalendarEnabled
         inputs.nearbyPlaces = nearbyPlaces
@@ -13143,8 +13143,13 @@ struct ContentView: View {
                         }
 
                         Toggle(isOn: $includePrivateWeatherInMonthlyBinding) {
-                            Label("Include Fuel & Inner Weather", systemImage: "heart.text.square")
-                                .font(.caption2.weight(.semibold))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Label("Include Fuel & Inner Weather", systemImage: "heart.text.square")
+                                    .font(.caption2.weight(.semibold))
+                                Text("Your body and food notes. If you order paper, they go to the printer too.")
+                                    .font(.caption2)
+                                    .foregroundStyle(MaterialInk.text.opacity(0.58))
+                            }
                         }
                         .toggleStyle(.switch)
                         .tint(BookPalette.lampGold)
@@ -21533,7 +21538,8 @@ struct ContentView: View {
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents(now: now)
         }
-        if publicMarginsIncomingOptIn,
+        if PublicMarginsAPI.isAvailable,
+           publicMarginsIncomingOptIn,
            lastPublicMarginsRefreshSlot != refreshSlot {
             do {
                 publicMarginsSnapshot = try await PublicMarginsAPI.fetchSnapshot()

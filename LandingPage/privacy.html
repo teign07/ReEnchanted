@@ -93,15 +93,15 @@
 
       <p class="eyebrow">The fine print, plainly</p>
       <h1>Privacy <span class="accent">Policy</span></h1>
-      <p class="updated">Effective July 18, 2026 · Last updated September 22, 2026</p>
+      <p class="updated">Effective July 18, 2026 · Last updated October 11, 2026</p>
 
       <p class="lede">
         The most personal app on your phone shouldn't feel like a surveillance product.
         ReEnchanted is built local-first: your journal, your kept pages, and everything you
         write live on your device, not on our servers. You do not need a ReEnchanted login.
         The app and its monthly stories are free. Optional printed Books create a Stripe customer
-        record (and, for the Bound Year, a subscription record), but it never contains your private Book. The only reader writing we receive is a
-        specific public contribution you deliberately preview and confirm.
+        record (and, for the Bound Year, a subscription record), but it never contains your private Book. Your writing leaves your phone only when you order
+        a printed Book of it, and then only as the print file for that order.
       </p>
 
       <p>
@@ -117,7 +117,7 @@
         <li><strong>On-device intelligence.</strong> The app's &ldquo;local brain&rdquo; runs entirely on your device. Your writing is not sent to us or to an AI service to generate pages.</li>
         <li><strong>No ads, no trackers, no analytics.</strong> We do not embed advertising, third-party trackers, or usage analytics SDKs.</li>
         <li><strong>No selling data.</strong> We never sell, rent, or share your personal information. There is no data broker in here.</li>
-        <li><strong>Public means deliberate.</strong> Importing the Public Margins and offering something to them are separate opt-ins, both off by default. Every outgoing sentence gets another exact public preview and confirmation.</li>
+        <li><strong>Your Book stays yours.</strong> There is no social feed. The Public Margins community window is closed in the app for now, so nothing you write is shared with other readers.</li>
       </ul>
 
       <h2>Information the app keeps on your device</h2>
@@ -138,9 +138,9 @@
       </p>
       <ul>
         <li><strong>Location</strong> &mdash; to anchor real places, fetch local weather, and color the day's pages.</li>
-        <li><strong>Health &amp; motion (body)</strong> &mdash; optional signals that inform reflective pages. Health data is never sent off your device.</li>
+        <li><strong>Health &amp; motion (body)</strong> &mdash; optional signals that inform reflective pages. Health data stays on your device unless you switch on &ldquo;Include Fuel &amp; Inner Weather&rdquo; for a printed Book and then order it; that switch is off by default.</li>
         <li><strong>Calendar</strong> &mdash; to weave upcoming or past events into the Book, on device.</li>
-        <li><strong>Photos</strong> &mdash; to illuminate a page with an image you choose. Photos you don't add to a page are not accessed.</li>
+        <li><strong>Photos</strong> &mdash; to illuminate a page with an image you choose. Photos you don't add to a page are not accessed. A photo on a page you send to print travels inside that print file.</li>
         <li><strong>Notifications</strong> &mdash; gentle, optional nudges from the Book.</li>
       </ul>
 
@@ -152,6 +152,12 @@
 
       <div class="callout" id="public-margins">
         <h3 style="margin-top:0.2rem">The Public Margins</h3>
+        <p>
+          <strong>Closed for now.</strong> The app currently does not fetch community sentences or
+          offer ways to contribute. If you sent something before it closed, the app still lets you
+          withdraw it with the receipt on your device. The description below is how the window works
+          when it is open.
+        </p>
         <p>
           The Public Margins are an optional community window. They have <strong>two independent
           controls, both off by default</strong>. &ldquo;Bring the Public Margins into my Book&rdquo;
@@ -196,9 +202,23 @@
       <h3>Weather and local context</h3>
       <p>
         To show weather and local flavor, the app may request weather data for your approximate
-        location from a weather provider (such as Apple Weather). Optional content sources you choose
+        location from Open-Meteo, a public weather service. Optional content sources you choose
         to enable (for example, public reference or news feeds) are fetched directly from their
         publishers.
+      </p>
+
+      <h3>The local brain download</h3>
+      <p>
+        If you install the on-device writing model, the app downloads its files from Hugging Face.
+        That is an ordinary file download: nothing about you or your Book is sent with it.
+      </p>
+
+      <h3>Monthly stories</h3>
+      <p>
+        To fetch each month's free story, the app asks our server for a short-lived pass using a
+        random identifier created on your device. That identifier is not tied to your name, Apple ID,
+        or any Book content. If you buy a printed Book, it is also how our server knows the order
+        belongs to this installation.
       </p>
 
       <h3>Personalized public-web research</h3>

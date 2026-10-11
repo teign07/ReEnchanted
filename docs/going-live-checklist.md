@@ -1,148 +1,117 @@
 # Going live — the checklist
 
-Everything buildable without the paid Apple Developer account is built and
-green. This is what is left, in the order it unblocks things.
+Last updated: 2026-10-11. Goal: testers on TestFlight, and any tester who wants
+paper can pay real money for it.
 
-Nothing below needs a code change unless it says so. The app reads all of it
-from configuration, on purpose, so the fee is the only real decision left.
+Everything below reads from configuration on purpose. The app side is already
+split: **Debug builds stay on Stripe test + Lulu sandbox; Release builds
+(TestFlight, App Store) take their payment settings from three build settings**
+on the InsideCoverApp target:
 
----
+| Build setting | Debug | Release (at cutover) |
+| --- | --- | --- |
+| `PHYSICAL_BOOK_CHECKOUT_MODE` | `test` | `live` |
+| `STRIPE_PUBLISHABLE_KEY` | `pk_test_…` | `pk_live_…` |
+| `PHYSICAL_BOOK_ENDPOINT` | test Worker | production Worker |
 
-## 1. Apple Developer Program — $99/year
+Info.plist reads them as `$(…)`. Release currently still carries the test values,
+so nothing changes until the cutover below.
 
-Unblocks items 2, 3 and 4.
-
-## 2. Apple Pay — a plist key, no build
-
-Already written and dormant: `PaymentSheet` picks it up the moment an
-identifier exists, and behaves exactly as it does today when one does not.
-
-1. Create a merchant identifier — `merchant.com.openclaw.enchantify` or similar.
-2. Add the **Apple Pay** capability to the app target.
-3. In Stripe → Settings → Payments → Apple Pay, register that merchant id and
-   let Stripe issue the certificate.
-4. Add to `InsideCoverApp/Info.plist`:
-   ```xml
-   <key>ApplePayMerchantIdentifier</key>
-   <string>merchant.com.openclaw.enchantify</string>
-   <key>ApplePayMerchantCountryCode</key>
-   <string>US</string>
-   ```
-
-For a device test before the plist lands:
-```sh
-defaults write com.openclaw.enchantify.insidecover applePayMerchantIdentifier "merchant.com.openclaw.enchantify"
-```
-
-**Why it matters:** without it a reader hand-types a card number, an expiry, a
-CVC and a full postal address to buy a keepsake. With it, Face ID.
-
-## 3. App Store Connect — subscription prices (skip: Digital Standing Order retired)
-
-**Decision, 2026-09-22:** the Digital Standing Order is retired. The app, its
-monthly stories and its PDFs are free; money comes from printed Books and the
-Bound Year. The StoreKit plumbing stays in source behind
-`DigitalStandingOrder.isOffered` (`Shared/PagePacks.swift`, currently `false`),
-and the Worker's monthly shelf is open to every installation via
-`MONTHLY_ISSUES_OPEN_TO_ALL` in `wrangler.toml`. Do not create the subscription
-products below unless that decision is reversed; if it is, flip both switches
-and restore the website's pricing and terms copy from git history.
-
-The in-app strings are only the offline fallback shown before StoreKit answers.
-The real prices live here, and changing them needs no build.
-
-- Create the **monthly** auto-renewable in the same subscription group as the
-  existing annual.
-- Set **$9.99/month** and **$79.99/year** on the existing product ids in
-  `BookShopCatalog.standingOrderTiers`.
-- Configure the **30-day introductory free trial** on both.
-- Paste the Terms and Privacy URLs into the group localisation.
-- Remove individual Monthly Content Packs from sale in App Store Connect. Keep
-  their retired product identifiers available for receipt restoration. The
-  Digital Standing Order includes the current pack and the complete earlier
-  catalogue while active; `ArchiveWindowTests` guards against reopening an
-  à-la-carte path in the app.
-
-## 4. Bound Year production proof and offer codes
-
-The prepaid parcel contract is now implemented in source. Stripe keeps the full
-shipping destination outside the Book archive; the Worker verifies an earned
-season, accepts parcel-scoped interior/cover uploads, serializes the season's
-Lulu submission, and never creates a second PaymentIntent. The app refreshes
-monthly paid-through state at launch and marks a dispatch posted only after Lulu
-accepts it.
-
-Before real money, deploy this Worker revision and prove one complete sandbox
-year-path: subscribe, change address, force an earned season/window, upload both
-PDFs, submit, retry, and confirm exactly one Lulu job. Also verify a stopped
-monthly membership still receives a season it fully earned.
-
-*No longer needed while the Digital Standing Order is retired (monthly stories
-are free for everyone, so a Bound Year member has nothing extra to receive):*
-A second contract still blocks real money. A Bound Year member is entitled to everything the Standing Order gives,
-and the compliant way to hand that over is an App Store **subscription offer
-code** for a free year, emailed on signup.
-
-- Generate one-time-use codes for the annual Standing Order product.
-- Send one with the membership receipt.
-
-Until the sandbox parcel proof and digital grant both exist, a Bound Year member
-cannot reliably receive both halves of the promise. **Do not open the Bound Year
-for real money before both are production-verified.** The Worker enforces this
-with `BOUND_YEAR_LIVE_SALES_ENABLED = "false"`; leave it false until then.
+The Worker can run only one mode at a time and refuses a mismatched app. So the
+cutover needs **two Workers**: a staging one in test mode for Debug builds, and
+the production one in live mode for Release.
 
 ---
 
-## 5. Stripe — the Bound Year prices
+## A. Decide before paying Apple (bj)
 
-Independent of Apple; can be done any time.
+1. **Individual or organization.** The seller name on the App Store is public.
+   Because printed books are sold, EU storefronts require trader contact
+   details (address, phone, email) to be published. Options: Maine LLC + free
+   D-U-N-S, then enroll as an organization; or enroll as an individual and
+   leave EU storefronts off at first.
+2. **Bundle ID** `com.openclaw.enchantify.insidecover` is permanent once the app
+   record exists. Keep it or change it now. Changing it orphans the Book on
+   Rabbit unless it's migrated.
 
-1. Create two recurring prices for the Bound Year — monthly and annual.
-2. Add them as Worker secrets:
-   ```sh
-   cd docs/physical-book-backend
-   npx wrangler secret put STRIPE_BOUND_YEAR_MONTHLY_PRICE
-   npx wrangler secret put STRIPE_BOUND_YEAR_ANNUAL_PRICE
-   ```
+## B. Apple (bj, after paying)
 
-Without these the membership endpoints return **503 `membership_not_configured`**
-and the app says the Bound Year isn't open yet. That is deliberate: it fails
-closed rather than guessing a price.
+1. Enroll ($99/yr).
+2. Register the three bundle IDs and the App Group; turn on HealthKit,
+   App Groups, Increased Memory Limit for the app ID.
+3. Create the App Store Connect record. Free Apps agreement only (no IAP).
+4. Fill App Privacy from `docs/AppPrivacyInventory.md`; review notes and age
+   rating from `docs/AppStoreReviewPacket.md`.
+5. Archive a Release build from a clean, merged `main`; upload; internal
+   TestFlight; then external (needs Beta App Review).
+6. Optional: Apple Pay (§E).
 
-## 6. Lulu — sandbox to production
+## C. Worker + Stripe + Lulu (Codex; it has the accounts)
 
-The Worker is pointed at Lulu's sandbox and `CHECKOUT_MODE = "test"`. Both must
-flip together — the Worker refuses to run with a live Stripe key against a
-sandbox printer, and vice versa.
+Current `/health` (2026-10-11): `readyForConfiguredMode: false` even in test.
+The only failing infrastructure check is `alertEmailConfigured`.
 
-In `wrangler.toml`:
-```toml
-LULU_API_BASE_URL = "https://api.lulu.com"
-LULU_AUTH_URL = "https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"
-CHECKOUT_MODE = "live"
-```
-Then `npx wrangler secret put STRIPE_SECRET_KEY` with the live key, and
-`npx wrangler deploy`.
+1. **Alert inbox.** Verify a destination in Cloudflare Email Routing for
+   reenchanted.app, then `npx wrangler secret put SECURITY_ALERT_EMAIL_TO`.
+   Re-check `/health` → `testReady: true`.
+2. **Staging Worker** for Debug builds: a wrangler `[env.staging]` with its own
+   name, KV/R2/D1/Durable Object bindings, test Stripe secret + webhook
+   secret, Lulu sandbox credentials, the test Bound Year price IDs, and
+   `MONTHLY_ISSUES_OPEN_TO_ALL` plus the monthly-issue secrets so the shelf
+   works in Debug too. Deploy it; `/health` → `testReady: true`.
+3. **One full sandbox proof on staging** (still owed from §4 of the old list):
+   subscribe to the Bound Year, change address, force an earned season,
+   upload both PDFs, submit, retry, confirm exactly one Lulu job. Also verify a
+   stopped membership still receives a season it fully earned.
+4. **Production cutover** on the main Worker, all together:
+   - `LULU_API_BASE_URL = "https://api.lulu.com"`,
+     `LULU_AUTH_URL = "https://api.lulu.com/auth/realms/glasstree/protocol/openid-connect/token"`
+     and production `LULU_CLIENT_KEY` / `LULU_CLIENT_SECRET`.
+   - `CHECKOUT_MODE = "live"`, live `STRIPE_SECRET_KEY`.
+   - New live webhook endpoint (`/stripe/webhook`, the three
+     `payment_intent.*` events) and its `STRIPE_WEBHOOK_SECRET`.
+   - Live Bound Year prices (verified 2026-10-04, product `prod_VNlSYl6tXvpa0B`):
+     monthly `price_1UMzw0E80ArNx7J9NAQFMsiZ` ($24.99),
+     annual `price_1UMzvqE80ArNx7J98TFV09ZW` ($279). Drop the test legacy price.
+   - **Stripe Tax**: registrations in the Stripe dashboard, then
+     `STRIPE_TAX_ENABLED = "true"`. Production readiness requires it.
+   - `MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY` (≥32 chars) for non-US parcels.
+   - `/health` → `productionReady: true`.
+   - `BOUND_YEAR_LIVE_SALES_ENABLED = "true"` only after step 3 passed.
+5. Hand back the **live publishable key** (`pk_live_…`), the **staging Worker
+   URL**, and the production URL if it moves to a custom domain
+   (e.g. `books.reenchanted.app`, which also takes the account handle out of
+   the app binary).
 
-Check `/health` reports `productionReady: true` before taking a real order.
+## D. App cutover (Claude, once C.5 lands)
 
----
+- Debug: `PHYSICAL_BOOK_ENDPOINT` → staging URL.
+- Release: `PHYSICAL_BOOK_CHECKOUT_MODE = live`, `STRIPE_PUBLISHABLE_KEY = pk_live_…`,
+  endpoint → production.
+- One real low-cost order from a Release build on Rabbit, refunded after
+  Lulu accepts it.
 
-## Already done, for the record
+## E. Apple Pay (optional, after the fee)
+
+1. Merchant identifier, e.g. `merchant.com.openclaw.enchantify`.
+2. Apple Pay capability on the app target.
+3. Stripe → Settings → Payments → Apple Pay: register it; Stripe issues the cert.
+4. Info.plist: `ApplePayMerchantIdentifier` and `ApplePayMerchantCountryCode = US`.
+   `PaymentSheet` picks it up; nothing else changes.
+
+## Still a decision
+
+The Bound Year can be cancelled in-app, but there is no Stripe customer portal,
+so a member who deletes the app has no self-serve route. Build the portal or
+handle it by email at hello@reenchanted.app.
+
+## Already done
 
 | | |
 |---|---|
-| Prices | $9.99/mo · $79.99/yr in code; $35 book markup, deployed |
-| Bindings | Softcover default; hardcover and cloth-foil as upsells |
-| Extras | Server-owned catalogue; photo covers working |
-| Checkout | Paying is the last action; the press runs itself |
-| Bound Year | Subscribe, update parcel address, cancel, and prepaid seasonal dispatch in source; deployment proof and digital offer code still blocked above |
-| Cancellation | Apple's sheet for the Standing Order; in-app for the Bound Year |
-| Worker | Deployed — memberships, options, orders, webhooks |
-
-## One thing to decide, not configure
-
-The **Bound Year cancel** works in-app today. The **Stripe customer portal**
-does not exist, so a member who deletes the app has no self-serve route left.
-Either build the portal or accept handling those by email — it is rare, but it
-should be a decision rather than a surprise.
+| Monetization | Free app, free monthly stories; printed books + Bound Year via Stripe (physical goods, no IAP) |
+| Public Margins | Closed for launch (`PublicMarginsAPI.isAvailable = false`) |
+| Privacy | `PrivacyInfo.xcprivacy`, inventory and public policy updated 2026-10-11 |
+| Export compliance | `ITSAppUsesNonExemptEncryption = NO` |
+| Worker | Deployed: memberships, options, orders, webhooks, monthly shelf |
+| Live Stripe prices | Created and verified 2026-10-04 |

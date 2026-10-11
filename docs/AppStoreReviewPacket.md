@@ -1,137 +1,105 @@
 # ReEnchanted App Store Review Packet
 
-Last updated: 2026-06-19
+Last updated: 2026-10-11
 
-This packet is the working checklist for getting `ReEnchanted` / `InsideCoverApp`
-ready for App Review with the BookShop enabled.
+The working checklist for TestFlight external testing and first App Review.
+Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
+`docs/going-live-checklist.md`.
 
 ## Submission posture
 
-- App name: ReEnchanted
-- Bundle ID: `com.openclaw.enchantify.insidecover`
-- Category: Entertainment
-- Minimum OS: iOS 17
-- Account requirement: none
-- Purchase model: free app with non-consumable in-app purchases for optional
-  digital content packs
-- Privacy posture: local-first, opt-in data doors, no third-party advertising,
-  no cross-app tracking
+- App name: ReEnchanted. Bundle ID `com.openclaw.enchantify.insidecover`
+  (+ `.widgets`, `.share`). App Group `group.com.openclaw.enchantify.insidecover`.
+- Category: Books (`LSApplicationCategoryType = public.app-category.books`);
+  secondary Entertainment.
+- Minimum OS: iOS 17. iPhone and iPad.
+- Account: none.
+- Price: **free**. **No In-App Purchases.** The Digital Standing Order is
+  retired (`DigitalStandingOrder.isOffered = false`); every reader gets the same
+  monthly stories free.
+- Money: printed books (single editions, gifts, the Bound Year subscription of
+  printed volumes) sold through Stripe. These are **physical goods delivered
+  outside the app**, which Guideline 3.1.3(e) requires to use a non-IAP payment
+  method. Nothing digital is sold through Stripe.
+- Export compliance: `ITSAppUsesNonExemptEncryption = NO` (build setting).
+  The app uses HTTPS and Apple's CryptoKit (SHA-256, AES-GCM for gift links),
+  both OS-provided standard encryption.
+- User-generated content: **none shown**. Public Margins is closed
+  (`PublicMarginsAPI.isAvailable = false`): no community text is fetched or
+  displayed, and nothing can be offered. Every Book stays its reader's own.
 
-## Code decisions already made
+## Things a reviewer will trip on, and the answers
 
-- Release builds use StoreKit only. The debug-only `Scrivener's Counter (dev)`
-  fallback is excluded from distribution builds.
-- HealthKit remains enabled for opt-in Body Pages, but clinical health records
-  and HealthKit background delivery are not requested.
-- Background modes are limited to bundled radio audio and overnight processing.
-  Background location, remote notification, and fetch modes are not declared.
+- **The local brain is a ~3.5 GB optional download** of Gemma model weights from
+  Hugging Face (data, not code; nothing executable is downloaded). The app must
+  be fully usable without it. Smoke-test a fresh install that never downloads it.
+- **Printed books open a Stripe payment sheet.** Explain in review notes that
+  these are physical books printed and mailed by Lulu.
+- **Calendar-gated content.** Monthly scenes and festival pages appear on their
+  dates; reviewers will see whatever is live that week.
+- **Increased memory entitlement** (`com.apple.developer.kernel.increased-memory-limit`)
+  exists for the on-device model. Direct photo vision runs only on ≥8 GB devices.
 
-## BookShop products
+## Sensitive permissions
 
-Create rows marked `Non-consumable` as In-App Purchases in App Store Connect.
-The product IDs must match the values in `BookShopCatalog`.
+| Permission | Why | Control |
+| --- | --- | --- |
+| HealthKit (read) | Optional Body Pages from movement, sleep, heart, etc. No diagnosis or advice. | Reader taps the Body seal. Body data stays on device unless the reader turns on "Include Fuel & Inner Weather" and orders paper. |
+| Location When In Use | Weather, nearby Anchors, Compass Runs. | Reader taps Weather/Location. |
+| Photos / Camera | Photos on Pages, Enchantments, Cast portraits. | Reader picks or takes photos. |
+| Microphone / Speech | Dictation and kept-voice recordings. | Reader taps the voice control. |
+| Calendar / Reminders | Calendar Doorway (off by default); reminders on explicit request. | Toggle / button. |
+| Notifications | Local Book whispers. | Off by default. |
+| Face ID | Optional Book lock. | Reader enables Protect the Book. |
+| Background audio | In-app radio keeps playing. | Reader starts/stops radio. |
+| Background processing | Overnight scribe and weather bell (no GPU/model work in background). | System scheduling. |
 
-| Product ID | Reference name | In-app title | Type | Price | Status |
-| --- | --- | --- | --- | --- | --- |
-| `com.openclaw.enchantify.insidecover.pack.nocturne-folio` | Nocturne Folio Pack | The Nocturne Folio | Not IAP | Free gift | Bound manually in Bookshop |
+## After the fee: optional unlocks
 
-Do not create IAP products yet for listings marked `comingSoon`:
+- **Apple Pay**: merchant ID + capability + Stripe registration + two plist keys
+  (`docs/going-live-checklist.md` §2).
+- **Journaling Suggestions**: request the capability, re-add
+  `com.apple.developer.journal.allow`, flip `BookNoticesPicker.entitlementProvisioned`.
 
-- `com.openclaw.enchantify.insidecover.pack.saltwater-looms`
-- `com.openclaw.enchantify.insidecover.pack.gilded-margins`
+## App Store Connect tasks
 
-## StoreKit acceptance checklist
-
-- Product metadata appears in sandbox and TestFlight.
-- Paid shelf shows App Store prices, not `$0.00 dev`.
-- Purchase success unlocks the pack and writes it to the save.
-- Cancelled purchases leave the pack locked.
-- Pending purchases show a non-error pending message.
-- Restore purchases works on the original install.
-- Restore purchases works after deleting and reinstalling the app.
-- Already owned packs move to "Already Bound to You."
-- Coming-soon listings cannot be purchased.
-- App Review notes explain how to open the BookShop and what each IAP unlocks.
-
-## Sensitive permission justification
-
-Use these justifications in App Review notes and privacy/support copy.
-
-| Permission or capability | Why it exists | User control | Data boundary |
-| --- | --- | --- | --- |
-| HealthKit read access | Creates optional Body Pages from movement, sleep, heart, respiratory, blood pressure/glucose, body mass, and nutrition quantities. Fuller input can make the app more personally useful, but the app does not diagnose, treat, or prescribe. | User taps the Body seal and approves HealthKit types. | Read on device; translated into private page context. |
-| Location When In Use | Fetches local weather and checks whether the reader is near a user-created Anchor. | User taps Weather or Location seals. | Coordinates are used for weather/nearby checks; pages avoid raw coordinates. |
-| Photos | Lets the reader choose photos for illuminated pages, custom cast portraits, and artifact export. | User chooses photos or taps save to Photos. | Photo content stays on device unless the user exports/shares it through iOS. |
-| Camera | Lets the reader take a photo for a page, enchantment, or cast member. | User taps camera/photo flows. | Captured media stays in app storage unless user saves/shares. |
-| Microphone and Speech Recognition | Optional dictation for page text and answers, and optional "kept voice" recordings saved alongside a page's transcript. | User taps the voice input control or the "Keep your voice" control on a page. | Speech fills text fields; kept-voice `.m4a` files stay in app storage and travel only inside a user-initiated Sealed Copy. |
-| Journaling Suggestions (`com.apple.developer.journal.allow`) | Optional "What the Book noticed today…" surfaces Apple's on-device Journaling Suggestions (photos, workouts, places, music) as writing prompts. iPhone-only, iOS 17.2+. | User taps the Book-notices control and picks a suggestion in Apple's out-of-process picker. | The picker runs outside the app; the app receives only the single suggestion the user picks, and uses its title/date as prompt seed text on device. |
-| Calendar | Optional Calendar Doorway reads upcoming events and explicit buttons add app events such as market windows or festivals. | Disabled by default; user toggles Calendar Doorway or taps add-to-calendar buttons. | Event context stays on device and is summarized as page timing, not uploaded as a calendar dump. |
-| Reminders | Adds reminders for user-accepted in-world commitments. | User taps a reminder action. | Writes only the requested reminder. |
-| Notifications | Sends local "Book whisper" reminders and test notifications. | Disabled by default; user enables whispers. | Local notifications only. |
-| Face ID / Touch ID / passcode | Optional lock for the private book. | User enables Protect the Book. | The app receives only authentication success/failure. |
-| Background audio | Keeps the bundled in-app radio playing when the app backgrounds. | User starts/stops radio. | Bundled/local playback; no tracking. |
-| Background processing | Allows the overnight scribe to prepare pages opportunistically. | Controlled by app settings and system scheduling. | Uses local save/context. |
-| File sharing | Lets users export or import their portable `.reenchanted-save.json` save. | User initiates import/export through iOS Files/share flows. | User-owned save data. |
-
-## Health and medication stance
-
-The app can produce better, more personal reflections when it has body context,
-food/fuel notes, and user-entered medication or supplement mentions. That is
-worth keeping, with guardrails:
-
-- It must remain optional.
-- It must never claim to diagnose, treat, monitor, or replace medical care.
-- It should frame body data as "signals" or "weather," not instructions.
-- It may help the reader form a question for a doctor or pharmacist.
-- It should not request clinical health records unless a specific user-facing
-  clinical-record feature exists.
-- It should not request HealthKit background delivery unless a specific
-  background health feature exists.
+- Enroll; decide individual vs organization first (seller name is public; EU
+  trader status publishes contact details if the EU storefront is on).
+- Create the app record and the two extension bundle IDs + App Group.
+- Free Apps agreement only (no Paid Apps agreement needed with no IAP).
+- Privacy policy URL `https://reenchanted.app/privacy.html`; support URL
+  `https://reenchanted.app`; EULA `https://reenchanted.app/terms.html`.
+- App Privacy answers from `docs/AppPrivacyInventory.md`.
+- Age rating: answer honestly for horror/fear themes (the October Count Unbound
+  issue: Dracula, a bite) and "unrestricted web access: no" (web lookups return
+  text the app writes into Pages, there is no browser). Expect 12+.
+- Screenshots: 6.9" iPhone and 13" iPad. Populated footage must come from a real
+  phone (a fresh simulator only shows onboarding).
+- TestFlight: internal first (no review), then external (Beta App Review).
 
 ## Suggested App Review notes
 
-ReEnchanted is a local-first private journaling and literary reflection app. It
-turns user-entered notes, optional HealthKit signals, optional weather/location,
-optional photos, optional calendar context, and local app state into private
-book pages.
+ReEnchanted is a free, local-first journal that answers back as a living book.
+Everything the reader writes stays on the device. There is no account and no
+In-App Purchase.
 
-No account is required. Most sensitive data paths are off by default or
-user-initiated. The Body seal requests HealthKit read access only to create
-private Body Pages; the app does not provide diagnosis, treatment, medication
-instructions, or emergency guidance. Location is requested only when the user
-taps Weather or Location. Calendar, Reminders, Notifications, Photos, Camera,
-Speech, and Face ID are each tied to visible user actions or settings.
+Optional printed books of the reader's own pages are sold as physical goods and
+paid with Stripe; Lulu prints and mails them. To see it: Glow menu → Bookshop.
+[TestFlight/Review builds: say whether checkout is live or test mode, and give
+a Stripe test card if test.]
 
-The BookShop is opened from the Glow menu or from the BookShop preview page.
-Paid packs are non-consumable In-App Purchases using StoreKit. The restore
-button is labeled "Ask the ledger about past purchases." The Starlit Paper
-Trial remains development scaffolding and must not be created as an App Store
-product.
-
-## Manual App Store Connect tasks
-
-- Enroll and keep Apple Developer Program membership active.
-- Accept paid apps / in-app purchase agreements.
-- Enter banking and tax information.
-- Create the app record for `com.openclaw.enchantify.insidecover`.
-- Create the non-consumable IAP products above.
-- Add support URL, marketing URL if desired, and privacy policy URL.
-- Fill App Privacy details from `docs/PrivacyPolicyDraft.md`.
-- Set age rating. Avoid Kids Category.
-- Add screenshots for iPhone and iPad.
-- Upload a Release archive through Xcode or Transporter.
-- Run TestFlight internal testing, then external testing.
-- Submit the app and IAP products together for first review.
+The on-device writing model is an optional download (about 3.5 GB) offered in
+the first minutes; the Book works without it. HealthKit, Location, Photos,
+Camera, Microphone, Calendar, Reminders, Notifications and Face ID are each
+requested only from a visible action. HealthKit data is used on device to write
+private Body Pages; the app offers no diagnosis or medical advice.
 
 ## Final pre-submit smoke test
 
-- Fresh install launches without a crash.
-- Fresh install works with all permissions denied.
-- Fresh install works with all requested permissions granted.
-- Body, Weather, Location, Calendar, Photos, Camera, Speech, Notifications, and
-  Book Lock explain themselves before or during permission prompts.
-- BookShop loads real StoreKit products in TestFlight.
-- Purchase, cancel, pending, and restore paths work.
-- Export/import save works.
-- No debug/dev purchase labels appear in Release.
-- App icon, launch screen, display name, version, and build number are correct.
+- Fresh install launches; works with every permission denied.
+- Fresh install that never downloads the model can write, keep, and read Pages.
+- Doorways sheet shows no Public Margins section on a fresh install.
+- Bookshop quotes, checks out, and returns a receipt in the build's checkout mode.
+- No "(dev)" labels in Release (the `Scrivener's Counter (dev)` till is
+  Debug-only).
+- App icon, display name "ReEnchanted", version, and build number correct.

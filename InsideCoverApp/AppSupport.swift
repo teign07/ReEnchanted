@@ -112,6 +112,11 @@ enum PromptWhisperOpenStore {
 // MARK: - Public Margins network doorway
 
 enum PublicMarginsAPI {
+    /// Closed for launch: every reader's Book stays their own. While false, no
+    /// snapshot is fetched, nothing is offered, and the doorway toggles are
+    /// hidden. Withdrawal stays reachable so earlier contributions can leave.
+    static let isAvailable = false
+
     static let incomingOptInKey = "publicMarginsIncomingOptIn"
     static let outgoingOptInKey = "publicMarginsOutgoingOptIn"
     static let deletionReceiptsKey = "publicMarginsDeletionReceipts"
@@ -136,6 +141,7 @@ enum PublicMarginsAPI {
     }
 
     static func fetchSnapshot(session: URLSession = .shared) async throws -> PublicMarginsSnapshot {
+        guard isAvailable else { throw PublicMarginsAPIError.requestFailed }
         let url = baseURL.appendingPathComponent("community/snapshot")
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
@@ -149,6 +155,7 @@ enum PublicMarginsAPI {
         _ contribution: PublicMarginsContributionRequest,
         session: URLSession = .shared
     ) async throws -> PublicMarginsContributionReceipt {
+        guard isAvailable else { throw PublicMarginsAPIError.requestFailed }
         var request = URLRequest(url: baseURL.appendingPathComponent("contributions"))
         request.httpMethod = "POST"
         request.timeoutInterval = 20

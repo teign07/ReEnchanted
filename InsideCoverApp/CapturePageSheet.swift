@@ -4840,7 +4840,8 @@ struct CapturePageSheet: View {
                 storyMarginNoteField
             }
 
-            if publicMarginsOutgoingOptIn,
+            if PublicMarginsAPI.isAvailable,
+               publicMarginsOutgoingOptIn,
                surface.privacy != .publicReference,
                surface.type != .note,
                surface.type != .tarot {
