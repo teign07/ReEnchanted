@@ -23,12 +23,14 @@ let membershipPrice = "price_annual";
 let membershipLive = false;
 let invoiceRequests = 0;
 function paidInvoice(month, cadence = "annual") {
+  // Every paid month here was paid out to the bank long ago.
+  kvValues.set(`funds-in-bank/txn_${month.replace("-", "")}`, "{}");
   const start = new Date(`${month}-21T12:00:00Z`);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + (cadence === "annual" ? 12 : 1));
   return {
     id: `in_${month}`, subscription: "sub_member", livemode: false, status: "paid", paid: true, amount_paid: 5000,
-    payment_intent: { status: "succeeded", latest_charge: { paid: true, amount: 5000, amount_refunded: 0, refunded: false, disputed: false } },
+    payment_intent: { status: "succeeded", latest_charge: { paid: true, amount: 5000, amount_refunded: 0, refunded: false, disputed: false, balance_transaction: `txn_${month.replace("-", "")}` } },
     lines: { data: [{
       type: "subscription", subscription: "sub_member", proration: false, price: { id: `price_${cadence}` }, amount: 5000,
       period: { start: start.getTime() / 1000, end: end.getTime() / 1000 },

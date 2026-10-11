@@ -2588,7 +2588,7 @@ struct BookShopSheet: View {
     private func physicalBookPendingDetailText(_ draft: PhysicalBookPendingOrderDraft) -> String {
         switch draft.status {
         case .paymentReceivedPendingPrintSubmission, .submissionWaitingForLuluCredentials:
-            return "This paid order is saved on this device. Final print submission will unlock when Lulu approves API access."
+            return "This paid order is saved on this device. It goes to the printer once your payment clears, usually in a few business days."
         case .submittedToBackend:
             if draft.submittedOrder?.luluPrintJobID != nil {
                 return "This paid order was submitted to Lulu. You can refresh its production and shipping status below."
@@ -5923,6 +5923,10 @@ struct PhysicalBookQuoteClient {
                     return "The payment may already be moving or paid. Continue this purchase to check its receipt."
                 case "checkout_closed":
                     return "That checkout has closed. Use Close unpaid checkout to put away its saved form."
+                case "awaiting_payout":
+                    // The Worker holds every parcel until its payment reaches the bank,
+                    // then sends it to Lulu on its own. Nothing is wrong and nothing is owed.
+                    return "Paid. The Bindery sends this book to the printer once your payment clears, usually in a few business days. Nothing more to do."
                 case "membership_payment_unavailable", "stripe_error", "checkout_receipt_missing":
                     return "The payment desk couldn't finish checking. Continue the saved purchase when the connection returns."
                 default:
@@ -6476,7 +6480,7 @@ struct PhysicalBookQuoteClient {
         "print_submission_uncertain", "print_submission_changed", "membership_payment_unavailable",
         "stripe_error", "checkout_receipt_missing", "invalid_contact_email", "invalid_shipping_address",
         "fulfillment_consent_required", "unsupported_cadence", "invalid_senderName", "invalid_recipientName", "invalid_recipient_tax_id", "invalid_gift_message",
-        "recipient_tax_id_required",
+        "recipient_tax_id_required", "awaiting_payout",
     ]
 
     static var installationID: String {

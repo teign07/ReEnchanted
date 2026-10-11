@@ -10,6 +10,9 @@ const networkID = "203.0.113.10";
 const kvValues = new Map();
 const r2Values = new Map();
 const coordinatorObjects = new Map();
+const coordinatorStorage = new Map();
+// Stripe's paid payouts, newest first. Each carries ch_123's balance transaction.
+const paidPayouts = [];
 const externalCalls = [];
 const securityAlertEmails = [];
 let stripeCreateFields;
@@ -20,6 +23,8 @@ let partialTracking = false;
 let chargeRefundedCents = 0;
 let chargeDisputed = false;
 
+// The payout carrying ch_123 has already landed in the bank.
+kvValues.set("funds-in-bank/txn_123", "{}");
 const kv = {
   async get(key) { return kvValues.get(key) ?? null; },
   async put(key, value) { kvValues.set(key, value); },
@@ -73,10 +78,12 @@ env.PHYSICAL_BOOK_ORDER_COORDINATOR = {
   get(id) {
     if (!coordinatorObjects.has(id)) {
       const storage = new Map();
+      coordinatorStorage.set(id, storage);
       const state = {
         storage: {
           async get(key) { return storage.get(key); },
           async put(key, value) { storage.set(key, value); },
+          async delete(key) { storage.delete(key); },
         },
       };
       coordinatorObjects.set(id, new PhysicalBookOrderCoordinator(state, env));
@@ -120,6 +127,10 @@ globalThis.fetch = async (url, init = {}) => {
       client_secret: "pi_123_secret_test",
     });
   }
+  if (new URL(href).pathname === "/v1/payouts") return jsonResponse({ data: paidPayouts, has_more: false });
+  if (new URL(href).pathname === "/v1/balance_transactions") {
+    return jsonResponse({ data: [{ id: "txn_123" }], has_more: false });
+  }
   if (new URL(href).pathname.endsWith("/v1/payment_intents/pi_123")) {
     return jsonResponse({
       id: "pi_123",
@@ -127,7 +138,7 @@ globalThis.fetch = async (url, init = {}) => {
       amount: 11713,
       amount_received: 11713,
       livemode: false,
-      latest_charge: { id: "ch_123", payment_intent: "pi_123", livemode: false, paid: true,
+      latest_charge: { id: "ch_123", payment_intent: "pi_123", livemode: false, paid: true, balance_transaction: "txn_123",
         refunded: chargeRefundedCents === 11713, disputed: chargeDisputed, amount_refunded: chargeRefundedCents,
         amount: 11713, currency: "usd" },
       currency: "usd",
@@ -440,6 +451,31 @@ try {
   assertEqual(disputed.body.error, "payment_not_available", "a dispute blocks printing");
   chargeDisputed = false;
   assertEqual(luluCreateCount, 0, "revoked payments never reach Lulu");
+
+  // The charge is captured, but its payout has not reached the bank. Lulu bills
+  // the moment a job exists, so the order waits on the server instead.
+  kvValues.delete("funds-in-bank/txn_123");
+  const held = await requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env);
+  assertEqual(held.response.status, 409, "an order whose money is not in the bank is held");
+  assertEqual(held.body.error, "awaiting_payout", "the hold names the payout wait");
+  assertEqual(luluCreateCount, 0, "a held order never reaches Lulu");
+  assertTruthy(kvValues.has("awaiting-payout/pi_123"), "the held order is indexed for the cron");
+  kvValues.delete(`reconciliation/alerts/${currentQuote.id}`);
+  const alertsBeforeHold = securityAlertEmails.length;
+  const runCron = async () => {
+    let pending;
+    await worker.scheduled({}, env, { waitUntil(promise) { pending = promise; } });
+    await pending;
+  };
+  await runCron();
+  assertEqual(securityAlertEmails.length, alertsBeforeHold, "an order waiting for its payout is not a paid-without-print alarm");
+  assertEqual(luluCreateCount, 0, "no payout yet, nothing printed");
+  paidPayouts.unshift({ id: "po_123", status: "paid", automatic: true, arrival_date: Math.floor(Date.now() / 1000) });
+  await runCron();
+  assertEqual(luluCreateCount, 1, "the payout landing sends the order to Lulu on the cron");
+  assertEqual(kvValues.has("awaiting-payout/pi_123"), false, "the hold index clears once submitted");
+  assertEqual(JSON.stringify([...coordinatorStorage.get("pi_123")]).includes("1 Harbor St"), false,
+    "the held request and its address leave the coordinator once submitted");
   const [firstOrder, repeatedOrder] = await Promise.all([
     requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env),
     requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env),
@@ -449,7 +485,7 @@ try {
   }
   assertEqual(firstOrder.body.luluPrintJobID, "print-job-123", "first fulfillment");
   assertEqual(repeatedOrder.body.luluPrintJobID, "print-job-123", "concurrent fulfillment receipt");
-  assertEqual(luluCreateCount, 1, "concurrent fulfillment created once");
+  assertEqual(luluCreateCount, 1, "the app's own asks after the cron create nothing new");
 
   const unrelatedCachedReceipt = await requestJSON("/orders", postOptions(orderRequest, "another-checkout-token"), env);
   assertEqual(unrelatedCachedReceipt.response.status, 401, "a cached receipt still requires the original checkout capability");

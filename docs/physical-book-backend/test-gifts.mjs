@@ -12,6 +12,8 @@ let sessionToken = "";
 let paymentCounter = 0;
 const payments = new Map();
 let luluCreates = 0;
+// Stripe's paid payouts, newest first, each with the balance transactions it carried.
+const paidPayouts = [];
 let paymentLookupUnavailable = false;
 let failures = 0;
 
@@ -88,6 +90,7 @@ env.PHYSICAL_BOOK_ORDER_COORDINATOR = {
       const state = { storage: {
         async get(key) { return storage.get(key); },
         async put(key, value) { storage.set(key, value); },
+        async delete(key) { storage.delete(key); },
       } };
       coordinators.set(id, new PhysicalBookOrderCoordinator(state, env));
     }
@@ -109,13 +112,15 @@ globalThis.fetch = async (url, init = {}) => {
   if (href === "https://api.stripe.com/v1/payment_intents") {
     const fields = Object.fromEntries(new URLSearchParams(init.body));
     const id = `pi_gift_${++paymentCounter}`;
+    // A gift is claimed after the giver's payout has landed.
+    kvValues.set(`funds-in-bank/txn_${id}`, "{}");
     payments.set(id, {
       id,
       status: "succeeded",
       amount: Number(fields.amount),
       amount_received: Number(fields.amount),
       livemode: false,
-      latest_charge: { id: `ch_${id}`, payment_intent: id, livemode: false,
+      latest_charge: { id: `ch_${id}`, payment_intent: id, livemode: false, balance_transaction: `txn_${id}`,
         paid: true, refunded: false, disputed: false, amount_refunded: 0,
         amount: Number(fields.amount), currency: fields.currency },
       currency: fields.currency,
@@ -143,6 +148,11 @@ globalThis.fetch = async (url, init = {}) => {
   if (href.endsWith("/print-jobs/")) {
     luluCreates += 1;
     return json({ id: "gift-print-job", status: { name: "PRODUCTION_READY" } });
+  }
+  if (new URL(href).pathname === "/v1/payouts") return json({ data: paidPayouts, has_more: false });
+  if (new URL(href).pathname === "/v1/balance_transactions") {
+    const payout = paidPayouts.find(entry => entry.id === new URL(href).searchParams.get("payout"));
+    return json({ data: (payout?.transactions || []).map(id => ({ id })), has_more: false });
   }
   console.error(`Unexpected external request: ${href}`);
   throw new Error(`Unexpected external request: ${href}`);
@@ -324,11 +334,31 @@ try {
   const unavailableOrder = await requestJSON(`/gifts/${gift.body.claimToken}/orders`, post(orderRequest, redemptionQuote.body.checkoutToken));
   check(unavailableOrder.response.status >= 500 && luluCreates === 0, "a Stripe outage fails closed before printing");
   paymentLookupUnavailable = false;
+
+  // The giver's payment is captured but not yet paid out: claimed quickly,
+  // the gift waits for the money to reach the bank before Lulu bills.
+  kvValues.delete(`funds-in-bank/txn_${payment.body.id}`);
+  const heldGift = await requestJSON(`/gifts/${gift.body.claimToken}/orders`, post(orderRequest, redemptionQuote.body.checkoutToken));
+  check(heldGift.response.status === 409 && heldGift.body.error === "awaiting_payout", "a gift whose payment is not in the bank is held");
+  check(luluCreates === 0, "the held gift never reaches Lulu");
+  // The redemption quote would close in fifteen minutes; the hold binds it to
+  // the gift so the cron can still send it days later.
+  const quoteKey = `physical-book-quotes/${redemptionQuote.body.id}`;
+  const boundQuote = JSON.parse(kvValues.get(quoteKey));
+  check(boundQuote.paymentIntentID === `gift:${gift.body.gift.id}`, "the hold binds the redemption quote to its gift");
+  kvValues.set(quoteKey, JSON.stringify({ ...boundQuote, quote: { ...boundQuote.quote, expiresAt: new Date(Date.now() - 60_000).toISOString() } }));
+  paidPayouts.unshift({ id: "po_gift", status: "paid", automatic: true, arrival_date: Math.floor(Date.now() / 1000), transactions: [`txn_${payment.body.id}`] });
+  const pendingCron = [];
+  await worker.scheduled({}, env, { waitUntil: promise => pendingCron.push(promise) });
+  await Promise.all(pendingCron);
+  check(luluCreates === 1, "the payout landing sends the gift to Lulu after its quote has expired");
+  check(!kvValues.has(`awaiting-payout/gift:${gift.body.gift.id}`), "the gift's hold clears once submitted");
+
   const order = await requestJSON(
     `/gifts/${gift.body.claimToken}/orders`,
     post(orderRequest, redemptionQuote.body.checkoutToken),
   );
-  check(order.response.status === 201, "the claimed gift goes to Lulu without a second payment");
+  check(order.response.status === 201, "the claimed gift's order returns once the cron has sent it, without a second payment");
   check(order.body.luluPrintJobID === "gift-print-job", "the printer receipt returns");
   check(luluCreates === 1, "the gift creates one print job");
 

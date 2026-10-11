@@ -19,10 +19,14 @@ let luluCreates = 0;
 let loseNextLuluResponse = false;
 let recoveredLuluJobs = [];
 let failures = 0;
+// Stripe's paid payouts, oldest first, each with the balance transactions it carried.
+const paidPayouts = [];
 
 const now = Math.floor(Date.now() / 1000);
 const memberships = new Map();
 function member(id, changes = {}) {
+  // The first month's payout has already landed in the bank.
+  kvValues.set(`funds-in-bank/txn_${id}`, "{}");
   memberships.set(id, {
     id,
     status: "active",
@@ -38,7 +42,7 @@ function member(id, changes = {}) {
     },
     latest_invoice: {
       subscription: id, status: "paid", paid: true, amount_paid: 2499,
-      payment_intent: { status: "succeeded", latest_charge: { paid: true, amount: 2499, amount_refunded: 0, refunded: false, disputed: false } },
+      payment_intent: { status: "succeeded", latest_charge: { paid: true, amount: 2499, amount_refunded: 0, refunded: false, disputed: false, balance_transaction: `txn_${id}` } },
     },
     ...changes,
   });
@@ -49,7 +53,9 @@ const kv = {
   async get(key) { return kvValues.get(key) ?? null; },
   async put(key, value) { kvValues.set(key, value); },
   async delete(key) { kvValues.delete(key); },
-  async list() { return { keys: [], list_complete: true }; },
+  async list({ prefix = "" } = {}) {
+    return { keys: [...kvValues.keys()].filter(key => key.startsWith(prefix)).map(name => ({ name })), list_complete: true };
+  },
 };
 const r2 = {
   async put(key, body) { r2Values.set(key, new Uint8Array(body)); },
@@ -84,6 +90,7 @@ env.PHYSICAL_BOOK_ORDER_COORDINATOR = {
         storage: {
           async get(key) { return storage.get(key); },
           async put(key, value) { storage.set(key, value); },
+          async delete(key) { storage.delete(key); },
         },
       }, env));
     }
@@ -106,6 +113,11 @@ globalThis.fetch = async (url, init = {}) => {
     if (subscription) {
       const record = memberships.get(decodeURIComponent(subscription[1]));
       return record ? json(record) : json({ error: { message: "No such subscription" } }, 404);
+    }
+    if (path === "/v1/payouts") return json({ data: [...paidPayouts].reverse(), has_more: false });
+    if (path === "/v1/balance_transactions") {
+      const payout = paidPayouts.find(entry => entry.id === new URL(href).searchParams.get("payout"));
+      return json({ data: (payout?.transactions || []).map(id => ({ id })), has_more: false });
     }
     const customer = /^\/v1\/customers\/(cus_[^/]+)$/.exec(path);
     if (customer) return json({ id: customer[1], email: "reader@example.com", shipping: stripeShipping });
@@ -299,6 +311,66 @@ check(recovered.body.luluPrintJobID === `print-job-${createsAfterLoss}`, "one ex
 check(luluCreates === createsAfterLoss, "recovery never sends a replacement parcel");
 const durableJSON = JSON.stringify([...coordinatorStorage.values()].map(value => [...value]));
 check(!durableJSON.includes("1 Harbor St"), "durable receipts omit the shipping address");
+
+console.log("Waiting for the payout:");
+// A brand-new member: the first month is captured, but its payout has not
+// reached the bank. Lulu bills on job creation, so nothing may print yet.
+await own("sub_fresh");
+member("sub_fresh");
+kvValues.delete("funds-in-bank/txn_sub_fresh");
+const freshToken = await prepareAndUpload("sub_fresh");
+const createsBeforeFresh = luluCreates;
+const held = await submit("sub_fresh", freshToken);
+check(held.response.status === 409 && held.body.error === "awaiting_payout", "a captured but unpaid-out charge is held, not printed");
+check(luluCreates === createsBeforeFresh, "the held parcel never reaches Lulu");
+check(kvValues.has("awaiting-payout/membership:sub_fresh:welcome-weekly"), "the hold is indexed for the cron");
+check((await submit("sub_fresh", freshToken)).body.error === "awaiting_payout", "asking again before the payout is still a hold");
+// A second, still-pending invoice becomes the latest. The parcel stays paid
+// for by the first month, so that payout alone releases it.
+memberships.get("sub_fresh").latest_invoice.payment_intent.latest_charge.balance_transaction = "txn_sub_fresh_month_two";
+
+const cron = async () => {
+  const pending = [];
+  await worker.scheduled({}, env, { waitUntil: promise => pending.push(promise) });
+  await Promise.all(pending);
+};
+paidPayouts.push({ id: "po_unrelated", status: "paid", automatic: true, arrival_date: now, transactions: ["txn_someone_else"] });
+await cron();
+check(luluCreates === createsBeforeFresh, "a payout that did not carry this charge releases nothing");
+paidPayouts.push({ id: "po_manual", status: "paid", automatic: false, arrival_date: now, transactions: ["txn_sub_fresh"] });
+await cron();
+check(luluCreates === createsBeforeFresh, "a manual payout cannot be attributed, so it releases nothing");
+paidPayouts.push({ id: "po_first_month", status: "paid", automatic: true, arrival_date: now, transactions: ["txn_sub_fresh"] });
+await cron();
+check(luluCreates === createsBeforeFresh + 1, "the payout landing sends the parcel to Lulu on the cron, without the app");
+check(luluPayloads.at(-1).external_id === "bound-year-sub_fresh-welcome-weekly", "the released job is this member's welcome");
+check(!kvValues.has("awaiting-payout/membership:sub_fresh:welcome-weekly"), "the hold index clears once submitted");
+check(![...coordinatorStorage.get("membership:sub_fresh:welcome-weekly").keys()].includes("awaiting-payout"), "the held request is deleted once submitted");
+await cron();
+check(luluCreates === createsBeforeFresh + 1, "a later cron sends nothing twice");
+const afterRelease = await submit("sub_fresh", freshToken);
+check(afterRelease.response.status === 201 && afterRelease.body.luluPrintJobID === `print-job-${createsBeforeFresh + 1}`,
+  "the app's next ask returns the parcel the cron sent");
+
+console.log("A payout that never comes:");
+await own("sub_stuck");
+member("sub_stuck");
+kvValues.delete("funds-in-bank/txn_sub_stuck");
+const stuckToken = await prepareAndUpload("sub_stuck");
+check((await submit("sub_stuck", stuckToken)).body.error === "awaiting_payout", "a parcel with no payout yet is held");
+const sentAlerts = [];
+env.SECURITY_ALERT_EMAIL = { async send(message) { sentAlerts.push(message); } };
+env.SECURITY_ALERT_EMAIL_TO = "operator@example.test";
+await cron();
+check(sentAlerts.length === 0, "a fresh hold is waiting on purpose, not an alert");
+const stuckIndex = "awaiting-payout/membership:sub_stuck:welcome-weekly";
+kvValues.set(stuckIndex, JSON.stringify({ ...JSON.parse(kvValues.get(stuckIndex)), heldAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() }));
+await cron();
+check(sentAlerts.length === 1, "a parcel held past two weeks alerts the Bindery");
+check(!JSON.stringify(sentAlerts).includes("sub_stuck") && !JSON.stringify(sentAlerts).includes("Harbor"), "the alert names no membership or address");
+await cron();
+check(sentAlerts.length === 1, "the alert does not repeat inside its cooldown");
+check(luluCreates === createsBeforeFresh + 1, "the stuck parcel still never reaches Lulu");
 
 console.log(failures === 0 ? "\nWelcome weekly tests passed." : `\n${failures} failed.`);
 if (failures > 0) process.exit(1);

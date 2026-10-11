@@ -428,6 +428,44 @@ limit. The installation identifier lives in the iOS keychain rather than user
 defaults, but remains an abuse-control signal rather than proof of identity.
 Do not remove the Cloudflare rate-limit binding.
 
+## Payout Gate: No Parcel Before Its Money Is in the Bank
+
+Lulu bills its card on file the moment a print job is created. A captured
+Stripe charge is still pending in Stripe; it reaches the bank only when a later
+payout carries it. So no parcel (one-off, gift, Bound Year season, or welcome
+weekly) is sent to Lulu until every charge that pays for it has been paid out
+to the bank. The Bindery never fronts a print bill.
+
+- **Funding.** Each parcel's funding is the balance transaction of each charge
+  behind it: the order's PaymentIntent, the gift's original payment, the
+  invoices covering a season's three months, or the membership's first invoice
+  for the welcome weekly. It is fixed the first time the parcel is held.
+- **Banked marks.** The cron lists paid payouts (`GET /v1/payouts?status=paid`)
+  and, for each new one, its balance transactions
+  (`GET /v1/balance_transactions?payout=…`), and marks each transaction
+  `funds-in-bank/<txn>` for 400 days. Stripe marks a payout `paid` when it
+  expects the money to be in the bank.
+- **Holds.** An order whose funding is not all banked returns `409
+  awaiting_payout`. Its coordinator keeps the full request (including the
+  delivery address, as the paid quote already does) and indexes it under
+  `awaiting-payout/<coordinator key>`. Each cron run, after recording new
+  payouts, asks every held coordinator to retry. A released parcel goes through
+  the normal duplicate-guarded submission, and the held request is deleted. The
+  app's next request returns the stored order.
+- **Alerts.** A one-off order on hold is not a paid-without-print alarm. Any
+  parcel held longer than 14 days sends the same PII-free alert email once a
+  day, because it is stuck: manual payouts, a failed payout, or a charge with
+  no balance transaction.
+- **Requirements.** Payouts must be **automatic**. Stripe can only list a
+  payout's transactions for automatic payouts, so with manual payouts nothing
+  prints, and the 14-day alert fires. A restricted Stripe key needs **Payouts:
+  read** and **Balance: read**. A new Stripe account's first payouts take
+  roughly 7–14 days, after which the standard US schedule is about two business
+  days. Readers are told their book goes to the printer once the payment clears.
+
+Test with `node --test test-payout-gate.mjs`, plus the hold-and-release cases in
+`test-order-preview.mjs`, `test-gifts.mjs` and `test-welcome-weekly.mjs`.
+
 ## Reconciliation and PII Lifecycle
 
 Stripe success writes a PII-free `paid awaiting print` marker. A cron runs every
@@ -451,9 +489,9 @@ redacts email, street address, city, postal code, and phone from the stored quot
 An unpaid or failed checkout retains delivery details for at most 24 hours; a
 plain quote retains them for only 15 minutes. The remaining post-payment,
 redacted capability and payment binding expires after 90 days. Private
-print-file delivery capabilities expire after 48 hours. R2 objects become eligible
-for automatic deletion after three days; the buffer preserves the full delivery
-window. Deletion is asynchronous, not an exact-hour guarantee.
+print-file delivery capabilities expire after 30 days, long enough to outlast the
+payout wait above. R2 objects become eligible for automatic deletion after 31
+days; the buffer preserves the full delivery window. Deletion is asynchronous, not an exact-hour guarantee.
 
 ## Hosted Print Files
 
@@ -470,8 +508,9 @@ Worker hosts generated PDFs in a private Cloudflare R2 bucket:
 
 ```sh
 npx wrangler r2 bucket lifecycle list reenchanted-physical-book-files
-# Add once, if absent:
-npx wrangler r2 bucket lifecycle add reenchanted-physical-book-files expire-private-print-files physical-books/ --expire-days 3
+# Add once, if absent. A rule left over from the old 3-day window must be
+# removed and re-added at 31 days, or held parcels lose their PDFs:
+npx wrangler r2 bucket lifecycle add reenchanted-physical-book-files expire-private-print-files physical-books/ --expire-days 31
 npx wrangler r2 bucket lifecycle list reenchanted-physical-book-files
 ```
 

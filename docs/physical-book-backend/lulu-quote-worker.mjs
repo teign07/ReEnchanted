@@ -5,6 +5,7 @@ import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
 import { createGmailRecoveryDelivery } from './gmail-recovery-delivery.mjs';
 import { luluTracking, mergeLuluTracking } from './lulu-tracking.mjs';
+import { AWAITING_PAYOUT_INDEX_PREFIX, AwaitingPayoutError, awaitingPayoutIndexKey, fundingIsBanked, fundingTransaction, normalizedFunding, recordPaidPayouts } from './payout-gate.mjs';
 import { readRecoveryIssuance, requestMembershipRecovery, readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
 import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
 import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, markMonthlyMembershipGift, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
@@ -16,12 +17,18 @@ const DEFAULT_SHIPPING_LEVELS = [
 ];
 
 const QUOTE_TTL_SECONDS = 15 * 60;
-const PRINT_FILE_TTL_SECONDS = 48 * 60 * 60;
+// Every parcel now waits for its payout before it reaches Lulu: about two
+// business days, but a new Stripe account's first payouts take one to two
+// weeks. The files must outlive that wait. The R2 rule is 31 days to match.
+const PRINT_FILE_TTL_SECONDS = 30 * 24 * 60 * 60;
 const CLIENT_SESSION_TTL_SECONDS = 15 * 60;
 const PAYMENT_PENDING_TTL_SECONDS = 24 * 60 * 60;
 const ORDER_ACCESS_TTL_SECONDS = 90 * 24 * 60 * 60;
 const RECONCILIATION_TTL_SECONDS = 30 * 24 * 60 * 60;
 const PAID_WITHOUT_PRINT_ALERT_SECONDS = 30 * 60;
+// A parcel held for its payout is expected to wait days, not minutes. Past
+// this it is stuck (manual payouts, a failed payout, a missing transaction).
+const AWAITING_PAYOUT_ALERT_SECONDS = 14 * 24 * 60 * 60;
 const RECONCILIATION_ALERT_COOLDOWN_SECONDS = 24 * 60 * 60;
 const MEMBERSHIP_DISPATCH_TTL_SECONDS = 120 * 24 * 60 * 60;
 const MEMBERSHIP_CUSTOMS_TTL_SECONDS = 500 * 24 * 60 * 60;
@@ -991,7 +998,7 @@ export default {
     }
   },
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(auditPaidOrdersAwaitingPrint(env));
+    ctx.waitUntil(runPrintDeskCron(env));
   },
 };
 
@@ -1073,19 +1080,84 @@ export class PhysicalBookOrderCoordinator {
   async runOrderOperation(payload) {
     if (payload.fulfillmentKind === "parcel-support") return this.inspectOrHoldParcel(payload);
     if (payload.fulfillmentKind === "reconciliation") return this.reconcileOneOff(payload);
+    if (payload.fulfillmentKind === "release-awaiting-payout") return this.releaseAwaitingPayout();
     if (await this.state.storage.get("operator-hold")) {
       throw new HTTPError(409, "order_on_hold", "The Bindery has stopped this parcel to check its payment and printing record.");
     }
     const existing = await this.state.storage.get("fulfilled-order");
-    if (existing) return existing;
-    const submitPrintJob = (token, job) => this.submitPrintJob(token, job);
-    const order = await (payload.fulfillmentKind === "membership-dispatch"
-      ? fulfillMembershipDispatch(payload.membershipID, payload.seasonKey, payload.dispatchToken, this.env, submitPrintJob)
-      : payload.fulfillmentKind === "gift-book"
-        ? fulfillGiftBookOrder(payload.claimToken, payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob)
-        : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob));
+    if (existing) {
+      await this.clearPayoutHold();
+      return existing;
+    }
+    const held = await this.state.storage.get("awaiting-payout");
+    const submitPrintJob = (token, job, funding) => this.submitFundedPrintJob(token, job, funding, held);
+    let order;
+    try {
+      order = await (payload.fulfillmentKind === "membership-dispatch"
+        ? fulfillMembershipDispatch(payload.membershipID, payload.seasonKey, payload.dispatchToken, this.env, submitPrintJob)
+        : payload.fulfillmentKind === "gift-book"
+          ? fulfillGiftBookOrder(payload.claimToken, payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob)
+          : fulfillOrder(payload.orderRequest, this.env, payload.checkoutToken, submitPrintJob));
+    } catch (error) {
+      if (!(error instanceof AwaitingPayoutError)) throw error;
+      await this.holdForPayout(payload, error.funding, held);
+      throw new HTTPError(409, "awaiting_payout", "Paid. This book goes to the printer once the payment clears to the Bindery's bank, usually within a few business days.");
+    }
     await this.state.storage.put("fulfilled-order", order);
+    await this.clearPayoutHold();
     return order;
+  }
+
+  // Lulu bills the moment a job exists, so the job waits for the payout that
+  // carries the reader's money. The funding that pays for a parcel is fixed
+  // the first time it is held: a welcome weekly stays paid for by the first
+  // invoice even after a second, still-pending one becomes the latest.
+  async submitFundedPrintJob(token, job, funding, held) {
+    // A parcel with a submission on record has already reached the print
+    // house; the duplicate guard in submitPrintJob owns it from here.
+    if (!(await this.state.storage.get("lulu-submission"))) {
+      const fixed = held?.funding ?? normalizedFunding(funding);
+      if (!(await fundingIsBanked(this.env.PHYSICAL_BOOK_ORDERS, fixed))) throw new AwaitingPayoutError(fixed);
+    }
+    return this.submitPrintJob(token, job);
+  }
+
+  // The coordinator keeps the whole request until the payout lands so the cron
+  // can send the parcel without waiting for the reader to open the app. It
+  // holds the delivery address, as the paid quote record already does, and is
+  // deleted the moment the parcel is submitted.
+  async holdForPayout(payload, funding, held) {
+    if (!payload.coordinatorKey) {
+      throw new HTTPError(500, "payout_hold_unavailable", "The print desk could not hold this parcel for its payment.");
+    }
+    const hold = {
+      payload,
+      coordinatorKey: payload.coordinatorKey,
+      funding: held?.funding ?? funding ?? null,
+      heldAt: held?.heldAt ?? new Date().toISOString(),
+    };
+    await this.state.storage.put("awaiting-payout", hold);
+    await this.env.PHYSICAL_BOOK_ORDERS.put(awaitingPayoutIndexKey(hold.coordinatorKey),
+      JSON.stringify({ coordinatorKey: hold.coordinatorKey, heldAt: hold.heldAt }));
+  }
+
+  async clearPayoutHold() {
+    const held = await this.state.storage.get("awaiting-payout");
+    if (!held) return;
+    await this.env.PHYSICAL_BOOK_ORDERS.delete(awaitingPayoutIndexKey(held.coordinatorKey));
+    await this.state.storage.delete("awaiting-payout");
+  }
+
+  async releaseAwaitingPayout() {
+    const held = await this.state.storage.get("awaiting-payout");
+    if (!held) return { released: false, held: false };
+    // Known funding is checked here first so a waiting parcel costs the cron one
+    // read, not a full Stripe and Lulu revalidation every fifteen minutes.
+    if (held.funding && !(await fundingIsBanked(this.env.PHYSICAL_BOOK_ORDERS, held.funding))) {
+      return { released: false, held: true, heldAt: held.heldAt };
+    }
+    const order = await this.runOrderOperation(held.payload);
+    return { released: true, held: false, orderID: order.id };
   }
 
   async inspectOrHoldParcel({ target, action }) {
@@ -2161,7 +2233,7 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
   if (seasonEnd.getTime() > Date.now()) {
     throw new HTTPError(403, "membership_season_not_closed", "That season has not finished yet.");
   }
-  await requirePaidMembershipMonths(subscription, cadence, seasonStart, env);
+  const funding = await requirePaidMembershipMonths(subscription, cadence, seasonStart, env);
   const customer = await membershipCustomer(subscription, env);
   const shippingAddress = stripeShippingToPhysicalAddress(customer?.shipping);
   shippingAddress.recipientTaxID = await readMembershipCustomsID(
@@ -2170,7 +2242,7 @@ async function requireEarnedMembershipSeason(membershipID, seasonKey, env) {
     shippingAddress.countryCode,
   );
   requireRecipientTaxID(shippingAddress);
-  return { subscription, customer, shippingAddress, cadence, seasonIndex };
+  return { subscription, customer, shippingAddress, cadence, seasonIndex, funding };
 }
 
 async function requirePaidMembershipMonths(subscription, cadence, seasonStart, env) {
@@ -2183,6 +2255,9 @@ async function requirePaidMembershipMonths(subscription, cadence, seasonStart, e
   }
   const firstMonth = seasonStart.getUTCFullYear() * 12 + seasonStart.getUTCMonth();
   const covered = new Set();
+  // The charges whose months this season stands on: its parcel prints only
+  // once every one of them has reached the bank.
+  const funding = [];
   let cursor;
   // A Bound Year is billed at most monthly. Bound the exceptional long-history
   // walk, and stop as soon as three months are proved. No per-frame work or
@@ -2219,11 +2294,14 @@ async function requirePaidMembershipMonths(subscription, cadence, seasonStart, e
         // bills on the 21st. Prorated or malformed periods cannot earn a book.
         if (until - from !== (cadence === "annual" ? 12 : 1)) continue;
         for (let month = firstMonth; month < firstMonth + 3; month += 1) {
-          if (month >= from && month < until) covered.add(month);
+          if (month >= from && month < until && !covered.has(month)) {
+            covered.add(month);
+            funding.push(fundingTransaction(charge));
+          }
         }
       }
     }
-    if (covered.size === 3) return;
+    if (covered.size === 3) return normalizedFunding(funding);
     if (!invoices.has_more) break;
     const next = invoices.data.at(-1)?.id;
     if (!next || next === cursor) break;
@@ -2421,7 +2499,11 @@ async function createMembershipDispatchOrder(membershipID, seasonKey, dispatchTo
   const response = await stub.fetch("https://order-coordinator.internal/fulfill", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fulfillmentKind: "membership-dispatch", membershipID, seasonKey, dispatchToken }),
+    body: JSON.stringify({
+      fulfillmentKind: "membership-dispatch",
+      coordinatorKey: `membership:${membershipID}:${seasonKey}`,
+      membershipID, seasonKey, dispatchToken,
+    }),
   });
   const body = await response.json();
   if (!response.ok) {
@@ -2471,7 +2553,8 @@ async function requireWelcomeWeeklyEntitlement(membershipID, env) {
     shippingAddress.countryCode,
   );
   requireRecipientTaxID(shippingAddress);
-  return { subscription, customer, shippingAddress };
+  const funding = normalizedFunding([fundingTransaction(subscription.latest_invoice?.payment_intent?.latest_charge)]);
+  return { subscription, customer, shippingAddress, funding };
 }
 
 async function prepareWelcomeWeekly(membershipID, request, env) {
@@ -2578,7 +2661,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
     recipient_tax_id: entitlement.shippingAddress.recipientTaxID || undefined,
   };
   const token = await fetchLuluAccessToken(env);
-  const luluPrintJob = await submitPrintJob(token, payload);
+  const luluPrintJob = await submitPrintJob(token, payload, entitlement.funding);
   const order = {
     id: externalID,
     quoteID: externalID,
@@ -2608,7 +2691,7 @@ async function createOrder(orderRequest, env, checkoutToken) {
   const response = await stub.fetch("https://order-coordinator.internal/fulfill", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderRequest, checkoutToken }),
+    body: JSON.stringify({ orderRequest, checkoutToken, coordinatorKey: orderRequest.paymentIntentID }),
   });
   const body = await response.json();
   if (!response.ok) {
@@ -2640,6 +2723,7 @@ async function createGiftBookOrder(claimToken, orderRequest, clientRequest, env,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       fulfillmentKind: "gift-book",
+      coordinatorKey: `gift:${gift.id}`,
       claimToken,
       claimedInstallationHash: fingerprint.installationHash,
       orderRequest,
@@ -2713,15 +2797,30 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
   if (gift.kind !== "bookOfRecipient" || gift.status !== "claimed") {
     throw new HTTPError(409, "gift_not_pressable", "That gift is not waiting for a Book.");
   }
-  const quoteRecord = await requireQuoteRecord(env, orderRequest.quoteID, checkoutToken);
+  // A redemption quote lives fifteen minutes, but a parcel held for its
+  // payout is sent days later. The hold binds the quote to this gift first,
+  // and only a quote bound to this gift may be used after it expires.
+  const quoteRecord = await requireQuoteRecord(env, orderRequest.quoteID, checkoutToken, { allowExpiredAfterPayment: true });
+  if (Date.parse(quoteRecord.quote.expiresAt) <= Date.now() && quoteRecord.paymentIntentID !== `gift:${gift.id}`) {
+    throw new HTTPError(410, "quote_expired", "That quote has expired. Ask the print desk for a fresh one.");
+  }
   const canonicalRequest = await canonicalGiftOrderRequest(orderRequest, quoteRecord, gift, env);
   const storageKey = orderStorageKey(canonicalRequest);
   const storedOrder = await readStoredOrder(env, storageKey);
   if (storedOrder) return storedOrder;
 
-  await verifyBookGiftPayment(gift, env);
+  const payment = await verifyBookGiftPayment(gift, env);
+  if (quoteRecord.paymentIntentID !== canonicalRequest.paymentIntentID) {
+    await storeQuoteRecord(env, {
+      ...quoteRecord,
+      paymentIntentID: canonicalRequest.paymentIntentID,
+      selectedShippingOptionID: canonicalRequest.selectedShippingOptionID,
+      contactEmail: normalizeEmail(canonicalRequest.contactEmail),
+      paymentSucceededAt: new Date().toISOString(),
+    });
+  }
   const token = await fetchLuluAccessToken(env);
-  const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest));
+  const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest), [fundingTransaction(payment.latest_charge)]);
   const now = new Date().toISOString();
   const order = {
     id: canonicalRequest.quoteID,
@@ -2765,7 +2864,7 @@ async function fulfillOrder(orderRequest, env, checkoutToken, submitPrintJob) {
 
   const canonicalRequest = await canonicalOrderRequest(orderRequest, quoteRecord, env);
 
-  await verifyPaidPaymentIntent(canonicalRequest, quoteRecord, env);
+  const payment = await verifyPaidPaymentIntent(canonicalRequest, quoteRecord, env);
   await markPaymentAwaitingPrint(env, {
     quoteID: canonicalRequest.quoteID,
     paymentIntentID: canonicalRequest.paymentIntentID,
@@ -2774,7 +2873,7 @@ async function fulfillOrder(orderRequest, env, checkoutToken, submitPrintJob) {
 
   const token = await fetchLuluAccessToken(env);
   const luluPayload = toLuluPrintJobPayload(canonicalRequest);
-  const luluPrintJob = await submitPrintJob(token, luluPayload);
+  const luluPrintJob = await submitPrintJob(token, luluPayload, [fundingTransaction(payment.latest_charge)]);
 
   const order = {
     id: canonicalRequest.quoteID,
@@ -3664,6 +3763,7 @@ async function verifyPaidPaymentIntent(orderRequest, quoteRecord, env) {
   const stripePaymentIntent = await stripeGet(env, `payment_intents/${encodeURIComponent(orderRequest.paymentIntentID)}?expand%5B%5D=latest_charge`);
   assertPaymentIntentMatchesQuote(stripePaymentIntent, orderRequest, quoteRecord, { requireSucceeded: true });
   assertPaymentAvailableForPrinting(stripePaymentIntent, orderRequest.paymentIntentID, env);
+  return stripePaymentIntent;
 }
 
 async function verifyBookGiftPayment(gift, env) {
@@ -3678,6 +3778,7 @@ async function verifyBookGiftPayment(gift, env) {
       payment.currency !== String(gift.allowanceCurrencyCode || "").toLowerCase()) {
     throw new HTTPError(402, "payment_not_available", "The Bindery needs to check this gift's payment.");
   }
+  return payment;
 }
 
 function assertPaymentAvailableForPrinting(stripePaymentIntent, paymentIntentID, env) {
@@ -4398,10 +4499,103 @@ async function listReconciliationMarkers(env) {
   return markers;
 }
 
+async function runPrintDeskCron(env) {
+  requireOrderStorage(env);
+  // Record payouts first, so a parcel whose money landed since the last run
+  // goes to Lulu in this one. Each step runs even when the one before fails.
+  // The last scan is kept so an operator can see the gate working: a key
+  // without Payouts or Balance read shows up here as stripe_http_403.
+  let scan;
+  try {
+    scan = { ok: true, ...await recordPaidPayouts(env.PHYSICAL_BOOK_ORDERS, path => stripeGetForPayoutScan(env, path)) };
+  } catch (error) {
+    scan = { ok: false, error: /^stripe_http_\d{3}$/.test(error?.message) ? error.message : "scan_failed" };
+    console.error(`physical_book_payout_scan_failed error=${scan.error}`);
+  }
+  await env.PHYSICAL_BOOK_ORDERS.put("payouts/last-scan", JSON.stringify({ ...scan, at: new Date().toISOString() }));
+  try {
+    await releaseParcelsAwaitingPayout(env);
+  } catch {
+    console.error("physical_book_payout_release_failed");
+  }
+  await auditPaidOrdersAwaitingPrint(env);
+}
+
+// Like stripeGet, but keeps Stripe's status code: a permissions failure must
+// be told apart from an outage when the gate stops releasing parcels.
+async function stripeGetForPayoutScan(env, path) {
+  requireEnv(env, "STRIPE_SECRET_KEY");
+  const response = await fetch(`https://api.stripe.com/v1/${path}`, {
+    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}`, "Stripe-Version": STRIPE_API_VERSION },
+  });
+  if (!response.ok) throw new Error(`stripe_http_${response.status}`);
+  return response.json();
+}
+
+async function releaseParcelsAwaitingPayout(env) {
+  if (!env.PHYSICAL_BOOK_ORDER_COORDINATOR) return;
+  let cursor;
+  do {
+    const page = await env.PHYSICAL_BOOK_ORDERS.list({
+      prefix: AWAITING_PAYOUT_INDEX_PREFIX,
+      ...(cursor ? { cursor } : {}),
+    });
+    for (const key of page.keys || []) {
+      const index = JSON.parse(await env.PHYSICAL_BOOK_ORDERS.get(key.name) || "null");
+      if (!index?.coordinatorKey) {
+        await env.PHYSICAL_BOOK_ORDERS.delete(key.name);
+        continue;
+      }
+      const stub = env.PHYSICAL_BOOK_ORDER_COORDINATOR.get(
+        env.PHYSICAL_BOOK_ORDER_COORDINATOR.idFromName(index.coordinatorKey),
+      );
+      const response = await stub.fetch("https://order-coordinator.internal/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fulfillmentKind: "release-awaiting-payout" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok && body.released) continue;
+      if (response.ok && body.held === false) {
+        await env.PHYSICAL_BOOK_ORDERS.delete(key.name);
+        continue;
+      }
+      const fingerprint = (await sha256Hex(index.coordinatorKey)).slice(0, 16);
+      if (!response.ok && body.error !== "awaiting_payout") {
+        console.error(`physical_book_payout_release_blocked fingerprint=${fingerprint} error=${String(body.error || response.status).slice(0, 64)}`);
+      }
+      const ageSeconds = Math.max(0, Math.floor((Date.now() - Date.parse(index.heldAt)) / 1000));
+      if (ageSeconds >= AWAITING_PAYOUT_ALERT_SECONDS) {
+        // A failed alert must not stop the parcels after this one from printing.
+        await alertParcelStuckAwaitingPayout(env, { fingerprint, heldAt: index.heldAt, ageSeconds })
+          .catch(() => console.error(`physical_book_payout_alert_failed fingerprint=${fingerprint}`));
+      }
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+}
+
+async function alertParcelStuckAwaitingPayout(env, alert) {
+  const alertKey = `reconciliation/payout-alerts/${alert.fingerprint}`;
+  if (await env.PHYSICAL_BOOK_ORDERS.get(alertKey)) return;
+  console.error(`physical_book_awaiting_payout_too_long fingerprint=${alert.fingerprint} age_seconds=${alert.ageSeconds}`);
+  await sendPaidWithoutPrintEmail(env, {
+    fingerprint: alert.fingerprint,
+    paidAt: alert.heldAt,
+    ageSeconds: alert.ageSeconds,
+  });
+  await env.PHYSICAL_BOOK_ORDERS.put(alertKey, new Date().toISOString(), {
+    expirationTtl: RECONCILIATION_ALERT_COOLDOWN_SECONDS,
+  });
+}
+
 async function auditPaidOrdersAwaitingPrint(env) {
   requireOrderStorage(env);
   const status = await reconciliationStatus(env);
   for (const marker of status.pending.filter((entry) => entry.ageSeconds >= PAID_WITHOUT_PRINT_ALERT_SECONDS)) {
+    // A one-off parcel held for its payout is waiting on purpose. The payout
+    // release step alerts on it separately if the wait runs long.
+    if (await env.PHYSICAL_BOOK_ORDERS.get(awaitingPayoutIndexKey(marker.paymentIntentID))) continue;
     const alertKey = reconciliationAlertStorageKey(marker.quoteID);
     if (await env.PHYSICAL_BOOK_ORDERS.get(alertKey)) continue;
     const fingerprint = (await sha256Hex(`${marker.quoteID}:${marker.paymentIntentID}`)).slice(0, 16);
