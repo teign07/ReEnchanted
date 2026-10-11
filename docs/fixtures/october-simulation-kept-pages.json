@@ -973,7 +973,8 @@
           "sessionID": "wayfinding-kineticism",
           "sessionProfessor": "Professor Stonebrook",
           "sessionName": "Wayfinding",
-          "academyActivityOutcome": "Where it starts: the green door on Mill Lane. Where it goes: the bench by the water. How I get back: the same way, but slower, with my hood down."
+          "lessonModuleID": "wayfinding-ticket-002",
+          "academyActivityOutcome": "Where: the bench by the water, past the green door on Mill Lane.\nWhen: Saturday, nine o'clock, before anyone else is up.\nHow: on foot, the long way, with the flask and my hood down."
         },
         "id": "6D39717F-21EE-4F73-8D2A-B8AB034BDB94",
         "type": "academyClass",
@@ -1586,7 +1587,8 @@
           "sessionProfessor": "Professor Wispwood",
           "sessionID": "art-of-the-glint",
           "sessionName": "The Glint",
-          "academyActivityOutcome": "A brass key, warm from my pocket. The scratch on the lamp base shaped like a comma. The smell of the radiator when it first comes on.",
+          "lessonModuleID": "glint-gorilla-002",
+          "academyActivityOutcome": "What you looked for: red umbrellas.\nHow many you found: eleven, two of them inside out.\nWhat you nearly missed: a heron on the canal wall, standing so still I took it for a post.",
           "sessionRoom": "Wing 4: The Glint Hall"
         },
         "promptText": "The Glint",

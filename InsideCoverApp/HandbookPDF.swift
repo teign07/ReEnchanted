@@ -158,7 +158,10 @@ extension MonthlyEditionPDFWriter {
                 intro = course + " You went to \(count). I've written \(sat == 1 ? "it" : "them") up properly and copied in what you brought back, in your own words. The others saved your seat."
             } else {
                 let brought = also.contains { !($0.readerEntry ?? "").isEmpty }
-                intro = course + " You went to \(count)! I've written up the three you put the most into."
+                let fullCount = handbook.lessons.filter(\.attended).count
+                let full = fullCount == 1 ? "the one" : "the \(fullCount <= words.count ? words[fullCount - 1] : "\(fullCount)")"
+                intro = course + " You went to \(count)!"
+                    + (fullCount > 0 ? " I've written up \(full) you put the most into." : " They're all marked below.")
                     + (brought ? " What you brought back from the others is copied in below them, in your own hand." : " The others you went to are marked below.")
                     + " The rest saved your seat."
             }

@@ -1593,10 +1593,22 @@ private enum PublicSampleEditionProof {
             let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             try encoder.encode(days).write(to: output.appendingPathComponent("sample-source.json"))
             try Data(contentsOf: inputDirectory.appendingPathComponent("sample.json")).write(to: output.appendingPathComponent("sample.json"))
-            // Do not manufacture commissioned October plates for a public issue.
-            // This exporter can use installed pack art; ordinary app marks still
-            // run through the shared dealer used by the actual publications.
+            // Never a placeholder plate in a public issue: only the month's real commissioned
+            // plates, when they've been sent over in edition-proof-input/plates (named as the pack
+            // names them). Without them the exporter uses installed pack art, or none.
             EditionPlates.proofDirectory = nil
+            let realPlates = ((try? FileManager.default.contentsOfDirectory(
+                at: inputDirectory.appendingPathComponent("plates", isDirectory: true), includingPropertiesForKeys: nil)) ?? [])
+                .filter { ["png", "jpg", "jpeg"].contains($0.pathExtension.lowercased()) }
+            if !realPlates.isEmpty {
+                let plates = output.appendingPathComponent("plates", isDirectory: true)
+                try? FileManager.default.removeItem(at: plates)
+                try FileManager.default.createDirectory(at: plates, withIntermediateDirectories: true)
+                for url in realPlates {
+                    try FileManager.default.copyItem(at: url, to: plates.appendingPathComponent("count-unbound.plate.\(url.lastPathComponent)"))
+                }
+                EditionPlates.proofDirectory = plates
+            }
             let receipts = try FieldBookFixture.heavyReceipts(calendar: calendar)
             let now = SyntheticReaderYear.date(2026, 11, 2)
             let wanted = SyntheticReaderYear.date(2026, 10, 23)

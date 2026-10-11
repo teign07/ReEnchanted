@@ -27,6 +27,12 @@ def main():
         (ROOT / 'ContentPacks/count-unbound/opening.reenchantedevents.json', 'opening.reenchantedevents.json')
     ]:
         shutil.copy2(source, target / name)
+    # The month's commissioned plates, exactly as the pack ships them. The exporter uses only
+    # these real plates in a public issue, never placeholders.
+    plates = ROOT / 'ContentPacks/count-unbound/plates'
+    if plates.is_dir():
+        shutil.rmtree(target / 'plates', ignore_errors=True)
+        shutil.copytree(plates, target / 'plates')
     photos = []
     # Reuse photographs across their keeps and composed sheets, as the app does.
     days = [2, 4, 9, 12, 16, 18, 19, 21, 24, 26, 27, 30]

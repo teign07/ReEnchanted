@@ -175,7 +175,9 @@ struct Handbook: Codable, Equatable {
         if !copy.dossiers.isEmpty { copy.dossiers.removeAll(); return copy }
         if !copy.spells.isEmpty { copy.spells.removeAll(); return copy }
         if let index = copy.lessons.lastIndex(where: { ($0.readerEntry ?? "").isEmpty }) {
-            copy.lessons.remove(at: index)
+            let room = copy.lessons.remove(at: index)
+            // A room the reader sat stays on the contents leaf as a line, even when its pages go.
+            if room.attended { copy.alsoSat = (copy.alsoSat ?? []) + [room] }
             return copy
         }
         return nil
