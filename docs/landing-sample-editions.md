@@ -113,3 +113,25 @@ image and heading. The sample chapter is also in Contents.
 - Monthly: https://reenchanted.app/samples.html?issue=monthly
 - weekly PDF SHA256: `6ee0c6c877afdd10832d0e0f4a75bf6e3d17e0a6338bd6ff837d8ea45f08e6b5`
 - monthly PDF SHA256: `ed0b1ec28ced3970201399d3d6292720ac0e51f09fc72903d41604191d004615`
+
+## Published — October 10, 2026
+
+Re-exported at bj's request ("trade out the weekly and monthly example
+editions … for these new updated ones"), through the same pipeline: a 24-Page
+weekly and a 138-Page monthly with October's commissioned plates (real plates
+only, copied from the pack by `prepare-landing-sample-input.py`), the four
+hand-laid Pagewright sheets, the twelve photographs (EXIF and GPS stripped),
+the year-long Academy coursework, and the simulated Reader's two class
+sittings now recording October's lessons. Every review sheet was inspected.
+
+Run the scripts with Codex's bundled runtime: system `python3` is too old
+(`zip(strict=)`), and `pdftoppm` isn't on PATH:
+`~/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3.12`
+and `…/dependencies/native/poppler/bin/pdftoppm`.
+
+Deployed samples-only (`assets/samples/` rsynced into the deploy mirror,
+mirror commit `88cc2bb`) so unrelated landing changes stayed unpublished.
+GitHub Pages succeeded; the live catalogue and both PDFs matched byte for byte.
+
+- weekly PDF SHA256: `5a93794e01a77d949ae1f3927eed67a3f8c4388f0c9e08b77ea7e32d5fd310df` (19.6 MB)
+- monthly PDF SHA256: `3cfa8adf416a216f2e6f6402e9f3984777fd7ad9d458aa47f7874ec8c4aac532` (54.0 MB; plates roughly doubled it)
