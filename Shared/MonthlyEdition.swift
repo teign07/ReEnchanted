@@ -573,6 +573,10 @@ struct MonthlyEdition: Codable, Equatable {
     /// matched to the reader's own words, dossiers, creatures. Optional so
     /// every edition bound before the Handbook decodes and prints as before.
     var handbook: Handbook? = nil
+    /// What the Book worked out about the reader over this span: a word leant on, what they write
+    /// when it rains, the hour the ink runs heavy. Each with its base rate and the lines it was
+    /// read from. Optional so older editions decode.
+    var connections: [EditionConnection]? = nil
     /// Why the edition carries the title it does, printed in the colophon.
     var titleReason: String? = nil
     /// The thickness the reader chose for this copy. Nil prints the volume at
@@ -717,6 +721,14 @@ struct AnnualEdition: Codable, Equatable {
     /// object the night's closing named. A printed year cannot hold every
     /// braid in full, so it holds every braid in a line, and says so.
     var nightsLedger: [BoundNightLine]? = nil
+    /// A season's term at the Academy: coursework, Cast files, the creatures and
+    /// spells of the season, the Examination and the Report Card. Built across the
+    /// whole span, once, instead of once per chapter. Optional so older volumes decode.
+    var handbook: Handbook? = nil
+    /// What the Book worked out about the reader over this span: a word leant on, what they write
+    /// when it rains, the hour the ink runs heavy. Each with its base rate and the lines it was
+    /// read from. Optional so older editions decode.
+    var connections: [EditionConnection]? = nil
 
     /// The reader's own name for covers, jackets, and spines. The Book-given
     /// role only stands in when an older archive has no usable human name.
@@ -2299,6 +2311,10 @@ enum MonthlyEditionBuilder {
             )
         )
         assembled.nightsLedger = BoundNightLine.ledger(from: chapters)
+        assembled.handbook = seasonHandbook(chapters: chapters, days: yearDays, coverLine: assembled.title,
+                                            seasonStart: yearStart, period: "year", calendar: calendar)
+        let connections = EditionConnections.make(days: yearDays, now: now, calendar: calendar, limit: 8)
+        assembled.connections = connections.isEmpty ? nil : connections
         return assembled
     }
 
@@ -2470,8 +2486,82 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             )
         )
-        if bindsAnnual { assembled.nightsLedger = BoundNightLine.ledger(from: chapters) }
+        // Every night of the span in a line: a printed season can't hold every braid whole either.
+        assembled.nightsLedger = BoundNightLine.ledger(from: chapters)
+        assembled.handbook = seasonHandbook(chapters: chapters, days: seasonDays, coverLine: coverLine,
+                                            seasonStart: seasonStart, period: bindsAnnual ? "year" : "term",
+                                            calendar: calendar)
+        let connections = EditionConnections.make(days: seasonDays, now: now, calendar: calendar, limit: bindsAnnual ? 8 : 6)
+        assembled.connections = connections.isEmpty ? nil : connections
         return assembled
+    }
+
+    /// The season as a term: one Handbook across its three months. The Cast who were
+    /// there most, the rooms the reader sat (each at the lesson they sat), the season's
+    /// creatures and spells, and the term's Examination and Report Card.
+    static func seasonHandbook(
+        chapters: [MonthlyEdition],
+        days: [BookDay],
+        coverLine: String,
+        seasonStart: Date,
+        period: String = "term",
+        calendar: Calendar
+    ) -> Handbook? {
+        var presence: [String: BoundCastPresence] = [:]
+        var order: [String] = []
+        for person in chapters.flatMap({ $0.dayBook?.chart.cast ?? [] }) {
+            if var known = presence[person.slug] {
+                known.daysPresent += person.daysPresent
+                known.sceneCount += person.sceneCount
+                known.actCount += person.actCount
+                presence[person.slug] = known
+            } else {
+                presence[person.slug] = person
+                order.append(person.slug)
+            }
+        }
+        let cast = order.compactMap { presence[$0] }
+            .sorted { ($0.daysPresent + $0.sceneCount) > ($1.daysPresent + $1.sceneCount) }
+        var handbook = HandbookBuilder.make(
+            pages: days.flatMap(\.pages),
+            castPresence: cast,
+            terms: [coverLine] + chapters.compactMap { $0.theme?.name } + chapters.flatMap { $0.theme?.motifs ?? [] },
+            seed: "season-\(calendar.component(.year, from: seasonStart))-\(calendar.component(.month, from: seasonStart))",
+            dayBook: mergedDayBook(chapters),
+            dayCount: days.count,
+            term: seasonStart,
+            calendar: calendar
+        )
+        // The month-at-a-glance keepsakes are a month's; a season keeps its own pages.
+        handbook.keepsakes = nil
+        // The examination asks about the term, not a month.
+        if var exam = handbook.workbook?.exam {
+            func termly(_ text: String) -> String {
+                text.replacingOccurrences(of: "this month", with: "this \(period)")
+                    .replacingOccurrences(of: "the month's", with: "the \(period)'s")
+            }
+            exam.questions = exam.questions.map { var q = $0; q.prompt = termly(q.prompt); return q }
+            exam.shortAnswers = exam.shortAnswers.map(termly)
+            handbook.workbook?.exam = exam
+        }
+        // A season keeps its ruin pages to two leaves; the room goes to the days.
+        if let count = handbook.ruinCount { handbook.ruinCount = min(count, 2) }
+        let transcript = HandbookBuilder.transcript(from: days.flatMap(\.pages), calendar: calendar)
+        handbook.transcript = transcript.isEmpty ? nil : transcript
+        return handbook.isEmpty ? nil : handbook
+    }
+
+    /// The season's months as one day book, so the Report Card and the Faculty files count the
+    /// whole term. Weeks stay with their months; the chart is the last month's.
+    static func mergedDayBook(_ chapters: [MonthlyEdition]) -> BoundDayBook? {
+        let books = chapters.compactMap(\.dayBook)
+        guard let last = books.last else { return nil }
+        return BoundDayBook(
+            days: books.flatMap(\.days).sorted { $0.date < $1.date },
+            weeks: [],
+            chart: last.chart,
+            quietDates: books.flatMap(\.quietDates)
+        )
     }
 
     /// Inside a bound volume the quiet "nothing arranged itself into a story"
@@ -2480,6 +2570,8 @@ enum MonthlyEditionBuilder {
     /// did run keeps its "What This Month Was".
     static func asVolumeChapter(_ chapter: MonthlyEdition) -> MonthlyEdition {
         var chapter = chapter
+        // A volume keeps one Handbook for its whole span, not one per month.
+        chapter.handbook = nil
         // A season or a year keeps each story's outcome, not its whole
         // account; the month's own edition carries the full record.
         for index in chapter.sections.indices where chapter.sections[index].id == recordSectionID {
@@ -2835,6 +2927,8 @@ enum MonthlyEditionBuilder {
             term: startDate,
             calendar: calendar
         )
+        let connections = EditionConnections.make(days: monthDays, now: generatedAt, calendar: calendar, limit: 5)
+        assembled.connections = connections.isEmpty ? nil : connections
         return assembled
     }
 
@@ -5263,6 +5357,10 @@ struct WeeklyPublicationMatter: Codable, Equatable {
     var dayBook: BoundDayBook? = nil
     /// What the Academy teaches, set beside the week. Attached with the days.
     var handbook: Handbook? = nil
+    /// What the Book worked out about the reader over this span: a word leant on, what they write
+    /// when it rains, the hour the ink runs heavy. Each with its base rate and the lines it was
+    /// read from. Optional so older editions decode.
+    var connections: [EditionConnection]? = nil
     /// The thickness the reader chose. A weekly Field Book is a magazine: 32
     /// pages unless they asked for 24, 40 or 48.
     var pageTier: Int? = nil
@@ -6037,8 +6135,13 @@ extension AnnualEdition {
     /// Every chapter gives up the same step at once, so no month is gutted
     /// while another keeps its archive. Nil when no chapter can give more.
     func trimmedForPrint() -> AnnualEdition? {
-        var changed = false
         var copy = self
+        // The term's evergreen pages give way before any chapter's days do.
+        if let thinner = handbook?.trimmedOnce() {
+            copy.handbook = thinner
+            return copy
+        }
+        var changed = false
         copy.chapters = chapters.map { chapter in
             guard let smaller = chapter.trimmedForPrint() else { return chapter }
             changed = true

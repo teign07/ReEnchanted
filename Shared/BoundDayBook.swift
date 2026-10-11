@@ -989,7 +989,7 @@ extension BoundDayBook {
 
     /// The opening of a scene for its day: the first paragraph, cut at a
     /// sentence near `words` words. The whole scene is in the Tale.
-    static func opening(of body: String, words limit: Int = 60) -> String {
+    static func opening(of body: String, words limit: Int = 60, gathering minimum: Int = 40) -> String {
         let cleaned = body.replacingOccurrences(of: "\r", with: "")
             .replacingOccurrences(of: "\\{[A-Za-z0-9_.\\-]+\\}", with: "", options: .regularExpression)
             .replacingOccurrences(of: "*", with: "")
@@ -1000,7 +1000,7 @@ extension BoundDayBook {
         for line in cleaned.components(separatedBy: "\n").map({ $0.trimmingCharacters(in: .whitespaces) }) where !line.isEmpty {
             gathered.append(line)
             count += line.split(separator: " ").count
-            if count >= 40 { break }
+            if count >= minimum { break }
         }
         let paragraph = gathered.isEmpty ? cleaned.trimmingCharacters(in: .whitespacesAndNewlines) : gathered.joined(separator: " ")
         let words = paragraph.split(separator: " ")

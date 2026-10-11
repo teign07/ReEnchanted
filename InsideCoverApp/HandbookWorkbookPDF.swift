@@ -44,7 +44,7 @@ extension MonthlyEditionPDFWriter {
         drawEyebrow("Puzzle one", style: style, leaf: &leaf)
         hbText("The Hidden Words", font: .fbSerif(ofSize: 22, weight: .bold), color: ink, leaf: &leaf,
                justified: false, gap: 4)
-        hbText("Every word here is yours: a word that ran through your month, someone from your Cast, a place you've been. They run forwards, backwards and slantwise. Circle them.",
+        hbText("Every word here is yours: a word that ran through your \(periodNoun), someone from your Cast, a place you've been. They run forwards, backwards and slantwise. Circle them.",
                font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.78), leaf: &leaf, justified: false, gap: 12)
 
         let cell = leaf.contentWidth / CGFloat(search.size)
@@ -94,7 +94,7 @@ extension MonthlyEditionPDFWriter {
         var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: "Workbook", headRight: "Puzzles")
         drawEyebrow("Puzzle two", style: style, leaf: &leaf)
         hbText("The Way Through", font: .fbSerif(ofSize: 22, weight: .bold), color: ink, leaf: &leaf, justified: false, gap: 4)
-        hbText("The Labyrinth rearranges itself every month. This is how it lay in yours. In at the top, out at the bottom, and no cheating by tearing the page.",
+        hbText("The Labyrinth rearranges itself every month. This is how it lay in \(handbookTermSpan == nil ? "yours" : "your last one"). In at the top, out at the bottom, and no cheating by tearing the page.",
                font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.78), leaf: &leaf, justified: false, gap: 14)
         let availableH = leaf.bottom - leaf.y - 16
         let cell = min(leaf.contentWidth / CGFloat(maze.width), availableH / CGFloat(maze.height))
@@ -176,7 +176,7 @@ extension MonthlyEditionPDFWriter {
             }
             if !current.isEmpty { lines.append(current) }
             let lineH: CGFloat = 34
-            let introH = FieldText.height("This is a sentence you wrote this month. The Book has scrambled it, one letter for another, always the same swap. Decode it.",
+            let introH = FieldText.height("This is a sentence you wrote \(thisPeriod). The Book has scrambled it, one letter for another, always the same swap. Decode it.",
                                          font: .fbSerifItalic(ofSize: 10), width: width, lineSpacing: 2, paragraphSpacing: 0, justified: false)
             let total = 22 + introH + 10 + CGFloat(lines.count) * lineH + 20
             let title = heading("the Scrambled Line")
@@ -184,7 +184,7 @@ extension MonthlyEditionPDFWriter {
                 (title as NSString).draw(
                     at: CGPoint(x: rect.minX, y: rect.minY),
                     withAttributes: [.font: UIFont.fbSerif(ofSize: 15, weight: .bold), .foregroundColor: ink])
-                FieldText.flow("This is a sentence you wrote this month. The Book has scrambled it, one letter for another, always the same swap. Decode it.",
+                FieldText.flow("This is a sentence you wrote \(thisPeriod). The Book has scrambled it, one letter for another, always the same swap. Decode it.",
                                font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.78),
                                in: CGRect(x: rect.minX, y: rect.minY + 22, width: width, height: introH + 2),
                                lineSpacing: 2, paragraphSpacing: 0, justified: false)
@@ -248,7 +248,7 @@ extension MonthlyEditionPDFWriter {
         if let order = workbook.ordering {
             let rowH: CGFloat = 22
             let total = 22 + 30 + CGFloat(order.events.count) * rowH
-            let title = heading("Put the Month in Order")
+            let title = heading("Put the \(periodNoun.capitalized) in Order")
             items.append(StackItem(height: total) { rect in
                 (title as NSString).draw(
                     at: CGPoint(x: rect.minX, y: rect.minY),

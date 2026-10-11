@@ -26314,16 +26314,16 @@ enum ContextWeave {
         case "weather:cold":
             return Facet(id: facetID, family: family, inPhrase: "on cold days", outPhrase: "on milder days")
         case "body:low":
-            return Facet(id: facetID, family: family, inPhrase: "on days the body arrived tired", outPhrase: "on livelier days")
+            return Facet(id: facetID, family: family, inPhrase: "on days you were tired", outPhrase: "on livelier days")
         case "body:high":
-            return Facet(id: facetID, family: family, inPhrase: "on days the body arrived lively", outPhrase: "on quieter-bodied days")
+            return Facet(id: facetID, family: family, inPhrase: "on days you had energy to spare", outPhrase: "on slower days")
         case "tempo:crowded":
             return Facet(id: facetID, family: family, inPhrase: "on your crowded days", outPhrase: "on days with more room")
         case "tempo:open":
-            return Facet(id: facetID, family: family, inPhrase: "on days the calendar stood open", outPhrase: "on busier days")
+            return Facet(id: facetID, family: family, inPhrase: "on days with nothing planned", outPhrase: "on busier days")
         default:
             if family == "place" {
-                return Facet(id: facetID, family: family, inPhrase: "within reach of the same familiar place", outPhrase: "elsewhere")
+                return Facet(id: facetID, family: family, inPhrase: "near the same familiar place", outPhrase: "anywhere else")
             }
             return Facet(id: facetID, family: family, inPhrase: "while the weather leaned \(value)", outPhrase: "otherwise")
         }
@@ -26506,7 +26506,7 @@ enum ContextWeave {
                 // bare absence. "None" reads as a fact about the world; "I did
                 // not find it" is a fact about the looking, which is all the
                 // Book can actually vouch for.
-                line: "\(word.capitalized) visited \(spelled(unique.count)) Pages \(facet.inPhrase). I did not find it \(facet.outPhrase).",
+                line: "\u{201C}\(word.capitalized)\u{201D} turned up in \(spelled(unique.count)) Pages \(facet.inPhrase). I didn\u{2019}t find it once \(facet.outPhrase).",
                 evidencePageIDs: sorted.suffix(4).map(\.id),
                 strength: min(78, 48 + 5 * min(unique.count, 5) - penalty),
                 inHits: unique.count,

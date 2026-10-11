@@ -553,7 +553,9 @@ enum EditionProofHarness {
         }
 
         step("seasonal") {
-            let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
+            let fieldDays = FieldBookFixture.yearKeepsakes(days: FieldBookFixture.termSittings(
+                days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar), calendar: calendar),
+                calendar: calendar, months: 9...11)
             let season = MonthlyEditionBuilder.seasonal(
                 from: fieldDays, startingMonth: SyntheticReaderYear.date(2026, 9, 1),
                 readerName: reader, authoredReceipts: try FieldBookFixture.receipts(calendar: calendar), calendar: calendar
@@ -571,7 +573,9 @@ enum EditionProofHarness {
         }
 
         step("annual") {
-            let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
+            let fieldDays = FieldBookFixture.yearKeepsakes(days: FieldBookFixture.termSittings(
+                days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar), calendar: calendar),
+                calendar: calendar)
             let annual = MonthlyEditionBuilder.annual(2026, from: fieldDays, readerName: reader,
                 authoredReceipts: try FieldBookFixture.receipts(calendar: calendar), calendar: calendar)
             try MonthlyEditionPDFWriter.writeAnnual(annual, to: directory.appendingPathComponent("annual-reading-copy.pdf"))
@@ -1234,6 +1238,150 @@ enum FieldBookFixture {
                 printedTitle: entry.1, printedBody: entry.2))
         }
         return ledger
+    }
+
+    /// What a real year leaves besides diaries: a letter a month from somebody in the Cast (with
+    /// the reader's answer), a note passed in the corridor, a believing, a quip, and a little story.
+    static func yearKeepsakes(days: [BookDay], calendar: Calendar, months: ClosedRange<Int> = 1...12) -> [BookDay] {
+        let letters: [(String, String, String, String)] = [
+            ("serenity-brown", "A plan, roughly",
+             "Dear you,\n\nI've got a plan and it's mostly a map I drew on a napkin. There's a door in the East Stacks that only opens if you're already late. I'm going to be late on purpose on Thursday. Come and be late with me.\n\nSerenity",
+             "I'll be late. I'm always late. For once it'll be useful."),
+            ("wicker-eddies", "A dare, in writing",
+             "You. Yes, you. I dare you to say good morning to the next person who looks like they don't want one. Report back. I'll know if you lie.\n\nW.E.",
+             "Done. The man at the bus stop said it back. Then he said it again, like he'd been saving it."),
+            ("lydia-boggle", "About your handwriting",
+             "Your sevens look like ones. Fix that. Also, you wrote that the kettle was 'loud.' Loud how? Rattling? Whistling? Shouting your name? Be exact. Exact is the whole job.\n\nL. Boggle",
+             "Rattling, like it's got a coin in it. Which it might."),
+            ("gwendolyn-mythwright", "A creature for your file",
+             "I've opened a file for the thing that lives behind your radiator. Nobody's seen it. That's no reason not to file it. Please send a description, an estimated size, and what it eats. Guess if you must. Guessing is a kind of seeing.\n\nG. Mythwright",
+             "Small. Grey. Eats lost hair ties. Hums when the heating comes on."),
+            ("pippa-pilcrow", "!!",
+             "I hid a comma in your shoe. You'll know it when you find it. It'll make you pause for no reason in the middle of the pavement. That's the point. Pause!\n\nP.P.",
+             "I paused by the river. There was a heron. Thank you for the comma."),
+            ("zara-finch", "The Compass Society wants you",
+             "We walk the edges of things. Fences, tide lines, the end of the bus route. Next meeting's wherever the pavement stops. Bring good shoes and one question you can't answer.\n\nZara",
+             "My question: where does the canal go after the bridge? I've never followed it."),
+            ("penny-blackletter", "Found in the returns slot",
+             "Someone returned a library book with a pressed leaf in it and a note that just says 'sorry.' I thought you should know. I've kept the leaf. The book's back on the shelf. The sorry is in my desk.\n\nPenny",
+             "Keep the sorry safe. Somebody might come back for it."),
+            ("professor-thaddeus-mook", "Re: your map",
+             "Your map of the walk home is wrong in three places and I love it. The bakery isn't that big. The hill isn't that steep. And there isn't a dragon. Keep the dragon.\n\nProf. T. Mook",
+             "The dragon stays. It's the bin outside number 12.")
+        ]
+        let notes: [(String, String)] = [
+            ("wicker-eddies", "Overheard: Serenity says you've got a laugh like a dropped tray. She meant it nicely. Probably."),
+            ("serenity-brown", "Psst. The kitchen's left the back door open again. Toast. Now. Don't tell Ambrose."),
+            ("pippa-pilcrow", "Somebody's full stop ran off in the Great Hall. If you see a small dot moving fast, step on it gently."),
+            ("lydia-boggle", "Noticed you noticed the crack in the stair. Good. Most people don't. Keep doing that."),
+            ("gwendolyn-mythwright", "Filed: one fog-thing, Corridor Three, Tuesday. Your description was the best one I got."),
+            ("zara-finch", "The wall at the end of the Momentum Yard moved about a foot overnight. I measured. Don't tell anyone yet."),
+            ("penny-blackletter", "Someone's been reading the same page of the same book every night at nine. I think it's the book doing it."),
+            ("wicker-eddies", "Bet you can't go a whole day without saying 'sorry.' Loser buys the toast.")
+        ]
+        let believings = [
+            "I believe the bus stop remembers everybody who ever waited at it.",
+            "I believe you're allowed to like small things a lot.",
+            "I believe a kettle that rattles is trying to tell you something nice.",
+            "I believe every street has one window that's on your side.",
+            "I believe you can start again on a Wednesday. Mondays don't own it.",
+            "I believe the river knows your name by now. You've walked past it enough.",
+            "I believe crumbs on the page mean it was a good page.",
+            "I believe somebody, somewhere, is glad you exist and hasn't said so yet."
+        ]
+        let quips = [
+            "The cat isn't ignoring you. It's pretending to be furniture. Badly.",
+            "Toast is just bread that's been through something.",
+            "Every umbrella is an optimist.",
+            "The stairs are longer on Mondays. I've checked.",
+            "Socks go missing because they've got somewhere better to be.",
+            "A queue is a story everybody's in the middle of."
+        ]
+        let vignettes: [(String, String)] = [
+            ("The Lamp That Waited", "There was a lamp in a window that nobody switched off. It wasn't forgotten. It was waiting.\n\nOne night a man came home very late, and the lamp was still on, and he stood on the step for a long time just looking at it.\n\nThen he went in, and the lamp went out by itself, like it had finished its sentence."),
+            ("The Bench by the Water", "A bench by the water kept every conversation anybody had on it. Not the words. Just the shape of them, worn into the wood.\n\nIf you sit very still you can feel where two people leaned towards each other once. It's the smoothest part."),
+            ("What the Snow Said", "The snow came down on Tuesday and said nothing at all, which is its whole trick.\n\nEverybody stopped talking to listen to it. That was the most anyone had listened to anything all year."),
+            ("The Last Bus", "The last bus has a driver who hums. Nobody knows the song.\n\nOne night a girl hummed it back, and he looked at her in the mirror like she'd said his real name.\n\nThey didn't speak. The bus went the long way round."),
+            ("A Door, Repainted", "A door got painted blue and spent the whole week feeling brave about it.\n\nThe neighbours said nothing. The postman said 'nice.' That was enough. Doors don't need much."),
+            ("The Key in the Drawer", "There's a key in every kitchen drawer that doesn't open anything.\n\nThat's what people think. It opens the drawer's memory of the house before. You just have to turn it in the right direction, which is backwards.")
+        ]
+        let names = ["serenity-brown": "Serenity Brown", "wicker-eddies": "Wicker Eddies", "lydia-boggle": "Lydia Boggle",
+                     "gwendolyn-mythwright": "Gwendolyn Mythwright", "pippa-pilcrow": "Pippa Pilcrow", "zara-finch": "Zara Finch",
+                     "penny-blackletter": "Penny Blackletter", "professor-thaddeus-mook": "Thaddeus Mook"]
+        var days = days
+        func add(_ page: BookPage, month: Int, day: Int) {
+            let date = SyntheticReaderYear.date(2026, month, day, hour: 0)
+            if let index = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
+                days[index].pages.append(page)
+            } else {
+                days.append(BookDay(id: BookDay.id(for: date, calendar: calendar), date: calendar.startOfDay(for: date), pages: [page]))
+            }
+        }
+        for month in months {
+            let i = month - 1
+            let letter = letters[i % letters.count]
+            var page = BookPage(type: .letter, createdAt: SyntheticReaderYear.date(2026, month, 4 + i % 5, hour: 8),
+                                promptText: "A letter from \(names[letter.0] ?? "a friend")", userInput: letter.2,
+                                playerReply: letter.3, origin: .generated)
+            page.metadata = ["castID": letter.0, "speakerName": names[letter.0] ?? "", "title": letter.1]
+            add(page, month: month, day: 4 + i % 5)
+            let note = notes[(i + 3) % notes.count]
+            var gossip = BookPage(type: .gossip, createdAt: SyntheticReaderYear.date(2026, month, 11 + i % 4, hour: 14),
+                                  promptText: "A note", userInput: note.1, origin: .generated)
+            gossip.metadata = ["castID": note.0, "speakerName": names[note.0] ?? ""]
+            add(gossip, month: month, day: 11 + i % 4)
+            add(BookPage(type: .affirmations, createdAt: SyntheticReaderYear.date(2026, month, 16 + i % 3, hour: 9),
+                         promptText: believings[i % believings.count], origin: .generated), month: month, day: 16 + i % 3)
+            add(BookPage(type: .quip, createdAt: SyntheticReaderYear.date(2026, month, 20 + i % 3, hour: 13),
+                         promptText: quips[i % quips.count], origin: .generated), month: month, day: 20 + i % 3)
+            let story = vignettes[i % vignettes.count]
+            add(BookPage(type: .narrativeOS, createdAt: SyntheticReaderYear.date(2026, month, 24 + i % 3, hour: 20),
+                         promptText: story.0, userInput: story.1, origin: .generated), month: month, day: 24 + i % 3)
+        }
+        return days
+    }
+
+    /// A term's worth of class sittings for the season proof: the same rooms in different months,
+    /// each page remembering the lesson it was, some with the worksheet brought back.
+    static func termSittings(days: [BookDay], calendar: Calendar) -> [BookDay] {
+        var days = days
+        let sittings: [(month: Int, day: Int, session: String, name: String, lesson: String, body: String, answer: String?)] = [
+            (9, 9, "art-of-the-glint", "The Glint", "glint-specificity-001",
+             "Boggle asked which side the door handle was on. You said left. It was right.",
+             "The thing: the bread bin. Three facts: a dent on the lid, a sticker from 2019, it hums when the fridge does."),
+            (9, 16, "marginalia-guild", "The Marginalia Guild", "marginalia-annotation-001",
+             "The guild met in the Corridor of Whispered Secrets and wrote back to a book that had been left open.",
+             "The line: 'The sea was not a mask.' My note: then what was it wearing?"),
+            (9, 23, "quiet-hours", "Quiet Hours", "quiet-hours-integration-001",
+             "Ten minutes in the Walled Garden with nothing to do. You counted the greens.", nil),
+            (10, 15, "wayfinding-kineticism", "Wayfinding", "wayfinding-ticket-002",
+             "Momort handed out tickets with nothing written on them.",
+             "Where: the bench by the water, past the green door on Mill Lane. When: Saturday, nine o'clock. How: on foot, the long way."),
+            (10, 22, "art-of-the-glint", "The Glint", "glint-gorilla-002",
+             "Boggle played the gorilla film. You missed the gorilla, then counted red umbrellas all week.",
+             "What I hunted for: red umbrellas. How many: eleven, two inside out. What I nearly walked past: a heron on the canal wall."),
+            (11, 10, "art-of-the-glint", "The Glint", "glint-filter-003",
+             "Boggle tipped a tin of buttons on the table and asked about the cracks.",
+             "First: the bus came early. Second: a stranger held the door with her elbow. Third: the toast didn't burn."),
+            (11, 18, "marginalia-guild", "The Marginalia Guild", "marginalia-fermat-002",
+             "The guild talked about Fermat, and the margin that was too small.", nil)
+        ]
+        for sitting in sittings {
+            let date = SyntheticReaderYear.date(2026, sitting.month, sitting.day, hour: 0)
+            var page = BookPage(type: sitting.session.hasSuffix("guild") ? .supportGuild : .academyClass,
+                                createdAt: SyntheticReaderYear.date(2026, sitting.month, sitting.day, hour: 16),
+                                promptText: sitting.name, userInput: sitting.body, origin: .generated)
+            var meta = ["sessionID": sitting.session, "sessionName": sitting.name]
+            if AcademyCurriculum.lesson(id: sitting.lesson) != nil { meta["lessonModuleID"] = sitting.lesson }
+            if let answer = sitting.answer { meta["academyActivityOutcome"] = answer }
+            page.metadata = meta
+            if let index = days.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: date) }) {
+                days[index].pages.append(page)
+            } else {
+                days.append(BookDay(id: BookDay.id(for: date, calendar: calendar), date: calendar.startOfDay(for: date), pages: [page]))
+            }
+        }
+        return days
     }
 
     static func augment(days: [BookDay], directory: URL, calendar: Calendar) throws -> [BookDay] {

@@ -218,7 +218,7 @@ enum BindingRevelations {
     private static func sensoryTitle(kind: Kind, value: String) -> String {
         switch kind {
         case .recurringSubject: return "You kept photographing \(value)"
-        case .recurringPalette: return "Your month ran \(value)"
+        case .recurringPalette: return "Your pictures ran \(value)"
         case .recurringPlace: return "\(value.capitalizedFirst) kept showing up"
         default: return value
         }
@@ -228,11 +228,11 @@ enum BindingRevelations {
         let days = dayCount == 1 ? "one day" : "\(dayCount) separate days"
         switch kind {
         case .recurringSubject:
-            return "It appears in what you kept on \(days). I doubt you were counting. Something in it keeps asking to be looked at again."
+            return "It\u{2019}s in what you kept on \(days). I don\u{2019}t think you were counting. Something about it keeps wanting another look."
         case .recurringPalette:
-            return "\(days.capitalizedFirst) of your images came back in this register. Not a decision you made: just the light you kept walking into."
+            return "Your pictures came out this colour on \(days). You didn\u{2019}t choose it. It\u{2019}s just the light you kept walking into."
         case .recurringPlace:
-            return "This place stands behind \(days) of what you kept. Rooms get into writing without being written about."
+            return "This place is behind what you kept on \(days). Places get into your writing even when you don\u{2019}t write about them."
         default:
             return ""
         }
@@ -280,7 +280,7 @@ enum BindingRevelations {
                 id: "\(Kind.recurringWord.rawValue):\(word)",
                 kind: .recurringWord,
                 title: "You kept saying \u{201C}\(word)\u{201D}",
-                body: "\(count) times, across \(dayCount) of your \(writtenDays) written days. You may not have repeated it on purpose. A word returning this often earns a ribbon; I\u{2019}m not deciding why.",
+                body: "You said it \(count) times, on \(dayCount) of the \(writtenDays) days you wrote. I don\u{2019}t think you meant to. I\u{2019}m not going to guess why. I just thought you should know.",
                 evidence: evidence(from: sourcePages, limit: 3),
                 strength: 55 + count * 3
             )
@@ -313,7 +313,7 @@ enum BindingRevelations {
             let register = tone == .heavy ? "heaviest" : "brightest"
             return (
                 "Your ink runs \(register) \(dayPartPhrase(part))",
-                "\(hits) of the \(total) pages you wrote \(dayPartPhrase(part)) lean that way. The hour you write in is doing more work than it gets credit for."
+                "\(hits) of the \(total) pages you wrote \(dayPartPhrase(part)) go that way. The hour you write in matters more than you\u{2019}d think."
             )
         }
     }
@@ -338,7 +338,7 @@ enum BindingRevelations {
             let register = tone == .heavy ? "heavier" : "brighter"
             return (
                 "\(weather.capitalizedFirst) makes your writing \(register)",
-                "You wrote \(total) times when it was \(weather). \(hits) of those ran \(register) than your usual. The weather gets into the ink whether or not it gets into the sentence."
+                "You wrote \(total) times when it was \(weather). \(hits) of those came out \(register) than usual. The weather gets into your ink, even when you don\u{2019}t write about it."
             )
         }
     }
@@ -441,7 +441,7 @@ enum BindingRevelations {
                 id: "\(Kind.saidItTwice.rawValue):\(best.left.id):\(best.right.id)",
                 kind: .saidItTwice,
                 title: "You wrote this twice, \(gap) days apart",
-                body: "Not a quotation: you had forgotten the first one. Whatever this is, it came back on its own, which is the only kind of evidence I fully trust.",
+                body: "You didn\u{2019}t copy it. I think you\u{2019}d forgotten the first time. It came back all by itself, and that\u{2019}s the kind of thing I believe most.",
                 evidence: evidence(from: [best.left, best.right], limit: 2),
                 strength: 70 + Int(best.score * 30)
             )
@@ -476,7 +476,7 @@ enum BindingRevelations {
                 id: "\(Kind.returnAfterSilence.rawValue):\(Int(widest.resumed.timeIntervalSince1970))",
                 kind: .returnAfterSilence,
                 title: "\(widest.gap) days of nothing, and then you came back",
-                body: "I am not scoring the gap. Something was happening in it, and none of it was written down. The page after it is still evidence of a return. I kept that part.",
+                body: "I\u{2019}m not cross about the gap. Things happened in it. They just didn\u{2019}t get written down. Then you came back, and I kept the page you came back with.",
                 evidence: evidence(from: returning, limit: 2),
                 strength: 50 + widest.gap * 2
             )
@@ -518,5 +518,69 @@ private extension String {
     var capitalizedFirst: String {
         guard let first else { return self }
         return String(first).uppercased() + dropFirst()
+    }
+}
+
+// MARK: - Connections, for print
+
+/// One thing the Book worked out about the reader, as an edition prints it: a short name, the
+/// Book's reading with its base rate, and the reader's own lines it was read from.
+struct EditionConnection: Codable, Equatable, Identifiable {
+    var id: String
+    var title: String
+    var reading: String
+    var evidence: [BindingRevelations.Evidence]
+    var strength: Int
+}
+
+enum EditionConnections {
+    /// The span's connections, strongest first: the whole-span readings (a word leant on, the
+    /// hour the ink runs heavy, nearly the same sentence twice) and the context ones (what the
+    /// reader writes when it rains, after dark, on weekends). Each one states its hits and its
+    /// base rate, or it doesn't bind. Where both engines found the same weather or hour, the
+    /// one with more behind it speaks.
+    static func make(days: [BookDay], now: Date = Date(), calendar: Calendar = .current, limit: Int = 6) -> [EditionConnection] {
+        let pages = days.flatMap(\.pages)
+        let byID = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let revelations = BindingRevelations.find(pages: pages, now: now, calendar: calendar, limit: limit)
+        var out: [EditionConnection] = revelations.map {
+            EditionConnection(id: "revelation-\($0.id)", title: $0.title, reading: $0.body, evidence: $0.evidence, strength: $0.strength)
+        }
+        let revealed = Set(revelations.map(\.kind))
+        // One finding per kind of condition, and one "this word only turns up when…": three of
+        // those in a row reads like a list, not a reading.
+        var families = Set<String>()
+        var subjects = 0
+        let woven = ContextWeave.connections(days: days, calendar: calendar).sorted { $0.strength > $1.strength }
+        for connection in woven {
+            let family = connection.facetID.split(separator: ":").first.map(String.init) ?? ""
+            guard families.insert(family).inserted else { continue }
+            if connection.kind == .subject {
+                guard subjects == 0 else { continue }
+                subjects += 1
+            }
+            if family == "weather", revealed.contains(.weatherAndInk) { continue }
+            if family == "hour", revealed.contains(.hourOfHonesty) { continue }
+            let evidence = connection.evidencePageIDs.compactMap { id -> BindingRevelations.Evidence? in
+                guard let page = byID[id] else { return nil }
+                let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else { return nil }
+                let words = text.split(separator: " ")
+                let excerpt = words.count > 22 ? words.prefix(22).joined(separator: " ") + "…" : text
+                return BindingRevelations.Evidence(date: page.createdAt, excerpt: excerpt)
+            }
+            out.append(EditionConnection(id: connection.id, title: connection.headline, reading: connection.line,
+                                         evidence: Array(evidence.prefix(3)), strength: connection.strength))
+        }
+        // The same sentence twice isn't two pieces of evidence (except where that's the point).
+        for index in out.indices where !out[index].id.contains("saidItTwice") && !out[index].title.contains("twice") {
+            var seen = Set<String>()
+            out[index].evidence = out[index].evidence.filter { seen.insert($0.excerpt.lowercased()).inserted }
+        }
+        var seenTitles = Set<String>()
+        return out.sorted { $0.strength != $1.strength ? $0.strength > $1.strength : $0.id < $1.id }
+            .filter { seenTitles.insert($0.title + $0.reading.prefix(24)).inserted }
+            .prefix(limit)
+            .map { $0 }
     }
 }

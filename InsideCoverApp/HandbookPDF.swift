@@ -79,6 +79,14 @@ extension MonthlyEditionPDFWriter {
 
     // MARK: Entry point
 
+    /// Set while a season's Handbook is drawn: the span of its months ("September to November"),
+    /// so the coursework talks about a term instead of a month.
+    static var handbookTermSpan: String?
+    /// "term" for a season, "year" for the annual; read only while `handbookTermSpan` is set.
+    static var handbookPeriod = "term"
+    static var periodNoun: String { handbookTermSpan == nil ? "month" : handbookPeriod }
+    static var thisPeriod: String { "this \(periodNoun)" }
+
     static func drawHandbook(
         _ handbook: Handbook,
         readerName: String,
@@ -97,6 +105,7 @@ extension MonthlyEditionPDFWriter {
         if showsContents {
             drawCourseContents(handbook, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
         }
+        drawTranscript(handbook.transcript ?? [], style: style, context: context, cursor: &cursor)
         for lesson in handbook.lessons {
             // A lesson whose lecture leaves room carries its practice on the same leaf; only a long one
             // needs a leaf of its own for the worksheet.
@@ -146,10 +155,11 @@ extension MonthlyEditionPDFWriter {
         // Every room the reader sat, written up or not.
         let sat = rooms.filter(\.attended).count
         let month = monthName(monthNumber)
-        let course = "Every room teaches a new lesson each month, and everybody in the Academy gets the same one. Stay a whole year and you've had the lot. These are \(month)'s."
+        let course = "Every room teaches a new lesson each month, and everybody in the Academy gets the same one. Stay a whole year and you've had the lot. "
+            + (handbookTermSpan.map { "This \(handbookPeriod) ran \($0). Where you sat a room more than once, here's the last lesson you had." } ?? "These are \(month)'s.")
         let intro: String
         if sat == 0 {
-            intro = course + " You didn't get to any of them this month, so I sat in one for you and wrote it all down. The others saved your seat."
+            intro = course + " You didn't get to any of them \(thisPeriod), so I sat in one for you and wrote it all down. The others saved your seat."
         } else {
             let words = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
             let count = sat <= words.count ? words[sat - 1] : "\(sat)"
@@ -218,6 +228,79 @@ extension MonthlyEditionPDFWriter {
         }
     }
 
+    // MARK: The term's register
+
+    /// Every class the reader sat this term, in order: the date, the room, the lesson it was, and
+    /// what they wrote, in their hand. It reads like a register because it is one.
+    private static func drawTranscript(
+        _ sittings: [HandbookSitting], style: EditionStyle, context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor
+    ) {
+        guard !sittings.isEmpty else { return }
+        let ink = style.palette.ink
+        func freshLeaf(_ continued: Bool) -> PDFCursor {
+            fieldLeaf(&cursor, style: style, context: context, headLeft: "The Handbook",
+                      headRight: continued ? "The Register, continued" : "The Register")
+        }
+        var leaf = freshLeaf(false)
+        drawEyebrow("Every room you sat", style: style, leaf: &leaf)
+        ("The Register" as NSString).draw(
+            at: CGPoint(x: leaf.left, y: leaf.y),
+            withAttributes: [.font: UIFont.fbSerif(ofSize: 24, weight: .bold), .foregroundColor: ink])
+        leaf.y += 36
+        let rooms = Set(sittings.map(\.sessionID)).count
+        let written = sittings.filter { $0.answer != nil }.count
+        let words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve"]
+        func say(_ n: Int) -> String { n < words.count ? words[n] : "\(n)" }
+        var intro = "You sat \(say(sittings.count)) \(sittings.count == 1 ? "class" : "classes") \(thisPeriod)"
+        intro += rooms > 1 ? ", in \(say(rooms)) different rooms." : "."
+        intro += written > 0
+            ? " You brought \(written == sittings.count ? "every one" : say(written)) back with something written on \(written == 1 ? "it" : "them"). It's copied in here, in your hand."
+            : " Next \(periodNoun), bring one back with something written on it. I'll copy it in."
+        hbText(intro, font: .fbSerifItalic(ofSize: 10.6), color: ink.withAlphaComponent(0.82), leaf: &leaf, justified: false, gap: 14)
+
+        let monthTitle = DateFormatter(); monthTitle.dateFormat = "MMMM"
+        let dayFormat = DateFormatter(); dayFormat.dateFormat = "EEE d"
+        let calendar = Calendar.current
+        var shownMonth = -1
+        let truncating = NSMutableParagraphStyle()
+        truncating.lineBreakMode = .byTruncatingTail
+        let handAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10), .foregroundColor: readerInk]
+        let indent: CGFloat = 46
+        for sitting in sittings {
+            var answerHeight: CGFloat = 0
+            let quote = sitting.answer.map { "\u{201C}\($0)\u{201D}" as NSString }
+            if let quote {
+                answerHeight = min(handFont(10).lineHeight * 3 + 2, ceil(quote.boundingRect(
+                    with: CGSize(width: leaf.contentWidth - indent, height: .greatestFiniteMagnitude),
+                    options: [.usesLineFragmentOrigin], attributes: handAttributes, context: nil).height)) + 4
+            }
+            let month = calendar.component(.month, from: sitting.date)
+            let needed = 34 + answerHeight + (month != shownMonth ? 20 : 0)
+            if leaf.y + needed > leaf.bottom { leaf = freshLeaf(true); shownMonth = -1 }
+            if month != shownMonth {
+                drawEyebrow(monthTitle.string(from: sitting.date), style: style, leaf: &leaf)
+                shownMonth = month
+            }
+            drawTracked(dayFormat.string(from: sitting.date), at: CGPoint(x: leaf.left, y: leaf.y + 3), font: smallCaps(6.8),
+                        color: ink.withAlphaComponent(0.5), tracking: 1)
+            (sitting.room as NSString).draw(
+                at: CGPoint(x: leaf.left + indent, y: leaf.y),
+                withAttributes: [.font: UIFont.fbSerif(ofSize: 11.5, weight: .semibold), .foregroundColor: ink])
+            let number = sitting.lessonNumber.map { "Lesson \(RomanNumeral.of($0)): " } ?? ""
+            ("\(number)\(sitting.lessonTitle) · \(sitting.leader)" as NSString).draw(
+                in: CGRect(x: leaf.left + indent, y: leaf.y + 15, width: leaf.contentWidth - indent, height: 13),
+                withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 8.8), .foregroundColor: ink.withAlphaComponent(0.6),
+                                 .paragraphStyle: truncating])
+            leaf.y += 32
+            if let quote {
+                quote.draw(with: CGRect(x: leaf.left + indent, y: leaf.y - 3, width: leaf.contentWidth - indent, height: answerHeight - 4),
+                           options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: handAttributes, context: nil)
+                leaf.y += answerHeight
+            }
+            leaf.y += 4
+        }
+    }
+
     // MARK: Lecture leaf
 
     /// Returns whether the lesson's practice was set on this same leaf.
@@ -251,8 +334,8 @@ extension MonthlyEditionPDFWriter {
         hbText(taught, font: .fbSerifItalic(ofSize: 10), color: ink.withAlphaComponent(0.7),
                leaf: &leaf, width: headWidth, justified: false, gap: 4)
         let presence = lesson.attended
-            ? "You were in the room\(lesson.attendedCount > 1 ? " \(lesson.attendedCount) times" : "") this month."
-            : "You weren't there this month, so I sat in your seat and wrote it down for you."
+            ? "You were in the room\(lesson.attendedCount > 1 ? " \(lesson.attendedCount) times" : "") \(thisPeriod)."
+            : "You weren't there \(thisPeriod), so I sat in your seat and wrote it down for you."
         hbText(presence, font: .fbSerifItalic(ofSize: 9.2), color: style.palette.accent, leaf: &leaf,
                width: headWidth, justified: false, gap: 4)
         leaf.y = max(leaf.y, portraitBox.minY + 92)
@@ -371,7 +454,7 @@ extension MonthlyEditionPDFWriter {
             at: CGPoint(x: leaf.left, y: leaf.y),
             withAttributes: [.font: UIFont.fbSerif(ofSize: 24, weight: .bold), .foregroundColor: ink])
         leaf.y += 36
-        hbText("These rooms met this month without you. I've saved you the best bit of each. It takes two minutes, and you can do it anywhere.",
+        hbText("These rooms met \(thisPeriod) without you. I've saved you the best bit of each. It takes two minutes, and you can do it anywhere.",
                font: .fbSerifItalic(ofSize: 10.6), color: ink.withAlphaComponent(0.82), leaf: &leaf, justified: false, gap: 16)
 
         let width = leaf.contentWidth
@@ -560,7 +643,7 @@ extension MonthlyEditionPDFWriter {
 
             // This month first: where the reader met them, and what they said.
             if !person.scenesThisMonth.isEmpty || !person.saidThisMonth.isEmpty {
-                drawEyebrow("In \(person.monthName ?? "this month")", style: style, leaf: &leaf)
+                drawEyebrow(handbookTermSpan == nil ? "In \(person.monthName ?? "this month")" : "This \(handbookPeriod)", style: style, leaf: &leaf)
                 if !person.scenesThisMonth.isEmpty {
                     // "3 more" is a count, not a title: it isn't set in italics.
                     let list = ListFormatter.localizedString(byJoining: person.scenesThisMonth.map {
@@ -721,7 +804,7 @@ extension MonthlyEditionPDFWriter {
                             color: ink.withAlphaComponent(0.5), tracking: 1.0)
             }
         }
-        drawStack(items, head: "The Bestiary", kicker: "Creatures you filed this month", headRight: "Handbook",
+        drawStack(items, head: "The Bestiary", kicker: "Creatures you filed \(thisPeriod)", headRight: "Handbook",
                   style: style, context: context, cursor: &cursor, gap: 14)
     }
 

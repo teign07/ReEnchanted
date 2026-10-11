@@ -601,6 +601,12 @@ enum MonthlyEditionPDFWriter {
         // The Handbook closes the volume's matter: the term's coursework, the
         // Faculty files, the lore set for this reader, the creatures they filed,
         // the spell sheets, the puzzles, the Examination and the Report Card.
+        if edition.dayBook != nil, let connections = edition.connections, !connections.isEmpty {
+            let bare = DateFormatter()
+            bare.dateFormat = "MMMM"
+            drawConnections(connections, span: "the whole of \(bare.string(from: edition.startDate))", style: style,
+                            context: context, cursor: &cursor)
+        }
         if let handbook = edition.handbook, !handbook.isEmpty {
             drawHandbook(
                 handbook, readerName: edition.coverReaderName,
@@ -635,7 +641,8 @@ enum MonthlyEditionPDFWriter {
 
     /// The sections the day-by-day volume carries in its days instead.
     static func fieldBookReplaces(_ sectionID: String, in edition: MonthlyEdition) -> Bool {
-        edition.dayBook != nil && ["daily-braids", "souvenirs", "images"].contains(sectionID)
+        edition.dayBook != nil && (["daily-braids", "souvenirs", "images"].contains(sectionID)
+            || (sectionID == "what-i-noticed" && !(edition.connections ?? []).isEmpty))
     }
 
     /// The Inscription is a commissioned threshold book, not a one-day monthly
@@ -2057,6 +2064,9 @@ enum MonthlyEditionPDFWriter {
     ) {
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "volume-\(annual.startDate.timeIntervalSinceReferenceDate)-\(annual.endDate.timeIntervalSinceReferenceDate)"
+        let isYear = annual.publicationKind != .seasonal
+        volumeNoun = isYear ? "year" : "term"
+        defer { volumeNoun = "term" }
         let designRect = CGRect(origin: .zero, size: designSize)
 
         context.beginPage()
@@ -2089,8 +2099,8 @@ enum MonthlyEditionPDFWriter {
             style: annualStyle, context: context, cursor: &cursor
         )
 
-        beginComposedPage(context, style: annualStyle, cursor: &cursor)
-        drawAnnualContents(annual, style: annualStyle, cursor: &cursor)
+        drawSeasonContents(annual, plateCount: seasonPlates(annual, calendar: .current).count,
+                           style: annualStyle, context: context, cursor: &cursor)
 
         if let matter = annual.publicationMatter {
             if !matter.almanacItems.isEmpty {
@@ -2128,10 +2138,37 @@ enum MonthlyEditionPDFWriter {
         drawVolumeCast(annual.chapters, title: annual.title, style: annualStyle,
                        limit: annual.publicationKind == .annual ? 6 : 4, context: context, cursor: &cursor)
 
+        // Seasons and years are both books in three parts now: the days, the pictures, the Academy.
+        let isSeason = true
+        let seasonPlates = seasonPlates(annual, calendar: .current)
+        do {
+            let months = annual.chapters.map(\.monthName)
+            let span = months.count > 1 ? "\(months.dropLast().joined(separator: ", ")) and \(months.last!)" : months.joined()
+            drawPartOpener("Part One", title: isYear ? "Your Year" : "Your Days",
+                           dek: isYear
+                               ? "Twelve months. The fullest days of each, whole: what you wrote, who wrote to you, what you kept, and what the Labyrinth was doing. Then a line or two from every other day you wrote in. Every one of them is in here somewhere."
+                               : "\(span). Every day you wrote in, in your own words, with what you kept and what the Labyrinth was doing around you.",
+                           monthNumber: Calendar.current.component(.month, from: annual.startDate),
+                           style: annualStyle, context: context, cursor: &cursor)
+        }
+
         for chapter in annual.chapters {
             let chapterStyle = EditionStyle.style(for: chapter)
             let marginalia = marginNotes(for: chapter)
             var marginaliaIndex = 0
+            // A season binds each month's days in full; a month the Field Book can't set yet
+            // (no day book) falls back to the old chapter below.
+            if isSeason, chapter.dayBook != nil {
+                cursor.seed = "season-\(annual.year)-\(chapter.monthName)"
+                context.beginPage()
+                cursor.pageIndex += 1
+                withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
+                    drawChapterDivider(chapter, style: chapterStyle, bounds: designRect)
+                }
+                drawSeasonMonth(chapter, plates: seasonPlates, marginalia: marginalia,
+                                curated: isYear ? yearbookDaysPerMonth : nil, context: context, cursor: &cursor)
+                continue
+            }
             cursor.seed = "annual-\(annual.year)-\(chapter.monthName)"
 
             context.beginPage()
@@ -2185,6 +2222,26 @@ enum MonthlyEditionPDFWriter {
             }
         }
 
+        if isSeason {
+            drawSeasonPictures(seasonPlates, annual: annual, style: annualStyle, context: context, cursor: &cursor)
+            if let handbook = annual.handbook, !handbook.isEmpty, let first = annual.chapters.first {
+                let bare = DateFormatter()
+                bare.dateFormat = "MMMM"
+                let months = annual.chapters.map { bare.string(from: $0.startDate) }
+                let span = months.count > 1 ? "\(months.first!) to \(months.last!)" : months.joined()
+                drawPartOpener(seasonPlates.isEmpty ? "Part Two" : "Part Three", title: isYear ? "The Academy Year" : "The Term",
+                               dek: "What the Academy taught from \(span), the people you met, what you filed, and the \(volumeNoun)'s examination.",
+                               monthNumber: Calendar.current.component(.month, from: annual.endDate),
+                               style: annualStyle, context: context, cursor: &cursor)
+                handbookTermSpan = span
+                handbookPeriod = volumeNoun
+                defer { handbookTermSpan = nil; handbookPeriod = "term" }
+                drawHandbook(handbook, readerName: first.coverReaderName, termLabel: annual.title,
+                             monthNumber: Calendar.current.component(.month, from: annual.endDate),
+                             style: annualStyle, context: context, cursor: &cursor)
+            }
+        }
+
         let playLeaves = annual.playLeaves ?? []
         drawEditionPlayLeaves(
             playLeaves.filter { $0.definition.templateSlot == .seasonFinale },
@@ -2202,11 +2259,17 @@ enum MonthlyEditionPDFWriter {
             }
         }
 
-        if annual.publicationKind == .annual, let ledger = annual.nightsLedger, !ledger.isEmpty {
-            drawNightsLedger(ledger, year: annual.year, style: annualStyle, context: context, cursor: &cursor)
+        if let ledger = annual.nightsLedger, !ledger.isEmpty {
+            drawNightsLedger(ledger, year: annual.year, term: !isYear, style: annualStyle, context: context, cursor: &cursor)
         }
 
-        if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
+        if let connections = annual.connections, !connections.isEmpty {
+            drawConnections(connections, span: isYear ? "the whole year" : "the whole term", style: annualStyle,
+                            context: context, cursor: &cursor)
+        }
+        if isSeason, let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
+            drawSeasonKeptComingBack(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
+        } else if let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
             drawAnnualMemorySpine(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)
         }
 
@@ -2217,8 +2280,14 @@ enum MonthlyEditionPDFWriter {
             cursor: &cursor
         )
 
+        if isSeason {
+            drawEditionPlayAnswerKeys(playLeaves, style: annualStyle, context: context, cursor: &cursor)
+        }
         drawAnnualColophon(annual, style: annualStyle, context: context, cursor: &cursor)
     }
+
+    /// How many of each month's days the year's book prints whole.
+    static let yearbookDaysPerMonth = 7
 
     private static func drawVolumeCabinet(
         title: String,
@@ -7080,6 +7149,11 @@ enum WeeklyIssuePDFWriter {
             dayCount: WeeklyIssue.weekDays,
             term: issue.startDate
         )
+        let calendar = Calendar.current
+        let weekDays = Dictionary(grouping: issue.pages) { calendar.startOfDay(for: $0.createdAt) }
+            .map { BookDay(id: BookDay.id(for: $0.key, calendar: calendar), date: $0.key, pages: $0.value) }
+        let connections = EditionConnections.make(days: weekDays, now: issue.endDate, calendar: calendar, limit: 2)
+        field.connections = connections.isEmpty ? nil : connections
         return field
     }
 

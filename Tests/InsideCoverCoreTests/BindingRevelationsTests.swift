@@ -55,7 +55,7 @@ final class BindingRevelationsTests: XCTestCase {
         }
         XCTAssertTrue(word.title.contains("harbour"), word.title)
         // Two-sided honesty: the claim must carry its base rate, not just its hits.
-        XCTAssertTrue(word.body.contains("written days"), word.body)
+        XCTAssertTrue(word.body.contains("of the 7 days you wrote"), word.body)
         XCTAssertFalse(word.evidence.isEmpty)
     }
 

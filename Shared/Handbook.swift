@@ -92,6 +92,17 @@ struct HandbookSpell: Codable, Equatable, Identifiable {
     var timesCast: Int
 }
 
+/// One class the reader sat: the room, the lesson that month, and their answer if they wrote one.
+struct HandbookSitting: Codable, Equatable {
+    var date: Date
+    var sessionID: String
+    var room: String
+    var leader: String
+    var lessonNumber: Int?
+    var lessonTitle: String
+    var answer: String?
+}
+
 struct Handbook: Codable, Equatable {
     var lessons: [HandbookLesson]
     var lore: [HandbookLoreEntry]
@@ -115,6 +126,9 @@ struct Handbook: Codable, Equatable {
     /// Rooms the reader sat beyond the three written up in full: named on the contents leaf with a
     /// line of what they brought back, so a busy month doesn't turn into a textbook.
     var alsoSat: [HandbookLesson]? = nil
+    /// A term's register: every class the reader sat across a season, in order, with the lesson it
+    /// was and what they brought back. Seasons only; a month's contents leaf already says it.
+    var transcript: [HandbookSitting]? = nil
 
     var isEmpty: Bool {
         lessons.isEmpty && (openSeats ?? []).isEmpty && (alsoSat ?? []).isEmpty && lore.isEmpty && compass.isEmpty && dossiers.isEmpty && bestiary.isEmpty
@@ -298,6 +312,33 @@ enum HandbookBuilder {
 
     /// Every room, as this month taught it. A room the reader sat prints the lesson they sat (the
     /// page remembers it); the rest print the month's lesson from `AcademyCurriculum`.
+    /// Every class sitting in `pages`, oldest first. A room sat twice for the same lesson is one line,
+    /// keeping the answer the reader wrote last.
+    static func transcript(from pages: [BookPage], calendar: Calendar = .current) -> [HandbookSitting] {
+        let sessions = AcademyScheduleRegistry.classes.merging(AcademyScheduleRegistry.clubs) { first, _ in first }
+        var out: [HandbookSitting] = []
+        var index: [String: Int] = [:]
+        for page in pages.sorted(by: { $0.createdAt < $1.createdAt })
+        where [.academyClass, .elective, .supportGuild, .bookJump].contains(page.type) {
+            guard let sessionID = page.metadata?["sessionID"], let session = sessions[sessionID] else { continue }
+            let module = page.metadata?["lessonModuleID"].flatMap { AcademyCurriculum.lesson(id: $0) }
+                ?? AcademyCurriculum.lesson(for: sessionID, on: page.createdAt, calendar: calendar)
+            guard let module else { continue }
+            let answer = page.metadata?["academyActivityOutcome"]?.nonEmptyValue
+            let key = "\(sessionID)|\(module.id)"
+            if let at = index[key] {
+                if let answer { out[at].answer = answer }
+                continue
+            }
+            index[key] = out.count
+            out.append(HandbookSitting(
+                date: page.createdAt, sessionID: sessionID, room: session.name, leader: session.leader,
+                lessonNumber: AcademyCurriculum.lessonCount(for: sessionID) > 1 ? module.number : nil,
+                lessonTitle: module.title, answer: answer))
+        }
+        return out
+    }
+
     static func lessons(from pages: [BookPage], term: Date? = nil, calendar: Calendar = .current) -> [HandbookLesson] {
         var attendance: [String: Int] = [:]
         var entries: [String: (date: Date, text: String)] = [:]

@@ -173,7 +173,7 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(harbor.line.contains("on weekends"), harbor.line)
         // The claim is two-sided: found here, and looked for and not found
         // there. Previously phrased as "never", which overclaimed a little.
-        XCTAssertTrue(harbor.line.contains("did not find it on weekdays"), harbor.line)
+        XCTAssertTrue(harbor.line.contains("find it once on weekdays"), harbor.line)
     }
 
     func testSubjectSpokenOnWeekdaysTooStaysUnclaimed() {
