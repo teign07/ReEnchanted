@@ -73,7 +73,16 @@ for y in range(SIDE):
         if x == SIDE - 1:
             draw.line((cx + cell_size, cy, cx + cell_size, cy + cell_size), fill=ink, width=10)
 
-def mark(cell, label, fill="#f2e4bd"):
+# The answer is the same maze with the route drawn on it, under the markers, so it lines up
+# exactly with the puzzle the reader has.
+solved = image.copy()
+solved_draw = ImageDraw.Draw(solved)
+route = [(left + (x + .5) * cell_size, top + (y + .5) * cell_size) for x, y in path]
+solved_draw.line(route, fill="#a8432f", width=18, joint="curve")
+for px, py in (route[0], route[-1]):
+    solved_draw.ellipse((px - 9, py - 9, px + 9, py + 9), fill="#a8432f")
+
+def mark(cell, label, fill="#f2e4bd", draw=draw):
     x, y = cell
     cx = left + (x + .5) * cell_size
     cy = top + (y + .5) * cell_size
@@ -83,18 +92,20 @@ def mark(cell, label, fill="#f2e4bd"):
     draw.text((cx-(bounds[2]-bounds[0])/2, cy-(bounds[3]-bounds[1])/2-bounds[1]),
               label, font=bold, fill=ink)
 
-mark(start, "C")
-mark(finish, "B")
-for number, cell in enumerate(checkpoints, 1):
-    mark(cell, str(number))
-mark(chair, "R", "#f4d9d6")
-legend_y = top + SIDE * cell_size + 40
-for line in ("C  COUNT     1  SOURCE     2  INVITATION",
-             "3  THE CLAIM RELEASED     B  OPEN BOOK",
-             "R  THE RED CHAIR IS A DISTRACTION"):
-    draw.text((left, legend_y), line, font=small, fill=ink)
-    legend_y += 72
+for canvas in (draw, solved_draw):
+    mark(start, "C", draw=canvas)
+    mark(finish, "B", draw=canvas)
+    for number, cell in enumerate(checkpoints, 1):
+        mark(cell, str(number), draw=canvas)
+    mark(chair, "R", "#f4d9d6", draw=canvas)
+    legend_y = top + SIDE * cell_size + 40
+    for line in ("C  COUNT     1  SOURCE     2  INVITATION",
+                 "3  THE CLAIM RELEASED     B  OPEN BOOK",
+                 "R  THE RED CHAIR IS A DISTRACTION"):
+        canvas.text((left, legend_y), line, font=small, fill=ink)
+        legend_y += 72
 image.save(ROOT / "map-the-door-home.png", optimize=True)
+solved.save(ROOT / "map-the-door-home-solved.png", optimize=True)
 
 answer = " -> ".join(f"{x+1},{y+1}" for x, y in path)
 (ROOT / "map-the-door-home.answer.json").write_text(json.dumps({

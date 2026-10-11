@@ -67,6 +67,9 @@ struct EditionPlayLeaf: Codable, Equatable, Identifiable {
     var prompts: [EditionPlayPrompt] = []
     var options: [String] = []
     var answerKey: String? = nil
+    /// A picture of the answer (a solved maze), printed on the answer page in place of anything
+    /// cryptic; `answerKey` is then its caption, and what an app without this field prints.
+    var answerAssetName: String? = nil
     var assetName: String? = nil
     var accessibilityDescription: String? = nil
     /// Calendar-month drawers are optional constraints for standing weekly
@@ -110,6 +113,7 @@ extension EditionPlayLeaf {
         prompts = try values.decodeIfPresent([EditionPlayPrompt].self, forKey: .prompts) ?? []
         options = try values.decodeIfPresent([String].self, forKey: .options) ?? []
         answerKey = try values.decodeIfPresent(String.self, forKey: .answerKey)
+        answerAssetName = try values.decodeIfPresent(String.self, forKey: .answerAssetName)
         assetName = try values.decodeIfPresent(String.self, forKey: .assetName)
         accessibilityDescription = try values.decodeIfPresent(String.self, forKey: .accessibilityDescription)
         availableMonths = try values.decodeIfPresent([Int].self, forKey: .availableMonths)

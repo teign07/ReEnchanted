@@ -1,6 +1,6 @@
 {
   "id": "count-unbound-october-2026-play",
-  "version": 1,
+  "version": 2,
   "entitlementPackID": "count-unbound-october-2026",
   "eventID": "count-unbound",
   "eventStartMonth": 10,
@@ -25,7 +25,8 @@
       "body": null,
       "prompts": [],
       "options": [],
-      "answerKey": "C → EEESSWNWSWSEESENEENWNEEENEESSWWSWSESESEESWSWSEES → B",
+      "answerKey": "From the Count to his book, through 1, 2 and 3 in order. The red chair goes nowhere.",
+      "answerAssetName": "{{asset-path:count-unbound.play.map-the-door-home-solved}}",
       "assetName": "{{asset-path:count-unbound.play.map-the-door-home}}",
       "accessibilityDescription": "A square maze with Count at the upper left and Book at the lower right; visit Source, Invitation, and Claim Released in order. The red chair is a dead end."
     },
@@ -46,7 +47,8 @@
       "body": null,
       "prompts": [],
       "options": [],
-      "answerKey": "C → EEESSWNWSWSEESENEENWNEEENEESSWWSWSESESEESWSWSEES → B",
+      "answerKey": "From the Count to his book, through 1, 2 and 3 in order. The red chair goes nowhere.",
+      "answerAssetName": "{{asset-path:count-unbound.play.map-the-door-home-solved}}",
       "assetName": "{{asset-path:count-unbound.play.map-the-door-home}}",
       "accessibilityDescription": "A square maze with Count at the upper left and Book at the lower right; visit Source, Invitation, and Claim Released in order. The red chair is a dead end."
     },

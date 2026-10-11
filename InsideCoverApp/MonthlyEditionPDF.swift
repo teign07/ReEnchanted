@@ -4176,15 +4176,38 @@ enum MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor
     ) {
-        let answers = leaves.compactMap { leaf in
-            leaf.definition.answerKey.map { (leaf.definition.title, $0) }
+        let answers = leaves.compactMap { leaf -> (title: String, text: String?, picture: UIImage?)? in
+            let definition = leaf.definition
+            let picture = definition.answerAssetName.flatMap { name in
+                name.hasPrefix("/") ? UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(name)) : UIImage(named: name)
+            }
+            guard definition.answerKey != nil || picture != nil else { return nil }
+            return (definition.title, definition.answerKey, picture)
         }
         guard !answers.isEmpty else { return }
         beginComposedPage(context, style: style, cursor: &cursor)
         drawText("MOOK'S ANSWER KEY", font: .serifFont(ofSize: 18, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 8)
         for answer in answers {
-            drawText(answer.0, font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 5)
-            drawText(answer.1, font: .monospacedSystemFont(ofSize: 11, weight: .semibold), color: style.palette.ink, cursor: &cursor, spacingAfter: 16)
+            drawText(answer.title, font: .systemFont(ofSize: 9, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 5)
+            if let picture = answer.picture {
+                // The puzzle again, solved: small enough to share the page, framed like a plate.
+                let room = max(140, min(cursor.bottom - cursor.y - 40, cursor.contentWidth * 1.1))
+                if cursor.bottom - cursor.y < 160 { beginComposedPage(context, style: style, cursor: &cursor) }
+                let width = min(cursor.contentWidth * 0.82, room * picture.size.width / picture.size.height)
+                let height = width * picture.size.height / picture.size.width
+                let frame = CGRect(x: cursor.left + (cursor.contentWidth - width) / 2, y: cursor.y + 4, width: width, height: height)
+                picture.draw(in: frame)
+                style.palette.ink.withAlphaComponent(0.25).setStroke()
+                let outline = UIBezierPath(rect: frame.insetBy(dx: -4, dy: -4))
+                outline.lineWidth = 0.6
+                outline.stroke()
+                cursor.y = frame.maxY + 14
+                if let text = answer.text {
+                    drawText(text, font: .serifFont(ofSize: 10.5, weight: .regular), color: style.palette.ink.withAlphaComponent(0.8), cursor: &cursor, spacingAfter: 16)
+                }
+            } else if let text = answer.text {
+                drawText(text, font: .serifFont(ofSize: 11, weight: .semibold), color: style.palette.ink, cursor: &cursor, spacingAfter: 16)
+            }
         }
     }
 
