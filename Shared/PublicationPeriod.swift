@@ -752,7 +752,7 @@ enum EditionOfferCopy {
         let finished = """
         \(label) is finished. That's \(pageCount) pages across three months: the weather you wrote down, the small things that kept turning up, the days you almost let go.
 
-        I'd like to be a real book for this one. Thick paper, a spine, your name on it. It's the biggest I get short of the whole year.
+        I'd like to be a real book for this one. Paper you can write on, a spine, your name on it. It's the biggest I get short of the whole year.
         """
         if isMember {
             return finished + "\n\nThe Bound Year's already posting you the books it owes. If you want this one as an extra, or for somebody else, the Bindery will print it."

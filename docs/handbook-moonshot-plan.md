@@ -186,7 +186,8 @@ loop back into the app.
 always kept in the app, and a clean second copy is an ordinary à la carte order. Ruin photographs
 are the reader's: a photograph is bound into the next volume only when they say so, and nothing
 leaves the phone except the finished PDF at checkout. **The unknown that can sink this**: which pens
-and markers a coated 80# page takes. A physical proof answers that before any ruin prompt ships.
+and markers bleed through a 60# uncoated page (the books moved off coated on 2026-10-11 so pencil and
+ink take). A physical proof answers that before any ruin prompt ships.
 
 ## Gemma's job
 

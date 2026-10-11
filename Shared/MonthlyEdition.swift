@@ -4654,9 +4654,9 @@ struct PrintSpec: Equatable {
         minimumPages: 24,
         coverWrapMarginInches: 0.75,
         coverTreatment: .linenWrap,
-        luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
+        luluPackageID: "0600X0900.FC.PRE.LW.060UW444.MNG",
         basePriceUSD: 14.99,
-        perPagePriceUSD: 0.1389
+        perPagePriceUSD: 0.1259
     )
 
     /// The illustrated keepsake: the same 6×9 full-color block with a printed
@@ -4672,9 +4672,9 @@ struct PrintSpec: Equatable {
         minimumPages: 24,
         coverWrapMarginInches: 0.75,
         coverTreatment: .caseWrap,
-        luluPackageID: "0600X0900.FC.PRE.CW.080CW444.MXX",
+        luluPackageID: "0600X0900.FC.PRE.CW.060UW444.MXX",
         basePriceUSD: 10.68,
-        perPagePriceUSD: 0.1389
+        perPagePriceUSD: 0.1259
     )
 
     /// The seasonal volume: a 6×9 perfect-bound softcover with a printed matte
@@ -4703,9 +4703,9 @@ struct PrintSpec: Equatable {
         // allowance here would push the artwork a full inch off register.
         coverWrapMarginInches: 0.125,
         coverTreatment: .perfectBound,
-        luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
-        basePriceUSD: 1.98,
-        perPagePriceUSD: 0.1389
+        luluPackageID: "0600X0900.FC.PRE.PB.060UW444.MXX",
+        basePriceUSD: 1.99,
+        perPagePriceUSD: 0.1259
     )
 
     /// A single closed week, available a la carte when its rendered interior
@@ -4722,15 +4722,16 @@ struct PrintSpec: Equatable {
         minimumPages: 4,
         coverWrapMarginInches: 0.125,
         coverTreatment: .saddleStitch,
-        luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
+        luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
         basePriceUSD: 3.78,
-        perPagePriceUSD: 0.1389
+        perPagePriceUSD: 0.1259
     )
 
-    // Every binding prints premium colour on 80# coated white (bj, 2026-09-23).
-    // Base and per-page figures are fitted to Lulu sandbox cost calculations
-    // for these exact packages (13.89c a page for all four). They are pre-quote
-    // estimates only: the Worker prices every order from a live Lulu quote.
+    // Every binding prints premium colour on 60# uncoated white (bj, 2026-10-11, replacing
+    // 80# coated): it takes pencil and pen like a journal, and reads as a storybook rather than a
+    // photo book. Base and per-page figures are fitted to Lulu sandbox cost calculations for these
+    // exact packages (12.59c a page for all four; Lulu's cover and spine sizes are the same as on
+    // coated). They are pre-quote estimates only: the Worker prices every order from a live quote.
 
     static let hardcover6x9 = clothFoilHardcover6x9
     static let bookOfYouVariants = [clothFoilHardcover6x9, illustratedHardcover6x9]

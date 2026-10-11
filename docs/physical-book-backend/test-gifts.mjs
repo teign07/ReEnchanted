@@ -19,25 +19,25 @@ const variants = {
   cloth: {
     id: "cloth-foil-hardcover-6x9",
     displayName: "6 × 9 Hardcover, cloth & foil",
-    luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
+    luluPackageID: "0600X0900.FC.PRE.LW.060UW444.MNG",
     coverTreatment: "linenWrap",
   },
   illustrated: {
     id: "illustrated-hardcover-6x9",
     displayName: "6 × 9 Hardcover, illustrated cover",
-    luluPackageID: "0600X0900.FC.PRE.CW.080CW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.CW.060UW444.MXX",
     coverTreatment: "caseWrap",
   },
   softcover: {
     id: "perfect-bound-softcover-6x9",
     displayName: "6 × 9 Softcover, perfect bound",
-    luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.PB.060UW444.MXX",
     coverTreatment: "perfectBound",
   },
   weekly: {
     id: "saddle-stitched-weekly-6x9",
     displayName: "6 × 9 Weekly Issue, saddle stitched",
-    luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
     coverTreatment: "saddleStitch",
   },
 };

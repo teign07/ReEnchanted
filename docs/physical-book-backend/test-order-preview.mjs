@@ -135,7 +135,7 @@ globalThis.fetch = async (url, init = {}) => {
         quote_id: currentQuote.id,
         edition_id: "edition-2026-06",
         variant_id: "cloth-foil-hardcover-6x9",
-        lulu_package_id: "0600X0900.FC.PRE.LW.080CW444.MNG",
+        lulu_package_id: "0600X0900.FC.PRE.LW.060UW444.MNG",
         shipping_option_id: "MAIL",
         tax_calculation_id: currentQuote.shippingOptions[0].taxCalculationID,
       },
@@ -246,7 +246,7 @@ try {
     variant: {
       id: "cloth-foil-hardcover-6x9",
       displayName: "Cloth foil hardcover",
-      luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG",
+      luluPackageID: "0600X0900.FC.PRE.LW.060UW444.MNG",
       coverTreatment: "linenWrap",
       manufacturingBasePriceCentsUSD: 1,
       manufacturingPerPagePriceTenThousandthsUSD: 1,
@@ -598,7 +598,7 @@ function stripePaymentIntentEvent(overrides = {}) {
     quote_id: currentQuote.id,
     edition_id: "edition-2026-06",
     variant_id: "cloth-foil-hardcover-6x9",
-    lulu_package_id: "0600X0900.FC.PRE.LW.080CW444.MNG",
+    lulu_package_id: "0600X0900.FC.PRE.LW.060UW444.MNG",
     shipping_option_id: "MAIL",
     tax_calculation_id: currentQuote.shippingOptions[0].taxCalculationID,
   };

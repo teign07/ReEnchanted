@@ -51,7 +51,7 @@ for (const path of ["/memberships", "/gifts/bound-year"]) {
 const quote = await request("/quote", {
   apiVersion: 1, editionID: "sandbox-preflight-synthetic", editionKind: "monthly",
   variant: { id: "cloth-foil-hardcover-6x9", displayName: "Cloth foil hardcover",
-    luluPackageID: "0600X0900.FC.PRE.LW.080CW444.MNG", coverTreatment: "linenWrap",
+    luluPackageID: "0600X0900.FC.PRE.LW.060UW444.MNG", coverTreatment: "linenWrap",
     manufacturingBasePriceCentsUSD: 1, manufacturingPerPagePriceTenThousandthsUSD: 1 },
   pageCount: 92, quantity: 1, currencyCode: "USD",
   shipTo: { countryCode: "US", stateCode: "ME", postalCode: "04915", city: "Belfast",
@@ -63,7 +63,7 @@ assert.ok(quote.body.manufacturingSubtotal?.cents > 0);
 assert.ok(Math.abs(quote.body.manufacturingSubtotal.cents - 2777) < 150,
   `premium linen 92pp priced ${quote.body.manufacturingSubtotal.cents}c`);
 const overCap = await request("/quote", { apiVersion: 1, editionID: "sandbox-preflight-over-cap", editionKind: "monthly",
-  variant: { id: "perfect-bound-softcover-6x9", displayName: "Softcover", luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
+  variant: { id: "perfect-bound-softcover-6x9", displayName: "Softcover", luluPackageID: "0600X0900.FC.PRE.PB.060UW444.MXX",
     coverTreatment: "perfectBound", manufacturingBasePriceCentsUSD: 1, manufacturingPerPagePriceTenThousandthsUSD: 1 },
   pageCount: 94, quantity: 1, currencyCode: "USD",
   shipTo: { countryCode: "US", stateCode: "ME", postalCode: "04915", city: "Belfast", street1: "1 Test Street", phoneNumber: "207-555-0100" } });

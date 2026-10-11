@@ -23,7 +23,9 @@ Scene ids are the `id` of each `storyScenes` entry in the pack's
 - The same hand as the Cast plates: ink and watercolour, warm cream paper, a little foxing.
 - No words in the picture. The book sets the captions.
 - Leave a soft margin; every plate gets a white mat and a gold rule.
-- Print-safe colour: no pure black, no neon. The paper is 80# coated and takes colour well.
+- Print-safe colour: no pure black, no neon. The paper is 60# uncoated white (since 2026-10-11): colour soaks in and prints
+  softer, and big flat darks can go muddy, so keep shadows open and textured. Watercolour suits it.
+- When generating, describe the plate as printed on uncoated book paper (the October prompts said coated).
 - Scene plates show the scene's moment, not its ending. A reader may meet the picture before the words.
 
 ## Shipping them

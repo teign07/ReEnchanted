@@ -20,8 +20,8 @@ extension MonthlyEditionPDFWriter {
     ) {
         guard let cg = UIGraphicsGetCurrentContext(), endY - startY >= spacing else { return }
         // A writing area is a lighter sheet pasted onto the page, deckled at
-        // the edges with a red margin line: less ink under the pen on coated
-        // stock, and it reads as paper someone tipped in, not a form field.
+        // the edges with a red margin line: less ink under the pen, so pencil
+        // and ink take cleanly, and it reads as paper someone tipped in, not a form field.
         if endY - startY >= spacing * 2.5 {
             let sheet = CGRect(x: left - 6, y: startY + 2, width: right - left + 12, height: endY - startY + 2)
             drawTornScrap(in: sheet, rotation: 0, fill: UIColor(red: 0.995, green: 0.99, blue: 0.97, alpha: 0.55),

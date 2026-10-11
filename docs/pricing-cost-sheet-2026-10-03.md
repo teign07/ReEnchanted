@@ -2,6 +2,14 @@
 
 **Evidence level:** live Lulu *sandbox* quotes through the deployed Worker (no charge, synthetic addresses), at the real caps in `Shared/MonthlyEdition.swift:4468` (weekly 48 / monthly 128 / seasonal 176 / annual 256). Shipping = cheapest Mail option. Not established: live Lulu availability, tax/VAT/GST, customs, physical proofs, reprint rate. US figures use a Belfast, ME address.
 
+> **2026-10-11: the paper changed to 60# uncoated white** (premium colour; package IDs `…FC.PRE.<binding>.060UW444…`).
+> Lulu sandbox quotes put it at 12.59¢ a page against 13.89¢ on 80# coated, with the same base per binding and
+> the same cover and spine sizes. Making each book below now costs less: monthly 128pp $18.11, seasonal 176pp
+> $24.15, annual linen 256pp $47.22, annual illustrated 256pp $42.91, weekly 48pp $9.82. Shelf floors are
+> unchanged by choice (bj: "premium, but not over expensive"), so seasonal and annual margins rise by $2.29 and
+> $3.33; prices that follow cost (weekly, monthly above its floor) fall on their own. A member-year costs about
+> $10 less to deliver.
+
 ## 1. Per-parcel cost (USD)
 
 | Item | Make | Ship US | Ship CA | Ship UK |

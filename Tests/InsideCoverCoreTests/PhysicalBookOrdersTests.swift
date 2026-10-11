@@ -78,7 +78,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(decoded, request)
         XCTAssertEqual(decoded.editionTitle, "The Door That Was Only a Door")
         XCTAssertEqual(decoded.editionKind, .monthly)
-        XCTAssertEqual(decoded.variant.luluPackageID, "0600X0900.FC.PRE.CW.080CW444.MXX")
+        XCTAssertEqual(decoded.variant.luluPackageID, "0600X0900.FC.PRE.CW.060UW444.MXX")
         XCTAssertEqual(decoded.currencyCode, "USD")
     }
 
@@ -96,10 +96,10 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let cloth = PhysicalBookVariant.from(.clothFoilHardcover6x9)
         let illustrated = PhysicalBookVariant.from(.illustratedHardcover6x9)
 
-        // Premium colour on 80# coated, fitted to Lulu sandbox quotes.
-        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: cloth, pageCount: 120, quantity: 1), 3166)
-        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: illustrated, pageCount: 120, quantity: 1), 2735)
-        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: illustrated, pageCount: 120, quantity: 2), 5470)
+        // Premium colour on 60# uncoated, fitted to Lulu sandbox quotes.
+        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: cloth, pageCount: 120, quantity: 1), 3010)
+        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: illustrated, pageCount: 120, quantity: 1), 2579)
+        XCTAssertEqual(PhysicalBookPricing.rawManufacturingSubtotalCents(variant: illustrated, pageCount: 120, quantity: 2), 5158)
     }
 
     func testDefaultPricingPolicyAddsProfitAndCoversPaymentFee() {
@@ -112,9 +112,9 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 799)
 
-        XCTAssertEqual(price.manufacturingSubtotal.cents, 3166)
+        XCTAssertEqual(price.manufacturingSubtotal.cents, 3010)
         XCTAssertEqual(price.shipping.cents, 799)
-        XCTAssertEqual(price.markup.cents, 6833)
+        XCTAssertEqual(price.markup.cents, 6989)
         XCTAssertEqual(price.paymentProcessingFee.cents, 354)
         XCTAssertEqual(price.total.cents, 11152)
 
@@ -159,8 +159,8 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 999)
 
-        XCTAssertEqual(price.manufacturingSubtotal.cents, 5470)
-        XCTAssertEqual(price.markup.cents, 12528)
+        XCTAssertEqual(price.manufacturingSubtotal.cents, 5158)
+        XCTAssertEqual(price.markup.cents, 12840)
         XCTAssertEqual(price.paymentProcessingFee.cents, 599)
         XCTAssertEqual(price.total.cents, 19596)
         assertCoversProcessing(total: price.total.cents, subtotal: 5470 + 999 + 12528)
@@ -267,8 +267,8 @@ final class PhysicalBookOrdersTests: XCTestCase {
                 shippingCents: 0
             )
         }
-        XCTAssertEqual(prices[0].manufacturingSubtotal.cents + prices[0].markup.cents, 5_476)
-        XCTAssertEqual(prices[1].manufacturingSubtotal.cents + prices[1].markup.cents, 5_920)
+        XCTAssertEqual(prices[0].manufacturingSubtotal.cents + prices[0].markup.cents, 5_311)
+        XCTAssertEqual(prices[1].manufacturingSubtotal.cents + prices[1].markup.cents, 5_713)
         XCTAssertEqual(prices.map { $0.markup.cents }, [3_500, 3_500])
         XCTAssertGreaterThan(prices[1].total.cents, prices[0].total.cents)
     }
@@ -287,10 +287,10 @@ final class PhysicalBookOrdersTests: XCTestCase {
 
         let price = PhysicalBookPricing.priceBreakdown(request: request, shippingCents: 799)
 
-        XCTAssertEqual(price.manufacturingSubtotal.cents, 822)
+        XCTAssertEqual(price.manufacturingSubtotal.cents, 781)
         XCTAssertEqual(price.markup.cents, 1000)
-        XCTAssertEqual(price.paymentProcessingFee.cents, 110)
-        XCTAssertEqual(price.total.cents, 2731)
+        XCTAssertEqual(price.paymentProcessingFee.cents, 108)
+        XCTAssertEqual(price.total.cents, 2688)
     }
 
     func testOrderRequestCarriesPaymentShippingAndHostedPrintFiles() throws {
@@ -336,7 +336,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
         let decoded = try JSONDecoder().decode(PhysicalBookOrderRequest.self, from: data)
 
         XCTAssertEqual(decoded, order)
-        XCTAssertEqual(decoded.quoteRequest.variant.luluPackageID, "0600X0900.FC.PRE.LW.080CW444.MNG")
+        XCTAssertEqual(decoded.quoteRequest.variant.luluPackageID, "0600X0900.FC.PRE.LW.060UW444.MNG")
         XCTAssertEqual(decoded.selectedShippingOptionID, "MAIL")
         XCTAssertEqual(decoded.selectedShippingOption?.price.cents, 799)
         XCTAssertEqual(decoded.printFiles.coverMD5.count, 32)
@@ -520,7 +520,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
             "line_items": [
               {
                 "external_id": "quote-123-item-1",
-                "pod_package_id": "0600X0900.FC.PRE.LW.080CW444.MNG",
+                "pod_package_id": "0600X0900.FC.PRE.LW.060UW444.MNG",
                 "quantity": 1,
                 "interior": {
                   "source_url": "https://cdn.example.com/interior.pdf",
@@ -550,7 +550,7 @@ final class PhysicalBookOrdersTests: XCTestCase {
         XCTAssertEqual(preview.mode, "preview")
         XCTAssertEqual(preview.quoteID, "quote-123")
         XCTAssertEqual(preview.luluPrintJobPayload.externalID, "quote-123")
-        XCTAssertEqual(preview.luluPrintJobPayload.lineItems.first?.podPackageID, "0600X0900.FC.PRE.LW.080CW444.MNG")
+        XCTAssertEqual(preview.luluPrintJobPayload.lineItems.first?.podPackageID, "0600X0900.FC.PRE.LW.060UW444.MNG")
         XCTAssertEqual(preview.luluPrintJobPayload.lineItems.first?.cover.sourceMD5, "abcdef0123456789abcdef0123456789")
         XCTAssertEqual(preview.luluPrintJobPayload.shippingAddress.postcode, "04915")
     }

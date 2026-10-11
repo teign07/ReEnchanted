@@ -114,7 +114,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (href.includes("/print-jobs/?")) return json({ count: recoveredLuluJobs.length, next: null, results: recoveredLuluJobs });
   if (href.endsWith("/cover-dimensions/")) {
     const request = JSON.parse(init.body);
-    check(request.pod_package_id === "0600X0900.FC.PRE.SS.080CW444.MXX", "the cover canvas is asked for the saddle-stitched weekly");
+    check(request.pod_package_id === "0600X0900.FC.PRE.SS.060UW444.MXX", "the cover canvas is asked for the saddle-stitched weekly");
     return json({ width: "891.000", height: "666.000", unit: "pt" });
   }
   if (href.endsWith("/print-jobs/")) {
@@ -166,7 +166,7 @@ const weekly = {
   variant: {
     id: "saddle-stitched-weekly-6x9",
     displayName: "6 x 9 Weekly",
-    luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
     coverTreatment: "saddleStitch",
     manufacturingBasePriceCentsUSD: 0,
     manufacturingPerPagePriceTenThousandthsUSD: 0,
@@ -227,7 +227,7 @@ check(luluCreates === 0, "no refusal reaches the print house");
 
 await own("sub_member");
 member("sub_member");
-const wrongBinding = await prepare("sub_member", { ...weekly, variant: { ...weekly.variant, id: "perfect-bound-softcover-6x9", luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX" } });
+const wrongBinding = await prepare("sub_member", { ...weekly, variant: { ...weekly.variant, id: "perfect-bound-softcover-6x9", luluPackageID: "0600X0900.FC.PRE.PB.060UW444.MXX" } });
 check(wrongBinding.response.status === 400, "the welcome is a weekly, not a softcover season");
 const tooThick = await prepare("sub_member", { ...weekly, pageCount: 52 });
 check(tooThick.response.status === 400, "the welcome cannot run past the weekly page cap");
@@ -245,7 +245,7 @@ check(sent.response.status === 201, "the welcome issue reaches Lulu");
 check(sent.body.luluPrintJobID === "print-job-1", "the Lulu receipt returns");
 const payload = luluPayloads[0];
 check(payload.external_id === "bound-year-sub_member-welcome-weekly", "the parcel is named for its membership slot");
-check(payload.line_items[0].pod_package_id === "0600X0900.FC.PRE.SS.080CW444.MXX", "it is printed as the saddle-stitched weekly");
+check(payload.line_items[0].pod_package_id === "0600X0900.FC.PRE.SS.060UW444.MXX", "it is printed as the saddle-stitched weekly");
 check(payload.line_items[0].title === weekly.editionTitle, "the week's own title reaches Lulu");
 check(payload.shipping_address.street1 === "1 Harbor St" && payload.shipping_address.postcode === "04915",
   "it ships to the membership's address on file, not one the app supplied");

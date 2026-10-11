@@ -917,11 +917,11 @@ function printOptionsSubtotalCents(options, quantity) {
 // Shared. This map is the authority: a variant absent here is refused, so a
 // binding added on the client without a line here simply cannot be ordered.
 const ALLOWED_VARIANTS = new Map([
-  ["cloth-foil-hardcover-6x9", "0600X0900.FC.PRE.LW.080CW444.MNG"],
-  ["illustrated-hardcover-6x9", "0600X0900.FC.PRE.CW.080CW444.MXX"],
+  ["cloth-foil-hardcover-6x9", "0600X0900.FC.PRE.LW.060UW444.MNG"],
+  ["illustrated-hardcover-6x9", "0600X0900.FC.PRE.CW.060UW444.MXX"],
   // The Bound Year's seasonal volume.
-  ["perfect-bound-softcover-6x9", "0600X0900.FC.PRE.PB.080CW444.MXX"],
-  ["saddle-stitched-weekly-6x9", "0600X0900.FC.PRE.SS.080CW444.MXX"],
+  ["perfect-bound-softcover-6x9", "0600X0900.FC.PRE.PB.060UW444.MXX"],
+  ["saddle-stitched-weekly-6x9", "0600X0900.FC.PRE.SS.060UW444.MXX"],
 ]);
 
 const VARIANT_PAGE_LIMITS = new Map([
@@ -934,7 +934,8 @@ const VARIANT_PAGE_LIMITS = new Map([
 // These two maps are the server-side twin of BookGiftEditionAllowance and
 // PrintSpec.printableVariants(for:). A gift is an exact physical promise, so a
 // forged client cannot turn a paid weekly issue into an annual hardcase.
-// Every edition is bounded so premium colour and paper keep their margin.
+// Every edition is bounded so premium colour keeps its margin. Every binding prints on 60#
+// uncoated white (bj, 2026-10-11): it takes pencil and pen like a journal, and reads as a storybook.
 // MUST match PrintSpec.pageCap(for:) in Shared/MonthlyEdition.swift.
 const EDITION_PAGE_CAPS = new Map([
   ["weekly", 48],

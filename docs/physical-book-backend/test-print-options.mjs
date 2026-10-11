@@ -139,7 +139,7 @@ function quoteBody(selectedOptionIDs) {
     variant: {
       id: "perfect-bound-softcover-6x9",
       displayName: "Softcover",
-      luluPackageID: "0600X0900.FC.PRE.PB.080CW444.MXX",
+      luluPackageID: "0600X0900.FC.PRE.PB.060UW444.MXX",
       coverTreatment: "perfectBound",
       manufacturingBasePriceCentsUSD: 1,
       manufacturingPerPagePriceTenThousandthsUSD: 1,
@@ -214,7 +214,7 @@ const weeklyBody = {
     ...quoteBody([]).variant,
     id: "saddle-stitched-weekly-6x9",
     displayName: "6 x 9 Weekly Issue, saddle stitched",
-    luluPackageID: "0600X0900.FC.PRE.SS.080CW444.MXX",
+    luluPackageID: "0600X0900.FC.PRE.SS.060UW444.MXX",
     coverTreatment: "saddleStitch",
   },
 };
