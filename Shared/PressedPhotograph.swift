@@ -27,6 +27,22 @@ enum PressedPhotograph {
         return (w, h)
     }
 
+    /// Decode image `data` straight to a bitmap whose longest side is at most
+    /// `maxLongSide`, with its orientation baked in. ImageIO decodes at the
+    /// smaller size, so the full-resolution bitmap never exists: a 24 MP camera
+    /// photograph is around 100 MB decoded, which is more than an iPhone 15
+    /// has free while Gemma's weights are resident.
+    static func downscaledImage(from data: Data, maxLongSide: Int = defaultMaxLongSide) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxLongSide,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
     /// Downscale image `data` so its longest side is at most `maxLongSide` and
     /// re-encode as JPEG. Returns nil if the data isn't a decodable image.
     static func downscaledJPEG(
@@ -34,13 +50,7 @@ enum PressedPhotograph {
         maxLongSide: Int = defaultMaxLongSide,
         quality: CGFloat = defaultQuality
     ) -> Data? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxLongSide,
-        ]
-        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+        guard let cgImage = downscaledImage(from: data, maxLongSide: maxLongSide) else {
             return nil
         }
         let type: CFString

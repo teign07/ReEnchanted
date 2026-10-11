@@ -13732,7 +13732,7 @@ struct CapturePageSheet: View {
         defer {
             isLoadingManualPhoto = false
         }
-        guard let image = UIImage(data: data) else {
+        guard let image = UIImage.bookWorkingPhoto(from: data) else {
             BookFeedback.play(.error)
             illuminationMessage = "The photograph wouldn't open. The margins stayed quiet."
             return
@@ -13774,7 +13774,7 @@ struct CapturePageSheet: View {
     #if canImport(UIKit)
     @MainActor
     private func holdCameraPhotoForChoice(imageData data: Data) async {
-        guard let image = UIImage(data: data) else {
+        guard let image = UIImage.bookWorkingPhoto(from: data) else {
             BookFeedback.play(.error)
             illuminationMessage = "The camera returned a photo I couldn't read. Try again."
             return
@@ -13970,7 +13970,7 @@ struct CapturePageSheet: View {
         enchantmentMessage = "Casting \(spell.title) on the photo."
         defer { isCastingEnchantment = false }
 
-        guard let image = UIImage(data: data) else {
+        guard let image = UIImage.bookWorkingPhoto(from: data) else {
             BookFeedback.play(.error)
             enchantmentMessage = "That photo wouldn't open. The spell didn't land."
             return
@@ -13983,6 +13983,16 @@ struct CapturePageSheet: View {
         do {
             let analysis = try await analyzeIlluminatedPhoto(image)
             let result = try await writeEnchantmentResult(spell: spell, analysis: analysis)
+            // The spell is written, so nothing is left for the weights to do.
+            // Hand the room back before drawing the plate, not after: with E2B
+            // resident this device has around 350 MB free, and rendering the
+            // plate from a camera photograph used to take more than that. Rabbit
+            // was jetsammed here at 4.06 GB (vm-pageshortage) right after the
+            // writer finished. Releasing first also gives the keyboard its room
+            // back, since the reader's next move is often to go and type.
+            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
+            await LocalBrainModelCache.shared.releaseAfterFlow(label: "enchantment")
+            #endif
             let spellAnalysis = enchantedAnalysis(from: analysis, result: result)
             let draft = IlluminatedPageComposer.compose(
                 analysis: spellAnalysis,
@@ -14006,13 +14016,6 @@ struct CapturePageSheet: View {
                 enchantmentArrivalTick += 1
                 BookFeedback.play(.braidComplete)
             }
-            // The spell is written and the plate is drawn, so nothing is left
-            // for the weights to do. Hand the room back now rather than on a
-            // timer: with E2B resident this device cannot raise a keyboard, and
-            // the reader's next move is often to go and type something.
-            #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLXLMHFAPI) && canImport(MLX) && !targetEnvironment(simulator)
-            await LocalBrainModelCache.shared.releaseAfterFlow(label: "enchantment")
-            #endif
         } catch {
             onRefundBeliefForGeneration(.enchantment)
             appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .private)")
@@ -19903,3 +19906,16 @@ extension StoryPageSceneDraft {
         )
     }
 }
+
+#if canImport(UIKit)
+extension UIImage {
+    /// A photograph decoded at the size the Book actually works at, never at
+    /// the camera's. The plate is 1290x1800, Gemma's vision tower sees
+    /// 800x800, and the kept copy is pressed to 2048, so a 24 MP bitmap here
+    /// was only ever memory, and it was the memory that tipped an Enchantment
+    /// into jetsam while the weights were still resident.
+    static func bookWorkingPhoto(from data: Data) -> UIImage? {
+        PressedPhotograph.downscaledImage(from: data).map { UIImage(cgImage: $0) }
+    }
+}
+#endif
