@@ -496,18 +496,32 @@ enum LocalModelManager {
         "\(hardwareIdentifier), about \(deviceMemoryGB) GB memory"
     }
 
-    /// Whether a checkpoint has a vision tower at all.
-    ///
-    /// This is the only static question worth asking about direct vision.
-    /// Whether the device can *afford* a given run is a live question, and
-    /// `LocalBrainInferenceGate` already answers it properly: it measures the
-    /// real allowance, drops warm weights and measures again, and declines with
-    /// an error the caller can fall back from. The old check here was a flat
-    /// `deviceMemoryGB >= 8`, which was never a memory measurement: it was a
-    /// guess that happened to exclude every 6 GB phone, including the ones
-    /// already running this same checkpoint for text all day.
+    /// Whether a checkpoint has a vision tower at all. Whether this phone can
+    /// afford to use it is `deviceCanAffordDirectVision`.
     static func modelSupportsVision(modelID: String) -> Bool {
         modelID.contains("gemma-4")
+    }
+
+    /// Whether this phone can hold Gemma reading a photograph directly.
+    ///
+    /// This used to be left to `LocalBrainInferenceGate`, which reads
+    /// `os_proc_available_memory`. That figure is this app's own allowance, not
+    /// what the phone can actually supply, and since the increased-memory-limit
+    /// entitlement the allowance on a 6 GB phone is larger than the phone. On
+    /// 2026-10-11 Rabbit (iPhone 15, 6 GB) admitted a cold vision load for an
+    /// Enchantment; seven seconds later the kernel had killed the keyboard,
+    /// the Photos widgets and a dozen daemons for room, declared the system
+    /// unhealthy, and then killed the Book at 3.85 GB (vm-pageshortage). The
+    /// app was inside its own limit the whole time, so no check of that limit
+    /// could have refused it.
+    ///
+    /// The vision container (text weights, the tower, and an 800x800 image
+    /// prefill) peaks well above the 2.6 GB text container that 6 GB phones
+    /// run all day. They read photographs through Apple Vision facts and the
+    /// text model instead, which also lets an Enchantment's writer reuse the
+    /// weights already warm rather than swapping one container for another.
+    static var deviceCanAffordDirectVision: Bool {
+        deviceMemoryGB >= 8
     }
 
     static var activeModelSupportsVision: Bool {

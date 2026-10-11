@@ -2870,13 +2870,13 @@ protocol PhotoIlluminationAnalyzing {
 
 struct GemmaPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
     func analyze(photo: UIImage) async throws -> PhotoAnalysis {
-        // Ask capability, then let the memory gate answer affordability. If the
-        // device cannot spare the room today it throws, and the caption path
+        // Ask capability, then whether this phone can hold a vision load at
+        // all (6 GB phones cannot: see `deviceCanAffordDirectVision`), then let
+        // the memory gate answer for today. If either says no, the caption path
         // below writes the page from Vision facts instead, which is a quieter
-        // page, not a broken one. That is a better trade than the old static
-        // rule, which decided in advance that a whole class of phone would
-        // never look at a photograph at all.
-        if LocalModelManager.activeModelSupportsVision {
+        // page, not a broken one.
+        if LocalModelManager.activeModelSupportsVision,
+           LocalModelManager.deviceCanAffordDirectVision {
             do {
                 appLog.info("Photo illumination attempting VLM Gemma path.")
                 return try await VLMPhotoIlluminationAnalyzer().analyze(photo: photo)
