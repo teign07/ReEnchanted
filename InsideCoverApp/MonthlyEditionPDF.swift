@@ -399,6 +399,10 @@ enum MonthlyEditionPDFWriter {
         margins: UIEdgeInsets,
         designSize: CGSize
     ) {
+        // Each book its own deck: the fitting loop binds a month several times, and only the
+        // last one prints. A deck carried over from the earlier tries starts the printed book halfway
+        // through the month's drawings.
+        MarginaliaDealer.reset()
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
         cursor.addressSeed = addressSeed(for: edition)
@@ -2062,6 +2066,7 @@ enum MonthlyEditionPDFWriter {
         margins: UIEdgeInsets,
         designSize: CGSize
     ) {
+        MarginaliaDealer.reset()
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "volume-\(annual.startDate.timeIntervalSinceReferenceDate)-\(annual.endDate.timeIntervalSinceReferenceDate)"
         let isYear = annual.publicationKind != .seasonal

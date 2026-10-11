@@ -299,6 +299,7 @@ extension MonthlyEditionPDFWriter {
             }
             leaf.y += 4
         }
+        fillLeafFoot(month: Calendar.current.component(.month, from: sittings.last?.date ?? Date()), seed: "register", leaf: leaf)
     }
 
     // MARK: Lecture leaf

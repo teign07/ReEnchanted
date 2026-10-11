@@ -497,19 +497,35 @@ final class MarginaliaDealer {
         let id: String
         let weight: Double
         let load: () -> UIImage?
+        /// A monthly pack's own drawings appear once in a book, never twice.
+        var oncePerBook: Bool { id.hasPrefix("pack:") }
     }
 
     private static var current: MarginaliaDealer?
+    /// Everything this book has drawn so far, across every month's deck: a season or a year
+    /// changes deck at each chapter, and the pack's drawings must still only appear once.
+    private static var usedInBook = Set<String>()
+    /// The story's margin notes this book has printed, by name.
+    private static var storyMarksUsed = Set<String>()
+    private static var storyMarkCache: [Int: [(name: String, path: String)]] = [:]
 
     /// A new book starts a new deck. Called at the top of every interior render.
     static func reset() {
         current = nil
+        usedInBook = []
+        storyMarksUsed = []
+        storyMarkCache = [:]
         NotePromptDealer.reset()
+        #if DEBUG
+        dealtLog = []
+        #endif
     }
 
     #if DEBUG
     /// A proof can ask to see another month's margins (the October art on a September week).
     static var forcedMonth: Int?
+    /// Every drawing dealt since the last reset, by id, for the proof harness's tally.
+    static var dealtLog: [String] = []
     #endif
 
     static func next(month requested: Int) -> UIImage? {
@@ -520,6 +536,46 @@ final class MarginaliaDealer {
         if current?.month != month { current = MarginaliaDealer(month: month) }
         return current?.deal()
     }
+
+    // MARK: The story's margin notes
+
+    /// The next of the month's story margin notes (the handwritten lines a monthly pack ties to its
+    /// story: "Some doors have started listening back."), each at most once a book, in the pack's
+    /// order. Nil when the month's pack has none, or every one is already in the book.
+    static func nextStoryMark(month requested: Int) -> UIImage? {
+        var month = requested
+        #if DEBUG
+        month = forcedMonth ?? requested
+        #endif
+        if storyMarkCache[month] == nil {
+            storyMarkCache[month] = installedArt(marker: ".mark.").filter { $0.month == month }.map { ($0.name, $0.path) }
+        }
+        for mark in storyMarkCache[month] ?? [] where !storyMarksUsed.contains(mark.name) {
+            guard let image = UIImage(contentsOfFile: mark.path) else { continue }
+            storyMarksUsed.insert(mark.name)
+            #if DEBUG
+            dealtLog.append("story:\(month):\(mark.name)")
+            #endif
+            return image
+        }
+        return nil
+    }
+
+    /// A story note a kept page already carried, printed on its day: the dealer won't print it again.
+    /// Returns false when this book has already printed it.
+    static func claimStoryMark(reference: String) -> Bool {
+        let file = URL(fileURLWithPath: reference).lastPathComponent
+        guard let marker = file.range(of: ".mark.") else { return true }
+        let name = String(file[marker.upperBound...]).replacingOccurrences(of: ".png", with: "")
+        let bare = name.hasPrefix("v2.") ? String(name.dropFirst(3)) : name
+        guard storyMarksUsed.insert(bare).inserted else { return false }
+        #if DEBUG
+        dealtLog.append("story:page:\(bare)")
+        #endif
+        return true
+    }
+
+    // MARK: The deck
 
     private let month: Int
     private let pool: [Drawing]
@@ -533,17 +589,33 @@ final class MarginaliaDealer {
 
     private func deal() -> UIImage? {
         guard !pool.isEmpty else { return nil }
-        for _ in 0...pool.count {
-            if deck.isEmpty { refill() }
-            if let image = deck.removeFirst().load() { return image }
+        for _ in 0...(pool.count * 2) {
+            if deck.isEmpty {
+                refill()
+                if deck.isEmpty { return nil }
+            }
+            let drawing = deck.removeFirst()
+            if drawing.oncePerBook, Self.usedInBook.contains(drawing.id) { continue }
+            if let image = drawing.load() {
+                Self.usedInBook.insert(drawing.id)
+                #if DEBUG
+                Self.dealtLog.append(drawing.id)
+                #endif
+                return image
+            }
         }
         return nil
     }
 
+    /// The next round, in its weighted order: drawings this book hasn't used yet come first, so
+    /// nothing is drawn twice until everything has been drawn once, and the pack's own drawings
+    /// are never dealt again at all.
     private func refill() {
         round += 1
-        let byID = Dictionary(uniqueKeysWithValues: pool.map { ($0.id, $0) })
-        deck = MarginaliaDeck.order(pool.map { ($0.id, $0.weight) }, seed: "margins-\(month)-\(round)").compactMap { byID[$0] }
+        let open = pool.filter { !($0.oncePerBook && Self.usedInBook.contains($0.id)) }
+        let byID = Dictionary(uniqueKeysWithValues: open.map { ($0.id, $0) })
+        let ordered = MarginaliaDeck.order(open.map { ($0.id, $0.weight) }, seed: "margins-\(month)-\(round)").compactMap { byID[$0] }
+        deck = ordered.filter { !Self.usedInBook.contains($0.id) } + ordered.filter { Self.usedInBook.contains($0.id) }
     }
 
     private static func pool(month: Int) -> [Drawing] {
@@ -554,7 +626,7 @@ final class MarginaliaDealer {
         }
         // The month's own marginalia lead: the drawings its pack delivered (October's cat, lantern,
         // key, moth), and the month's botanicals.
-        let packArt = installedSeasonalArt()
+        let packArt = installedArt(marker: ".seasonal.")
         for art in packArt where art.month == month {
             add("pack:\(art.month ?? 0):\(art.name)", 3.0) { UIImage(contentsOfFile: art.path) }
         }
@@ -575,22 +647,25 @@ final class MarginaliaDealer {
         return drawings
     }
 
-    /// Every seasonal drawing a monthly pack delivered that is still installed on this device, with
-    /// the month it was made for. A reissued drawing (`seasonal.v2.`) replaces the first of its name.
-    private static func installedSeasonalArt() -> [(name: String, path: String, month: Int?)] {
+    /// Every drawing of one kind a monthly pack delivered that is still installed on this device,
+    /// with the month it was made for: `.seasonal.` for the month's own drawings, `.mark.` for its
+    /// story's margin notes. Any month's pack works the same way, by the delivered file names
+    /// (`reenchanted-managed-<pack>-2026-11-<pack>.seasonal.<name>.png`). A reissued drawing
+    /// (`.v2.`) replaces the first of its name.
+    private static func installedArt(marker: String) -> [(name: String, path: String, month: Int?)] {
         guard let directory = MonthlyIssueDeliveryPolicy.managedContentDirectory(),
               let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return [] }
         var found: [String: (path: String, month: Int?, name: String, reissued: Bool)] = [:]
         for url in files where url.pathExtension.lowercased() == "png" {
             let file = url.lastPathComponent
             guard file.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix),
-                  let marker = file.range(of: ".seasonal.") else { continue }
-            let before = String(file[..<marker.lowerBound])
+                  let range = file.range(of: marker) else { continue }
+            let before = String(file[..<range.lowerBound])
             var month: Int?
-            if let range = before.range(of: "-\\d{4}-\\d{2}-", options: .regularExpression) {
-                month = Int(before[range].dropLast().suffix(2))
+            if let dated = before.range(of: "-\\d{4}-\\d{2}-", options: .regularExpression) {
+                month = Int(before[dated].dropLast().suffix(2))
             }
-            var name = String(file[marker.upperBound...]).replacingOccurrences(of: ".png", with: "")
+            var name = String(file[range.upperBound...]).replacingOccurrences(of: ".png", with: "")
             let reissued = name.hasPrefix("v2.")
             if reissued { name = String(name.dropFirst(3)) }
             let key = "\(month ?? 0):\(name)"
@@ -1174,8 +1249,33 @@ extension MonthlyEditionPDFWriter {
                                                    withAttributes: [.font: font, .foregroundColor: style.palette.accent])
                 leaf.y += 18
             }
+            // The Book's own note in the margin of its story, where there's room for it.
+            if !scene.isReport {
+                drawStoryMark(month: Calendar.current.component(.month, from: scene.readAt), style: style, leaf: &leaf)
+            }
             leaf.y += 6
         }
+    }
+
+    /// One of the month's story margin notes, set across the leaf under a scene: the handwritten
+    /// line and its little drawing, a touch askew. Only when it fits; a story note never forces a leaf.
+    @discardableResult
+    static func drawStoryMark(month: Int, style: EditionStyle, leaf: inout PDFCursor, maxWidth: CGFloat = 250) -> Bool {
+        guard leaf.bottom - leaf.y > 90, let mark = MarginaliaDealer.nextStoryMark(month: month),
+              let cg = UIGraphicsGetCurrentContext() else { return false }
+        let honest = mark.size.width * mark.scale / 150 * 72
+        let width = min(maxWidth, leaf.contentWidth * 0.8, honest)
+        let height = width * mark.size.height / mark.size.width
+        guard leaf.y + height + 8 < leaf.bottom else { return false }
+        let ready = PrintImage.fitted(mark, drawnPoints: CGSize(width: width, height: height))
+        let x = leaf.right - width - 4
+        cg.saveGState()
+        cg.translateBy(x: x + width / 2, y: leaf.y + 4 + height / 2)
+        cg.rotate(by: -0.025)
+        ready.draw(in: CGRect(x: -width / 2, y: -height / 2, width: width, height: height))
+        cg.restoreGState()
+        leaf.y += height + 10
+        return true
     }
 
     // MARK: The reader's day
@@ -1345,7 +1445,8 @@ extension MonthlyEditionPDFWriter {
         if !day.marks.isEmpty, leaf.bottom - leaf.y > 80 {
             var x = leaf.left
             for asset in day.marks {
-                guard let image = image(from: asset) else { continue }
+                // A story note the book has already printed (under a scene, say) isn't printed again.
+                guard MarginaliaDealer.claimStoryMark(reference: asset.reference), let image = image(from: asset) else { continue }
                 let scale = min(120 / image.size.width, 62 / image.size.height)
                 let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
                 if leaf.y + size.height + 6 > leaf.bottom { break }
@@ -1706,6 +1807,8 @@ extension MonthlyEditionPDFWriter {
             UIRectFill(CGRect(x: leaf.left, y: leaf.y + 3, width: leaf.contentWidth, height: 0.5))
             leaf.y += 14
         }
+        leaf.y += 6
+        if drawStoryMark(month: monthNumber, style: style, leaf: &leaf) { return }
         let remaining = leaf.bottom - leaf.y
         if remaining > 90 {
             drawBotanical(month: monthNumber, seed: "commonplace-\(days.first?.id ?? "")",
@@ -3211,6 +3314,9 @@ extension MonthlyEditionPDFWriter {
                 drawChoiceSlip(choice, style: style, leaf: &leaf, fresh: fresh,
                                seed: "scene-choice-\(scene.id)", color: readerInk)
             }
+            if !scene.isReport {
+                drawStoryMark(month: Calendar.current.component(.month, from: scene.readAt), style: style, leaf: &leaf)
+            }
         }
     }
 
@@ -4345,6 +4451,7 @@ extension MonthlyEditionPDFWriter {
                        leaf: &leaf, justified: false, gap: 8)
             }
         }
+        fillLeafFoot(month: Calendar.current.component(.month, from: annual.endDate), seed: "kept-coming-back", leaf: leaf, alignRight: false)
     }
 
     /// The term in numbers, the way a child counts things they're proud of: days, nights, words,
@@ -4485,6 +4592,8 @@ extension MonthlyEditionPDFWriter {
             UIRectFill(CGRect(x: leaf.left + 22, y: leaf.y, width: leaf.contentWidth - 22, height: 0.5))
             leaf.y += 14
         }
+        fillLeafFoot(month: Calendar.current.component(.month, from: connections.first?.evidence.first?.date ?? Date()),
+                     seed: "connections-\(span)", leaf: leaf)
     }
 
     /// One month of the season's Part One: its almanac, its map, then every day in full.
@@ -4597,8 +4706,25 @@ extension MonthlyEditionPDFWriter {
                 let h = min(handFont(11).lineHeight * 2 + 4, leaf.bottom - leaf.y)
                 (quote as NSString).draw(with: CGRect(x: leaf.left + 8, y: leaf.y, width: leaf.contentWidth - 16, height: h),
                                          options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: attributes, context: nil)
-                leaf.y += h
+                leaf.y += h + 8
+            }
+            // The story's own margin note under its plate, or a drawing in the room that's left.
+            let month = Calendar.current.component(.month, from: plate.scene.readAt)
+            if !drawStoryMark(month: month, style: chapterStyle, leaf: &leaf) {
+                fillLeafFoot(month: month, seed: "picture-\(plate.number)", leaf: leaf)
             }
         }
+    }
+
+    /// A drawing from the book's deck in whatever is left at the foot of a leaf, when there's
+    /// enough of it to be worth one. The volumes' own leaves (pictures, connections, what came
+    /// back) would otherwise end in bare paper.
+    static func fillLeafFoot(month: Int, seed: String, leaf: PDFCursor, alignRight: Bool = true) {
+        let remaining = leaf.bottom - leaf.y
+        guard remaining > 110 else { return }
+        let height = min(remaining - 12, 150)
+        drawBotanical(month: month, seed: seed,
+                      in: CGRect(x: alignRight ? leaf.right - 130 : leaf.left, y: leaf.bottom - height, width: 130, height: height),
+                      alignRight: alignRight, rotation: alignRight ? -0.06 : 0.06)
     }
 }

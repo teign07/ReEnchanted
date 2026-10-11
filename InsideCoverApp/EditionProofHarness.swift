@@ -57,6 +57,20 @@ enum EditionProofHarness {
             let started = Date()
             var outcome: String
             do { outcome = try work() } catch { outcome = "FAILED: \(error)" }
+            // What the margins drew in the last book this step bound: by kind, and anything drawn twice.
+            let dealt = MarginaliaDealer.dealtLog
+            if !dealt.isEmpty {
+                var kinds: [String: Int] = [:]
+                for id in dealt {
+                    let kind = id.hasPrefix("pack:10") ? "pack-month" : id.hasPrefix("pack:") ? "pack-other"
+                        : String(id.prefix { $0 != ":" })
+                    kinds[kind, default: 0] += 1
+                }
+                let repeats = Dictionary(grouping: dealt, by: { $0 }).filter { $0.value.count > 1 }
+                    .map { "\($0.key)×\($0.value.count)" }.sorted()
+                outcome += "\n   margins: \(dealt.count) drawn · " + kinds.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+                    + (repeats.isEmpty ? "" : "\n   drawn twice: " + repeats.joined(separator: ", "))
+            }
             status.removeLast()
             status.append("\(outcome.hasPrefix("FAILED") ? "FAILED" : "OK") \(name) (\(Int(Date().timeIntervalSince(started)))s): \(outcome)")
             try? status.joined(separator: "\n").write(to: directory.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)

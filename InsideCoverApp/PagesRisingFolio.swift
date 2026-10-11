@@ -805,12 +805,14 @@ struct PagesRisingFolio: View {
     /// wants the destination is not made to wait for the performance.
     private static let riffleDuration: Double = 0.66
 
+    /// Contents lives before the reading leaves: turn back, left to right,
+    /// to find it, then forward, right to left, to resume reading.
     private func openContents() {
-        riffle(reversed: false) { isContentsOpen = true }
+        riffle(reversed: true) { isContentsOpen = true }
     }
 
     private func closeContents() {
-        riffle(reversed: true) { isContentsOpen = false }
+        riffle(reversed: false) { isContentsOpen = false }
     }
 
     /// The Pages Rising line is not a door out of the Book. It turns the
@@ -889,7 +891,9 @@ struct PagesRisingFolio: View {
                 BookFeedback.play(.tap)
                 return
             }
-            riffle(reversed: targetIndex < currentIndex) {
+            // Every reading leaf follows Contents, even if the ribbon marks
+            // an earlier leaf than the one we were reading before opening it.
+            riffle(reversed: !isContentsOpen && targetIndex < currentIndex) {
                 isContentsOpen = false
                 currentLeafID = target.id
                 rememberPosition(for: target.id, in: leaves)
