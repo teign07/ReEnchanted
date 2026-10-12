@@ -438,6 +438,28 @@ struct PhysicalBookShippingDestination: Codable, Equatable {
     }
 }
 
+/// Where paper ships. Sales tax, VAT, customs and postage are settled one
+/// country at a time, so a destination opens only by configuration. Keep in
+/// step with `SHIPPING_COUNTRIES` / `BOUND_YEAR_COUNTRIES` in the Worker's
+/// wrangler.toml; the Worker is the authority and refuses anything else with
+/// `shipping_country_unavailable`.
+enum PhysicalBookShippingPolicy {
+    static let countryCodes = ["US"]
+    /// The Bound Year is one flat price with US postage built in.
+    static let boundYearCountryCodes = ["US"]
+
+    /// The reader's own region when paper ships there, otherwise the first
+    /// open country. Never a closed destination the form would then refuse.
+    static func defaultCountryCode(in codes: [String] = countryCodes) -> String {
+        let region = Locale.current.region?.identifier.uppercased() ?? ""
+        return codes.contains(region) ? region : (codes.first ?? "US")
+    }
+
+    static func displayName(for code: String) -> String {
+        Locale.current.localizedString(forRegionCode: code) ?? code
+    }
+}
+
 struct PhysicalBookShippingAddress: Codable, Equatable {
     var name: String
     var street1: String

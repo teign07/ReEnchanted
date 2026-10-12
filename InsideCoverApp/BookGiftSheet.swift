@@ -241,7 +241,7 @@ struct BookGiftSheet: View {
     @State private var recipientName = ""
     @State private var giftMessage = ""
     @State private var contactEmail = ""
-    @State private var countryCode = "US"
+    @State private var countryCode = PhysicalBookShippingPolicy.defaultCountryCode()
     @State private var stateCode = ""
     @State private var postalCode = ""
     @State private var street1 = ""
@@ -530,8 +530,7 @@ struct BookGiftSheet: View {
                 TextField("Apartment, suite, etc. (optional)", text: $street2).textContentType(.streetAddressLine2).giftField()
                 TextField("City", text: $city).textContentType(.addressCity).giftField()
                 HStack {
-                    TextField("Country", text: $countryCode)
-                        .textInputAutocapitalization(.characters)
+                    ShippingCountryField(countryCode: $countryCode)
                         .giftField()
                     if countryCode.uppercased() == "US" {
                         TextField("State", text: $stateCode)
@@ -707,9 +706,7 @@ struct BookGiftSheet: View {
                     TextField("State / region", text: $stateCode).textContentType(.addressState).giftField()
                     TextField("Postal code", text: $postalCode).textContentType(.postalCode).giftField()
                 }
-                TextField("Country code", text: $countryCode)
-                    .textContentType(.countryName)
-                    .textInputAutocapitalization(.characters)
+                ShippingCountryField(countryCode: $countryCode)
                     .giftField()
                 TextField("Phone for the parcel", text: $phoneNumber).textContentType(.telephoneNumber).keyboardType(.phonePad).giftField()
                 if ["BR", "CL", "MX"].contains(countryCode.uppercased()) {
@@ -1629,5 +1626,38 @@ private extension View {
             .padding(.horizontal, 10)
             .padding(.vertical, 9)
             .background(BookPalette.ink.opacity(0.055), in: RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+/// The destination country for a parcel: a choice among the countries paper
+/// ships to, never free text. With one open country it is a plain line, so the
+/// form does not offer a menu of one.
+struct ShippingCountryField: View {
+    @Binding var countryCode: String
+    var countryCodes: [String] = PhysicalBookShippingPolicy.countryCodes
+
+    var body: some View {
+        Group {
+            if countryCodes.count > 1 {
+                Picker("Country", selection: $countryCode) {
+                    ForEach(countryCodes, id: \.self) { code in
+                        Text(PhysicalBookShippingPolicy.displayName(for: code)).tag(code)
+                    }
+                }
+                .pickerStyle(.menu)
+            } else {
+                Text("Ships to \(PhysicalBookShippingPolicy.displayName(for: countryCodes.first ?? "US"))")
+                    .font(.subheadline)
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .onAppear {
+            // A saved or prefilled address from a closed country falls back to
+            // an open one rather than leaving a value the press will refuse.
+            if !countryCodes.contains(countryCode.uppercased()) {
+                countryCode = PhysicalBookShippingPolicy.defaultCountryCode(in: countryCodes)
+            }
+        }
     }
 }

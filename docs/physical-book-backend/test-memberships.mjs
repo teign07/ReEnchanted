@@ -300,7 +300,7 @@ const noConsent = await worker.fetch(
 );
 check(noConsent.status === 400, "Lulu fulfillment consent is explicit");
 
-console.log("\nCustoms identity:");
+console.log("\nShipping countries:");
 const brazilAddress = {
   ...shippingAddress,
   city: "Sao Paulo",
@@ -308,6 +308,30 @@ const brazilAddress = {
   countryCode: "BR",
   postalCode: "01001-000",
 };
+const closedBoundYear = await worker.fetch(
+  new Request("https://example.test/memberships", {
+    method: "POST", headers: headers(token),
+    body: membershipBody("annual", "reader@example.com", { ...brazilAddress, recipientTaxID: "123.456.789-01" }),
+  }),
+  env,
+);
+check(closedBoundYear.status === 400 && (await closedBoundYear.json()).error === "shipping_country_unavailable",
+  "the Bound Year ships only within the United States by default");
+// Its flat price carries US postage, so opening a country for single books
+// does not open it for the Bound Year.
+env.SHIPPING_COUNTRIES = "US,BR";
+const singleBooksOnly = await worker.fetch(
+  new Request("https://example.test/memberships", {
+    method: "POST", headers: headers(token),
+    body: membershipBody("annual", "reader@example.com", { ...brazilAddress, recipientTaxID: "123.456.789-01" }),
+  }),
+  env,
+);
+check((await singleBooksOnly.json()).error === "shipping_country_unavailable",
+  "a country open for single books stays closed to the flat-priced Bound Year");
+env.BOUND_YEAR_COUNTRIES = "US,BR";
+
+console.log("\nCustoms identity:");
 const brazilMissingID = await worker.fetch(
   new Request("https://example.test/memberships", {
     method: "POST", headers: headers(token),

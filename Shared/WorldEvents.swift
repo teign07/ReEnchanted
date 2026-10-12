@@ -2747,6 +2747,10 @@ enum MonthlyIssueAssetInstaller {
 }
 
 enum MonthlyIssueMediaPath {
+    /// Bundle IDs the app has shipped under. Never remove one: Books made
+    /// under it still name it inside their stored file paths.
+    static let legacyBundleIDs: Set<String> = ["com.openclaw.enchantify.insidecover"]
+
     /// iOS can move the sandbox during an app update. Resolve only our two
     /// monthly directories into the current sandbox; never follow a saved
     /// container path into another app or let traversal escape these roots.
@@ -2761,8 +2765,26 @@ enum MonthlyIssueMediaPath {
     /// path no longer exists, look for the same file under the same folder in today's sandbox. Only
     /// our own Application Support, Documents and Caches are ever searched, and only for a path that
     /// cannot escape them.
-    static func relocatingMissing(_ path: String, supportDirectory: URL? = nil, fileManager: FileManager = .default) -> String {
+    static func relocatingMissing(
+        _ path: String,
+        supportDirectory: URL? = nil,
+        groupContainer: URL? = nil,
+        bundleID: String? = Bundle.main.bundleIdentifier,
+        fileManager: FileManager = .default
+    ) -> String {
         guard path.hasPrefix("/"), !fileManager.fileExists(atPath: path) else { return path }
+        // The shared App Group container moves too: a whole-Book moving copy
+        // restored into a renamed app lands in a new container. Re-root a path
+        // inside the old one by what follows the container's UUID.
+        if let marker = path.range(of: #"/Shared/AppGroup/[0-9A-Fa-f-]{36}/"#, options: .regularExpression),
+           let base = groupContainer ?? fileManager.containerURL(forSecurityApplicationGroupIdentifier: ExternalShareInbox.appGroup) {
+            let parts = path[marker.upperBound...].split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            if !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) {
+                let root = base.resolvingSymlinksInPath().standardizedFileURL
+                let target = parts.reduce(root) { $0.appendingPathComponent($1) }.resolvingSymlinksInPath().standardizedFileURL
+                if target.path.hasPrefix(root.path + "/"), fileManager.fileExists(atPath: target.path) { return target.path }
+            }
+        }
         let roots: [(marker: String, directory: FileManager.SearchPathDirectory)] = [
             ("/Library/Application Support/", .applicationSupportDirectory),
             ("/Documents/", .documentDirectory),
@@ -2771,7 +2793,14 @@ enum MonthlyIssueMediaPath {
         for (marker, directory) in roots {
             guard let range = path.range(of: marker, options: .backwards) else { continue }
             let suffix = String(path[range.upperBound...])
-            let parts = suffix.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            var parts = suffix.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+            // Application Support keeps the Book's files in a folder named for
+            // the bundle ID. After the app is renamed, a moving copy puts them
+            // under the new name, so an old name maps onto today's.
+            if directory == .applicationSupportDirectory, let bundleID, let first = parts.first,
+               first != bundleID, legacyBundleIDs.contains(first) {
+                parts[0] = bundleID
+            }
             guard !parts.isEmpty, parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
                   let base = directory == .applicationSupportDirectory
                     ? (supportDirectory ?? fileManager.urls(for: directory, in: .userDomainMask).first)

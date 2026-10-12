@@ -206,6 +206,15 @@ and importer-of-record obligations are still business/legal setup, not something
 the Worker can infer; expand destinations only after those registrations and
 fulfillment terms are confirmed.
 
+Destinations open by configuration only. `SHIPPING_COUNTRIES` (default `US`)
+lists where single books and gifts ship; `BOUND_YEAR_COUNTRIES` (default `US`,
+always within the first list) lists where a Bound Year can be opened or moved,
+because its flat price carries US postage. Anything else is refused with
+`shipping_country_unavailable` before Lulu prices it. `/health` reports both.
+Open a country only after its tax registration (Stripe Tax), customs handling
+and postage are settled, and change `PhysicalBookShippingPolicy` in the app to
+match.
+
 Lulu currently requires a recipient customs tax identifier for print jobs sent
 to Brazil, Chile, and Mexico. The app asks for CPF/CNPJ, RUT, or RFC only when
 the destination needs it. A one-off order keeps the compact identifier in its
@@ -559,8 +568,9 @@ available to Lulu so Lulu can manufacture and ship the book.
 The transport path uses HTTPS, and R2 storage is encrypted at rest by the cloud
 provider, but this is not end-to-end manuscript encryption: the print provider
 must be able to read the files to produce the physical book. The R2 bucket stays
-private. Lulu receives a random Worker capability URL that expires after 48
-hours and is returned with `no-store` caching.
+private. Lulu receives a random Worker capability URL that expires after 30
+days (long enough to outlast the payout wait) and is returned with `no-store`
+caching.
 
 Before upload or final submission, the iOS app explicitly discloses that
 the print files leave the device and are shared with Lulu, the third-party

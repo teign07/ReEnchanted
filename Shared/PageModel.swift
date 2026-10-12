@@ -3445,6 +3445,20 @@ struct BookPageExternalAttachment: Codable, Equatable, Identifiable {
     var originalFilename: String?
 }
 
+extension BookPageExternalAttachment {
+    /// Shared documents are kept by absolute path in the App Group container,
+    /// which moves when a Book is restored into another install. Decode re-roots
+    /// a stale path, as media assets do.
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        kind = try values.decode(String.self, forKey: .kind)
+        filePath = MonthlyIssueMediaPath.relocatingMissing(try values.decode(String.self, forKey: .filePath))
+        typeIdentifier = try values.decode(String.self, forKey: .typeIdentifier)
+        originalFilename = try values.decodeIfPresent(String.self, forKey: .originalFilename)
+    }
+}
+
 struct BookPageExternalReference: Codable, Equatable {
     var title: String
     var sourceName: String

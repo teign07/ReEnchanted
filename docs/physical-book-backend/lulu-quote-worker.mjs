@@ -121,6 +121,7 @@ async function createBoundYearMembership(request, env, options = {}) {
     throw new HTTPError(400, "invalid_contact_email", "A working email is needed for the parcels.");
   }
   const shippingAddress = canonicalShippingAddress(request?.shippingAddress);
+  requireShippableCountry(shippingAddress.countryCode, env, { boundYear: true });
   requireRecipientTaxID(shippingAddress);
   if (request?.acceptsLuluFulfillment !== true) {
     throw new HTTPError(400, "fulfillment_consent_required", "The print house disclosure must be accepted before opening a Bound Year.");
@@ -605,6 +606,7 @@ async function updateBoundYearShippingAddress(membershipID, request, env) {
     throw new HTTPError(502, "membership_customer_unavailable", "Stripe did not return the parcel record for that membership.");
   }
   const shippingAddress = canonicalShippingAddress(request?.shippingAddress);
+  requireShippableCountry(shippingAddress.countryCode, env, { boundYear: true });
   requireRecipientTaxID(shippingAddress);
   const customer = await stripePost(env, `customers/${encodeURIComponent(customerID)}`, {
     ...stripeCustomerShippingFields(shippingAddress),
@@ -749,6 +751,35 @@ function canonicalRecipientTaxID(value) {
     throw new HTTPError(400, "invalid_recipient_tax_id", "That customs tax identifier is not in a form the printer can use.");
   }
   return compact;
+}
+
+// Where paper ships. Sales tax, VAT, customs and postage are set up country
+// by country, so a destination opens only by configuration, never by default.
+// The Bound Year is one flat price with US postage built in, so it has its own
+// narrower list. Keep both in step with PhysicalBookShippingPolicy in
+// Shared/PhysicalBookOrders.swift; the Worker is the authority.
+function configuredCountryCodes(value, fallback) {
+  const codes = String(value ?? fallback).split(",").map(code => code.trim().toUpperCase())
+    .filter(code => /^[A-Z]{2}$/.test(code));
+  return new Set(codes);
+}
+
+function shippableCountryCodes(env) {
+  return configuredCountryCodes(env.SHIPPING_COUNTRIES, "US");
+}
+
+function boundYearCountryCodes(env) {
+  const shippable = shippableCountryCodes(env);
+  return new Set([...configuredCountryCodes(env.BOUND_YEAR_COUNTRIES, "US")].filter(code => shippable.has(code)));
+}
+
+function requireShippableCountry(countryCode, env, { boundYear = false } = {}) {
+  const allowed = boundYear ? boundYearCountryCodes(env) : shippableCountryCodes(env);
+  if (!allowed.has(String(countryCode || "").toUpperCase())) {
+    throw new HTTPError(400, "shipping_country_unavailable", boundYear
+      ? "The Bound Year ships only within the United States for now."
+      : "Printed books ship only within the United States for now.");
+  }
 }
 
 function requireRecipientTaxID(address) {
@@ -1859,6 +1890,8 @@ function healthCheck(env) {
       checkoutEnvironmentAligned: checkout.environmentAligned,
       boundYearLiveSalesEnabled,
     },
+    shippingCountries: [...shippableCountryCodes(env)].sort(),
+    boundYearCountries: [...boundYearCountryCodes(env)].sort(),
     shippingLevels: configuredShippingLevels(env).map((level) => ({
       id: level.id,
       displayName: level.displayName,
@@ -2030,6 +2063,7 @@ function stripeEventStorageKey(eventID) {
 
 async function createQuote(quoteRequest, env) {
   const canonicalRequest = canonicalQuoteRequest(quoteRequest);
+  requireShippableCountry(canonicalRequest.shipTo?.countryCode, env);
   requireOrderStorage(env);
 
   const token = await fetchLuluAccessToken(env);

@@ -2237,7 +2237,28 @@ extension ContentView {
     }
 
     @MainActor
+    /// "Seal a copy" packs the whole Book as a moving copy: every ledger, file
+    /// and setting, so it can move to a new phone or a renamed app intact. The
+    /// JSON sealed copy below remains for folding one Book into another.
     func exportSaveFile() {
+        statusMessage = "Sealing every page, photograph and ledger…"
+        Task { @MainActor in
+            do {
+                let url = try await BookMovingCopy.export()
+                preparedSaveFileURL = url
+                InsideCoverStore.defaults.set(Date(), forKey: Self.lastSealedCopyKey)
+                statusMessage = "I'm sealed: the whole Book, every page, photograph and ledger."
+                BookFeedback.play(.braidComplete)
+            } catch {
+                statusMessage = "The copy wouldn't seal: \(error.localizedDescription)"
+                BookFeedback.play(.error)
+            }
+        }
+    }
+
+    /// The JSON sealed copy: pages, photographs and a chosen set of ledgers,
+    /// merged into whatever Book opens it.
+    func exportMergeSaveFile() {
         do {
             var saveFile = buildSaveFile()
             let media = collectSealedMedia(for: saveFile.days)
@@ -6202,6 +6223,12 @@ extension ContentView {
     /// pages, facts, memories, cast, and ledgers land on top.
     @MainActor
     func importSaveFile(from url: URL) {
+        // A moving copy replaces this Book rather than merging into it, and only
+        // takes effect on the next launch, once the Book has confirmed it.
+        if url.pathExtension.lowercased() == BookMovingCopy.fileExtension {
+            BookMovingCopy.offerRestore(from: url) { message in statusMessage = message }
+            return
+        }
         let shouldStop = url.startAccessingSecurityScopedResource()
         defer {
             if shouldStop {

@@ -3724,7 +3724,7 @@ struct ContentView: View {
             }
             .fileImporter(
                 isPresented: $isSaveImporterPresented,
-                allowedContentTypes: [.json],
+                allowedContentTypes: [.json, BookMovingCopy.contentType],
                 allowsMultipleSelection: false
             ) { result in
                 if case let .success(urls) = result, let url = urls.first {

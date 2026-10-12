@@ -155,6 +155,7 @@
 		0E0000000000000000000001 /* EditionProofHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0000000000000000000101 /* EditionProofHarness.swift */; };
 		0F0000000000000000000001 /* BraidProofHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0000000000000000000101 /* BraidProofHarness.swift */; };
 		070000000000000000000201 /* BookGiftSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000101 /* BookGiftSheet.swift */; };
+		070000000000000000000202 /* BookMovingCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 070000000000000000000102 /* BookMovingCopy.swift */; };
 		080000000000000000000201 /* AuthoredContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000101 /* AuthoredContent.swift */; };
 		080000000000000000000202 /* MonthlyIssueAuthoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000102 /* MonthlyIssueAuthoring.swift */; };
 		080000000000000000000203 /* MonthlyIssueNativeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 080000000000000000000103 /* MonthlyIssueNativeContent.swift */; };
@@ -353,6 +354,7 @@
 		0E0000000000000000000101 /* EditionProofHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionProofHarness.swift; sourceTree = "<group>"; };
 		0F0000000000000000000101 /* BraidProofHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BraidProofHarness.swift; sourceTree = "<group>"; };
 		070000000000000000000101 /* BookGiftSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookGiftSheet.swift; sourceTree = "<group>"; };
+		070000000000000000000102 /* BookMovingCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookMovingCopy.swift; sourceTree = "<group>"; };
 		080000000000000000000101 /* AuthoredContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthoredContent.swift; sourceTree = "<group>"; };
 		080000000000000000000102 /* MonthlyIssueAuthoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueAuthoring.swift; sourceTree = "<group>"; };
 		080000000000000000000103 /* MonthlyIssueNativeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonthlyIssueNativeContent.swift; sourceTree = "<group>"; };
@@ -436,6 +438,7 @@
 				03000000000000000000010b /* BookNoticesPicker.swift */,
 				030000000000000000000102 /* BookShopSheet.swift */,
 				070000000000000000000101 /* BookGiftSheet.swift */,
+				070000000000000000000102 /* BookMovingCopy.swift */,
 				030000000000000000000103 /* MonthlyEditionPDF.swift */,
 				0300000000000000000001A0 /* FieldBookPDF.swift */,
 				0300000000000000000001A1 /* HandbookPDF.swift */,
@@ -787,6 +790,7 @@
 				03000000000000000000020b /* BookNoticesPicker.swift in Sources */,
 				030000000000000000000202 /* BookShopSheet.swift in Sources */,
 				070000000000000000000201 /* BookGiftSheet.swift in Sources */,
+				070000000000000000000202 /* BookMovingCopy.swift in Sources */,
 				030000000000000000000203 /* MonthlyEditionPDF.swift in Sources */,
 				0300000000000000000002A0 /* FieldBookPDF.swift in Sources */,
 				0300000000000000000002A1 /* HandbookPDF.swift in Sources */,

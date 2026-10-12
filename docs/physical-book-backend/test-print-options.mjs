@@ -230,6 +230,23 @@ check(weeklyTooLong.status === 400, "a weekly issue over 48 pages is refused bef
 const weeklyBadFold = await quoteRequest({ ...weeklyBody, editionID: "weekly-bad-fold", pageCount: 46 });
 check(weeklyBadFold.status === 400, "a saddle-stitched issue must fold in groups of four pages");
 
+console.log("\nShipping countries:");
+const canadaClosed = await quoteRequest({
+  ...quoteBody([]),
+  editionID: "canada-closed",
+  shipTo: { ...quoteBody([]).shipTo, countryCode: "CA", stateCode: "ON", postalCode: "M5V 2T6", city: "Toronto" },
+});
+check(canadaClosed.status === 400 && canadaClosed.body.error === "shipping_country_unavailable",
+  "a destination not configured for tax and postage is refused before pricing");
+const brazilClosed = await quoteRequest({
+  ...quoteBody([]),
+  editionID: "brazil-closed",
+  shipTo: { ...quoteBody([]).shipTo, countryCode: "BR", stateCode: "SP", postalCode: "01001-000", city: "Sao Paulo", recipientTaxID: "123.456.789-01" },
+});
+check(brazilClosed.body.error === "shipping_country_unavailable", "only the United States ships by default");
+// The customs rules below still hold once a country is opened by configuration.
+env.SHIPPING_COUNTRIES = "US,BR";
+
 console.log("\nInternational customs:");
 const brazilWithoutTaxID = await quoteRequest({
   ...quoteBody([]),
@@ -242,7 +259,7 @@ const brazilWithoutTaxID = await quoteRequest({
     city: "Sao Paulo",
   },
 });
-check(brazilWithoutTaxID.status === 400, "Brazil is refused before pricing when its customs ID is missing");
+check(brazilWithoutTaxID.status === 400 && brazilWithoutTaxID.body.error === "recipient_tax_id_required", "Brazil is refused before pricing when its customs ID is missing");
 const brazilWithTaxID = await quoteRequest({
   ...quoteBody([]),
   editionID: "brazil-with-customs-id",

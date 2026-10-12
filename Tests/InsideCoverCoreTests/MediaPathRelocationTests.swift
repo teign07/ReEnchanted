@@ -30,6 +30,31 @@ final class MediaPathRelocationTests: XCTestCase {
         XCTAssertNotEqual(MonthlyIssueMediaPath.resolving(stale, supportDirectory: support), stale)
     }
 
+    /// A Book moved into the renamed app keeps photo paths that name the old
+    /// bundle ID's folder; the moving copy puts the files under the new one.
+    func testAPhotoUnderTheOldBundleFolderIsFoundUnderTheRenamedApp() throws {
+        let renamed = support.appendingPathComponent("app.reenchanted.book/CameraFirstPhotos", isDirectory: true)
+        try FileManager.default.createDirectory(at: renamed, withIntermediateDirectories: true)
+        try Data([4]).write(to: renamed.appendingPathComponent("first.jpg"))
+        let stale = "/var/mobile/Containers/Data/Application/OLD-UUID/Library/Application Support/com.openclaw.enchantify.insidecover/CameraFirstPhotos/first.jpg"
+        let found = MonthlyIssueMediaPath.relocatingMissing(stale, supportDirectory: support, bundleID: "app.reenchanted.book")
+        XCTAssertEqual(found, renamed.appendingPathComponent("first.jpg").resolvingSymlinksInPath().standardizedFileURL.path)
+        let unknown = "/old/Library/Application Support/com.someone.else/CameraFirstPhotos/first.jpg"
+        XCTAssertEqual(MonthlyIssueMediaPath.relocatingMissing(unknown, supportDirectory: support, bundleID: "app.reenchanted.book"), unknown,
+                       "only the app's own former bundle IDs are mapped")
+    }
+
+    func testAFileInTheOldSharedContainerIsFoundInTodaysContainer() throws {
+        let group = support.appendingPathComponent("group-container", isDirectory: true)
+        try FileManager.default.createDirectory(at: group, withIntermediateDirectories: true)
+        try Data([5]).write(to: group.appendingPathComponent("kept-voice.m4a"))
+        let stale = "/private/var/mobile/Containers/Shared/AppGroup/12345678-1234-1234-1234-123456789ABC/kept-voice.m4a"
+        let found = MonthlyIssueMediaPath.relocatingMissing(stale, supportDirectory: support, groupContainer: group)
+        XCTAssertEqual(found, group.appendingPathComponent("kept-voice.m4a").resolvingSymlinksInPath().standardizedFileURL.path)
+        let escape = "/private/var/mobile/Containers/Shared/AppGroup/12345678-1234-1234-1234-123456789ABC/../../secret"
+        XCTAssertEqual(MonthlyIssueMediaPath.relocatingMissing(escape, supportDirectory: support, groupContainer: group), escape)
+    }
+
     func testAPathThatStillExistsIsLeftAlone() {
         let real = support.appendingPathComponent("com.example.app/WeeklyIssues/Weekly-Issue-6-Card.png").path
         XCTAssertEqual(MonthlyIssueMediaPath.relocatingMissing(real, supportDirectory: support), real)

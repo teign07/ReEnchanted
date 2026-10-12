@@ -165,7 +165,7 @@ struct BookShopSheet: View {
     @State private var physicalBookCity = ""
     @State private var physicalBookShippingStateCode = ""
     @State private var physicalBookShippingPostalCode = ""
-    @State private var physicalBookShippingCountryCode = Locale.current.region?.identifier ?? "US"
+    @State private var physicalBookShippingCountryCode = PhysicalBookShippingPolicy.defaultCountryCode()
     @State private var physicalBookPhoneNumber = ""
     @State private var physicalBookRecipientTaxID = ""
     @State private var physicalBookPaymentIntent: PhysicalBookPaymentIntent?
@@ -4076,21 +4076,13 @@ struct BookShopSheet: View {
             }
 
             HStack(spacing: 6) {
-                TextField("Country code", text: $physicalBookShippingCountryCode)
-                    .textInputAutocapitalization(.characters)
-                    .autocorrectionDisabled()
-                    .keyboardType(.asciiCapable)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 108)
+                ShippingCountryField(countryCode: $physicalBookShippingCountryCode)
+                    .frame(width: 160, alignment: .leading)
                 TextField("Phone", text: $physicalBookPhoneNumber)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
                     .textFieldStyle(.roundedBorder)
             }
-
-            Text("Use a two-letter country code, such as US, CA, or GB.")
-                .font(.caption2)
-                .foregroundStyle(BookPalette.ink.opacity(0.62))
 
             if physicalBookDestinationNeedsRecipientTaxID {
                 TextField(physicalBookRecipientTaxIDLabel, text: $physicalBookRecipientTaxID)
@@ -5923,6 +5915,8 @@ struct PhysicalBookQuoteClient {
                     return "The payment may already be moving or paid. Continue this purchase to check its receipt."
                 case "checkout_closed":
                     return "That checkout has closed. Use Close unpaid checkout to put away its saved form."
+                case "shipping_country_unavailable":
+                    return "Printed books ship only within the United States for now."
                 case "awaiting_payout":
                     // The Worker holds every parcel until its payment reaches the bank,
                     // then sends it to Lulu on its own. Nothing is wrong and nothing is owed.
@@ -6480,7 +6474,7 @@ struct PhysicalBookQuoteClient {
         "print_submission_uncertain", "print_submission_changed", "membership_payment_unavailable",
         "stripe_error", "checkout_receipt_missing", "invalid_contact_email", "invalid_shipping_address",
         "fulfillment_consent_required", "unsupported_cadence", "invalid_senderName", "invalid_recipientName", "invalid_recipient_tax_id", "invalid_gift_message",
-        "recipient_tax_id_required", "awaiting_payout",
+        "recipient_tax_id_required", "awaiting_payout", "shipping_country_unavailable",
     ]
 
     static var installationID: String {

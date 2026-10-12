@@ -59,6 +59,11 @@ struct InsideCoverApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        // Before anything reads the disk: a confirmed moving copy takes its place.
+        BookMovingCopy.finishPendingRestore()
+        #if DEBUG && targetEnvironment(simulator)
+        BookMovingCopy.runRoundTripIfRequested()
+        #endif
         // Keep the handler for jobs queued by an older app version. The local
         // model cannot run in BGProcessing, so no new scribe job is scheduled.
         OvernightScribe.register()

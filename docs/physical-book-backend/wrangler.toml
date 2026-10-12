@@ -20,6 +20,11 @@ PHYSICAL_BOOK_ORDERING_ENABLED = "true"
 # Stripe Tax is the reader-facing sales-tax/VAT authority. Live checkout will
 # remain closed while this is false, even if the general ordering switch is on.
 STRIPE_TAX_ENABLED = "false"
+# Where paper ships. Open a country only after its sales tax/VAT registration,
+# customs handling and postage are settled, and update PhysicalBookShippingPolicy
+# in the app to match. The Bound Year's flat price carries US postage only.
+SHIPPING_COUNTRIES = "US"
+BOUND_YEAR_COUNTRIES = "US"
 # Stripe test catalogue only, matching BoundYearPricing in the app.
 STRIPE_BOUND_YEAR_MONTHLY_PRICE = "price_1UDBjrE80ArNx7J9p2acRpvE"
 STRIPE_BOUND_YEAR_ANNUAL_PRICE = "price_1UMZMCE80ArNx7J9LVxqR2Df"
