@@ -48,12 +48,7 @@ the production one in live mode for Release.
 
 ## C. Worker + Stripe + Lulu (Codex; it has the accounts)
 
-Current `/health` (2026-10-11): `readyForConfiguredMode: false` even in test.
-The only failing infrastructure check is `alertEmailConfigured`.
-
-1. **Alert inbox.** Verify a destination in Cloudflare Email Routing for
-   reenchanted.app, then `npx wrangler secret put SECURITY_ALERT_EMAIL_TO`.
-   Re-check `/health` → `testReady: true`.
+1. ~~**Alert inbox.**~~ Done 2026-10-11: `/health` → `testReady: true`.
 2. **Staging Worker** for Debug builds: a wrangler `[env.staging]` with its own
    name, KV/R2/D1/Durable Object bindings, test Stripe secret + webhook
    secret, Lulu sandbox credentials, the test Bound Year price IDs, and
@@ -76,6 +71,10 @@ The only failing infrastructure check is `alertEmailConfigured`.
    - **Stripe Tax**: registrations in the Stripe dashboard, then
      `STRIPE_TAX_ENABLED = "true"`. Production readiness requires it.
    - `MEMBERSHIP_CUSTOMS_ENCRYPTION_KEY` (≥32 chars) for non-US parcels.
+   - **Payout gate** (no parcel reaches Lulu before its money is in the bank):
+     the live Stripe account's payouts must be **automatic**, and the live key
+     needs **Payouts: read** and **Balance: read**. After the first cron, KV
+     `payouts/last-scan` must read `ok: true` (test verified 2026-10-11).
    - `/health` → `productionReady: true`.
    - `BOUND_YEAR_LIVE_SALES_ENABLED = "true"` only after step 3 passed.
 5. Hand back the **live publishable key** (`pk_live_…`), the **staging Worker
@@ -89,7 +88,9 @@ The only failing infrastructure check is `alertEmailConfigured`.
 - Release: `PHYSICAL_BOOK_CHECKOUT_MODE = live`, `STRIPE_PUBLISHABLE_KEY = pk_live_…`,
   endpoint → production.
 - One real low-cost order from a Release build on Rabbit, refunded after
-  Lulu accepts it.
+  Lulu accepts it. It waits for its payout first (about two business days;
+  a new live account's first payouts take 7–14 days). Do not refund before
+  Lulu accepts it, or the proof never reaches the press.
 
 ## E. Apple Pay (optional, after the fee)
 
@@ -115,3 +116,4 @@ handle it by email at hello@reenchanted.app.
 | Export compliance | `ITSAppUsesNonExemptEncryption = NO` |
 | Worker | Deployed: memberships, options, orders, webhooks, monthly shelf |
 | Live Stripe prices | Created and verified 2026-10-04 |
+| Payout gate | Every parcel waits until its money is paid out to the bank (35fabf9f, deployed in test 2026-10-11; R2 print files 31 days) |
