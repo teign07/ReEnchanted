@@ -807,10 +807,10 @@ final class RutSelfKnowledgeTests: XCTestCase {
     private func rutWarningSurface() -> SurfacePage {
         SurfacePage(
             type: .bookNotices,
-            prompt: "The Book Suspects the Rut",
+            prompt: "I Suspect the Rut",
             detail: "A hunch with an eraser.",
             payload: BookPagePayload(
-                headline: "The Book Suspects the Rut",
+                headline: "I Suspect the Rut",
                 body: "I may be wrong.",
                 metadata: ["packArchetypeID": "the-nothing-stirs"]
             )

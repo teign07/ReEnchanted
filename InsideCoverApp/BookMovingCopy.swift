@@ -31,8 +31,13 @@ enum BookMovingCopy {
     static let restoredAtKey = "bookMovingCopyRestoredAt"
     static let restoreFailureKey = "bookMovingCopyRestoreFailure"
 
-    /// Rebuilt on another phone or re-downloaded on purpose; never carried.
-    private static let containerKept = ["Library/Caches", "Library/Preferences", pendingFileName]
+    /// Owned by iOS, not by the Book. Reading/copying it can fail on a device;
+    /// restoring must also leave the destination container's identity intact.
+    private static let containerMetadataFileName = ".com.apple.mobile_container_manager.metadata.plist"
+
+    /// Excluded from export and preserved in the destination during restore.
+    /// Preferences travel through their explicit domain snapshots instead.
+    private static let containerKept = [containerMetadataFileName, "Library/Caches", "Library/Preferences", pendingFileName]
 
     struct Manifest: Codable {
         var format: String
@@ -108,24 +113,33 @@ enum BookMovingCopy {
     /// large Book costs no extra space. Falls back to a copy across volumes.
     private static func mirror(_ source: URL, into destination: URL, skipping: [String]) throws {
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        var enumerationError: Error?
         guard let enumerator = fileManager.enumerator(at: source, includingPropertiesForKeys: [.isDirectoryKey],
-                                                      options: [], errorHandler: { _, _ in true }) else { return }
+                                                      options: [], errorHandler: { _, error in
+            enumerationError = error
+            return false
+        }) else { throw CopyError.unavailable("The Book's source folder") }
         let rootPath = source.resolvingSymlinksInPath().standardizedFileURL.path
         for case let item as URL in enumerator {
             let itemPath = item.resolvingSymlinksInPath().standardizedFileURL.path
             guard itemPath.hasPrefix(rootPath + "/") else { continue }
             let relative = String(itemPath.dropFirst(rootPath.count + 1))
             if skipping.contains(where: { relative == $0 || relative.hasPrefix($0 + "/") }) {
-                enumerator.skipDescendants()
+                // Calling this for a file can suppress a later folder's
+                // contents. Only excluded directories have descendants.
+                if (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                    enumerator.skipDescendants()
+                }
                 continue
             }
             let target = destination.appendingPathComponent(relative)
-            if (try? item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+            if try item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
                 try fileManager.createDirectory(at: target, withIntermediateDirectories: true)
             } else {
                 do { try fileManager.linkItem(at: item, to: target) } catch { try fileManager.copyItem(at: item, to: target) }
             }
         }
+        if let enumerationError { throw enumerationError }
     }
 
     private static func writePlist(_ dictionary: [String: Any], to url: URL) throws {
@@ -257,6 +271,7 @@ enum BookMovingCopy {
         let supportProbe = applicationSupport.appendingPathComponent("\(bundleID)/CameraFirstPhotos/moving-copy-probe.jpg")
         let modelProbe = applicationSupport.appendingPathComponent("\(bundleID)/\(LocalModelManager.modelsDirectoryName)/kept.txt")
         do {
+            lines.append(try checkContainerMetadataPolicy())
             try fileManager.createDirectory(at: supportProbe.deletingLastPathComponent(), withIntermediateDirectories: true)
             try fileManager.createDirectory(at: modelProbe.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data("group".utf8).write(to: groupProbe)
@@ -291,6 +306,46 @@ enum BookMovingCopy {
         }
         try? lines.joined(separator: "\n").write(to: documents.appendingPathComponent("moving-copy-roundtrip.txt"),
                                                  atomically: true, encoding: .utf8)
+    }
+
+    /// Exercises the actual mirror/restore helpers in disposable folders.
+    /// Never reads or changes a real container's iOS metadata.
+    private static func checkContainerMetadataPolicy() throws -> String {
+        let root = fileManager.temporaryDirectory.appendingPathComponent("MovingCopyMetadataProbe-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: root) }
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        let exported = root.appendingPathComponent("exported", isDirectory: true)
+        let restored = root.appendingPathComponent("restored", isDirectory: true)
+        try fileManager.createDirectory(at: source.appendingPathComponent("photos", isDirectory: true), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: restored, withIntermediateDirectories: true)
+        let bookFiles = ["PlayerVault.json": Data("vault".utf8),
+                         "photos/kept.jpg": Data("photo".utf8),
+                         ".book-note.json": Data("hidden Book file".utf8)]
+        for (path, bytes) in bookFiles { try bytes.write(to: source.appendingPathComponent(path)) }
+        try Data("source identity".utf8).write(to: source.appendingPathComponent(containerMetadataFileName))
+        try mirror(source, into: exported, skipping: containerKept)
+        guard !fileManager.fileExists(atPath: exported.appendingPathComponent(containerMetadataFileName).path) else {
+            throw CopyError.unavailable("The metadata exclusion check")
+        }
+        for (path, bytes) in bookFiles {
+            guard try Data(contentsOf: exported.appendingPathComponent(path)) == bytes else {
+                throw CopyError.unavailable("The Book-file export check")
+            }
+        }
+        // Also protect the destination if an older copy contains metadata.
+        try Data("archived identity".utf8).write(to: exported.appendingPathComponent(containerMetadataFileName))
+        let destinationIdentity = Data("destination identity".utf8)
+        try destinationIdentity.write(to: restored.appendingPathComponent(containerMetadataFileName))
+        try replaceContents(of: restored, with: exported, keeping: containerKept)
+        guard try Data(contentsOf: restored.appendingPathComponent(containerMetadataFileName)) == destinationIdentity else {
+            throw CopyError.unavailable("The destination metadata preservation check")
+        }
+        for (path, bytes) in bookFiles {
+            guard try Data(contentsOf: restored.appendingPathComponent(path)) == bytes else {
+                throw CopyError.unavailable("The Book-file restore check")
+            }
+        }
+        return "container metadata excluded; destination identity preserved; vault, photo and ordinary hidden file transferred"
     }
     #endif
 

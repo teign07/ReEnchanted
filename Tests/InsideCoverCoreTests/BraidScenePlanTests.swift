@@ -165,7 +165,7 @@ final class BraidScenePlanTests: XCTestCase {
     /// The plan may carry evidence. It may never carry a rendered sentence.
     func testThePlanCarriesNoAuthoredProse() {
         let plan = BraidScenePlanBuilder.plan(for: day([diary()]))
-        let bookVoice = ["I kept", "I put", "The Book kept the page", "the company arrived"]
+        let bookVoice = ["I kept", "I put", "I kept the page", "the company arrived"]
         for atom in plan.evidence {
             for phrase in bookVoice {
                 XCTAssertFalse(atom.text.contains(phrase), "\(atom.id): \(atom.text)")
@@ -711,7 +711,7 @@ final class BraidScenePlanTests: XCTestCase {
             id: String(format: "2026-11-%02d", day), date: at,
             pages: [BookPage(
                 id: "b\(day)", type: .bookOfYou, createdAt: at, promptText: "Book of You",
-                userInput: "\(title)\n\n\(body)\n\nThe Book kept the page: it held.",
+                userInput: "\(title)\n\n\(body)\n\nI kept the page: it held.",
                 origin: .generated)])
     }
 
@@ -844,7 +844,7 @@ final class BraidScenePlanTests: XCTestCase {
             id: "2026-10-01", date: at,
             pages: [BookPage(
                 id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
-                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                userInput: "A Night\n\nSomething.\n\nI kept the page: it held.",
                 tags: ["braid-claim:world:\(seen)"], origin: .generated)])]
         let next = BraidScenePlanBuilder.plan(
             for: day([diary()]), context: context, calendar: Calendar(identifier: .gregorian))
@@ -873,7 +873,7 @@ final class BraidScenePlanTests: XCTestCase {
             id: "2026-10-01", date: at,
             pages: [BookPage(
                 id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
-                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                userInput: "A Night\n\nSomething.\n\nI kept the page: it held.",
                 tags: [
                     "braid-claim:world:bell-under-floor",
                     "braid-residue-salient:the bell under the reading room floor",
@@ -920,7 +920,7 @@ final class BraidScenePlanTests: XCTestCase {
         // A page that dropped the anchor and wrote no Book sentence leaves
         // nothing for tomorrow to answer.
         let droppedIt = plan.residueTags(surviving: [
-            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "I kept the page: it held.")
         ])
         XCTAssertTrue(droppedIt.isEmpty, "\(droppedIt)")
     }
@@ -1072,7 +1072,7 @@ final class BraidScenePlanTests: XCTestCase {
             id: "2026-10-01", date: at,
             pages: [BookPage(
                 id: "b", type: .bookOfYou, createdAt: at, promptText: "Book of You",
-                userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.",
+                userInput: "A Night\n\nSomething.\n\nI kept the page: it held.",
                 tags: tags, origin: .generated)])
     }
 
@@ -1101,7 +1101,7 @@ final class BraidScenePlanTests: XCTestCase {
         XCTAssertFalse(tonight.intendedResidue.leftUnresolved.isEmpty, tonight.summary)
 
         let stamped = tonight.residueTags(surviving: [
-            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "I kept the page: it held.")
         ])
         XCTAssertTrue(stamped.contains("braid-residue-open"), "\(stamped)")
         XCTAssertFalse(
@@ -1201,43 +1201,43 @@ final class BraidScenePlanTests: XCTestCase {
     // MARK: The scrub
 
     func testScrubTakesOutSentencesThatSpeakForTheReader() {
-        let told = "You walked to the corner shop. I watched you leave. A bird landed on your shoulder. I felt a little flutter of worry you had about your sister.\n\nThe Book kept the page: the bird left."
+        let told = "You walked to the corner shop. I watched you leave. A bird landed on your shoulder. I felt a little flutter of worry you had about your sister.\n\nI kept the page: the bird left."
         let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "You walked to the corner shop.", isHardNight: false)
         XCTAssertFalse(scrub.text.contains("shoulder"))
         XCTAssertTrue(scrub.text.contains("I watched you leave."))
-        XCTAssertTrue(scrub.text.hasSuffix("The Book kept the page: the bird left."))
+        XCTAssertTrue(scrub.text.hasSuffix("I kept the page: the bird left."))
         XCTAssertEqual(scrub.dropped.count, 1)
     }
 
     func testScrubSpareswhatTheReaderSaidAboutThemselves() {
-        let told = "You rubbed your eyes and made tea. I put the kettle on. I liked the quiet in the room. The window was open. The Book kept the page: the kettle sang."
+        let told = "You rubbed your eyes and made tea. I put the kettle on. I liked the quiet in the room. The window was open. I kept the page: the kettle sang."
         let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "You rubbed your eyes and made tea.", isHardNight: false)
         XCTAssertTrue(scrub.text.contains("your eyes"))
         XCTAssertTrue(scrub.dropped.isEmpty)
     }
 
     func testNothingIsAmusingOnAHardNightButItMayBeOnAnother() {
-        let told = "You sat in the corridor. I found the whole thing quite amusing. The rain stayed in the Stacks. The floor stayed dark. The Book kept the page: the floor stayed dark."
+        let told = "You sat in the corridor. I found the whole thing quite amusing. The rain stayed in the Stacks. The floor stayed dark. I kept the page: the floor stayed dark."
         XCTAssertFalse(BraidTellingScrub.scrubbed(told, readerMaterial: "You sat in the corridor.", isHardNight: true).text.contains("amusing"))
         XCTAssertTrue(BraidTellingScrub.scrubbed(told, readerMaterial: "You sat in the corridor.", isHardNight: false).text.contains("amusing"))
     }
 
     func testScrubNeverLeavesAShellOfATelling() {
-        let told = "A bird landed on your shoulder. I felt a flutter of worry you had. The Book kept the page: the bird left."
+        let told = "A bird landed on your shoulder. I felt a flutter of worry you had. I kept the page: the bird left."
         let scrub = BraidTellingScrub.scrubbed(told, readerMaterial: "", isHardNight: false)
         XCTAssertTrue(scrub.dropped.isEmpty, "too little would remain, so the audit sees the original")
         XCTAssertTrue(scrub.text.contains("shoulder"))
     }
 
     func testContractionsAreAddedWhereTheBookWouldSayThem() {
-        let told = "It was not raining. I did not mind. You would have laughed. Nobody could not hear it.\n\nThe Book kept the page: it did not stop."
+        let told = "It was not raining. I did not mind. You would have laughed. Nobody could not hear it.\n\nI kept the page: it did not stop."
         let (text, count) = BraidTellingScrub.contracted(told)
         XCTAssertTrue(text.contains("It wasn't raining."))
         XCTAssertTrue(text.contains("I didn't mind."))
         XCTAssertTrue(text.contains("You'd have laughed."))
         XCTAssertTrue(text.contains("couldn't"))
         XCTAssertGreaterThanOrEqual(count, 4)
-        XCTAssertTrue(text.hasSuffix("The Book kept the page: it did not stop."), "the signature line is left whole")
+        XCTAssertTrue(text.hasSuffix("I kept the page: it did not stop."), "the signature line is left whole")
         XCTAssertFalse(BraidTellingScrub.contracted("I have a lamp.").text.contains("I've"), "possession isn't a contraction")
     }
 
@@ -1436,7 +1436,7 @@ final class BraidScenePlanTests: XCTestCase {
         let at = utc.startOfDay(for: date).addingTimeInterval(21 * 3_600)
         return BookDay(id: "d\(Int(at.timeIntervalSince1970))", date: at, pages: [
             BookPage(id: "b\(Int(at.timeIntervalSince1970))", type: .bookOfYou, createdAt: at, promptText: "Book of You",
-                     userInput: "A Night\n\nSomething.\n\nThe Book kept the page: it held.", tags: tags, origin: .generated)])
+                     userInput: "A Night\n\nSomething.\n\nI kept the page: it held.", tags: tags, origin: .generated)])
     }
 
     func testEveryThreadIsFourFondNightsThatPayOff() {

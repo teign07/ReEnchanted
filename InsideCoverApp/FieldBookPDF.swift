@@ -1504,7 +1504,7 @@ extension MonthlyEditionPDFWriter {
 
         // The Book's own margin: one line it wrote for something the reader kept.
         if let bookMargin, leaf.bottom - leaf.y > 96 {
-            let text = "in the Book's margin\n" + bookMargin
+            let text = "in my margin\n" + bookMargin
             let height = slipHeight(text, width: leaf.contentWidth * 0.78, fontSize: 10.6)
             if leaf.y + height + 6 < leaf.bottom {
                 drawHandSlip(text, style: style,
@@ -2558,7 +2558,7 @@ extension MonthlyEditionPDFWriter {
             drawComposedBackground(style: style, seed: "\(seed)-pad-\(index)", in: bounds)
             let inset = size.width * 0.16
             if index < 2 {
-                let prompts = ["For what happened after the Book closed.", "For whatever you want to remember next."]
+                let prompts = ["For what happened after I closed.", "For whatever you want to remember next."]
                 ("Field notes" as NSString).draw(at: CGPoint(x: inset, y: size.height * 0.13),
                     withAttributes: [.font: UIFont.fbSerifItalic(ofSize: 20), .foregroundColor: ink.withAlphaComponent(0.8)])
                 (prompts[index] as NSString).draw(at: CGPoint(x: inset, y: size.height * 0.13 + 28),
@@ -2857,7 +2857,7 @@ extension MonthlyEditionPDFWriter {
             var y = b.height * 0.26 + titleHeight + 18
             drawOrnamentRow(style, centerY: y, in: b, color: style.palette.gold)
             y += 22
-            let subtitle = "Being a true account of \(reader)’s week, \(issue.dateRange), as it was kept by the Book, in \(chapters.count) \(chapters.count == 1 ? "chapter" : "chapters")."
+            let subtitle = "Being a true account of \(reader)’s week, \(issue.dateRange), as I kept it, in \(chapters.count) \(chapters.count == 1 ? "chapter" : "chapters")."
             let subFont = UIFont.fbSerifItalic(ofSize: 11.4)
             let subHeight = FieldText.height(subtitle, font: subFont, width: titleWidth - 20, lineSpacing: 3, paragraphSpacing: 0, justified: false)
             paragraph.lineSpacing = 3
@@ -3017,7 +3017,7 @@ extension MonthlyEditionPDFWriter {
                                  window: (issue.startDate, lastDay), eyebrow: "Where the week went", context: context, cursor: &cursor)
                 case .fieldNotes:
                     let notesLeaf = fieldLeaf(&cursor, style: style, context: context, headLeft: headLeft, headRight: "Field notes")
-                    drawNotesBlock("For whatever happened after the Book closed.",
+                    drawNotesBlock("For whatever happened after I closed.",
                                    in: CGRect(x: notesLeaf.left, y: notesLeaf.y + 10, width: notesLeaf.contentWidth, height: notesLeaf.bottom - notesLeaf.y - 14),
                                    style: style)
                 case .plate(let index):
@@ -3481,7 +3481,7 @@ extension MonthlyEditionPDFWriter {
         case .letter: return keep.speakerName.map { "A letter from \($0)" } ?? "A letter"
         case .castNote: return keep.speakerName.map { "A note from \($0)" } ?? "In the margin"
         case .enchantment: return "An enchantment"
-        case .story: return "A story the Book told"
+        case .story: return "A story I told"
         case .classSession: return "Class"
         case .club: return "Club"
         case .plate: return "Illuminated"
@@ -3848,7 +3848,7 @@ extension MonthlyEditionPDFWriter {
         let titleFont = UIFont.fbSerif(ofSize: 24, weight: .bold)
         (title as NSString).draw(at: CGPoint(x: leaf.left, y: leaf.y), withAttributes: [.font: titleFont, .foregroundColor: ink])
         leaf.y += titleFont.lineHeight + 4
-        let dek = "Written at the press, before the Book bound the month. The questions are the Book's; the answers are yours."
+        let dek = "Written at the press, before I bound the month. The questions are mine; the answers are yours."
         let dekFont = UIFont.fbSerifItalic(ofSize: 10.2)
         let dh = FieldText.height(dek, font: dekFont, width: leaf.contentWidth, lineSpacing: 2, paragraphSpacing: 0, justified: false)
         _ = FieldText.flow(dek, font: dekFont, color: ink.withAlphaComponent(0.68), in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: dh + 4),
@@ -4192,7 +4192,7 @@ extension MonthlyEditionPDFWriter {
 
     /// A braid split for print: the telling; the Book's own thread, its last
     /// short line about itself ("I've bet the Index a biscuit…"); and the
-    /// colophon ("The Book kept the page: …"), each set as itself.
+    /// colophon ("I kept the page: …"), each set as itself.
     static func braidParts(_ body: String) -> (telling: String, thread: String?, kept: String?) {
         let (telling, kept) = WeeklyTaleBuilder.split(braid: body)
         var paragraphs = (telling ?? "").components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -4594,6 +4594,89 @@ extension MonthlyEditionPDFWriter {
         }
         fillLeafFoot(month: Calendar.current.component(.month, from: connections.first?.evidence.first?.date ?? Date()),
                      seed: "connections-\(span)", leaf: leaf)
+    }
+
+    /// The Month's Front Pages: every day the Bleed reported, its headline cut out of the paper
+    /// and pasted in. Newsprint on the book's own paper, a little askew, two to a row.
+    static func drawFrontPages(
+        _ pages: [BleedFrontPageRecord], monthName: String, style: EditionStyle,
+        context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor
+    ) {
+        guard pages.count >= 3 else { return }
+        let ink = style.palette.ink
+        let newsprint = UIColor(red: 0.957, green: 0.937, blue: 0.890, alpha: 1)
+        let newsInk = UIColor(red: 0.12, green: 0.11, blue: 0.10, alpha: 1)
+        let morning = UIColor(red: 0.12, green: 0.32, blue: 0.35, alpha: 1)
+        let evening = UIColor(red: 0.45, green: 0.13, blue: 0.18, alpha: 1)
+        let tape = UIColor(red: 0.90, green: 0.85, blue: 0.70, alpha: 0.85)
+        var leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: "The Bleed", headRight: "Front pages")
+        drawEyebrow("Cut from the paper", style: style, leaf: &leaf)
+        ("The Month's Front Pages" as NSString).draw(at: CGPoint(x: leaf.left, y: leaf.y),
+            withAttributes: [.font: UIFont.fbSerif(ofSize: 22, weight: .bold), .foregroundColor: ink])
+        leaf.y += 34
+        hbText("Every morning Penny put your day on the front of the Academy's paper. Here's \(monthName) as the paper ran it, one headline a day.",
+               font: .fbSerifItalic(ofSize: 10.6), color: ink.withAlphaComponent(0.8), leaf: &leaf, justified: false, gap: 16)
+
+        let dates = DateFormatter()
+        dates.dateFormat = "EEE d MMM"
+        let gap: CGFloat = 14
+        let width = (leaf.contentWidth - gap) / 2
+        let headFont = UIFont.fbSerif(ofSize: 11.4, weight: .bold)
+        var column = 0
+        var rowTop = leaf.y
+        var rowHeight: CGFloat = 0
+        for (index, page) in pages.enumerated() {
+            let headH = min(ceil((page.headline as NSString).boundingRect(
+                with: CGSize(width: width - 18, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin],
+                attributes: [.font: headFont], context: nil).height), headFont.lineHeight * 4)
+            let h = 40 + headH
+            if column == 0, rowTop + h > leaf.bottom {
+                leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: "The Bleed", headRight: "Front pages, continued")
+                rowTop = leaf.y + 6
+                rowHeight = 0
+            }
+            let x = leaf.left + CGFloat(column) * (width + gap)
+            let frame = CGRect(x: x, y: rowTop, width: width, height: h)
+            let accent = page.kind == .morning ? morning : evening
+            if let cg = UIGraphicsGetCurrentContext() {
+                cg.saveGState()
+                // Each clipping was cut by hand and pasted a little crooked.
+                let tilt = (CGFloat(abs("\(page.reportedDayID)-clip".stableHash) % 9) - 4) * 0.0035
+                cg.translateBy(x: frame.midX, y: frame.midY)
+                cg.rotate(by: tilt)
+                cg.translateBy(x: -frame.midX, y: -frame.midY)
+                newsprint.setFill()
+                UIBezierPath(rect: frame).fill()
+                newsInk.withAlphaComponent(0.35).setStroke()
+                let edge = UIBezierPath(rect: frame)
+                edge.lineWidth = 0.4
+                edge.stroke()
+                drawTracked("The Bleed · \(dates.string(from: BookDay.startDate(for: page.reportedDayID, fallback: page.printedAt)))",
+                            at: CGPoint(x: frame.minX + 9, y: frame.minY + 8), font: smallCaps(5.6, weight: .semibold),
+                            color: newsInk.withAlphaComponent(0.6), tracking: 1)
+                newsInk.setFill()
+                UIRectFill(CGRect(x: frame.minX + 9, y: frame.minY + 18, width: frame.width - 18, height: 0.6))
+                drawTracked(page.kicker, at: CGPoint(x: frame.minX + 9, y: frame.minY + 22), font: smallCaps(5.4, weight: .semibold),
+                            color: accent, tracking: 0.9)
+                (page.headline as NSString).draw(
+                    with: CGRect(x: frame.minX + 9, y: frame.minY + 32, width: width - 18, height: headH + 2),
+                    options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine],
+                    attributes: [.font: headFont, .foregroundColor: newsInk], context: nil)
+                tape.setFill()
+                UIBezierPath(rect: CGRect(x: frame.midX - 16, y: frame.minY - 5, width: 32, height: 10)).fill()
+                cg.restoreGState()
+            }
+            rowHeight = max(rowHeight, h)
+            column += 1
+            if column == 2 || index == pages.count - 1 {
+                column = 0
+                rowTop += rowHeight + gap
+                rowHeight = 0
+            }
+        }
+        leaf.y = rowTop
+        fillLeafFoot(month: Calendar.current.component(.month, from: pages.first?.printedAt ?? Date()),
+                     seed: "front-pages-\(monthName)", leaf: leaf)
     }
 
     /// One month of the season's Part One: its almanac, its map, then every day in full.

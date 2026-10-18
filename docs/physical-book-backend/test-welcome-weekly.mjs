@@ -24,9 +24,18 @@ const paidPayouts = [];
 
 const now = Math.floor(Date.now() / 1000);
 const memberships = new Map();
-function member(id, changes = {}) {
-  // The first month's payout has already landed in the bank.
-  kvValues.set(`funds-in-bank/txn_${id}`, "{}");
+function member(id, changes = {}, banked = true) {
+  // Explicitly confirmed fixture deposits for unrelated welcome-flow checks.
+  // Hold/release checks below use the real authenticated confirmation route.
+  if (banked) {
+    const key = "printing-cash:test";
+    if (!coordinatorStorage.has(key)) coordinatorStorage.set(key, new Map());
+    const storage = coordinatorStorage.get(key);
+    const ledger = storage.get("printing-cash-v1") || { deposits: {}, reservations: {} };
+    ledger.deposits[`po_${id}`] = { receiptReference: `receipt_${id}`, depositedCents: 2400, printingCents: 2400, revoked: false, transactions: { [`txn_${id}`]: 2400 } };
+    storage.set("printing-cash-v1", ledger);
+    paidPayouts.push({ id: `po_${id}`, status: "paid", automatic: true, type: "bank_account", method: "standard", reconciliation_status: "completed", amount: 2400, currency: "usd", livemode: false, transactions: [`txn_${id}`] });
+  }
   memberships.set(id, {
     id,
     status: "active",
@@ -65,6 +74,7 @@ const r2 = {
   },
 };
 const env = {
+  PHYSICAL_BOOK_ADMIN_TOKEN: "test-admin-token",
   STRIPE_SECRET_KEY: "sk_test_mock",
   STRIPE_WEBHOOK_SECRET: "whsec_test_mock",
   STRIPE_BOUND_YEAR_MONTHLY_PRICE: "price_monthly",
@@ -114,10 +124,12 @@ globalThis.fetch = async (url, init = {}) => {
       const record = memberships.get(decodeURIComponent(subscription[1]));
       return record ? json(record) : json({ error: { message: "No such subscription" } }, 404);
     }
+    if (path.startsWith("/v1/payouts/")) return json(paidPayouts.find(p => p.id === path.split("/").at(-1)));
+    if (path.startsWith("/v1/balance_transactions/")) return json({ id: path.split("/").at(-1), net: 2400, currency: "usd", source: { paid: true, livemode: false, amount: 2499, amount_refunded: 0, currency: "usd" } });
     if (path === "/v1/payouts") return json({ data: [...paidPayouts].reverse(), has_more: false });
     if (path === "/v1/balance_transactions") {
       const payout = paidPayouts.find(entry => entry.id === new URL(href).searchParams.get("payout"));
-      return json({ data: (payout?.transactions || []).map(id => ({ id })), has_more: false });
+      return json({ data: (payout?.transactions || []).map(id => ({ id, net: 2400, currency: "usd", type: "charge" })), has_more: false });
     }
     const customer = /^\/v1\/customers\/(cus_[^/]+)$/.exec(path);
     if (customer) return json({ id: customer[1], email: "reader@example.com", shipping: stripeShipping });
@@ -129,6 +141,7 @@ globalThis.fetch = async (url, init = {}) => {
     check(request.pod_package_id === "0600X0900.FC.PRE.SS.060UW444.MXX", "the cover canvas is asked for the saddle-stitched weekly");
     return json({ width: "891.000", height: "666.000", unit: "pt" });
   }
+  if (href.endsWith("/print-job-cost-calculations/")) return json({ currency: "USD", total_cost_incl_tax: "12.79" });
   if (href.endsWith("/print-jobs/")) {
     luluCreates += 1;
     luluPayloads.push(JSON.parse(init.body));
@@ -316,8 +329,8 @@ console.log("Waiting for the payout:");
 // A brand-new member: the first month is captured, but its payout has not
 // reached the bank. Lulu bills on job creation, so nothing may print yet.
 await own("sub_fresh");
-member("sub_fresh");
-kvValues.delete("funds-in-bank/txn_sub_fresh");
+member("sub_fresh", {}, false);
+kvValues.set("funds-in-bank/txn_sub_fresh", "{}"); // ignored legacy evidence
 const freshToken = await prepareAndUpload("sub_fresh");
 const createsBeforeFresh = luluCreates;
 const held = await submit("sub_fresh", freshToken);
@@ -340,7 +353,11 @@ check(luluCreates === createsBeforeFresh, "a payout that did not carry this char
 paidPayouts.push({ id: "po_manual", status: "paid", automatic: false, arrival_date: now, transactions: ["txn_sub_fresh"] });
 await cron();
 check(luluCreates === createsBeforeFresh, "a manual payout cannot be attributed, so it releases nothing");
-paidPayouts.push({ id: "po_first_month", status: "paid", automatic: true, arrival_date: now, transactions: ["txn_sub_fresh"] });
+paidPayouts.push({ id: "po_first_month", status: "paid", automatic: true, type: "bank_account", method: "standard", reconciliation_status: "completed", amount: 2400, currency: "usd", livemode: false, transactions: ["txn_sub_fresh"] });
+await cron();
+check(luluCreates === createsBeforeFresh, "a paid payout without bank confirmation stays held");
+const bankResponse = await worker.fetch(new Request("https://test/admin/printing-cash/confirm-deposit", { method: "POST", headers: { Authorization: `Bearer ${env.PHYSICAL_BOOK_ADMIN_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify({ payoutID: "po_first_month", receiptReference: "receipt_welcome_test", depositedCents: 2400, printingCents: 2400, protectedForPrinting: true }) }), env);
+check(bankResponse.status === 200, "welcome funding requires authenticated bank deposit confirmation");
 await cron();
 check(luluCreates === createsBeforeFresh + 1, "the payout landing sends the parcel to Lulu on the cron, without the app");
 check(luluPayloads.at(-1).external_id === "bound-year-sub_fresh-welcome-weekly", "the released job is this member's welcome");
@@ -354,8 +371,8 @@ check(afterRelease.response.status === 201 && afterRelease.body.luluPrintJobID =
 
 console.log("A payout that never comes:");
 await own("sub_stuck");
-member("sub_stuck");
-kvValues.delete("funds-in-bank/txn_sub_stuck");
+member("sub_stuck", {}, false);
+
 const stuckToken = await prepareAndUpload("sub_stuck");
 check((await submit("sub_stuck", stuckToken)).body.error === "awaiting_payout", "a parcel with no payout yet is held");
 const sentAlerts = [];

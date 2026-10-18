@@ -489,6 +489,10 @@ struct BraidScenePlan: Equatable, Codable {
     /// Optional for previously serialized plans. These protected passages are
     /// composed into the page after generation, never treated as lived atoms.
     var authoredStoryReceipts: [AuthoredContentReceipt]? = nil
+    /// Selected world facts already printed today. Editorial context only:
+    /// printing is neither another occurrence nor evidence the Reader attended.
+    /// Optional so older saved plans still decode.
+    var reportedWorldFactIDs: [String]? = nil
     /// The Book's own game for tonight, offered to Gemma as something to play
     /// with (see `BookBusiness`).
     var bookBusiness: BookBusiness.Line? = nil
@@ -637,7 +641,7 @@ struct BraidScenePlan: Equatable, Codable {
         for beat in quietDayBeats {
             append(.world, id: beat.id, source: Self.worldMaterial(beat))
         }
-        if clean.localizedCaseInsensitiveContains("The Book kept the page:") {
+        if BraidColophon.containsIgnoringCase(clean) {
             claims.append(BraidClaim(realm: .colophon, sourceIDs: [], text: clean))
         }
         return claims
@@ -932,6 +936,27 @@ enum BraidScenePlanBuilder {
         // and never about it.
         // A closed day is not an empty one.
         plan.isQuietDay = selected.isEmpty
+        let worldArchive = (archive.isEmpty ? context.recentDays : archive) + [day]
+        let storyPrintHistory = context.bleedPrintHistory + worldArchive.flatMap(\.pages)
+            .filter { $0.type == .theBleed }
+            .compactMap { BleedPrintRecord.decode($0.metadata?[BleedPrintRecord.metadataKey]) }
+        let dailyPulse = SceneWorldCanon.dailyPulse(
+            on: day.date, worldEvents: context.activeWorldEvents, recentDays: worldArchive,
+            printed: storyPrintHistory, through: context.worldStoryCutoff, calendar: calendar
+        )
+        let liveWorld = SceneWorldCanon.dailyLiveFacts(
+            undertakings: context.castUndertakings, worldEvents: context.activeWorldEvents,
+            selectedPulse: dailyPulse, hardNight: plan.isHardNight
+        )
+        let reportedCastFactID = storyPrintHistory
+            .filter { record in
+                calendar.isDate(record.printedAt, inSameDayAs: day.date)
+                    && (context.worldStoryCutoff.map { record.printedAt <= $0 } ?? true)
+            }
+            .sorted { $0.printedAt > $1.printedAt }
+            .flatMap(\.items).compactMap(\.worldFactID)
+            .first { id in liveWorld.contains { $0.id == id && $0.source == .undertaking } }
+        let preferredWorldID = dailyPulse?.fact.id ?? (context.activeWorldEvents.isEmpty ? reportedCastFactID : nil)
         if !authored.isEmpty {
             plan.authoredStoryReceipts = authored
             // The encountered monthly story owns tonight's world strand. Do
@@ -949,23 +974,29 @@ enum BraidScenePlanBuilder {
             plan.quietDayBeats = SceneWorldCanon.quietDay(
                 on: day.date,
                 recentDays: archive.isEmpty ? context.recentDays : archive,
-                live: SceneWorldCanon.liveFacts(
-                    undertakings: context.castUndertakings,
-                    worldEvents: context.activeWorldEvents
-                )
+                live: liveWorld,
+                preferredFactID: preferredWorldID
             )
         } else {
             plan.worldBeat = SceneWorldCanon.beat(
                 for: plan,
                 recentDays: archive.isEmpty ? context.recentDays : archive,
                 on: day.date,
-                live: SceneWorldCanon.liveFacts(
-                    undertakings: context.castUndertakings,
-                    worldEvents: context.activeWorldEvents
-                ),
-                continuedElsewhere: plan.answering?.advancedWorldThread
+                live: liveWorld,
+                continuedElsewhere: plan.answering?.advancedWorldThread,
+                preferredFactID: preferredWorldID
             )
         }
+        let selectedWorldIDs = Set(([plan.worldBeat].compactMap { $0 } + plan.quietDayBeats).map(\.id))
+        let reportedToday = Set(storyPrintHistory.filter { record in
+            calendar.isDate(record.printedAt, inSameDayAs: day.date)
+                && (context.worldStoryCutoff.map { record.printedAt <= $0 } ?? true)
+        }.flatMap(\.items).filter { item in
+            guard item.worldFactID?.hasPrefix("world-event:") == true else { return true }
+            return dailyPulse != nil && item.worldEventRunID == dailyPulse?.runID
+        }.compactMap(\.worldFactID))
+        let alreadyReported = selectedWorldIDs.intersection(reportedToday).sorted()
+        if !alreadyReported.isEmpty { plan.reportedWorldFactIDs = alreadyReported }
         plan.bookBusiness = BookSulk.pick(
             trashed: context.trashedScenes,
             recentDays: archive.isEmpty ? context.recentDays : archive,
@@ -1039,7 +1070,7 @@ enum BraidScenePlanBuilder {
     }
 
     private static func closingShape(of paragraph: String) -> String {
-        paragraph.hasPrefix("The Book kept the page:") ? "ritual" : "open"
+        BraidColophon.starts(paragraph) ? "ritual" : "open"
     }
 
     private static func openingPosture(of paragraph: String) -> String {
@@ -1510,7 +1541,9 @@ enum BraidScenePlanBuilder {
             && !context.readerStory.shadowMayTakeTaleForm(keptAt: page.createdAt, now: now)
 
         let isAuthoredScene = page.tags.contains("authored-story-scene")
-        if !isAuthoredScene, BraidPromptBuilder.isLabyrinthReceipt(page) {
+        let isCoordinatedPaper = page.type == .theBleed
+            && BleedPrintRecord.decode(page.metadata?[BleedPrintRecord.metadataKey]) != nil
+        if !isAuthoredScene, !isCoordinatedPaper, BraidPromptBuilder.isLabyrinthReceipt(page) {
             let text = DeterministicBraidwright.strippedScaffolding(
                 SceneEvidence.withoutHeadline(page.userInput.nonEmpty ?? page.promptText.nonEmpty ?? "")
             )
@@ -1569,7 +1602,7 @@ enum BraidScenePlanBuilder {
             }
         }
         guard written.isEmpty else { return written }
-        if isAuthoredScene { return [] }
+        if isAuthoredScene || isCoordinatedPaper { return [] }
 
         // A Page kept in silence.
         //
@@ -1800,7 +1833,7 @@ extension BraidDraftRejection {
         case .missingNarrative:
             return "Write at least one complete BOOK or WORLD narrative sentence. A receipt list is not a braid."
         case .missingColophon:
-            return "End with one COLOPHON sentence beginning The Book kept the page:."
+            return "End with one COLOPHON sentence beginning I kept the page:."
         case .missingRequiredEvidence:
             return "Give every selected FACT its own correctly marked claim. None of the skeleton's receipts is optional."
         case .missingWorldBeat:
@@ -1898,7 +1931,7 @@ enum BraidPointOfView {
               ) else { return (prose, 0) }
         var repaired = 0
         let paragraphs = prose.components(separatedBy: "\n\n").map { paragraph -> String in
-            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            guard !BraidColophon.starts(paragraph) else { return paragraph }
             var result = paragraph
             let ns = paragraph as NSString
             let sentences = sentencePattern.matches(
@@ -2103,7 +2136,9 @@ enum BraidNarrativeOutput {
     }
 
     static func hasLandedColophon(_ text: String) -> Bool {
-        guard let stem = text.range(of: colophonStem, options: [.backwards, .caseInsensitive]) else {
+        guard let stem = BraidColophon.stems
+            .compactMap({ text.range(of: $0, options: [.backwards, .caseInsensitive]) })
+            .max(by: { $0.lowerBound < $1.lowerBound }) else {
             return false
         }
         return text[stem.upperBound...].contains(where: \.isLetter)
@@ -2127,7 +2162,7 @@ enum BraidNarrativeOutput {
         return ""
     }
 
-    private static let colophonStem = "The Book kept the page:"
+    private static let colophonStem = BraidColophon.stem
 
     /// Gemma 4 thinks aloud in a `<|channel>thought … <channel|>` block when its
     /// chat template is asked to. The phone never asks (Rabbit, 2026-09-24:
@@ -2152,8 +2187,8 @@ enum BraidNarrativeOutput {
     /// On its own line a bad landing costs only the colophon, which the keeper
     /// line replaces, instead of taking the paragraph it was glued to.
     private static func colophonOnItsOwnLine(_ raw: String) -> String {
-        var text = raw.replacingOccurrences(
-            of: #"["“]The Book kept the page:["”]"#,
+        var text = BraidColophon.modernized(raw).replacingOccurrences(
+            of: #"["“]I kept the page:["”]"#,
             with: colophonStem,
             options: .regularExpression
         )
@@ -2166,24 +2201,21 @@ enum BraidNarrativeOutput {
         }
         return text
             .replacingOccurrences(
-                of: #"The Book kept the page:[ \t]*(?:\r?\n[ \t]*)+(?=[^\s])"#,
+                of: #"I kept the page:[ \t]*(?:\r?\n[ \t]*)+(?=[^\s])"#,
                 with: colophonStem + " ",
                 options: .regularExpression
             )
             .replacingOccurrences(
-                of: #"(?<!COLOPHON)(?<=\S)[ \t]+The Book kept the page:"#,
+                of: #"(?<!COLOPHON)(?<=[.!?…"”’])[ \t]+I kept the page:"#,
                 with: "\n" + colophonStem,
                 options: .regularExpression
             )
     }
 
-    /// "The Book kept the page: then tells what one object from tonight did."
+    /// "I kept the page: then tells what one object from tonight did."
     /// The commission's own words after the colon, copied (2 in 50).
     static func isEchoedColophon(_ line: String) -> Bool {
-        guard line.hasPrefix(colophonStem) else { return false }
-        let landing = line.dropFirst(colophonStem.count)
-            .trimmingCharacters(in: .whitespaces)
-            .lowercased()
+        guard BraidColophon.starts(line), let landing = BraidColophon.landing(of: line)?.lowercased() else { return false }
         return landing.hasPrefix("then ") || landing.hasPrefix("[")
     }
 
@@ -2197,7 +2229,7 @@ enum BraidNarrativeOutput {
     private static func settledColophon(_ text: String) -> String {
         var text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if let bare = text.range(
-            of: #"\s*["“”']?The Book kept the page[:.]?["“”']?$"#,
+            of: #"(?:^|(?<=[.!?…"”’]))\s*["“”']?(?:I|The Book) kept the page[:.]?["“”']?$"#,
             options: [.regularExpression, .caseInsensitive]
         ) {
             text.removeSubrange(bare)
@@ -2315,21 +2347,11 @@ enum BraidNarrativeOutput {
     }
 
     static func isIncompleteColophon(_ text: String) -> Bool {
-        let prefix = "the book kept the page:"
-        let lower = text.lowercased()
-        guard lower.hasPrefix(prefix) else { return false }
-        return lower.dropFirst(prefix.count)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty
+        BraidColophon.landing(of: text)?.isEmpty ?? false
     }
 
     static func isMalformedColophon(_ text: String) -> Bool {
-        let prefix = "the book kept the page:"
-        let lower = text.lowercased()
-        guard lower.hasPrefix(prefix) else { return true }
-        return lower.dropFirst(prefix.count)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .isEmpty
+        BraidColophon.landing(of: text)?.isEmpty ?? true
     }
 }
 
@@ -2342,7 +2364,7 @@ enum BraidNarrativeOutput {
 ///     LIVED:bakery#0.0 You walked past the bakery that shut last winter.
 ///     BOOK:bakery The crow left one instruction beside it.
 ///     WORLD:academy-toll-strike The eastern stair refused every toll tonight.
-///     COLOPHON The Book kept the page: the bakery kept the price.
+///     COLOPHON I kept the page: the bakery kept the price.
 enum BraidDraftVerifier {
     private static let paragraphControl = "PARAGRAPH"
 
@@ -3005,6 +3027,11 @@ extension BraidScenePlan {
             let label = isHardNight ? Self.hardNightWorldLabel : Self.worldLabel
             lines.append("\(label) \(joined(worldMaterial))")
             lines.append("Before the first paragraph ends, make at least one concrete detail from that odd thing happen in the story. Do not omit it, list it, or leave it as background information.")
+            if reportedWorldFactIDs?.isEmpty == false {
+                // Keep presentation instructions out of the fact/trace fields:
+                // those are also used by the factual floor and claim verifier.
+                lines.append("Today's paper already reported part of this world business. Tell the supplied event in my voice, beside the supplied day. This is the same event; no later outcome is supplied. Do not claim the reader read the paper or attended the event.")
+            }
         }
         if !livedMaterial.isEmpty {
             // The commission calls the model "you" and the material calls the
@@ -3053,7 +3080,7 @@ extension BraidScenePlan {
     static let worldLabel = "Something odd in my world tonight (it must happen in the story):"
     static let hardNightWorldLabel = "Something odd in my world tonight (it happens quietly, and nobody laughs at it):"
     static let readerDayLabel = "Reader-day material (the reader did these, not me; write them with \"you\"):"
-    static let closingInstruction = "Return only the finished story, with no title. Its last sentence begins The Book kept the page: then tells what one object from tonight did, in a few plain words."
+    static let closingInstruction = "Return only the finished story, with no title. Its last sentence begins I kept the page: then tells what one object from tonight did, in a few plain words."
 
     private func worldModeInstruction(_ mode: WorldBeatMode) -> String {
         switch mode {
@@ -3251,9 +3278,9 @@ enum BraidSceneWriter {
 
     private static func closedDayColophon(on dayID: String) -> String {
         let lines = [
-            "The Book kept the page: the day happened without either of us, and I wrote it down anyway.",
-            "The Book kept the page: nothing of yours today, so here is what the place got up to.",
-            "The Book kept the page: I was shut, and the world was not."
+            "I kept the page: the day happened without either of us, and I wrote it down anyway.",
+            "I kept the page: nothing of yours today, so here is what the place got up to.",
+            "I kept the page: I was shut, and the world was not."
         ]
         return "\(lines[stableIndex(of: dayID, count: lines.count)])"
     }
@@ -3504,15 +3531,15 @@ enum BraidSceneWriter {
     /// they speak in the Book's plain voice, not a critic's.
     static func keeperColophon(for plan: BraidScenePlan) -> String {
         if !plan.mustRemainUnresolved.isEmpty {
-            return "The Book kept the page: the words stayed in the order they came."
+            return "I kept the page: the words stayed in the order they came."
         }
         switch plan.transformation {
-        case .juxtaposition: return "The Book kept the page: two things, side by side, and I am not explaining them."
-        case .recognition: return "The Book kept the page: I knew it when I saw it."
-        case .complication: return "The Book kept the page: nothing got fixed, and I kept it anyway."
-        case .ret: return "The Book kept the page: it came back, but not the same."
-        case .refusal: return "The Book kept the page: the no held."
-        case .none: return "The Book kept the page: it happened, and I wrote it down."
+        case .juxtaposition: return "I kept the page: two things, side by side, and I am not explaining them."
+        case .recognition: return "I kept the page: I knew it when I saw it."
+        case .complication: return "I kept the page: nothing got fixed, and I kept it anyway."
+        case .ret: return "I kept the page: it came back, but not the same."
+        case .refusal: return "I kept the page: the no held."
+        case .none: return "I kept the page: it happened, and I wrote it down."
         }
     }
 }
@@ -3542,6 +3569,111 @@ enum SceneWorldCanon {
         var trace: String? = nil
         /// The same beat, quietly, for a night holding something hard.
         var tender: String? = nil
+    }
+
+    struct DailyPulse: Equatable {
+        var runID: String
+        var eventTitle: String
+        var fact: Fact
+    }
+
+    static func runID(for event: ResolvedWorldEvent, calendar: Calendar = .current) -> String {
+        // Same event/year run identity as WorldEventResolver, scoped by pack.
+        "\(event.packID):\(event.id):\(calendar.component(.year, from: event.startedAt))"
+    }
+
+    /// A single editorial choice shared by the newspaper and nightly telling.
+    /// No new world clock or incident ledger: dates/phase remain event-owned,
+    /// and actual printed/kept receipts freeze a choice once a reader saw it.
+    /// Ordinary candidates are never consumed merely by curation asking.
+    static func dailyPulse(
+        on date: Date, worldEvents: [ResolvedWorldEvent], recentDays: [BookDay],
+        printed: [BleedPrintRecord] = [], through: Date? = nil, calendar: Calendar = .current
+    ) -> DailyPulse? {
+        let dayStart = calendar.startOfDay(for: date)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
+        let cutoff = through ?? dayEnd.addingTimeInterval(-0.001)
+        let archiveRecords = recentDays.flatMap(\.pages).filter {
+            $0.type == .theBleed && $0.createdAt <= cutoff
+        }.compactMap { BleedPrintRecord.decode($0.metadata?[BleedPrintRecord.metadataKey]) }
+        let records = (printed + archiveRecords).filter { $0.printedAt <= cutoff }
+            .sorted { $0.printedAt < $1.printedAt }
+        let todaysBraids = recentDays.flatMap(\.pages).filter {
+            $0.type == .bookOfYou && $0.createdAt <= cutoff
+                && calendar.isDate($0.createdAt, inSameDayAs: date)
+        }.sorted { $0.createdAt < $1.createdAt }
+        let todaysIDs = todaysBraids.flatMap(\.tags).compactMap { tag -> String? in
+            let prefix = "braid-claim:world:"
+            return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
+        }
+        let priorIDs = Set(recentDays.flatMap(\.pages).filter {
+            $0.type == .bookOfYou && $0.createdAt < calendar.startOfDay(for: date)
+        }.flatMap(\.tags).compactMap { tag -> String? in
+            let prefix = "braid-claim:world:"
+            return tag.hasPrefix(prefix) ? String(tag.dropFirst(prefix.count)) : nil
+        })
+
+        let events = worldEvents.filter {
+            // Rehearsals resolve their own dates too. An expired/future run
+            // must never lend its pulse to a current paper or retrospective.
+            $0.startedAt <= cutoff && $0.startedAt < dayEnd && dayStart < $0.endsAt
+        }.sorted {
+            if $0.packID != $1.packID { return $0.packID < $1.packID }
+            return $0.id < $1.id
+        }
+        let choices: [DailyPulse] = events.flatMap { event in
+            (event.phase.pulses ?? []).filter { $0.text.nonEmpty != nil }.sorted { $0.id < $1.id }.map { pulse in
+                DailyPulse(runID: runID(for: event, calendar: calendar), eventTitle: event.title, fact: Fact(
+                    id: "world-event:\(event.id):pulse:\(pulse.id)",
+                    threadID: "world-event:\(event.packID):pulse:\(pulse.id)",
+                    text: pulse.text, source: .worldEvent, tender: pulse.tender
+                ))
+            }
+        }
+        guard !choices.isEmpty else { return nil }
+
+        // The earliest paper wins. A model retry, changed archive ordering or
+        // an opened evening edition cannot reroll the morning's shared story.
+        for record in records where calendar.isDate(record.printedAt, inSameDayAs: date) {
+            for item in record.items {
+                if let chosen = choices.first(where: {
+                    $0.fact.id == item.worldFactID && $0.runID == item.worldEventRunID
+                }) { return chosen }
+            }
+        }
+        // If the braid came first, it is already the Reader's record of today.
+        for id in todaysIDs {
+            if let chosen = choices.first(where: { $0.fact.id == id }) { return chosen }
+        }
+
+        let seenInPress = Set(records.filter {
+            $0.printedAt < calendar.startOfDay(for: date)
+        }.flatMap(\.items).filter { item in
+            choices.contains { $0.runID == item.worldEventRunID }
+        }.compactMap(\.worldFactID))
+        let unseen = choices.filter { !priorIDs.contains($0.fact.id) && !seenInPress.contains($0.fact.id) }
+        let pool = unseen.isEmpty ? choices : unseen
+        let day = calendar.ordinality(of: .day, in: .era, for: date) ?? 0
+        return pool[((day % pool.count) + pool.count) % pool.count]
+    }
+
+    /// The existing world selector still owns the night. Narrow only its pulse
+    /// pool to today's shared choice, retaining Cast business and phase prose
+    /// for packs that have no pulses. Encountered monthly outcomes still win.
+    static func dailyLiveFacts(
+        undertakings: [CastUndertaking], worldEvents: [ResolvedWorldEvent],
+        selectedPulse: DailyPulse?, hardNight: Bool
+    ) -> [Fact] {
+        var facts = liveFacts(undertakings: undertakings, worldEvents: worldEvents)
+        guard let selectedPulse else { return facts }
+        let pulseEvents = Set(worldEvents.filter { !($0.phase.pulses ?? []).isEmpty }.map { "world-event:\($0.id)" })
+        facts.removeAll { fact in
+            fact.source == .worldEvent && pulseEvents.contains(where: { fact.id == $0 || fact.id.hasPrefix($0 + ":pulse:") })
+        }
+        if !hardNight || selectedPulse.fact.tender?.nonEmpty != nil {
+            facts.insert(selectedPulse.fact, at: 0)
+        }
+        return facts
     }
 
     static let coreFacts: [Fact] = [
@@ -3595,7 +3727,8 @@ enum SceneWorldCanon {
         on date: Date,
         recentDays: [BookDay],
         live: [Fact],
-        count: Int = BraidScenePlanBuilder.worldItemLimit
+        count: Int = BraidScenePlanBuilder.worldItemLimit,
+        preferredFactID: String? = nil
     ) -> [SceneWorldBeat] {
         let spent = spentWorldFactIDs(in: recentDays)
         let lastNight = spentWorldFactIDs(in: recentDays, limit: 1)
@@ -3617,6 +3750,10 @@ enum SceneWorldCanon {
             + rotated(freshCanon, by: dayNumber)
         if pool.isEmpty {
             pool = rotated(live, by: dayNumber) + rotated(facts, by: dayNumber)
+        }
+        if let preferredFactID, let preferred = live.first(where: { $0.id == preferredFactID }) {
+            pool.removeAll { $0.id == preferredFactID }
+            pool.insert(preferred, at: 0)
         }
         guard !pool.isEmpty else { return [] }
         var chosen: [SceneWorldBeat] = []
@@ -3733,7 +3870,8 @@ enum SceneWorldCanon {
         live: [Fact] = [],
         /// The fact the previous night's page actually carried, so tonight does
         /// not repeat it even when the rest window has not caught it yet.
-        continuedElsewhere: String? = nil
+        continuedElsewhere: String? = nil,
+        preferredFactID: String? = nil
     ) -> SceneWorldBeat? {
         let mode: WorldBeatMode
         if !plan.mustRemainUnresolved.isEmpty {
@@ -3806,7 +3944,12 @@ enum SceneWorldCanon {
         // exact defect this was written to fix. Stepping by the day itself
         // cannot repeat until the pool is exhausted.
         let dayNumber = Int(date.timeIntervalSince1970 / 86_400)
-        let chosen = pool[((dayNumber % pool.count) + pool.count) % pool.count]
+        let preferred = preferredFactID.flatMap { id in
+            live.first {
+                $0.id == id && (!hardNight || $0.tender?.nonEmpty != nil)
+            }
+        }
+        let chosen = preferred ?? pool[((dayNumber % pool.count) + pool.count) % pool.count]
         return SceneWorldBeat(
             id: chosen.id,
             mode: mode,
@@ -4097,7 +4240,7 @@ enum BraidTellingScrub {
         var dropped: [String] = []
         let paragraphs = prose.components(separatedBy: "\n\n").map { paragraph -> String in
             // The page's closing line is the Book's signature; leave it whole.
-            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            guard !BraidColophon.starts(paragraph) else { return paragraph }
             let ns = paragraph as NSString
             var result = paragraph
             for match in sentences.matches(in: paragraph, range: NSRange(location: 0, length: ns.length)).reversed() {
@@ -4121,7 +4264,7 @@ enum BraidTellingScrub {
 
         // A scrub that leaves almost nothing has done the telling's job badly;
         // let the audit see the original instead.
-        let body = text.components(separatedBy: "\n\n").filter { !$0.hasPrefix("The Book kept the page:") }.joined(separator: " ")
+        let body = text.components(separatedBy: "\n\n").filter { !BraidColophon.starts($0) }.joined(separator: " ")
         let remaining = sentences.numberOfMatches(in: body, range: NSRange(location: 0, length: (body as NSString).length))
         if !dropped.isEmpty, remaining < 3 {
             return Result(text: contracted(prose).text, dropped: [], contractions: contracted(prose).count)
@@ -4135,7 +4278,7 @@ enum BraidTellingScrub {
     static func contracted(_ text: String) -> (text: String, count: Int) {
         var count = 0
         let paragraphs = text.components(separatedBy: "\n\n").map { paragraph -> String in
-            guard !paragraph.hasPrefix("The Book kept the page:") else { return paragraph }
+            guard !BraidColophon.starts(paragraph) else { return paragraph }
             var result = paragraph
             for (long, short) in negatives {
                 let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: long) + #"\b"#

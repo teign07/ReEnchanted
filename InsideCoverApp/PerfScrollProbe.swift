@@ -2,6 +2,7 @@
 import SwiftUI
 import UIKit
 import QuartzCore
+import ObjectiveC
 
 // MARK: - Scroll smoothness probe
 //
@@ -16,6 +17,14 @@ import QuartzCore
 // `--perf-fling` flicks and lets the scroll decay instead of dragging at a
 // steady 1400pt/s; `--perf-watch <s>` lengthens the arrival window so a hand
 // can drive the surface while it is measured.
+//
+// `keep` and `trash` are dispositions rather than surfaces: each keeps or tears
+// the front desk leaf through the same call the folio makes, and the arrival
+// window measures what a reader waits through until the next leaf settles. A
+// simulator Book has no archive, so pair them with `--perf-seed-archive 90`
+// (four kept Pages a day, written once; the second launch shows the ordinary
+// desk). `--perf-still-pixie` holds the Pixie at rest for the whole run, and
+// `--perf-rb-census` tallies RenderBox redraws (see `PerfRBCensus`).
 //
 // For each named surface the app opens it the way the reader would, watches it
 // arrive, finds the scroll view that surface put on screen, sits still for a
@@ -49,7 +58,38 @@ final class PerfProbeSwitches {
     static let shared = PerfProbeSwitches()
     var stillKenBurns = false
     var stillMarginalia = false
+    /// `--perf-still-pixie`: the Pixie drawn at rest for the whole run, so a
+    /// run can be compared with and without her flight.
+    var stillPixie = ProcessInfo.processInfo.arguments.contains("--perf-still-pixie")
+    /// `--perf-pixie-replay`: her clock starts from launch, so every run flies
+    /// the same path at the same seconds and two traces can be compared.
+    let pixieReplayOrigin: Date? = ProcessInfo.processInfo.arguments.contains("--perf-pixie-replay") ? Date() : nil
+    /// `--perf-pixie-async`: her canvas drawn off the main thread. Tried on
+    /// 2026-10-18: no main-thread stalls, but her flight visibly skipped.
+    let pixieDrawsOffMain = ProcessInfo.processInfo.arguments.contains("--perf-pixie-async")
+    /// `--perf-still-lamp`: the Glow bookmark's lamp holds its out-breath.
+    let stillLamp = ProcessInfo.processInfo.arguments.contains("--perf-still-lamp")
+    /// `--perf-sky rain|storm|snow[:intensity]`: weather on the leaf for this
+    /// run only. Never stored, never read by anything but the leaf's own layer.
+    let forcedSky: PaperSkyOutlook? = PerfProbeSwitches.value(after: "--perf-sky").flatMap { spec in
+        let parts = spec.split(separator: ":")
+        guard let condition = parts.first.flatMap({ SkyCondition(rawValue: String($0)) }) else { return nil }
+        let intensity = parts.count > 1 ? Double(parts[1]) ?? 0.6 : 0.6
+        return PaperSkyOutlook(current: PaperSky(
+            condition: condition,
+            intensity: intensity,
+            wind: 0.35,
+            isDay: true,
+            observedAt: Date()
+        ))
+    }
     private init() {}
+
+    private static func value(after flag: String) -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+        return arguments[index + 1]
+    }
 }
 
 @MainActor
@@ -418,4 +458,143 @@ final class ScrollHitchProbe: NSObject {
     }
 }
 
+// MARK: - RenderBox census
+
+/// `--perf-rb-census`: counts every RenderBox layer redraw, once a second, by
+/// the view that owns it and its size in points, and appends the tally to
+/// Library/Caches/rb-census.txt.
+///
+/// `RBLayer display → SurfacePool::wait_image_queue` in a sample means some
+/// layer is being re-rasterised every frame, but the stack never says which.
+/// This does. Note that RenderBox sizes a layer's surface to what was actually
+/// drawn, not to the view's frame: shrinking a Canvas's frame around a small
+/// sprite saves nothing, because the surface was already that small.
+@MainActor
+enum PerfRBCensus {
+    static var counts: [String: Int] = [:]
+    static var installed = false
+
+    static func installIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("--perf-rb-census"), !installed,
+              let cls = NSClassFromString("RBLayer"),
+              let method = class_getInstanceMethod(cls, #selector(CALayer.display)) else { return }
+        installed = true
+        typealias Display = @convention(c) (AnyObject, Selector) -> Void
+        let original = unsafeBitCast(method_getImplementation(method), to: Display.self)
+        let replacement: @convention(block) (CALayer) -> Void = { layer in
+            let owner = layer.delegate.map { String(describing: type(of: $0)) } ?? "nil"
+            var ancestor = layer.superlayer
+            var host = "?"
+            while let current = ancestor {
+                if let delegate = current.delegate { host = String(describing: type(of: delegate)); break }
+                ancestor = current.superlayer
+            }
+            let key = "\(owner) in \(host) \(Int(layer.bounds.width))x\(Int(layer.bounds.height))"
+            MainActor.assumeIsolated { counts[key, default: 0] += 1 }
+            original(layer, #selector(CALayer.display))
+        }
+        method_setImplementation(method, imp_implementationWithBlock(replacement))
+        Task { @MainActor in
+            while true {
+                try? await Task.sleep(for: .seconds(1))
+                let line = counts.sorted { $0.value > $1.value }.prefix(6).map { "\($0.value)× \($0.key)" }.joined(separator: " | ")
+                counts = [:]
+                if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+                    let url = caches.appendingPathComponent("rb-census.txt")
+                    let stamp = String(format: "%.0f", Date().timeIntervalSince1970)
+                    let entry = "\(stamp) \(line)\n"
+                    if let handle = try? FileHandle(forWritingTo: url) {
+                        handle.seekToEndOfFile(); handle.write(Data(entry.utf8)); try? handle.close()
+                    } else {
+                        try? entry.write(to: url, atomically: true, encoding: .utf8)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Offscreen layer census
+
+/// `--perf-layer-census`: once the desk has settled, lists every layer that
+/// makes the render server draw offscreen, with where it sits on screen, and
+/// writes it to Library/Caches/layer-census.txt.
+///
+/// A Time Profiler of backboardd shows `MaskNode`, `ShadowNode` and
+/// `CombineNode` work but never says whose. These are whose: a mask (and
+/// whether it is a shape layer, which the render server traces on the CPU),
+/// a shadow with no path, a blend filter, a filter. Anything moving over one
+/// of these rectangles makes the render server redo it for that frame.
+@MainActor
+enum PerfLayerCensus {
+    static func scheduleIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("--perf-layer-census") else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(6))
+            write(to: "layer-census.txt")
+        }
+    }
+
+    static func write(to name: String) {
+        var lines: [String] = []
+        let windows = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .filter { !$0.isHidden }
+        for window in windows {
+            visit(window.layer, window: window, depth: 0, lines: &lines)
+        }
+        let text = (["layer-census \(Date()) \(lines.count) layers"] + lines).joined(separator: "\n")
+        print(text)
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            try? text.write(to: caches.appendingPathComponent(name), atomically: true, encoding: .utf8)
+        }
+    }
+
+    private static func visit(_ layer: CALayer, window: UIWindow, depth: Int, lines: inout [String]) {
+        guard !layer.isHidden, layer.opacity > 0.01 else { return }
+        var marks: [String] = []
+        if let mask = layer.mask {
+            let kind = mask is CAShapeLayer ? "SHAPE" : String(describing: type(of: mask))
+            marks.append("mask=\(kind) sublayers=\(mask.sublayers?.count ?? 0)")
+        }
+        if layer.shadowOpacity > 0, layer.shadowRadius > 0 || layer.shadowOffset != .zero {
+            marks.append(String(
+                format: "shadow r=%.1f o=%.2f %@",
+                layer.shadowRadius, layer.shadowOpacity, layer.shadowPath == nil ? "NO-PATH" : "path"
+            ))
+        }
+        if let filter = layer.compositingFilter {
+            marks.append("blend=\(filter)")
+        }
+        if let filters = layer.filters, !filters.isEmpty {
+            marks.append("filters=\(filters.map { String(describing: $0) }.joined(separator: ","))")
+        }
+        if layer.shouldRasterize { marks.append("rasterized") }
+        if String(describing: type(of: layer)).contains("Backdrop") { marks.append("backdrop") }
+        if !marks.isEmpty {
+            let frame = layer.convert(layer.bounds, to: window.layer)
+            lines.append(String(
+                format: "%@d=%d [%.0f,%.0f %.0fx%.0f] %@ owner=%@ %@",
+                String(repeating: " ", count: min(depth, 30)),
+                depth, frame.minX, frame.minY, frame.width, frame.height,
+                String(describing: type(of: layer)), owner(of: layer), marks.joined(separator: " ")
+            ))
+        }
+        for sublayer in layer.sublayers ?? [] {
+            visit(sublayer, window: window, depth: depth + 1, lines: &lines)
+        }
+    }
+
+    private static func owner(of layer: CALayer) -> String {
+        var current: CALayer? = layer
+        while let candidate = current {
+            if let delegate = candidate.delegate {
+                return String(describing: type(of: delegate)).prefix(60).description
+            }
+            current = candidate.superlayer
+        }
+        return "?"
+    }
+}
 #endif

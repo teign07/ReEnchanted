@@ -33,7 +33,7 @@ struct CustomCastMemberSheet: View {
     @State private var goals = ""
     @State private var tags = ""
     @State private var imageData: Data?
-    @State private var imageMessage = "Optional. A photo can make this Cast Member easier for the Book to remember."
+    @State private var imageMessage = "Optional. A photo can make this Cast Member easier for me to remember."
     @State private var isCameraPresented = false
     @State private var photoRevision = 0
     #if canImport(PhotosUI)
@@ -54,12 +54,12 @@ struct CustomCastMemberSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         header
-                        field("What is it called?", text: $name, prompt: "A name the Book can put on the shelf.")
+                        field("What is it called?", text: $name, prompt: "A name I can put on the shelf.")
                         kindPicker
                         editor(
                             "What does this entry mean to you?",
                             text: $meaning,
-                            prompt: "Why does it deserve Belief? What should the Book remember about it?",
+                            prompt: "Why does it deserve Belief? What should I remember about it?",
                             minHeight: 120
                         )
                         editor(
@@ -69,7 +69,7 @@ struct CustomCastMemberSheet: View {
                             minHeight: 110
                         )
                         photoPicker
-                        field("What traits should the Book remember?", text: $traits, prompt: "Comma separated. Warm, stubborn, protective...")
+                        field("What traits should I remember?", text: $traits, prompt: "Comma separated. Warm, stubborn, protective...")
                         field("What does it believe?", text: $beliefs, prompt: "Comma separated or one sentence.")
                         field("What does it want?", text: $goals, prompt: "Comma separated or one sentence.")
                         field("Tags for surfacing", text: $tags, prompt: "Comma separated. music, home, courage...")
@@ -125,7 +125,7 @@ struct CustomCastMemberSheet: View {
             Label("Invite something new into the Cast", systemImage: "sparkle.magnifyingglass")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(BookPalette.lampGold)
-            Text("The Book will add it to the Cast and the World Register. If its Glow quiets later, it will rest in the margins rather than disappear.")
+            Text("I'll add it to the Cast and the World Register. If its Glow quiets later, it'll rest in my margins. It won't disappear.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)
@@ -201,7 +201,7 @@ struct CustomCastMemberSheet: View {
             BookCameraCaptureView { data in
                 withAnimation(BookMotion.result(reduceMotion)) {
                     imageData = data
-                    imageMessage = "Photo taken. The Book will keep a private local copy."
+                    imageMessage = "Photo taken. I'll keep a private copy on this phone."
                     photoRevision += 1
                 }
             }
@@ -302,7 +302,7 @@ struct CustomCastMemberSheet: View {
         }
         withAnimation(BookMotion.result(reduceMotion)) {
             imageData = data
-            imageMessage = "Photo chosen. The Book will keep a private local copy."
+            imageMessage = "Photo chosen. I'll keep a private copy on this phone."
             photoRevision += 1
         }
     }

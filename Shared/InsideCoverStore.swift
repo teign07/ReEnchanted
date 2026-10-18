@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import Metal
 
 enum InsideCoverStore {
     static let appGroup = "group.com.openclaw.enchantify.insidecover"
@@ -452,6 +453,7 @@ enum LocalModelManager {
     static let activeModelMarkerName = "active-model.json"
 
     static var preferredModel: ModelChoice {
+        guard deviceSupportsLocalBrainGPU else { return compactModel }
         let memoryGB = deviceMemoryGB
         if memoryGB >= expansiveModel.minimumMemoryGB,
            !isIPhone15ClassHardware {
@@ -496,6 +498,13 @@ enum LocalModelManager {
         "\(hardwareIdentifier), about \(deviceMemoryGB) GB memory"
     }
 
+    /// MLX's Metal kernels use SIMD matrix/reduction operations available from
+    /// Apple7 (A14/M1) onward. Our A13 iPad (Apple6) crashes the system's Metal
+    /// compiler during Gemma 3 prefill; use the compact model on CPU there.
+    static var deviceSupportsLocalBrainGPU: Bool {
+        MTLCreateSystemDefaultDevice()?.supportsFamily(.apple7) == true
+    }
+
     /// Whether a checkpoint has a vision tower at all. Whether this phone can
     /// afford to use it is `deviceCanAffordDirectVision`.
     static func modelSupportsVision(modelID: String) -> Bool {
@@ -521,7 +530,7 @@ enum LocalModelManager {
     /// text model instead, which also lets an Enchantment's writer reuse the
     /// weights already warm rather than swapping one container for another.
     static var deviceCanAffordDirectVision: Bool {
-        deviceMemoryGB >= 8
+        deviceSupportsLocalBrainGPU && deviceMemoryGB >= 8
     }
 
     static var activeModelSupportsVision: Bool {
@@ -1359,6 +1368,7 @@ enum LocalModelManager {
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
+        bleedPrintHistory: [BleedPrintRecord] = [],
         castUndertakings: [CastUndertaking] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
@@ -1386,6 +1396,7 @@ enum LocalModelManager {
             learnedNotes: learnedNotes,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
+            bleedPrintHistory: bleedPrintHistory,
             castUndertakings: castUndertakings,
             readerLexicon: readerLexicon,
             readerLearning: readerLearning,

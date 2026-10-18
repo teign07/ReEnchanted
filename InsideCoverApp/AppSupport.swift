@@ -1134,6 +1134,12 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private var systemNowPlayingStartedAt: Date?
     private var systemNowPlayingPausedElapsed: TimeInterval?
     private var systemNowPlayingDuration: TimeInterval?
+    @ObservationIgnored private var bundledAudioURLs: [String: URL] = [:]
+    #if canImport(MediaPlayer) && canImport(UIKit)
+    // Keep only the artwork already on air; repeated songs or dial updates
+    // should not redraw the same bitmap. Quiet releases it with Now Playing.
+    @ObservationIgnored private var currentRadioArtwork: (title: String, artwork: MPMediaItemArtwork)?
+    #endif
 
     private(set) var playback = RadioPlaybackState.off
     private(set) var activeStation: RadioStation?
@@ -1968,6 +1974,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         #if canImport(MediaPlayer)
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         MPNowPlayingInfoCenter.default().playbackState = .stopped
+        #if canImport(UIKit)
+        currentRadioArtwork = nil
+        #endif
         systemNowPlayingStartedAt = nil
         systemNowPlayingPausedElapsed = nil
         systemNowPlayingDuration = nil
@@ -2006,6 +2015,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     private func makeRadioArtwork(title: String) -> Any? {
         #if canImport(MediaPlayer) && canImport(UIKit)
+        if let currentRadioArtwork, currentRadioArtwork.title == title {
+            return currentRadioArtwork.artwork
+        }
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512))
         let image = renderer.image { context in
             let rect = CGRect(x: 0, y: 0, width: 512, height: 512)
@@ -2027,7 +2039,9 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             let displayTitle = String(title.prefix(28))
             displayTitle.draw(in: CGRect(x: 46, y: 326, width: 420, height: 92), withAttributes: attributes)
         }
-        return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        currentRadioArtwork = (title, artwork)
+        return artwork
         #else
         return nil
         #endif
@@ -2071,10 +2085,14 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// and the listening streak are derived here; the broader world arrives in
     /// the pushed snapshot above (with the legacy provider as a calm fallback).
     private func makeWorldContext(for station: RadioStation, now: Date = Date()) -> RadioWorldContext {
-        let legacyWorld = worldContextProvider?()
-        let world = liveWorld ?? legacyWorld.map {
-            (grey: $0.grey, festivalActive: $0.festivalActive, pageContext: $0.pageContext, activeWorldEvents: [])
-        } ?? (grey: 0, festivalActive: false, pageContext: RadioPageContext(), activeWorldEvents: [])
+        let world: (grey: Int, festivalActive: Bool, pageContext: RadioPageContext, activeWorldEvents: [ResolvedWorldEvent])
+        if let liveWorld {
+            world = liveWorld
+        } else if let legacy = worldContextProvider?() {
+            world = (legacy.grey, legacy.festivalActive, legacy.pageContext, [])
+        } else {
+            world = (0, false, RadioPageContext(), [])
+        }
         let calendar = Calendar.current
         return RadioWorldContext(
             timeOfDay: RadioWorldContext.band(for: now),
@@ -2130,14 +2148,20 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 directory: MonthlyIssueDeliveryPolicy.managedContentDirectory()
             )
         }
+        // Only successful bundle lookups are immutable. Managed monthly
+        // audio still rechecks access above; downloaded files and misses
+        // still go through the live filesystem below.
+        if let cached = bundledAudioURLs[assetName] { return cached }
         let extensions = ["m4a", "mp3", "wav", "aac", "caf", "aiff"]
         // Bundled radio audio lives in the RadioAudio folder reference; fall back
         // to the bundle root for any loose resources.
         for ext in extensions {
             if let url = Bundle.main.url(forResource: assetName, withExtension: ext, subdirectory: "RadioAudio") {
+                bundledAudioURLs[assetName] = url
                 return url
             }
             if let url = Bundle.main.url(forResource: assetName, withExtension: ext) {
+                bundledAudioURLs[assetName] = url
                 return url
             }
         }
@@ -3181,6 +3205,8 @@ enum WeatherLocationReader {
         let location = try await OneShotLocationReader.requestLocation(
             desiredAccuracy: kCLLocationAccuracyThreeKilometers
         )
+        try Task.checkCancellation()
+        AppMemoryLedger.record("weather-location-ready")
         return try await weatherSignal(for: location.coordinate)
         #else
         throw ReaderError.unavailable
@@ -3222,13 +3248,7 @@ enum WeatherLocationReader {
             // Stamped with the moment it was read, not the moment it is drawn.
             // The leaf fades the sky out as this ages; a reading that carried
             // no time would claim to be forever current.
-            sky: SkyCode.reading(
-                code: weather.current.weatherCode,
-                precipitation: weather.current.precipitation,
-                windSpeed: weather.current.windSpeed10m,
-                isDay: (weather.current.isDay ?? 1) == 1,
-                observedAt: Date()
-            )
+            skyOutlook: weather.skyOutlook(readAt: Date())
         )
     }
     #endif
@@ -3377,6 +3397,8 @@ private enum OpenMeteoClient {
             var windSpeed10m: Double?
             /// Open-Meteo sends 1/0 rather than a bool.
             var isDay: Int?
+            /// Seconds the current values are summed over — 900 today.
+            var interval: Int?
 
             enum CodingKeys: String, CodingKey {
                 case temperature2m = "temperature_2m"
@@ -3384,7 +3406,62 @@ private enum OpenMeteoClient {
                 case precipitation
                 case windSpeed10m = "wind_speed_10m"
                 case isDay = "is_day"
+                case interval
             }
+        }
+
+        /// The next several hours in fifteen-minute rows, so the leaf can
+        /// follow the weather between reads. Optional: a response without it
+        /// still gives the Book its current sky.
+        var minutely15: Minutely15?
+
+        struct Minutely15: Decodable {
+            /// Unix seconds — the request asks for `timeformat=unixtime`.
+            var time: [Double]
+            var weatherCode: [Int?]?
+            /// Millimetres in each fifteen-minute row.
+            var precipitation: [Double?]?
+            var windSpeed10m: [Double?]?
+            var isDay: [Int?]?
+
+            enum CodingKeys: String, CodingKey {
+                case time
+                case weatherCode = "weather_code"
+                case precipitation
+                case windSpeed10m = "wind_speed_10m"
+                case isDay = "is_day"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case current
+            case daily
+            case minutely15 = "minutely_15"
+        }
+
+        /// The sky as the paper needs it: what is overhead now, and what the
+        /// forecast says comes after.
+        func skyOutlook(readAt: Date) -> PaperSkyOutlook {
+            // Current precipitation is summed over the current interval
+            // (fifteen minutes), not an hour. Read as an hourly figure it put
+            // a firm rain at a quarter of its strength.
+            let interval = Double(current.interval ?? 3_600)
+            let now = SkyCode.reading(
+                code: current.weatherCode,
+                precipitation: current.precipitation.map { $0 * 3_600 / max(60, interval) },
+                windSpeed: current.windSpeed10m,
+                isDay: (current.isDay ?? 1) == 1,
+                observedAt: readAt
+            )
+            guard let rows = minutely15 else { return PaperSkyOutlook(current: now) }
+            return SkyCode.outlook(
+                current: now,
+                slotStarts: rows.time.map { Date(timeIntervalSince1970: $0) },
+                codes: rows.weatherCode ?? [],
+                precipitation: rows.precipitation ?? [],
+                windSpeed: rows.windSpeed10m ?? [],
+                isDay: rows.isDay ?? []
+            )
         }
 
         struct Daily: Decodable {
@@ -3449,13 +3526,28 @@ private enum OpenMeteoClient {
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),
             URLQueryItem(name: "timezone", value: "auto"),
-            URLQueryItem(name: "forecast_days", value: "1")
+            URLQueryItem(name: "forecast_days", value: "1"),
+            // The next nine hours, so the sky on the leaf can start and stop
+            // with the weather between hourly reads. Unix times because these
+            // rows are compared against the clock, and the local strings
+            // `timezone=auto` would otherwise produce carry no offset.
+            URLQueryItem(
+                name: "minutely_15",
+                value: "weather_code,precipitation,wind_speed_10m,is_day"
+            ),
+            URLQueryItem(name: "forecast_minutely_15", value: "36"),
+            URLQueryItem(name: "timeformat", value: "unixtime")
         ]
         guard let url = components?.url else {
             throw WeatherLocationReader.ReaderError.badResponse
         }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        AppMemoryLedger.record("weather-forecast-request")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try Task.checkCancellation()
+        AppMemoryLedger.record("weather-forecast-ready")
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             throw WeatherLocationReader.ReaderError.badResponse
@@ -3524,6 +3616,8 @@ private enum WeatherCode {
 private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<CLLocation, Error>?
+    private var finishedResult: Result<CLLocation, Error>?
+    private var deadlineTask: Task<Void, Never>?
 
     static func requestLocation(
         desiredAccuracy: CLLocationAccuracy,
@@ -3544,24 +3638,43 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     }
 
     private func location() async throws -> CLLocation {
-        try await withCheckedThrowingContinuation { continuation in
-            self.continuation = continuation
-            let status = manager.authorizationStatus
-            switch status {
-            case .notDetermined:
-                manager.requestWhenInUseAuthorization()
-            case .authorizedAlways, .authorizedWhenInUse:
-                if reuseRecentLocation, let cached = recentSystemLocation() {
-                    finish(returning: cached)
-                } else {
-                    manager.requestLocation()
+        try await withTaskCancellationHandler {
+            try Task.checkCancellation()
+            return try await withCheckedThrowingContinuation { continuation in
+                if let finishedResult {
+                    continuation.resume(with: finishedResult)
+                    return
                 }
-            case .denied, .restricted:
-                finish(throwing: WeatherLocationReader.ReaderError.denied)
-            @unknown default:
-                finish(throwing: WeatherLocationReader.ReaderError.noLocation)
+                self.continuation = continuation
+                switch manager.authorizationStatus {
+                case .notDetermined:
+                    manager.requestWhenInUseAuthorization()
+                case .authorizedAlways, .authorizedWhenInUse:
+                    requestAuthorizedLocation()
+                case .denied, .restricted:
+                    finish(throwing: WeatherLocationReader.ReaderError.denied)
+                @unknown default:
+                    finish(throwing: WeatherLocationReader.ReaderError.noLocation)
+                }
             }
+        } onCancel: {
+            Task { @MainActor in self.finish(throwing: CancellationError()) }
         }
+    }
+
+    private func requestAuthorizedLocation() {
+        guard continuation != nil, finishedResult == nil, deadlineTask == nil else { return }
+        if reuseRecentLocation, let cached = recentSystemLocation() {
+            finish(returning: cached)
+            return
+        }
+        // Start the clock after permission, so the reader can take their time
+        // deciding at iOS's authorization prompt.
+        deadlineTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(20)) } catch { return }
+            self?.finish(throwing: WeatherLocationReader.ReaderError.noLocation)
+        }
+        manager.requestLocation()
     }
 
     /// Core Location often already has a recent fix from Maps, Weather, or an
@@ -3582,7 +3695,7 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
         Task { @MainActor in
             switch manager.authorizationStatus {
             case .authorizedAlways, .authorizedWhenInUse:
-                manager.requestLocation()
+                requestAuthorizedLocation()
             case .denied, .restricted:
                 finish(throwing: WeatherLocationReader.ReaderError.denied)
             case .notDetermined:
@@ -3610,12 +3723,21 @@ private final class OneShotLocationReader: NSObject, CLLocationManagerDelegate {
     }
 
     private func finish(returning location: CLLocation) {
-        continuation?.resume(returning: location)
-        continuation = nil
+        finish(.success(location))
     }
 
     private func finish(throwing error: Error) {
-        continuation?.resume(throwing: error)
+        finish(.failure(error))
+    }
+
+    private func finish(_ result: Result<CLLocation, Error>) {
+        guard finishedResult == nil else { return }
+        finishedResult = result
+        deadlineTask?.cancel()
+        deadlineTask = nil
+        manager.stopUpdatingLocation()
+        manager.delegate = nil
+        continuation?.resume(with: result)
         continuation = nil
     }
 }
@@ -6054,22 +6176,30 @@ enum CalendarDoorway {
     ) async -> [CalendarEventSignal] {
         #if canImport(EventKit)
         let store = EKEventStore()
-        let granted: Bool
-        if #available(iOS 17.0, *) {
-            granted = (try? await store.requestFullAccessToEvents()) ?? false
-        } else {
-            granted = (try? await store.requestAccess(to: .event)) ?? false
+        // Don't ask again on every foreground/press refresh, and don't mistake
+        // a denied read for an empty calendar. The caller displays accessState.
+        switch accessState {
+        case .authorized:
+            break
+        case .notDetermined:
+            let granted: Bool
+            if #available(iOS 17.0, *) {
+                granted = (try? await store.requestFullAccessToEvents()) ?? false
+            } else {
+                granted = (try? await store.requestAccess(to: .event)) ?? false
+            }
+            guard granted else { return [] }
+            store.reset()
+        case .denied, .unavailable:
+            return []
         }
-        guard granted else { return [] }
         let calendar = Calendar.current
-        let start = now.addingTimeInterval(-3600)
         let days = max(1, min(7, horizonDays))
-        let end = calendar.date(byAdding: .day, value: days, to: now)
-            ?? now.addingTimeInterval(TimeInterval(days) * 86_400)
-        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: nil)
+        let window = CalendarEventSignal.readingWindow(now: now, horizonDays: days, calendar: calendar)
+        let predicate = store.predicateForEvents(withStart: window.start, end: window.end, calendars: nil)
         return store.events(matching: predicate)
-            .filter { !$0.isAllDay || calendar.isDate($0.startDate, inSameDayAs: now) }
-            .prefix(days > 2 ? 64 : 24)
+            .sorted { $0.startDate < $1.startDate }
+            .prefix(256)
             .map { event in
                 CalendarEventSignal(
                     id: event.eventIdentifier ?? UUID().uuidString,
@@ -6082,6 +6212,15 @@ enum CalendarDoorway {
         #else
         return []
         #endif
+    }
+
+    static var accessProblem: String? {
+        switch accessState {
+        case .authorized: return nil
+        case .notDetermined: return "Calendar access hasn't been granted yet. Open Calendar Doorway in the Colophon to connect it."
+        case .denied: return "Calendar access is off. In Settings, allow ReEnchanted full calendar access to include your appointments."
+        case .unavailable: return "Calendar access is unavailable on this device."
+        }
     }
 }
 
@@ -7429,6 +7568,358 @@ enum VellumNutritionist {
 /// The Book's small shared motion vocabulary. Views choose the meaning of a
 /// change rather than inventing another spring, and Reduced Motion gets a quiet
 /// crossfade instead of a spatial imitation of the full choreography.
+/// Distinct acts of paper workmanship, shared by the existing waiting cards
+/// and publication desk. These are illustrations of work, never progress bars.
+enum BookMakingMoment: String, CaseIterable {
+    case bleed, braid, monthly, seasonal, annual, letter, vignette
+
+    var duration: Double {
+        switch self {
+        case .bleed: 2.6
+        case .braid: 2.8
+        case .monthly: 3.2
+        case .seasonal: 3.8
+        case .annual: 4.4
+        case .letter: 1.7
+        case .vignette: 1.5
+        }
+    }
+
+    var workingTitle: String {
+        switch self {
+        case .bleed: "Setting the Bleed"
+        case .braid: "Braiding the day"
+        case .monthly: "Gathering the month"
+        case .seasonal: "Binding the season"
+        case .annual: "Binding the year"
+        case .letter: "Opening the letter"
+        case .vignette: "The scene takes ink"
+        }
+    }
+
+    static func writing(label: String) -> Self? {
+        let label = label.lowercased()
+        if label.contains("bleed") { return .bleed }
+        if label.contains("braid") { return .braid }
+        if label.contains("letter") { return .letter }
+        if label.contains("story-page") || label.contains("book-jump") { return .vignette }
+        return nil
+    }
+}
+
+/// One display-driven clock. Once settled it owns no timer or repeating work.
+/// Backgrounding and Reduce Motion settle the scene without replaying it.
+struct BookMakingScene: View {
+    let moment: BookMakingMoment
+    var title: String? = nil
+    var onPaper = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var seconds = 0.0
+    @State private var began = false
+
+    var body: some View {
+        BookMakingDrawing(moment: moment, seconds: seconds, title: title, onPaper: onPaper)
+            .aspectRatio(268.0 / 194.0, contentMode: .fit)
+            .frame(maxWidth: 268)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+            .task {
+                guard !began else { return }
+                began = true
+                guard !reduceMotion, scenePhase == .active else { settle(); return }
+                await Task.yield()
+                guard !Task.isCancelled, !reduceMotion, scenePhase == .active else { settle(); return }
+                withAnimation(.linear(duration: moment.duration)) { seconds = moment.duration }
+            }
+            .onChange(of: reduceMotion) { _, reduced in if reduced { settle() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { settle() } }
+    }
+
+    private func settle() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { seconds = moment.duration }
+    }
+}
+
+private struct BookMakingDrawing: View, Animatable {
+    let moment: BookMakingMoment
+    var seconds: Double
+    let title: String?
+    let onPaper: Bool
+    var animatableData: Double {
+        get { seconds }
+        set { seconds = newValue }
+    }
+    private var metal: Color { onPaper ? BookPalette.parchmentEdge : BookPalette.lampGold }
+    private var ink: Color { BookPalette.ink }
+
+    private func phase(_ a: Double, _ b: Double) -> Double {
+        let t = min(1, max(0, (seconds - a) / (b - a)))
+        return t * t * (3 - 2 * t)
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            context.translateBy(x: size.width / 2, y: size.height / 2)
+            let scale = min(size.width / 268, size.height / 194)
+            context.scaleBy(x: scale, y: scale)
+            switch moment {
+            case .bleed: press(context)
+            case .braid: weave(context)
+            case .monthly, .seasonal, .annual: volume(context)
+            case .letter: envelope(context)
+            case .vignette: scene(context)
+            }
+        }
+    }
+
+    private func paper(_ context: GraphicsContext, width: Double, height: Double, shade: Double = 0) {
+        let rect = CGRect(x: -width / 2, y: -height / 2, width: width, height: height)
+        var c = context
+        c.addFilter(.shadow(color: .black.opacity(0.18), radius: 2.5, x: 0, y: 3))
+        let path = Path(roundedRect: rect, cornerRadius: 1.8)
+        c.fill(path, with: .color(BookPalette.page))
+        c.fill(path, with: .color(BookPalette.parchmentEdge.opacity(shade)))
+        context.stroke(path, with: .color(BookPalette.parchmentEdge.opacity(0.7)), lineWidth: 0.7)
+    }
+
+    private func line(_ c: GraphicsContext, _ a: CGPoint, _ b: CGPoint, color: Color, width: Double = 1) {
+        var path = Path(); path.move(to: a); path.addLine(to: b)
+        c.stroke(path, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+    }
+
+    private func press(_ context: GraphicsContext) {
+        let land = phase(0, 0.65)
+        var c = context
+        c.translateBy(x: 0, y: (1 - land) * 14)
+        c.rotate(by: .degrees((1 - land) * -5))
+        c.opacity = land
+        paper(c, width: 118, height: 146)
+        let roller = phase(0.65, 2.15)
+        let rollerY = -58 + roller * 112
+        // The roller prints abstract type slugs; the reading copy owns headlines.
+        for column in 0..<3 {
+            for row in 0..<12 {
+                let y = -27 + Double(row) * 6.7
+                let x = -47 + Double(column) * 33
+                let reveal = min(1, max(0, (rollerY - y + 3) / 6))
+                let width = 19 + Double((row * 7 + column * 3) % 10)
+                var slug = c
+                slug.opacity *= reveal
+                slug.fill(Path(CGRect(x: x, y: y, width: width, height: row == 0 ? 3 : 1.2)),
+                          with: .color(ink.opacity(row == 0 ? 0.6 : 0.3)))
+            }
+        }
+        var masthead = c
+        masthead.opacity *= phase(0.75, 1.05)
+        masthead.draw(Text("THE BLEED").font(.system(size: 12, weight: .black, design: .serif))
+            .foregroundColor(ink), at: CGPoint(x: 0, y: -46))
+        line(masthead, CGPoint(x: -47, y: -35), CGPoint(x: 47, y: -35), color: ink.opacity(0.7))
+        var tool = c
+        tool.opacity *= 1 - phase(2.12, 2.45)
+        let barrel = CGRect(x: -72, y: rollerY - 6, width: 144, height: 12)
+        tool.fill(Path(roundedRect: barrel, cornerRadius: 5), with: .linearGradient(
+            Gradient(colors: [BookPalette.teal, ink, BookPalette.teal]),
+            startPoint: CGPoint(x: 0, y: rollerY - 6), endPoint: CGPoint(x: 0, y: rollerY + 6)))
+        line(tool, CGPoint(x: -79, y: rollerY), CGPoint(x: -72, y: rollerY), color: metal, width: 3)
+        line(tool, CGPoint(x: 72, y: rollerY), CGPoint(x: 79, y: rollerY), color: metal, width: 3)
+        // The newly printed corner lifts once, then lies down.
+        let curl = sin(.pi * phase(2.1, 2.6)) * 11
+        var corner = Path(); corner.move(to: CGPoint(x: 59, y: 73))
+        corner.addLine(to: CGPoint(x: 59 - curl, y: 73))
+        corner.addQuadCurve(to: CGPoint(x: 59, y: 73 - curl), control: CGPoint(x: 49, y: 63))
+        c.stroke(corner, with: .color(BookPalette.parchmentEdge), lineWidth: 0.8)
+    }
+
+    private func weave(_ context: GraphicsContext) {
+        let gather = phase(0, 0.75), flatten = phase(1.65, 2.8)
+        var page = context; page.opacity = flatten
+        paper(page, width: 104, height: 130)
+        let colors = [BookPalette.teal, metal, BookPalette.violet]
+        // Alternating occlusion at each crossing gives the strands real over/under.
+        if flatten >= 0.995 {
+            for strand in 0..<3 {
+                line(context, CGPoint(x: -35, y: Double(strand - 1) * 13),
+                     CGPoint(x: 35, y: Double(strand - 1) * 13), color: colors[strand], width: 1.4)
+            }
+        } else {
+            for step in 0..<60 {
+                let u = Double(step) / 59
+                let next = min(1, u + 1.0 / 59)
+                let visible = min(1, max(0, (phase(0.3, 2.0) - u) * 12))
+                guard visible > 0 else { continue }
+                let order = Int(u * 6) % 2 == 0 ? [0, 1, 2] : [2, 1, 0]
+                for strand in order {
+                    let offset = Double(strand) * .pi * 2 / 3
+                    func point(_ t: Double) -> CGPoint {
+                        let braidedX = sin(t * .pi * 6 + offset) * 22
+                        let lineX = -35 + t * 70
+                        return CGPoint(x: (1 - flatten) * braidedX + flatten * lineX,
+                                       y: (-55 + t * 110) * (1 - flatten) + flatten * Double(strand - 1) * 13)
+                    }
+                    var thread = context
+                    thread.opacity = visible * gather
+                    line(thread, point(u), point(next), color: colors[strand], width: 2.2 - flatten * 0.8)
+                }
+            }
+        }
+        // A last loose filament tucks itself beneath the right edge.
+        let tuck = phase(2.2, 2.8)
+        var tail = Path(); tail.move(to: CGPoint(x: 35, y: 13))
+        tail.addQuadCurve(to: CGPoint(x: 51 + 23 * (1 - tuck), y: 25 * (1 - tuck)),
+                          control: CGPoint(x: 86 - tuck * 30, y: 44 * (1 - tuck)))
+        var last = context; last.opacity = phase(1.8, 2.1) * (1 - tuck)
+        last.stroke(tail, with: .color(metal), style: StrokeStyle(lineWidth: 1.2, lineCap: .round))
+    }
+
+    private func volume(_ context: GraphicsContext) {
+        let annual = moment == .annual, seasonal = moment == .seasonal
+        let count = annual ? 12 : seasonal ? 3 : 8
+        let gatherEnd = annual ? 2.7 : seasonal ? 2.3 : 1.95
+        for i in 0..<count {
+            let n = Double(i), center = n - Double(count - 1) / 2
+            let gather = phase(0.12 + n * 0.035, gatherEnd + n * 0.025)
+            var c = context; c.opacity = phase(n * 0.025, 0.5 + n * 0.025)
+            let theta = n / Double(count) * .pi * 2
+            let startX = annual ? cos(theta) * 54 : center * (seasonal ? 55 : 13)
+            let startY = annual ? sin(theta) * 15 : (i % 2 == 0 ? -13.0 : 13.0)
+            c.translateBy(x: startX * (1 - gather) + n * 0.65,
+                          y: startY * (1 - gather) - n * 0.65)
+            c.rotate(by: .degrees((annual ? center * 7 : center * 9) * (1 - gather)))
+            paper(c, width: 88, height: 122, shade: seasonal ? n * 0.035 : 0)
+            for row in 0..<7 {
+                let y = -31 + Double(row) * 9
+                let length = row == 6 ? 26.0 : 43 + Double((i * 7 + row * 3) % 14)
+                line(c, CGPoint(x: -28, y: y), CGPoint(x: -28 + length, y: y),
+                     color: ink.opacity(row == 0 ? 0.25 : 0.12), width: row == 0 ? 2 : 0.8)
+            }
+            if seasonal {
+                // Each monthly gathering carries a small, distinct fore-edge tab.
+                c.fill(Path(CGRect(x: 40, y: -42 + n * 23, width: 7, height: 15)),
+                       with: .color([BookPalette.teal, metal, BookPalette.violet][i].opacity(0.7)))
+            }
+        }
+        let wrap = phase(gatherEnd + 0.25, moment.duration - 0.35)
+        var cover = context
+        cover.translateBy(x: Double(count - 1) * 0.65, y: -Double(count - 1) * 0.65)
+        let width = 94 * wrap
+        let rect = CGRect(x: -47, y: -64, width: width, height: 128)
+        let coverPath = Path(roundedRect: rect, cornerRadius: 2)
+        cover.fill(coverPath, with: .color(
+            annual ? BookPalette.nightPanel : seasonal ? BookPalette.teal : BookPalette.ink))
+        // Cloth threads, bounded and drawn only during this finite ceremony.
+        if annual, width > 0 {
+            cover.fill(coverPath, with: .color(BookPalette.teal.opacity(0.22)))
+            var cloth = cover; cloth.clip(to: coverPath)
+            for row in 0..<30 {
+                let y = -60 + Double(row) * 4
+                line(cloth, CGPoint(x: -45, y: y), CGPoint(x: -47 + width, y: y),
+                     color: metal.opacity(0.07), width: 0.5)
+            }
+            for column in 0..<22 {
+                let x = -44 + Double(column) * 4
+                line(cloth, CGPoint(x: x, y: -62), CGPoint(x: x, y: 62),
+                     color: metal.opacity(0.035), width: 0.5)
+            }
+        }
+        line(cover, CGPoint(x: -39, y: -55), CGPoint(x: -39, y: 55), color: metal.opacity(wrap * 0.5))
+        var ornaments = cover
+        ornaments.clip(to: coverPath)
+        ornaments.opacity = phase(moment.duration - 0.65, moment.duration)
+        if annual {
+            ornaments.stroke(Path(CGRect(x: -33, y: -48, width: 70, height: 96)),
+                              with: .color(metal.opacity(0.42)), lineWidth: 0.65)
+        } else if seasonal {
+            for i in 0..<3 {
+                let x = Double(i - 1) * 9
+                line(ornaments, CGPoint(x: x, y: -42), CGPoint(x: x, y: -28), color: metal.opacity(0.8))
+                ornaments.fill(Path(ellipseIn: CGRect(x: x - 1.8, y: -45.6, width: 3.6, height: 3.6)),
+                               with: .color(metal))
+            }
+        } else {
+            ornaments.stroke(Path(ellipseIn: CGRect(x: -7, y: -43, width: 18, height: 18)),
+                              with: .color(metal.opacity(0.8)), lineWidth: 0.7)
+            line(ornaments, CGPoint(x: -15, y: 35), CGPoint(x: 19, y: 35), color: metal.opacity(0.5))
+        }
+        if let title, !title.isEmpty {
+            var lettering = cover; lettering.opacity = phase(moment.duration - 0.8, moment.duration)
+            let text = Text(title).font(.system(size: 10, weight: .semibold, design: .serif)).foregroundColor(BookPalette.lampGold)
+            var resolved = lettering.resolve(text)
+            resolved.shading = .color(BookPalette.lampGold)
+            lettering.draw(resolved, in: CGRect(x: -30, y: -25, width: 65, height: 48))
+        }
+        let pull = phase(moment.duration - 0.8, moment.duration)
+        var ribbon = Path(); ribbon.move(to: CGPoint(x: -43, y: 60))
+        ribbon.addCurve(to: CGPoint(x: -77 + pull * 20, y: 56),
+                        control1: CGPoint(x: -30 - pull * 30, y: 95 - pull * 25),
+                        control2: CGPoint(x: -95 + pull * 24, y: 75 - pull * 10))
+        var thread = context; thread.opacity = phase(gatherEnd - 0.2, gatherEnd + 0.3)
+        thread.stroke(ribbon, with: .color(metal), style: StrokeStyle(lineWidth: seasonal ? 2 : 1.3, lineCap: .round))
+        if annual {
+            // A single foil impression, never a repeated shimmer.
+            let stamp = phase(4.05, 4.18) * (1 - phase(4.26, 4.4))
+            var die = cover; die.opacity = stamp
+            die.stroke(Path(CGRect(x: -33, y: -32, width: 70, height: 56)),
+                       with: .color(metal.opacity(0.8)), lineWidth: 2)
+            var foil = cover; foil.clip(to: coverPath)
+            foil.opacity = sin(.pi * phase(4.05, 4.4)) * 0.3
+            let sweep = -65 + phase(4.05, 4.4) * 150
+            line(foil, CGPoint(x: sweep, y: -64), CGPoint(x: sweep - 30, y: 64),
+                 color: BookPalette.lampGold, width: 9)
+        }
+    }
+
+    private func envelope(_ context: GraphicsContext) {
+        let open = phase(0.25, 0.9), lift = phase(0.65, 1.7)
+        var letter = context
+        letter.translateBy(x: 0, y: 16 - lift * 40)
+        paper(letter, width: 100, height: 80 + lift * 24)
+        for i in 0..<6 {
+            let y = -26 + Double(i) * 9
+            line(letter, CGPoint(x: -32, y: y), CGPoint(x: i == 5 ? 4 : 32, y: y), color: ink.opacity(0.25))
+        }
+        var front = context; front.translateBy(x: 0, y: 31)
+        paper(front, width: 136, height: 78)
+        line(front, CGPoint(x: -66, y: -37), CGPoint(x: 0, y: 12), color: BookPalette.parchmentEdge.opacity(0.65))
+        line(front, CGPoint(x: 66, y: -37), CGPoint(x: 0, y: 12), color: BookPalette.parchmentEdge.opacity(0.65))
+        var flap = Path(); flap.move(to: CGPoint(x: -68, y: -8))
+        flap.addLine(to: CGPoint(x: 68, y: -8))
+        flap.addLine(to: CGPoint(x: 0, y: 35 - open * 100)); flap.closeSubpath()
+        var lid = context; lid.opacity = 1 - phase(0.85, 1.2)
+        lid.fill(flap, with: .color(BookPalette.page))
+        lid.stroke(flap, with: .color(BookPalette.parchmentEdge.opacity(0.65)), lineWidth: 0.8)
+        for half in 0..<2 {
+            var seal = context; seal.opacity = 1 - phase(0.25, 0.65)
+            seal.translateBy(x: Double(half * 2 - 1) * phase(0.1, 0.5) * 10, y: phase(0.1, 0.5) * 6)
+            seal.clip(to: Path(CGRect(x: half == 0 ? -12 : 0, y: 14, width: 12, height: 23)))
+            seal.fill(Path(ellipseIn: CGRect(x: -10, y: 15, width: 20, height: 20)), with: .color(BookPalette.teal))
+        }
+    }
+
+    private func scene(_ context: GraphicsContext) {
+        let reveal = phase(0.15, 1.3), settle = phase(0.8, 1.5)
+        var c = context; c.opacity = phase(0, 0.35)
+        c.rotate(by: .degrees((1 - settle) * -2))
+        paper(c, width: 148, height: 112)
+        var picture = c
+        picture.clip(to: Path(CGRect(x: -63, y: -45, width: 126 * reveal, height: 90)))
+        let field = CGRect(x: -63, y: -45, width: 126, height: 90)
+        picture.fill(Path(field), with: .linearGradient(
+            Gradient(colors: [BookPalette.teal.opacity(0.8), BookPalette.nightPanel]),
+            startPoint: CGPoint(x: 0, y: -45), endPoint: CGPoint(x: 0, y: 45)))
+        picture.fill(Path(ellipseIn: CGRect(x: 22, y: -31, width: 17, height: 17)), with: .color(BookPalette.lampGold))
+        var hill = Path(); hill.move(to: CGPoint(x: -63, y: 45)); hill.addLine(to: CGPoint(x: -63, y: 16))
+        hill.addCurve(to: CGPoint(x: 63, y: 5), control1: CGPoint(x: -10, y: -21), control2: CGPoint(x: 8, y: 50))
+        hill.addLine(to: CGPoint(x: 63, y: 45)); hill.closeSubpath()
+        picture.fill(hill, with: .color(BookPalette.teal))
+        // The image is an ornamental stage, never a claim about story events.
+        line(c, CGPoint(x: -63 + 126 * reveal, y: -45), CGPoint(x: -63 + 126 * reveal, y: 45),
+             color: metal.opacity(1 - settle), width: 1.5)
+    }
+}
+
 enum BookMotion {
     static func direct(_ reduceMotion: Bool) -> Animation? {
         reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.26, dampingFraction: 0.78)
@@ -7534,12 +8025,143 @@ private struct BookPhotographArrivalModifier: ViewModifier {
 }
 
 extension View {
+    /// Animate the existing ink field, keeping its layout, selection, and
+    /// accessibility intact. Selection gates this in preloaded folio leaves.
+    func bookPageArrival(moment: BookMakingMoment?, identity: String, active: Bool = true) -> some View {
+        modifier(BookPageArrival(moment: moment, identity: identity, active: active))
+    }
+
+    func bookChoiceThread(selected: Bool, identity: String) -> some View {
+        modifier(BookChoiceThread(selected: selected, identity: identity))
+    }
+
     func bookResultArrival(reduceMotion: Bool, delay: Double = 0) -> some View {
         modifier(BookResultArrivalModifier(reduceMotion: reduceMotion, delay: delay))
     }
 
     func bookPhotographArrival(reduceMotion: Bool, delay: Double = 0) -> some View {
         modifier(BookPhotographArrivalModifier(reduceMotion: reduceMotion, delay: delay))
+    }
+}
+
+private struct BookPageArrival: ViewModifier {
+    let moment: BookMakingMoment?
+    let identity: String
+    let active: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var progress = 1.0
+    @State private var playedIdentity: String?
+
+    func body(content: Content) -> some View {
+        let letter = moment == .letter
+        content
+            .opacity(0.65 + 0.35 * progress)
+            .rotation3DEffect(.degrees(letter ? -14 * (1 - progress) : 0),
+                              axis: (x: 1, y: 0, z: 0), anchor: .top, perspective: 0.25)
+            .offset(y: (letter ? 8 : 4) * (1 - progress))
+            .overlay(alignment: .topTrailing) {
+                if moment != nil, progress < 1 {
+                    BookOpeningCorner(progress: progress, isLetter: letter)
+                        .frame(width: 86, height: 66)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
+            }
+            .task(id: "\(moment?.rawValue ?? "none")|\(identity)|\(active)") {
+                guard moment != nil, active, playedIdentity != identity else { return }
+                playedIdentity = identity
+                guard !reduceMotion, scenePhase == .active else { settle(); return }
+                var transaction = Transaction(); transaction.disablesAnimations = true
+                withTransaction(transaction) { progress = 0 }
+                await Task.yield()
+                guard !Task.isCancelled, !reduceMotion, scenePhase == .active else { settle(); return }
+                withAnimation(.easeOut(duration: letter ? 1.1 : 0.8)) { progress = 1 }
+            }
+            .onChange(of: reduceMotion) { _, reduced in if reduced { settle() } }
+            .onChange(of: moment) { _, kind in if kind == nil { settle() } }
+            .onChange(of: active) { _, visible in if !visible { settle() } }
+            .onChange(of: scenePhase) { _, phase in if phase != .active { settle() } }
+    }
+
+    private func settle() {
+        var transaction = Transaction(); transaction.disablesAnimations = true
+        withTransaction(transaction) { progress = 1 }
+    }
+}
+
+private struct BookOpeningCorner: View, Animatable {
+    var progress: Double
+    let isLetter: Bool
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            let fade = max(0, 1 - progress * 1.7)
+            if isLetter {
+                let reach = (1 - progress) * min(size.width, size.height)
+                var fold = Path(); fold.move(to: CGPoint(x: size.width - reach, y: 0))
+                fold.addLine(to: CGPoint(x: size.width, y: reach))
+                fold.addQuadCurve(to: CGPoint(x: size.width, y: 0),
+                                  control: CGPoint(x: size.width - reach * 0.75, y: reach * 0.75))
+                fold.closeSubpath()
+                context.fill(fold, with: .color(BookPalette.page.opacity(fade)))
+                context.stroke(fold, with: .color(BookPalette.parchmentEdge.opacity(fade * 0.6)), lineWidth: 0.7)
+                for half in 0..<2 {
+                    let x = size.width - 23 + Double(half * 2 - 1) * progress * 17
+                    var seal = context; seal.opacity = fade
+                    seal.clip(to: Path(CGRect(x: x + (half == 0 ? -8 : 0), y: 9, width: 8, height: 16)))
+                    seal.fill(Path(ellipseIn: CGRect(x: x - 8, y: 9 + progress * 8, width: 16, height: 16)),
+                              with: .color(BookPalette.teal))
+                }
+            } else {
+                let x = size.width * progress
+                var glint = Path(); glint.move(to: CGPoint(x: x, y: 0))
+                glint.addQuadCurve(to: CGPoint(x: size.width, y: size.height * progress),
+                                  control: CGPoint(x: x, y: size.height * 0.8))
+                context.stroke(glint, with: .color(BookPalette.lampGold.opacity(fade)), lineWidth: 1)
+            }
+        }
+    }
+}
+
+/// A quick stitch beneath the chosen action. It acknowledges selection only;
+/// the authored result and existing mechanics still decide what happens next.
+private struct BookChoiceThread: ViewModifier {
+    let selected: Bool
+    let identity: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var progress = 0.0
+
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .bottom) {
+            GeometryReader { proxy in
+                Path { path in
+                    path.move(to: CGPoint(x: 4, y: proxy.size.height - 2))
+                    path.addCurve(to: CGPoint(x: proxy.size.width - 4, y: proxy.size.height - 2),
+                                  control1: CGPoint(x: proxy.size.width * 0.35, y: proxy.size.height - 8),
+                                  control2: CGPoint(x: proxy.size.width * 0.7, y: proxy.size.height + 3))
+                }
+                .trim(from: 0, to: selected ? progress : 0)
+                .stroke(BookPalette.lampGold, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+        .task(id: "\(identity)|\(selected)") {
+            guard selected else { progress = 0; return }
+            if reduceMotion { progress = 1; return }
+            withAnimation(.easeOut(duration: 0.55)) { progress = 1 }
+        }
+        .onChange(of: reduceMotion) { _, reduced in
+            if reduced {
+                var transaction = Transaction(); transaction.disablesAnimations = true
+                withTransaction(transaction) { progress = selected ? 1 : 0 }
+            }
+        }
     }
 }
 

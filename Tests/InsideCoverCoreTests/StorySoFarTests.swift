@@ -165,7 +165,7 @@ final class StorySoFarTests: XCTestCase {
         XCTAssertEqual(page.sourceID, StorySoFarPageSourceAdapter.onboardingSourceID)
         XCTAssertEqual(page.payload.metadata["firstRunStep"], "story-so-far")
         XCTAssertEqual(page.payload.headline, "The East Stacks Are Shut")
-        XCTAssertTrue(page.payload.body.contains("walked in partway"))
+        XCTAssertTrue(page.payload.body.contains("partway"))
         XCTAssertTrue(page.payload.body.contains("What I'd like to know:"))
     }
 
@@ -175,7 +175,7 @@ final class StorySoFarTests: XCTestCase {
         let page = try XCTUnwrap(StorySoFarPageSourceAdapter.onboardingSurface(
             for: day, inputs: .empty, now: date(10, 1), events: events
         ))
-        XCTAssertTrue(page.payload.body.hasPrefix("Something's starting this month"))
+        XCTAssertTrue(page.payload.body.hasPrefix("A new story starts this month"))
     }
 
     func testNothingIsToldBeforeOrAfterTheRun() throws {

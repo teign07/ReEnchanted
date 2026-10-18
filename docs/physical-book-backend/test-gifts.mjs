@@ -106,14 +106,12 @@ globalThis.fetch = async (url, init = {}) => {
     return json({ places: [{ "place name": "Belfast", "state abbreviation": "ME" }] });
   }
   if (href.includes("/print-job-cost-calculations/")) {
-    return json({ shipping_cost: "7.50", print_cost: "18.76", tax: "0.80" });
+    return json({ shipping_cost: "7.50", print_cost: "18.76", tax: "0.80", currency: "USD", total_cost_incl_tax: "27.06" });
   }
   if (href.endsWith("/cover-dimensions/")) return json({ width: "882", height: "666" });
   if (href === "https://api.stripe.com/v1/payment_intents") {
     const fields = Object.fromEntries(new URLSearchParams(init.body));
     const id = `pi_gift_${++paymentCounter}`;
-    // A gift is claimed after the giver's payout has landed.
-    kvValues.set(`funds-in-bank/txn_${id}`, "{}");
     payments.set(id, {
       id,
       status: "succeeded",
@@ -149,10 +147,16 @@ globalThis.fetch = async (url, init = {}) => {
     luluCreates += 1;
     return json({ id: "gift-print-job", status: { name: "PRODUCTION_READY" } });
   }
+  if (new URL(href).pathname === "/v1/payouts/po_gift") return json(paidPayouts[0]);
+  if (new URL(href).pathname.startsWith("/v1/balance_transactions/txn_pi_gift_")) {
+    const id = new URL(href).pathname.split("/").at(-1).slice(4);
+    const payment = payments.get(id);
+    return json({ id: `txn_${id}`, net: payment.amount - 100, currency: "usd", source: payment.latest_charge });
+  }
   if (new URL(href).pathname === "/v1/payouts") return json({ data: paidPayouts, has_more: false });
   if (new URL(href).pathname === "/v1/balance_transactions") {
     const payout = paidPayouts.find(entry => entry.id === new URL(href).searchParams.get("payout"));
-    return json({ data: (payout?.transactions || []).map(id => ({ id })), has_more: false });
+    return json({ data: (payout?.transactions || []).map(id => ({ id, net: payout.amount, currency: "usd", type: "charge" })), has_more: false });
   }
   console.error(`Unexpected external request: ${href}`);
   throw new Error(`Unexpected external request: ${href}`);
@@ -337,7 +341,7 @@ try {
 
   // The giver's payment is captured but not yet paid out: claimed quickly,
   // the gift waits for the money to reach the bank before Lulu bills.
-  kvValues.delete(`funds-in-bank/txn_${payment.body.id}`);
+  kvValues.set(`funds-in-bank/txn_${payment.body.id}`, "{}"); // ignored legacy evidence
   const heldGift = await requestJSON(`/gifts/${gift.body.claimToken}/orders`, post(orderRequest, redemptionQuote.body.checkoutToken));
   check(heldGift.response.status === 409 && heldGift.body.error === "awaiting_payout", "a gift whose payment is not in the bank is held");
   check(luluCreates === 0, "the held gift never reaches Lulu");
@@ -347,7 +351,9 @@ try {
   const boundQuote = JSON.parse(kvValues.get(quoteKey));
   check(boundQuote.paymentIntentID === `gift:${gift.body.gift.id}`, "the hold binds the redemption quote to its gift");
   kvValues.set(quoteKey, JSON.stringify({ ...boundQuote, quote: { ...boundQuote.quote, expiresAt: new Date(Date.now() - 60_000).toISOString() } }));
-  paidPayouts.unshift({ id: "po_gift", status: "paid", automatic: true, arrival_date: Math.floor(Date.now() / 1000), transactions: [`txn_${payment.body.id}`] });
+  paidPayouts.unshift({ id: "po_gift", status: "paid", automatic: true, type: "bank_account", method: "standard", reconciliation_status: "completed", amount: paidIntent.amount - 100, currency: "usd", livemode: false, transactions: [`txn_${payment.body.id}`] });
+  const confirmed = await requestJSON("/admin/printing-cash/confirm-deposit", { method: "POST", headers: { Authorization: `Bearer ${env.PHYSICAL_BOOK_ADMIN_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify({ payoutID: "po_gift", receiptReference: "receipt_gift_test", depositedCents: paidIntent.amount - 100, printingCents: paidIntent.amount - 100, protectedForPrinting: true }) });
+  check(confirmed.response.status === 200, "gift funding requires authenticated bank deposit confirmation");
   const pendingCron = [];
   await worker.scheduled({}, env, { waitUntil: promise => pendingCron.push(promise) });
   await Promise.all(pendingCron);

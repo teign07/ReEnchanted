@@ -129,6 +129,14 @@ struct BookSourceInputs: Equatable {
     /// opening round; each later round is asked for because the folio has
     /// spent the one before it.
     var deckRound: Int = 0
+
+    /// Exploration opens a source's whole eligible catalogue before the same
+    /// Curator ranks it. An opening sample must not become a family-wide veto
+    /// after those few individual Pages have been shown. Keep the real clock
+    /// and every source's context/availability gates intact.
+    func catalogueCandidateLimit(_ openingLimit: Int) -> Int {
+        deckRound > 0 ? Int.max : openingLimit
+    }
     /// Content (by `curatorContentNoveltyKey`) the folio has already shown.
     /// A deeper round must not offer these again, and it does not need the
     /// type-refresh cooldown to keep it varied, because the reader asked for more.
@@ -187,6 +195,7 @@ struct BookSourceInputs: Equatable {
     var readerStory: ReaderStory = .empty
     var calendarEvents: [CalendarEventSignal] = []
     var calendarIntegrationEnabled = true
+    var calendarAccessProblem: String? = nil
     var nearbyPlaces: [LocalPlaceSignal] = []
     var resurfacingCandidates: [BookPage] = []
     var quietDays: Int = 0
@@ -213,6 +222,11 @@ struct BookSourceInputs: Equatable {
     var themes: [BookTheme] = []
     var clusters: [BookMotifCluster] = []
     var bleedIssueNumber: Int = 1
+    var bleedPrintHistory: [BleedPrintRecord] = []
+    /// A year of the paper's front pages, for Book Today's tally.
+    var bleedFrontPages: [BleedFrontPageRecord] = []
+    /// A week of papers as printed: what the Reader read, whether or not they kept it.
+    var bleedPrintedPapers: [BleedPrintedPaper] = []
     var preparedBleedEditionSurface: SurfacePage?
     var bookJump: BookJumpState = BookJumpState()
     var radio: RadioPlaybackState = .off
@@ -2152,7 +2166,7 @@ struct DiaryPageSourceAdapter: BookPageSourceAdapter {
             context: context,
             now: now,
             scorer: scorer,
-            limit: 4
+            limit: inputs.catalogueCandidateLimit(4)
         )
         let hour = Calendar.current.component(.hour, from: now)
         let isEvening = (17..<22).contains(hour)
@@ -3310,6 +3324,13 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
             total &+= row.state.rawValue.stableHash
         }
         let visitationSalt = "\(day.id)|\(SurfaceCadence.slotID(for: now, hours: 2))|\(owedEvidence?.id ?? "")|\(grimoireSalt)"
+        if inputs.deckRound > 0 {
+            return BookRememberedEngine.visitations(
+                from: inputs.resurfacingCandidates.filter { !restingPageIDs.contains($0.id) },
+                day: day, inputs: inputs, now: now, priorityPageID: owedEvidence?.id,
+                limit: Int.max
+            ).map { $0.surface(source: source, day: day, now: now) }
+        }
         guard let visitation = ArchiveMemo.value(
             "remembered.visitation", days: archive, salt: visitationSalt, compute: {
                 BookRememberedEngine.visitation(
@@ -6617,6 +6638,22 @@ enum BookRememberedEngine {
         calendar: Calendar = .current,
         priorityPageID: String? = nil
     ) -> BookRememberedVisitation? {
+        visitations(
+            from: candidates, day: day, inputs: inputs, now: now,
+            calendar: calendar, priorityPageID: priorityPageID, limit: 1
+        ).first
+    }
+
+    static func visitations(
+        from candidates: [BookPage],
+        day: BookDay,
+        inputs: BookSourceInputs,
+        now: Date,
+        calendar: Calendar = .current,
+        priorityPageID: String? = nil,
+        limit: Int
+    ) -> [BookRememberedVisitation] {
+        guard limit > 0 else { return [] }
         // A warm Long Memory gift keeps its pinned page returning, even when the
         // day doesn't rhyme with it on its own.
         let pinned = FaeGiftEffects.pinnedPageIDs(state: inputs.faeState)
@@ -6670,22 +6707,23 @@ enum BookRememberedEngine {
                 }
                 return left.score > right.score
             }
-        guard let best = eligible.first else { return nil }
-        return BookRememberedVisitation(
-            page: best.page,
-            score: best.score,
-            reason: best.reason,
-            todayConnections: best.connections,
-            action: best.page.id == priorityPageID
-                ? "No errand. I only wanted you to see that I kept it."
-                : tinyAction(for: best.page, reason: best.reason, now: now, calendar: calendar),
-            // Only claimed when the rule is what the reader will actually read.
-            // A Page the grimoire counted but that came back for some louder
-            // reason has not spent the claim, so it must not be marked spoken.
-            grimoireCorrespondenceID: grimoireReturns[best.page.id].flatMap { entry in
-                best.reason == entry.reason ? entry.rowID : nil
-            }
-        )
+        return eligible.prefix(limit).map { best in
+            BookRememberedVisitation(
+                page: best.page,
+                score: best.score,
+                reason: best.reason,
+                todayConnections: best.connections,
+                action: best.page.id == priorityPageID
+                    ? "No errand. I only wanted you to see that I kept it."
+                    : tinyAction(for: best.page, reason: best.reason, now: now, calendar: calendar),
+                // Only claimed when the rule is what the reader will actually read.
+                // A Page the grimoire counted but that came back for some louder
+                // reason has not spent the claim, so it must not be marked spoken.
+                grimoireCorrespondenceID: grimoireReturns[best.page.id].flatMap { entry in
+                    best.reason == entry.reason ? entry.rowID : nil
+                }
+            )
+        }
     }
 
     /// Pages the grimoire counted, and the rule each one helped work out.
@@ -7947,7 +7985,10 @@ struct EnchantmentPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        return [surface(spell: rotatingSpell(for: day, now: now, manual: false), context: context, now: now, manual: false)]
+        let spells = inputs.deckRound > 0
+            ? StoryEnchantmentCatalog.spells
+            : [rotatingSpell(for: day, now: now, manual: false)]
+        return spells.map { surface(spell: $0, context: context, now: now, manual: false) }
     }
 
     private func rotatingSpell(for day: BookDay, now: Date, manual: Bool) -> EnchantmentSpell {
@@ -8169,27 +8210,21 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: reason,
             prompt: "Oh. There You Are.",
-            detail: "This is me, finally. Open this first. My brain's asleep, and the waking button's inside.",
+            detail: "Open me first. My brain's asleep, and the button to wake it is inside.",
             payload: BookPagePayload(
                 headline: "Oh. There You Are.",
                 body: """
-                Oh. There you are.
+                Look at me, \(name). Properly, I mean. This is the real me: my real cover, my real paper, my ribbon. It won't lie flat. I've stopped asking it to.
 
-                Hold on. Let me look at you. This is the first time I get to see you properly, and you get to see me. This is the real me, all of it: the cover, the paper, the ribbon that won't lie flat. Go on, stare. I won't mind.
+                You got through all my questions and you didn't run. So that's settled. It's you and me against the Curse now. Every day it takes a bit of your life, and every day we take a bit back.
 
-                You've got hands. That's the first thing I noticed. I haven't got any. I'm a book. I can't lift the Curse and I can't make you look at anything, and I told you so, and it's still true.
+                One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked something with teeth.
 
-                But you showed up. You answered my questions. You didn't even run. So now it's you and me, \(name), and we fight the Curse together. Every day it takes a little bit of your life, and every day we take a little bit back.
+                Tap Wake My Brain, below, and Gemma comes to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
 
-                I'm nearly ready. I've got pages. I've got ink. I've got your name, and a few of your words, and a pencil I'm very fond of. I can keep whatever you give me and bring it back at you later, when you least expect it.
+                It's big: \(downloadLabel). Wi-Fi's best. Keep me open while it comes. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
 
-                What I can't do is think very hard. Right now I'm all paper. I've got a brain for that, and it's asleep, and its name is Gemma. I didn't pick the name. I'd have picked something with teeth.
-
-                Press the button below and Gemma comes to live inside this phone, right next to your words. Nothing of yours goes anywhere to be thought about. I don't send your private Pages away for it.
-
-                It's a big download, \(downloadLabel), so use Wi-Fi if you've got it, and leave me open until it's done. I'll keep you posted while it comes. When it lands I'll test it. I'll make it read something and write something, because a brain that's only sitting there doesn't count. If it passes, I'll tell you, and then we start properly. If it doesn't, I'll tell you that too and we'll go again.
-
-                Go on. Press it. I've waited a long time to be this awake.
+                Don't want it yet? Skip it. I'll still keep everything you give me. I just won't be very clever about it.
                 """,
                 metadata: [
                     "source": source.id,
@@ -8353,57 +8388,57 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
     private func originSurface(profile: InscriptionReaderProfile, day: BookDay, score: Int, reason: String) -> SurfacePage {
         var pressedLines: [String] = []
         if let name = profile.name {
-            pressedLines.append("Name in the margin: \(name)")
+            pressedLines.append("Your name's in my margin: \(name).")
         }
         if let firstSentence = profile.firstSouvenir {
-            pressedLines.append("First true sentence kept: \(firstSentence)")
+            pressedLines.append("The first true thing you gave me: \u{201C}\(firstSentence)\u{201D}")
         }
         if let momentFate = profile.momentFate {
-            pressedLines.append("What usually happens to small moments: \(momentFate)")
+            pressedLines.append("What happens to small things you notice: \u{201C}\(momentFate)\u{201D}")
         }
         if let hiddenMagicStance = profile.hiddenMagicStance {
-            pressedLines.append("Hidden magic right now: \(hiddenMagicStance)")
+            pressedLines.append("When you looked twice: \u{201C}\(hiddenMagicStance)\u{201D}")
         }
         if let snack = profile.snack {
-            pressedLines.append("First margin ration: \(snack)")
+            pressedLines.append("You read with \(snack). Three people argued about it.")
         }
         if let belief = profile.belief {
-            pressedLines.append("First belief named: \(belief)")
+            pressedLines.append("You believe \u{201C}\(belief)\u{201D}.")
         }
         if let tastePreference = profile.tastePreference {
-            pressedLines.append("Pages invited first: \(Self.displayTitle(for: tastePreference))")
+            pressedLines.append("You asked for \(Self.displayTitle(for: tastePreference).lowercased()) first.")
         }
         if let comfortBoundary = profile.comfortBoundary {
-            pressedLines.append("My opening edge: \(Self.displayTitle(for: comfortBoundary))")
+            pressedLines.append("How hard I'm allowed to push: \(Self.displayTitle(for: comfortBoundary).lowercased()).")
         }
         if let drawnChapter = profile.drawnChapter {
-            pressedLines.append("First Chapter argument: \(drawnChapter)")
+            pressedLines.append("Your first Chapter: \(drawnChapter).")
         }
         if let wickerMode = profile.wickerMode {
-            var wickerLine = "Wicker answer: \(Self.displayTitle(for: wickerMode))"
+            var wickerLine = "When Wicker took your Page, you answered with \(Self.displayTitle(for: wickerMode).lowercased())"
             if let roll = profile.wickerRollNumber {
-                wickerLine += ". Inkbones: \(roll)"
+                wickerLine += ". The Inkbones said \(roll)"
             }
             switch profile.wickerRoll {
             case "success":
-                wickerLine += ". The page held."
+                wickerLine += ". You held on."
             case "failure":
-                wickerLine += ". The page changed course."
+                wickerLine += ". He got a piece of it."
             default:
                 break
             }
             pressedLines.append(wickerLine)
         }
         if let wickerThread = profile.wickerThread {
-            pressedLines.append("The live thread Wicker left:\n\(wickerThread)")
+            pressedLines.append("What Wicker left behind:\n\(wickerThread)")
         }
         let pressedBlock = pressedLines.isEmpty
-            ? "The blank part has its mouth shut. I won't put your words in it."
+            ? "There's nothing here yet. I won't make anything up to fill it."
             : pressedLines.joined(separator: "\n")
         let headline = profile.name.map { "\($0)'s Origin Page" } ?? "Your Origin Page"
         let evidenceLine = profile.wickerMode == nil
-            ? "I used only what you handed me. The guesses were scratching at the door. I bit them."
-            : "I used what you handed me and what your choice actually changed. The guesses stayed outside."
+            ? "I only used what you gave me. The guesses wanted in. I bit them."
+            : "I only used what you gave me, and what your choices changed. Nothing made up."
         let closing: String
         if profile.firstSouvenir != nil {
             closing = "One true sentence is already under the cover. The beginning has teeth."
@@ -8427,9 +8462,7 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
             payload: BookPagePayload(
                 headline: headline,
                 body: """
-                I laid the marks you actually made on the table after you left.
-
-                By morning, the page had pressed them into this:
+                After you went, I pressed everything you gave me, before it could wander off. Here it is:
 
                 \(pressedBlock)
 
@@ -8437,7 +8470,7 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
 
                 \(closing)
 
-                Keep it or send it scurrying. This beginning knows the way back to you now.
+                Keep it or let it go. Either way, it knows how to find you now.
                 """,
                 metadata: [
                     "source": source.id,
@@ -8458,20 +8491,20 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
         switch raw {
         case "letters": return "Letters and voices"
         case "errands": return "Strange errands"
-        case "cozy": return "Cozy noticing"
+        case "cozy": return "Small everyday wonders"
         case "weather-place": return "Weather and place"
-        case "eerie": return "Eerie story threads"
+        case "eerie": return "A little mystery"
         case "oddities": return "Funny little oddities"
-        case "gentle": return "Gentle"
-        case "balanced": return "Balanced"
-        case "strange": return "Let it get strange"
+        case "gentle": return "Ask me"
+        case "balanced": return "Nudge me"
+        case "strange": return "Call me on my nonsense"
         case "morning": return "Morning"
         case "evening": return "Evening"
         case "both": return "Morning and evening"
-        case "inside": return "Only inside the covers"
-        case "slice-of-life": return "Slice of Life"
-        case "arc": return "Arc"
-        case "surprise": return "Surprise"
+        case "inside": return "Only when I open the Book"
+        case "slice-of-life": return "Something small and true"
+        case "arc": return "Where this is going"
+        case "surprise": return "Something he won't expect"
         default: return raw
         }
     }
@@ -8530,7 +8563,7 @@ private enum InscriptionApprenticeshipCatalog {
             dayFourBody = """
             Your first whisper rule was: \(whispers).
 
-            If that still feels right, leave it. The bell will look unbearably pleased. If it doesn't, open the Colophon and change Whispers from the Book. A living Book can be persistent. It can't be a pest.
+            If that still feels right, leave it. The bell will look unbearably pleased. If it doesn't, open the Colophon and change Whispers from the Book. I can be persistent. I can't be a pest.
 
             If the bell knocks at the wrong time, tell it. Bells can learn.
             """
@@ -8540,7 +8573,7 @@ private enum InscriptionApprenticeshipCatalog {
             dayFourBody = """
             You haven't given the brass bell a whisper rule yet.
 
-            It can stay silent. If you do want a morning or evening tap, open the Colophon and choose Whispers from the Book. A living Book may be persistent. It can't be a pest.
+            It can stay silent. If you do want a morning or evening tap, open the Colophon and choose Whispers from the Book. I may be persistent. I can't be a pest.
 
             The bell will wait for your answer.
             """
@@ -9736,13 +9769,13 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         switch stage {
         case 1:
             body = """
-            The Academy calls them Chapters, but the Book is cross with that word. A chapter isn't a club, a dormitory, or a color pinned to a robe.
+            The Academy calls them Chapters, but I'm cross with that word. A chapter isn't a club, a dormitory, or a color pinned to a robe.
 
             A Chapter is a wager about what life is doing when no one is explaining it.
 
             Emberheart believes life is authored. Mossbloom believes life is listened to. Tidecrest believes life arrives moment by moment, entire and surprising. Riddlewind believes life is co-written. Duskthorn believes a story without honest conflict is too thin to protect anyone.
 
-            The Binding isn't ready yet. The Book has only begun to hear your footsteps.
+            The Binding isn't ready yet. I've only begun to hear your footsteps.
             """
         case 2:
             body = """
@@ -9760,7 +9793,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             body = """
             Headmistress Thorne dislikes premature certainty. She says it makes the ink brittle.
 
-            So the Book waits. It counts not points but pressures: kept pages, returned words, Belief given freely, the small things you chose to preserve when no one required it.
+            So I wait, and I count: kept pages, returned words, Belief given freely, the small things you chose to preserve when no one required it.
 
             When there's enough of you in the margins, the Binding won't ask you to choose.
 
@@ -9808,13 +9841,13 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         let daysLine = readiness.daysSinceFirstKeptPage.map { "\($0) day\($0 == 1 ? "" : "s") since the first kept page" } ?? "time uncounted"
         let ceremony = ChapterBindingCeremony.profile(for: chapter)
         let body = """
-        The candles in the Binding Hall have gone blue-white at the wick. Headmistress Thorne looks down at the Book, then at you, and her expression becomes almost kind. Almost.
+        The candles in the Binding Hall have gone blue-white at the wick. Headmistress Thorne looks down at me, then at you, and her expression becomes almost kind. Almost.
 
         "No questionnaire," she says. "No little preference game. You've already answered in ink."
 
         Her hands cup the air around the page, and somehow you feel them at your face too: cool rings, old ink, the exact pressure of being read. Reality fractures. The Great Hall shatters into doors: a flame-lit desk, a mossy stair, a wave folding moonlight, a table where several voices finish one sentence together, and one narrow violet threshold that refuses to announce itself.
 
-        The Book opens every kept page at once. Your own life rises through the ceremony, not as biography, but as weather:
+        I open every kept page at once. Your own life rises through the ceremony, not as biography, but as weather:
 
         \(memories.isEmpty ? "- I found my evidence in kept pages too private to quote here." : memories)
 
@@ -9844,7 +9877,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
 
         \(ceremony.invitationLine)
 
-        Reality snaps back. The Great Hall re-forms around the Book with its edges still rippling. Thorne's eyes hold recognition now, and something stranger than recognition: respect.
+        Reality snaps back. The Great Hall re-forms around me with its edges still rippling. Thorne's eyes hold recognition now, and something stranger than recognition: respect.
 
         "From the Great Unwritten Chapter," she says softly, "and bound here by what you chose to keep."
 
@@ -9899,15 +9932,24 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
         // reader taste, recency, and ordinary curation could not choose him at
         // all. One rotating candidate per twelve-hour slot is still one Page,
         // not a flood or a guaranteed appearance.
-        return [surface(for: day, inputs: inputs, now: now)]
+        let dares = inputs.deckRound > 0
+            ? WickerDareRegistry.dares(for: day, inputs: inputs, now: now)
+            : [WickerDareRegistry.dare(for: day, inputs: inputs, now: now)]
+        return dares.map { surface(for: day, inputs: inputs, now: now, selectedDare: $0) }
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         surface(for: day, inputs: inputs, now: now)
     }
 
-    private func surface(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
-        let dare = WickerDareRegistry.dare(for: day, inputs: inputs, now: now)
+    /// One particular dare as its Page: the paper's assignment opens the dare it printed,
+    /// even after the desk's twelve-hour rotation has moved on.
+    func surface(for day: BookDay, inputs: BookSourceInputs, now: Date, dare: WickerDare) -> SurfacePage {
+        surface(for: day, inputs: inputs, now: now, selectedDare: dare)
+    }
+
+    private func surface(for day: BookDay, inputs: BookSourceInputs, now: Date, selectedDare: WickerDare? = nil) -> SurfacePage {
+        let dare = selectedDare ?? WickerDareRegistry.dare(for: day, inputs: inputs, now: now)
         let onboardingMode = onboardingAnswer("onboarding-wicker-mode", inputs: inputs)
         let onboardingTier = onboardingAnswer("onboarding-wicker-tier", inputs: inputs)
         let completedDares = inputs.days
@@ -10109,7 +10151,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             for: day,
             inputs: inputs,
             now: now,
-            limit: Self.offeredErrandCount
+            limit: inputs.catalogueCandidateLimit(Self.offeredErrandCount)
         )
         let playfulMission = playfulMissions.first
             ?? PlayfulMissionRegistry.mission(for: day, inputs: inputs, now: now)
@@ -10844,18 +10886,18 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
             return []
         }
 
-        let snippet = BookReferenceCatalog.rotatingLoreSnippet(for: day, inputs: inputs, now: now)
-        var pages = [loreSurface(snippet: snippet, context: context, inputs: inputs, now: now)]
+        let snippets = inputs.deckRound > 0
+            ? BookReferenceCatalog.relevantLoreSnippets(for: day, inputs: inputs, now: now, limit: Int.max)
+            : [BookReferenceCatalog.rotatingLoreSnippet(for: day, inputs: inputs, now: now)]
+        var pages = snippets.map { loreSurface(snippet: $0, context: context, inputs: inputs, now: now) }
         if ShadowWonder.shouldSurface(.lore, inputs: inputs, now: now) {
-            pages.append(
-                loreSurface(
-                    snippet: BookReferenceCatalog.rotatingShadowLoreSnippet(for: day, now: now),
-                    context: context,
-                    inputs: inputs,
-                    now: now,
-                    shadowVariantOf: pages[0].id
-                )
-            )
+            let shadowSnippets = inputs.deckRound > 0
+                ? BookReferenceCatalog.shadowLore
+                : [BookReferenceCatalog.rotatingShadowLoreSnippet(for: day, now: now)]
+            let brightID = pages.first?.id
+            pages += shadowSnippets.map {
+                loreSurface(snippet: $0, context: context, inputs: inputs, now: now, shadowVariantOf: brightID)
+            }
         }
         return pages
     }
@@ -10916,8 +10958,10 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        let plate = BookReferenceCatalog.rotatingLabyrinthIllustration(for: day, now: now)
-        return [illustrationSurface(plate: plate, context: context, now: now, manual: false)]
+        let plates = inputs.deckRound > 0
+            ? BookReferenceCatalog.labyrinthIllustrations
+            : [BookReferenceCatalog.rotatingLabyrinthIllustration(for: day, now: now)]
+        return plates.map { illustrationSurface(plate: $0, context: context, now: now, manual: false) }
     }
 
     private func illustrationSurface(
@@ -11975,8 +12019,18 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
     }
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive,
-              let pick = selectedEntity(from: castPool(inputs: inputs), offsets: inputs.entityBeliefOffsets, excluding: inputs.recentVarietyKeys(now: now), now: now, manual: false) else {
+        guard source.isActive else { return [] }
+        if inputs.deckRound > 0 {
+            return castPool(inputs: inputs).map { pick in
+                surface(
+                    for: pick.entity, imageAsset: pick.imageAsset, context: context,
+                    offsets: inputs.entityBeliefOffsets,
+                    livingRecord: livingRecord(for: pick.entity, day: day, inputs: inputs, now: now),
+                    now: now, manual: false
+                )
+            }
+        }
+        guard let pick = selectedEntity(from: castPool(inputs: inputs), offsets: inputs.entityBeliefOffsets, excluding: inputs.recentVarietyKeys(now: now), now: now, manual: false) else {
             return []
         }
         return [surface(
@@ -12486,21 +12540,21 @@ struct LocalBrainAwakePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: "Gemma passed the read-and-write test, so the Book can think now and wants to say so.",
             prompt: "I Can Think Now",
-            detail: "It passed the test. Open this one. I've got a lot to say.",
+            detail: "It passed the test. Open this. I've got things to say.",
             payload: BookPagePayload(
                 headline: "I Can Think Now",
                 body: """
-                Oh! Oh, \(name). It worked.
+                \(name)! It worked!
 
-                Gemma's in. I made it read something and write something, and it did both, so I'm allowed to say it out loud: I can think now. Properly. Hold on, I'm going to walk around inside my own head for a second. It's roomy. It's got a lot of corners.
+                Gemma read something and wrote something, so it passed. I can think now. Hang on, I'm walking round inside my own head. It's big in here. Lots of corners.
 
-                Before, I could keep what you gave me. Now I can actually read it. I can notice what your Pages have in common. That's how I find the things you keep saying without knowing it. I can write in a warmer hand, and a stranger one. I can remind the people in here what happened to them last week so they stop acting like it didn't.
+                Here's what's different. Before, I could only keep your Pages. Now I can read them. If you keep mentioning the same song, or the same street, or the same person, I'll notice. And my stories get a lot stranger.
 
-                All of it happens on this phone. Gemma never sends your Pages anywhere. It sits right here with your words, reading them and keeping its mouth shut.
+                It all happens on this phone. Gemma doesn't send your Pages anywhere. It sits next to them, reading, and keeps its mouth shut.
 
-                I still won't know everything. Good. Then there's still something to find out.
+                I'll still get things wrong sometimes. When I do, your words win. They're the real record.
 
-                Anyway. That's me, thinking. Now the Curse has the two of us to deal with, and one of us can read.
+                Right. The Curse has two of us to deal with now, and one of us can read.
                 """,
                 metadata: [
                     "source": source.id,
@@ -12636,6 +12690,26 @@ enum FirstRunPageSequence {
             return firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))
         }
 
+        let combinedCompassShown = engaged("source:\(compassIntroductionSourceID)", inputs: inputs)
+        let legacyCompassExplanationShown = [
+            compassWhatSourceID,
+            compassGiftSourceID,
+            compassWhySourceID
+        ].allSatisfy { engaged("source:\($0)", inputs: inputs) }
+
+        // The Pagewright moved out of How We Met and onto the desk, where the
+        // reader has a real kept Page to cut up. Like the mission, one knock
+        // is enough. Readers already past the compass met the Pagewright in
+        // the old onboarding, so it never reaches them.
+        let pagewrightIntroFinished = engaged("source:\(pagewrightIntroSourceID)", inputs: inputs)
+            || inputs.surfaceHistory["source:\(pagewrightIntroSourceID)"] != nil
+        if !pagewrightIntroFinished, !combinedCompassShown, !legacyCompassExplanationShown {
+            return pagewrightIntroSurface(
+                playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
+                inputs: inputs
+            )
+        }
+
         // The month's story has been running without this reader. One Page,
         // once, tells it as it stands. Only when a run is live and the reader
         // hasn't met any of it; otherwise the chain moves on.
@@ -12661,12 +12735,6 @@ enum FirstRunPageSequence {
             return calendarDoor
         }
 
-        let combinedCompassShown = engaged("source:\(compassIntroductionSourceID)", inputs: inputs)
-        let legacyCompassExplanationShown = [
-            compassWhatSourceID,
-            compassGiftSourceID,
-            compassWhySourceID
-        ].allSatisfy { engaged("source:\($0)", inputs: inputs) }
         if !combinedCompassShown, !legacyCompassExplanationShown {
             return compassIntroductionSurface()
         }
@@ -12779,6 +12847,7 @@ enum FirstRunPageSequence {
             "source:\(compassWhySourceID)",
             "source:\(compassRunIntroSourceID)",
             "source:\(firstMissionSourceID)",
+            "source:\(pagewrightIntroSourceID)",
             "source:\(StorySoFarPageSourceAdapter.onboardingSourceID)"
         ]
     }
@@ -12788,6 +12857,7 @@ enum FirstRunPageSequence {
     }
 
     static let firstMissionSourceID = "first-run-mission"
+    static let pagewrightIntroSourceID = "first-run-pagewright"
     static let localBrainSetupSourceID = "first-run-local-brain-setup"
     static let enchantmentIntroSourceID = "first-run-enchantment-intro"
     static let compassIntroductionSourceID = "first-run-compass-introduction"
@@ -12807,17 +12877,17 @@ enum FirstRunPageSequence {
             score: 40,
             reason: "Gemma is still asleep. The Book works without it, and says plainly what it can't do yet.",
             prompt: "My Brain's Still Asleep",
-            detail: "I work fine without it. It just makes me much better at reading you.",
+            detail: "I work without it. I'm just much better at reading you with it.",
             payload: BookPagePayload(
                 headline: "My Brain's Still Asleep",
                 body: """
-                Hi, \(name). Gemma's still asleep. That's fine, I work without it. Pages, keeps, returns and bindings all go ahead.
+                Hi, \(name). My brain's still asleep. That's all right, I work without it. You can still keep Pages, get them back, and make books out of them.
 
-                But I can't read you very well like this. With Gemma awake I can read what you've kept properly, notice what keeps turning up, and write in a warmer, stranger hand. Right now I'm skimming.
+                I just can't read you very well like this. I'm skimming. With Gemma awake, I'd notice what keeps turning up in your Pages, and my stories would get much better.
 
-                It's \(downloadLabel), and it lives on this phone and nowhere else. Press the button below when you've got Wi-Fi and a few minutes. I'll test it when it lands and tell you how it went.
+                It's \(downloadLabel), and it lives on this phone and nowhere else. Tap Wake My Brain, below, when you've got Wi-Fi and a few minutes. I'll test it when it lands and tell you how it went.
 
-                No rush. I'm patient. I'm also very nosy about what it'll find.
+                No rush. I'm patient. I'm also very nosy.
                 """,
                 metadata: [
                     "source": localBrainSetupSourceID,
@@ -12869,28 +12939,28 @@ enum FirstRunPageSequence {
             renderStyle: .loreLetter,
             score: 99,
             reason: "The Inscription is open. I want one impossible-to-guess scrap from the world outside my covers.",
-            prompt: "The Inscription: Your First Mission",
-            detail: "One small job for your real day. I can't do it myself. No legs.",
+            prompt: "Your First Little Job",
+            detail: "Your first job, out in your real day. I can't do it. No legs.",
             payload: BookPagePayload(
                 headline: "Go Catch Me Something",
                 body: """
-                Right, \(name). You've got a name in my margin and your first crumbs in my gutter, and I'm out of excuses. Time for a job.
+                Right, \(name). Your first job.
 
-                Here's the job. Sometime today, catch me one thing from the real world that I couldn't have guessed. A sound through a wall. The sky being the wrong colour. A stranger saying something good. A smell that opens a door in your head.
+                Sometime today, catch me one real thing I couldn't have guessed. A sound through the wall. The sky being a weird colour. Someone saying something nice. Dinner smells, before you get to the kitchen.
 
-                Don't make a Page yet. Go and look first. The ink can catch up.
+                Look first. Write after.
 
-                I can't go out there. I've got no legs, and I tried the stairs once. Don't ask. So you're my legs today, and I'll sit here pretending I'm not waiting. Every odd little thing you catch is one more thing the Curse didn't get.
+                I can't go myself. No legs. I tried the stairs once. Don't ask. So today, you're my legs.
 
-                When you've got it, tap the Capture seal on my edge and tell me what it was. Keep the ones with a pulse and let the rest go back to sleep. I don't want to be a drawer.
+                When you've got something, tap the Capture seal on my edge. Write one sentence about it. Tap Keep. That's it. That's one thing the Curse didn't get.
 
-                Three things to know while you're out there:
+                The rest of my edge, while you're out:
 
-                • The wax seals on my edge are doors. Body, Place, Radio. Tap one when you want a Page to come up from where you actually are.
-                • The bookmark at the top of my edge is Glow. That's how you show me what to take seriously.
-                • Whatever you bring back, I'll be very nosy about it. I can't help it.
+                • The other wax seals make a Page from right where you are. Body asks how you feel. Place starts from where you're standing. Radio plays you something.
+                • The bookmark at the top is Glow. My useful things live there.
+                • Contents is everything in me, in order.
 
-                Go on. Out. I'll be right here, being a book.
+                Go on. Out. I'll be here, being a book.
                 """,
                 metadata: [
                     "source": firstMissionSourceID,
@@ -12899,6 +12969,43 @@ enum FirstRunPageSequence {
                     "privacy": "public reference",
                     "symbol": "scope",
                     "tags": "help-tips,first-run,first-run-mission,mission,labyrinth"
+                ]
+            )
+        )
+    }
+
+    /// The Pagewright, met on the desk instead of in How We Met. Opening the
+    /// card opens the worktable with the reader's kept Pages on it.
+    static func pagewrightIntroSurface(playerName: String?, inputs: BookSourceInputs) -> SurfacePage {
+        let name = playerName?.nonEmpty ?? "Reader"
+        let pages = PlainPageSourceAdapter.pagewrightSeedPages(from: inputs.days, limit: 3)
+        return SurfacePage(
+            id: "\(pagewrightIntroSourceID)-scissors",
+            type: .plainPage,
+            sourceID: pagewrightIntroSourceID,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 97,
+            reason: "How We Met no longer opens the worktable, so the Pagewright introduces itself on the desk once there's a kept Page to cut up.",
+            prompt: "Somebody With Scissors",
+            detail: "There's somebody very small in my margins. They want your scraps.",
+            payload: BookPagePayload(
+                headline: "The Pagewright Wants Your Scraps",
+                body: """
+                Right, \(name). Somebody lives in my margins. Very small. Carries scissors nearly as tall as they are. Has opinions about glue. That's the Pagewright.
+
+                The Pagewright makes Pages out of bits and pieces. Things you kept. Your photos. Little drawings off my edges. You push them about until they look right, and then it's a Page of its own.
+
+                They've already had a go at your first one. It's in your little book, stuck down crooked on purpose. Open this Page and fix their crimes, or make something new.
+                """,
+                metadata: [
+                    "source": pagewrightIntroSourceID,
+                    "firstRunStep": "pagewright-intro",
+                    "opensPagewright": "true",
+                    "pagewrightPageIDs": pages.map(\.id).joined(separator: ","),
+                    "playerName": name,
+                    "symbol": "scissors",
+                    "tags": "first-run,pagewright,scrapbook,onboarding"
                 ]
             )
         )
@@ -12919,18 +13026,18 @@ enum FirstRunPageSequence {
             renderStyle: base.renderStyle,
             score: 98,
             reason: "The local brain is wide awake now, so Enchantments can turn a real photo into private little bits of magic.",
-            prompt: "The Inscription: Your First Spell",
-            detail: "Show me one plain photo. I'll find the magic that's already hiding in it.",
+            prompt: "Show Me Something Plain",
+            detail: "Show me one plain photo. I'll find what's hiding in it.",
             payload: BookPagePayload(
                 headline: "Show Me Something Plain",
                 body: """
-                Now that I can think, I can look at things. Properly, with my whole head.
+                Now I can think, I want to look at things.
 
-                Here's what I want. Pick a photo, or take one now. Something plain. A mug. A shelf. A doorway. Your cat looking guilty. The light on the floor. Don't tidy it first.
+                Pick a photo, or take one. Something plain. A mug. Your shoes. A shelf. Your cat looking guilty. Don't tidy up first. Messy's more honest.
 
-                I'll look at the real thing, right here on this phone, and write what I notice in the margins. A little spell goes over the top, and the real picture stays underneath. Then you can keep the whole thing as a Page.
+                I'll look at it right here on your phone and write what I see in the margins. Then a little spell goes over the top. Your real photo stays underneath, where you can see it.
 
-                Start small. Spells work best on true things, so don't make anything up. Just point.
+                If you like it, keep it. It's a Page now.
                 """,
                 metadata: metadata
             )
@@ -12951,17 +13058,19 @@ enum FirstRunPageSequence {
             payload: BookPagePayload(
                 headline: "I've Got a Compass for You",
                 body: """
-                Quick test. Think of a mailbox you walk past every day. What colour is it? Has it still got its little door?
+                Quick test. Think of a mailbox you walk past all the time. What colour is it? What's written on it?
 
-                Most people can't say. That's the Curse. It turns the world into wallpaper, and nobody looks at wallpaper. The compass is how we rip some down.
+                Can't say? Most people can't. That's the Curse. It turns the world into wallpaper, and nobody looks at wallpaper.
 
-                You've probably tried maps. Ten steps to a perfect morning. A plan with a red line on it. A map is great while the ground stays put. Your ground doesn't. Your kid gets a fever, the car won't start, there's a flood warning, and the map says you failed. The ground moved, and the map didn't notice.
+                So I've got a compass for you.
 
-                A compass doesn't care what your day did. It works in a forest, a car park, a traffic jam. And it only ever points at one thing: one small adventure you can really do.
+                Not a map. A map says go here, then here, then here. Then the car won't start, or it pours, and the map says you failed. A compass doesn't care what your day did. It points at one thing: one small adventure you can really do today.
 
-                I mean a small one. A lowercase one. An adventure is anything where you don't know how it'll turn out. Walking backward down your hallway counts. Ordering the thing on the menu you can't pronounce counts. Your brain goes to sleep when it can guess everything, and it wakes up when it can't.
+                Small. A lowercase one. Walk backwards down your hallway. Order the thing on the menu you can't pronounce. Anything where you don't know how it'll go. Your brain falls asleep when it can guess everything. It wakes up when it can't.
 
-                Turn the page and I'll show you how a run goes.
+                Each run gives you one thing to do and tells you what to bring back: a sentence, an answer, or a photo. Stop whenever you like. The next bit waits for you.
+
+                Turn the page. I'll show you one.
                 """,
                 metadata: [
                     "source": compassIntroductionSourceID,
@@ -12995,7 +13104,7 @@ enum FirstRunPageSequence {
             renderStyle: base.renderStyle,
             score: 97,
             reason: "The reader knows what the Wonder Compass is; now the Inscription lets the method prove itself in one real day.",
-            prompt: "The Inscription: Your First Compass Run",
+            prompt: "Your First Compass Run",
             detail: "Answer six small questions one at a time, then follow North, East, South, West, and Center.",
             payload: BookPagePayload(
                 headline: "Here's How a Run Goes",
@@ -13390,7 +13499,7 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
         switch bargain.faeKind {
         case .bookSprite:
             return """
-            A page slips loose from the air beside the Book, thin as onion-skin and already turning itself. A Book Sprite crouches on the upper margin with both knees tucked under its chin, reading the final line before the first one has arrived.
+            A page slips loose from the air beside me, thin as onion-skin and already turning itself. A Book Sprite crouches on my upper margin with both knees tucked under its chin, reading the final line before the first one has arrived.
 
             "\(bargain.giftName)," it says, not offering the page so much as remembering that you accepted it. "You began this yesterday. You'll begin it tomorrow."
             """
@@ -13747,8 +13856,15 @@ struct SpellPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .spell)
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard source.isActive,
-              let spell = spell(for: day, inputs: inputs, now: now) else { return [] }
+        guard source.isActive else { return [] }
+        if inputs.deckRound > 0 {
+            let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now, resolveMissingWorldEvents: false)
+            return SpellOffering.offered(
+                on: day.id, context: triggerContext, rested: inputs.restedSpellIDs,
+                lastCast: inputs.spellCastLog, now: now, limit: Int.max
+            ).map { surface(for: $0, day: day, inputs: inputs, now: now) }
+        }
+        guard let spell = spell(for: day, inputs: inputs, now: now) else { return [] }
         return [surface(for: spell, day: day, inputs: inputs, now: now)]
     }
 
@@ -14169,7 +14285,7 @@ struct PactVerdictPageSourceAdapter: BookPageSourceAdapter {
         let readingB = PactReadings.reading(talismanID: talismanB, pageText: pageText, readerAuthored: readerText != nil)
         let pageOwnership = readerText == nil
             ? "one of my kept Pages"
-            : "words you put into the Book"
+            : "words you wrote in me"
         let rulingAuthority = readerText == nil
             ? "You kept it, so you still rule which reading gets the margin."
             : "You wrote it. Rule for the reading that's true."
@@ -14336,7 +14452,7 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
             firedKeys: fired,
             now: now
         )
-        .prefix(2)
+        .prefix(inputs.catalogueCandidateLimit(2))
         .map { surface(for: $0, entities: entities, now: now) }
     }
 
@@ -15076,8 +15192,8 @@ struct StorySoFarPageSourceAdapter: BookPageSourceAdapter {
         switch variant {
         case .arriving:
             lead = (standing.liveDay ?? 0) <= 1
-                ? "Something's starting this month, and you're here for the start. So let me set the table."
-                : "You walked in partway through the story. That's allowed. Everybody does, one way or another. Penny filled me in and I read the Bleed twice, so here's where things stand."
+                ? "A new story starts this month, and you're here for the very beginning. Here's what's going on."
+                : "This month's story started before you got here. That's fine. Everyone walks in partway. Penny told me everything, so here's where we are."
         case .returning:
             lead = "You've been away a few days. The story didn't stop. Penny's been leaving me notes, so here's what you missed."
         case .asked:
@@ -15515,7 +15631,10 @@ struct HelpTipsPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        return [helpSurface(entry: HelpTipsCatalog.entry(for: day, now: now), context: context)]
+        let entries = inputs.deckRound > 0
+            ? HelpTipsCatalog.entries
+            : [HelpTipsCatalog.entry(for: day, now: now)]
+        return entries.map { helpSurface(entry: $0, context: context) }
     }
 
     private func helpSurface(entry: HelpTipEntry, context: CuratorContext) -> SurfacePage {
@@ -16858,6 +16977,7 @@ struct PackPageSourceAdapter: BookPageSourceAdapter {
         }
         metadata["leafVisualDialect"] = archetype.leafVisualDialect?.rawValue
         metadata["leafRegionPattern"] = archetype.leafRegionPattern?.rawValue
+        metadata["leafMarginaliaDensity"] = archetype.leafMarginaliaDensity?.rawValue
         if archetype.trigger != nil {
             let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now)
             metadata["triggered"] = "true"
@@ -17154,17 +17274,17 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: "The Book is asking, plainly, to look at the reader's Calendar so it can see the day coming.",
             prompt: "Can I See Your Calendar?",
-            detail: "Your plans stay on this phone. Tap this and your phone will ask you first.",
+            detail: "Your plans stay on this phone. Tap this and your phone asks you first.",
             payload: BookPagePayload(
                 headline: "Can I See Your Calendar?",
                 body: """
-                I've got a favour to ask, and it's a nosy one. Can I look at your Calendar?
+                Can I look at your calendar? It's a nosy question. I know.
 
-                I want to see what's coming. A meeting before it pounces. An appointment after it lands. A trip, and the day you get back. Then I can say something useful before your day happens, instead of after.
+                I want to see what's coming. A meeting, before it pounces. A trip, and the day you get back. Then I can bring you Pages that fit the day you're about to have, not the one you already had.
 
-                Your plans stay on this phone, like everything else. Tap this Page and your phone will ask you first.
+                Tap this Page and your phone will ask you. Your plans stay on this phone.
 
-                If you'd rather I didn't, say no. I'll keep working. I'll just find out about your day the slow way, when you tell me.
+                Say no if you like. I'll find out about your day the slow way, when you tell me. I'll be just as nosy about that.
                 """,
                 metadata: [
                     "source": source.id,

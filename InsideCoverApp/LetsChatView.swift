@@ -168,7 +168,7 @@ struct LetsChatBubble: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.trailing, 28)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("The Book said: \(text)")
+            .accessibilityLabel("I said: \(text)")
         }
     }
 }

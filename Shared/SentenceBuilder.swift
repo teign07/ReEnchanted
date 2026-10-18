@@ -1040,15 +1040,13 @@ enum SentenceBuilderPackRegistry {
     /// User-imported expansion packs: any `*.sentencepack.json` in Documents.
     static func userPacks(fileManager: FileManager = .default) -> [SentenceBuilderPack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      var pack = try? decoder.decode(SentenceBuilderPack.self, from: data) else {
-                    return nil
-                }
-                if pack.availability != "locked" { pack.availability = "userImported" }
-                return pack
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            guard var pack = try? decoder.decode(SentenceBuilderPack.self, from: data) else {
+                return nil
             }
+            if pack.availability != "locked" { pack.availability = "userImported" }
+            return pack
+        }
     }
 
     static func validateImport(data: Data) -> SentenceBuilderPack? {

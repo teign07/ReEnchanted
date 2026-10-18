@@ -3,6 +3,7 @@ import UIKit
 import CoreMotion
 import Photos
 import PhotosUI
+import PencilKit
 
 /// The light cover matter Pages Rising needs. A completed monthly binding can
 /// supply its real title and commissioned plate; a month still in progress
@@ -63,6 +64,16 @@ struct FolioLeafAction: Identifiable, Equatable {
     var progress: Double?
 
     var id: String { kind.rawValue }
+}
+
+/// The loose menu leaves borrow the actual bookmark's position, including
+/// when the Book grows into a spread. This is geometry, not another route.
+struct FolioSealTabAnchorKey: PreferenceKey {
+    static var defaultValue: [String: Anchor<CGRect>] = [:]
+
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
 }
 
 struct PagesRisingSealTab: Identifiable {
@@ -141,15 +152,34 @@ struct PagesRisingContentsChoice: Identifiable {
     var action: () -> Void
 }
 
+/// Presentation follows the existing Keep route. Opening specialized controls
+/// must not strand a disappeared draft when the Reader returns to the folio.
+enum FolioLeafKeepDisposition: Equatable {
+    case saving
+    case openedPage
+    case unchanged
+}
+
 private struct FolioResponseDraft: Equatable {
     var text = ""
     var selectedOption: String?
     var photograph: BookPageMediaAsset?
     var voiceNote: BookPageMediaAsset?
+    /// A drawing made in the margin — a finger on a phone, the Pencil on an
+    /// iPad. Kept as an image with the Page, never counted as a photograph.
+    var sketch: BookPageMediaAsset?
+    /// Pencil ink written straight onto the Page's leaves, by leaf. Held as
+    /// PencilKit data so it survives a turn, and only becomes an image if the
+    /// Page is kept.
+    var leafInk: [Int: Data] = [:]
     var isRecordingVoice = false
+    /// Presentation only. The original words/media remain in this draft while
+    /// their visible ink sinks; Keep receives a snapshot, never an empty string.
+    var inkAbsorptionStartedAt: Date?
+    var isAbsorbingInk: Bool { inkAbsorptionStartedAt != nil }
 
     var extraMedia: [BookPageMediaAsset] {
-        [photograph, voiceNote].compactMap { $0 }
+        [photograph, voiceNote, sketch].compactMap { $0 }
     }
 }
 
@@ -159,6 +189,46 @@ private struct FolioResponseDraft: Equatable {
 /// the turn together.
 private final class FolioInteractionStore: ObservableObject {
     @Published private var drafts: [String: FolioResponseDraft] = [:]
+    @Published private var inkArrivals: [String: Date] = [:]
+    private var pendingInkKeeps: Set<String> = []
+
+    func inkArrival(for leaf: FolioLeaf) -> Date? {
+        guard let key = leaf.inkEmergenceID else { return nil }
+        return inkArrivals[key]
+    }
+
+    func revealInk(on leaf: FolioLeaf) {
+        guard let key = leaf.inkEmergenceID, inkArrivals[key] == nil else { return }
+        inkArrivals[key] = Date()
+    }
+
+    func settleInk(on leaf: FolioLeaf) {
+        guard let key = leaf.inkEmergenceID,
+              let arrival = inkArrivals[key],
+              Date().timeIntervalSince(arrival) < BookInkTiming.arrivalDuration else { return }
+        // Returning to a leaf finds dried ink, even after a quick turn away.
+        inkArrivals[key] = .distantPast
+    }
+
+    func beginAbsorption(for documentID: String) -> Bool {
+        var draft = draft(for: documentID)
+        guard !draft.isAbsorbingInk, !pendingInkKeeps.contains(documentID) else { return false }
+        pendingInkKeeps.insert(documentID)
+        draft.inkAbsorptionStartedAt = Date()
+        drafts[documentID] = draft
+        return true
+    }
+
+    func restoreInk(for documentID: String) {
+        guard !pendingInkKeeps.contains(documentID),
+              var draft = drafts[documentID], draft.isAbsorbingInk else { return }
+        draft.inkAbsorptionStartedAt = nil
+        drafts[documentID] = draft
+    }
+
+    func finishInkKeep(for documentID: String) {
+        pendingInkKeeps.remove(documentID)
+    }
 
     func binding(for documentID: String) -> Binding<FolioResponseDraft> {
         Binding(
@@ -195,6 +265,73 @@ private enum FolioInteractionLeafKind: Equatable {
 /// The compact desk's living book. A `SurfacePage` remains the unit the
 /// Curator publishes and the reader can open, keep, or pass; leaves are only a
 /// transient reading layout. Turning one therefore never mutates the desk.
+private struct BookReadingWindowKey: EnvironmentKey {
+    static let defaultValue: CGSize? = nil
+}
+
+/// Where the open Book lies, in the order a real one is bound: the map pasted
+/// inside the front board, the Contents, the reading leaves, and the Notes at
+/// the back. Turning toward an earlier place riffles backward, left to right;
+/// toward a later one, forward, right to left.
+enum FolioOpening: Int, Comparable {
+    case endpaperMap, contents, reading, notes
+
+    static func < (lhs: FolioOpening, rhs: FolioOpening) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+}
+
+/// What the open Book does from a keyboard or the iPad menu bar: turn, and
+/// open or close its contents. Published by the folio while it is on screen.
+struct FolioLeafCommands {
+    let turn: (Int) -> Void
+    let toggleContents: () -> Void
+    let isContentsOpen: Bool
+    /// False on the endpaper map, the Contents and the Notes: arrow keys turn
+    /// reading leaves only.
+    let isOnReadingLeaves: Bool
+}
+
+private struct FolioLeafCommandsKey: FocusedValueKey {
+    typealias Value = FolioLeafCommands
+}
+
+extension FocusedValues {
+    var folioLeafCommands: FolioLeafCommands? {
+        get { self[FolioLeafCommandsKey.self] }
+        set { self[FolioLeafCommandsKey.self] = newValue }
+    }
+}
+
+private struct FolioLeafIsVersoKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct FolioPhotoIsVisibleKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    fileprivate var folioPhotoIsVisible: Bool {
+        get { self[FolioPhotoIsVisibleKey.self] }
+        set { self[FolioPhotoIsVisibleKey.self] = newValue }
+    }
+    /// This leaf is the left-hand page of an open spread, so its spine is on
+    /// its right. Single-leaf Books never set it.
+    var folioLeafIsVerso: Bool {
+        get { self[FolioLeafIsVersoKey.self] }
+        set { self[FolioLeafIsVersoKey.self] = newValue }
+    }
+
+    /// The window the Book is being read in, as the desk measured it. The
+    /// iPad sizes the Book from this rather than from the screen: under Split
+    /// View and Stage Manager the window is not the screen.
+    var bookReadingWindow: CGSize? {
+        get { self[BookReadingWindowKey.self] }
+        set { self[BookReadingWindowKey.self] = newValue }
+    }
+}
+
 struct PagesRisingFolio: View {
     let surfaces: [SurfacePage]
     /// Short, provenance-safe excerpts from Pages the Player actually wrote.
@@ -211,8 +348,13 @@ struct PagesRisingFolio: View {
     let selectedOfficialCoverID: String?
     let sealTabs: [PagesRisingSealTab]
     let charms: [PagesRisingBookCharm]
-    let contentsEntries: [PagesRisingContentsEntry]
-    @Binding var isContentsOpen: Bool
+    let contentsEntries: () -> [PagesRisingContentsEntry]
+    @Binding var opening: FolioOpening
+    /// A turn asked for from outside the folio (a seal tab, a contents line).
+    /// The folio travels there, or back to the leaf if already there.
+    @Binding var travelRequest: FolioOpening?
+    var canRequestWeather: Bool = true
+    var onSealChoice: (JournalSealChoice) -> Void = { _ in }
     let savedRibbon: SavedPageRibbon?
     let showsGlow: Bool
     /// Back on the folio because the bookmark burns it. It left when the printed
@@ -233,7 +375,7 @@ struct PagesRisingFolio: View {
     var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
-    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> Void
+    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
     let onPlaceRibbon: (SurfacePage, String, Int) -> Void
     let onLiftRibbon: () -> Void
@@ -248,6 +390,7 @@ struct PagesRisingFolio: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.bookReadingWindow) private var readingWindow
     @ObservedObject private var preparedIlluminations = FolioPreparedIlluminationStore.shared
 
     @AppStorage("pagesRisingBookIsClosed") private var isBookClosed = false
@@ -264,7 +407,13 @@ struct PagesRisingFolio: View {
     @State private var inspectedArtifact: FolioInspectableArtifact?
     @State private var preparedDeeperKey: String?
 
+    private var isContentsOpen: Bool { opening == .contents }
+    private var isOnReadingLeaves: Bool { opening == .reading }
+
     private var pageHeight: CGFloat {
+        if let lectern = lecternMeasure {
+            return lectern.pageHeight
+        }
         if sizeCategory.isFolioAccessibilityCategory {
             if horizontalSizeClass == .compact {
                 return min(700, max(600, UIScreen.main.bounds.height - 152))
@@ -300,6 +449,69 @@ struct PagesRisingFolio: View {
     private var isLyingOnItsSide: Bool {
         verticalSizeClass == .compact
     }
+
+    /// An iPad window big enough to hold the Book at a book's proportions.
+    ///
+    /// The phone's leaf is as wide as the phone, which on a phone is a page.
+    /// On a 13-inch iPad the same rule made a slab 850 points wide and 600
+    /// tall. Here the Book stands at the height the window gives it — most of
+    /// it, with sky left above and below — and its width follows from that
+    /// height, not from the glass. Nil on a phone, and in an iPad window too
+    /// narrow to hold a page at those proportions: those keep the phone's
+    /// measure, which was drawn for exactly that shape.
+    ///
+    /// A window wider than it is tall, with room for two such leaves side by
+    /// side, lets the Book lie open across a spread (`liesOpen`). It is the
+    /// window's shape that decides, not the device, so an iPad turned
+    /// upright goes back to one leaf and a split window that is still wide
+    /// keeps both.
+    private var lecternMeasure: (pageHeight: CGFloat, leafWidth: CGFloat, liesOpen: Bool)? {
+        Self.lecternMeasure(in: readingWindow)
+    }
+
+    /// The same measure for anything that stands in for the Book or opens
+    /// over it — the title leaf at launch, a division read on the desk — so
+    /// it is exactly one of the Book's own leaves.
+    static func lecternLeafSize(in window: CGSize?) -> CGSize? {
+        lecternMeasure(in: window).map { CGSize(width: $0.leafWidth, height: $0.pageHeight) }
+    }
+
+    private static func lecternMeasure(
+        in window: CGSize?
+    ) -> (pageHeight: CGFloat, leafWidth: CGFloat, liesOpen: Bool)? {
+        guard UIDevice.current.userInterfaceIdiom == .pad,
+              let window,
+              window.width > 0, window.height > 0 else { return nil }
+        let aspect = Self.maxLeafAspect
+        let byHeight = window.height * 0.88 - Self.topFurniture - Self.bottomFurniture
+        let widthForBook = window.width - Self.lecternReservedWidth
+        // Narrower than this the window is a phone-shaped column, and the
+        // phone's measure is the right one for it.
+        guard widthForBook >= 420, byHeight >= 400 else { return nil }
+
+        if window.width > window.height {
+            let spreadLeafByWidth = (widthForBook - Self.spreadExtraBoard) / 2
+            let pageHeight = min(byHeight, spreadLeafByWidth / aspect)
+            let leafWidth = (pageHeight * aspect).rounded(.down)
+            // Two phone-width leaves still make a book: an iPad mini on its
+            // side opens to about that.
+            if leafWidth >= 330 {
+                return (pageHeight, leafWidth, true)
+            }
+        }
+        let pageHeight = min(byHeight, widthForBook / aspect)
+        return (pageHeight, (pageHeight * aspect).rounded(.down), false)
+    }
+
+    /// Everything beside the leaf an iPad window must still hold: the desk's
+    /// own inset, the strip reserved for the fore-edge seals, the boards'
+    /// squares, and a little sky on each side.
+    private static let lecternReservedWidth: CGFloat = 16 + 48 + 62 + 64
+
+    /// An open Book shows a board's square past the left-hand page as well
+    /// as the right: the 10 points a single leaf's spine side shows becomes
+    /// the same 52 the fore-edge shows.
+    private static let spreadExtraBoard: CGFloat = 42
 
     /// The widest a leaf may stand relative to its own height. A page has been
     /// taller than it is wide since pages were cut, and a line of type that
@@ -348,38 +560,56 @@ struct PagesRisingFolio: View {
             // never bites. On its side the window is wider than the Book is
             // tall, and an unheld leaf would spread until the page stopped
             // being a page — so it is held to the proportions paper has.
-            let leafWidth = isLyingOnItsSide
-                ? min(availableLeafWidth, pageHeight * Self.maxLeafAspect)
-                : availableLeafWidth
+            let lectern = lecternMeasure
+            let leafWidth = if let lectern {
+                min(availableLeafWidth, lectern.leafWidth)
+            } else if isLyingOnItsSide || horizontalSizeClass == .regular {
+                // Any wide window the lectern did not measure still gets a
+                // page's proportions, never a slab the width of the glass.
+                min(availableLeafWidth, pageHeight * Self.maxLeafAspect)
+            } else {
+                availableLeafWidth
+            }
+            // Open flat across two leaves. Closed, the Book is its cover —
+            // one leaf wide — and Reduce Motion keeps the single still leaf.
+            let isSpread = lectern?.liesOpen == true && !isBookClosed && !reduceMotion
+            // The page block: one leaf, or two meeting at the spine. The
+            // boards, the fore-edge seals and the ribbon are laid out against
+            // this; the type is still set against one leaf.
+            let blockWidth = isSpread ? leafWidth * 2 : leafWidth
             // Whatever width the leaf did not take becomes margin on both
             // sides rather than a gutter on one: the Book sits in the middle of
             // the desk it is read on. Upright this is exactly zero, so the
             // Book does not move a point from where it has always stood.
-            let sideMargin = max(0, (availableLeafWidth - leafWidth) / 2)
+            let sideMargin = max(0, (availableLeafWidth - blockWidth) / 2)
+            // Where the right-hand page begins. The cover is hinged here.
+            let rectoOrigin = isSpread ? leafWidth : 0
+            // The things a hand reaches for — seals, charms, the clasp — grow
+            // with the Book, a little less than its type does, so a 13-inch
+            // Book does not wear a phone's bookmarks. One on every phone.
+            let furnitureScale = lectern == nil ? 1 : min(1.3, max(1, leafWidth / 420))
             let metrics = FolioLayoutMetrics(
                 pageWidth: leafWidth,
                 pageHeight: pageHeight,
                 contentSizeCategory: sizeCategory.uiContentSizeCategory
             )
-            let leaves = PagesRisingFolioPaginator.paginate(
+            let paginated = PagesRisingFolioPaginator.paginate(
                 surfaces,
                 readerSentences: readerSentences,
                 grimoireResidue: grimoireResidue,
                 placeLeaf: placeLeaf,
                 metrics: metrics
             )
+            let leaves = isSpread
+                ? PagesRisingFolioPaginator.imposedForSpread(paginated)
+                : paginated
             let tuckedEphemera = surfaces.compactMap {
                 FolioEphemeraArtifact(surface: $0)
             }
             let openEphemeraID = leaves.first(where: { $0.id == currentLeafID })
                 .flatMap { FolioEphemeraArtifact(surface: $0.surface)?.id }
-            // Only the leaves one turn away have to be finished before the
-            // paper takes a touch. Waiting on every photograph in the binding
-            // froze the whole Book after Explore deeper while each new
-            // boundary was fetched and composed in turn.
-            let boundaryIlluminationsAreSettled = preparedIlluminations.areSettled(
-                boundaryIlluminationRequests(within: 1, of: currentLeafID, in: leaves)
-            )
+            // Photographs prepare ahead of reading. Network availability must
+            // never decide whether the Book takes a touch.
 
             VStack(spacing: 8) {
                 ZStack(alignment: .topLeading) {
@@ -390,14 +620,19 @@ struct PagesRisingFolio: View {
                     // enough to register as a cover. The bookmarks stand on it
                     // now, which is what makes them read as inserted into a book
                     // rather than stuck to the side of a page.
-                    FolioBookBoard(cover: cover)
+                    FolioBookBoard(cover: cover, isOpenFlat: isSpread)
                         // Squares: the overhang boards have past the paper on
                         // the three outer edges. Too small an overhang and the
                         // cover reads as a mat behind the page rather than as
-                        // the thing the pages are bound into.
-                        .frame(width: leafWidth + 62, height: pageHeight + 152)
+                        // the thing the pages are bound into. Open flat, both
+                        // boards lie out, and the left one shows the same
+                        // square the right one does.
+                        .frame(
+                            width: blockWidth + 62 + (isSpread ? Self.spreadExtraBoard : 0),
+                            height: pageHeight + 152
+                        )
                         .clipped()
-                        .offset(x: -10, y: -68)
+                        .offset(x: isSpread ? -10 - Self.spreadExtraBoard : -10, y: -68)
                         .accessibilityHidden(true)
                         .zIndex(0)
 
@@ -407,7 +642,8 @@ struct PagesRisingFolio: View {
                     // allowed to escape at the fore-edge.
                     FolioSealBookmarkRail(tabs: bindingTabs)
                         .frame(width: 66, alignment: .topLeading)
-                        .offset(x: leafWidth - 18, y: 54)
+                        .scaleEffect(furnitureScale, anchor: .topLeading)
+                        .offset(x: blockWidth - 18, y: 54)
                         .zIndex(0.45)
 
                     // Most of the ribbon stays caught beneath the current
@@ -424,7 +660,7 @@ struct PagesRisingFolio: View {
                     // Slack cloth hangs shorter. Pulling it up into a Page is
                     // the whole gesture, so tucking has to move it.
                     .offset(
-                        x: leafWidth * 0.69,
+                        x: rectoOrigin + leafWidth * 0.69,
                         y: savedRibbon == nil
                             ? -Self.slackRibbonProtrusion
                             : -Self.tuckedRibbonProtrusion
@@ -436,7 +672,7 @@ struct PagesRisingFolio: View {
                     .zIndex(0.84)
 
                     FolioLeafBlock()
-                        .frame(width: leafWidth + 4, height: pageHeight + 3)
+                        .frame(width: blockWidth + 4, height: pageHeight + 3)
                         .offset(x: 0, y: 1)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -454,16 +690,29 @@ struct PagesRisingFolio: View {
                             leafSize: CGSize(width: leafWidth, height: pageHeight)
                         )
                         .frame(width: leafWidth, height: pageHeight)
+                        .padding(.leading, rectoOrigin)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                         .zIndex(0.88)
                     }
 
                     Group {
-                        if isContentsOpen || leaves.isEmpty {
-                            FolioContentsLeaf(
+                        if opening == .endpaperMap || opening == .notes {
+                            FolioSealLeafPresentation(
+                                kind: opening == .notes ? .capture : .place,
+                                isSpread: isSpread,
+                                pageSize: CGSize(width: leafWidth, height: pageHeight),
+                                canRequestWeather: canRequestWeather,
+                                onBack: { travel(to: .reading) },
+                                onSelect: onSealChoice
+                            )
+                            .transition(.opacity)
+                        } else if isContentsOpen || leaves.isEmpty {
+                            FolioContentsPresentation(
                                 entries: contentsEntries,
+                                isSpread: isSpread,
                                 showsBack: !leaves.isEmpty,
+                                pageSize: CGSize(width: leafWidth, height: pageHeight),
                                 onClose: closeContents,
                                 onSelect: selectContentsEntry
                             )
@@ -471,6 +720,7 @@ struct PagesRisingFolio: View {
                         } else if reduceMotion {
                             FolioStillPager(
                                 leaves: leaves,
+                                photosAreVisible: !isBookClosed && !isBookTransitioning,
                                 currentLeafID: $currentLeafID,
                                 interactionStore: interactionStore,
                                 isBusy: isBusy,
@@ -493,7 +743,9 @@ struct PagesRisingFolio: View {
                         } else {
                             FolioCurlPager(
                                 leaves: leaves,
+                                photosAreVisible: !isBookClosed && !isBookTransitioning,
                                 pageSize: CGSize(width: leafWidth, height: pageHeight),
+                                isSpread: isSpread,
                                 currentLeafID: $currentLeafID,
                                 interactionStore: interactionStore,
                                 isBusy: isBusy,
@@ -513,9 +765,20 @@ struct PagesRisingFolio: View {
                                 onReturnToStart: { returnToFirstLeaf(in: leaves) },
                                 onInspectArtifact: { inspectedArtifact = $0 }
                             )
+                            // UIKit fixes the spine when the controller is
+                            // made, so lying open is a different pager.
+                            .id(isSpread)
                         }
                     }
-                    .frame(width: leafWidth, height: pageHeight)
+                    .frame(width: blockWidth, height: pageHeight)
+                    .overlay {
+                        if isSpread {
+                            FolioSpreadGutter()
+                                .frame(width: 56)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                     .clipShape(FolioDeckleEdgeShape())
                     // A greedy leaf (the contents leaf asks for infinite width)
                     // otherwise takes hits out past its own clip and swallows
@@ -539,7 +802,6 @@ struct PagesRisingFolio: View {
                     .allowsHitTesting(
                         !isBookClosed
                             && !isBookTransitioning
-                            && boundaryIlluminationsAreSettled
                     )
                     .accessibilityHidden(isBookClosed)
                     .zIndex(1)
@@ -549,12 +811,14 @@ struct PagesRisingFolio: View {
                     FolioRiffle(progress: riffleProgress, isReversed: riffleIsReversed)
                         .frame(width: leafWidth, height: pageHeight)
                         .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        .padding(.leading, rectoOrigin)
                         .zIndex(1.55)
 
                     if !reduceMotion {
                         FolioCoverPassingShadow(progress: coverTurn)
                             .frame(width: leafWidth, height: pageHeight)
                             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            .padding(.leading, rectoOrigin)
                             .allowsHitTesting(false)
                             .accessibilityHidden(true)
                             .zIndex(1.6)
@@ -595,6 +859,11 @@ struct PagesRisingFolio: View {
                         x: reduceMotion ? 4 : 4 + (10 * coverTurn),
                         y: 14
                     )
+                    // Open flat, the cover lies over the right-hand page and
+                    // is hinged at the spine, so it swings over onto the
+                    // left-hand board. Placed after the turn so the hinge is
+                    // the cover's own edge, not the left board's.
+                    .padding(.leading, rectoOrigin)
                     // Opening the cover gives preparation useful time while
                     // the reader meets the first Page. Only leaf-turning is
                     // held until every photo boundary has settled.
@@ -645,6 +914,7 @@ struct PagesRisingFolio: View {
 
                     if !charms.isEmpty {
                         FolioBookCharmRail(charms: charms, isPaused: isAmbientMotionPaused)
+                            .scaleEffect(furnitureScale, anchor: .topLeading)
                             .offset(x: 34, y: pageHeight - 20)
                             .zIndex(0.82)
                     }
@@ -654,6 +924,8 @@ struct PagesRisingFolio: View {
                             FolioBookClasp()
                         }
                         .buttonStyle(.plain)
+                        .hoverEffect(.lift)
+                        .scaleEffect(furnitureScale, anchor: .bottomLeading)
                         .offset(x: 9, y: pageHeight - 39)
                         .accessibilityLabel("Close the Book")
                         .zIndex(1.45)
@@ -697,6 +969,17 @@ struct PagesRisingFolio: View {
                 // owned it; the group did.
                 .compositingGroup()
             }
+            .focusedSceneValue(\.folioLeafCommands, FolioLeafCommands(
+                turn: { delta in turnLeaf(by: delta, in: leaves, isSpread: isSpread) },
+                toggleContents: { toggle(.contents) },
+                isContentsOpen: isContentsOpen,
+                isOnReadingLeaves: isOnReadingLeaves
+            ))
+            .onChange(of: travelRequest) { _, request in
+                guard let request else { return }
+                travelRequest = nil
+                toggle(request)
+            }
             .task(id: synchronizationKey(for: leaves, metrics: metrics)) {
                 #if DEBUG
                 let smokeTarget = requestedSmokeLeaf(in: leaves)
@@ -718,8 +1001,8 @@ struct PagesRisingFolio: View {
                 } else {
                     synchronizeCurrentLeaf(in: leaves)
                 }
-                if leaves.isEmpty {
-                    isContentsOpen = true
+                if leaves.isEmpty, opening == .reading {
+                    opening = .contents
                 }
 
                 // Photo boundaries are finished while the reader is still on
@@ -741,12 +1024,10 @@ struct PagesRisingFolio: View {
             }
             .onChange(of: currentLeafID) { _, nextID in
                 rememberPosition(for: nextID, in: leaves)
-                // The paper waits on these before it takes a touch, so they go
-                // ahead of whatever the binding-wide pass is still working on.
-                let neighbours = boundaryIlluminationRequests(within: 1, of: nextID, in: leaves)
-                if !preparedIlluminations.areSettled(neighbours) {
-                    Task { await preparedIlluminations.prepare(neighbours) }
-                }
+                // Keep three photo encounters ahead, nearest first, without
+                // asking the turn to wait for Photos or an iCloud download.
+                let neighbours = boundaryIlluminationRequests(nearestTo: nextID, in: leaves)
+                Task { await preparedIlluminations.prepare(neighbours) }
                 prepareDeeperLeavesIfNearEnd(nextID, in: leaves, metrics: metrics)
             }
         }
@@ -760,7 +1041,21 @@ struct PagesRisingFolio: View {
     /// own light and divisions; the four seals below are what the reader hands
     /// the Book from the outside world.
     private var bindingTabs: [PagesRisingSealTab] {
-        (showsGlow ? [glowTab] : []) + [contentsTab] + sealTabs
+        (showsGlow ? [glowTab] : []) + [contentsTab] + sealTabs.map(markingOpenLeaf)
+    }
+
+    /// Capture and Place are leaves of this Book. While one lies open, its
+    /// bookmark is the way back to the leaf, as the Contents bookmark is.
+    private func markingOpenLeaf(_ tab: PagesRisingSealTab) -> PagesRisingSealTab {
+        let leaf: FolioOpening? = switch tab.id {
+        case "input": .notes
+        case "location": .endpaperMap
+        default: nil
+        }
+        guard let leaf, leaf == opening else { return tab }
+        var marked = tab
+        marked.title = "Back to the leaf"
+        return marked
     }
 
     /// Glow keeps its full illuminated command menu, and this bookmark is the
@@ -790,7 +1085,7 @@ struct PagesRisingFolio: View {
             wax: Color(red: 0.40, green: 0.29, blue: 0.17),
             seed: 41,
             isBusy: false,
-            action: { isContentsOpen ? closeContents() : openContents() }
+            action: { toggle(.contents) }
         )
     }
 
@@ -805,14 +1100,43 @@ struct PagesRisingFolio: View {
     /// wants the destination is not made to wait for the performance.
     private static let riffleDuration: Double = 0.66
 
-    /// Contents lives before the reading leaves: turn back, left to right,
-    /// to find it, then forward, right to left, to resume reading.
-    private func openContents() {
-        riffle(reversed: true) { isContentsOpen = true }
+    /// An arrow key turns what a thumb would: one leaf, or one sheet of an
+    /// open spread. The curl itself is the pager's; this only says where to.
+    private func turnLeaf(by delta: Int, in leaves: [FolioLeaf], isSpread: Bool) {
+        guard !isBookClosed, isOnReadingLeaves, !isRiffling, !leaves.isEmpty else { return }
+        let index = leaves.firstIndex { $0.id == currentLeafID } ?? 0
+        let base = isSpread ? index - index % 2 : index
+        let next = base + delta * (isSpread ? 2 : 1)
+        guard leaves.indices.contains(next) else { return }
+        BookSoundBank.pageTurn(forward: delta > 0)
+        currentLeafID = leaves[next].id
+    }
+
+    /// The Book's own leaves lie where a bound book keeps them (see
+    /// `FolioOpening`): the map and Contents before the reading leaves, the
+    /// Notes after. The riffle runs whichever way a hand would turn to get
+    /// there — back, left to right, toward the front board; forward, right
+    /// to left, toward the back.
+    private func travel(to destination: FolioOpening) {
+        guard destination != opening else { return }
+        guard !isBookClosed else {
+            // Opening the cover is the motion. The Book falls open where it
+            // was asked to, as it does for a ribbon.
+            openBook()
+            opening = destination
+            return
+        }
+        riffle(reversed: destination < opening) { opening = destination }
+    }
+
+    /// A bookmark for one of the Book's own leaves turns there, or, pressed
+    /// with that leaf already open, back to the reading leaf.
+    private func toggle(_ destination: FolioOpening) {
+        travel(to: opening == destination ? .reading : destination)
     }
 
     private func closeContents() {
-        riffle(reversed: false) { isContentsOpen = false }
+        travel(to: .reading)
     }
 
     /// The Pages Rising line is not a door out of the Book. It turns the
@@ -828,10 +1152,10 @@ struct PagesRisingFolio: View {
     }
 
     /// The leaf the ribbon would mark if it were tucked right now, or nil when
-    /// there is nothing here to hold: the contents are open, or the Book has
-    /// settled on a boundary or ending leaf, which carry no Page.
+    /// there is nothing here to hold: the Book is open to its own leaves, or
+    /// has settled on a boundary or ending leaf, which carry no Page.
     private func markableLeaf(in leaves: [FolioLeaf]) -> FolioLeaf? {
-        guard !isContentsOpen, !isBookClosed else { return nil }
+        guard isOnReadingLeaves, !isBookClosed else { return nil }
         let index = currentLeafID.flatMap { currentID in
             leaves.firstIndex(where: { $0.id == currentID })
         } ?? 0
@@ -887,14 +1211,15 @@ struct PagesRisingFolio: View {
                 leaves.firstIndex(where: { $0.id == currentID })
             } ?? 0
             let targetIndex = leaves.firstIndex(where: { $0.id == target.id }) ?? currentIndex
-            if !isContentsOpen, currentLeafID == target.id {
+            if isOnReadingLeaves, currentLeafID == target.id {
                 BookFeedback.play(.tap)
                 return
             }
-            // Every reading leaf follows Contents, even if the ribbon marks
-            // an earlier leaf than the one we were reading before opening it.
-            riffle(reversed: !isContentsOpen && targetIndex < currentIndex) {
-                isContentsOpen = false
+            // Every reading leaf follows the map and Contents and comes before
+            // the Notes, whichever leaf the ribbon marks.
+            let reversed = isOnReadingLeaves ? targetIndex < currentIndex : opening > .reading
+            riffle(reversed: reversed) {
+                opening = .reading
                 currentLeafID = target.id
                 rememberPosition(for: target.id, in: leaves)
             }
@@ -932,7 +1257,9 @@ struct PagesRisingFolio: View {
         preparedDeeperKey = key
         Task { @MainActor in
             // Let the turn that brought the reader here finish first.
-            try? await Task.sleep(for: .seconds(0.45))
+            do { try await Task.sleep(for: .seconds(0.45)) }
+            catch { return }
+            guard !Task.isCancelled, preparedDeeperKey == key else { return }
             await PagesRisingFolioPaginator.prewarm(onPrepareDeeper(), metrics: metrics)
         }
     }
@@ -1026,44 +1353,45 @@ struct PagesRisingFolio: View {
         return "\(Int(metrics.pageWidth)):\(Int(metrics.pageHeight)):\(metrics.contentSizeCategory.rawValue):\(leafKey)"
     }
 
-    /// Every boundary illumination in the binding, the nearest to `leafID`
-    /// first, so the next turn either way is the first one finished.
+    /// At most three photo encounters nearest to `leafID`. Stop walking as
+    /// soon as the lookahead is full, even in a long Explore deeper binding.
     private func boundaryIlluminationRequests(
         nearestTo leafID: String?,
         in leaves: [FolioLeaf]
     ) -> [FolioPreparedIlluminationRequest] {
+        guard !leaves.isEmpty else { return [] }
         let origin = leaves.firstIndex { $0.id == leafID } ?? 0
-        return leaves.indices
-            .sorted { (abs($0 - origin), $0) < (abs($1 - origin), $1) }
-            .flatMap { boundaryIlluminationRequests(in: [leaves[$0]]) }
-    }
-
-    /// The illuminations within `reach` turns of `leafID`.
-    private func boundaryIlluminationRequests(
-        within reach: Int,
-        of leafID: String?,
-        in leaves: [FolioLeaf]
-    ) -> [FolioPreparedIlluminationRequest] {
-        guard let index = leaves.firstIndex(where: { $0.id == leafID }) else { return [] }
-        let window = leaves[max(0, index - reach)...min(leaves.count - 1, index + reach)]
-        return boundaryIlluminationRequests(in: Array(window))
-    }
-
-    private func boundaryIlluminationRequests(
-        in leaves: [FolioLeaf]
-    ) -> [FolioPreparedIlluminationRequest] {
-        leaves.flatMap(\.fragments).compactMap { fragment in
-            guard case .image(.illuminatedLibraryPhoto(
-                let identifier,
-                let draft,
-                _,
-                _
-            )) = fragment.content else { return nil }
-            return FolioPreparedIlluminationRequest(
-                identifier: identifier,
-                draft: draft
-            )
+        var requests: [FolioPreparedIlluminationRequest] = []
+        // Walk outward in the same distance/index order as the old sort.
+        // Long bindings need no sorted index array or temporary leaf copies.
+        for distance in 0..<max(origin + 1, leaves.count - origin) {
+            let left = origin - distance
+            if left >= 0 {
+                requests.append(contentsOf: boundaryIlluminationRequests(in: leaves[left...left]))
+                if requests.count >= 3 { return Array(requests.prefix(3)) }
+            }
+            let right = origin + distance
+            if distance > 0, right < leaves.count {
+                requests.append(contentsOf: boundaryIlluminationRequests(in: leaves[right...right]))
+                if requests.count >= 3 { return Array(requests.prefix(3)) }
+            }
         }
+        return requests
+    }
+
+    private func boundaryIlluminationRequests<Leaves: Sequence>(
+        in leaves: Leaves
+    ) -> [FolioPreparedIlluminationRequest] where Leaves.Element == FolioLeaf {
+        var requests: [FolioPreparedIlluminationRequest] = []
+        for leaf in leaves {
+            for fragment in leaf.fragments {
+                guard case .image(.illuminatedLibraryPhoto(
+                    let request, _, _
+                )) = fragment.content else { continue }
+                requests.append(request)
+            }
+        }
+        return requests
     }
 
     #if DEBUG
@@ -1173,8 +1501,47 @@ struct PagesRisingFolio: View {
 /// stitched hinge, page-block lines, and the monthly coat waiting underneath.
 private struct FolioBookBoard: View {
     let cover: PagesRisingMonthlyCover
+    var isOpenFlat: Bool = false
 
     var body: some View {
+        if isOpenFlat {
+            // Both boards lying out from the spine: the inside front cover on
+            // the left, hinge to the spine and worn corners outward, the
+            // inside back cover on the right. The leaves cover all but their
+            // squares. `InsideFrontCover` is laid out to meet the back board
+            // exactly — same head and tail, its hinge levelled and running to
+            // the spine edge — so it needs no trimming here.
+            HStack(spacing: 0) {
+                Image("InsideFrontCover")
+                    .resizable()
+                openBoard
+            }
+            .shadow(color: .black.opacity(0.55), radius: 18, x: 5, y: 12)
+        } else {
+            board
+                .shadow(color: .black.opacity(0.55), radius: 18, x: 5, y: 12)
+        }
+    }
+
+    /// The photograph is a back board seen from inside a book lying open, so
+    /// past its hinge it shows a sliver of the front board, rising above the
+    /// head, and its hinge stands a little proud of the board. Two of those
+    /// meeting at the spine made a peak in the middle of the open Book. Lying
+    /// flat, each board starts where its head runs level (column 108 of 1024).
+    private static let hingeSliver: CGFloat = 108.0 / 1024.0
+
+    private var openBoard: some View {
+        GeometryReader { proxy in
+            let trim = proxy.size.width * Self.hingeSliver / (1 - Self.hingeSliver)
+            Image("InsideBackCover")
+                .resizable()
+                .frame(width: proxy.size.width + trim, height: proxy.size.height)
+                .offset(x: -trim)
+        }
+        .clipped()
+    }
+
+    private var board: some View {
         ZStack {
             // The real thing: a photographed cover, with its own boards, gold
             // tooling, hinge and worn corners, and its own cut-out shape in the
@@ -1199,7 +1566,26 @@ private struct FolioBookBoard: View {
         // Each of those existed to imitate something this photograph has, and
         // stacking them on top only fought it. The shadow stays, because that
         // belongs to the room rather than to the cover.
-        .shadow(color: .black.opacity(0.55), radius: 18, x: 5, y: 12)
+        .clipped()
+    }
+}
+
+/// Where two leaves meet at the spine. The paper curves down into the
+/// binding, so the gutter is the darkest part of an open book.
+private struct FolioSpreadGutter: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black.opacity(0.10), location: 0.34),
+                .init(color: .black.opacity(0.30), location: 0.5),
+                .init(color: .black.opacity(0.10), location: 0.66),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .blendMode(.multiply)
     }
 }
 
@@ -1236,12 +1622,19 @@ private struct FolioLeafBlock: View {
                         )
                 }
 
+                // Held to the block before it is clipped. `scaledToFill` makes
+                // the image's own frame larger than the block, and a clip
+                // applied to that frame clips nothing: the fibre is a tall
+                // 4:5 photograph, so across a two-leaf spread it hung six
+                // hundred points below the Book as a grey slab — 11% multiply
+                // over the night is what the old fore-edge film was made of.
                 Image("ParchmentFiber")
                     .resizable()
                     .scaledToFill()
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .opacity(0.11)
                     .blendMode(.multiply)
-                    .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
                 Canvas { context, size in
                     var foreEdge = Path()
@@ -1331,7 +1724,7 @@ private struct FolioEphemeraPeek: View {
 
             if artifact.kind == .image,
                let imagePath = artifact.imagePath,
-               let image = UIImage(contentsOfFile: imagePath) {
+               let image = BookRenderedImageCache.shared.image(for: imagePath) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
@@ -1790,6 +2183,312 @@ private struct FolioRiffle: View, Animatable {
 /// The Book's own contents leaf: printed matter, not a menu. Every entry is a
 /// destination `ContentView` already owns, so this leaf never invents a second
 /// router — it only gives the Book somewhere to print its own divisions.
+private struct FolioContentsPresentation: View {
+    let entries: () -> [PagesRisingContentsEntry]
+    let isSpread: Bool
+    let showsBack: Bool
+    let pageSize: CGSize
+    let onClose: () -> Void
+    let onSelect: (PagesRisingContentsEntry) -> Void
+
+    var body: some View {
+        // SwiftUI evaluates this child after ContentView/folio construction
+        // returns. Resolving the full directory on that ancestor stack
+        // overflowed it when Keep left the Book open to its Contents.
+        let resolvedEntries = entries()
+        Group {
+            if isSpread {
+                FolioContentsSpread(
+                    entries: resolvedEntries, showsBack: showsBack, pageSize: pageSize,
+                    onClose: onClose, onSelect: onSelect
+                )
+            } else {
+                FolioContentsLeaf(
+                    entries: resolvedEntries, showsBack: showsBack,
+                    onClose: onClose, onSelect: onSelect
+                )
+                .frame(width: pageSize.width)
+            }
+        }
+    }
+}
+
+/// Capture and Place as leaves of the Book rather than cards drawn out of it.
+/// Place is the map pasted inside the front board, before the Contents;
+/// Capture is the first of the Notes at the back, after the last reading leaf.
+/// Lying open across a spread, the drawing takes the left-hand page and the
+/// doors the right.
+private struct FolioSealLeafPresentation: View {
+    let kind: JournalSealLeafKind
+    let isSpread: Bool
+    let pageSize: CGSize
+    let canRequestWeather: Bool
+    let onBack: () -> Void
+    let onSelect: (JournalSealChoice) -> Void
+
+    var body: some View {
+        if isSpread {
+            HStack(spacing: 0) {
+                FolioSealPlateLeaf(kind: kind)
+                    .environment(\.folioLeafIsVerso, true)
+                    .frame(width: pageSize.width)
+                FolioSealLeaf(
+                    kind: kind, showsDrawing: false, canRequestWeather: canRequestWeather,
+                    onBack: onBack, onSelect: onSelect
+                )
+                .frame(width: pageSize.width)
+            }
+        } else {
+            FolioSealLeaf(
+                kind: kind, showsDrawing: true, canRequestWeather: canRequestWeather,
+                onBack: onBack, onSelect: onSelect
+            )
+            .frame(width: pageSize.width)
+        }
+    }
+}
+
+private struct FolioSealLeaf: View {
+    let kind: JournalSealLeafKind
+    /// A single leaf carries its own drawing faintly under the doors; a
+    /// spread gives the drawing its own page instead.
+    let showsDrawing: Bool
+    let canRequestWeather: Bool
+    let onBack: () -> Void
+    let onSelect: (JournalSealChoice) -> Void
+
+    @AccessibilityFocusState private var headingIsFocused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(kind.choices) { choice in
+                        JournalSealChoiceRow(
+                            choice: choice,
+                            isEnabled: choice != .weather || canRequestWeather,
+                            action: {
+                                BookFeedback.play(.tap)
+                                onSelect(choice)
+                            }
+                        )
+                    }
+                }
+                .padding(.leading, 34)
+                .padding(.top, 14)
+                .padding(.bottom, 8)
+            }
+            .scrollIndicators(.hidden)
+            .scrollBounceBehavior(.basedOnSize)
+
+            footer
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background {
+            if showsDrawing {
+                FolioSealLeafDrawing(kind: kind, scale: .margin)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
+        .parchmentSurface(accent: BookPalette.lampGold, isActive: true)
+        .overlay(alignment: .leading) {
+            FolioOpenLeafBinding(tint: BookPalette.lampGold)
+                .frame(width: 31)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .onAppear { headingIsFocused = true }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(kind.runningHead)
+                    .font(.system(size: 12, weight: .black, design: .serif))
+                    .tracking(3.2)
+                    .foregroundStyle(BookPalette.lampGold)
+                Text(kind.title)
+                    .font(.system(.title3, design: .serif).weight(.black))
+                    .foregroundStyle(BookPalette.ink)
+                Text(kind.aside)
+                    .font(.system(size: 12, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.ink.opacity(0.56))
+            }
+            Spacer(minLength: 8)
+            JournalFieldDrawing(motif: kind.motif)
+                .frame(width: 38, height: 38)
+                .foregroundStyle(BookPalette.lampGold)
+                .accessibilityHidden(true)
+        }
+        .padding(.leading, 34)
+        .padding(.bottom, 11)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.34))
+                .frame(height: 1)
+                .padding(.leading, 34)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+        .accessibilityFocused($headingIsFocused)
+    }
+
+    private var footer: some View {
+        Button(action: onBack) {
+            HStack(spacing: 7) {
+                Image(systemName: kind == .place ? "arrow.uturn.forward" : "arrow.uturn.backward")
+                    .font(.system(size: 10, weight: .bold))
+                Text("Back to the open leaf")
+                    .font(.system(size: 11, weight: .semibold, design: .serif))
+            }
+            .foregroundStyle(BookPalette.ink.opacity(0.62))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close \(kind.title) and return to the open leaf")
+        .padding(.top, 10)
+        .padding(.leading, 34)
+    }
+}
+
+/// The left-hand page of a spread opened to Capture or Place: nothing but
+/// the drawing, and a line about why it is there.
+private struct FolioSealPlateLeaf: View {
+    let kind: JournalSealLeafKind
+
+    private var caption: String {
+        kind == .place
+            ? "Pasted in before anything else, so I can't get lost in myself."
+            : "Blank at the back, for whatever you bring me from out there."
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 0)
+            Text(caption)
+                .font(.system(size: 13, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 44)
+                .padding(.bottom, 28)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            FolioSealLeafDrawing(kind: kind, scale: .plate)
+                .accessibilityHidden(true)
+        }
+        .parchmentSurface(accent: BookPalette.lampGold, isActive: true)
+        .overlay(alignment: .trailing) {
+            FolioOpenLeafBinding(tint: BookPalette.lampGold)
+                .frame(width: 31)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+/// What is printed on the paper itself. The endpaper is a walked map — a
+/// dotted way between three marks, hills, water, and the compass rose. The
+/// Notes are ruled, with a margin, and the moth that came in on the paper.
+private struct FolioSealLeafDrawing: View {
+    enum Scale { case margin, plate }
+    let kind: JournalSealLeafKind
+    let scale: Scale
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            switch kind {
+            case .place:
+                FolioEndpaperMapInk()
+                    .foregroundStyle(BookPalette.ink.opacity(scale == .plate ? 0.34 : 0.13))
+            case .capture:
+                FolioNotesRules(hasMargin: true)
+            }
+            JournalFieldDrawing(motif: kind.motif)
+                .frame(width: scale == .plate ? 150 : 118, height: scale == .plate ? 150 : 118)
+                .foregroundStyle(BookPalette.ink.opacity(scale == .plate ? 0.30 : 0.12))
+                .padding(.trailing, scale == .plate ? 52 : 22)
+                .padding(.bottom, scale == .plate ? 96 : 54)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct FolioEndpaperMapInk: View {
+    var body: some View {
+        Canvas { context, size in
+            let w = size.width, h = size.height
+            func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: w * x, y: h * y) }
+
+            let marks = [point(0.22, 0.80), point(0.54, 0.52), point(0.76, 0.22)]
+            var trail = Path()
+            trail.move(to: marks[0])
+            trail.addCurve(to: marks[1], control1: point(0.44, 0.88), control2: point(0.28, 0.58))
+            trail.addCurve(to: marks[2], control1: point(0.84, 0.48), control2: point(0.58, 0.26))
+            context.stroke(trail, with: .foreground, style: StrokeStyle(lineWidth: 1.1, lineCap: .round, dash: [1.5, 5]))
+
+            var ink = Path()
+            for mark in marks {
+                ink.move(to: CGPoint(x: mark.x - 5, y: mark.y - 5))
+                ink.addLine(to: CGPoint(x: mark.x + 5, y: mark.y + 5))
+                ink.move(to: CGPoint(x: mark.x + 5, y: mark.y - 5))
+                ink.addLine(to: CGPoint(x: mark.x - 5, y: mark.y + 5))
+            }
+            // Hills, kept below the running head.
+            for (x, y, s) in [(0.30, 0.38, 1.0), (0.40, 0.35, 1.3), (0.50, 0.39, 0.9), (0.34, 0.48, 0.8)] {
+                let base = point(x, y)
+                let r = 11 * s
+                ink.move(to: CGPoint(x: base.x - r, y: base.y + r * 0.6))
+                ink.addLine(to: CGPoint(x: base.x, y: base.y - r * 0.6))
+                ink.addLine(to: CGPoint(x: base.x + r, y: base.y + r * 0.6))
+            }
+            // Water in the lower corner.
+            for row in 0..<3 {
+                let y = h * 0.62 + CGFloat(row) * 9
+                let x0 = w * 0.66 + CGFloat(row) * 6
+                ink.move(to: CGPoint(x: x0, y: y))
+                for step in 0..<4 {
+                    let x = x0 + CGFloat(step) * 12
+                    ink.addQuadCurve(to: CGPoint(x: x + 12, y: y), control: CGPoint(x: x + 6, y: y - 4))
+                }
+            }
+            context.stroke(ink, with: .foreground, style: StrokeStyle(lineWidth: 1.05, lineCap: .round, lineJoin: .round))
+        }
+    }
+}
+
+private struct FolioNotesRules: View {
+    let hasMargin: Bool
+
+    var body: some View {
+        Canvas { context, size in
+            var rules = Path()
+            var y: CGFloat = 104
+            while y < size.height - 20 {
+                rules.move(to: CGPoint(x: 22, y: y))
+                rules.addLine(to: CGPoint(x: size.width - 16, y: y))
+                y += 27
+            }
+            context.stroke(rules, with: .color(Color(red: 0.34, green: 0.45, blue: 0.58).opacity(0.17)), lineWidth: 0.7)
+            guard hasMargin else { return }
+            var margin = Path()
+            margin.move(to: CGPoint(x: 52, y: 0))
+            margin.addLine(to: CGPoint(x: 52, y: size.height))
+            context.stroke(margin, with: .color(Color(red: 0.62, green: 0.22, blue: 0.20).opacity(0.20)), lineWidth: 0.8)
+        }
+    }
+}
+
 private struct FolioContentsLeaf: View {
     let entries: [PagesRisingContentsEntry]
     let showsBack: Bool
@@ -1808,6 +2507,7 @@ private struct FolioContentsLeaf: View {
             if result.last != entry.section { result.append(entry.section) }
         }
     }
+
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1961,6 +2661,283 @@ private struct FolioContentsLeaf: View {
     }
 }
 
+/// The contents of a Book lying open, set on real pages: as many as its
+/// lines need, two to an opening, turned at the outer corners. Nothing
+/// scrolls — a printed contents never does. Opening a gathering sets the
+/// pages again, and the Book turns to wherever that gathering now falls.
+private struct FolioContentsSpread: View {
+    let entries: [PagesRisingContentsEntry]
+    let showsBack: Bool
+    let pageSize: CGSize
+    let onClose: () -> Void
+    let onSelect: (PagesRisingContentsEntry) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var expandedSections: Set<String> = []
+    @State private var spreadIndex = 0
+    @State private var didLandOnWear = false
+
+    private static let expandableSections: Set<String> = [
+        "The Wonder Compass Book", "Magic", "The Cast", "Binding and Copies", "Index of Pages"
+    ]
+
+    private enum Line: Identifiable {
+        case heading(String)
+        case entry(PagesRisingContentsEntry)
+
+        var id: String {
+            switch self {
+            case .heading(let section): return "heading:\(section)"
+            case .entry(let entry): return "entry:\(entry.id)"
+            }
+        }
+    }
+
+    private var sections: [String] {
+        entries.reduce(into: []) { result, entry in
+            if result.last != entry.section { result.append(entry.section) }
+        }
+    }
+
+    private var lines: [Line] {
+        sections.flatMap { section -> [Line] in
+            let open = !Self.expandableSections.contains(section) || expandedSections.contains(section)
+            return [.heading(section)]
+                + (open ? entries.filter { $0.section == section }.map(Line.entry) : [])
+        }
+    }
+
+    /// Printed heights, measured from the rows as they are set: a little
+    /// generous, so a page is never asked to hold more than it can.
+    private func height(of line: Line) -> CGFloat {
+        switch line {
+        case .heading(let section):
+            return Self.expandableSections.contains(section) ? 43 : 31
+        case .entry(let entry):
+            let detailLines = entry.detail.isEmpty
+                ? 0
+                : max(1, Int(ceil(Double(entry.detail.count) / Double(max(30, (pageSize.width - 150) / 5.6)))))
+            return 20 + 19 + CGFloat(detailLines) * 14 + 1
+        }
+    }
+
+    private var pages: [[Line]] {
+        let capacity = max(160, pageSize.height - 32 - 52 - 40)
+        var pages: [[Line]] = [[]]
+        var used: CGFloat = 0
+        for line in lines {
+            let needed = height(of: line)
+            if used + needed > capacity, !(pages[pages.count - 1].isEmpty) {
+                // A heading never closes a page with nothing under it.
+                var carried: [Line] = []
+                if case .heading = pages[pages.count - 1].last {
+                    carried = [pages[pages.count - 1].removeLast()]
+                }
+                pages.append(carried)
+                used = carried.map(height(of:)).reduce(0, +)
+            }
+            pages[pages.count - 1].append(line)
+            used += needed
+        }
+        return pages
+    }
+
+    private var spreadCount: Int { max(1, (pages.count + 1) / 2) }
+
+    var body: some View {
+        let pages = pages
+        let spread = min(spreadIndex, spreadCount - 1)
+        HStack(spacing: 0) {
+            page(pages, index: spread * 2, isVerso: true, spread: spread)
+                .environment(\.folioLeafIsVerso, true)
+                .frame(width: pageSize.width)
+            page(pages, index: spread * 2 + 1, isVerso: false, spread: spread)
+                .frame(width: pageSize.width)
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: spread)
+        .onAppear {
+            // A book with a crack in its spine lands on the crack.
+            guard !didLandOnWear,
+                  let worn = entries.first(where: { $0.wear.fallsOpen }) else { return }
+            didLandOnWear = true
+            expandedSections.insert(worn.section)
+            if let index = self.pages.firstIndex(where: { $0.contains { $0.id == "entry:\(worn.id)" } }) {
+                spreadIndex = index / 2
+            }
+        }
+    }
+
+    private func page(_ pages: [[Line]], index: Int, isVerso: Bool, spread: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header(isFirst: index == 0, isEmpty: index >= pages.count)
+
+            if index < pages.count {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(pages[index]) { line in
+                        switch line {
+                        case .heading(let section):
+                            heading(section)
+                        case .entry(let entry):
+                            let indented = Self.expandableSections.contains(entry.section)
+                            FolioContentsRow(entry: entry, action: { onSelect(entry) })
+                                .padding(.leading, indented ? 12 : 0)
+                            Rectangle()
+                                .fill(BookPalette.ink.opacity(0.10))
+                                .frame(height: 0.7)
+                                .padding(.leading, indented ? 46 : 34)
+                        }
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+            footer(index: index, isVerso: isVerso, spread: spread, pageCount: pages.count)
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .parchmentSurface(accent: BookPalette.lampGold, isActive: true)
+        .overlay(alignment: isVerso ? .trailing : .leading) {
+            FolioOpenLeafBinding(tint: BookPalette.lampGold)
+                .frame(width: 31)
+                .padding(.vertical, 8)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func header(isFirst: Bool, isEmpty: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(isFirst ? "CONTENTS" : "CONTENTS, CONTINUED")
+                .font(.system(size: 12, weight: .black, design: .serif))
+                .tracking(3.2)
+                .foregroundStyle(BookPalette.lampGold)
+            Text(isFirst ? "What this Book is currently made of." : (isEmpty ? "That's the lot of me." : "And the rest of me."))
+                .font(.system(size: 12, design: .serif))
+                .italic()
+                .foregroundStyle(BookPalette.ink.opacity(0.56))
+        }
+        .padding(.leading, 34)
+        .padding(.bottom, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(BookPalette.lampGold.opacity(0.34))
+                .frame(height: 1)
+                .padding(.leading, 34)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
+    }
+
+    @ViewBuilder
+    private func heading(_ section: String) -> some View {
+        if Self.expandableSections.contains(section) {
+            Button {
+                BookFeedback.play(.select)
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) {
+                    if expandedSections.contains(section) {
+                        expandedSections.remove(section)
+                    } else {
+                        expandedSections.insert(section)
+                    }
+                    // Follow the gathering to wherever it now falls.
+                    if let index = pages.firstIndex(where: { $0.contains { $0.id == "heading:\(section)" } }) {
+                        spreadIndex = index / 2
+                    }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Text(section)
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                    Spacer(minLength: 8)
+                    Image(systemName: expandedSections.contains(section) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .foregroundStyle(BookPalette.ink)
+                .padding(.leading, 34)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .accessibilityLabel(section)
+            .accessibilityValue(expandedSections.contains(section) ? "Expanded" : "Collapsed")
+        } else {
+            Text(section)
+                .font(.system(size: 11, weight: .bold, design: .serif))
+                .foregroundStyle(BookPalette.lampGold)
+                .padding(.leading, 34)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private func footer(index: Int, isVerso: Bool, spread: Int, pageCount: Int) -> some View {
+        HStack(spacing: 10) {
+            if isVerso {
+                if spread > 0 {
+                    turnMark(forward: false) { spreadIndex = spread - 1 }
+                }
+                Spacer(minLength: 0)
+            } else {
+                if showsBack {
+                    Button(action: onClose) {
+                        HStack(spacing: 7) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Back to the open leaf")
+                                .font(.system(size: 11, weight: .semibold, design: .serif))
+                        }
+                        .foregroundStyle(BookPalette.ink.opacity(0.62))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .hoverEffect(.highlight)
+                    .accessibilityLabel("Close the contents and return to the open leaf")
+                }
+                Spacer(minLength: 0)
+                if spread + 1 < spreadCount {
+                    turnMark(forward: true) { spreadIndex = spread + 1 }
+                }
+            }
+        }
+        .padding(.top, 10)
+        // The clasp hangs at the foot of the left-hand page's spine side.
+        .padding(.leading, isVerso ? 56 : 34)
+        .frame(height: 34)
+    }
+
+    private func turnMark(forward: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            BookSoundBank.pageTurn(forward: forward)
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) { action() }
+        } label: {
+            HStack(spacing: 6) {
+                if !forward {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+                Text(forward ? "Turn over" : "Turn back")
+                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                if forward {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .black))
+                        .foregroundStyle(BookPalette.lampGold)
+                }
+            }
+            .frame(height: 30)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityLabel(forward ? "Turn to more of the contents" : "Turn back in the contents")
+    }
+}
+
 /// A contents line, set the way a printed one is: the entry on the left, a
 /// dotted leader carrying the eye across, and its mark at the fore-edge.
 private struct FolioContentsRow: View {
@@ -2080,7 +3057,7 @@ private struct FolioContentsRow: View {
         if entry.wear.isUncut {
             parts.append("Never opened. Still folded shut.")
         } else if entry.wear.fallsOpen {
-            parts.append("The Book falls open here.")
+            parts.append("I fall open here.")
         } else if entry.wear.soiling >= 0.2 {
             parts.append("Well thumbed.")
         }
@@ -2333,6 +3310,7 @@ private struct FolioBookCharmButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .onLongPressGesture(minimumDuration: .infinity, pressing: { pressing in
             withAnimation(.spring(response: 0.25, dampingFraction: 0.68)) {
                 isPressed = pressing
@@ -2609,6 +3587,9 @@ private struct FolioSealBookmarkRail: View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(tabs) { tab in
                 FolioSealBookmarkButton(tab: tab)
+                    .anchorPreference(key: FolioSealTabAnchorKey.self, value: .bounds) {
+                        [tab.id: $0]
+                    }
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -2660,6 +3641,7 @@ private struct FolioSavedPageRibbon: View {
                 .accessibilityHidden(true)
         }
         .buttonStyle(.plain)
+        .hoverEffect(.lift)
         .disabled(isAsleep)
         .contextMenu {
             if isTucked {
@@ -2689,7 +3671,10 @@ private struct FolioSealBookmarkButton: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isPressed = false
     @State private var revealBloom = false
-    @State private var lampBreath = false
+    /// When the lamp began breathing; nil while it rests.
+    @State private var breathStartedAt: Date?
+    /// The ease back onto the out-breath when a sheet covers the Book.
+    @State private var breathSettle: LampBreath.Settle?
 
     private var wearIndex: Int { abs(tab.seed) }
     private var tabWidth: CGFloat { 54 + CGFloat(wearIndex % 4) }
@@ -2701,13 +3686,22 @@ private struct FolioSealBookmarkButton: View {
         FolioWornBookmarkShape(seed: tab.seed)
     }
 
+    /// DEBUG `--perf-still-lamp`: the lamp holds its out-breath for the whole
+    /// run, to measure what the breathing costs.
+    private static var perfHoldsLampStill: Bool {
+        #if DEBUG
+        return PerfProbeSwitches.shared.stillLamp
+        #else
+        return false
+        #endif
+    }
+
     /// A weak Glow should be barely warm and barely moving; a full one should
     /// look like it is about to spill. Both the reach of the light and how much
     /// it breathes scale with the score, so the tier is legible without a number
     /// anywhere on the Book.
-    private var lamp: some View {
+    private func lamp(swell: Double) -> some View {
         let level = min(1, max(0, tab.glowLevel))
-        let swell = reduceMotion ? 0.5 : (lampBreath ? 1.0 : 0.55)
         return ZStack {
             // Strictly proportional, with no floor: a Glow Barely There has to
             // be barely there, and Glow Too Full has to look like it is about to
@@ -2728,6 +3722,55 @@ private struct FolioSealBookmarkButton: View {
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// The lamp, breathing.
+    ///
+    /// The same breath it always took — SwiftUI's 3.2 s ease-in-out, rising
+    /// and falling forever — but read off a 30 fps clock instead of run as a
+    /// `repeatForever` animation. As an animation it re-blurred the halo at the
+    /// display's full rate, and every frame the render server redid the
+    /// bookmark masks and the leaf's fore-edge beside it: measured on an
+    /// iPhone 15, nine tenths of what the idle desk cost the render server
+    /// (about 450 of 490 ms/s) and most of its main-thread time. A swell moving
+    /// a third of a point per frame does not need sixty of them: on the clock
+    /// the render server spent 27% less and the main thread 38% less (same
+    /// phone, runs interleaved), and bj saw no difference in the breath. The
+    /// clock stops whenever the lamp is at rest.
+    @ViewBuilder
+    private var breathingLamp: some View {
+        if reduceMotion {
+            lamp(swell: 0.5)
+        } else {
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: breathStartedAt == nil && breathSettle == nil)) { timeline in
+                lamp(swell: LampBreath.swell(at: timeline.date, startedAt: breathStartedAt, settle: breathSettle))
+            }
+        }
+    }
+
+    private func startBreathing() {
+        guard tab.glowLevel > 0.001, !reduceMotion, breathStartedAt == nil, !Self.perfHoldsLampStill else { return }
+        // Pick the breath up wherever a settle left the light, so a sheet
+        // dismissed mid-settle does not snap it.
+        let now = Date()
+        let current = LampBreath.swell(at: now, startedAt: nil, settle: breathSettle)
+        breathSettle = nil
+        breathStartedAt = now.addingTimeInterval(-LampBreath.risingTime(toReach: current))
+    }
+
+    private func settleBreath() {
+        guard breathStartedAt != nil || breathSettle != nil else { return }
+        let now = Date()
+        let settle = LampBreath.Settle(
+            from: LampBreath.swell(at: now, startedAt: breathStartedAt, settle: breathSettle),
+            at: now
+        )
+        breathStartedAt = nil
+        breathSettle = settle
+        // Stop the clock once the light has come to rest.
+        DispatchQueue.main.asyncAfter(deadline: .now() + LampBreath.settleDuration + 0.05) {
+            if breathSettle == settle { breathSettle = nil }
+        }
     }
 
     var body: some View {
@@ -2777,6 +3820,18 @@ private struct FolioSealBookmarkButton: View {
                 FolioBookmarkWear(seed: tab.seed)
                 FolioBookmarkStitches(seed: tab.seed)
 
+                // The Glow tab catches the light now and then: a sheen across
+                // the wax, under the lettering so "GLOW" stays crisp.
+                if tab.glowLevel > 0.001, !reduceMotion {
+                    FolioGlowSheen(
+                        level: min(1, max(0, tab.glowLevel)),
+                        seed: tab.seed,
+                        isResting: tab.isLampBreathPaused || Self.perfHoldsLampStill
+                    )
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+
                 Text(tab.shortTitle.uppercased())
                     .font(.system(size: 8.2, weight: .black, design: .serif))
                     .tracking(0.75)
@@ -2818,7 +3873,7 @@ private struct FolioSealBookmarkButton: View {
             // the halo to the bookmark's own outline and there would be no spill.
             .background {
                 if tab.glowLevel > 0.001 {
-                    lamp
+                    breathingLamp
                 }
             }
             .frame(width: 62, height: 72, alignment: .leading)
@@ -2830,6 +3885,8 @@ private struct FolioSealBookmarkButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // A pointer lifts a bookmark the way a fingertip would.
+        .hoverEffect(.lift)
         .disabled(tab.isBusy)
         .shadow(
             color: .black.opacity(0.50 - 0.26 * min(1, max(0, tab.glowLevel))),
@@ -2845,12 +3902,10 @@ private struct FolioSealBookmarkButton: View {
         .accessibilityLabel("\(tab.title) bookmark")
         .accessibilityHint(tab.isBusy ? "Working" : "Press to open")
         .onAppear {
-            guard tab.glowLevel > 0.001, !reduceMotion, !tab.isLampBreathPaused, !lampBreath else { return }
             // Slow on purpose. This is a lamp the reader sits beside, not an
             // indicator asking to be looked at.
-            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-                lampBreath = true
-            }
+            guard !tab.isLampBreathPaused else { return }
+            startBreathing()
         }
         // Under a sheet or the Glow menu the lamp settles onto an out-breath
         // and stays there. The light is unchanged; only the swell stops, and a
@@ -2858,13 +3913,9 @@ private struct FolioSealBookmarkButton: View {
         // through a cover. It takes up its breath again once the Book is clear.
         .onChange(of: tab.isLampBreathPaused) { _, paused in
             if paused {
-                withAnimation(.easeOut(duration: 0.35)) {
-                    lampBreath = false
-                }
-            } else if tab.glowLevel > 0.001, !reduceMotion, !lampBreath {
-                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
-                    lampBreath = true
-                }
+                settleBreath()
+            } else {
+                startBreathing()
             }
         }
         // The bookmark eases out of the binding while the Book is offering it,
@@ -2882,6 +3933,140 @@ private struct FolioSealBookmarkButton: View {
                 revealBloom = true
             }
         }
+    }
+}
+
+/// A flash of light across the Glow bookmark's face, like a lamp catching
+/// polished metal as it turns.
+///
+/// One narrow sweep of about a second, then nothing for several: brighter and
+/// more often the fuller the Glow is. Between sweeps its clock is paused, so a
+/// resting desk pays nothing for it; under a sheet it rests with the lamp, and
+/// Reduce Motion never shows it.
+private struct FolioGlowSheen: View {
+    let level: Double
+    let seed: Int
+    let isResting: Bool
+
+    @State private var sweepStartedAt: Date?
+
+    private static let sweepDuration: TimeInterval = 1.0
+
+    /// Seconds between sweeps: about nine for a faint Glow, five for a full one.
+    private var interval: TimeInterval {
+        9 - 4 * level + Double(abs(seed) % 7) * 0.15
+    }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: sweepStartedAt == nil)) { timeline in
+            GeometryReader { proxy in
+                if let started = sweepStartedAt {
+                    let raw = timeline.date.timeIntervalSince(started) / Self.sweepDuration
+                    let progress = LampBreath.easeInOut(min(1, max(0, raw)))
+                    band(in: proxy.size, progress: progress)
+                }
+            }
+        }
+        .task(id: isResting) {
+            sweepStartedAt = nil
+            guard !isResting else { return }
+            // The first glint comes soon after the Book opens, so the reader
+            // sees what the tab does; after that it keeps its own time.
+            try? await Task.sleep(for: .seconds(1.6))
+            while !Task.isCancelled {
+                sweepStartedAt = Date()
+                try? await Task.sleep(for: .seconds(Self.sweepDuration + 0.05))
+                sweepStartedAt = nil
+                try? await Task.sleep(for: .seconds(interval))
+            }
+        }
+    }
+
+    /// A slanted band of warm white, from the binding side to the outer edge.
+    private func band(in size: CGSize, progress: Double) -> some View {
+        let width = size.width * 0.42
+        let travel = size.width + width * 2
+        let peak = 0.22 + 0.38 * level
+        return LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: BookPalette.lampGold.opacity(peak * 0.35), location: 0.30),
+                .init(color: Color(red: 1.0, green: 0.97, blue: 0.88).opacity(peak), location: 0.50),
+                .init(color: BookPalette.lampGold.opacity(peak * 0.35), location: 0.70),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(width: width, height: size.height * 1.7)
+        .rotationEffect(.degrees(20))
+        .position(x: -width + travel * progress, y: size.height / 2)
+        .blendMode(.plusLighter)
+    }
+}
+
+/// The Glow lamp's breath as a function of the clock.
+///
+/// Reproduces what `withAnimation(.easeInOut(duration: 3.2).repeatForever(
+/// autoreverses: true))` did to the lamp: a swell from 0.55 to 1.0 and back on
+/// SwiftUI's own ease-in-out curve, and `.easeOut(duration: 0.35)` back to 0.55
+/// when it settles. Every lamp property is linear in the swell, so easing the
+/// swell is the same as SwiftUI easing each property.
+enum LampBreath {
+    struct Settle: Equatable {
+        var from: Double
+        var at: Date
+    }
+
+    static let restingSwell = 0.55
+    static let period: TimeInterval = 3.2
+    static let settleDuration: TimeInterval = 0.35
+
+    static func swell(at date: Date, startedAt: Date?, settle: Settle?) -> Double {
+        if let startedAt {
+            let phase = max(0, date.timeIntervalSince(startedAt)) / period
+            let pass = phase.rounded(.down)
+            let along = phase - pass
+            // Autoreversing: up on even passes, played backwards on odd ones.
+            let progress = Int(pass) % 2 == 0 ? along : 1 - along
+            return restingSwell + (1 - restingSwell) * easeInOut(progress)
+        }
+        if let settle {
+            let t = min(1, max(0, date.timeIntervalSince(settle.at) / settleDuration))
+            return settle.from + (restingSwell - settle.from) * easeOut(t)
+        }
+        return restingSwell
+    }
+
+    /// How far into a rising pass the breath is at `swell`.
+    static func risingTime(toReach swell: Double) -> TimeInterval {
+        let target = min(1, max(0, (swell - restingSwell) / (1 - restingSwell)))
+        var low = 0.0, high = 1.0
+        for _ in 0..<30 {
+            let mid = (low + high) / 2
+            if easeInOut(mid) < target { low = mid } else { high = mid }
+        }
+        return low * period
+    }
+
+    /// SwiftUI's `.easeInOut`: cubic Bézier (0.42, 0, 0.58, 1).
+    static func easeInOut(_ x: Double) -> Double { bezier(x, 0.42, 0, 0.58, 1) }
+    /// SwiftUI's `.easeOut`: cubic Bézier (0, 0, 0.58, 1).
+    static func easeOut(_ x: Double) -> Double { bezier(x, 0, 0, 0.58, 1) }
+
+    private static func bezier(_ x: Double, _ x1: Double, _ y1: Double, _ x2: Double, _ y2: Double) -> Double {
+        let cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx
+        let cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by
+        func sampleX(_ t: Double) -> Double { ((ax * t + bx) * t + cx) * t }
+        func sampleY(_ t: Double) -> Double { ((ay * t + by) * t + cy) * t }
+        let x = min(1, max(0, x))
+        // x(t) is monotonic on 0...1 for these curves; bisection is exact enough.
+        var low = 0.0, high = 1.0
+        for _ in 0..<40 {
+            let mid = (low + high) / 2
+            if sampleX(mid) < x { low = mid } else { high = mid }
+        }
+        return sampleY((low + high) / 2)
     }
 }
 
@@ -3081,7 +4266,16 @@ private struct FolioBookmarkStitches: View {
 private struct FolioOpenLeafBinding: View {
     let tint: Color
 
+    @Environment(\.folioLeafIsVerso) private var isVerso
+
     var body: some View {
+        binding
+            // A left-hand page is sewn on its right edge: the same thread and
+            // gutter shadow, seen from the other side of the spine.
+            .scaleEffect(x: isVerso ? -1 : 1, anchor: .center)
+    }
+
+    private var binding: some View {
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
                 LinearGradient(
@@ -3185,6 +4379,17 @@ private struct FolioLayoutMetrics: Equatable {
     /// final-leaf disposition furniture. Every leaf uses the same conservative
     /// measure so turning to the last one never makes its ink jump or clip.
     var contentWidth: CGFloat { FolioLeafMeasure.typesettingWidth(pageWidth: pageWidth) }
+
+    /// Type grows with the leaf it is set on. A phone's leaf is narrower than
+    /// 420 points and keeps exactly the sizes it was drawn with; an iPad's
+    /// leaf is up to twice that, and phone-sized type across it ran ninety
+    /// characters to the line. The cap keeps a line near sixty-five.
+    /// Accessibility sizes are already large and are left to Dynamic Type.
+    var typeScale: CGFloat {
+        guard !contentSizeCategory.isAccessibilityCategory else { return 1 }
+        return min(1.45, max(1, pageWidth / 420))
+    }
+
     var contentHeight: CGFloat {
         let furnitureHeight: CGFloat = contentSizeCategory.isAccessibilityCategory ? 250 : 214
         return max(214, pageHeight - furnitureHeight)
@@ -3309,6 +4514,9 @@ private struct FolioLeafComposition: Equatable {
     /// landing word carries it. On a full leaf of prose the same trick reads as
     /// a stray highlighter.
     var accentsOpeningPhrase: Bool = false
+    /// The leaf's own type scale, from `FolioLayoutMetrics.typeScale`. One on
+    /// every phone.
+    var typeScale: CGFloat = 1
 
     func contentWidth(for role: FolioInkRole, metrics: FolioLayoutMetrics) -> CGFloat {
         contentWidth(for: role, baseContentWidth: metrics.contentWidth)
@@ -3340,22 +4548,24 @@ private struct FolioLeafComposition: Equatable {
     }
 
     func pointScale(for role: FolioInkRole) -> CGFloat {
+        let scale: CGFloat
         switch role {
-        case .title: return titleScale
-        case .deck: return deckScale
-        case .body: return bodyScale
-        case .handwritten, .underlined: return min(1.08, bodyScale + 0.03)
-        case .provenance, .privacy: return min(1.02, bodyScale)
+        case .title: scale = titleScale
+        case .deck: scale = deckScale
+        case .body: scale = bodyScale
+        case .handwritten, .underlined: scale = min(1.08, bodyScale + 0.03)
+        case .provenance, .privacy: scale = min(1.02, bodyScale)
         }
+        return scale * typeScale
     }
 
     func lineSpacing(for role: FolioInkRole) -> CGFloat {
-        role.lineSpacing * lineSpacingScale
+        role.lineSpacing * lineSpacingScale * typeScale
     }
 
     func spacingAfter(for role: FolioInkRole) -> CGFloat {
         let titleBreath: CGFloat = titleDevice == .heraldic || titleDevice == .constellation ? 6 : 0
-        return role.spacingAfter * min(1.12, lineSpacingScale) + (role == .title ? titleBreath : 0)
+        return (role.spacingAfter * min(1.12, lineSpacingScale) + (role == .title ? titleBreath : 0)) * typeScale
     }
 
     func alignment(
@@ -3439,52 +4649,31 @@ private enum FolioLeafCompositor {
             isContinuation: isContinuation,
             seed: seed
         )
-        var regionPattern = resolvedRegionPattern(
+        let regionPattern = resolvedRegionPattern(
             for: surface,
             dialect: grammar.dialect,
             leafIndex: leafIndex,
             seed: seed,
             metrics: metrics
         )
-        if leafIndex > 0, regionPattern != .continuous {
-            let previousSeed = "\(documentID)|\(leafIndex - 1)|leaf-composition-v1".stableHash
-            let previousPattern = resolvedRegionPattern(
-                for: surface,
-                dialect: grammar.dialect,
-                leafIndex: leafIndex - 1,
-                seed: previousSeed,
-                metrics: metrics
-            )
-            if previousPattern == regionPattern {
-                regionPattern = [97, 193, 389]
-                    .lazy
-                    .map { salt in
-                        resolvedRegionPattern(
-                            for: surface,
-                            dialect: grammar.dialect,
-                            leafIndex: leafIndex,
-                            seed: seed &+ salt,
-                            metrics: metrics
-                        )
-                    }
-                    .first(where: { $0 != previousPattern })
-                    ?? .continuous
-            }
-        }
         let titleDevice = isContinuation
             ? .continuation
             : pick(grammar.titleDevices, seed: seed, salt: 3)
         var textFlow = pick(grammar.textFlows, seed: seed, salt: 5)
-        if spatialStyle == .heroPlate || regionPattern == .heroPlate {
+        if regionPattern == .heroPlate {
             textFlow = .centered
         }
-        if metrics.contentSizeCategory.isAccessibilityCategory { textFlow = .leading }
+        if regionPattern == .continuous || metrics.contentSizeCategory.isAccessibilityCategory { textFlow = .leading }
         let ruling = pick(grammar.rulingStyles, seed: seed, salt: 7)
         let variation = unit(seed, salt: 11)
         let bodyVariation = unit(seed, salt: 13)
         let headerHeight = resolvedHeaderHeight(titleDevice, accessibility: metrics.contentSizeCategory.isAccessibilityCategory)
         var insets = resolvedInsets(flow: textFlow, seed: seed, accessibility: metrics.contentSizeCategory.isAccessibilityCategory)
-        let decorationBudget = integer(in: grammar.decorationBudget, seed: seed, salt: 19)
+        let decorationBudget = metrics.contentSizeCategory.isAccessibilityCategory ? 1
+            : LeafMarginaliaDensity.resolve(
+                metadata: surface.payload.metadata, documentID: documentID,
+                leafIndex: leafIndex
+            ).markBudget
         let marginaliaSide: FolioMarginSide
         let marginaliaReserve: CGFloat
         if decorationBudget == 0 || metrics.contentSizeCategory.isAccessibilityCategory {
@@ -3532,7 +4721,8 @@ private enum FolioLeafCompositor {
             inkBleedOpacity: interpolate(grammar.inkBleedOpacity, unit: Double(unit(seed, salt: 29))),
             titleUsesAccent: grammar.titleUsesAccent,
             usesAccessibleAlignment: metrics.contentSizeCategory.isAccessibilityCategory,
-            accentsOpeningPhrase: displayAmplification > 1.2
+            accentsOpeningPhrase: displayAmplification > 1.2,
+            typeScale: metrics.typeScale
         )
     }
 
@@ -3675,10 +4865,8 @@ private enum FolioLeafCompositor {
     }
 
     /// Selects a measured flow grammar, not a painted template. Page families
-    /// keep a recognizable editorial rhythm, while content length and leaf
-    /// number decide when the Book can afford a more theatrical arrangement.
-    /// Pack art direction is honored, but accessibility always returns to one
-    /// uninterrupted reading column.
+    /// keep a recognizable editorial rhythm. Brief authored matter can use
+    /// theatrical regions; prose and accessibility keep one reading column.
     private static func resolvedRegionPattern(
         for surface: SurfacePage,
         dialect: LeafVisualDialectID,
@@ -3690,60 +4878,22 @@ private enum FolioLeafCompositor {
             return .continuous
         }
 
-        if leafIndex == 0,
-           let raw = surface.payload.metadata["leafRegionPattern"],
+        // A prose continuation has no new semantic section. Preserve its
+        // reading column rather than slicing a paragraph into decorative fields.
+        guard leafIndex == 0 else { return .continuous }
+        let body = surface.pagesRisingReadingBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        let visibleCharacterCount = [surface.prompt, surface.payload.headline, surface.detail, body]
+            .reduce(0) { $0 + $1.count }
+        let isSingleShortThought = body.count <= 220 && !body.contains("\n") && visibleCharacterCount <= 520
+        if let raw = surface.payload.metadata["leafRegionPattern"],
            let explicit = LeafRegionPatternID(rawValue: raw) {
-            return explicit
+            // Multi-field recipes remain an authored option for brief matter.
+            // Substantial prose always uses the complete measured column.
+            return isSingleShortThought ? explicit : .continuous
         }
-
-        let characterCount = [
-            surface.prompt,
-            surface.payload.headline,
-            surface.detail,
-            surface.pagesRisingReadingBody,
-            surface.reason
-        ].reduce(0) { $0 + $1.count }
-        let shortEnoughForPlate = characterCount <= 520
-        let mediumLength = characterCount <= 1_050
-        let chance = unit(seed, salt: 71)
-
-        if leafIndex > 0 {
-            // Continuation leaves should feel quieter, but not mechanically
-            // identical. Roughly one in three capable families breaks the
-            // prose into two related fields; the rest remain generous text.
-            switch dialect {
-            case .fieldJournal, .grimoire, .storybook, .atlas, .plainLeaf:
-                return chance < 0.34 ? .staggeredField : .continuous
-            case .correspondence:
-                return chance < 0.28 ? .letterWithPostscript : .continuous
-            case .weatherCabinet, .archive:
-                return chance < 0.30 ? .sectionedCabinet : .continuous
-            case .quotation, .illuminatedPlate:
-                return .continuous
-            }
-        }
-
-        switch dialect {
-        case .fieldJournal:
-            if shortEnoughForPlate, chance < 0.58 { return .heroPlate }
-            return mediumLength && chance < 0.80 ? .staggeredField : .continuous
-        case .correspondence:
-            return mediumLength ? .letterWithPostscript : .continuous
-        case .weatherCabinet, .archive:
-            return mediumLength ? .sectionedCabinet : .continuous
-        case .grimoire, .storybook:
-            if shortEnoughForPlate, chance < 0.66 { return .heroPlate }
-            return mediumLength && chance < 0.82 ? .staggeredField : .continuous
-        case .quotation:
-            return shortEnoughForPlate ? .heroPlate : .continuous
-        case .atlas:
-            return mediumLength && chance < 0.72 ? .staggeredField : .continuous
-        case .illuminatedPlate:
-            return .sectionedCabinet
-        case .plainLeaf:
-            if shortEnoughForPlate, chance < 0.26 { return .heroPlate }
-            return mediumLength && chance < 0.54 ? .staggeredField : .continuous
-        }
+        if dialect == .quotation, isSingleShortThought { return .heroPlate }
+        if dialect == .illuminatedPlate, body.isEmpty { return .sectionedCabinet }
+        return .continuous
     }
 
     /// Marginalia owns paper before the paginator runs. On a narrow phone this
@@ -3856,8 +5006,23 @@ private enum FolioInterstitialKind: Equatable {
     /// A chart of one of the reader's own places, come across between two
     /// Pages rather than looked up in a room.
     case placePlate(leaf: GazetteerLeaf)
-    case libraryPhoto(identifier: String)
+    case libraryPhoto(request: FolioPreparedIlluminationRequest)
     case illustration(assetName: String)
+
+    var fillsLeafWithArtwork: Bool {
+        switch self {
+        case .libraryPhoto, .illustration: return true
+        default: return false
+        }
+    }
+
+    var quoteAttribution: String {
+        switch self {
+        case .readerSentence: return "YOUR INK, COME BACK UP"
+        case .grimoireResidue: return "THE BOOK LEFT THIS HERE"
+        default: return ""
+        }
+    }
 
     var carriesMarginalia: Bool {
         switch self {
@@ -3901,12 +5066,48 @@ private struct FolioLeaf: Identifiable, Equatable {
     var isEnding: Bool = false
 
     var isInterstitial: Bool { interstitialKind != nil }
+    var isFullLeafArtworkInterstitial: Bool { interstitialKind?.fillsLeafWithArtwork == true }
     /// Retains the old smoke-test vocabulary while making the stronger
     /// document-boundary contract explicit in the model.
     var isDecorationPlate: Bool { isInterstitial }
 
     var isFirstDocumentLeaf: Bool { documentLeafIndex == 0 }
     var isLastDocumentLeaf: Bool { documentLeafIndex == documentLeafCount - 1 }
+
+    var keepNeedsAuthoredContinuation: Bool {
+        surface.payload.metadata["authoredStoryNodeID"] != nil
+            || surface.payload.metadata["authoredMissionOffer"] == "true"
+    }
+
+    /// The next Page is already in the binding. Resolve the visible handoff
+    /// from those leaves, before saving/dismissal publishes a replacement desk.
+    /// A reader who turned elsewhere while the ink sank keeps that position.
+    static func preparedSuccessor(
+        after documentID: String,
+        currentLeafID: String?,
+        in leaves: [FolioLeaf],
+        isSpread: Bool = false
+    ) -> FolioLeaf? {
+        guard let currentIndex = leaves.firstIndex(where: { $0.id == currentLeafID }) else { return nil }
+        let visibleIndices = isSpread
+            ? [currentIndex - currentIndex % 2, currentIndex - currentIndex % 2 + 1]
+            : [currentIndex]
+        guard let departingIndex = visibleIndices.last(where: {
+            leaves.indices.contains($0) && leaves[$0].documentID == documentID
+                && !leaves[$0].isEnding && !leaves[$0].isInterstitial
+        }) else { return nil }
+        return leaves.dropFirst(departingIndex + 1).first {
+            $0.isEnding || (!$0.isInterstitial && $0.documentID != documentID)
+        }
+    }
+
+    /// One emergence per Page or interleaf in this folio's reading session.
+    /// Page identity survives changes to pagination, font size and curl hosts.
+    var inkEmergenceID: String? {
+        if isInterstitial { return "interleaf|\(documentID)" }
+        guard isFirstDocumentLeaf else { return nil }
+        return "page|\(documentID)"
+    }
 
     var decorativeMarginNote: String? {
         if interactionKind == .generationRequest { return "Psst. Tell me to start." }
@@ -4046,6 +5247,12 @@ private struct FolioEphemeraArtifact: Equatable {
 }
 
 private enum FolioMedia: Equatable {
+    var hasSeparatePigment: Bool {
+        switch self {
+        case .illuminated, .illuminatedLibraryPhoto, .ephemera: true
+        default: false
+        }
+    }
     case asset(name: String, label: String)
     case fittedAsset(name: String, label: String)
     case file(path: String, label: String)
@@ -4053,8 +5260,7 @@ private enum FolioMedia: Equatable {
     case photoLibrary(identifier: String, label: String)
     case fittedPhotoLibrary(identifier: String, label: String)
     case illuminatedLibraryPhoto(
-        identifier: String,
-        draft: IlluminatedPhotoDraft,
+        request: FolioPreparedIlluminationRequest,
         fallbackDecoration: LeafDecorationRecipe,
         label: String
     )
@@ -4068,7 +5274,7 @@ private enum FolioMedia: Equatable {
         case .asset(_, let label), .fittedAsset(_, let label),
              .file(_, let label), .fittedFile(_, let label),
              .photoLibrary(_, let label), .fittedPhotoLibrary(_, let label),
-             .illuminatedLibraryPhoto(_, _, _, let label),
+             .illuminatedLibraryPhoto(_, _, let label),
              .illuminated(_, let label):
             return label
         case .ephemera(let artifact):
@@ -4647,14 +5853,17 @@ private struct FolioDeskCacheKey: Hashable {
     /// a different place, or none, is all the layout cares about.
     let placeLeafID: String?
     let canReadPhotoLibrary: Bool
+    let illustrationSignature: Data
 
     init(
         surfaces: [SurfacePage],
         readerSentences: [String],
         grimoireResidue: String?,
         placeLeafID: String?,
-        metrics: FolioLayoutMetrics
+        metrics: FolioLayoutMetrics,
+        illustrationSignature: Data
     ) {
+        self.illustrationSignature = illustrationSignature
         documents = surfaces.map { FolioDocumentCacheKey(surface: $0, metrics: metrics) }
         self.readerSentences = readerSentences
         self.grimoireResidue = grimoireResidue
@@ -4665,6 +5874,50 @@ private struct FolioDeskCacheKey: Hashable {
 }
 
 private enum PagesRisingFolioPaginator {
+    /// Imposition for a Book lying open. A spread is a left-hand leaf at an
+    /// even index and a right-hand one after it. A Page of two or more leaves
+    /// that begins on a right-hand page is cut in half by a turn, so it is
+    /// moved to begin on the left, where its first two leaves face each
+    /// other. The paper between Pages pays for the move: a plain marginalia
+    /// leaf before it is lifted out, or, when that leaf is a plate worth
+    /// seeing, a quiet ornament leaf is laid in beside it. Nothing a reader
+    /// wrote, and no Page, is ever moved off the block.
+    static func imposedForSpread(_ leaves: [FolioLeaf]) -> [FolioLeaf] {
+        var imposed: [FolioLeaf] = []
+        imposed.reserveCapacity(leaves.count + 4)
+        var index = 0
+        while index < leaves.count {
+            let leaf = leaves[index]
+            let beginsLongPage = !leaf.isInterstitial
+                && !leaf.isEnding
+                && leaf.isFirstDocumentLeaf
+                && leaf.documentLeafCount >= 2
+            if beginsLongPage, !imposed.count.isMultiple(of: 2) {
+                if let previous = imposed.last, previous.interstitialKind == .marginalia {
+                    imposed.removeLast()
+                } else if let previous = imposed.last {
+                    var ornament = previous
+                    ornament.id = "\(leaf.documentID)::spread-ornament"
+                    ornament.documentID = ornament.id
+                    ornament.interstitialKind = .marginalia
+                    ornament.fragments = []
+                    ornament.inkRegions = []
+                    ornament.ghostText = nil
+                    ornament.isEnding = false
+                    imposed.append(ornament)
+                }
+            }
+            imposed.append(leaf)
+            index += 1
+        }
+        let count = imposed.filter { !$0.isEnding }.count
+        for position in imposed.indices {
+            imposed[position].globalLeafIndex = position
+            imposed[position].globalLeafCount = count
+        }
+        return imposed
+    }
+
     /// Laying out a leaf costs real TextKit measurement: a binary search per
     /// block, each candidate measured over an O(n) prefix. A three-Page desk
     /// carrying a nightly braid measures out around 22ms, and `paginate` is
@@ -4681,6 +5934,22 @@ private enum PagesRisingFolioPaginator {
     /// evicts each document just before it is asked for again: at 24, the
     /// third pull of nine re-measured every Page in the Book.
     private static let documentCacheLimit = 160
+    @MainActor private static var heldIllustrations: [InterleafIllustration]?
+    @MainActor private static var heldIllustrationSignature = Data()
+
+    /// The plate list rarely changes, but the binding key used to re-encode
+    /// all of it to JSON on every body pass. Encode it once per distinct list.
+    @MainActor
+    private static func illustrationSignature(for illustrations: [InterleafIllustration]) -> Data {
+        if heldIllustrations == illustrations { return heldIllustrationSignature }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let signature = (try? encoder.encode(illustrations)) ?? Data()
+        heldIllustrations = illustrations
+        heldIllustrationSignature = signature
+        return signature
+    }
+
     @MainActor private static var deskCache: [FolioDeskCacheKey: [FolioLeaf]] = [:]
     @MainActor private static var deskCacheOrder: [FolioDeskCacheKey] = []
     private static let deskCacheLimit = 4
@@ -4815,9 +6084,10 @@ private enum PagesRisingFolioPaginator {
     @MainActor
     private static func cachedPaginate(
         _ surface: SurfacePage,
-        metrics: FolioLayoutMetrics
+        metrics: FolioLayoutMetrics,
+        preparedKey: FolioDocumentCacheKey? = nil
     ) -> [FolioLeaf] {
-        let key = FolioDocumentCacheKey(surface: surface, metrics: metrics)
+        let key = preparedKey ?? FolioDocumentCacheKey(surface: surface, metrics: metrics)
         if let hit = documentCache[key] { return hit }
 
         let leaves = paginate(surface, metrics: metrics)
@@ -4900,16 +6170,22 @@ private enum PagesRisingFolioPaginator {
         placeLeaf: GazetteerLeaf?,
         metrics: FolioLayoutMetrics
     ) -> [FolioLeaf] {
+        let illustrations = InterleafIllustrationLibrary.available
         let deskKey = FolioDeskCacheKey(
             surfaces: surfaces,
             readerSentences: readerSentences,
             grimoireResidue: grimoireResidue,
             placeLeafID: placeLeaf?.anchorID,
-            metrics: metrics
+            metrics: metrics,
+            illustrationSignature: illustrationSignature(for: illustrations)
         )
         if let cached = deskCache[deskKey] { return cached }
 
-        var documents = surfaces.map { cachedPaginate($0, metrics: metrics) }
+        // The binding key already hashed these exact ordered documents.
+        // Reuse those keys when looking up each document's measured leaves.
+        var documents = surfaces.enumerated().map { index, surface in
+            cachedPaginate(surface, metrics: metrics, preparedKey: deskKey.documents[index])
+        }
 
         for documentIndex in documents.indices {
             let count = documents[documentIndex].count
@@ -4920,20 +6196,30 @@ private enum PagesRisingFolioPaginator {
         }
 
         var flattened: [FolioLeaf] = []
+        var recentIllustrations: [String] = []
         for documentIndex in documents.indices {
             flattened.append(contentsOf: documents[documentIndex])
             guard surfaces.indices.contains(documentIndex + 1) else { continue }
-            flattened.append(boundaryInterstitial(
+            let interleaf = boundaryInterstitial(
                 from: surfaces[documentIndex],
                 to: surfaces[documentIndex + 1],
                 boundaryIndex: documentIndex,
+                mixSeed: (surfaces.first?.id ?? "folio").stableHash,
+                mixIndex: documentIndex,
+                recentIllustrations: Set(recentIllustrations),
+                illustrations: illustrations,
                 readerSentences: readerSentences,
                 // Only the first boundary. There is one mark, and it belongs on
                 // the first turn of paper the reader meets, not on every one.
                 grimoireResidue: documentIndex == 0 ? grimoireResidue : nil,
                 placeLeaf: placeLeaf,
                 metrics: metrics
-            ))
+            )
+            flattened.append(interleaf)
+            if let kind = interleaf.interstitialKind, case .illustration(let name) = kind {
+                recentIllustrations.append(name)
+                recentIllustrations = Array(recentIllustrations.suffix(4))
+            }
         }
 
         #if DEBUG
@@ -4984,7 +6270,9 @@ private enum PagesRisingFolioPaginator {
         // end of tonight's setting, and offers somewhere deeper to go. It is
         // appended after numbering so "leaf 2 of 2" stays truthful.
         if var closing = flattened.last {
-            closing.id = "\(closing.documentID)::ending"
+            // Keeping the last Page must not evict the closing leaf the
+            // handoff just presented when the desk publishes its replacement.
+            closing.id = "pages-rising::ending"
             closing.isEnding = true
             closing.fragments = []
             closing.ghostText = nil
@@ -5018,15 +6306,18 @@ private enum PagesRisingFolioPaginator {
         .joined(separator: "\n")
     }
 
-    /// Every two Pages have one visual leaf between them. Its kind is stable for
-    /// that pair. A library photograph is selected by identifier only from an
-    /// already-authorized Photos library; no captioning, analysis, or model is
-    /// involved.
+    /// Every two Pages have one visual leaf between them. Its kind is stable
+    /// within the balanced binding; photographs are ranked and prepared away
+    /// from pagination using already-authorized metadata.
     @MainActor
     private static func boundaryInterstitial(
         from leading: SurfacePage,
         to trailing: SurfacePage,
         boundaryIndex: Int,
+        mixSeed: Int,
+        mixIndex: Int,
+        recentIllustrations: Set<String>,
+        illustrations: [InterleafIllustration],
         readerSentences: [String],
         grimoireResidue: String?,
         placeLeaf: GazetteerLeaf?,
@@ -5035,8 +6326,29 @@ private enum PagesRisingFolioPaginator {
         let boundaryID = "between::\(leading.id)::\(trailing.id)"
         let seed = "\(boundaryID)|\(boundaryIndex)|interstitial-v1".stableHash
         let kind = interstitialKind(
-            seed: seed, readerSentences: readerSentences,
-            grimoireResidue: grimoireResidue, placeLeaf: placeLeaf
+            seed: seed,
+            slot: InterleafCuration.slot(at: mixIndex, seed: mixSeed),
+            otherIndex: InterleafCuration.otherIndex(at: mixIndex, seed: mixSeed),
+            photoRequest: FolioPreparedIlluminationRequest(
+                boundaryID: boundaryID,
+                seed: seed,
+                themeTags: LeafDecorationLibrary.resolvedMotifs(
+                    pageType: trailing.type, metadata: trailing.payload.metadata,
+                    semanticText: decorationSemanticText(for: leading) + "\n" + decorationSemanticText(for: trailing)
+                ),
+                relatedIdentifiers: (leading.mediaAssets + trailing.mediaAssets)
+                    .filter { $0.kind == .photoLibraryAsset }.map(\.reference)
+            ),
+            readerSentences: readerSentences,
+            grimoireResidue: grimoireResidue, placeLeaf: placeLeaf,
+            illustrationContext: LeafDecorationLibrary.resolvedPlacementContext(
+                motifs: LeafDecorationLibrary.resolvedMotifs(
+                    pageType: trailing.type, metadata: trailing.payload.metadata,
+                    semanticText: decorationSemanticText(for: leading) + "\n" + decorationSemanticText(for: trailing)
+                ), metadata: trailing.payload.metadata
+            ),
+            recentIllustrations: recentIllustrations,
+            illustrations: illustrations
         )
         var composition = FolioLeafCompositor.plan(
             for: trailing,
@@ -5070,15 +6382,14 @@ private enum PagesRisingFolioPaginator {
             leafIndex: 0,
             decorationPlate: true
         )
+        composition.decorationBudget = kind.carriesMarginalia
+            ? (metrics.contentSizeCategory.isAccessibilityCategory ? 1 : recipe.density.markBudget) : 0
         // Keep the cabinet's composed marks as the honest fallback for a
         // library photograph that cannot be fetched or rendered. The visible
         // leaf should never collapse to a blank sheet inside another sheet.
         let photoFallbackDecoration = recipe
         var fragments: [FolioFragment] = []
         switch kind {
-        case .placePlate:
-            // The chart is drawn as media below, not set as type here.
-            break
         case .grimoireResidue(let text), .readerSentence(let text):
             let paperWidth = FolioLeafMeasure.paperFieldWidth(pageWidth: metrics.pageWidth)
             let quoteWidth = max(1, paperWidth - 84)
@@ -5121,7 +6432,7 @@ private enum PagesRisingFolioPaginator {
                 ),
                 FolioFragment(
                     id: "\(boundaryID)::reader-sentence-provenance",
-                    content: .text("YOUR INK, COME BACK UP"),
+                    content: .text(kind.quoteAttribution),
                     role: .provenance,
                     textRange: -1...(-1),
                     measuredHeight: 26,
@@ -5145,8 +6456,14 @@ private enum PagesRisingFolioPaginator {
             recipe.supportAsset = nil
             recipe.fasteningAsset = nil
             recipe.handwrittenSnippet = nil
+            recipe.companionAssets = []
             let paperWidth = FolioLeafMeasure.paperFieldWidth(pageWidth: metrics.pageWidth)
-            let frame = CGRect(
+            // Illustrations and illuminated photographs own the whole leaf.
+            // Maps retain their inset composition and navigation space.
+            let frame = kind.fillsLeafWithArtwork ? CGRect(
+                origin: .zero,
+                size: CGSize(width: metrics.pageWidth, height: metrics.pageHeight)
+            ) : CGRect(
                 x: 24,
                 y: 18,
                 width: max(1, paperWidth - 48),
@@ -5156,33 +6473,19 @@ private enum PagesRisingFolioPaginator {
             switch kind {
             case .placePlate(let leaf):
                 media = .placePlate(leaf: leaf, frame: frame.size)
-            case .libraryPhoto(let identifier):
-                let illuminationSeed = Int(
-                    UInt(bitPattern: "\(boundaryID)|\(identifier)|illumination-v1".stableHash)
-                        % UInt(Int.max)
-                )
-                let photo = PHAsset.fetchAssets(
-                    withLocalIdentifiers: [identifier],
-                    options: nil
-                ).firstObject
-                let context = PhotoIlluminationContext.current(
-                    themeTags: [leading.type.rawValue, trailing.type.rawValue],
-                    now: photo?.creationDate ?? Date(timeIntervalSinceReferenceDate: 0)
-                )
-                let draft = IlluminatedPageComposer.compose(
-                    analysis: .contextualPreview(context: context),
-                    sourceAssetName: "IlluminatedPhotoSource",
-                    seed: illuminationSeed,
-                    assetLocalIdentifier: identifier
-                )
+            case .libraryPhoto(let request):
                 media = .illuminatedLibraryPhoto(
-                    identifier: identifier,
-                    draft: draft,
+                    request: request,
                     fallbackDecoration: photoFallbackDecoration,
                     label: "An illuminated photograph from your library"
                 )
             case .illustration(let assetName):
-                media = .fittedAsset(name: assetName, label: "An illustration between Pages")
+                let label = illustrations.first {
+                    $0.resolvedAssetName == assetName
+                }?.title ?? "An illustration between Pages"
+                media = assetName.hasPrefix("/")
+                    ? .fittedFile(path: assetName, label: label)
+                    : .fittedAsset(name: assetName, label: label)
             case .marginalia, .readerSentence, .grimoireResidue:
                 media = nil
             }
@@ -5226,54 +6529,46 @@ private enum PagesRisingFolioPaginator {
     @MainActor
     private static func interstitialKind(
         seed: Int,
+        slot: InterleafCuration.Slot,
+        otherIndex: Int,
+        photoRequest: FolioPreparedIlluminationRequest,
         readerSentences: [String],
         grimoireResidue: String?,
-        placeLeaf: GazetteerLeaf?
+        placeLeaf: GazetteerLeaf?,
+        illustrationContext: IlluminationPlacementContext,
+        recentIllustrations: Set<String>,
+        illustrations: [InterleafIllustration]
     ) -> FolioInterstitialKind {
         // Offered ahead of the rotation rather than inside it. There is at most
         // one of these, it is only ever available just after the Book has
         // actually done something, and it is let go once left — so it takes the
         // first boundary going rather than waiting for its number to come up.
         if let grimoireResidue { return .grimoireResidue(text: grimoireResidue) }
-        let illustrations = [
-            "EnchantedBookCoverPlate",
-            "LabyrinthLocationOuterStacks",
-            "LabyrinthLocationQuillquarium",
-            "LabyrinthLocationGreatHall",
-            "LabyrinthLocationBookBurrow",
-            "LabyrinthFaeSentenceSalamander",
-            "LabyrinthCharacterWickerEddies"
-        ]
-        let index = Int(UInt(bitPattern: (seed &+ 7_919).stableScramble) % UInt(illustrations.count))
-        let illustration = FolioInterstitialKind.illustration(assetName: illustrations[index])
+        let illustration = InterleafIllustrationLibrary.select(
+            from: illustrations,
+            context: illustrationContext, seed: seed &+ 7_919,
+            excluding: recentIllustrations
+        ).map { FolioInterstitialKind.illustration(assetName: $0.resolvedAssetName) } ?? .marginalia
         let sentence = deterministicReaderSentence(from: readerSentences, seed: seed).map {
             FolioInterstitialKind.readerSentence(text: $0)
         }
 
-        // Six slots preserve the old one-third photo / one-third illustration
-        // rhythm when both are available, while a Player sentence takes one of
-        // the two marginalia slots. Missing ingredients collapse back into
-        // honest cabinet marks instead of leaving a blank leaf.
-        // A chart takes one of the two illustration slots when there is a place
-        // worth raising. It is an option in the rotation rather than a priority
-        // like the residue: a plate is something to come across, and coming
-        // across it every single time is just a section.
-        let plate = placeLeaf.map { FolioInterstitialKind.placePlate(leaf: $0) }
-        // Only the two photo slots ask the library for anything. Asking at
-        // every boundary put a Photos query on the main thread for each one,
-        // which Explore deeper paid nine at a time.
-        func photo() -> FolioInterstitialKind? {
-            deterministicLibraryPhotoIdentifier(seed: seed).map {
-                FolioInterstitialKind.libraryPhoto(identifier: $0)
+        // Ten consecutive boundaries contain two photos, three illustrated
+        // plates and five quieter encounters. Missing personal material does
+        // not silently become a bonus illustration slot.
+        switch slot {
+        case .photo:
+            let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+            return status == .authorized || status == .limited
+                ? .libraryPhoto(request: photoRequest) : .marginalia
+        case .illustration:
+            return illustration
+        case .other:
+            switch otherIndex % 5 {
+            case 0: return sentence ?? .marginalia
+            case 1: return placeLeaf.map { .placePlate(leaf: $0) } ?? .marginalia
+            default: return .marginalia
             }
-        }
-        switch Int(UInt(bitPattern: seed.stableScramble) % 6) {
-        case 0: return .marginalia
-        case 1: return sentence ?? .marginalia
-        case 2: return photo() ?? .marginalia
-        case 3: return photo() ?? illustration
-        case 4: return plate ?? illustration
-        default: return illustration
         }
     }
 
@@ -5286,33 +6581,6 @@ private enum PagesRisingFolioPaginator {
             UInt(bitPattern: (seed &+ 65_537).stableScramble) % UInt(sentences.count)
         )
         return sentences[index]
-    }
-
-    /// The whole library sorted by date is a real query on a phone with years
-    /// of photographs, and every boundary used to run it afresh. One fetch
-    /// serves a few minutes of pagination; a photo taken in the meantime just
-    /// waits for the next one to be eligible.
-    @MainActor private static var libraryPhotos: (fetchedAt: Date, assets: PHFetchResult<PHAsset>)?
-    private static let libraryPhotosLifetime: TimeInterval = 300
-
-    @MainActor
-    private static func deterministicLibraryPhotoIdentifier(seed: Int) -> String? {
-        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        guard status == .authorized || status == .limited else { return nil }
-        let assets: PHFetchResult<PHAsset>
-        if let cached = libraryPhotos,
-           Date().timeIntervalSince(cached.fetchedAt) < libraryPhotosLifetime {
-            assets = cached.assets
-        } else {
-            let options = PHFetchOptions()
-            options.includeHiddenAssets = false
-            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
-            assets = PHAsset.fetchAssets(with: .image, options: options)
-            libraryPhotos = (Date(), assets)
-        }
-        guard assets.count > 0 else { return nil }
-        let index = Int(UInt(bitPattern: (seed &+ 104_729).stableScramble) % UInt(assets.count))
-        return assets.object(at: index).localIdentifier
     }
 
     private static func paginate(
@@ -6489,6 +7757,7 @@ private enum PagesRisingFolioPaginator {
             switch asset.kind {
             case .bundledImage:
                 let media: FolioMedia = surface.type == .illustration || isNoteSenderArtwork(asset)
+                    || asset.metadata["storyPlate"] == "true"
                     ? .fittedAsset(name: asset.reference, label: mediaLabel)
                     : .asset(name: asset.reference, label: mediaLabel)
                 append(
@@ -6496,8 +7765,11 @@ private enum PagesRisingFolioPaginator {
                     key: "asset:\(asset.reference)"
                 )
             case .renderedImageFile:
+                // A margin sketch is drawn to its own edges; cropping it to
+                // fill a photograph's frame would cut the drawing off.
                 append(
-                    isNoteSenderArtwork(asset)
+                    isNoteSenderArtwork(asset) || asset.metadata["marginSketch"] == "true"
+                        || asset.metadata["storyPlate"] == "true"
                         ? .fittedFile(path: asset.reference, label: mediaLabel)
                         : .file(path: asset.reference, label: mediaLabel),
                     key: "file:\(asset.reference)"
@@ -6601,6 +7873,8 @@ private struct FolioLeafPage: View {
     let isRetiring: Bool
     let animatesArrival: Bool
     let isSelected: Bool
+    let isInkVisible: Bool
+    var canRecordPhotoVisibility: Bool = true
     let onOpen: () -> Void
     /// How full the moon is tonight, 0...1. Some Pages are keepsakes and the
     /// moon lights them.
@@ -6608,7 +7882,7 @@ private struct FolioLeafPage: View {
     /// Controls this Page prints on its own leaf.
     var actions: [FolioLeafAction] = []
     var onAction: (FolioLeafAction.Kind) -> Void = { _ in }
-    let onKeep: (String, [BookPageMediaAsset]) -> Void
+    let onKeep: (String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: () -> Void
     let isRibbonHere: Bool
     let onToggleRibbon: () -> Void
@@ -6616,7 +7890,9 @@ private struct FolioLeafPage: View {
     let onInspectArtifact: (FolioInspectableArtifact) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.folioLeafIsVerso) private var isVerso
     @State private var hasArrived = false
     @State private var trashPhase: TrashPhase = .resting
 
@@ -6661,6 +7937,18 @@ private struct FolioLeafPage: View {
 
     private var arrivalIsVisible: Bool {
         reduceMotion || !animatesArrival || hasArrived
+    }
+
+    private var makingArrival: BookMakingMoment? {
+        guard leaf.documentLeafIndex == 0, !isGenerationPreview, !isAlreadyKept,
+              !leaf.isInterstitial else { return nil }
+        if leaf.surface.type == .letter || leaf.surface.type == .note || leaf.surface.renderStyle == .loreLetter {
+            return .letter
+        }
+        if leaf.surface.isStoryPlayablePage || leaf.surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            return .vignette
+        }
+        return nil
     }
 
     private var responseDraft: FolioResponseDraft {
@@ -6711,29 +7999,55 @@ private struct FolioLeafPage: View {
                 onInspectArtifact: onInspectArtifact
             )
 
-            VStack(spacing: 0) {
-                if !leaf.isInterstitial {
-                    leafHeader
+            if leaf.isFullLeafArtworkInterstitial {
+                // Use the stored leaf dimensions, never the wider curl canvas.
+                // Navigation floats over the plate instead of shrinking it.
+                ZStack {
+                    ForEach(leaf.fragments) { fragment in
+                        fragmentView(fragment, width: fragment.placement.width)
+                    }
                 }
-                inkField
-                if leaf.isInterstitial {
+                .frame(width: leaf.pageSize.width, height: leaf.pageSize.height)
+                .overlay(alignment: .bottom) {
                     interstitialFooter
-                } else {
-                    leafFooter
+                        .padding(.horizontal, FolioLeafMeasure.paperPadding)
+                        .padding(.bottom, FolioLeafMeasure.paperVerticalPadding)
+                        .background {
+                            LinearGradient(
+                                colors: [.clear, BookPalette.page.opacity(0.94)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .allowsHitTesting(false)
+                        }
                 }
+            } else {
+                VStack(spacing: 0) {
+                    if !leaf.isInterstitial {
+                        leafHeader
+                    }
+                    inkField
+                        .bookPageArrival(moment: makingArrival, identity: leaf.id,
+                                         active: isInkVisible && canRecordPhotoVisibility && !isRetiring)
+                    if leaf.isInterstitial {
+                        interstitialFooter
+                    } else {
+                        leafFooter
+                    }
+                }
+                // A UIKit label is allowed to report an ideal width larger than
+                // its proposal. Without a fixed paper field, one long first-leaf
+                // title can therefore widen this entire VStack behind the curl
+                // and leave only its middle visible. The physical leaf, not any
+                // child, owns the coordinate space.
+                .frame(
+                    width: FolioLeafMeasure.paperFieldWidth(pageWidth: leaf.pageSize.width),
+                    height: FolioLeafMeasure.paperFieldHeight(pageHeight: leaf.pageSize.height),
+                    alignment: .top
+                )
+                .padding(.horizontal, FolioLeafMeasure.paperPadding)
+                .padding(.vertical, FolioLeafMeasure.paperVerticalPadding)
             }
-            // A UIKit label is allowed to report an ideal width larger than
-            // its proposal. Without a fixed paper field, one long first-leaf
-            // title can therefore widen this entire VStack behind the curl
-            // and leave only its middle visible. The physical leaf, not any
-            // child, owns the coordinate space.
-            .frame(
-                width: FolioLeafMeasure.paperFieldWidth(pageWidth: leaf.pageSize.width),
-                height: FolioLeafMeasure.paperFieldHeight(pageHeight: leaf.pageSize.height),
-                alignment: .top
-            )
-            .padding(.horizontal, FolioLeafMeasure.paperPadding)
-            .padding(.vertical, FolioLeafMeasure.paperVerticalPadding)
 
             if isRetiring {
                 retirementVeil
@@ -6750,8 +8064,16 @@ private struct FolioLeafPage: View {
             isActive: true
         )
         .overlay { moonlitPaper }
+        .overlay {
+            leafInkLayer
+                .bookUIKitInkAbsorption(
+                    isActive: responseDraft.isAbsorbingInk,
+                    seed: "\(leaf.id)|reader-pencil",
+                    startedAt: responseDraft.inkAbsorptionStartedAt
+                )
+        }
         .clipShape(wornLeafShape)
-        .overlay(alignment: .leading) {
+        .overlay(alignment: isVerso ? .trailing : .leading) {
             if trashPhase == .resting || reduceMotion {
                 FolioOpenLeafBinding(tint: visualStyle.accent)
                     .frame(width: 31)
@@ -6773,7 +8095,7 @@ private struct FolioLeafPage: View {
                 BookInterjectionDogEarMark(tint: visualStyle.accent)
                     .frame(width: 52, height: 52)
                     .allowsHitTesting(false)
-                    .accessibilityLabel("The Book dog-eared this Page")
+                    .accessibilityLabel("I dog-eared this Page")
             }
         }
         .overlay(alignment: .trailing) {
@@ -6802,7 +8124,7 @@ private struct FolioLeafPage: View {
                     .frame(width: 72, height: 42)
                     .offset(x: 7, y: 12)
                     .allowsHitTesting(false)
-                    .accessibilityLabel("The Book left an older Page open here")
+                    .accessibilityLabel("I left an older Page open here")
             }
         }
         .clipShape(wornLeafShape)
@@ -6816,6 +8138,9 @@ private struct FolioLeafPage: View {
                 .allowsHitTesting(false)
         }
         .shadow(color: .black.opacity(0.26), radius: 10, x: 1, y: 7)
+        .environment(\.bookLeafInkArrival, interactionStore.inkArrival(for: leaf))
+        .environment(\.bookLeafInkEnabled, leaf.inkEmergenceID != nil)
+        .environment(\.folioPhotoIsVisible, isInkVisible && !isRetiring && canRecordPhotoVisibility)
         .opacity(isRetiring ? 1 : (arrivalIsVisible ? 1 : 0))
         .offset(y: reduceMotion || arrivalIsVisible ? 0 : 18)
         .scaleEffect(reduceMotion || arrivalIsVisible ? 1 : 0.985, anchor: .bottom)
@@ -6823,7 +8148,7 @@ private struct FolioLeafPage: View {
         .offset(x: trashOffset.width, y: trashOffset.height)
         .scaleEffect(trashScale, anchor: .leading)
         .opacity(trashOpacity)
-        .allowsHitTesting(!isRetiring && trashPhase == .resting)
+        .allowsHitTesting(!isRetiring && trashPhase == .resting && !responseDraft.isAbsorbingInk)
         .contextMenu {
             if !leaf.isInterstitial {
                 Button(action: onToggleRibbon) {
@@ -6839,7 +8164,7 @@ private struct FolioLeafPage: View {
                         Label("Let Me Write", systemImage: "pencil.and.scribble")
                     }
                 } else if !isAlreadyKept {
-                    Button { onKeep(preparedResponse, responseDraft.extraMedia) } label: {
+                    Button(action: keepWithSinkingInk) {
                         if leaf.surface.type == .askTheBook {
                             Label("Let's chat", systemImage: "text.bubble.fill")
                         } else {
@@ -6847,16 +8172,17 @@ private struct FolioLeafPage: View {
                         }
                     }
                     .disabled(
-                        responseDraft.isRecordingVoice
+                        isBusy || responseDraft.isAbsorbingInk || responseDraft.isRecordingVoice
                             || (requiresReaderResponse
                                 && preparedResponse.isEmpty
-                                && responseDraft.extraMedia.isEmpty)
+                                && responseDraft.extraMedia.isEmpty
+                                && responseDraft.leafInk.isEmpty)
                     )
                 }
                 Button(role: isEphemera ? nil : .destructive, action: trashLeaf) {
                     Label(
-                        isEphemera ? "Tuck deeper" : "Trash it",
-                        systemImage: isEphemera ? "rectangle.portrait.and.arrow.forward" : "trash.fill"
+                        isEphemera ? "Tuck deeper" : "Rip It Out",
+                        systemImage: isEphemera ? "rectangle.portrait.and.arrow.forward" : "scissors"
                     )
                 }
             }
@@ -6874,8 +8200,22 @@ private struct FolioLeafPage: View {
             if canGoForward { onNavigate(1) }
         }
         .onAppear(perform: synchronizeArrival)
+        .onAppear { interactionStore.restoreInk(for: leaf.documentID) }
         .onChange(of: animatesArrival) { _, _ in synchronizeArrival() }
         .onChange(of: reduceMotion) { _, _ in synchronizeArrival() }
+        .task(id: isInkVisible) {
+            if isInkVisible {
+                interactionStore.revealInk(on: leaf)
+            } else {
+                interactionStore.settleInk(on: leaf)
+            }
+        }
+        .onDisappear {
+            interactionStore.settleInk(on: leaf)
+            // A specialized Keep can open the established sheet with these
+            // same words. Returning to an unretired leaf must permit editing.
+            interactionStore.restoreInk(for: leaf.documentID)
+        }
     }
 
     private var leafHeader: some View {
@@ -6930,14 +8270,6 @@ private struct FolioLeafPage: View {
                     printedInkField
                     interactionPanel(kind, compact: true)
                         .frame(width: placement.width, height: placement.height)
-                        .background(
-                            BookPalette.page.opacity(0.30),
-                            in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .stroke(visualStyle.accent.opacity(0.20), lineWidth: 1)
-                        }
                         .position(x: placement.midX, y: placement.midY)
                 }
             }
@@ -6973,7 +8305,7 @@ private struct FolioLeafPage: View {
                 surface: leaf.surface,
                 accent: visualStyle.accent,
                 compact: compact,
-                onSay: { line in onKeep(line, []) }
+                onSay: { line in _ = onKeep(line, []) }
             )
         case .storyChoices:
             FolioStoryChoicesLeafPanel(
@@ -7018,6 +8350,7 @@ private struct FolioLeafPage: View {
                         .rotationEffect(.degrees(2))
                         .offset(x: 24, y: 52)
                         .blur(radius: 0.35)
+                        .bookInkEmergence(seed: "\(leaf.id)|ghost")
                         .clipped()
                         .accessibilityHidden(true)
                 }
@@ -7140,12 +8473,17 @@ private struct FolioLeafPage: View {
                     }
             }
         case .image(let media):
-            FolioMediaView(media: media, accent: visualStyle.accent)
+            FolioMediaView(
+                media: media,
+                accent: visualStyle.accent,
+                fillsArtworkLeaf: leaf.isFullLeafArtworkInterstitial
+            )
                 // The paginator owns this rectangle. In particular, a tall
                 // Illustration plate may fit inside it but may never paint
                 // through the neighboring prose fragment.
                 .frame(width: width, height: fragment.measuredHeight)
                 .clipped()
+                .bookInkEmergence(seed: "\(leaf.id)|\(fragment.id)", isEnabled: !media.hasSeparatePigment)
                 .accessibilityHidden(true)
                 .overlay {
                     inspectionButton(
@@ -7185,7 +8523,7 @@ private struct FolioLeafPage: View {
     private func accessibilityLabel(for text: String, role: FolioInkRole) -> String {
         switch role {
         case .handwritten: return "Written in the margin: \(text)"
-        case .underlined: return "The Book underlined: \(text)"
+        case .underlined: return "I underlined: \(text)"
         case .privacy: return "Privacy: \(text)"
         default: return text
         }
@@ -7254,6 +8592,31 @@ private struct FolioLeafPage: View {
 
     private var openInvitationSymbol: String {
         leaf.surface.leafInvitation?.symbol ?? "hand.tap"
+    }
+
+    /// On an iPad the Pencil writes on the paper itself; a finger still turns
+    /// the leaf and presses what is printed on it. Nothing here on a phone.
+    @ViewBuilder
+    private var leafInkLayer: some View {
+        if UIDevice.current.userInterfaceIdiom == .pad,
+           !leaf.isInterstitial,
+           !leaf.isEnding,
+           trashPhase == .resting {
+            let draft = interactionStore.binding(for: leaf.documentID)
+            let leafIndex = leaf.documentLeafIndex
+            FolioLeafInkCanvas(
+                drawing: Binding(
+                    get: { draft.wrappedValue.leafInk[leafIndex] },
+                    set: { data in
+                        var next = draft.wrappedValue
+                        next.leafInk[leafIndex] = data
+                        draft.wrappedValue = next
+                    }
+                ),
+                ink: UIColor(BookPalette.ink)
+            )
+            .accessibilityHidden(true)
+        }
     }
 
     /// A souvenir is a scrap of a day the reader decided to keep, and the moon
@@ -7398,7 +8761,7 @@ private struct FolioLeafPage: View {
         } else {
             HStack(spacing: 9) {
                 Button(role: .destructive, action: trashLeaf) {
-                    Label("Trash it", systemImage: "trash.fill")
+                    Label("Rip It Out", systemImage: "scissors")
                         .lineLimit(1)
                         .minimumScaleFactor(0.78)
                         .frame(maxWidth: .infinity)
@@ -7440,7 +8803,7 @@ private struct FolioLeafPage: View {
                     .disabled(isBusy)
                 } else if leaf.surface.type == .askTheBook, !isAlreadyKept {
                     // The way in. The chat itself lives on the opened Page.
-                    Button { onKeep("", []) } label: {
+                    Button { _ = onKeep("", []) } label: {
                         Label("Let's chat", systemImage: "text.bubble.fill")
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 46)
@@ -7452,7 +8815,7 @@ private struct FolioLeafPage: View {
                     .disabled(isBusy)
                     .accessibilityHint("Opens the conversation")
                 } else {
-                    Button { onKeep(preparedResponse, responseDraft.extraMedia) } label: {
+                    Button(action: keepWithSinkingInk) {
                         Label(isAlreadyKept ? "Kept" : "Keep", systemImage: "bookmark.fill")
                             .frame(maxWidth: .infinity)
                             .frame(minHeight: 46)
@@ -7465,12 +8828,12 @@ private struct FolioLeafPage: View {
                         isAlreadyKept
                             || isBusy
                             || responseDraft.isRecordingVoice
-                            || (requiresReaderResponse && preparedResponse.isEmpty && responseDraft.extraMedia.isEmpty)
+                            || (requiresReaderResponse && preparedResponse.isEmpty && responseDraft.extraMedia.isEmpty && responseDraft.leafInk.isEmpty)
                     )
                     .opacity(
                         isAlreadyKept
                             || responseDraft.isRecordingVoice
-                            || (requiresReaderResponse && preparedResponse.isEmpty && responseDraft.extraMedia.isEmpty)
+                            || (requiresReaderResponse && preparedResponse.isEmpty && responseDraft.extraMedia.isEmpty && responseDraft.leafInk.isEmpty)
                             ? 0.48
                             : 1
                     )
@@ -7510,6 +8873,34 @@ private struct FolioLeafPage: View {
             Spacer(minLength: 0)
         }
         .frame(height: 34)
+    }
+
+    private func keepWithSinkingInk() {
+        guard !isBusy, !isAlreadyKept, !responseDraft.isRecordingVoice,
+              !responseDraft.isAbsorbingInk else { return }
+        let input = preparedResponse
+        let draft = responseDraft
+        let media = draft.extraMedia + FolioLeafInk.keptMedia(draft.leafInk, sourceID: leaf.surface.sourceID)
+        guard !requiresReaderResponse || !input.isEmpty || !media.isEmpty else { return }
+        let hasReaderInk = !input.isEmpty || !draft.leafInk.isEmpty
+        guard hasReaderInk,
+              leaf.interactionKind == .response || !draft.leafInk.isEmpty else {
+            _ = onKeep(input, media)
+            return
+        }
+        guard interactionStore.beginAbsorption(for: leaf.documentID) else { return }
+        // The explicit Keep owns this operation, even if a curl removes its
+        // view during the animation. Drafts are not erased or rewritten.
+        let keep = onKeep
+        let store = interactionStore
+        let documentID = leaf.documentID
+        let duration = reduceMotion || voiceOver ? 0 : BookInkTiming.absorptionDuration
+        Task { @MainActor in
+            if duration > 0 { try? await Task.sleep(for: .seconds(duration)) }
+            let disposition = keep(input, media)
+            store.finishInkKeep(for: documentID)
+            if disposition != .saving { store.restoreInk(for: documentID) }
+        }
     }
 
     private var trashRotation: Double {
@@ -7555,7 +8946,8 @@ private struct FolioLeafPage: View {
 
     @MainActor
     private func trashLeaf() {
-        guard trashPhase == .resting, !isRetiring else { return }
+        guard trashPhase == .resting, !isRetiring,
+              !responseDraft.isAbsorbingInk else { return }
         BookFeedback.play(.tap)
 
         if reduceMotion {
@@ -7873,7 +9265,61 @@ private struct FolioComposedTitleText: View {
 /// line keep its single-line intrinsic width even when SwiftUI proposes the
 /// narrower paper measure. This subclass makes the folio width intrinsic: the
 /// label may grow downward, never sideways behind the fore-edge.
-private final class FolioWrappingLabel: UILabel {
+final class FolioWrappingLabel: UILabel {
+    var revealsInk = false
+    var inkArrival: Date?
+    var inkSeed = ""
+    private var inkSignature = ""
+    private let pigment = BookLabelPigment()
+    private var drawsLiveInk = true
+
+    override func drawText(in rect: CGRect) {
+        if drawsLiveInk { super.drawText(in: rect) }
+    }
+
+    private func drawUnfiltered(in rect: CGRect) { super.drawText(in: rect) }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        pigment.remove()
+        inkSignature = ""
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard revealsInk else {
+            pigment.remove()
+            drawsLiveInk = true
+            layer.mask = nil
+            inkSignature = ""
+            setNeedsDisplay()
+            return
+        }
+        let signature = "\(inkSeed)|\(inkArrival?.timeIntervalSince1970 ?? 0)|\(bounds.size)|\(attributedText?.hash ?? 0)"
+        guard signature != inkSignature else { return }
+        inkSignature = signature
+        pigment.remove()
+        layer.mask = nil
+        guard let inkArrival else {
+            drawsLiveInk = false // Prepared neighbour: blank ink, present paper.
+            setNeedsDisplay()
+            return
+        }
+        drawsLiveInk = true
+        if window != nil {
+            let installed = pigment.install(on: self, arrival: inkArrival, seed: inkSeed,
+                                            draw: { [weak self] rect in self?.drawUnfiltered(in: rect) },
+                                            finish: { [weak self] in
+                guard let self, self.inkSignature == signature else { return }
+                self.drawsLiveInk = true
+                self.setNeedsDisplay()
+            })
+            drawsLiveInk = !installed
+        }
+        setNeedsDisplay()
+    }
+
     var folioWidth: CGFloat = 1 {
         didSet {
             guard abs(folioWidth - oldValue) > 0.25 else { return }
@@ -7905,6 +9351,10 @@ private final class FolioWrappingLabel: UILabel {
 /// directly inside the stored folio measure, which is also what semantic
 /// pagination used, so a glyph cannot fall behind either edge.
 private struct FolioWrappedText: UIViewRepresentable {
+    @Environment(\.bookLeafInkArrival) private var inkArrival
+    @Environment(\.bookLeafInkEnabled) private var inkEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     let text: String
     let role: FolioInkRole
     let pointSize: CGFloat
@@ -7915,6 +9365,28 @@ private struct FolioWrappedText: UIViewRepresentable {
     let alignment: FolioParagraphAlignment
     var accent: Color = BookPalette.lampGold
     var isOpeningFragment: Bool = false
+
+    /// Retain only this label's last typography inputs. Arrival and width are
+    /// handled separately, so revealing existing ink need not typeset it again.
+    struct TextConfiguration: Equatable {
+        let text: String
+        let role: FolioInkRole
+        let pointSize: CGFloat
+        let composition: FolioLeafComposition
+        let color: Color
+        let alignment: FolioParagraphAlignment
+        let accent: Color
+        let isOpeningFragment: Bool
+        let colorScheme: ColorScheme
+        let contrast: ColorSchemeContrast
+        let legibilityWeight: LegibilityWeight?
+    }
+
+    final class Coordinator {
+        var configuration: TextConfiguration?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
 
     /// The word that gets the accent ink, or nil when this block should stay in
     /// one colour.
@@ -7970,32 +9442,54 @@ private struct FolioWrappedText: UIViewRepresentable {
     }
 
     func updateUIView(_ label: FolioWrappingLabel, context: Context) {
-        let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = composition.lineSpacing(for: role)
-        paragraph.alignment = alignment.nsTextAlignment
-        paragraph.lineBreakMode = .byWordWrapping
+        let configuration = TextConfiguration(
+            text: text, role: role, pointSize: pointSize, composition: composition,
+            color: color, alignment: alignment, accent: accent, isOpeningFragment: isOpeningFragment,
+            colorScheme: context.environment.colorScheme,
+            contrast: context.environment.colorSchemeContrast,
+            legibilityWeight: context.environment.legibilityWeight
+        )
+        let textChanged = context.coordinator.configuration != configuration
+        if textChanged {
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineSpacing = composition.lineSpacing(for: role)
+            paragraph.alignment = alignment.nsTextAlignment
+            paragraph.lineBreakMode = .byWordWrapping
 
-        var attributes: [NSAttributedString.Key: Any] = [
-            .font: role.uiFont(pointSize: pointSize, composition: composition),
-            .foregroundColor: UIColor(color),
-            .paragraphStyle: paragraph,
-            .kern: composition.tracking(for: role)
-        ]
-        if role == .underlined {
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-            attributes[.underlineColor] = UIColor(color)
+            var attributes: [NSAttributedString.Key: Any] = [
+                .font: role.uiFont(pointSize: pointSize, composition: composition),
+                .foregroundColor: UIColor(color),
+                .paragraphStyle: paragraph,
+                .kern: composition.tracking(for: role)
+            ]
+            if role == .underlined {
+                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                attributes[.underlineColor] = UIColor(color)
+            }
+
+            let inked = NSMutableAttributedString(string: text, attributes: attributes)
+            if let accentRange, accentRange.location != NSNotFound,
+               accentRange.location + accentRange.length <= inked.length {
+                inked.addAttribute(.foregroundColor, value: UIColor(accent), range: accentRange)
+            }
+            label.attributedText = inked
+            label.inkSeed = "\(composition.seed)|\(text)"
+            context.coordinator.configuration = configuration
         }
 
-        label.folioWidth = width
-        label.preferredMaxLayoutWidth = width
-
-        let inked = NSMutableAttributedString(string: text, attributes: attributes)
-        if let accentRange, accentRange.location != NSNotFound,
-           accentRange.location + accentRange.length <= inked.length {
-            inked.addAttribute(.foregroundColor, value: UIColor(accent), range: accentRange)
+        let widthChanged = label.folioWidth != width || label.preferredMaxLayoutWidth != width
+        if widthChanged {
+            label.folioWidth = width
+            label.preferredMaxLayoutWidth = width
         }
-        label.attributedText = inked
-        label.invalidateIntrinsicContentSize()
+        let revealsInk = inkEnabled && !reduceMotion && !voiceOver
+        let phaseChanged = label.revealsInk != revealsInk || label.inkArrival != inkArrival
+        if phaseChanged {
+            label.revealsInk = revealsInk
+            label.inkArrival = inkArrival
+        }
+        if textChanged || widthChanged { label.invalidateIntrinsicContentSize() }
+        if textChanged || widthChanged || phaseChanged { label.setNeedsLayout() }
     }
 
     func sizeThatFits(
@@ -8020,6 +9514,7 @@ private struct FolioResponseLeafPanel: View {
     @StateObject private var voiceRecorder = KeptVoiceRecorder()
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isCameraPresented = false
+    @State private var isSketchPresented = false
     @State private var isLoadingPhotograph = false
     @State private var photographMessage: String?
     @State private var voiceMessage: String?
@@ -8074,7 +9569,10 @@ private struct FolioResponseLeafPanel: View {
                     title: ask.label,
                     placeholder: placeholder,
                     text: $draft.text,
-                    minHeight: compact ? 84 : 112
+                    minHeight: compact ? 84 : 112,
+                    isOnLeaf: true,
+                    isAbsorbingInk: draft.isAbsorbingInk,
+                    inkAbsorptionStartedAt: draft.inkAbsorptionStartedAt
                 )
 
                 leafCaptureControls
@@ -8104,7 +9602,7 @@ private struct FolioResponseLeafPanel: View {
         }
         .scrollIndicators(.hidden)
         .scrollDismissesKeyboard(.interactively)
-        .background(accent.opacity(0.018))
+        .disabled(draft.isAbsorbingInk)
         .accessibilityElement(children: .contain)
         .onChange(of: selectedPhotoItem) { _, item in
             guard let item else { return }
@@ -8115,6 +9613,11 @@ private struct FolioResponseLeafPanel: View {
                 Task { await keepPhotograph(data) }
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $isSketchPresented) {
+            FolioMarginSketchSheet(accent: accent) { png in
+                keepSketch(png)
+            }
         }
         .onDisappear {
             if voiceRecorder.isRecording {
@@ -8173,10 +9676,48 @@ private struct FolioResponseLeafPanel: View {
                 }
                 .buttonStyle(.bookPress())
                 .disabled(isLoadingPhotograph)
+
+                Button {
+                    BookFeedback.play(.openPage)
+                    isSketchPresented = true
+                } label: {
+                    captureLabel(
+                        draft.sketch == nil ? "Sketch" : "Redraw",
+                        systemImage: draft.sketch == nil ? "pencil.and.scribble" : "checkmark.circle.fill"
+                    )
+                }
+                .buttonStyle(.bookPress())
+                .disabled(voiceRecorder.isRecording)
+            }
+
+            if let sketch = draft.sketch,
+               let image = BookRenderedImageCache.shared.image(for: sketch.reference) {
+                HStack(spacing: 9) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 52, height: 42)
+                        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+
+                    Text("The sketch is drawn into this Page.")
+                        .font(.system(size: 11, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.66))
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        draft.sketch = nil
+                    } label: {
+                        Image(systemName: "xmark.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove sketch")
+                }
+                .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
             }
 
             if let photograph = draft.photograph,
-               let image = UIImage(contentsOfFile: photograph.reference) {
+               let image = BookRenderedImageCache.shared.image(for: photograph.reference) {
                 HStack(spacing: 9) {
                     Image(uiImage: image)
                         .resizable()
@@ -8268,6 +9809,28 @@ private struct FolioResponseLeafPanel: View {
     }
 
     @MainActor
+    private func keepSketch(_ png: Data) {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let url = base.appendingPathComponent("folio-sketch-\(UUID().uuidString).png")
+        do {
+            try png.write(to: url, options: [.atomic])
+            draft.sketch = BookPageMediaAsset(
+                kind: .renderedImageFile,
+                reference: url.path,
+                caption: "Drawn in the margin",
+                sourceID: surface.sourceID,
+                metadata: [
+                    "folioLeafCapture": "true",
+                    "marginSketch": "true"
+                ]
+            )
+            BookFeedback.play(.openPage)
+        } catch {
+            photographMessage = "The leaf couldn't hold that sketch."
+        }
+    }
+
     private func keepPhotograph(_ data: Data) async {
         isLoadingPhotograph = true
         photographMessage = nil
@@ -8450,6 +10013,7 @@ private struct FolioStoryChoicesLeafPanel: View {
                 }
                 .buttonStyle(.bookPress())
                 .disabled(action.isBusy)
+                .bookChoiceThread(selected: action.isBusy, identity: action.id)
             }
         }
         .padding(.horizontal, 22)
@@ -9059,6 +10623,7 @@ private struct FolioMarginaliaAssetMark: View {
     let frame: CGRect
     let opacity: Double
     let rotation: Double
+    var inkSeed = ""
 
     var body: some View {
         Group {
@@ -9071,6 +10636,7 @@ private struct FolioMarginaliaAssetMark: View {
             }
         }
         .frame(width: frame.width, height: frame.height)
+        .bookInkEmergence(seed: inkSeed)
         .clipped()
         .colorMultiply(usesStrongTint ? accent : .white)
         .saturation(saturation)
@@ -9145,7 +10711,8 @@ private struct FolioLeafMarginaliaMarks: View {
                             accent: accent,
                             frame: placement.frame,
                             opacity: placement.opacity,
-                            rotation: placement.rotation
+                            rotation: placement.rotation,
+                            inkSeed: "\(leaf.id)|\(placement.id)"
                         )
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -9163,6 +10730,7 @@ private struct FolioLeafMarginaliaMarks: View {
                             .multilineTextAlignment(.center)
                             .lineSpacing(1)
                             .frame(width: placement.frame.width, height: placement.frame.height)
+                            .bookInkEmergence(seed: "\(leaf.id)|\(placement.id)")
                             .rotationEffect(.degrees(placement.rotation))
                             .position(x: placement.frame.midX, y: placement.frame.midY)
                             .allowsHitTesting(false)
@@ -9234,8 +10802,29 @@ private struct FolioLeafMarginaliaMarks: View {
             frames: [CGRect],
             allowsContentOverlap: Bool = false
         ) {
+            guard accepted.count < composition.decorationBudget else { return }
             for frame in frames {
-                guard accepts(frame, allowsContentOverlap: allowsContentOverlap) else { continue }
+                if case .handwriting(let text) = content {
+                    let style = NSMutableParagraphStyle()
+                    style.lineSpacing = 1
+                    style.alignment = .center
+                    let height = (text as NSString).boundingRect(
+                        with: CGSize(width: frame.width, height: .greatestFiniteMagnitude),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading],
+                        attributes: [
+                            .font: FolioInkRole.handwritten.uiFont(pointSize: 12.5, composition: composition),
+                            .paragraphStyle: style
+                        ], context: nil
+                    ).height
+                    guard ceil(height) + 2 <= frame.height else { continue }
+                }
+                // The visible corners rotate too. Reserve their complete
+                // footprint, rather than the unrotated image's rectangle.
+                let angle = CGFloat(rotation * .pi / 180)
+                let width = abs(frame.width * cos(angle)) + abs(frame.height * sin(angle))
+                let height = abs(frame.height * cos(angle)) + abs(frame.width * sin(angle))
+                let footprint = CGRect(x: frame.midX - width / 2, y: frame.midY - height / 2, width: width, height: height)
+                guard accepts(footprint, allowsContentOverlap: allowsContentOverlap) else { continue }
                 let placedOpacity: Double
                 switch content {
                 case .asset:
@@ -9244,16 +10833,47 @@ private struct FolioLeafMarginaliaMarks: View {
                     placedOpacity = 1
                 }
                 accepted.append(Placement(id: id, content: content, frame: frame, opacity: placedOpacity, rotation: rotation))
-                occupied.append(frame)
+                occupied.append(footprint)
                 return
+            }
+        }
+
+        func appendCompanions(in zones: [CGRect]) {
+            for (index, asset) in recipe.companionAssets.enumerated() {
+                guard accepted.count < composition.decorationBudget else { break }
+                guard supportsCurrentDialect(asset) else { continue }
+                let markSize = desiredSize(for: asset, fallback: CGSize(width: 62, height: 62))
+                let railCandidates = zones.flatMap { zone in
+                    candidateFrames(in: zone, desiredSize: markSize, minimumScale: 0.80, salt: 173 + index * 13)
+                }
+                // Full-paper candidates make a crowded plate possible. The
+                // same ink, footer, and rotated-mark exclusions still apply.
+                let field = plan.safeBounds.insetBy(dx: 8, dy: 8)
+                let scattered: [CGRect] = (0..<4).flatMap { (row: Int) -> [CGRect] in
+                    (0..<3).map { (column: Int) -> CGRect in
+                        CGRect(
+                            x: field.minX + max(0, field.width - markSize.width) * CGFloat(column) / 2,
+                            y: field.minY + max(0, field.height - markSize.height) * CGFloat(row) / 3,
+                            width: markSize.width, height: markSize.height
+                        )
+                    }
+                }
+                let offset = (index * 5 + 3) % scattered.count
+                let frames = Array(scattered[offset...]) + Array(scattered[..<offset])
+                appendFirstAvailable(
+                    id: "companion-\(index)-\(asset.id)", content: .asset(asset),
+                    opacity: asset.defaultOpacity, rotation: rotation(salt: 181 + index * 11),
+                    frames: railCandidates + frames
+                )
             }
         }
 
         if leaf.isDecorationPlate {
             guard leaf.interstitialKind?.carriesMarginalia == true else { return accepted }
             let plateField = plan.safeBounds.insetBy(dx: 16, dy: 18)
-            let heroWidth = min(238, plateField.width * 0.68)
-            let heroHeight = min(290, plateField.height * 0.52)
+            let crowded = recipe.density == .rich || recipe.density == .overdone
+            let heroWidth = min(238, plateField.width * (crowded ? 0.48 : 0.68))
+            let heroHeight = min(290, plateField.height * (crowded ? 0.36 : 0.52))
             let heroFrame = CGRect(
                 x: plateField.midX - heroWidth / 2,
                 y: plateField.minY + plateField.height * 0.10,
@@ -9266,7 +10886,12 @@ private struct FolioLeafMarginaliaMarks: View {
                     content: .asset(primary),
                     opacity: min(0.52, primary.defaultOpacity * 0.74),
                     rotation: rotation(salt: 3) * 0.46,
-                    frames: [heroFrame]
+                    frames: [heroFrame] + candidateFrames(
+                        in: plan.lowerField,
+                        desiredSize: CGSize(width: 96, height: 96),
+                        minimumScale: 0.82,
+                        salt: 109
+                    )
                 )
             }
 
@@ -9306,103 +10931,11 @@ private struct FolioLeafMarginaliaMarks: View {
                     frames: [noteFrame]
                 )
             }
+            appendCompanions(in: [plateField])
             return accepted
         }
 
         var remainingBudget = composition.decorationBudget
-        if remainingBudget > 0,
-           let support = recipe.supportAsset,
-           supportsCurrentDialect(support) {
-            let supportSize = desiredSize(
-                for: support,
-                fallback: CGSize(width: 126, height: 86)
-            )
-            appendFirstAvailable(
-                id: "support-\(support.id)",
-                content: .asset(support),
-                opacity: min(0.34, support.defaultOpacity * 0.48),
-                rotation: rotation(salt: 71) * 0.54,
-                frames: candidateFrames(
-                    in: plan.lowerField,
-                    desiredSize: supportSize,
-                    minimumScale: 0.68,
-                    salt: 73
-                ) + candidateFrames(
-                    in: plan.preferredRail,
-                    desiredSize: supportSize,
-                    minimumScale: 0.58,
-                    salt: 79
-                ),
-                allowsContentOverlap: support.leafTraits?.allowsTextOverlap == true
-            )
-            if let supportPlacement = accepted.first(where: { $0.id == "support-\(support.id)" }) {
-                remainingBudget -= 1
-                if let fastening = recipe.fasteningAsset,
-                   supportsCurrentDialect(fastening) {
-                    let tapeSize = desiredSize(
-                        for: fastening,
-                        fallback: CGSize(width: 54, height: 20)
-                    )
-                    let tapeFrame = CGRect(
-                        x: supportPlacement.frame.midX - tapeSize.width / 2,
-                        y: supportPlacement.frame.minY - tapeSize.height * 0.28,
-                        width: tapeSize.width,
-                        height: tapeSize.height
-                    )
-                    let crossesInk = plan.inkRects.contains {
-                        tapeFrame.intersects($0.insetBy(dx: -5, dy: -4))
-                    }
-                    if plan.safeBounds.contains(tapeFrame), !crossesInk {
-                        accepted.append(Placement(
-                            id: "fastening-\(fastening.id)",
-                            content: .asset(fastening),
-                            frame: tapeFrame,
-                            opacity: resolvedAssetOpacity(
-                                min(0.42, fastening.defaultOpacity * 0.58),
-                                in: tapeFrame
-                            ),
-                            rotation: rotation(salt: 81) * 0.28
-                        ))
-                    }
-                }
-            }
-        }
-
-        let resolvedHandwriting = recipe.handwrittenSnippet?.text.nonEmpty
-            ?? (unit(89) < 0.34 ? handwrittenNote?.nonEmpty : nil)
-        if let resolvedHandwriting {
-            let handwritingZones: [CGRect]
-            switch composition.spatialStyle {
-            case .heroPlate, .letterMargin:
-                handwritingZones = [plan.lowerField, plan.preferredRail, plan.oppositeRail]
-            case .fieldRail:
-                handwritingZones = [plan.preferredRail, plan.lowerField, plan.oppositeRail]
-            case .cabinetRail:
-                handwritingZones = [plan.preferredRail, plan.oppositeRail, plan.lowerField]
-            case .quietColumn:
-                handwritingZones = [plan.lowerField, plan.preferredRail]
-            }
-            let handwritingFrames = handwritingZones.flatMap { zone in
-                candidateFrames(
-                    in: zone,
-                    desiredSize: CGSize(width: 96, height: 82),
-                    minimumScale: 0.62,
-                    salt: 97
-                )
-            }
-            let countBeforeHandwriting = accepted.count
-            appendFirstAvailable(
-                id: "handwriting",
-                content: .handwriting(resolvedHandwriting),
-                opacity: 1,
-                rotation: rotation(salt: 83),
-                frames: handwritingFrames
-            )
-            if accepted.count > countBeforeHandwriting {
-                remainingBudget = max(0, remainingBudget - 1)
-            }
-        }
-
         if remainingBudget > 0,
            let primary = recipe.primaryAsset,
            supportsCurrentDialect(primary) {
@@ -9463,6 +10996,99 @@ private struct FolioLeafMarginaliaMarks: View {
         }
 
         if remainingBudget > 0,
+           let support = recipe.supportAsset,
+           supportsCurrentDialect(support) {
+            let supportSize = desiredSize(
+                for: support,
+                fallback: CGSize(width: 126, height: 86)
+            )
+            appendFirstAvailable(
+                id: "support-\(support.id)",
+                content: .asset(support),
+                opacity: min(0.34, support.defaultOpacity * 0.48),
+                rotation: rotation(salt: 71) * 0.54,
+                frames: candidateFrames(
+                    in: plan.lowerField,
+                    desiredSize: supportSize,
+                    minimumScale: 0.68,
+                    salt: 73
+                ) + candidateFrames(
+                    in: plan.preferredRail,
+                    desiredSize: supportSize,
+                    minimumScale: 0.58,
+                    salt: 79
+                ),
+                allowsContentOverlap: support.leafTraits?.allowsTextOverlap == true
+            )
+            if let supportPlacement = accepted.first(where: { $0.id == "support-\(support.id)" }) {
+                remainingBudget -= 1
+                if let fastening = recipe.fasteningAsset,
+                   supportsCurrentDialect(fastening) {
+                    let tapeSize = desiredSize(
+                        for: fastening,
+                        fallback: CGSize(width: 54, height: 20)
+                    )
+                    let tapeFrame = CGRect(
+                        x: supportPlacement.frame.midX - tapeSize.width / 2,
+                        y: supportPlacement.frame.minY - tapeSize.height * 0.28,
+                        width: tapeSize.width,
+                        height: tapeSize.height
+                    )
+                    let crossesInk = plan.inkRects.contains {
+                        tapeFrame.intersects($0.insetBy(dx: -5, dy: -4))
+                    }
+                    if plan.safeBounds.contains(tapeFrame), !crossesInk {
+                        accepted.append(Placement(
+                            id: "fastening-\(fastening.id)",
+                            content: .asset(fastening),
+                            frame: tapeFrame,
+                            opacity: resolvedAssetOpacity(
+                                min(0.42, fastening.defaultOpacity * 0.58),
+                                in: tapeFrame
+                            ),
+                            rotation: rotation(salt: 81) * 0.28
+                        ))
+                    }
+                }
+            }
+        }
+
+        let resolvedHandwriting = recipe.handwrittenSnippet?.text.nonEmpty
+            ?? (unit(89) < 0.34 ? handwrittenNote?.nonEmpty : nil)
+        if remainingBudget > 0, let resolvedHandwriting {
+            let handwritingZones: [CGRect]
+            switch composition.spatialStyle {
+            case .heroPlate, .letterMargin:
+                handwritingZones = [plan.lowerField, plan.preferredRail, plan.oppositeRail]
+            case .fieldRail:
+                handwritingZones = [plan.preferredRail, plan.lowerField, plan.oppositeRail]
+            case .cabinetRail:
+                handwritingZones = [plan.preferredRail, plan.oppositeRail, plan.lowerField]
+            case .quietColumn:
+                handwritingZones = [plan.lowerField, plan.preferredRail]
+            }
+            let handwritingFrames = handwritingZones.flatMap { zone in
+                candidateFrames(
+                    in: zone,
+                    desiredSize: CGSize(width: 96, height: 82),
+                    minimumScale: 0.62,
+                    salt: 97
+                )
+            }
+            let countBeforeHandwriting = accepted.count
+            appendFirstAvailable(
+                id: "handwriting",
+                content: .handwriting(resolvedHandwriting),
+                opacity: 1,
+                rotation: rotation(salt: 83),
+                frames: handwritingFrames
+            )
+            if accepted.count > countBeforeHandwriting {
+                remainingBudget = max(0, remainingBudget - 1)
+            }
+        }
+
+        if remainingBudget > 0,
            let secondary = recipe.secondaryAsset,
            supportsCurrentDialect(secondary) {
             let width: CGFloat = secondary.kind == .stamp ? 42 : 48
@@ -9498,6 +11124,8 @@ private struct FolioLeafMarginaliaMarks: View {
                 }()
             )
         }
+
+        appendCompanions(in: [plan.preferredRail, plan.oppositeRail, plan.lowerField])
 
         return accepted
     }
@@ -9644,11 +11272,229 @@ private struct FolioLeafMarginaliaMarks: View {
     }
 }
 
+/// Ink written straight onto a leaf with the Pencil.
+private enum FolioLeafInk {
+    /// The Page's ink as kept images, one per leaf that was written on. Done
+    /// at the moment of keeping, so a trashed Page leaves no file behind.
+    static func keptMedia(_ ink: [Int: Data], sourceID: String) -> [BookPageMediaAsset] {
+        let base = InsideCoverStore.containerURL
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return ink.keys.sorted().compactMap { leafIndex in
+            guard let data = ink[leafIndex],
+                  let drawing = try? PKDrawing(data: data),
+                  let png = FolioMarginSketchSheet.renderedInk(drawing) else { return nil }
+            let url = base.appendingPathComponent("folio-ink-\(UUID().uuidString).png")
+            guard (try? png.write(to: url, options: [.atomic])) != nil else { return nil }
+            return BookPageMediaAsset(
+                kind: .renderedImageFile,
+                reference: url.path,
+                caption: "Written in the margin",
+                sourceID: sourceID,
+                metadata: [
+                    "folioLeafCapture": "true",
+                    "marginSketch": "true",
+                    "leafInk": "true",
+                    "leafIndex": String(leafIndex)
+                ]
+            )
+        }
+    }
+}
+
+/// A PencilKit sheet laid over a leaf that answers only to the Pencil. Every
+/// other touch falls straight through to the leaf beneath — a finger still
+/// turns the page, writes in the margin box, and presses Keep. A double tap
+/// on the Pencil swaps the nib for the eraser and back.
+private struct FolioLeafInkCanvas: UIViewRepresentable {
+    @Binding var drawing: Data?
+    let ink: UIColor
+
+    func makeCoordinator() -> Coordinator { Coordinator(drawing: $drawing) }
+
+    func makeUIView(context: Context) -> PencilOnlyCanvasView {
+        let canvas = PencilOnlyCanvasView()
+        canvas.backgroundColor = .clear
+        canvas.isOpaque = false
+        canvas.isScrollEnabled = false
+        canvas.drawingPolicy = .pencilOnly
+        canvas.overrideUserInterfaceStyle = .light
+        canvas.tool = PKInkingTool(.pen, color: ink, width: 2.4)
+        if let drawing, let restored = try? PKDrawing(data: drawing) {
+            canvas.drawing = restored
+        }
+        canvas.delegate = context.coordinator
+        context.coordinator.ink = ink
+        let pencil = UIPencilInteraction()
+        pencil.delegate = context.coordinator
+        canvas.addInteraction(pencil)
+        return canvas
+    }
+
+    func updateUIView(_ canvas: PencilOnlyCanvasView, context: Context) {
+        context.coordinator.ink = ink
+        let current = canvas.drawing.dataRepresentation()
+        if let drawing, drawing != current, let restored = try? PKDrawing(data: drawing) {
+            canvas.drawing = restored
+        } else if drawing == nil, !canvas.drawing.strokes.isEmpty {
+            canvas.drawing = PKDrawing()
+        }
+    }
+
+    final class Coordinator: NSObject, PKCanvasViewDelegate, UIPencilInteractionDelegate {
+        @Binding var drawing: Data?
+        var ink: UIColor = .black
+        private var isErasing = false
+
+        init(drawing: Binding<Data?>) {
+            _drawing = drawing
+        }
+
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            drawing = canvasView.drawing.strokes.isEmpty ? nil : canvasView.drawing.dataRepresentation()
+        }
+
+        func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+            guard let canvas = interaction.view as? PKCanvasView else { return }
+            isErasing.toggle()
+            canvas.tool = isErasing
+                ? PKEraserTool(.vector)
+                : PKInkingTool(.pen, color: ink, width: 2.4)
+        }
+    }
+}
+
+/// Takes a touch only when it is the Pencil's.
+private final class PencilOnlyCanvasView: PKCanvasView {
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard let touches = event?.allTouches,
+              touches.contains(where: { $0.type == .pencil }) else { return nil }
+        return super.hitTest(point, with: event)
+    }
+}
+
+/// Paper to draw on before a Page is kept. On an iPad this is where the
+/// Pencil goes; on a phone a finger draws the same. The ink is the Book's
+/// own brown on its own paper, whatever the room's light is doing.
+private struct FolioMarginSketchSheet: View {
+    let accent: Color
+    let onKeep: (Data) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var drawing = PKDrawing()
+
+    var body: some View {
+        NavigationStack {
+            FolioSketchCanvas(drawing: $drawing)
+                .background(BookPalette.page)
+                .overlay(alignment: .center) {
+                    if drawing.strokes.isEmpty {
+                        Text("Draw what the words can't hold.")
+                            .font(.system(size: 15, design: .serif))
+                            .italic()
+                            .foregroundStyle(BookPalette.ink.opacity(0.34))
+                            .allowsHitTesting(false)
+                    }
+                }
+                .ignoresSafeArea(edges: .bottom)
+                .navigationTitle("The margin")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Not now") { dismiss() }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Keep it") {
+                            if let png = Self.renderedInk(drawing) {
+                                onKeep(png)
+                            }
+                            dismiss()
+                        }
+                        .disabled(drawing.strokes.isEmpty)
+                    }
+                }
+        }
+        // The paper is never dark, so neither is the ink on the bar above it.
+        .environment(\.colorScheme, .light)
+        .tint(accent)
+    }
+
+    /// The strokes alone, in light ink, with a little paper round them. Drawn
+    /// under a light trait: PencilKit inverts dark ink for a dark room, and
+    /// the Book's paper is never dark.
+    static func renderedInk(_ drawing: PKDrawing) -> Data? {
+        guard !drawing.strokes.isEmpty else { return nil }
+        let bounds = drawing.bounds.insetBy(dx: -18, dy: -18)
+        var image: UIImage?
+        UITraitCollection(userInterfaceStyle: .light).performAsCurrent {
+            image = drawing.image(from: bounds, scale: 2)
+        }
+        return image?.pngData()
+    }
+}
+
+private struct FolioSketchCanvas: UIViewRepresentable {
+    @Binding var drawing: PKDrawing
+
+    func makeCoordinator() -> Coordinator { Coordinator(drawing: $drawing) }
+
+    func makeUIView(context: Context) -> PKCanvasView {
+        let canvas = PKCanvasView()
+        canvas.backgroundColor = .clear
+        canvas.isOpaque = false
+        canvas.drawingPolicy = .anyInput
+        canvas.overrideUserInterfaceStyle = .light
+        canvas.tool = PKInkingTool(.pen, color: UIColor(BookPalette.ink), width: 3)
+        canvas.drawing = drawing
+        canvas.delegate = context.coordinator
+        let picker = context.coordinator.toolPicker
+        picker.overrideUserInterfaceStyle = .light
+        picker.addObserver(canvas)
+        picker.setVisible(true, forFirstResponder: canvas)
+        DispatchQueue.main.async { canvas.becomeFirstResponder() }
+        return canvas
+    }
+
+    func updateUIView(_ canvas: PKCanvasView, context: Context) {}
+
+    final class Coordinator: NSObject, PKCanvasViewDelegate {
+        @Binding var drawing: PKDrawing
+        let toolPicker = PKToolPicker()
+
+        init(drawing: Binding<PKDrawing>) {
+            _drawing = drawing
+        }
+
+        func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
+            drawing = canvasView.drawing
+        }
+    }
+}
+
+/// Plain paper: the facing side of the last leaf when the block runs out on
+/// a left-hand page, and the endpaper opposite the contents in a spread.
+private struct FolioBlankLeaf: View {
+    @Environment(\.folioLeafIsVerso) private var isVerso
+
+    var body: some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .parchmentSurface(accent: BookPalette.lampGold.opacity(0.55), isActive: false)
+            .overlay(alignment: isVerso ? .trailing : .leading) {
+                FolioOpenLeafBinding(tint: BookPalette.lampGold)
+                    .frame(width: 31)
+                    .padding(.vertical, 8)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct FolioEndLeaf: View {
     let onExploreDeeper: () -> Void
     let onReturnToStart: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.folioLeafIsVerso) private var isVerso
 
     var body: some View {
         VStack(spacing: 0) {
@@ -9709,7 +11555,7 @@ private struct FolioEndLeaf: View {
         .padding(.horizontal, 26)
         .padding(.vertical, 18)
         .parchmentSurface(accent: BookPalette.lampGold.opacity(0.70), isActive: false)
-        .overlay(alignment: .leading) {
+        .overlay(alignment: isVerso ? .trailing : .leading) {
             FolioOpenLeafBinding(tint: BookPalette.lampGold)
                 .frame(width: 31)
                 .padding(.vertical, 8)
@@ -9751,70 +11597,237 @@ private struct FolioInkBleed: View {
     }
 }
 
-private struct FolioPreparedIlluminationRequest {
-    let identifier: String
-    let draft: IlluminatedPhotoDraft
+private struct FolioPreparedIlluminationRequest: Equatable {
+    let boundaryID: String
+    let seed: Int
+    let themeTags: [String]
+    let relatedIdentifiers: [String]
 
-    var key: String {
-        "\(identifier)|\(draft.compositionPlan.randomSeed)"
-    }
+    var key: String { "\(boundaryID)|\(seed)|\(themeTags.joined(separator: ","))|\(relatedIdentifiers.joined(separator: ","))" }
 }
 
-/// Prepares boundary illuminations when the folio itself arrives, not when the
-/// reader turns onto their leaf. The cache contains finished display pixels,
-/// so Photos decoding, composition, and JPEG decoding are all upstream of the
-/// page curl.
+/// Metadata is fetched and scored away from reading; only the nearest few
+/// photo leaves are decoded. One worker owns preparation and reservations.
 @MainActor
 private final class FolioPreparedIlluminationStore: ObservableObject {
     static let shared = FolioPreparedIlluminationStore()
 
-    @Published private var images: [String: UIImage] = [:]
-    @Published private var settledKeys = Set<String>()
-    private var preparing = Set<String>()
-
-    func image(for request: FolioPreparedIlluminationRequest) -> UIImage? {
-        images[request.key]
+    private struct Prepared {
+        let image: UIImage
+        let identifier: String
+        let captureDate: Date?
+        let readyAt: Date
+        var cost: Int { (image.cgImage?.bytesPerRow ?? 0) * (image.cgImage?.height ?? 0) }
+    }
+    private struct Catalog {
+        let assets: [String: PHAsset]
+        let candidates: [PhotoCandidate]
+        let subjects: [String: Set<String>]
+        let refreshedAt: Date
+        let authorization: PHAuthorizationStatus
+        let historySnapshot: String
+        let relatedIdentifiers: Set<String>
+        let lastSuggestedAt: [String: Date]
     }
 
-    func areSettled(_ requests: [FolioPreparedIlluminationRequest]) -> Bool {
-        requests.allSatisfy { settledKeys.contains($0.key) }
+    @Published private var prepared: [String: Prepared] = [:]
+    private var order: [String] = []
+    private var failedUntil: [String: Date] = [:]
+    private var locallyUnavailableUntil: [String: Date] = [:]
+    private var pending: [FolioPreparedIlluminationRequest] = []
+    private var activeKeys = Set<String>()
+    private var worker: Task<Void, Never>?
+    private var loadingTask: Task<UIImage, Error>?
+    private var loadingKey: String?
+    private var catalog: Catalog?
+    private var cloudBackoffUntil = Date.distantPast
+    private var recentlySeen: [String: Date]
+    private var visitKeys = Set<String>()
+    private var visitDates: [Date] = []
+    private var chosenIdentifiers: [String: String] = [:]
+    private static let historyKey = "interleafPhotoLastSeen.v1"
+
+    private init() {
+        recentlySeen = UserDefaults.standard.data(forKey: Self.historyKey)
+            .flatMap { try? JSONDecoder().decode([String: Date].self, from: $0) } ?? [:]
+    }
+
+    func image(for request: FolioPreparedIlluminationRequest) -> UIImage? { prepared[request.key]?.image }
+    func identifier(for request: FolioPreparedIlluminationRequest) -> String? { prepared[request.key]?.identifier }
+
+    func arrival(for request: FolioPreparedIlluminationRequest, leafArrival: Date?) -> Date? {
+        guard let leafArrival, let readyAt = prepared[request.key]?.readyAt else { return nil }
+        // Late Photos delivery still gets one complete reveal. A leaf already
+        // settled by turning away stays settled when its host is recreated.
+        return leafArrival == .distantPast ? leafArrival : max(leafArrival, readyAt)
+    }
+
+    /// Called only when the displayed leaf actually has a prepared photograph.
+    /// Prewarming neighbours does not consume their seven-day repeat exclusion.
+    func recordVisible(_ request: FolioPreparedIlluminationRequest) {
+        guard let value = prepared[request.key], visitKeys.insert(request.key).inserted else { return }
+        let now = Date()
+        recentlySeen[value.identifier] = now
+        recentlySeen = recentlySeen.filter { now.timeIntervalSince($0.value) < 90 * 86_400 }
+        if recentlySeen.count > 512 {
+            recentlySeen = Dictionary(uniqueKeysWithValues: recentlySeen.sorted { $0.value > $1.value }.prefix(512).map { ($0.key, $0.value) })
+        }
+        if let data = try? JSONEncoder().encode(recentlySeen) { UserDefaults.standard.set(data, forKey: Self.historyKey) }
+        if let date = value.captureDate { visitDates = Array((visitDates + [date]).suffix(24)) }
     }
 
     func prepare(_ requests: [FolioPreparedIlluminationRequest]) async {
-        for request in requests {
-            guard images[request.key] == nil,
-                  preparing.insert(request.key).inserted else { continue }
-            defer {
-                preparing.remove(request.key)
-                settledKeys.insert(request.key)
-            }
-
-            guard let asset = PHAsset.fetchAssets(
-                withLocalIdentifiers: [request.identifier],
-                options: nil
-            ).firstObject else { continue }
-
-            do {
-                let sourceImage = try await PhotoLibraryService().requestFullImage(
-                    for: asset,
-                    targetSize: CGSize(width: 1_400, height: 1_400)
-                )
-                guard let renderedURL = IlluminatedPageRenderer.renderPreview(
-                    draft: request.draft,
-                    sourceImage: sourceImage
-                ),
-                let decoded = UIImage(contentsOfFile: renderedURL.path) else { continue }
-                images[request.key] = decoded.preparingForDisplay() ?? decoded
-            } catch {
-                continue
+        // Reprioritise on every turn. Never render the whole growing binding.
+        var seen = Set<String>()
+        let nearest = requests.filter { seen.insert($0.key).inserted }.prefix(3)
+        activeKeys = Set(nearest.map(\.key))
+        if let loadingKey, !activeKeys.contains(loadingKey) { loadingTask?.cancel() }
+        failedUntil = failedUntil.filter { $0.value > Date() }
+        locallyUnavailableUntil = locallyUnavailableUntil.filter { $0.value > Date() }
+        pending = nearest.filter { prepared[$0.key] == nil && (failedUntil[$0.key] ?? .distantPast) <= Date() }
+        guard worker == nil, !pending.isEmpty else { return }
+        worker = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.worker = nil }
+            while !self.pending.isEmpty, !Task.isCancelled {
+                let request = self.pending.removeFirst()
+                if self.prepared[request.key] != nil { continue }
+                await self.prepareOne(request)
+                await Task.yield()
             }
         }
+    }
+
+    private func currentCatalog(including identifiers: [String]) async -> Catalog {
+        let now = Date()
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        let rawHistory = UserDefaults.standard.string(forKey: "illuminatedPhotoHistory") ?? "{}"
+        if let catalog, catalog.authorization == status, catalog.historySnapshot == rawHistory,
+           Set(identifiers).isSubset(of: catalog.relatedIdentifiers),
+           now.timeIntervalSince(catalog.refreshedAt) < 300 { return catalog }
+        let related = Array(Set(identifiers + pending.flatMap(\.relatedIdentifiers)).sorted().prefix(24))
+        let history = rawHistory.data(using: .utf8)
+            .flatMap { try? JSONDecoder().decode(IlluminatedPhotoHistory.self, from: $0) } ?? IlluminatedPhotoHistory()
+        let refreshed = await Task.detached(priority: .utility) {
+            let library = PhotoLibraryService().interleafCatalog(now: now, relatedIdentifiers: related)
+            let candidates = PhotoCandidateScorer().scoreAssets(library.assets, history: history, context: .current(now: now))
+                .filter { !history.dismissedAssetIdentifiers.contains($0.assetLocalIdentifier) }
+            return Catalog(assets: Dictionary(library.assets.map { ($0.localIdentifier, $0) }, uniquingKeysWith: { first, _ in first }),
+                candidates: candidates, subjects: library.albumSubjects, refreshedAt: now, authorization: status,
+                historySnapshot: rawHistory, relatedIdentifiers: Set(related),
+                lastSuggestedAt: history.lastSuggestedAtByAsset)
+        }.value
+        catalog = refreshed
+        return refreshed
+    }
+
+    private func prepareOne(_ request: FolioPreparedIlluminationRequest) async {
+        let catalog = await currentCatalog(including: request.relatedIdentifiers)
+        guard activeKeys.contains(request.key) else { return }
+        let now = Date()
+        var reserved = Set(chosenIdentifiers.filter { $0.key != request.key && activeKeys.contains($0.key) }.map(\.value))
+        reserved.formUnion(prepared.filter { $0.key != request.key }.map { $0.value.identifier })
+        let seenDates = recentlySeen.merging(catalog.lastSuggestedAt) { max($0, $1) }
+        let ranked = InterleafPhotoCuration.ranked(catalog.candidates, subjectTags: catalog.subjects,
+            wantedTags: Set(request.themeTags).subtracting(["book", "margin", "margins", "illustration", "labyrinth"]),
+            relatedIdentifiers: Set(request.relatedIdentifiers),
+            recentlySeen: seenDates, excluding: reserved,
+            captureDatesToAvoid: visitDates + prepared.values.compactMap(\.captureDate), now: now, seed: request.seed)
+        // Recreating an evicted host must keep its photograph when possible.
+        var ids = ranked.map(\.assetLocalIdentifier)
+        if let held = chosenIdentifiers[request.key],
+           catalog.candidates.contains(where: { $0.assetLocalIdentifier == held }) {
+            ids.removeAll { $0 == held }; ids.insert(held, at: 0)
+        }
+        // The final local fallback may relax the seven-day rule: an old local
+        // picture is better than an empty photo encounter when fresh choices
+        // live in iCloud and cannot load. The first four keep the strict pool.
+        let primary = Array(ids.prefix(4))
+        let fallback = InterleafPhotoCuration.ranked(catalog.candidates, subjectTags: catalog.subjects,
+            wantedTags: Set(request.themeTags).subtracting(["book", "margin", "margins", "illustration", "labyrinth"]),
+            relatedIdentifiers: Set(request.relatedIdentifiers), recentlySeen: [:],
+            excluding: reserved.union(primary), captureDatesToAvoid: [], now: now, seed: request.seed)
+        ids = primary + fallback.map(\.assetLocalIdentifier).filter { !primary.contains($0) }
+        let attempts = InterleafPhotoCuration.loadingAttempts(identifiers: ids, allowsCloud: Date() >= cloudBackoffUntil)
+        let library = PhotoLibraryService()
+        var selected: (String, UIImage)?
+        for attempt in attempts {
+            guard activeKeys.contains(request.key), !Task.isCancelled else { return }
+            let id = attempt.identifier
+            if !attempt.allowsNetwork, (locallyUnavailableUntil[id] ?? .distantPast) > Date() { continue }
+            guard let asset = catalog.assets[id] else { continue }
+            do {
+                let loading = Task { try await library.requestInterleafImage(for: asset, networkAllowed: attempt.allowsNetwork) }
+                loadingKey = request.key
+                loadingTask = loading
+                let image = try await loading.value
+                loadingTask = nil
+                loadingKey = nil
+                locallyUnavailableUntil.removeValue(forKey: id)
+                guard activeKeys.contains(request.key),
+                      let preview = await compose(request, identifier: id, sourceImage: image, now: now) else { continue }
+                selected = (id, preview)
+                break
+            } catch {
+                loadingTask = nil
+                loadingKey = nil
+                if error is CancellationError { continue }
+                if attempt.allowsNetwork { cloudBackoffUntil = Date().addingTimeInterval(60) }
+                else { locallyUnavailableUntil[id] = Date().addingTimeInterval(300) }
+            }
+        }
+        guard activeKeys.contains(request.key) else { return }
+        guard let (identifier, image) = selected else {
+            failedUntil[request.key] = Date().addingTimeInterval(60)
+            return
+        }
+        chosenIdentifiers[request.key] = identifier
+        prepared[request.key] = Prepared(image: image, identifier: identifier,
+            captureDate: catalog.assets[identifier]?.creationDate, readyAt: Date())
+        failedUntil.removeValue(forKey: request.key)
+        order.removeAll { $0 == request.key }; order.append(request.key)
+        trim()
+    }
+
+    private func compose(_ request: FolioPreparedIlluminationRequest, identifier: String,
+                         sourceImage: UIImage, now: Date) async -> UIImage? {
+        let context = PhotoIlluminationContext.current(themeTags: request.themeTags, now: now)
+        var analysis = PhotoAnalysis.contextualPreview(context: context)
+        analysis.scene = "A photograph from your library, returned between Pages."
+        analysis.mood = "kept and rediscovered"
+        analysis.marginalia = PhotoMarginalia(
+            fieldNote: "I found this in your photographs. Left some paper round it.",
+            stampLabel: "FROM YOUR LIBRARY",
+            observationList: ["One photograph", "Room at the edges", "You know what happened here"],
+            closingLine: "You can turn the leaf. I will keep the corner."
+        )
+        analysis.souvenirCandidates = []
+        let seed = Int(UInt(bitPattern: (request.seed ^ identifier.stableHash).stableScramble) % UInt(Int.max))
+        let draft = IlluminatedPageComposer.compose(analysis: analysis, sourceAssetName: "IlluminatedPhotoSource",
+            seed: seed, assetLocalIdentifier: identifier,
+            sourceImageSize: CodableSize(width: Double(sourceImage.size.width), height: Double(sourceImage.size.height)))
+        return await IlluminatedPageRenderer.preparePreview(draft: draft, sourceImage: sourceImage, persist: false)
+    }
+
+    private func trim() {
+        while prepared.count > 8 || prepared.values.reduce(0, { $0 + $1.cost }) > 48 * 1_024 * 1_024 {
+            guard let key = order.first(where: { !activeKeys.contains($0) }) else { break }
+            order.removeAll { $0 == key }
+            prepared.removeValue(forKey: key)
+        }
+        if chosenIdentifiers.count > 256 {
+            chosenIdentifiers = chosenIdentifiers.filter { prepared[$0.key] != nil || activeKeys.contains($0.key) }
+            visitKeys = visitKeys.intersection(chosenIdentifiers.keys)
+        }
+        failedUntil = failedUntil.filter { $0.value > Date() }
+        locallyUnavailableUntil = locallyUnavailableUntil.filter { $0.value > Date() }
     }
 }
 
 private struct FolioMediaView: View {
     let media: FolioMedia
     let accent: Color
+    var fillsArtworkLeaf: Bool = false
 
     var body: some View {
         Group {
@@ -9827,14 +11840,14 @@ private struct FolioMediaView: View {
                     .scaledToFill()
             case .fittedAsset(let name, _):
                 ZStack {
-                    BookPalette.ink.opacity(0.04)
+                    BookPalette.ink.opacity(fillsArtworkLeaf ? 0 : 0.04)
                     Image(name)
                         .resizable()
                         .scaledToFit()
-                        .padding(9)
+                        .padding(fillsArtworkLeaf ? 0 : 9)
                 }
             case .file(let path, _):
-                if let image = UIImage(contentsOfFile: path) {
+                if let image = BookRenderedImageCache.shared.image(for: path) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -9843,12 +11856,12 @@ private struct FolioMediaView: View {
                 }
             case .fittedFile(let path, _):
                 ZStack {
-                    BookPalette.ink.opacity(0.04)
-                    if let image = UIImage(contentsOfFile: path) {
+                    BookPalette.ink.opacity(fillsArtworkLeaf ? 0 : 0.04)
+                    if let image = BookRenderedImageCache.shared.image(for: path) {
                         Image(uiImage: image)
                             .resizable()
                             .scaledToFit()
-                            .padding(9)
+                            .padding(fillsArtworkLeaf ? 0 : 9)
                     } else {
                         missingImage
                     }
@@ -9866,16 +11879,12 @@ private struct FolioMediaView: View {
                     .padding(9)
                 }
             case .illuminatedLibraryPhoto(
-                let identifier,
-                let draft,
+                let request,
                 let fallbackDecoration,
                 _
             ):
                 FolioDeterministicLibraryIllumination(
-                    request: FolioPreparedIlluminationRequest(
-                        identifier: identifier,
-                        draft: draft
-                    ),
+                    request: request,
                     fallbackDecoration: fallbackDecoration,
                     accent: accent
                 )
@@ -9885,7 +11894,7 @@ private struct FolioMediaView: View {
                 FolioEphemeraScrapView(artifact: artifact, accent: accent)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: fillsArtworkLeaf ? 0 : 7, style: .continuous))
         .overlay {
             if showsContainerBorder {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -9896,6 +11905,7 @@ private struct FolioMediaView: View {
     }
 
     private var showsContainerBorder: Bool {
+        if fillsArtworkLeaf { return false }
         if case .illuminatedLibraryPhoto = media { return false }
         if case .ephemera = media { return false }
         return true
@@ -9943,6 +11953,7 @@ private struct FolioEphemeraScrapView: View {
             }
 
             content
+                .bookInkEmergence(seed: "ephemera-\(artifact.id)")
                 .padding(.horizontal, 20)
                 .padding(.vertical, 24)
         }
@@ -9959,7 +11970,7 @@ private struct FolioEphemeraScrapView: View {
     @ViewBuilder
     private var content: some View {
         if let imagePath = artifact.imagePath,
-           let image = UIImage(contentsOfFile: imagePath) {
+           let image = BookRenderedImageCache.shared.image(for: imagePath) {
             VStack(alignment: .leading, spacing: 10) {
                 Image(uiImage: image)
                     .resizable()
@@ -10372,7 +12383,7 @@ private struct FolioExpandedEphemeraReader: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let imagePath = artifact.imagePath,
-                   let image = UIImage(contentsOfFile: imagePath) {
+                   let image = BookRenderedImageCache.shared.image(for: imagePath) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
@@ -10483,7 +12494,7 @@ private struct FolioExpandedMediaView: View {
                     .padding(10)
 
             case .file(let path, _), .fittedFile(let path, _):
-                if let image = UIImage(contentsOfFile: path) {
+                if let image = BookRenderedImageCache.shared.image(for: path) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFit()
@@ -10501,16 +12512,12 @@ private struct FolioExpandedMediaView: View {
                 )
 
             case .illuminatedLibraryPhoto(
-                let identifier,
-                let draft,
+                let request,
                 let fallbackDecoration,
                 _
             ):
                 FolioDeterministicLibraryIllumination(
-                    request: FolioPreparedIlluminationRequest(
-                        identifier: identifier,
-                        draft: draft
-                    ),
+                    request: request,
                     fallbackDecoration: fallbackDecoration,
                     accent: accent
                 )
@@ -10523,6 +12530,7 @@ private struct FolioExpandedMediaView: View {
             }
         }
         .accessibilityLabel(media.label)
+        .environment(\.folioPhotoIsVisible, true)
     }
 
     private var missingImage: some View {
@@ -10543,19 +12551,29 @@ private struct FolioDeterministicLibraryIllumination: View {
     let fallbackDecoration: LeafDecorationRecipe
     let accent: Color
     @ObservedObject private var preparedIlluminations = FolioPreparedIlluminationStore.shared
+    @Environment(\.bookLeafInkArrival) private var inkArrival
+    @Environment(\.folioPhotoIsVisible) private var isPhotoVisible
 
     var body: some View {
         Group {
             if let image = preparedIlluminations.image(for: request) {
+                // One decoded composition owns the same emergence as an
+                // illustration: photograph, frame, scraps and handwriting.
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
+                    .bookInkEmergence(seed: request.key)
+                    .environment(\.bookLeafInkArrival,
+                        preparedIlluminations.arrival(for: request, leafArrival: inkArrival))
             } else {
                 FolioIlluminationDecorationFallback(
                     recipe: fallbackDecoration,
                     accent: accent
                 )
             }
+        }
+        .task(id: "\(isPhotoVisible)|\(preparedIlluminations.identifier(for: request) ?? "")") {
+            if isPhotoVisible { preparedIlluminations.recordVisible(request) }
         }
     }
 }
@@ -10686,6 +12704,7 @@ private struct FolioPhotoLibraryImage: View {
 
 private struct FolioStillPager: View {
     let leaves: [FolioLeaf]
+    let photosAreVisible: Bool
     @Binding var currentLeafID: String?
     let interactionStore: FolioInteractionStore
     let isBusy: (SurfacePage) -> Bool
@@ -10699,7 +12718,7 @@ private struct FolioStillPager: View {
     var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
-    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> Void
+    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
     let savedRibbon: SavedPageRibbon?
     let onPlaceRibbon: (SurfacePage, String, Int) -> Void
@@ -10734,12 +12753,23 @@ private struct FolioStillPager: View {
                     isRetiring: !leaf.isInterstitial && isRetiring(leaf.surface),
                     animatesArrival: !leaf.isInterstitial && animatesArrival(leaf.surface),
                     isSelected: !leaf.isInterstitial && selectedSurfaceID == leaf.documentID,
+                    isInkVisible: true,
+                    canRecordPhotoVisibility: photosAreVisible,
                     onOpen: { onOpen(leaf.surface) },
                     moonlight: moonlight,
                     actions: leaf.isInterstitial ? [] : leafActions(leaf.surface),
                     onAction: { onLeafAction(leaf.surface, $0) },
-                    onKeep: { input, media in onKeep(leaf.surface, input, media) },
-                    onDismiss: { onDismiss(leaf.surface) },
+                    onKeep: { input, media in
+                        let disposition = onKeep(leaf.surface, input, media)
+                        if disposition == .saving, !leaf.keepNeedsAuthoredContinuation {
+                            advanceAfterResolution(of: leaf.documentID)
+                        }
+                        return disposition
+                    },
+                    onDismiss: {
+                        advanceAfterResolution(of: leaf.documentID)
+                        onDismiss(leaf.surface)
+                    },
                     isRibbonHere: savedRibbon?.marks(
                         documentID: leaf.documentID,
                         textRange: leaf.textRange
@@ -10773,6 +12803,19 @@ private struct FolioStillPager: View {
         guard leaves.indices.contains(next) else { return }
         currentLeafID = leaves[next].id
     }
+
+    private func advanceAfterResolution(of documentID: String) {
+        // Return from the Keep/dismiss callback before publishing navigation.
+        // These callbacks can still hold the Book's large root view on stack.
+        DispatchQueue.main.async {
+            guard let next = FolioLeaf.preparedSuccessor(
+                after: documentID, currentLeafID: currentLeafID, in: leaves
+            ) else { return }
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { currentLeafID = next.id }
+        }
+    }
 }
 
 // MARK: - Interactive native page curl
@@ -10781,7 +12824,14 @@ private struct FolioStillPager: View {
 /// Apple's book readers. SwiftUI still owns every leaf and all actions.
 private struct FolioCurlPager: UIViewControllerRepresentable {
     let leaves: [FolioLeaf]
+    let photosAreVisible: Bool
+    /// The size of one leaf. In a spread the pager is two of these wide.
     let pageSize: CGSize
+    /// The Book lies open across two leaves on a middle spine, the way it does
+    /// on a wide iPad. Fixed for the life of the controller: UIKit takes the
+    /// spine location only at creation, so the folio gives a spread pager its
+    /// own identity.
+    var isSpread: Bool = false
     @Binding var currentLeafID: String?
     let interactionStore: FolioInteractionStore
     let isBusy: (SurfacePage) -> Bool
@@ -10795,7 +12845,7 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     var moonlight: Double = 0
     var leafActions: (SurfacePage) -> [FolioLeafAction] = { _ in [] }
     var onLeafAction: (SurfacePage, FolioLeafAction.Kind) -> Void = { _, _ in }
-    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> Void
+    let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
     let savedRibbon: SavedPageRibbon?
     let onPlaceRibbon: (SurfacePage, String, Int) -> Void
@@ -10811,9 +12861,13 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIPageViewController {
         let controller = UIPageViewController(
             transitionStyle: .pageCurl,
-            navigationOrientation: .horizontal
+            navigationOrientation: .horizontal,
+            options: isSpread ? [.spineLocation: UIPageViewController.SpineLocation.mid.rawValue] : nil
         )
-        controller.isDoubleSided = false
+        // A middle spine needs both faces of every sheet, and in a spread both
+        // faces are real leaves: the back of the sheet being turned is the
+        // next left-hand page. Nothing is ever a blank reverse.
+        controller.isDoubleSided = isSpread
         controller.dataSource = context.coordinator
         controller.delegate = context.coordinator
         controller.view.backgroundColor = .clear
@@ -10826,6 +12880,21 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
         controller.view.clipsToBounds = true
         context.coordinator.synchronize(controller)
         return controller
+    }
+
+    /// Exactly the paper it was given. Left to size itself, a page
+    /// controller with a middle spine grew wider than the block: the clip hid
+    /// the overhang, but it still took every touch over the fore-edge seals
+    /// beside the spread.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: UIPageViewController,
+        context: Context
+    ) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? pageSize.width * (isSpread ? 2 : 1),
+            height: proposal.height ?? pageSize.height
+        )
     }
 
     func updateUIViewController(
@@ -10846,10 +12915,14 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
         private var isTransitioning = false
         private var hostPresentationSignatures: [String: Int] = [:]
         private var neighborPreparationTicket = 0
+        private var neighborPreparationTask: Task<Void, Never>?
+        private var resolutionTargetID: String?
 
         init(parent: FolioCurlPager) {
             self.parent = parent
         }
+
+        deinit { neighborPreparationTask?.cancel() }
 
         func synchronize(_ controller: UIPageViewController) {
             guard !isTransitioning else { return }
@@ -10868,15 +12941,18 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                 hosts.removeAll()
                 hostPresentationSignatures.removeAll()
                 neighborPreparationTicket &+= 1
+                neighborPreparationTask?.cancel()
                 hasInstalledLeaf = false
-            } else {
-                hosts = hosts.filter { nextLeafIDs.contains($0.key) }
+            } else if leavesChanged {
+                let retainedIDs = Set(nextLeafIDs)
+                hosts = hosts.filter { retainedIDs.contains($0.key) }
                 hostPresentationSignatures = hostPresentationSignatures.filter {
-                    nextLeafIDs.contains($0.key)
+                    retainedIDs.contains($0.key)
                 }
             }
 
             guard !parent.leaves.isEmpty else {
+                neighborPreparationTask?.cancel()
                 controller.setViewControllers(
                     nil,
                     direction: .forward,
@@ -10887,14 +12963,29 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                 return
             }
 
-            let targetID = parent.currentLeafID.flatMap { requested in
+            let requestedID = parent.currentLeafID.flatMap { requested in
                 parent.leaves.contains(where: { $0.id == requested }) ? requested : nil
             } ?? parent.leaves[0].id
-            guard let targetIndex = index(of: targetID) else { return }
+            guard let requestedIndex = index(of: requestedID) else { return }
+            // A spread is named by its left-hand leaf. Asking for a right-hand
+            // leaf opens the Book to the spread it is on.
+            let targetIndex = parent.isSpread ? requestedIndex - requestedIndex % 2 : requestedIndex
+            let targetID = parent.leaves[targetIndex].id
+            let isResolutionHandoff = resolutionTargetID == targetID
+            resolutionTargetID = nil
 
-            if let visible = controller.viewControllers?.first,
+            // After the paper changes size the visible controller is one of the
+            // discarded hosts, still laid out for the old paper. It names the
+            // right leaf, so it must not count as already installed — that is
+            // how a turned iPad kept its portrait leaf, clipped, until the
+            // reader turned a page.
+            if hasInstalledLeaf,
+               let visible = controller.viewControllers?.first,
                leafID(for: visible) == targetID {
                 refreshHost(for: targetID)
+                if parent.isSpread, targetIndex + 1 < parent.leaves.count {
+                    refreshHost(for: parent.leaves[targetIndex + 1].id)
+                }
                 prepareNeighborHosts(around: targetID)
                 return
             }
@@ -10904,11 +12995,19 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                 .flatMap(index(of:))
             let direction: UIPageViewController.NavigationDirection =
                 (visibleIndex ?? targetIndex) <= targetIndex ? .forward : .reverse
-            let animated = hasInstalledLeaf && !leavesChanged
+            let animated = !isResolutionHandoff && hasInstalledLeaf && !leavesChanged
             let target = host(for: targetID)
+            var spread: [UIViewController] = [target]
+            if parent.isSpread {
+                spread.append(
+                    targetIndex + 1 < parent.leaves.count
+                        ? host(for: parent.leaves[targetIndex + 1].id)
+                        : blankVerso()
+                )
+            }
             if animated { isTransitioning = true }
             controller.setViewControllers(
-                [target],
+                spread,
                 direction: direction,
                 animated: animated,
                 completion: { [weak self, weak controller] _ in
@@ -10925,12 +13024,31 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             prepareNeighborHosts(around: targetID)
         }
 
+        private func advanceAfterResolution(of documentID: String) {
+            // A Keep callback must not replace its own UIKit host while that
+            // callback (and the ink submission task) is still unwinding. Match
+            // the deferred boundary used by the physical-curl delegate above.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, !self.isTransitioning,
+                      let next = FolioLeaf.preparedSuccessor(
+                        after: documentID, currentLeafID: self.parent.currentLeafID,
+                        in: self.parent.leaves, isSpread: self.parent.isSpread
+                      ), let nextIndex = self.index(of: next.id) else { return }
+                let targetIndex = self.parent.isSpread ? nextIndex - nextIndex % 2 : nextIndex
+                self.resolutionTargetID = self.parent.leaves[targetIndex].id
+                var transaction = Transaction(animation: nil)
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { self.parent.currentLeafID = next.id }
+                // updateUIViewController owns host installation. Do not call
+                // synchronize/setViewControllers recursively from this action.
+            }
+        }
+
         func pageViewController(
             _ pageViewController: UIPageViewController,
             viewControllerBefore viewController: UIViewController
         ) -> UIViewController? {
-            guard let id = leafID(for: viewController),
-                  let currentIndex = index(of: id),
+            guard let currentIndex = faceIndex(of: viewController),
                   currentIndex > 0 else { return nil }
             return preparedHost(for: parent.leaves[currentIndex - 1].id)
         }
@@ -10939,10 +13057,39 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             _ pageViewController: UIPageViewController,
             viewControllerAfter viewController: UIViewController
         ) -> UIViewController? {
-            guard let id = leafID(for: viewController),
-                  let currentIndex = index(of: id),
-                  currentIndex + 1 < parent.leaves.count else { return nil }
+            guard let currentIndex = faceIndex(of: viewController) else { return nil }
+            guard currentIndex + 1 < parent.leaves.count else {
+                // The last sheet can have nothing on its right-hand side. A
+                // nil there would refuse the turn that reaches it, so the
+                // final left-hand leaf faces blank paper instead. A nil after
+                // a right-hand page is the real end of the block.
+                guard parent.isSpread,
+                      currentIndex < parent.leaves.count,
+                      currentIndex.isMultiple(of: 2) else { return nil }
+                return blankVerso()
+            }
             return preparedHost(for: parent.leaves[currentIndex + 1].id)
+        }
+
+        /// Where a face sits in the block. The blank that ends an odd spread
+        /// stands one past the last leaf.
+        private func faceIndex(of controller: UIViewController) -> Int? {
+            if let blank, controller === blank { return parent.leaves.count }
+            return leafID(for: controller).flatMap(index(of:))
+        }
+
+        private var blank: UIHostingController<AnyView>?
+
+        private func blankVerso() -> UIHostingController<AnyView> {
+            if let blank, blank.preferredContentSize == parent.pageSize { return blank }
+            let host = UIHostingController(rootView: AnyView(
+                FolioHostedPaperRoot(pageSize: parent.pageSize) {
+                    FolioBlankLeaf()
+                }
+            ))
+            configure(host)
+            blank = host
+            return host
         }
 
         func pageViewController(
@@ -10950,12 +13097,13 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             willTransitionTo pendingViewControllers: [UIViewController]
         ) {
             isTransitioning = true
+            neighborPreparationTask?.cancel()
             // The finger has lifted a corner: the leaf answers with a two-note
             // step up (or down, turning back). Programmatic moves carry their own
             // cues, so only the physical curl speaks here.
-            if let pendingIndex = pendingViewControllers.first.flatMap(leafID(for:)).flatMap(index(of:)),
+            if let pendingIndex = pendingViewControllers.first.flatMap(faceIndex(of:)),
                let visibleIndex = pageViewController.viewControllers?.first
-                   .flatMap(leafID(for:)).flatMap(index(of:)) {
+                   .flatMap(faceIndex(of:)) {
                 BookSoundBank.pageTurn(forward: pendingIndex > visibleIndex)
             }
         }
@@ -11027,19 +13175,60 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
         /// during the opening millimetres of the curl.
         private func prepareNeighborHosts(around leafID: String) {
             neighborPreparationTicket &+= 1
+            neighborPreparationTask?.cancel()
             let ticket = neighborPreparationTicket
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(90))
+            neighborPreparationTask = Task { @MainActor [weak self] in
+                do { try await Task.sleep(for: .milliseconds(90)) }
+                catch { return }
                 guard let self,
                       !Task.isCancelled,
                       ticket == self.neighborPreparationTicket,
                       !self.isTransitioning,
                       let index = self.index(of: leafID) else { return }
-                if index > 0 {
-                    _ = self.host(for: self.parent.leaves[index - 1].id)
+                // A spread turns a sheet: two leaves on each side are what the
+                // finger can reach.
+                let reach = self.parent.isSpread ? [-2, -1, 2, 3] : [-1, 1]
+                var preparationIDs: [String] = []
+                for offset in reach where self.parent.leaves.indices.contains(index + offset) {
+                    preparationIDs.append(self.parent.leaves[index + offset].id)
                 }
-                if index + 1 < self.parent.leaves.count {
-                    _ = self.host(for: self.parent.leaves[index + 1].id)
+                // Keep/Rip removes a whole logical Page, so its destination
+                // lies beyond the intervening boundary leaf, not just one curl
+                // away. Prepare that host while the reader is still here.
+                if let next = FolioLeaf.preparedSuccessor(
+                    after: self.parent.leaves[index].documentID,
+                    currentLeafID: leafID,
+                    in: self.parent.leaves,
+                    isSpread: self.parent.isSpread
+                ), let nextIndex = self.index(of: next.id) {
+                    let first = self.parent.isSpread ? nextIndex - nextIndex % 2 : nextIndex
+                    preparationIDs.append(self.parent.leaves[first].id)
+                    if self.parent.isSpread, self.parent.leaves.indices.contains(first + 1) {
+                        preparationIDs.append(self.parent.leaves[first + 1].id)
+                    }
+                }
+                var preparedIDs = Set<String>()
+                for preparationID in preparationIDs where preparedIDs.insert(preparationID).inserted {
+                    guard !Task.isCancelled, ticket == self.neighborPreparationTicket,
+                          !self.isTransitioning else { return }
+                    if let target = self.index(of: preparationID) {
+                        let paths = self.parent.leaves[target].fragments.compactMap { fragment -> String? in
+                            guard case .image(let media) = fragment.content else { return nil }
+                            switch media {
+                            case .file(let path, _), .fittedFile(let path, _): return path
+                            case .ephemera(let artifact): return artifact.imagePath
+                            default: return nil
+                            }
+                        }
+                        await BookRenderedImageCache.shared.prepare(paths)
+                    }
+                    guard !Task.isCancelled, ticket == self.neighborPreparationTicket,
+                          !self.isTransitioning else { return }
+                    _ = self.host(for: preparationID)
+                    // This is speculative work. Give drawing and a new finger
+                    // gesture a turn before constructing another SwiftUI host.
+                    do { try await Task.sleep(for: .milliseconds(16)) }
+                    catch { return }
                 }
             }
         }
@@ -11052,7 +13241,11 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             guard let leafIndex = index(of: leafID) else { return 0 }
             let leaf = parent.leaves[leafIndex]
             var hasher = Hasher()
+            // A leaf changes sides when one before it leaves the block.
+            hasher.combine(parent.isSpread && leafIndex.isMultiple(of: 2))
             hasher.combine(leaf.id)
+            hasher.combine(inkIsVisible(for: leafID))
+            hasher.combine(parent.photosAreVisible)
             hasher.combine(leaf.documentID)
             hasher.combine(leaf.globalLeafIndex)
             hasher.combine(leaf.globalLeafCount)
@@ -11089,9 +13282,17 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             return hasher.finalize()
         }
 
+        private func inkIsVisible(for leafID: String) -> Bool {
+            guard let leafIndex = index(of: leafID) else { return false }
+            let requested = parent.currentLeafID.flatMap(index(of:)) ?? 0
+            let first = parent.isSpread ? requested - requested % 2 : requested
+            return leafIndex == first || (parent.isSpread && leafIndex == first + 1)
+        }
+
         private func rootView(for leafID: String) -> AnyView {
             guard let leafIndex = index(of: leafID) else { return AnyView(EmptyView()) }
             let leaf = parent.leaves[leafIndex]
+            let isVerso = parent.isSpread && leafIndex.isMultiple(of: 2)
 
             if leaf.isEnding {
                 return AnyView(FolioHostedPaperRoot(pageSize: parent.pageSize) {
@@ -11099,7 +13300,8 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                         onExploreDeeper: { [weak self] in self?.parent.onExploreDeeper() },
                         onReturnToStart: { [weak self] in self?.parent.onReturnToStart() }
                     )
-                })
+                }
+                .environment(\.folioLeafIsVerso, isVerso))
             }
 
             return AnyView(FolioHostedPaperRoot(pageSize: parent.pageSize) {
@@ -11112,14 +13314,25 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                     isRetiring: !leaf.isInterstitial && parent.isRetiring(leaf.surface),
                     animatesArrival: !leaf.isInterstitial && parent.animatesArrival(leaf.surface),
                     isSelected: !leaf.isInterstitial && parent.selectedSurfaceID == leaf.documentID,
+                    isInkVisible: inkIsVisible(for: leafID),
+                    canRecordPhotoVisibility: parent.photosAreVisible,
                     onOpen: { [weak self] in self?.parent.onOpen(leaf.surface) },
                     moonlight: parent.moonlight,
                     actions: leaf.isInterstitial ? [] : parent.leafActions(leaf.surface),
                     onAction: { [weak self] kind in self?.parent.onLeafAction(leaf.surface, kind) },
-                    onKeep: { [weak self] input, media in
-                        self?.parent.onKeep(leaf.surface, input, media)
+                    onKeep: { [weak self, keep = parent.onKeep] input, media in
+                        // A confirmed Keep outlives this curl coordinator if
+                        // the Reader changes tabs while their ink is sinking.
+                        let disposition = keep(leaf.surface, input, media)
+                        if disposition == .saving, !leaf.keepNeedsAuthoredContinuation {
+                            self?.advanceAfterResolution(of: leaf.documentID)
+                        }
+                        return disposition
                     },
-                    onDismiss: { [weak self] in self?.parent.onDismiss(leaf.surface) },
+                    onDismiss: { [weak self, dismiss = parent.onDismiss] in
+                        self?.advanceAfterResolution(of: leaf.documentID)
+                        dismiss(leaf.surface)
+                    },
                     isRibbonHere: parent.savedRibbon?.marks(
                         documentID: leaf.documentID,
                         textRange: leaf.textRange
@@ -11144,12 +13357,17 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                         self?.parent.onInspectArtifact(artifact)
                     }
                 )
-            })
+            }
+            .environment(\.folioLeafIsVerso, isVerso))
         }
 
         private func move(from leafID: String, by delta: Int) {
             guard let currentIndex = index(of: leafID) else { return }
-            let nextIndex = currentIndex + delta
+            // In a spread a turn is a whole sheet: two leaves on from the
+            // left-hand page, whichever of the pair asked.
+            let nextIndex = parent.isSpread
+                ? currentIndex - currentIndex % 2 + delta * 2
+                : currentIndex + delta
             guard parent.leaves.indices.contains(nextIndex) else { return }
             parent.currentLeafID = parent.leaves[nextIndex].id
         }

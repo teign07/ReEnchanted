@@ -317,12 +317,12 @@ final class BraidRecoveryStateTests: XCTestCase {
             "The Blue Kitchen Chair",
             "You tightened the loose screw on the blue kitchen chair, and the chair stopped complaining about a thing it had complained about for weeks. I kept the screw. Small repairs are still repairs.",
             "Later you carried tomato soup to Sam and forgot the silver spoon. You went back for it, which is the part I am keeping. The soup and the screw belong in one paragraph: both were you tending something that could not tend itself.",
-            "The Book kept the page: the screw and the soup were the same errand."
+            "I kept the page: the screw and the soup were the same errand."
         ].joined(separator: "\n\n")
     }
 
     private var thinBraidBody: String {
-        "A Chair\n\nYou fixed a chair and carried soup.\n\nThe Book kept the page: you fixed a chair."
+        "A Chair\n\nYou fixed a chair and carried soup.\n\nI kept the page: you fixed a chair."
     }
 
     private func adoptionContext(for day: BookDay) -> BraidPromptBuilder.Context {

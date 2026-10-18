@@ -61,7 +61,8 @@ class MonthlyIssueToolTests(unittest.TestCase):
         self.assertEqual([issue['id'] for issue in template['issues']],
                          ['count-unbound-2026-10', 'winter-lantern-2026-12'])
         self.assertEqual(missing, [])
-        self.assertEqual(count, 37 + len(template['issues'][1]['assets']))
+        self.assertEqual(count, sum(len(issue['assets']) for issue in template['issues']))
+        self.assertEqual(len({asset['id'] for issue in template['issues'] for asset in issue['assets']}), count)
         # The scaffold is all draft, so the release gate refuses the shelf
         # and names what is unfinished; nothing half-written ships.
         with self.assertRaisesRegex(ValueError, 'required content is not ready'):
@@ -77,6 +78,41 @@ class MonthlyIssueToolTests(unittest.TestCase):
         packfile.write_text(json.dumps(pack))
         with self.assertRaisesRegex(tool.IssueError, 'no record'):
             tool.Issue(folder).validate()
+
+    def test_october_story_plates_ship_with_runtime_and_keep_their_print_sources(self):
+        issue = tool.Issue(COUNT)
+        entry, missing = issue.stage_into(self.root / 'sources')
+        self.assertEqual(missing, [])
+        assets = {asset['id']: asset for asset in entry['assets']}
+        scene_stems = {path.stem for path in (COUNT / 'plates').glob('scene.*.jpg')}
+        attached_stems = set()
+        for scene in issue.pack['storyScenes']:
+            owners = [scene] + scene.get('nodes', [])
+            plates = [(index, owner['illustration']) for index, owner in enumerate(owners) if 'illustration' in owner]
+            stem = 'scene.' + scene['id']
+            if stem not in scene_stems:
+                self.assertEqual(plates, [], scene['id'])
+                continue
+            self.assertEqual(len(plates), 1, scene['id'])
+            index, plate = plates[0]
+            self.assertEqual(index, 1 if scene.get('nodes') else 0, scene['id'])
+            runtime_id = 'count-unbound.story-art.v1.' + stem
+            self.assertEqual(plate['reference'], '{{asset-path:' + runtime_id + '}}')
+            self.assertEqual(plate['kind'], 'renderedImageFile')
+            runtime = assets[runtime_id]
+            publication = assets[issue.config['plates']['prefix'] + stem]
+            self.assertEqual(runtime['scope'], 'runtime')
+            self.assertEqual(publication['scope'], 'publication')
+            target = self.root / 'sources' / issue.issue_id
+            self.assertEqual((target / runtime['fileName']).read_bytes(), (target / publication['fileName']).read_bytes())
+            attached_stems.add(stem)
+        self.assertEqual(attached_stems, scene_stems)
+        # The runtime adapter reuses the scene gate; artwork adds no story beats
+        # or dependencies, and stays out of the unrelated interleave catalogue.
+        self.assertEqual(check(issue.pack, release=True), [])
+        output = self.root / 'prepared'
+        template = dict(schemaVersion=2, generatedAt='2026-10-18T12:00:00Z', issues=[entry])
+        prepare(template, self.root / 'sources', output, 'https://shelf.example')
 
 
 if __name__ == '__main__':

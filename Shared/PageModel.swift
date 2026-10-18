@@ -620,7 +620,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .glowInvitation:
             return ("Your choice", "What would you like more or less of?")
         case .theBleed:
-            return ("What caught your eye", "Which part do you want to keep?")
+            return ("Letters to the Editor", "Write to Penny. The next paper prints it.")
         case .inventory:
             return ("Pick one", "Which thing would you like to use?")
         case .bindery:
@@ -766,11 +766,11 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .glowInvitation:
             return ("Your Glow wants somewhere to go.", "Warm what you want more of. Cool what's gone too loud. Cooling never deletes a thing, it just lets it rest.")
         case .theBleed:
-            return ("The outside world leaked on me.", "Cut out the bit that stained.")
+            return ("The paper came. It's still warm.", "My daily edition. Penny prints it morning and evening. Read it, keep it, or bind its PDF. Write in the margin for Penny.")
         case .inventory:
             return ("Turn out the pockets.", "Gifts, wares, folios, bound things. Some are fidgeting.")
         case .bindery:
-            return ("These Pages want thread.", "I sew a finished week or month into one issue. Keep it, send it, or have it printed on real paper.")
+            return ("These Pages want thread.", "The Bleed for a day. An issue for a week. A month, a season, a year under bigger covers. Choose an edition to read, keep, or share.")
         case .bookPocket:
             return ("I have things in my pocket.", "I'm turning it inside out. Mind the crumbs.")
         case .frontMatter:
@@ -1342,7 +1342,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "morning and evening editions",
-            note: "Penny Blackletter's pocket newspaper. The interest column knowingly uses live web lookups (Reddit and the open web)."
+            note: "Penny Blackletter's daily edition, printed morning and evening. Read, keep, or bind its PDF alongside the Weekly Issue and the longer editions. Optional news clippings name their sources."
         ),
         BookPageSource(
             id: "gossip-page",
@@ -3133,10 +3133,10 @@ struct AttentionFingerprint: Codable, Equatable {
         )
     }
 
-    /// Every nightly braid ends "The Book kept the page: …". Counted, that
-    /// closing line made "book" and "page" the refrain of every month.
+    /// Every nightly braid ends "I kept the page: …". Counted, that
+    /// closing line made "kept" and "page" the refrain of every month.
     static func withoutColophon(_ text: String, type: BookPageType) -> String {
-        guard type == .bookOfYou, let range = text.range(of: "The Book kept the page:") else { return text }
+        guard type == .bookOfYou, let range = BraidColophon.firstRange(in: text) else { return text }
         return String(text[..<range.lowerBound])
     }
 
@@ -3839,8 +3839,11 @@ enum ArchiveMemo {
             hasher.combine(day.pages.count)
             for page in day.pages {
                 hasher.combine(page.id)
-                hasher.combine(page.userInput.count)
-                hasher.combine(page.playerReply.count)
+                // Byte lengths: as good a change signal as character counts,
+                // and constant time, where `count` walks every grapheme of
+                // every Page on every memo lookup.
+                hasher.combine(page.userInput.utf8.count)
+                hasher.combine(page.playerReply.utf8.count)
             }
         }
         return hasher.finalize()
@@ -4719,5 +4722,64 @@ struct BookDay: Codable, Identifiable, Equatable {
             return start
         }
         return calendar.startOfDay(for: date)
+    }
+}
+
+
+/// The braid's closing ritual: every nightly braid ends with one sentence that
+/// starts "I kept the page:". The Book is the narrator, so it says "I".
+///
+/// Braids written before 2026-10-17 said "The Book kept the page:" and are
+/// still in readers' archives, so everything that *reads* a braid accepts both
+/// spellings through this type, and everything that *writes* one uses `stem`.
+enum BraidColophon {
+    static let stem = "I kept the page:"
+    static let legacyStem = "The Book kept the page:"
+    static let stems = [stem, legacyStem]
+
+    /// Matches either stem; for building larger patterns.
+    static let stemPattern = #"(?:I|The Book) kept the page:"#
+
+    static func starts(_ text: String) -> Bool {
+        stems.contains { text.hasPrefix($0) }
+    }
+
+    static func startsIgnoringCase(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return stems.contains { lower.hasPrefix($0.lowercased()) }
+    }
+
+    static func contains(_ text: String) -> Bool {
+        stems.contains { text.contains($0) }
+    }
+
+    static func containsIgnoringCase(_ text: String) -> Bool {
+        stems.contains { text.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// The text after whichever stem it starts with, trimmed; nil when it
+    /// doesn't start with one.
+    static func landing(of text: String) -> String? {
+        let lower = text.lowercased()
+        guard let match = stems.first(where: { lower.hasPrefix($0.lowercased()) }) else { return nil }
+        return String(text.dropFirst(match.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func firstRange(in text: String) -> Range<String.Index>? {
+        stems.compactMap { text.range(of: $0) }.min { $0.lowerBound < $1.lowerBound }
+    }
+
+    static func lastRange(in text: String) -> Range<String.Index>? {
+        stems.compactMap { text.range(of: $0, options: .backwards) }.max { $0.lowerBound < $1.lowerBound }
+    }
+
+    /// The text with every stem removed (the landing stays).
+    static func removingStems(from text: String) -> String {
+        stems.reduce(text) { $0.replacingOccurrences(of: $1, with: "") }
+    }
+
+    /// An archived braid's legacy stem, said the way the Book says it now.
+    static func modernized(_ text: String) -> String {
+        text.replacingOccurrences(of: legacyStem, with: stem)
     }
 }

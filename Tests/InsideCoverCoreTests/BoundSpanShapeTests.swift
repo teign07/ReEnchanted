@@ -51,19 +51,19 @@ final class BoundSpanShapeTests: XCTestCase {
 
     func testHouseThreadsAreWeatherAndNotStory() {
         let reading = read([
-            braid("2026-09-03", moveKey: "tale:moth", kept: "The Book kept the page: the bowl."),
-            braid("2026-09-04", moveKey: "tale:bell", kept: "The Book kept the page: the lamp.")
+            braid("2026-09-03", moveKey: "tale:moth", kept: "I kept the page: the bowl."),
+            braid("2026-09-04", moveKey: "tale:bell", kept: "I kept the page: the lamp.")
         ])
         XCTAssertTrue(reading.isQuiet, "a paper moth is not a plot point")
     }
 
     func testBeatThreadsAreReadAsStructure() {
         let reading = read([
-            braid("2026-09-03", moveKey: "tale:lack", kept: "The Book kept the page: the gap."),
-            braid("2026-09-10", moveKey: "tale:crossing", kept: "The Book kept the page: the door.")
+            braid("2026-09-03", moveKey: "tale:lack", kept: "I kept the page: the gap."),
+            braid("2026-09-10", moveKey: "tale:crossing", kept: "I kept the page: the door.")
         ])
         XCTAssertEqual(reading.beats.map(\.beat), [.lack, .crossing])
-        XCTAssertEqual(reading.beats.first?.line, "The Book kept the page: the gap.")
+        XCTAssertEqual(reading.beats.first?.line, "I kept the page: the gap.")
     }
 
     func testBeatsComeBackInTheOrderTheyHappened() {

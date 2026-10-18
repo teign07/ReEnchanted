@@ -4,14 +4,6 @@ import Foundation
 /// second curator and stores no competing truth. It gives the existing session
 /// score, world, Interior, and archive one composed daily frontispiece.
 struct BookTodayEdition: Equatable {
-    enum Form: String, Equatable {
-        case almanacLeaf
-        case weatherMap
-        case observatoryWindow
-        case sealedDocket
-        case housePortrait
-    }
-
     enum BeatKind: String, Equatable {
         case atTheWindows
         case inTheMargins
@@ -60,16 +52,47 @@ struct BookTodayEdition: Equatable {
         var pageCount: Int
         var facts: [Fact]
         var closingLine: String
+        /// What the Book and the Academy got up to in the last day, while the Reader was elsewhere.
+        var whileAway: [Fact] = []
+    }
+
+    /// Something of the Reader's own, quoted back: a recent line in their hand, or a photograph.
+    struct Keepsake: Equatable {
+        var pageID: String
+        var label: String
+        var text: String?
+        var photo: BookPageMediaAsset?
+        var aside: String
+    }
+
+    /// The paper on the mat: this edition's front page, before or after it's printed.
+    struct Doorstep: Equatable {
+        var kind: BleedEditionKind
+        var kicker: String
+        var headline: String
+        var line: String
+    }
+
+    /// The day's one claim on the Reader: the dare the morning paper sent them out on.
+    struct Assignment: Equatable {
+        var dareID: String
+        var title: String
+        var challenge: String
+        var filed: Bool
     }
 
     var dayID: String
-    var form: Form
     var headline: String
     var reading: String
     var atmosphereSymbolName: String
     var marginalMark: String?
     var beats: [Beat]
     var census: Census
+    var keepsake: Keepsake? = nil
+    var doorstep: Doorstep? = nil
+    var assignment: Assignment? = nil
+    /// More of the margins than the one beat: the Cast's business, a line each.
+    var margins: [Beat] = []
 }
 
 enum BookTodayProjector {
@@ -89,19 +112,6 @@ enum BookTodayProjector {
         let weather = inputs.enchantedWeather?.enchantified.nonEmpty
             ?? inputs.weather?.phrase.nonEmpty
         let hour = calendar.component(.hour, from: now)
-        let form: BookTodayEdition.Form
-        if event != nil {
-            form = .sealedDocket
-        } else if weather != nil {
-            form = .weatherMap
-        } else if inputs.bookInterior.currentDispute != nil
-                    || !inputs.contestedQuestions.isEmpty {
-            form = .housePortrait
-        } else if intention != nil {
-            form = .observatoryWindow
-        } else {
-            form = .almanacLeaf
-        }
 
         var beats: [BookTodayEdition.Beat] = []
         if let event {
@@ -126,13 +136,14 @@ enum BookTodayProjector {
             ))
         }
 
-        if let margin = marginBeat(
+        let marginLines = marginBeats(
             inputs: inputs,
             event: event,
             dayID: day.id,
             now: now,
             selectionSeed: selectionSeed
-        ) {
+        )
+        if let margin = marginLines.first {
             beats.append(margin)
         }
 
@@ -172,11 +183,15 @@ enum BookTodayProjector {
             weatherPresent: weather != nil,
             eventPresent: event != nil,
             relationship: relationship,
-            hour: hour
+            hour: hour,
+            today: day,
+            yesterday: inputs.days.last {
+                calendar.isDate($0.date, inSameDayAs: calendar.date(byAdding: .day, value: -1, to: now) ?? now)
+            },
+            selectionSeed: selectionSeed
         )
         return BookTodayEdition(
             dayID: day.id,
-            form: form,
             headline: headline(
                 intention: intention,
                 event: event,
@@ -193,9 +208,15 @@ enum BookTodayProjector {
                 for: day,
                 inputs: inputs,
                 relationship: relationship,
+                now: now,
                 calendar: calendar,
                 selectionSeed: selectionSeed
-            )
+            ),
+            keepsake: BookTodayDoorstep.keepsake(day: day, inputs: inputs, now: now, calendar: calendar,
+                                                 selectionSeed: selectionSeed),
+            doorstep: BookTodayDoorstep.paper(day: day, inputs: inputs, now: now, calendar: calendar),
+            assignment: BookTodayDoorstep.assignment(day: day, inputs: inputs, now: now, calendar: calendar),
+            margins: Array(marginLines.dropFirst().prefix(2))
         )
     }
 
@@ -231,9 +252,39 @@ enum BookTodayProjector {
         weatherPresent: Bool,
         eventPresent: Bool,
         relationship: BookRelationshipSnapshot,
-        hour: Int
+        hour: Int,
+        today: BookDay,
+        yesterday: BookDay?,
+        selectionSeed: Int
     ) -> String {
         guard let intention else {
+            // What the Reader actually kept is the best thing the Book can talk about.
+            func word(in day: BookDay?) -> (word: String, count: Int)? {
+                guard let day, !DistressSignals.evaluate(day: day).isActive else { return nil }
+                let written = day.capturedPages.filter { $0.type != .theBleed && $0.readerAuthoredTextForAnalysis?.nonEmpty != nil }
+                    .sorted { $0.createdAt > $1.createdAt }
+                guard let found = written.lazy
+                    .filter({ !BookTodayDoorstep.isHeavy($0) })
+                    .compactMap({ $0.readerAuthoredTextForAnalysis.flatMap(BookTodayDoorstep.thing(in:)) })
+                    .first else { return nil }
+                return (found, written.count)
+            }
+            let key = "\(today.id)|\(selectionSeed)|reading"
+            if let (found, count) = word(in: today) {
+                let kept = count == 1 ? "one Page" : "\(BleedDayDesk.numberWord(count)) Pages"
+                return BookTodayCensusProjector.variant([
+                    "You've kept \(kept) today. I keep going back to the \(found).",
+                    "\(kept.prefix(1).uppercased() + kept.dropFirst()) so far, and one of them has a \(found) in it. I'm keeping an eye on the \(found).",
+                    "Today's got a \(found) in it now. I didn't put it there. You did."
+                ], key: key)
+            }
+            if let (found, _) = word(in: yesterday) {
+                return BookTodayCensusProjector.variant([
+                    "Yesterday's still warm on my pages. I keep thinking about the \(found).",
+                    "I read yesterday again while you slept. The \(found) was still there.",
+                    "The \(found) from yesterday hasn't left. I don't think it wants to."
+                ], key: key)
+            }
             if weatherPresent || eventPresent {
                 return "Today's already making a racket. I'm after the one strange bit with muddy shoes."
             }
@@ -383,13 +434,13 @@ enum BookTodayProjector {
     /// Gather every current, honest piece of marginal business and let this
     /// opening choose among them. The same opening remains stable; returning
     /// to the Book lets a different live voice reach the top of the pile.
-    private static func marginBeat(
+    private static func marginBeats(
         inputs: BookSourceInputs,
         event: ResolvedWorldEvent?,
         dayID: String,
         now: Date,
         selectionSeed: Int
-    ) -> BookTodayEdition.Beat? {
+    ) -> [BookTodayEdition.Beat] {
         var candidates: [(line: String, symbolName: String)] = []
         var seenLines: Set<String> = []
         let cutoff = now.addingTimeInterval(-14 * 86_400)
@@ -406,11 +457,12 @@ enum BookTodayProjector {
                     .joined(separator: " ")
         }
 
-        func add(_ rawLine: String?, symbolName: String) {
+        func add(_ rawLine: String?, symbolName: String, alreadyShort: Bool = false) {
             guard let trimmed = rawLine?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .nonEmpty else { return }
-            let line = String(trimmed.bookPreviewSentenceLimit(2).prefix(220))
+            // A quotation is cut before it's quoted; cutting it again would lose its closing mark.
+            let line = alreadyShort ? trimmed : String(trimmed.bookPreviewSentenceLimit(2).prefix(220))
             let key = line.lowercased()
                 .replacingOccurrences(of: "[^a-z0-9]+", with: "", options: .regularExpression)
             guard !key.isEmpty, seenLines.insert(key).inserted else { return }
@@ -547,15 +599,31 @@ enum BookTodayProjector {
             )
         }
 
-        guard !candidates.isEmpty else { return nil }
+        // What's going round the corridors: the month's news, told second-hand.
+        for memory in inputs.castStoryMemories.memories
+            .filter({ $0.witness == .heard && $0.happenedAt >= cutoff && $0.happenedAt <= now })
+            .sorted(by: { $0.happenedAt > $1.happenedAt })
+            .prefix(3) {
+            // Cut the hearsay before quoting it, so the closing mark is never cut off.
+            guard let aside = memory.aside?.nonEmpty.map({ String($0.bookPreviewSentenceLimit(1).prefix(150)) }) else { continue }
+            add("\(CastStoryNames.short(entityName(memory.entityID))) heard it on the stairs: \u{201C}\(aside)\u{201D}",
+                symbolName: "ear", alreadyShort: true)
+        }
+
+        guard !candidates.isEmpty else { return [] }
+        // The first line keeps its old seat, so one opening is still one reading; the rest of
+        // the margin follows in this opening's own order, so a second look turns up other voices.
         let key = "\(dayID)|\(selectionSeed)|book-today-margin-source"
         let index = Int(UInt(bitPattern: key.stableHash) % UInt(candidates.count))
-        let selected = candidates[index]
-        return BookTodayEdition.Beat(
-            kind: .inTheMargins,
-            line: selected.line,
-            symbolName: selected.symbolName
-        )
+        let first = candidates[index]
+        let rest = candidates.enumerated().filter { $0.offset != index }.sorted { left, right in
+            let a = "\(key)|\(left.offset)".stableHash
+            let b = "\(key)|\(right.offset)".stableHash
+            return a == b ? left.offset < right.offset : a < b
+        }.map(\.element)
+        return ([first] + rest).map {
+            BookTodayEdition.Beat(kind: .inTheMargins, line: $0.line, symbolName: $0.symbolName)
+        }
     }
 
     private static func liveOpportunityHeadline(_ kind: BookLiveOpportunityKind) -> String {
@@ -581,7 +649,8 @@ enum BookTodayProjector {
         ), !choice.isEmpty {
             return "I tucked your choice under my binding: “\(choice)”"
         }
-        return "You kept “\(pageName(page)).” It's making weather under my cover now."
+        let name = pageName(page).trimmingCharacters(in: CharacterSet(charactersIn: ".!?…").union(.whitespaces))
+        return "You kept “\(name).” It's making weather under my cover now."
     }
 
     private static func capitalized(_ value: String) -> String {
@@ -624,10 +693,15 @@ enum BookTodayCensusProjector {
         var busiestDayCount: Int { pagesByDayID.values.max() ?? 0 }
     }
 
+    /// How many drawers one opening pulls out. The Book has far more than this; a different
+    /// six turn up next time.
+    static let drawerCount = 6
+
     static func census(
         for day: BookDay,
         inputs: BookSourceInputs,
         relationship: BookRelationshipSnapshot,
+        now: Date = Date(),
         calendar: Calendar = .current,
         selectionSeed: Int = 0
     ) -> BookTodayEdition.Census {
@@ -646,19 +720,63 @@ enum BookTodayCensusProjector {
             title: title,
             begunAt: begunAt,
             pageCount: pages.count,
-            facts: selectedFacts(from: candidates, selectionSeed: selectionSeed, limit: 4),
+            facts: selectedFacts(from: candidates, selectionSeed: selectionSeed, limit: drawerCount),
             closingLine: closingLine(
                 inputs: inputs,
                 relationship: relationship,
                 pageCount: pages.count,
                 selectionSeed: selectionSeed
-            )
+            ),
+            whileAway: whileAway(pages: pages, inputs: inputs, now: now, calendar: calendar)
         )
+    }
+
+    /// The last day in the Book, counted: proof it carried on while the Reader was out.
+    /// Only things that really happened, each with its receipt in a ledger.
+    static func whileAway(pages: [BookPage], inputs: BookSourceInputs, now: Date, calendar: Calendar) -> [BookTodayEdition.Census.Fact] {
+        let since = now.addingTimeInterval(-24 * 3600)
+        func recent(_ date: Date) -> Bool { date > since && date <= now }
+        var facts: [BookTodayEdition.Census.Fact] = []
+        func add(_ id: String, _ value: Int, _ symbol: String, _ line: String) {
+            guard value > 0 else { return }
+            facts.append(.init(id: id, value: value, line: line, symbolName: symbol))
+        }
+        if let braid = pages.filter({ $0.type == .bookOfYou && recent($0.createdAt) }).max(by: { $0.createdAt < $1.createdAt }) {
+            let title = braid.userInput.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespaces).nonEmpty
+            add("away-braid", 1, "book.pages", title.map { "I braided a whole day into \u{201C}\($0)\u{201D} while you slept." }
+                ?? "I braided a whole day while you slept.")
+        }
+        let papers = inputs.bleedPrintHistory.filter { recent($0.printedAt) }
+        add("away-papers", papers.count, "newspaper",
+            papers.count == 1 ? "Penny printed a paper with you in it." : "Penny printed \(papers.count) papers with you in them.")
+        let letters = papers.flatMap(\.items).filter { $0.storyID.hasPrefix("cast-letter:") }.count
+            + papers.flatMap(\.items).filter { $0.storyID.hasPrefix("cast-letter:") }.reduce(0) { total, item in
+                total + max(0, item.body.components(separatedBy: "Dear Editor,").count - 2)
+            }
+        add("away-letters", letters, "envelope",
+            letters == 1 ? "Somebody at the Academy wrote to the paper about you." : "\(letters) letters about you reached the paper.")
+        let acts = inputs.castActs.records.filter { recent($0.occurredAt) }.count
+        add("away-acts", acts, "theatermasks",
+            acts == 1 ? "The Cast did one thing to each other. I wrote it down." : "The Cast did \(acts) things to each other. I wrote them all down.")
+        let unseen = inputs.castAgency.unwitnessedMovements.filter { recent($0.createdAt) }.count
+        add("away-unseen", unseen, "eye.slash",
+            unseen == 1 ? "Something happened at the Academy that nobody saw." : "\(unseen) things happened at the Academy that nobody saw.")
+        let gossip = inputs.castStoryMemories.memories.filter { $0.witness == .heard && recent($0.happenedAt) }.count
+        add("away-gossip", gossip, "ear",
+            gossip == 1 ? "One rumour went round the corridors." : "\(gossip) rumours went round the corridors.")
+        let belief = inputs.beliefEconomy.recentMovements.filter { $0.targetKind == .entity && recent($0.createdAt) }.count
+        add("away-belief", belief, "sparkles",
+            belief == 1 ? "Someone's Belief shifted. I felt it in the spine." : "Belief shifted \(belief) times. I felt it in the spine.")
+        return Array(facts.prefix(5))
     }
 
     private static func archivePages(day: BookDay, inputs: BookSourceInputs) -> [BookPage] {
         var byID: [String: BookPage] = [:]
-        for page in (inputs.days + [day]).flatMap(\.pages) {
+        for page in inputs.days.lazy.flatMap(\.pages) {
+            if let existing = byID[page.id], existing.createdAt > page.createdAt { continue }
+            byID[page.id] = page
+        }
+        for page in day.pages {
             if let existing = byID[page.id], existing.createdAt > page.createdAt { continue }
             byID[page.id] = page
         }
@@ -1042,7 +1160,7 @@ enum BookTodayCensusProjector {
             value: constellationReturns,
             symbol: "arrow.trianglehead.2.clockwise.rotate.90",
             lines: [
-                "Things the Book thought had gone quiet have returned \(constellationReturns) \(word(constellationReturns, one: "time", many: "times")).",
+                "Things I thought had gone quiet have come back \(constellationReturns) \(word(constellationReturns, one: "time", many: "times")).",
                 "The constellations have climbed back over the wall \(constellationReturns) \(word(constellationReturns, one: "time", many: "times"))."
             ]
         )
@@ -1197,7 +1315,7 @@ enum BookTodayCensusProjector {
             symbol: "archivebox.fill",
             lines: [
                 "My Pocket is carrying \(inputs.pocket.count) \(word(inputs.pocket.count, one: "keepsake", many: "keepsakes")) and pretending not to bulge.",
-                "\(inputs.pocket.count) small \(word(inputs.pocket.count, one: "thing is", many: "things are")) hiding in the Book's coat."
+                "\(inputs.pocket.count) small \(word(inputs.pocket.count, one: "thing is", many: "things are")) hiding in my coat."
             ]
         )
 
@@ -1317,6 +1435,77 @@ enum BookTodayCensusProjector {
             ]
         )
 
+        // The Reader's own ink, weighed. Every count here is a count of their words.
+        // A kept paper stores Penny's whole paper; only its margin is the Reader's.
+        let written = pages.compactMap { page in
+            page.type == .theBleed ? BleedNewsroom.letterText(of: page) : page.readerAuthoredTextForAnalysis
+        }
+        let totalWords = written.reduce(0) { $0 + wordCount($1) }
+        // Thresholds sit a little above each book's real length, so "longer than" is always true.
+        let shelf: [(words: Int, title: String)] = [
+            (96_000, "The Hobbit"), (48_000, "The Great Gatsby"), (30_500, "Animal Farm"),
+            (27_000, "Alice's Adventures in Wonderland"), (17_500, "The Little Prince"), (1_000, "The Tale of Peter Rabbit")
+        ]
+        let wordsShown = totalWords.formatted()
+        if let beaten = shelf.first(where: { totalWords >= $0.words }) {
+            add("words-written", family: "ink", value: totalWords, symbol: "character.cursor.ibeam",
+                lines: ["You've written \(wordsShown) words in me. That's longer than \(beaten.title).",
+                        "\(wordsShown) words of yours in my pages. \(beaten.title) is shorter. I measured."])
+        } else {
+            add("words-written", family: "ink", value: totalWords >= 50 ? totalWords : 0, symbol: "character.cursor.ibeam",
+                lines: ["You've written \(wordsShown) words in me. Every one of them is still here.",
+                        "\(wordsShown) words of yours, and I haven't lost a single one."])
+        }
+
+        var hours: [Int: Int] = [:]
+        for page in pages where page.type != .theBleed && page.readerAuthoredTextForAnalysis?.nonEmpty != nil {
+            hours[calendar.component(.hour, from: page.createdAt), default: 0] += 1
+        }
+        if let (hour, count) = hours.max(by: { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }), count >= 3 {
+            let twelve = hour % 12 == 0 ? 12 : hour % 12
+            let part = hour < 5 ? "in the small hours" : hour < 12 ? "in the morning" : hour < 17 ? "in the afternoon" : hour < 21 ? "in the evening" : "at night"
+            add("ink-hour", family: "habits", value: twelve, symbol: "clock",
+                lines: ["Your ink turns up most at \(twelve) o'clock \(part). I've started waiting for it.",
+                        "\(twelve) o'clock \(part) is your hour. More of your Pages arrive then than at any other."])
+        }
+
+        var counts: [String: Int] = [:]
+        for text in written {
+            for token in text.lowercased().split(whereSeparator: { !$0.isLetter && $0 != "'" }) {
+                let word = String(token)
+                guard word.count >= 5, !commonWords.contains(word) else { continue }
+                counts[word, default: 0] += 1
+            }
+        }
+        if let (favourite, uses) = counts.max(by: { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }), uses >= 4 {
+            add("your-word", family: "habits", value: uses, symbol: "textformat",
+                lines: ["You've written \u{201C}\(favourite)\u{201D} \(uses) times. It's your word now. I've told the Dictionary.",
+                        "\u{201C}\(favourite)\u{201D} turns up \(uses) times in your ink. It's turning into your word."])
+        }
+
+        if let first = pages.map(\.createdAt).min(),
+           let age = calendar.dateComponents([.day], from: calendar.startOfDay(for: first), to: calendar.startOfDay(for: Date())).day,
+           age >= 2 {
+            add("book-age", family: "book-self", value: age + 1, symbol: "hourglass",
+                lines: ["\(age + 1) days since you first opened me. I was mostly cover then.",
+                        "This particular Book is \(age + 1) days old. I've grown."])
+        }
+
+        let frontPages = inputs.bleedFrontPages.filter { $0.headline != BleedDayDesk.unfiledHeadline }.count
+        add("front-pages", family: "paper", value: frontPages, symbol: "newspaper",
+            lines: ["The Bleed has put your day on its front page \(frontPages) \(word(frontPages, one: "time", many: "times")).",
+                    "\(frontPages) \(word(frontPages, one: "front page", many: "front pages")) about you, attested by Penny. She's run out of stamps twice."])
+
+        let together = inputs.castStoryMemories.memories.filter { $0.witness == .withReader }.count
+        add("cast-remember-you", family: "academy", value: together, symbol: "person.2.wave.2",
+            lines: ["The Cast remember \(together) \(word(together, one: "thing", many: "things")) they did with you. They bring them up.",
+                    "\(together) \(word(together, one: "moment", many: "moments")) at the Academy the Cast still talk about, and you were there."])
+        let rumours = inputs.castStoryMemories.memories.filter { $0.witness == .heard }.count
+        add("rumours", family: "academy", value: rumours, symbol: "ear",
+            lines: [rumours == 1 ? "1 rumour has gone round the corridors. It might even be true."
+                        : "\(rumours) rumours have gone round the corridors. Some of them were even true.",
+                    "The Academy has passed on news it wasn't there for \(rumours) \(word(rumours, one: "time", many: "times"))."])
+
         let rememberingRooms = inputs.placeStates.values.filter { !$0.incidents.isEmpty }.count
         add(
             "remembering-rooms",
@@ -1339,7 +1528,7 @@ enum BookTodayCensusProjector {
             summary.keptDayIDs.insert(dayID)
             summary.pageKindIDs.insert(page.type.rawValue)
             summary.pagesByDayID[dayID, default: 0] += 1
-            let readerInk = page.readerAuthoredTextForAnalysis ?? ""
+            let readerInk = (page.type == .theBleed ? BleedNewsroom.letterText(of: page) : page.readerAuthoredTextForAnalysis) ?? ""
             let hasReaderInk = !readerInk.isEmpty
             if hasReaderInk { summary.writtenPageCount += 1 }
             summary.mediaCount += page.readerContributions.filter {
@@ -1453,6 +1642,18 @@ enum BookTodayCensusProjector {
         return nil
     }
 
+    /// Words too ordinary to be anybody's word.
+    private static let commonWords: Set<String> = [
+        "about", "after", "again", "there", "their", "which", "would", "could", "should", "today", "really",
+        "thing", "things", "think", "still", "every", "being", "other", "where", "while", "first", "before",
+        "never", "always", "going", "because", "something", "little", "didn't", "wasn't", "people", "maybe",
+        "right", "though", "through", "around", "everything", "nothing", "these", "those", "what's", "there's",
+        "don't", "can't", "isn't", "i've", "it's", "that's", "we're", "they're", "you're", "under", "over",
+        "until", "since", "made", "kept", "felt", "back", "into", "just", "with", "from", "were", "have",
+        "some", "more", "much", "very", "then", "than", "when", "also", "even", "only", "most", "found",
+        "another", "without", "enough", "almost", "whole", "anyway", "already", "doesn't", "couldn't", "wouldn't"
+    ]
+
     private static func word(_ count: Int, one: String, many: String) -> String {
         count == 1 ? one : many
     }
@@ -1461,9 +1662,141 @@ enum BookTodayCensusProjector {
         value.split(whereSeparator: \.isWhitespace).count
     }
 
-    private static func variant(_ values: [String], key: String) -> String {
+    static func variant(_ values: [String], key: String) -> String {
         guard !values.isEmpty else { return "" }
         let index = Int(UInt(bitPattern: key.stableHash) % UInt(values.count))
         return values[index]
+    }
+}
+
+// MARK: - The doorstep: what's waiting for the Reader this opening
+
+/// Book Today's first answer to "what's happening": something of the Reader's own, the paper
+/// on the mat, and the one thing the day has asked of them. All of it from real ledgers.
+enum BookTodayDoorstep {
+    static let asides = [
+        "I keep going back to this one.",
+        "I read this twice this morning. Don't tell the Index.",
+        "This one's still warm.",
+        "I've folded the corner down on this one.",
+        "Nobody else in the world wrote this. I checked."
+    ]
+
+    /// A Page the Book won't hand back unasked: one carrying a heavy tag or phrase, even on a
+    /// day that wasn't hard enough to shelter the whole Book.
+    static func isHeavy(_ page: BookPage) -> Bool {
+        let heavyTags: Set<String> = ["distress", "panic", "hard", "heavy", "low", "numb", "stormy", "depleted", "grief"]
+        let heavyPhrases = ["hopeless", "depressed", "panic", "can't do this", "cannot do this", "can't keep", "disappear",
+                            "too much", "want to die", "kill myself", "hurt myself"]
+        let text = (page.readerAuthoredTextForAnalysis ?? page.userInput).lowercased()
+        return !Set(page.tags.map { $0.lowercased() }).isDisjoint(with: heavyTags) || heavyPhrases.contains(where: text.contains)
+    }
+
+    /// The thing a sentence is about, as the Book would say "the heron": the first particular
+    /// word after "the", "a" or "my". Never a name, never a word too ordinary to be a thing.
+    static func thing(in text: String) -> String? {
+        let determiners: Set<String> = ["the", "a", "an", "my", "this", "that", "our"]
+        let skip: Set<String> = ["same", "other", "first", "last", "whole", "little", "very", "most", "next", "only",
+                                 "best", "rest", "kind", "sort", "bit", "lot", "way", "time", "day", "thing", "something"]
+        let words = text.split(whereSeparator: { $0.isWhitespace }).map { String($0) }
+        for index in words.indices.dropLast() {
+            let word = words[index].lowercased().trimmingCharacters(in: .punctuationCharacters)
+            guard determiners.contains(word) else { continue }
+            let raw = words[index + 1].trimmingCharacters(in: .punctuationCharacters)
+            guard raw.count >= 3, raw.first?.isLowercase == true, raw.allSatisfy(\.isLetter),
+                  !skip.contains(raw), !raw.hasSuffix("ly") else { continue }
+            return raw
+        }
+        return nil
+    }
+
+    /// A recent line in the Reader's own hand, or a photograph they kept. Never from a hard day,
+    /// never a private Page, rotating between openings among the freshest few.
+    static func keepsake(day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar,
+                         selectionSeed: Int) -> BookTodayEdition.Keepsake? {
+        let cutoff = now.addingTimeInterval(-10 * 86_400)
+        let days = (inputs.days.filter { $0.date >= calendar.startOfDay(for: cutoff) } + [day])
+            .filter { !DistressSignals.evaluate(day: $0).isActive }
+        let pages = days.flatMap(\.pages).filter { page in
+            page.createdAt >= cutoff && page.createdAt <= now && page.privacy != .localSensitive && !isHeavy(page)
+                && !EditionCurator.defaultPrivateTypes.contains(page.type)
+                && ![.theBleed, .bookOfYou].contains(page.type)
+                && page.weeklyIssueArtifact == nil && page.monthlyEditionArtifact == nil && page.annualEditionArtifact == nil
+        }.sorted { $0.createdAt > $1.createdAt }
+        var candidates: [BookTodayEdition.Keepsake] = []
+        var seen = Set<String>()
+        for page in pages where candidates.count < 5 && seen.insert(page.id).inserted {
+            let when = label(for: page.createdAt, now: now, calendar: calendar)
+            let aside = asides[abs("\(page.id)|\(selectionSeed)|aside".stableHash) % asides.count]
+            if page.hasReaderPhotograph,
+               let photo = page.mediaAssets.first(where: { $0.kind == .renderedImageFile || $0.kind == .bundledImage }) {
+                candidates.append(.init(pageID: page.id, label: "\(when), you kept this", text: page.readerAuthoredTextForAnalysis?.nonEmpty,
+                                        photo: photo, aside: aside))
+            } else if let text = page.readerAuthoredTextForAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      (5...60).contains(text.split(whereSeparator: \.isWhitespace).count), text.count <= 320 {
+                candidates.append(.init(pageID: page.id, label: "\(when), you wrote", text: text, photo: nil, aside: aside))
+            }
+        }
+        guard !candidates.isEmpty else { return nil }
+        return candidates[abs("\(day.id)|\(selectionSeed)|keepsake".stableHash) % candidates.count]
+    }
+
+    static func label(for date: Date, now: Date, calendar: Calendar) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            let hour = calendar.component(.hour, from: date)
+            return hour < 12 ? "This morning" : hour < 17 ? "This afternoon" : "This evening"
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        return "On " + DateFormatter.bleedWeekday(calendar: calendar).string(from: date)
+    }
+
+    /// The edition on the mat, morning or evening: the headline the paper ran, or will run
+    /// when it's opened. Nil outside the paper's hours.
+    static func paper(day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BookTodayEdition.Doorstep? {
+        guard let kind = TheBleedEditionBuilder.editionKind(for: now, calendar: calendar) else { return nil }
+        let slot = TheBleedEditionBuilder.slotID(for: kind, day: day)
+        let arrived = kind == .morning ? "The morning paper's come." : "The evening paper's in."
+        // Already printed: the front page it actually ran.
+        if let prepared = inputs.preparedBleedEditionSurface, prepared.payload.metadata["bleedSlotID"] == slot,
+           let front = TheBleedEditionBuilder.decodedBriefs(prepared.payload.metadata["bleedPrintedColumns"] ?? "")
+            .first(where: { $0.id == "front-page" }) {
+            return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title,
+                         line: "\(arrived) You're on the front page again.")
+        }
+        let history = inputs.bleedPrintHistory.filter { $0.slotID != slot }
+        guard let front = BleedDayDesk.frontPage(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar, history: history) else {
+            return .init(kind: kind, kicker: "From the Academy", headline: "The Academy Has the Front Page",
+                         line: "\(arrived) Yesterday was quiet, so Penny gave the front to the Academy.")
+        }
+        let line = front.title == BleedDayDesk.unfiledHeadline
+            ? "\(arrived) Penny's holding the column for you."
+            : "\(arrived) You're on the front page."
+        return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title, line: line)
+    }
+
+    /// Today's assignment: the dare the morning paper printed, or will print. Shown as filed once
+    /// the Reader brings proof back. Never on a hard day; never after the evening paper's gone to press.
+    static func assignment(day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BookTodayEdition.Assignment? {
+        guard !DistressSignals.evaluate(day: day).isActive else { return nil }
+        let filed = day.pages.first { $0.attributableLivedQuestReceipt?.kind == .wickerDare }
+        if let filed, let receipt = filed.attributableLivedQuestReceipt {
+            return .init(dareID: receipt.questID, title: receipt.title, challenge: receipt.invitation, filed: true)
+        }
+        let hour = calendar.component(.hour, from: now)
+        guard (4..<21).contains(hour) else { return nil }
+        let printed = inputs.bleedPrintHistory.flatMap(\.items).first {
+            $0.storyID.hasPrefix("assignment:") && $0.storyID.hasSuffix(":" + day.id)
+        }.flatMap { item -> String? in
+            var parts = item.storyID.dropFirst("assignment:".count).split(separator: ":", omittingEmptySubsequences: false)
+            guard parts.count >= 2 else { return nil }
+            parts.removeLast()
+            return parts.joined(separator: ":")
+        }
+        let dare = printed.flatMap { BleedDayDesk.dare(id: $0, day: day, inputs: inputs, now: now) }
+            ?? (hour < 13 ? WickerDareRegistry.dare(for: day, inputs: inputs, now: now) : nil)
+        guard let dare else { return nil }
+        return .init(dareID: dare.id, title: dare.title, challenge: dare.challenge, filed: false)
     }
 }

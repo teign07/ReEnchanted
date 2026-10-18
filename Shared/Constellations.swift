@@ -527,7 +527,7 @@ enum SealedMarginEngine {
                     subjectID: signal.subjectID,
                     subjectName: signal.subjectName,
                     kind: .absence,
-                    prediction: "\(signal.subjectName) has gone quiet, but quiet is not gone. It will appear again within \(absenceWindowDays) days. The Book is betting on return.",
+                    prediction: "\(signal.subjectName) has gone quiet, but quiet is not gone. It will appear again within \(absenceWindowDays) days. I'm betting it comes back.",
                     sealedAt: now,
                     opensAt: opensAt,
                     status: .sealed,

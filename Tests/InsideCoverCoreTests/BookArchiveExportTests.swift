@@ -162,7 +162,7 @@ final class BookArchiveExportTests: XCTestCase {
 
                 The lamp waited by the window while rain tapped the glass.
 
-                The Book kept the page: rain made the lamp brave.
+                I kept the page: rain made the lamp brave.
                 """,
                 tags: ["braid"]
             ),
@@ -356,8 +356,8 @@ final class BookArchiveExportTests: XCTestCase {
 
         // The exact sentences rotate per month by design; what must hold is that
         // the Book speaks in first person, states why it binds at all, and signs.
-        XCTAssertTrue(edition.foreword.hasSuffix("\n\nThe Book"))
-        XCTAssertTrue(edition.closing?.hasSuffix("\n\nThe Book") == true)
+        XCTAssertTrue(edition.foreword.hasSuffix("\n\n- me"))
+        XCTAssertTrue(edition.closing?.hasSuffix("\n\n- me") == true)
         XCTAssertTrue(edition.foreword.contains(" I "))
         XCTAssertTrue(edition.closing?.contains(" I ") == true)
     }

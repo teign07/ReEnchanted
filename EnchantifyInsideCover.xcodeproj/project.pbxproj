@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A1012000000000000000002 /* BookPigment.metal in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000102 /* BookPigment.metal */; };
+		0A1012000000000000000001 /* BookPigmentInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000101 /* BookPigmentInk.swift */; };
 		010000000000000000000001 /* InsideCoverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000101 /* InsideCoverApp.swift */; };
 		010000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000102 /* ContentView.swift */; };
 		010000000000000000000003 /* InsideCoverState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000103 /* InsideCoverState.swift */; };
@@ -202,6 +204,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0A1012000000000000000102 /* BookPigment.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = BookPigment.metal; sourceTree = "<group>"; };
+		0A1012000000000000000101 /* BookPigmentInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPigmentInk.swift; sourceTree = "<group>"; };
 		0A0000000000000000000101 /* MonthlySubscriptions.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Testing/MonthlyContent/MonthlySubscriptions.storekit; sourceTree = SOURCE_ROOT; };
 		010000000000000000000101 /* InsideCoverApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsideCoverApp.swift; sourceTree = "<group>"; };
 		010000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -449,6 +453,8 @@
 				030000000000000000000104 /* DictationInput.swift */,
 				020000000000000000000424 /* LetsChatView.swift */,
 				010000000000000000000119 /* LivingTextInput.swift */,
+				0A1012000000000000000102 /* BookPigment.metal */,
+				0A1012000000000000000101 /* BookPigmentInk.swift */,
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
 				01000000000000000000010D /* Assets.xcassets */,
@@ -780,6 +786,8 @@
 				01000000000000000000001D /* ContentViewFeatures.swift in Sources */,
 				01000000000000000000001F /* CapturePageSections.swift in Sources */,
 				010000000000000000000021 /* LivingTextInput.swift in Sources */,
+				0A1012000000000000000002 /* BookPigment.metal in Sources */,
+				0A1012000000000000000001 /* BookPigmentInk.swift in Sources */,
 				030000000000000000000201 /* SearchTheStacksSheet.swift in Sources */,
 				030000000000000000000205 /* AlmanacModel.swift in Sources */,
 				030000000000000000000207 /* PressedPhotograph.swift in Sources */,

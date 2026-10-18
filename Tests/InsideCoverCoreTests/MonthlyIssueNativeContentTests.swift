@@ -126,7 +126,7 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
 
     private func boundBraid(_ receipts: [AuthoredContentReceipt], id: String, at: Date) -> BookPage {
         var page = BookPage(id: id, type: .bookOfYou, createdAt: at, promptText: "Tonight",
-            userInput: "A real sentence stayed.\n\nThe Book kept the page: it held.", tags: ["braid"], usedInBookOfYou: true)
+            userInput: "A real sentence stayed.\n\nI kept the page: it held.", tags: ["braid"], usedInBookOfYou: true)
         page = MonthlyIssueBraidMatter.binding(receipts, into: page)
         return page
     }
@@ -216,10 +216,10 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         let second = AuthoredContentReceipt(contentID: "scene", occurrenceID: "end", channel: .storyScene,
             state: .nodeCompleted, recordedAt: now.addingTimeInterval(1), storyText: "Serenity shut the schoolroom door.")
         let page = BookPage(type: .bookOfYou, promptText: "Tonight",
-            userInput: "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nI worried at the loose end.\n\nThe Book kept the page: one red thread.",
+            userInput: "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nI worried at the loose end.\n\nI kept the page: one red thread.",
             tags: [MonthlyIssueBraidMatter.interludeTag], usedInBookOfYou: true)
         let bound = MonthlyIssueBraidMatter.binding([second, first, first], into: page)
-        XCTAssertEqual(bound.userInput, "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nWicker took the pin.\n\nThe hinge stopped biting.\n\nSerenity shut the schoolroom door.\n\nI worried at the loose end.\n\nThe Book kept the page: one red thread.")
+        XCTAssertEqual(bound.userInput, "A Quiet Hinge\n\nYou noticed a red thread on the fence.\n\nWicker took the pin.\n\nThe hinge stopped biting.\n\nSerenity shut the schoolroom door.\n\nI worried at the loose end.\n\nI kept the page: one red thread.")
         XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), Set([first.id, second.id]))
         XCTAssertEqual(MonthlyIssueBraidMatter.binding([first, second], into: bound), bound)
     }
@@ -229,11 +229,11 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
             state: .completed, recordedAt: date(2027, 9, 2, 22), storyText: "Serenity withdrew the living claim. The rooms broke into words.")
         let passage = receipt.storyText!
         let page = BookPage(type: .bookOfYou, promptText: "Tonight",
-            userInput: "The Porch Lamp\n\nYou noticed the empty chair. \(passage)\n\n\(passage)\n\nI felt the binding shift.\n\nThe Book kept the page: the binding shifted.",
+            userInput: "The Porch Lamp\n\nYou noticed the empty chair. \(passage)\n\n\(passage)\n\nI felt the binding shift.\n\nI kept the page: the binding shifted.",
             tags: [MonthlyIssueBraidMatter.interludeTag])
         let bound = MonthlyIssueBraidMatter.binding([receipt], into: page)
         XCTAssertEqual(bound.userInput,
-            "The Porch Lamp\n\nYou noticed the empty chair.\n\n\(passage)\n\nI felt the binding shift.\n\nThe Book kept the page: the binding shifted.")
+            "The Porch Lamp\n\nYou noticed the empty chair.\n\n\(passage)\n\nI felt the binding shift.\n\nI kept the page: the binding shifted.")
         XCTAssertEqual(MonthlyIssueBraidMatter.receiptIDs(in: bound), [receipt.id])
         XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: bound), bound)
     }
@@ -243,9 +243,9 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
             state: .completed, recordedAt: date(2027, 9, 2, 22), storyText: "The stair opened its eye.")
         for tags in [[], [MonthlyIssueBraidMatter.interludeTag]] as [[String]] {
             let page = BookPage(type: .bookOfYou, promptText: "Tonight",
-                userInput: "You found a feather. The Book kept the page: the feather.", tags: tags)
+                userInput: "You found a feather. I kept the page: the feather.", tags: tags)
             XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: page).userInput,
-                "You found a feather.\n\nThe stair opened its eye.\n\nThe Book kept the page: the feather.")
+                "You found a feather.\n\nThe stair opened its eye.\n\nI kept the page: the feather.")
         }
         let empty = BookPage(type: .bookOfYou, promptText: "Tonight", userInput: "")
         XCTAssertEqual(MonthlyIssueBraidMatter.binding([receipt], into: empty).userInput, receipt.storyText)
@@ -414,11 +414,39 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
         XCTAssertEqual(published.at, legacy.at)
     }
 
+    func testStoryPlateStaysWithItsPassageAndOldScenesStillDecode() throws {
+        var scene = storyScene()
+        let openingPlate = BookPageMediaAsset(id: "opening-art", kind: .bundledImage, reference: "Opening")
+        let endingPlate = BookPageMediaAsset(id: "ending-art", kind: .bundledImage, reference: "Ending")
+        scene.illustration = openingPlate
+        XCTAssertEqual(scene.illustration(for: nil), openingPlate)
+        scene.nodes = [
+            AuthoredStoryNode(id: "entry", title: "Entry", body: "A door.", prompt: "Choose."),
+            AuthoredStoryNode(id: "other-branch", title: "Other", body: "A window.", prompt: "Keep."),
+            AuthoredStoryNode(id: "end", title: "End", body: "Home.", prompt: "Keep.", illustration: endingPlate)
+        ]
+        XCTAssertEqual(scene.illustration(for: "entry"), openingPlate)
+        XCTAssertNil(scene.illustration(for: "other-branch"))
+        XCTAssertNil(scene.illustration(for: nil))
+        XCTAssertEqual(scene.illustration(for: "end"), endingPlate)
+        scene.nodes?[0].illustration = endingPlate
+        XCTAssertEqual(scene.illustration(for: "entry"), endingPlate)
+
+        let oldScene = storyScene()
+        let decoded = try JSONDecoder().decode(AuthoredStoryScene.self, from: JSONEncoder().encode(oldScene))
+        XCTAssertNil(decoded.illustration)
+        XCTAssertNil(decoded.illustration(for: nil))
+        let oldNode = AuthoredStoryNode(id: "old", title: "Old", body: "No plate.", prompt: "Keep.")
+        XCTAssertNil(try JSONDecoder().decode(AuthoredStoryNode.self, from: JSONEncoder().encode(oldNode)).illustration)
+    }
+
     func testAuthoredStorySceneUsesNativePageAndArbitraryPrewrittenChoices() throws {
         try withDictionaryEntitlement {
             let now = date(2027, 9, 2, 20)
             let day = BookDay(id: BookDay.id(for: now, calendar: calendar), date: calendar.startOfDay(for: now), pages: [])
-            let scene = storyScene()
+            var scene = storyScene()
+            scene.illustration = BookPageMediaAsset(id: "scene-art", kind: .bundledImage,
+                reference: "ScenePlate", caption: "The door under the stairs")
             let atom = contentAtom(
                 id: "scene-atom",
                 referenceKind: .storyScene,
@@ -443,6 +471,8 @@ final class MonthlyIssueNativeContentTests: XCTestCase {
 
             XCTAssertEqual(prepared.payload.metadata[MonthlyIssuePageMetadata.contentID], atom.id)
             XCTAssertEqual(prepared.payload.metadata[MonthlyIssuePageMetadata.interaction], "choice")
+            XCTAssertEqual(prepared.mediaAssets.map(\.reference), ["ScenePlate"])
+            XCTAssertEqual(prepared.mediaAssets.first?.metadata["storyPlate"], "true")
             XCTAssertTrue(prepared.isStoryPlayablePage)
             XCTAssertTrue(prepared.pageCapabilities.asksReader)
             let decoded = try JSONDecoder().decode(

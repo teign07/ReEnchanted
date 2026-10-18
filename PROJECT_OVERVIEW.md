@@ -6006,47 +6006,90 @@ was waiting to tell the reader.
 
 ### The Bleed (Pocket Edition)
 
-`Shared/TheBleed.swift` brings the Academy's student newspaper to the phone
-as a distilled twice-daily edition in Penny Blackletter's voice (Records
-Clerk, Department of Attestation - dry, precise, suspicious of the word
-"resolution"). The full broadsheet still lives on the Mac.
+The Academy's twice-daily newspaper, edited by Penny Blackletter. Morning
+(4:00–12:59) offers something worth meeting today; evening (from 16:00) follows
+what changed and offers something worth coming home to. The weekly issue keeps
+the larger job of telling the Reader's week. The daily paper does not owe an
+archive interpretation, theme update, or reflective lead every twelve hours.
 
-Two editions a day, by the clock: the **Morning Edition** (4:00-12:59)
-focuses on the day ahead; the **Evening Edition** (from 16:00) on tomorrow.
-Each carries:
+`Shared/TheBleed.swift` selects the issue before any prose is requested:
 
-- **Casement Weather** - deterministic clerk-voice weather column.
-- **Today at the Academy / Tomorrow, Posted Early** - the reader's real
-  calendar events, posted as the corridor noticeboard.
-- **The Morning/Evening Ledger** - Penny's lead column, written by the local
-  brain from a packet of continuity signals, named constellations, sealed
-  wagers, the month's theme, the current arc, and today's kept pages.
-- **Corridor Whispers** - the gossip simulation turns rewritten as signed
-  whispers, mechanics preserved.
-- **The Reader's Shelf** - a researched column on one of the reader's About
-  You interests. The default path uses open-web clippings through DuckDuckGo
-  fallbacks. Reddit is optional: if an approved installed-app client ID is
-  configured in Colophon or bundled app configuration, the app can use
-  app-only OAuth search against Reddit without asking readers to sign in to
-  Reddit. If Reddit is not configured or fails, the Shelf stays live on the
-  open-web path. Morning and evening pick *different* interests on the same
-  day.
+- Verbatim monthly authored reports keep their canonical text and delivery
+  attachments. Unchanged reports already printed are omitted.
+- One current-phase authored monthly pulse is shared with the nightly braid.
+  Actual press memory fixes its choice, even without Keep; the evening neither
+  rerolls it nor invents a development. Encountered monthly outcomes still own
+  the night's world strand, and hard days use the same pulse's quiet variant.
+- At most two public Academy reports come from actual current undertaking
+  beats or speaking positions in live contested questions. Future stages,
+  private letters, found notes and playable choices stay in their own channels.
+  A previously printed story returns only when its source facts change.
+  The current authored witnessed scene can supply visible action and exact
+  speech to that report. Printed threads can prefer a related encounter through
+  the existing serial, retaining unseen scene order and the daily encounter gate.
+- The Reader desk offers intact source passages with a short literary reading
+  in the Book's voice: a held line, a second reading, or two dated passages with
+  a literal word returning. Quotes and source-Page dates are composited intact;
+  only the response is generated. At most one Reader piece prints, explicit
+  correspondence has priority, and sealed/shadow/sensitive material stays out.
+- Small ads and their evening replies, literary puzzles and their answers are
+  authored copy. Evening includes enough context to stand alone if morning was
+  missed. These miniatures do not advance world state.
+  Six authored very short fictions now join the pleasure bench. The curator
+  selects from a larger candidate pool before research or local prose, using
+  room limits, actual print history, source eligibility and form variety.
+- Weather and calendar are compact factual strips, omitted when unavailable or
+  empty. Evening's small calendar strip still gives tomorrow's appointments;
+  it does not define the edition's editorial purpose.
+- With personalized research permission, the interest desk discovers dated news,
+  reads original publisher articles and selects one specific development from
+  the past seven days. Its real headline, publisher, date and URL print with a
+  75–110 word column. It does not use instant-answer definitions or Reddit posts
+  as evidence. Missing, stale, thin or repeated material earns no column. Press
+  history excludes previously printed article URLs and helps vary interests.
+- Occasional morning enquiries invite voluntary correspondence. A Plain Page
+  beginning `For Penny:` (or headed exactly `For Penny`) is an explicit
+  submission. Evening can quote one eligible, unprinted submission from the
+  previous seven days. Ordinary diary pages, sensitive material and generated
+  prose are not submissions. No reminder, backlog, completion or failure state.
 
-Delivery is two-stage and in character: the curator surfaces an announcement
-("The newest edition of The Bleed is here - Open it"); opening it runs the
-presses (`prepareBleedEditionIfPossible`): interest research, one local-brain
-call per written column, then deterministic compositing into a single page
-with masthead and colophon ("Set in type by P. Blackletter, who attests every
-word and regrets several"). Issue numbers count kept editions forever.
-Keeping an edition feeds Belief to `penny-blackletter`. A lab control binds
-the latest edition as a broadsheet-style PDF (`BleedPDFWriter`).
+Delivery, Keep, Belief, occurrence slots, plates and PDF binding use the existing
+path. Opening runs `prepareBleedEditionIfPossible`; the fresh plan uses current
+permissions and facts while retaining the announcement's authored inserts.
+The lead can be polished locally; secondary Academy briefs retain authored
+facts. Generated items use character fidelity review, a source-support review,
+mechanical copy checks and at most one repair. A failed item falls back to its
+supplied facts or is omitted. Same-model review is a guard, not factual proof.
 
-Active world events now arrive at The Bleed's desk as authored pressure, not
-generic flavor. `TheBleedEditionBuilder` resolves active events, adds event IDs,
-phase tags, and `worldEventBleedPacket` metadata, and can fold the event into
-both the announcement surface and the front-page packet. The Dictionary
-Rebellion, for example, can make the issue read like live campus news about
-escaped words and Registry concern.
+`BleedPrintRecord` stores only what actually printed. A bounded thirty-day,
+forty-edition memory persists in the existing local vault even when an edition
+is not Kept; it does not create a kept Page or advance any simulation. It stores
+submission IDs and fingerprints without duplicating Reader handwriting. Kept
+papers retain their own typed record in Page metadata. Old vaults and old
+column briefs decode without the new optional fields.
+
+The braid receives typed world fact/run identities through its existing context;
+it knows a printed event is the same event, not a later occurrence or evidence
+the Reader attended. A Kept typed newspaper no longer duplicates its entire
+body as fiction evidence. Reader margin notes remain their own contributions.
+This is source integration; generated voice and daily coherence still require
+model and device reading.
+
+Calendar fetching now reads whole local days and retains tomorrow's all-day
+and overlapping events. Both prepared-paper opening paths refresh only practical
+strips; denied access is distinct from an empty calendar. Pocket articles have
+separate headlines, bylines, selectable text and source links.
+
+The daily print edition uses the same issue text/parser and the existing PDF
+writer. It now has white Letter stock, two readable columns, a large lead,
+larger Reader quotations, distinct morning/evening edition lines, source links,
+overflow sheets and preview/share controls. No separate model rewrite occurs
+at export. Independent morning/evening PDF layout studies were rendered and
+visually checked; the native renderer and controls remain unbuilt/unexercised.
+
+Editorial specimens, calendar findings and validation limits:
+`docs/bleed-newsroom-rethink.md`.
+
 
 ### Character Letters
 

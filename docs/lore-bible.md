@@ -412,19 +412,44 @@ is happening here too,"* cut it.
 
 ### The Bleed — the Academy's student newspaper
 
-Edited by **Penny Blackletter**, Records Clerk, Department of Attestation. Two
-editions daily: **Morning** ("the day ahead") and **Evening** ("tomorrow, seen
-from tonight"). Weather, the day's hinges, what the Book noticed overnight, and
-a researched column on one of the reader's own interests.
+Edited by **Penny Blackletter**, Records Clerk, Department of Attestation.
+Morning brings something worth meeting today. Evening follows what changed and
+brings something worth coming home to. The weekly issue tells the Reader's
+larger story; the daily paper has news, discoveries, correspondence and pleasures
+of its own. Penny's precision serves her reporting rather than a running joke
+about filing.
 
-Delivery is two-stage on purpose: the Book announces in character that the
-newest edition has arrived, and *opening* it sets the presses running.
+Public Academy reports come from already-occurred business and attributed
+accounts. A follow-up needs an actual development. Monthly canonical incidents
+arrive as **verbatim authored Bleed inserts**; local prose never invents or
+rewrites the plot. Small ads and literary puzzles are authored miniatures,
+separate from incident canon. Weather and appointments are brief and optional.
 
-> **Authoring note.** The Bleed currently receives the active event packet and
-> asks the local brain to use it, which reliably produces event-*colored*
-> reporting. It will **not** reliably print an exact authored incident. Canonical
-> plot must be supplied as an **authored Bleed insert** — one per live phase.
-> Generated columns may react around it; they may not rewrite it.
+One authored current-phase pulse can pass through the morning paper and the
+nightly braid as the same event. Evening needs a real change to follow it.
+The paper can report visible action and speech from a current authored Cast
+scene; a related encounter still keeps its proper unseen order. Neither reading
+nor printing is witnessing. The Book tells the public fact beside the Reader's
+actual day without inventing their presence or a later outcome. Encountered
+monthly outcomes retain priority, and hard days retain the authored quiet voice.
+
+Correspondence is voluntary and private to the Reader's Book: a Plain Page
+addressed `For Penny:` can receive an evening response. A diary is not a letter
+to the editor. Missing an edition or an invitation creates no debt.
+
+The Book can also hold up the Reader's own language inside the paper: an exact
+line, another possible reading, or two dated lines side by side. It reads a
+particular word or image and owns the interpretation. It cannot announce a
+diagnosis, personality or growth arc. Quotes remain the Reader's exact words;
+source Page dates stay visible. At most one personal piece prints, and explicit
+correspondence keeps its own channel. Sealed, shadow and sensitive writing stay
+out. The daily issue is curated from a bench of world news, Reader readings,
+discoveries, authored pleasures and practical strips; it need not fill every
+desk. Both editions can become the same readable, printable newspaper the
+Reader just opened.
+
+Delivery is two-stage: the Book announces the paper, and opening runs the
+presses. The press remembers what actually printed, even without Keep.
 
 ### The Radio
 

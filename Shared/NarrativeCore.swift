@@ -2682,11 +2682,9 @@ enum StoryConsequenceRegistry {
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryConsequencePack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? decoder.decode(StoryConsequencePack.self, from: data)
-            }
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            try? decoder.decode(StoryConsequencePack.self, from: data)
+        }
     }
 
     static func enabledPacks() -> [StoryConsequencePack] {

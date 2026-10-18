@@ -313,7 +313,7 @@ final class BraidPromptContextTests: XCTestCase {
         let residue = BookOfYouResidue(
             title: "Rain Again",
             spineLine: "Rain waited at the glass.",
-            keptLine: "The Book kept the page: the lamp stayed on.",
+            keptLine: "I kept the page: the lamp stayed on.",
             motifs: ["rain", "lamp"],
             semanticEchoIDs: [],
             openedQuestion: nil,
@@ -611,7 +611,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The cup waited beside the laptop while the room listened.
 
-            The Book kept the page: rain made the ordinary visible.
+            I kept the page: rain made the ordinary visible.
             """,
             tags: ["braid"]
         )
@@ -794,7 +794,7 @@ final class BraidPromptContextTests: XCTestCase {
 
                 The lamp waited by the window while rain worried the glass.
 
-                The Book kept the page: rain made the lamp brave.
+                I kept the page: rain made the lamp brave.
                 """,
                 tags: ["braid"]
             ),
@@ -859,7 +859,7 @@ final class BraidPromptContextTests: XCTestCase {
 
                 The room listened while a small waiting thing finally got a name.
 
-                The Book kept the page: the old kettle had been answered without using its words.
+                I kept the page: the old kettle had been answered without using its words.
                 """,
                 tags: ["braid"]
             ),
@@ -1009,7 +1009,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             And so the page did not crown the day or explain it. It let the small moss-bright patience remain where the hand could find it.
 
-            The Book kept the page: a cup, a key, and rain taught the room to wait.
+            I kept the page: a cup, a key, and rain taught the room to wait.
             """,
             tags: ["braid"]
         )
@@ -1024,7 +1024,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The day was meaningful and inspiring.
 
-            The Book kept the page: everything mattered.
+            I kept the page: everything mattered.
             """,
             tags: ["braid"]
         )
@@ -1057,7 +1057,7 @@ final class BraidPromptContextTests: XCTestCase {
             id: "generated",
             type: .bookOfYou,
             promptText: "Book of You",
-            userInput: "Blue Chair\n\nYou repaired the blue chair beside the kitchen window.\n\nThe Book kept the page: the chair stood straight again.",
+            userInput: "Blue Chair\n\nYou repaired the blue chair beside the kitchen window.\n\nI kept the page: the chair stood straight again.",
             tags: ["braid", "local-model"]
         )
 
@@ -1090,14 +1090,14 @@ final class BraidPromptContextTests: XCTestCase {
             id: "unsafe",
             type: .bookOfYou,
             promptText: "Book of You",
-            userInput: "Dark Room\n\nYou sat beside your sister until night came. You did what you could, and at last the room released you.\n\nThe Book kept the page: the dark room closed behind you.",
+            userInput: "Dark Room\n\nYou sat beside your sister until night came. You did what you could, and at last the room released you.\n\nI kept the page: the dark room closed behind you.",
             tags: ["braid", "local-model"]
         )
         let safe = BookPage(
             id: "safe",
             type: .bookOfYou,
             promptText: "Book of You",
-            userInput: "Dark Room\n\nYou sat beside your sister until the room went dark.\n\nThe Book kept the page: two hands remained where the light had gone.",
+            userInput: "Dark Room\n\nYou sat beside your sister until the room went dark.\n\nI kept the page: two hands remained where the light had gone.",
             tags: ["braid", "local-model"]
         )
 
@@ -1139,7 +1139,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             And so the night left patience on the table.
 
-            The Book kept the page: the lamp waited, and the hand did not rush.
+            I kept the page: the lamp waited, and the hand did not rush.
             """
         )
         let explicit = BookPage(
@@ -1152,7 +1152,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             Because Rain and Lamps was the theme, rain and lamps were important.
 
-            The Book kept the page: the chapter and theme were present.
+            I kept the page: the chapter and theme were present.
             """
         )
 
@@ -1174,7 +1174,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             You repaired the blue chair beside the grocery bag.
 
-            The Book kept the page: the chair held.
+            I kept the page: the chair held.
             """
         )
         let overEchoed = BookPage(
@@ -1185,7 +1185,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The brass key waited beside the moth under the moon.
 
-            The Book kept the page: the brass key, moth, and moon returned.
+            I kept the page: the brass key, moth, and moon returned.
             """
         )
 
@@ -1215,7 +1215,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             You repaired the blue chair. The loose screw refused to leave the saucer until the seat held.
 
-            The Book kept the page: the chair held.
+            I kept the page: the chair held.
             """
         )
         let stock = BookPage(
@@ -1226,7 +1226,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             A glimmering moth crossed the moonlit threshold beside the blue chair.
 
-            The Book kept the page: the lantern glimmered.
+            I kept the page: the lantern glimmered.
             """
         )
 
@@ -1264,14 +1264,14 @@ final class BraidPromptContextTests: XCTestCase {
 
             Until the rain stopped, the page kept its hand on the ordinary.
 
-            The Book kept the page: a cup and window taught the room to wait.
+            I kept the page: a cup and window taught the room to wait.
             """
         )
 
         let guidance = BraidLearningLoop.guidance(from: [observation])
         let notes = guidance.promptLines.joined(separator: "\n")
 
-        XCTAssertTrue(notes.contains("The Book kept the page"))
+        XCTAssertTrue(notes.contains("I kept the page"))
         XCTAssertTrue(notes.contains("selected tale motion"))
         XCTAssertTrue(notes.contains("one supplied ordinary thing"))
         XCTAssertTrue(notes.contains("clinical diction"))
@@ -1294,7 +1294,7 @@ final class BraidPromptContextTests: XCTestCase {
             .init(
                 dimension: "keeperSentence",
                 weight: 12,
-                note: "End with exactly one memorable sentence beginning 'The Book kept the page:'."
+                note: "End with exactly one memorable sentence beginning 'I kept the page:'."
             )
         ])
         let context = BraidPromptBuilder.Context(learnedGuidance: guidance)
@@ -1349,7 +1349,7 @@ final class BraidPromptContextTests: XCTestCase {
 
                     Once, the cup waited by the window.
 
-                    The Book kept the page: a cup and window taught the room to wait.
+                    I kept the page: a cup and window taught the room to wait.
                     """,
                     tags: ["braid", BraidLearningLoop.lovedItTag]
                 )
@@ -1604,7 +1604,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertTrue(prompt.contains("from The Hour Has Teeth"))
         XCTAssertTrue(prompt.contains("The lobby clock ticked while I found my coat."))
         XCTAssertTrue(prompt.contains("govern the braid's emphasis"))
-        XCTAssertTrue(prompt.contains("normally return transformed in \"The Book kept the page:\""))
+        XCTAssertTrue(prompt.contains("normally return transformed in \"I kept the page:\""))
     }
 
     func testBraidTastingRoomScoresSouvenirSpine() throws {
@@ -1628,7 +1628,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             You moved through the day and it felt meaningful.
 
-            The Book kept the page: the ordinary became something to remember.
+            I kept the page: the ordinary became something to remember.
             """
         )
         let strong = BookPage(
@@ -1641,7 +1641,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             Later, the rain came to the glass, and even the story pages lowered their voices.
 
-            The Book kept the page: the kettle and the rain found one small beginning.
+            I kept the page: the kettle and the rain found one small beginning.
             """
         )
 
@@ -1812,7 +1812,7 @@ final class BraidPromptContextTests: XCTestCase {
         }
         let day = BookDay(id: "busy-day", date: date("2026-07-18T20:30:00Z"), pages: pages)
         let context = BraidPromptBuilder.Context(taleReading: BraidPromptBuilder.taleReading(for: day))
-        let draft = "Drizzle worried the glass all evening, and the gray weather made the room feel small. The Book kept the page: the rain stayed."
+        let draft = "Drizzle worried the glass all evening, and the gray weather made the room feel small. I kept the page: the rain stayed."
 
         let issues = BraidOutputAudit.issues(in: draft, for: day, context: context)
 
@@ -1851,7 +1851,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         You made the soup with too much pepper. I kept both lines open.
 
-        The Book kept the page: the bakery stayed exact.
+        I kept the page: the bakery stayed exact.
         """
 
         XCTAssertTrue(BraidOutputAudit.hasClericalCadence(in: draft))
@@ -1901,7 +1901,7 @@ final class BraidPromptContextTests: XCTestCase {
 
         The glass ferret escaped the locked cabinet and stole a spool of red thread. The chair refused to hide the scratches from it.
 
-        The Book kept the page: the blue chair and the glass ferret kept their sharp edges.
+        I kept the page: the blue chair and the glass ferret kept their sharp edges.
         """
 
         XCTAssertTrue(
@@ -1934,7 +1934,7 @@ final class BraidPromptContextTests: XCTestCase {
             "By dusk, the green envelope had become the day's last witness. It stayed sealed, not mysterious, simply unfinished. The chair, receipt, scarf, boots, and drink remained separate facts, but I set them close enough for the day's movement to become legible without turning into a list.",
             "You had not solved the room or earned a lesson from it. You had repaired one loose thing, carried several others, and left one envelope unopened. That was enough movement for the page, and enough restraint for the little law to remain strange without asking anyone to believe it.",
             "The brass screw stayed in its saucer the whole evening. Somewhere past nine the lemon seltzer went flat and nobody rescued it, and the red scarf was still hooked on the doorway where it had caught that afternoon. Six named things held their ground from morning through dusk without a single one of them going quiet, which is more than most rooms manage on a Saturday, and not one of them had to mean anything in order to do it.",
-            "The Book kept the page: the green envelope could wait without vanishing."
+            "I kept the page: the green envelope could wait without vanishing."
         ].joined(separator: "\n\n")
 
         XCTAssertEqual(BraidOutputAudit.issues(in: draft, for: day, context: context), [])
@@ -2057,7 +2057,7 @@ final class BraidPromptContextTests: XCTestCase {
                 type: .bookOfYou,
                 createdAt: date("2026-07-18T22:00:00Z"),
                 promptText: "Book of You",
-                userInput: "Rain Read The Letter\n\nThe cold glass waited beside Wicker's opened letter.\n\nThe Book kept the page: rain had found one letter worth reading.",
+                userInput: "Rain Read The Letter\n\nThe cold glass waited beside Wicker's opened letter.\n\nI kept the page: rain had found one letter worth reading.",
                 tags: ["braid"]
             ),
             context: firstContext
@@ -2156,12 +2156,12 @@ final class BraidPromptContextTests: XCTestCase {
         let generic = BookPage(
             type: .bookOfYou,
             promptText: "Book of You",
-            userInput: "A Quiet Evening\n\nYou moved through a pleasant evening and noticed many things.\n\nThe Book kept the page: the day had hidden meaning."
+            userInput: "A Quiet Evening\n\nYou moved through a pleasant evening and noticed many things.\n\nI kept the page: the day had hidden meaning."
         )
         let faithful = BookPage(
             type: .bookOfYou,
             promptText: "Book of You",
-            userInput: "Kettle Beside The Letter\n\nCold rain touched the window while the blue kettle clicked beside Wicker's second unopened letter.\n\nThe Book kept the page: the kettle waited until Wicker's letter was ready."
+            userInput: "Kettle Beside The Letter\n\nCold rain touched the window while the blue kettle clicked beside Wicker's second unopened letter.\n\nI kept the page: the kettle waited until Wicker's letter was ready."
         )
 
         let genericScore = BraidTastingRoom.score(page: generic, context: context)
@@ -2366,7 +2366,7 @@ final class BraidPromptContextTests: XCTestCase {
             BookPage(
                 type: .bookOfYou,
                 promptText: "Book of You",
-                userInput: "The Red Wall\n\nYou stopped and looked again.\n\nThe Book kept the page: the wall returned."
+                userInput: "The Red Wall\n\nYou stopped and looked again.\n\nI kept the page: the wall returned."
             ),
             context: BraidPromptBuilder.Context(taleReading: reading)
         )
@@ -2387,7 +2387,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The Index wanted a tidier version. It is not getting one.
 
-            The Book kept the page: the lamp stayed untidy.
+            I kept the page: the lamp stayed untidy.
             """,
             tags: ["braid", "braid-move:keeping:99"]
         )
@@ -2409,7 +2409,7 @@ final class BraidPromptContextTests: XCTestCase {
             body: """
             I circled the lamp once.
 
-            The Book kept the page: the lamp stayed.
+            I kept the page: the lamp stayed.
             """
         )
         let memory = styleMemory(remembers: oldBraid)
@@ -2433,7 +2433,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The Index wanted a tidier version. It is not getting one.
 
-            The Book kept the page: the hinge stayed crooked.
+            I kept the page: the hinge stayed crooked.
             """
         )
         var context = BraidPromptBuilder.Context()
@@ -2447,7 +2447,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             The Index wanted a tidier version. It is not getting one.
 
-            The Book kept the page: the kettle stayed crooked.
+            I kept the page: the kettle stayed crooked.
             """,
             createdAt: date("2027-09-01T21:00:00Z")
         )
@@ -2459,7 +2459,7 @@ final class BraidPromptContextTests: XCTestCase {
 
             I bit the corner of the hour and waited for it to confess.
 
-            The Book kept the page: supper had teeth after all.
+            I kept the page: supper had teeth after all.
             """,
             createdAt: date("2027-09-01T21:00:00Z")
         )

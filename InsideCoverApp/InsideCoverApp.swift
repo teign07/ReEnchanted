@@ -185,7 +185,17 @@ struct InsideCoverApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LockedBookRoot()
+            Group {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("--smoke-edition-reader") {
+                    EditionReaderSmokeView()
+                } else {
+                    LockedBookRoot()
+                }
+                #else
+                LockedBookRoot()
+                #endif
+            }
                 // The whole Book is a night-palette surface (nightPanel/nightText
                 // everywhere). Pin the color scheme so any text that inherits the
                 // default `.primary` renders light, never black-on-dark in a
@@ -196,6 +206,45 @@ struct InsideCoverApp: App {
             if phase == .background {
                 WeatherBell.scheduleNext()
             }
+        }
+        .commands { BookMenuCommands() }
+    }
+}
+
+/// The Book's menu: in the iPad menu bar, and in the list a held ⌘ shows.
+/// Every command is a door the Book already has; none is a new room.
+struct BookMenuCommands: Commands {
+    @FocusedValue(\.bookCommands) private var book
+    @FocusedValue(\.folioLeafCommands) private var folio
+
+    var body: some Commands {
+        CommandMenu("Book") {
+            Button("Next Leaf") { folio?.turn(1) }
+                .keyboardShortcut(.rightArrow, modifiers: [])
+                .disabled(folio?.isOnReadingLeaves != true)
+            Button("Previous Leaf") { folio?.turn(-1) }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+                .disabled(folio?.isOnReadingLeaves != true)
+            Button(folio?.isContentsOpen == true ? "Back to the Leaf" : "Contents") {
+                folio?.toggleContents()
+            }
+            .keyboardShortcut("0", modifiers: .command)
+            .disabled(folio == nil)
+
+            Divider()
+
+            Button("Search the Stacks") { book?.searchStacks() }
+                .keyboardShortcut("f", modifiers: .command)
+                .disabled(book == nil)
+            Button("The Almanac") { book?.openAlmanac() }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .disabled(book == nil)
+            Button("New Plain Page") { book?.newPlainPage() }
+                .keyboardShortcut("n", modifiers: .command)
+                .disabled(book == nil)
+            Button("Glow") { book?.openGlow() }
+                .keyboardShortcut("g", modifiers: .command)
+                .disabled(book == nil)
         }
     }
 }
@@ -298,7 +347,7 @@ private struct BookLockView: View {
                         Text("ReEnchanted")
                             .font(.system(.largeTitle, design: .serif, weight: .bold))
                             .foregroundStyle(BookPalette.nightText)
-                        Text("The Book knows better than to open for just anyone.")
+                        Text("I know better than to open for just anyone.")
                             .font(.system(.callout, design: .serif))
                             .multilineTextAlignment(.center)
                             .foregroundStyle(BookPalette.nightText.opacity(0.76))

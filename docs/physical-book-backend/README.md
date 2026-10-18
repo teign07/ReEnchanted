@@ -437,43 +437,106 @@ limit. The installation identifier lives in the iOS keychain rather than user
 defaults, but remains an abuse-control signal rather than proof of identity.
 Do not remove the Cloudflare rate-limit binding.
 
-## Payout Gate: No Parcel Before Its Money Is in the Bank
+## Payout Gate: Deposited and Reserved Printing Cash
 
-Lulu bills its card on file the moment a print job is created. A captured
-Stripe charge is still pending in Stripe; it reaches the bank only when a later
-payout carries it. So no parcel (one-off, gift, Bound Year season, or welcome
-weekly) is sent to Lulu until every charge that pays for it has been paid out
-to the bank. The Bindery never fronts a print bill.
+Every new Lulu submission requires both bank receipt confirmation and a durable
+cash reservation. Stripe `paid` alone is insufficient: a payout can subsequently
+fail ([Stripe payout object](https://docs.stripe.com/api/payouts/object)). The old
+`funds-in-bank/*` and `payouts/recorded/*` KV marks are ignored, including during
+migration. Existing print attempts keep their duplicate guards and receipts.
 
-- **Funding.** Each parcel's funding is the balance transaction of each charge
-  behind it: the order's PaymentIntent, the gift's original payment, the
-  invoices covering a season's three months, or the membership's first invoice
-  for the welcome weekly. It is fixed the first time the parcel is held.
-- **Banked marks.** The cron lists paid payouts (`GET /v1/payouts?status=paid`)
-  and, for each new one, its balance transactions
-  (`GET /v1/balance_transactions?payout=…`), and marks each transaction
-  `funds-in-bank/<txn>` for 400 days. Stripe marks a payout `paid` when it
-  expects the money to be in the bank.
-- **Holds.** An order whose funding is not all banked returns `409
-  awaiting_payout`. Its coordinator keeps the full request (including the
-  delivery address, as the paid quote already does) and indexes it under
-  `awaiting-payout/<coordinator key>`. Each cron run, after recording new
-  payouts, asks every held coordinator to retry. A released parcel goes through
-  the normal duplicate-guarded submission, and the held request is deleted. The
-  app's next request returns the stored order.
-- **Alerts.** A one-off order on hold is not a paid-without-print alarm. Any
-  parcel held longer than 14 days sends the same PII-free alert email once a
-  day, because it is stuck: manual payouts, a failed payout, or a charge with
-  no balance transaction.
-- **Requirements.** Payouts must be **automatic**. Stripe can only list a
-  payout's transactions for automatic payouts, so with manual payouts nothing
-  prints, and the 14-day alert fires. A restricted Stripe key needs **Payouts:
-  read** and **Balance: read**. A new Stripe account's first payouts take
-  roughly 7–14 days, after which the standard US schedule is about two business
-  days. Readers are told their book goes to the printer once the payment clears.
+The existing `PhysicalBookOrderCoordinator` binding owns one serialized cash
+ledger per mode (`printing-cash:test` and `printing-cash:live`). No new binding,
+Stripe API version change, bank connection, payment-setting change or automatic
+confirmation is introduced. Ledger records and reservations have no TTL.
 
-Test with `node --test test-payout-gate.mjs`, plus the hold-and-release cases in
-`test-order-preview.mjs`, `test-gifts.mjs` and `test-welcome-weekly.mjs`.
+- Every funding transaction must belong to an explicitly confirmed automatic,
+  standard, reconciled USD bank payout in the Worker's Stripe mode.
+- The reconciled transactions' **net sum**, including fees, refunds and other
+  adjustments, must equal the deposited payout amount. The ledger also caps
+  each charge's cumulative allocations at its net proceeds, reduced by later
+  refunds. Release rereads the original charge, including a held welcome book
+  whose latest membership invoice has since changed.
+- Before release the gate rereads **all** confirmed payouts by ID, including old
+  payouts. Failure, cancellation, reversal, changed amount or unusable status
+  permanently revokes a deposit. Outages deny new reservations. Signed
+  `payout.failed` and `payout.canceled` webhooks also trigger this refresh; enable
+  these events alongside the existing PaymentIntent events.
+- Lulu is quoted again for the actual package, page count, quantity, address,
+  postage and recipient tax ID, using Lulu's cost API `shipping_option` field.
+  Only `total_cost_incl_tax` with explicit USD
+  currency funds a submission; incomplete totals stay held. Decimal cents round
+  upward. The entire printer bill, including shipping and Lulu tax, is reserved.
+- One durable write allocates the cash before the printer POST. Concurrent
+  parcels cannot allocate the same cents. Reservations are tied to the parcel,
+  files, address and funding; retries cannot refill or repurpose them. A higher
+  quote needs more cash. A lower quote never silently returns cash to the pool.
+  Welcome and future Bound Year books share a finite charge allocation.
+- Reservations remain committed after successful, rejected, lost or uncertain
+  submissions. No timeout, restart, refund or cancellation releases them.
+  Recovery of an existing Lulu attempt never creates a replacement POST.
+  Earned seasonal eligibility remains governed by paid historical invoices;
+  cancellation alone does not remove deposited funding.
+
+### Authenticated bank confirmation
+
+Use `PHYSICAL_BOOK_ADMIN_TOKEN` on these operator routes (both `/admin/...` and
+`/api/physical-books/admin/...` paths work). Never put it in the app or source.
+
+`POST /admin/printing-cash/confirm-deposit` accepts this shape:
+
+```json
+{
+  "payoutID": "po_example",
+  "receiptReference": "bank_receipt_opaque_id",
+  "depositedCents": 9680,
+  "printingCents": 5000,
+  "protectedForPrinting": true
+}
+```
+
+Confirm only against an **actually received, available bank deposit**, matching
+Stripe payout ID, exact amount and currency. `printingCents` is the portion of
+those proceeds set aside exclusively for printer bills, after sales tax and
+other obligations. It cannot exceed the deposit. Use an opaque unique receipt
+identifier; do not send bank statements, account numbers or reader information.
+Repeated identical confirmations are idempotent and never refill spent cash.
+Conflicting confirmations, reused receipts, manual/instant/unreconciled payouts,
+wrong-mode objects and mismatched net amounts are rejected. Test-mode receipts
+are synthetic evidence only and never enter the live ledger.
+
+`GET /admin/printing-cash` refreshes payout status and reports verified,
+committed and available cents, plus per-payout totals. It exposes no addresses,
+bank references or PDF capabilities. `POST /admin/printing-cash/revoke-deposit`
+with `{ "payoutID": "po_example" }` permanently closes that deposit to new jobs.
+There is deliberately no balance top-up from the owner's money and no automatic
+reservation release endpoint.
+
+This ledger enforces printer allocations against confirmed proceeds; it cannot
+observe unrelated bank withdrawals or undo an already submitted job. Keep the
+confirmed printing funds protected at the bank and **revoke before** withdrawing
+or using them elsewhere. A reversal discovered after printing retains the
+liability and reduces overall available cash, blocking uncovered new jobs.
+Restoring a revoked deposit or reclaiming uncertain-job funds requires a separate
+reviewed reconciliation change; it must never be inferred from a retry.
+
+Unfunded parcels keep the existing `409 awaiting_payout` hold and cron index.
+The 15-minute cron refreshes confirmed deposits, retries held parcels through
+payment/entitlement checks and the reservation gate, and sends the existing
+PII-free alert after 14 days. Private files retain the existing 30-day lifetime;
+a longer bank/operator delay can therefore require new files. Confirmation does
+not itself submit any job: the next cron or authorized order retry does.
+
+A restricted Stripe key needs Payouts and Balance read access, including reads
+of individual balance transactions with expanded charge sources. The total follows [Lulu's cost API](https://lulu.apidocumentation.com/) and
+includes its [per-order fulfillment fee](https://help.api.lulu.com/en/support/solutions/articles/64000265990-per-order-fulfillment-fee). Before live
+use, deploy the correction, verify the new admin routes, webhook subscription,
+actual Lulu tax-inclusive response shape and bank-confirmation procedure. No
+bank receipt, deployment or physical printer billing is proved by local tests.
+
+Test with `node --test test-payout-gate.mjs test-print-submission.mjs` and the
+order, gift and welcome replays (`test-order-preview.mjs`, `test-gifts.mjs`,
+`test-welcome-weekly.mjs`).
 
 ## Reconciliation and PII Lifecycle
 

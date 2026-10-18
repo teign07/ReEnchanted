@@ -35,6 +35,121 @@ struct LabyrinthIllustrationPlate: Identifiable, Equatable {
     var characterID: String? = nil
 }
 
+/// A pack opts art into this encounter explicitly; print plates are not
+/// silently borrowed before their authored story beat.
+struct InterleafIllustration: Codable, Identifiable, Equatable {
+    var id: String
+    var assetName: String
+    var title: String
+    var tags: [String]
+    var placementTrigger: IlluminationPlacementTrigger? = nil
+
+    var resolvedAssetName: String { MonthlyIssueMediaPath.resolving(assetName) }
+
+    func isEligible(in context: IlluminationPlacementContext) -> Bool {
+        if let year = placementTrigger?.issueYear, context.year != year { return false }
+        return placementTrigger?.allows(context) ?? true
+    }
+}
+
+enum InterleafIllustrationLibrary {
+    /// Permanent illustrated field leaves. They share the cast plates'
+    /// subject matching and recent-image exclusion, without a monthly gate.
+    static let permanentScenes: [InterleafIllustration] = [
+        InterleafIllustration(
+            id: "evergreen::shelf-that-kept-growing",
+            assetName: "InterleafShelfThatKeptGrowing",
+            title: "The shelf that kept growing",
+            tags: ["library", "books", "growth", "tree", "stacks", "nature", "wonder", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::under-the-kitchen-table",
+            assetName: "InterleafUnderTheKitchenTable",
+            title: "Under the Kitchen table",
+            tags: ["kitchen", "food", "goblin", "repair", "care", "craft", "home", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-books-sleeping-place",
+            assetName: "InterleafBooksSleepingPlace",
+            title: "The Book’s sleeping place",
+            tags: ["rest", "sleep", "roots", "burrow", "shelter", "home", "quiet", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-window-after-everyone-leaves",
+            assetName: "InterleafWindowAfterEveryoneLeaves",
+            title: "The window after everyone leaves",
+            tags: ["window", "evening", "quiet", "tea", "paper", "bird", "rest", "observation", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::a-way-into-the-story",
+            assetName: "InterleafWayIntoTheStory",
+            title: "A way into the story",
+            tags: ["book-jump", "professor-permancer", "story", "door", "threshold", "adventure", "wonder", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-word-duel",
+            assetName: "InterleafWordDuel",
+            title: "The word duel",
+            tags: ["word", "duel", "writing", "ink", "quill", "punctuation", "play", "penny-blackletter", "professor-permancer", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-forgotten-stacks",
+            assetName: "InterleafForgottenStacks",
+            title: "The forgotten stacks",
+            tags: ["library", "stacks", "shadow", "grey", "curse", "nothing", "night", "secret", "mystery", "labyrinth"]
+        )
+    ]
+
+    /// Pure selection is also used by proof fixtures. Recent plates are
+    /// excluded when there is another eligible choice, never by random retry.
+    static func select(from plates: [InterleafIllustration], context: IlluminationPlacementContext, seed: Int, excluding: Set<String> = []) -> InterleafIllustration? {
+        let eligible = plates.filter { $0.isEligible(in: context) }
+        let fresh = eligible.filter { !excluding.contains($0.resolvedAssetName) }
+        let candidates = fresh.isEmpty ? eligible : fresh
+        guard !candidates.isEmpty else { return nil }
+        let subjects = Set(context.semanticTags.map { $0.lowercased() })
+        func score(_ plate: InterleafIllustration) -> Int {
+            Set(plate.tags.map { $0.lowercased() }).intersection(subjects).count
+        }
+        let best = candidates.map(score).max() ?? 0
+        let related = candidates.filter { score($0) == best }.sorted {
+            if $0.id != $1.id { return $0.id < $1.id }
+            return $0.assetName < $1.assetName
+        }
+        let index = Int(UInt(bitPattern: seed.stableScramble) % UInt(related.count))
+        return related[index]
+    }
+
+    static var available: [InterleafIllustration] {
+        let profiles = Dictionary(BookReferenceCatalog.labyrinthIllustrations.map { ($0.assetName, $0) }, uniquingKeysWith: { first, _ in first })
+        let evergreen = BookReferenceCatalog.bundledCharacterIllustrationAssetNames.sorted().map { name in
+            let profile = profiles[name]
+            return InterleafIllustration(
+                id: "evergreen::\(name)", assetName: name,
+                title: profile?.title ?? "An illustration from the Labyrinth",
+                tags: profile?.tags ?? ["illustration", "labyrinth"]
+            )
+        }
+        let authored = PageArchetypePackRegistry.enabledPacks().flatMap { pack in
+            (pack.interleafIllustrations ?? []).map { original in
+                var plate = original
+                plate.id = "pack::\(pack.id)::\(original.id)"
+                return plate
+            }
+        }
+            .filter { plate in
+                let name = plate.resolvedAssetName
+                guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                      !name.contains("{{asset-path:") else { return false }
+                // Managed files must actually be installed. Catalogue names
+                // are allowed for bundled pack art as in the existing cabinet.
+                return !name.hasPrefix("/") || FileManager.default.fileExists(atPath: name)
+            }
+        var seen = Set<String>()
+        return (authored + evergreen + permanentScenes).filter { seen.insert($0.resolvedAssetName).inserted }
+    }
+}
+
 struct CharacterIllustrationProfile: Identifiable, Codable, Equatable {
     var id: String
     var characterName: String
@@ -992,20 +1107,20 @@ enum ReaderRoleRegistry {
     /// asserts beyond "you told me this" has to come from a Mark, which
     /// reports something it actually watched.
     ///
-    /// Dossiers claim *disposition*, never biography. "You check the window
-    /// before you check the phone" is a fact that can be false. "You'd rather
-    /// begin from what's in front of you" reads as specific and cannot be
-    /// contradicted, which is the whole craft, and what the first pass got
-    /// backwards.
+    /// Dossiers are the Book naming who you are, with authority, through
+    /// ordinary things: a pie, a heron, a friend's joke. bj chose the role as
+    /// an identity claim (see the reader-role notes); a dossier may flatter.
+    /// It says what that kind of person does, never a biographical fact that
+    /// could be checked and found false.
     static let all: [ReaderRole] = [
         ReaderRole(
             id: "maker",
             name: "The Maker",
             gloss: "You come alive with something half-finished in front of you.",
             dossier: """
-            You'd rather have something in progress than something settled. Not necessarily art, and not necessarily useful: a meal, a plan, a sentence, a rearranged shelf. The point isn't the finished thing; you've abandoned plenty. The point is the state of being partway.
+            Makers leave the world with a bit more in it than they found. A pie with a thumbprint in the crust. A chair that wobbled until Tuesday. A sentence you kept poking until it finally sat up straight.
 
-            I've noticed this is the one appetite people apologise for having. Don't. Whatever else is true of you, you'd rather add to the world than tidy it.
+            In my stories, Makers get handed the broken things, because they can't leave them alone. I'll bring you small things to make, and you bring me back what happened, especially the bit that went wrong. That's my favourite bit. Wrong bits have the best stories in them.
             """,
             compassLine: "Make one small thing that wasn't there this morning.",
             verb: "makes things",
@@ -1022,9 +1137,9 @@ enum ReaderRoleRegistry {
             name: "The Lookout",
             gloss: "You come alive outdoors, where the weather can get at you.",
             dossier: """
-            Outside does something to you that inside doesn't, and you'd struggle to defend it in an argument. You don't need it to be scenic. You need it to be actual: air that's a temperature, a sky doing something specific.
+            Lookouts are the first to see the sky change its mind. The heron on the fence post. The cold that turns up before the forecast does. The one leaf that's gone red early, showing off.
 
-            You'd rather begin from what's in front of you than from an idea about it. That's rarer than it sounds, and it's the whole reason anything in here gets noticed at all.
+            In my stories, Lookouts get the high windows and the rooftops, where the weather comes to talk. I'll give you things to watch for on your way somewhere, and you tell me what was really out there. The weather doesn't have to behave. I'd honestly rather it didn't.
             """,
             compassLine: "Get outside for as long as it takes to notice one thing.",
             verb: "goes outside",
@@ -1041,9 +1156,9 @@ enum ReaderRoleRegistry {
             name: "The Porchlight",
             gloss: "You come alive with your people in the room.",
             dossier: """
-            You're at your best with somebody there. Not performing (you're not that) just noticeably more yourself when there's another person in it with you.
+            Porchlights keep the good bits of other people. The joke at dinner that made someone snort their tea. The friend who remembers how you take yours. The voice you're always glad to hear.
 
-            Which means the version of you that nobody sees is a different animal, and you know it. I'd rather have you than almost anyone, because you'll bring other people's lives back here with you, and those are the details nobody thinks to keep.
+            In my stories, a Porchlight is the reason everyone keeps drifting back to the kitchen. I'll bring you little questions about your people, and you bring me something one of them actually said. I can't make up their best lines. I've tried. Mine are worse.
             """,
             compassLine: "Let one thread point toward a person. Tiny contact counts.",
             verb: "keeps people close",
@@ -1060,9 +1175,9 @@ enum ReaderRoleRegistry {
             name: "The Detourist",
             gloss: "You come alive moving, and preferably the long way.",
             dossier: """
-            Given two routes you take the odd one. You've been at this your whole life: the long way home, the door you've not tried, the aisle that isn't on the list. It costs you time and you keep paying.
+            Detourists take the other street. The new lunch. The turn everyone else walks straight past, just to see what's down there. Mostly it's only a street. Sometimes it's a bakery, or a cat, or a gate painted a colour gates aren't meant to be.
 
-            You keep paying because a road you always take the same way goes flat, and you can feel it happening. This whole place was laid out by people with exactly your problem.
+            In my stories, Detourists find the corridors that weren't on the map yesterday. I'll suggest small adventures that fit an ordinary day, and you go and look. Getting there's your job. I haven't got sensible shoes. I haven't got feet either, which doesn't help.
             """,
             compassLine: "Go the wrong way on purpose and see what's down there.",
             verb: "takes the long way",
@@ -1079,9 +1194,9 @@ enum ReaderRoleRegistry {
             name: "The Rabbit-Holer",
             gloss: "You come alive with a question you can't put down.",
             dossier: """
-            It starts small (one word you didn't know, one thing that didn't add up) and four hours later you're an authority on eighteenth-century canal locks. You've apologised for this.
+            Rabbit-Holers can't leave a question alone. Why does that bird do that? Who named this street, and were they cross about something? Four hours later a Rabbit-Holer knows everything about canal locks and isn't one bit sorry.
 
-            Don't. A mind that can still be taken hostage by a question is rare and expensive, and losing an afternoon on purpose is the only reason anything interesting has ever been found out.
+            In my stories, Rabbit-Holers get the keys to the rooms with the dustiest books, where the questions breed. I'll bring you things to investigate, and you decide how far down to go. Bring me back one thing you found out. I'll almost certainly have another question. I always do.
             """,
             compassLine: "Pick the question you keep circling and give it one honest hour.",
             verb: "follows questions down",
@@ -1098,9 +1213,9 @@ enum ReaderRoleRegistry {
             name: "The Nightlight",
             gloss: "You come alive when nobody needs anything from you.",
             dossier: """
-            Solitude isn't a consolation prize for you and it isn't loneliness wearing a better coat. It's the condition under which you're most awake: the hour where nothing is being asked and you get to be a person rather than a set of responses.
+            Nightlights know the good kind of quiet. The first cup of tea before anyone's up. An empty room with the lamp on. A whole minute when nobody needs an answer from you.
 
-            People who need company to feel real find this suspicious. Let them. You've got somewhere to go that they can't reach.
+            In my stories, Nightlights get the library after closing, when the books whisper and the candles keep their own hours. I'll offer you Pages for that sort of time: one small thing to notice, and a place to write it down. I'll keep the louder characters busy. Wicker can't whisper. I've checked.
             """,
             compassLine: "Take the hour nobody's asking for. Don't fill it.",
             verb: "keeps their own company",
@@ -1117,9 +1232,9 @@ enum ReaderRoleRegistry {
             name: "The Steady Hand",
             gloss: "You come alive when somebody's leaning on you and it holds.",
             dossier: """
-            Being useful to somebody does something for you that being praised doesn't. You'd deny this if asked directly. That's part of how I know.
+            Steady Hands notice who could use a hand. The heavy bag on the stairs. The soup made for someone who's poorly. The friend who's had a rotten day and just needs somebody to listen for a bit.
 
-            The cost is that you're bad at the other side of it, and the people who lean on you have no idea you'd like a turn. I'm not going to fix that. I'm going to keep noticing it. That's nearly as annoying.
+            In my stories, a Steady Hand is who everyone looks for when the staircases start moving. I'll bring you small invitations about care and company, and you decide how much you've got to give that day. Some days the most useful thing a Steady Hand can do is ask for a hand back. I'll remind you. I'm annoying like that.
             """,
             compassLine: "Do the small useful thing before anybody asks for it.",
             verb: "shows up for people",
@@ -1136,9 +1251,9 @@ enum ReaderRoleRegistry {
             name: "The Stowaway",
             gloss: "You come alive inside a story that isn't yours.",
             dossier: """
-            You go somewhere when you read, or watch, or listen, and you come back slightly rearranged. It's not escape: escape is what people call it who've never done it properly. You go in to be changed and you generally are.
+            Stowaways go somewhere when they read. A book on the bus that makes you miss your stop. A film that follows you home. A song you play again, and again, and once more for luck.
 
-            Which makes you the most dangerous kind of reader I can be handed, because you'll take what happens in here personally. Good. So will I.
+            In my stories, Stowaways are the ones who climb inside the tale and change it from the inside. I'll bring you people to meet and stories to take part in, and you choose what to do in them. I might argue with your decisions. I'll keep every one of them anyway, in ink.
             """,
             compassLine: "Go back into the one that got you. Bring something out.",
             verb: "gets lost in stories",
@@ -1596,49 +1711,49 @@ enum RoutineRecallProbe {
             id: "drove",
             label: "Drove somewhere familiar",
             noun: "drive",
-            setup: "You were there for every second of that. So this should be simple.",
+            setup: "You were there for every second of that drive. So this should be easy. Tap whether you remember each one. Remembering there was no music counts.",
             questions: [
                 "What was playing when you started the engine?",
-                "The car in front of you at the first red light: anything on the back of it?",
+                "Did you stop at a red light? What do you remember seeing there?",
                 "How many dogs did you pass?",
-                "What colour was the last front door you drove past?",
-                "Which lane were you in when you stopped thinking about driving?",
+                "What colour was a building you passed?",
+                "What do you remember seeing near the end of the drive?",
                 "Was anybody walking? Going which way?",
                 "What did the road surface sound like?"
             ],
-            emptyRetort: "And you were awake for all of it. Eyes open, hands on the wheel, legally responsible for a tonne of moving metal."
+            emptyRetort: "And you were awake for all of it. Eyes open, hands on the wheel, in charge of a whole car."
         ),
         Scenario(
             id: "cooked",
             label: "Cooked something",
             noun: "cooking",
-            setup: "Your hands did every bit of that. So this should be simple.",
+            setup: "Your own hands did every bit of that cooking. So this should be easy. Tap whether you remember each one.",
             questions: [
                 "What did the pan sound like when the first thing hit it?",
                 "Which ingredient did you smell before you used it?",
                 "What was the last thing you touched before you washed your hands?",
-                "Which drawer did you open twice?",
+                "Which cupboard or drawer did you use?",
                 "What was the first thing to change colour?",
                 "How warm was the handle by the end?",
                 "What did you almost forget?"
             ],
-            emptyRetort: "And it was your own kitchen. Your own hands. Nobody else was operating them."
+            emptyRetort: "And it was your own kitchen. Your own hands. Nobody else was using them."
         ),
         Scenario(
             id: "walked",
             label: "Walked a route you know",
             noun: "walk",
-            setup: "You went the whole way on your own two feet. So this should be simple.",
+            setup: "You did that whole walk on your own two feet. So this should be easy. Tap whether you remember each one. Remembering nobody was there counts.",
             questions: [
                 "What was under your feet for most of it?",
                 "Who else was out?",
-                "Which house had something wrong with its front door?",
+                "What do you remember about a building or tree you passed?",
                 "What did you hear that wasn't traffic?",
                 "Where did the light change on you?",
-                "What did you step around without deciding to?",
+                "Did you step around anything on the way?",
                 "Which way was the wind going?"
             ],
-            emptyRetort: "And you chose every step of it. It wasn't done to you: you went."
+            emptyRetort: "And you chose every step of it. Nobody carried you."
         )
     ]
 
@@ -1671,27 +1786,11 @@ enum RoutineRecallProbe {
     static func verdict(remembered: Int, scenario: Scenario) -> String {
         switch remembered {
         case 0:
-            return """
-            Gone. All three.
-
-            \(scenario.emptyRetort)
-
-            That hour is gone and you were inside it the whole time.
-            """
+            return "Gone. All three. \(scenario.emptyRetort) You were inside that hour the whole time, and it's gone."
         case 1, 2:
-            return """
-            \(remembered) out of three.
-
-            \(scenario.emptyRetort)
-
-            That's all that stuck, out of a whole hour you were awake for.
-            """
+            return "\(remembered) out of three. \(scenario.emptyRetort) That's all that stuck, out of a whole hour you were awake for."
         default:
-            return """
-            All three?
-
-            Then you were there for it. That's rare. I'll ask again when you're tired.
-            """
+            return "All three? Then you were there for it. That's rare. I'll ask again when you're tired."
         }
     }
 }
@@ -2411,6 +2510,36 @@ private enum ReferenceHaystackCache {
             haystack.range(of: term, options: .literal) != nil ? partial + 1 : partial
         }
     }
+
+    /// `matchCount` for one snippet, remembering each term's answer. The
+    /// haystack never changes and the reader's context terms change slowly, so
+    /// a desk build after the first one scans only the terms that are new —
+    /// the scan was still most of the Wonder Compass adapter on a phone,
+    /// repeated by every build after launch.
+    static func matchCount(for snippet: ReferenceSnippet, terms: [String]) -> Int {
+        let haystack = haystack(for: snippet)
+        var count = 0
+        for term in terms {
+            let key = "\(snippet.id)\u{1F}\(term)"
+            lock.lock()
+            let known = found[key]
+            lock.unlock()
+            let present: Bool
+            if let known {
+                present = known
+            } else {
+                present = haystack.range(of: term, options: .literal) != nil
+                lock.lock()
+                if found.count >= 80_000 { found.removeAll(keepingCapacity: true) }
+                found[key] = present
+                lock.unlock()
+            }
+            if present { count += 1 }
+        }
+        return count
+    }
+
+    nonisolated(unsafe) private static var found: [String: Bool] = [:]
 }
 
 enum BookReferenceCatalog {
@@ -3043,10 +3172,7 @@ enum BookReferenceCatalog {
         // inside the comparator, which built and hashed two strings per
         // comparison.
         let scored = snippets.enumerated().map { offset, snippet in
-            var score = ReferenceHaystackCache.matchCount(
-                in: ReferenceHaystackCache.haystack(for: snippet),
-                terms: contextTerms
-            )
+            var score = ReferenceHaystackCache.matchCount(for: snippet, terms: contextTerms)
             // A chapter the reader was just shown yields the lectern.
             if recentKeys.contains("snippet:\(snippet.id)") {
                 score -= 3
@@ -3127,10 +3253,7 @@ enum BookReferenceCatalog {
         let rotationSlot = referenceRotationSlot(for: now)
         let recentKeys = inputs.recentVarietyKeys(now: now)
         let scored = snippets.enumerated().map { offset, snippet in
-            var score = ReferenceHaystackCache.matchCount(
-                in: ReferenceHaystackCache.haystack(for: snippet),
-                terms: contextTerms
-            )
+            var score = ReferenceHaystackCache.matchCount(for: snippet, terms: contextTerms)
             if recentKeys.contains("snippet:\(snippet.id)") {
                 score -= 3
             }
@@ -3380,7 +3503,7 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
         guard source.isActive else { return [] }
         let baseTags = referenceTags(inputs: inputs)
         let shadowVisitsQuips = ShadowWonder.shouldSurface(.quip, inputs: inputs, now: now)
-        let brightLimit = shadowVisitsQuips ? 2 : 4
+        let brightLimit = inputs.catalogueCandidateLimit(shadowVisitsQuips ? 2 : 4)
         var pages = QuipPackRegistry.rankedQuips(
             for: day,
             now: now,
@@ -3395,7 +3518,7 @@ struct QuipPageSourceAdapter: BookPageSourceAdapter {
                 for: day,
                 now: now,
                 tags: baseTags + ShadowWonder.tags(inputs: inputs, now: now),
-                limit: 2
+                limit: inputs.catalogueCandidateLimit(2)
             ).map {
                 quipSurface(
                     for: day,
@@ -3493,7 +3616,7 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
         let tags = referenceTags(inputs: inputs)
-        return QuoteLibraryRegistry.rankedQuotes(for: day, now: now, tags: tags, limit: 4).map {
+        return QuoteLibraryRegistry.rankedQuotes(for: day, now: now, tags: tags, limit: inputs.catalogueCandidateLimit(4)).map {
             quoteSurface(
                 for: day,
                 context: context,
@@ -3597,7 +3720,7 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
             for: day,
             now: now,
             tags: tags,
-            limit: 4,
+            limit: inputs.catalogueCandidateLimit(4),
             lastShown: lastShown
         ).map {
             affirmationSurface(

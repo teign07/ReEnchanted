@@ -493,7 +493,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             detail: "The page is already rendered.",
             payload: BookPagePayload(
                 headline: "Field Study",
-                body: "The Book kept the page: detail spoke.",
+                body: "I kept the page: detail spoke.",
                 metadata: [
                     "renderedPreviewPath": "/tmp/reenchanted-prepared-illumination.jpg",
                     "assetLocalIdentifier": "test-photo-asset",
@@ -1642,7 +1642,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             detail: "The page is already rendered.",
             payload: BookPagePayload(
                 headline: "Lamp Study",
-                body: "The Book kept the page: lamp-light gathered in the corner.",
+                body: "I kept the page: lamp-light gathered in the corner.",
                 metadata: [
                     "renderedPreviewPath": "/tmp/reenchanted-illumination.png",
                     "assetLocalIdentifier": "photo-asset-1"
@@ -2312,7 +2312,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             type: .illuminatedPhoto,
             createdAt: localDate(hour: 13),
             promptText: "Found in the Margins",
-            userInput: "The Book kept the page: the cup glittered.",
+            userInput: "I kept the page: the cup glittered.",
             tags: ["photo", "marginalia"]
         ))
         let weatherEvent = NarrativeEventResolver.event(forKept: BookPage(
@@ -2624,7 +2624,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             type: .illuminatedPhoto,
             createdAt: localDate(hour: 15),
             promptText: "Found in the Margins",
-            userInput: "The Book kept the page: the lamp won.",
+            userInput: "I kept the page: the lamp won.",
             tags: ["photo", "marginalia"]
         )
 
@@ -2746,7 +2746,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             type: .illuminatedPhoto,
             createdAt: localDate(hour: 12),
             promptText: "Found in the Margins",
-            userInput: "The Book kept the page: the chair waited.",
+            userInput: "I kept the page: the chair waited.",
             tags: ["photo"]
         ))
         let packet = StoryScenePacketBuilder.packet(
@@ -3048,17 +3048,19 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
     func testCuratorLorePageRotatesAcrossSurfaceSlots() throws {
         let day = emptyDay()
         // Fixed ordinary date so Almanac festival pages don't claim a slot.
+        // (July 7 is Tanabata now that the feast calendar keeps it.) Twenty slots: this is about
+        // rotation between clock slots, not about where lore ranks on a crowded desk.
         let morning = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(),
-            now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 0),
-            limit: 14
+            now: localDate(year: 2026, month: 7, day: 8, hour: 10, minute: 0),
+            limit: 20
         )
         let later = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(),
-            now: localDate(year: 2026, month: 7, day: 7, hour: 10, minute: 40),
-            limit: 14
+            now: localDate(year: 2026, month: 7, day: 8, hour: 10, minute: 40),
+            limit: 20
         )
 
         let morningLore = try XCTUnwrap(morning.first { $0.type == .lore }?.payload.metadata["snippetID"])

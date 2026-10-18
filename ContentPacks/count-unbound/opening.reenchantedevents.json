@@ -1,7 +1,7 @@
 {
   "id": "count-unbound-october-2026",
   "displayName": "The Count Unbound — opening rehearsal",
-  "version": 1,
+  "version": 2,
   "author": "ReEnchanted",
   "availability": "userImported",
   "events": [
@@ -4476,7 +4476,15 @@
                 }
               ]
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.academy.school.chair-first",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.academy.school.chair-first}}",
+            "caption": "The chair that gets there first",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "academy.school.chair-first.after",
@@ -4566,7 +4574,15 @@
           "aside": "A blank page beat me in an argument. It didn't even say anything. That's the trick, apparently.",
           "gossip": "{teller} says a blank page beat Wicker in an argument. It didn't say a word. I'd like that framed."
         }
-      ]
+      ],
+      "illustration": {
+        "id": "count-unbound.story-art.v1.scene.academy.school.sentence-coat",
+        "kind": "renderedImageFile",
+        "reference": "{{asset-path:count-unbound.story-art.v1.scene.academy.school.sentence-coat}}",
+        "caption": "A sentence with its coat off",
+        "sourceID": "monthly-story-plate",
+        "metadata": {}
+      }
     },
     {
       "id": "academy.school.wrong-way",
@@ -4673,7 +4689,15 @@
               "memory": "Wicker came out of the right classroom and found Serenity and Soren on the stair with a paper bird. Soren said hello to him, kindly.",
               "aside": "Soren said hello to me. Nicely. I've been trying to work out what he meant by it ever since."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.academy.school.wrong-way",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.academy.school.wrong-way}}",
+            "caption": "The wrong way to the classroom",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "academy.school.wrong-way.after",
@@ -4746,7 +4770,15 @@
               "memory": "Wicker tied his practice knot round his own thumb, and Permancer freed him without a word.",
               "aside": "My knot was technically a knot. It was technically attached to me. Permancer didn't need to look so tired about it."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.sunday-jump",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.sunday-jump}}",
+            "caption": "Sunday Book Jump Club",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.scene.sunday-jump.checks",
@@ -5124,7 +5156,15 @@
               "memory": "Permancer's bookmark pulled toward Serenity, and he named it: a living anchor. Someone from a story was holding on to her.",
               "aside": "The bookmark leaned toward her. I've watched it lean toward lost students for eleven years. Never toward a found one."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.east-stacks",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.east-stacks}}",
+            "caption": "The East Stacks Incident",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.scene.east-stacks.after",
@@ -5252,7 +5292,15 @@
           "memory": "Ambrose took the mended map case out of Wicker's hands and made him sit down for a cup of tea.",
           "aside": "Took the case off him before he walked into the sea with it. Gave him tea. Not a word for the whole cup."
         }
-      ]
+      ],
+      "illustration": {
+        "id": "count-unbound.story-art.v1.scene.count-unbound.school.map-room",
+        "kind": "renderedImageFile",
+        "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.school.map-room}}",
+        "caption": "The map with room left",
+        "sourceID": "monthly-story-plate",
+        "metadata": {}
+      }
     },
     {
       "id": "count-unbound.scene.man-reading-himself",
@@ -5352,7 +5400,15 @@
               "aside": "He was annotating himself. In pencil. I've met students like that. None of them were vampires.",
               "gossip": "{teller} says the Count's been writing in the margins of his own book. In pencil. The cheek of it."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.man-reading-himself",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.man-reading-himself}}",
+            "caption": "The Man Reading Himself",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.scene.man-reading-himself.after",
@@ -5502,7 +5558,15 @@
               "key": "count-unbound.castle.nod",
               "memory": "Serenity caught Wicker watching her close her mended map case, and gave him a small, level nod before going ahead."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.wrong-castle",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.wrong-castle}}",
+            "caption": "The Wrong Castle",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.scene.wrong-castle.after",
@@ -5632,7 +5696,15 @@
               "nextNodeID": "count-unbound.strategy.gambit",
               "braidText": "You went where Wicker was making a room out of paper. I tried not to look hungry."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.strategy",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.strategy}}",
+            "caption": "Which preparation?",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.strategy.terms",
@@ -6122,7 +6194,15 @@
               "memory": "Ambrose pulled back the chair at the head of the table, laid for no one all week, and the threshold took its shape from the empty place.",
               "aside": "Chair at the head's been laid all week. Somebody was always going to need it."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.future-tense",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.future-tense}}",
+            "caption": "A Future Tense",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         },
         {
           "id": "count-unbound.scene.future-tense.terms",
@@ -6387,7 +6467,15 @@
               "aside": "She said not today. I said all right. Easiest thing I've said all month, and the hardest.",
               "gossip": "{teller} says Serenity told Wicker not today, and he just said all right and went. Wicker. No speech at all."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.scene.first-nightbound-morning",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.scene.first-nightbound-morning}}",
+            "caption": "The First Nightbound Morning",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         }
       ],
       "reportAfterLiveDay": 28,
@@ -6440,7 +6528,15 @@
               "memory": "Penny pinned Permancer's old Jump list beside the new one, because it was complete for the lesson it was written for.",
               "aside": "I kept the old list up. It's not wrong. It's just short. Things can be both."
             }
-          ]
+          ],
+          "illustration": {
+            "id": "count-unbound.story-art.v1.scene.count-unbound.protocols.threshold",
+            "kind": "renderedImageFile",
+            "reference": "{{asset-path:count-unbound.story-art.v1.scene.count-unbound.protocols.threshold}}",
+            "caption": "Threshold Protocols",
+            "sourceID": "monthly-story-plate",
+            "metadata": {}
+          }
         }
       ],
       "roomID": "location-vault-of-doors",

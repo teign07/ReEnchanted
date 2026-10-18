@@ -23,8 +23,6 @@ let partialTracking = false;
 let chargeRefundedCents = 0;
 let chargeDisputed = false;
 
-// The payout carrying ch_123 has already landed in the bank.
-kvValues.set("funds-in-bank/txn_123", "{}");
 const kv = {
   async get(key) { return kvValues.get(key) ?? null; },
   async put(key, value) { kvValues.set(key, value); },
@@ -102,7 +100,7 @@ globalThis.fetch = async (url, init = {}) => {
   externalCalls.push({ href, init });
   if (href === env.LULU_AUTH_URL) return jsonResponse({ access_token: "lulu-token" });
   if (href.includes("/print-job-cost-calculations/")) {
-    return jsonResponse({ shipping_cost: "7.99", print_cost: "19.51", tax: "1.25" });
+    return jsonResponse({ shipping_cost: "7.99", print_cost: "19.51", tax: "1.25", currency: "USD", total_cost_incl_tax: "28.75" });
   }
   if (href.endsWith("/cover-dimensions/")) {
     return jsonResponse({ width: "882", height: "666" });
@@ -127,9 +125,11 @@ globalThis.fetch = async (url, init = {}) => {
       client_secret: "pi_123_secret_test",
     });
   }
+  if (new URL(href).pathname === "/v1/payouts/po_123") return jsonResponse(paidPayouts[0]);
+  if (new URL(href).pathname === "/v1/balance_transactions/txn_123") return jsonResponse({ id: "txn_123", net: 11300, currency: "usd", source: { paid: true, livemode: false, amount: 11713, amount_refunded: chargeRefundedCents, disputed: chargeDisputed, currency: "usd" } });
   if (new URL(href).pathname === "/v1/payouts") return jsonResponse({ data: paidPayouts, has_more: false });
   if (new URL(href).pathname === "/v1/balance_transactions") {
-    return jsonResponse({ data: [{ id: "txn_123" }], has_more: false });
+    return jsonResponse({ data: [{ id: "txn_123", net: 11300, currency: "usd", type: "charge" }], has_more: false });
   }
   if (new URL(href).pathname.endsWith("/v1/payment_intents/pi_123")) {
     return jsonResponse({
@@ -454,7 +454,8 @@ try {
 
   // The charge is captured, but its payout has not reached the bank. Lulu bills
   // the moment a job exists, so the order waits on the server instead.
-  kvValues.delete("funds-in-bank/txn_123");
+  // Legacy paid-only KV evidence must not release a parcel after migration.
+  kvValues.set("funds-in-bank/txn_123", "{}");
   const held = await requestJSON("/orders", postOptions(orderRequest, currentQuote.checkoutToken), env);
   assertEqual(held.response.status, 409, "an order whose money is not in the bank is held");
   assertEqual(held.body.error, "awaiting_payout", "the hold names the payout wait");
@@ -470,7 +471,11 @@ try {
   await runCron();
   assertEqual(securityAlertEmails.length, alertsBeforeHold, "an order waiting for its payout is not a paid-without-print alarm");
   assertEqual(luluCreateCount, 0, "no payout yet, nothing printed");
-  paidPayouts.unshift({ id: "po_123", status: "paid", automatic: true, arrival_date: Math.floor(Date.now() / 1000) });
+  paidPayouts.unshift({ id: "po_123", status: "paid", automatic: true, type: "bank_account", method: "standard", reconciliation_status: "completed", amount: 11300, currency: "usd", livemode: false });
+  await runCron();
+  assertEqual(luluCreateCount, 0, "Stripe paid alone is not a bank deposit");
+  const bankConfirmation = await requestJSON("/admin/printing-cash/confirm-deposit", { method: "POST", headers: { Authorization: `Bearer ${adminToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ payoutID: "po_123", receiptReference: "receipt_order_123", depositedCents: 11300, printingCents: 10880, protectedForPrinting: true }) }, env);
+  assertEqual(bankConfirmation.response.status, 200, "authenticated bank receipt confirms protected printing cash");
   await runCron();
   assertEqual(luluCreateCount, 1, "the payout landing sends the order to Lulu on the cron");
   assertEqual(kvValues.has("awaiting-payout/pi_123"), false, "the hold index clears once submitted");

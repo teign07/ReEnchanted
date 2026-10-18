@@ -5,7 +5,7 @@ import { issueMembershipRecovery } from './membership-recovery-issuer.mjs';
 import { verifiedRecoveryContact } from './membership-recovery-contact.mjs';
 import { createGmailRecoveryDelivery } from './gmail-recovery-delivery.mjs';
 import { luluTracking, mergeLuluTracking } from './lulu-tracking.mjs';
-import { AWAITING_PAYOUT_INDEX_PREFIX, AwaitingPayoutError, awaitingPayoutIndexKey, fundingIsBanked, fundingTransaction, normalizedFunding, recordPaidPayouts } from './payout-gate.mjs';
+import { AWAITING_PAYOUT_INDEX_PREFIX, AwaitingPayoutError, awaitingPayoutIndexKey, CashGateError, cashOperation, printerLiability, fundingTransaction, normalizedFunding } from './payout-gate.mjs';
 import { readRecoveryIssuance, requestMembershipRecovery, readRecoveryRedemption, redeemMembershipRecovery } from './membership-recovery.mjs';
 import { coordinateMembershipOwnership, MembershipOwnershipError } from './membership-ownership.mjs';
 import { MonthlyIssueError, readMonthlyMembershipOwner, recordMonthlyMembershipOwner, markMonthlyMembershipGift, issueMonthlySession, serveMonthlyContent } from './monthly-issues.mjs';
@@ -1016,7 +1016,7 @@ export default {
     try {
       return await routeRequest(request, env);
     } catch (error) {
-      if (error instanceof HTTPError || error instanceof MonthlyIssueError || error instanceof MembershipOwnershipError) {
+      if (error instanceof HTTPError || error instanceof CashGateError || error instanceof MonthlyIssueError || error instanceof MembershipOwnershipError) {
         return jsonResponse(
           { error: error.code, message: error.message },
           { status: error.status },
@@ -1042,6 +1042,13 @@ export class PhysicalBookOrderCoordinator {
   async fetch(request) {
     try {
       const payload = await request.json();
+      if (payload.fulfillmentKind === "printing-cash") {
+        const task = (this.cashQueue || Promise.resolve()).catch(() => {}).then(() =>
+          cashOperation(this.state.storage, path => stripeGetForPayoutScan(this.env, path), expectedStripeLivemode(this.env), payload));
+        this.cashQueue = task;
+        try { return jsonResponse(await task); }
+        finally { if (this.cashQueue === task) this.cashQueue = null; }
+      }
       if (payload.fulfillmentKind === "membership-ownership") {
         if (payload.action === "inspect-recovery") {
           const record = await this.state.storage.get("membership-recovery-issuance");
@@ -1098,7 +1105,7 @@ export class PhysicalBookOrderCoordinator {
       if (error instanceof MembershipOwnershipError) {
         return jsonResponse({ error: error.code }, { status: error.status });
       }
-      if (error instanceof HTTPError) {
+      if (error instanceof HTTPError || error instanceof CashGateError) {
         return jsonResponse({ error: error.code, message: error.message }, { status: error.status });
       }
       return jsonResponse(
@@ -1121,7 +1128,7 @@ export class PhysicalBookOrderCoordinator {
       return existing;
     }
     const held = await this.state.storage.get("awaiting-payout");
-    const submitPrintJob = (token, job, funding) => this.submitFundedPrintJob(token, job, funding, held);
+    const submitPrintJob = (token, job, funding, pageCount) => this.submitFundedPrintJob(token, job, funding, held, pageCount);
     let order;
     try {
       order = await (payload.fulfillmentKind === "membership-dispatch"
@@ -1143,12 +1150,22 @@ export class PhysicalBookOrderCoordinator {
   // carries the reader's money. The funding that pays for a parcel is fixed
   // the first time it is held: a welcome weekly stays paid for by the first
   // invoice even after a second, still-pending one becomes the latest.
-  async submitFundedPrintJob(token, job, funding, held) {
+  async submitFundedPrintJob(token, job, funding, held, pageCount) {
     // A parcel with a submission on record has already reached the print
     // house; the duplicate guard in submitPrintJob owns it from here.
     if (!(await this.state.storage.get("lulu-submission"))) {
       const fixed = held?.funding ?? normalizedFunding(funding);
-      if (!(await fundingIsBanked(this.env.PHYSICAL_BOOK_ORDERS, fixed))) throw new AwaitingPayoutError(fixed);
+      if (!fixed || !(await printingCash(this.env, { action: "eligible", funding: fixed })).eligible) throw new AwaitingPayoutError(fixed);
+      try {
+        const liability = printerLiability(await fetchLuluSubmissionCost(this.env, token, job, pageCount));
+        const reservation = await printingCash(this.env, { action: "reserve", funding: fixed,
+          parcelKey: await sha256Hex(job.external_id), fingerprint: await sha256Hex(JSON.stringify(job)),
+          costCents: liability.cents, currency: liability.currency });
+        if (!reservation.reserved) throw new AwaitingPayoutError(fixed);
+      } catch (error) {
+        if (error instanceof CashGateError && error.code === "printer_cost_unverified") throw new AwaitingPayoutError(fixed);
+        throw error;
+      }
     }
     return this.submitPrintJob(token, job);
   }
@@ -1182,9 +1199,9 @@ export class PhysicalBookOrderCoordinator {
   async releaseAwaitingPayout() {
     const held = await this.state.storage.get("awaiting-payout");
     if (!held) return { released: false, held: false };
-    // Known funding is checked here first so a waiting parcel costs the cron one
-    // read, not a full Stripe and Lulu revalidation every fifteen minutes.
-    if (held.funding && !(await fundingIsBanked(this.env.PHYSICAL_BOOK_ORDERS, held.funding))) {
+    // Without a confirmed deposit, skip the full entitlement and Lulu quote.
+    // The shared ledger still rechecks payout status before answering.
+    if (held.funding && !(await printingCash(this.env, { action: "eligible", funding: held.funding })).eligible) {
       return { released: false, held: true, heldAt: held.heldAt };
     }
     const order = await this.runOrderOperation(held.payload);
@@ -1778,6 +1795,15 @@ async function routeRequest(request, env) {
     return jsonResponse(await reconciliationStatus(env));
   }
 
+  const cashMatch = /^\/(?:api\/physical-books\/)?admin\/printing-cash(?:\/(confirm-deposit|revoke-deposit))?$/.exec(path);
+  if (cashMatch && request.method === (cashMatch[1] ? "POST" : "GET")) {
+    requireAdminToken(request, env);
+    const input = cashMatch[1] ? await request.json() : {};
+    // action and fulfillment kind are chosen here, never accepted from a caller.
+    return jsonResponse(await printingCash(env, { ...input, action: cashMatch[1] || "inspect" }),
+      { headers: { "Cache-Control": "private, no-store" } });
+  }
+
   const supportMatch = path.match(/^\/(?:api\/physical-books\/)?admin\/parcels\/(?:gifts\/(pi_[A-Za-z0-9_]+)|memberships\/(sub_[A-Za-z0-9_]+)\/(\d{4}-S(?:0[1-9]|1[0-2])))(?:\/(hold|close-refunded))?$/);
   if (supportMatch && request.method === (supportMatch[4] ? "POST" : "GET")) {
     requireAdminToken(request, env);
@@ -1920,9 +1946,14 @@ async function handleStripeWebhook(request, env) {
     return jsonResponse({ received: true, duplicate: true });
   }
 
-  // Only print-order PaymentIntents reconcile from webhooks. Memberships are
-  // re-read from Stripe at every grant, so subscription events need no handler.
+  // Payout failures refresh the cash ledger; print-order PaymentIntents
+  // reconcile orders. Membership grants still re-read their Stripe authority.
   switch (event.type) {
+    case "payout.failed":
+    case "payout.canceled":
+      // Re-read authoritative status; an out-of-order webhook cannot restore cash.
+      await printingCash(env, { action: "refresh" });
+      break;
     case "payment_intent.succeeded":
     case "payment_intent.payment_failed":
     case "payment_intent.canceled":
@@ -2695,7 +2726,7 @@ async function fulfillMembershipDispatch(membershipID, seasonKey, dispatchToken,
     recipient_tax_id: entitlement.shippingAddress.recipientTaxID || undefined,
   };
   const token = await fetchLuluAccessToken(env);
-  const luluPrintJob = await submitPrintJob(token, payload, entitlement.funding);
+  const luluPrintJob = await submitPrintJob(token, payload, entitlement.funding, record.pageCount);
   const order = {
     id: externalID,
     quoteID: externalID,
@@ -2854,7 +2885,7 @@ async function fulfillGiftBookOrder(claimToken, orderRequest, env, checkoutToken
     });
   }
   const token = await fetchLuluAccessToken(env);
-  const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest), [fundingTransaction(payment.latest_charge)]);
+  const luluPrintJob = await submitPrintJob(token, toLuluPrintJobPayload(canonicalRequest), [fundingTransaction(payment.latest_charge)], canonicalRequest.quoteRequest.pageCount);
   const now = new Date().toISOString();
   const order = {
     id: canonicalRequest.quoteID,
@@ -2907,7 +2938,7 @@ async function fulfillOrder(orderRequest, env, checkoutToken, submitPrintJob) {
 
   const token = await fetchLuluAccessToken(env);
   const luluPayload = toLuluPrintJobPayload(canonicalRequest);
-  const luluPrintJob = await submitPrintJob(token, luluPayload, [fundingTransaction(payment.latest_charge)]);
+  const luluPrintJob = await submitPrintJob(token, luluPayload, [fundingTransaction(payment.latest_charge)], canonicalRequest.quoteRequest.pageCount);
 
   const order = {
     id: canonicalRequest.quoteID,
@@ -3138,6 +3169,37 @@ async function fetchLuluCoverDimensions(env, token, podPackageID, pageCount) {
     throw new Error("Lulu cover dimensions response was missing a usable width or height");
   }
   return { widthPoints, heightPoints };
+}
+
+async function printingCash(env, input) {
+  const coordinator = env.PHYSICAL_BOOK_ORDER_COORDINATOR;
+  if (!coordinator) throw new CashGateError("cash_coordinator_unavailable", 503);
+  const live = expectedStripeLivemode(env);
+  if (live === null) throw new CashGateError("cash_mode_unavailable", 503);
+  // Distinct ledgers prevent test receipts ever paying for live parcels.
+  const stub = coordinator.get(coordinator.idFromName(`printing-cash:${live ? "live" : "test"}`));
+  const response = await stub.fetch("https://order-coordinator.internal/printing-cash", {
+    method: "POST", body: JSON.stringify({ ...input, fulfillmentKind: "printing-cash" }),
+  });
+  const body = await response.json();
+  if (!response.ok) throw new CashGateError(body.error || "cash_gate_unavailable", response.status);
+  return body;
+}
+
+async function fetchLuluSubmissionCost(env, token, job, pageCount) {
+  if (!Number.isSafeInteger(pageCount) || pageCount <= 0 || job.line_items?.length !== 1) throw new CashGateError("printer_cost_unverified");
+  try {
+    const response = await fetch(`${String(env.LULU_API_BASE_URL).replace(/\/+$/, "")}/print-job-cost-calculations/`, {
+      method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ line_items: job.line_items.map(item => ({
+        pod_package_id: item.pod_package_id, page_count: pageCount, quantity: item.quantity,
+      })), shipping_address: job.shipping_address, shipping_option: job.shipping_level, recipient_tax_id: job.recipient_tax_id }),
+    });
+    if (!response.ok) throw new CashGateError("printer_cost_unverified");
+    return await response.json();
+  } catch {
+    throw new CashGateError("printer_cost_unverified");
+  }
 }
 
 async function fetchLuluCost(env, token, quoteRequest, shippingLevel) {
@@ -4535,13 +4597,13 @@ async function listReconciliationMarkers(env) {
 
 async function runPrintDeskCron(env) {
   requireOrderStorage(env);
-  // Record payouts first, so a parcel whose money landed since the last run
-  // goes to Lulu in this one. Each step runs even when the one before fails.
+  // Refresh all bank-confirmed payouts, including old deposits that can fail.
+  // No scan manufactures deposit confirmation. Release also verifies afresh.
   // The last scan is kept so an operator can see the gate working: a key
   // without Payouts or Balance read shows up here as stripe_http_403.
   let scan;
   try {
-    scan = { ok: true, ...await recordPaidPayouts(env.PHYSICAL_BOOK_ORDERS, path => stripeGetForPayoutScan(env, path)) };
+    scan = { ok: true, ...await printingCash(env, { action: "refresh" }) };
   } catch (error) {
     scan = { ok: false, error: /^stripe_http_\d{3}$/.test(error?.message) ? error.message : "scan_failed" };
     console.error(`physical_book_payout_scan_failed error=${scan.error}`);

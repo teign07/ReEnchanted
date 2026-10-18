@@ -242,7 +242,7 @@ enum ReadersWearNoticing {
             the spine gave up and took the shape.
 
             I didn't pick it and I can't get it out. You put a crack in me one \
-            night at a time, and now the Book opens itself at whatever you keep \
+            night at a time, and now I fall open at whatever you keep \
             walking back to. Make of that what you want.
             """,
             restTag: tag

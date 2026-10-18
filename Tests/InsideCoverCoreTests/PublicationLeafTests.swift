@@ -52,7 +52,7 @@ final class PublicationLeafTests: XCTestCase {
                 The kitchen went dark before either of us noticed the hour.
                 \(anchor.text)
 
-                The Book kept the page: the plums outlasted the argument.
+                I kept the page: the plums outlasted the argument.
                 """,
             tags: plan.residueTags(surviving: claims),
             origin: .generated)
@@ -95,7 +95,7 @@ final class PublicationLeafTests: XCTestCase {
 
         let tags = plan.residueTags(surviving: [
             BraidClaim(realm: .lived, sourceIDs: [anchorID], text: "You bought plums at the market."),
-            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "I kept the page: it held.")
         ])
         XCTAssertTrue(
             tags.contains { $0.hasPrefix("braid-plan-open-id:") },
@@ -117,7 +117,7 @@ final class PublicationLeafTests: XCTestCase {
     func testANightThatProvedNothingLeavesNoLeaf() throws {
         let (plan, _) = plannedNight()
         let tags = plan.residueTags(surviving: [
-            BraidClaim(realm: .colophon, sourceIDs: [], text: "The Book kept the page: it held.")
+            BraidClaim(realm: .colophon, sourceIDs: [], text: "I kept the page: it held.")
         ])
         XCTAssertTrue(
             tags.filter { $0.hasPrefix("braid-plan-") }.isEmpty, "\(tags)")

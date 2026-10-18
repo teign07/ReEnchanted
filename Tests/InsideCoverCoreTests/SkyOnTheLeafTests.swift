@@ -274,11 +274,11 @@ final class SkyOnTheLeafTests: XCTestCase {
 
     // MARK: - Drawing nothing is the common case
 
-    func testAClearSkyDrawsNothingEvenWhenPerfectlyFresh() {
+    func testAStillClearSkyDrawsNothingEvenWhenPerfectlyFresh() {
         let reading = PaperSky(
             condition: .clear,
             intensity: 1,
-            wind: 1,
+            wind: 0.2,
             isDay: true,
             observedAt: noon
         )
@@ -287,15 +287,35 @@ final class SkyOnTheLeafTests: XCTestCase {
         XCTAssertFalse(SkyCondition.cloud.marksThePaper)
     }
 
-    func testCloudDrawsNothing() {
+    func testABreezyCloudyDayDrawsNothing() {
         let reading = PaperSky(
             condition: .cloud,
             intensity: 1,
-            wind: 0.5,
+            wind: PaperSky.draught - 0.05,
             isDay: true,
             observedAt: noon
         )
         XCTAssertNil(reading.settled(at: noon))
+    }
+
+    func testAWindyDryDayMovesTheEdgeButPutsNothingOnThePage() throws {
+        let reading = PaperSky(
+            condition: .clear,
+            intensity: 1,
+            wind: 0.8,
+            isDay: true,
+            observedAt: noon
+        )
+        let settled = try XCTUnwrap(reading.settled(at: noon))
+        XCTAssertFalse(settled.isFalling)
+        XCTAssertEqual(settled.intensity, 0)
+        XCTAssertEqual(settled.wind, 0.8, accuracy: 0.0001)
+        XCTAssertEqual(SkyField.count(for: settled, leafArea: 105_000), 0)
+    }
+
+    func testAWindyDryReadingStillFadesWhenReadsFail() {
+        let reading = PaperSky(condition: .cloud, intensity: 0, wind: 0.7, isDay: true, observedAt: noon)
+        XCTAssertNil(reading.settled(at: noon.addingTimeInterval(PaperSky.staleAt - 60)))
     }
 
     func testFogIsRecognisedButNotYetDrawn() {
@@ -450,14 +470,11 @@ final class SkyOnTheLeafTests: XCTestCase {
         XCTAssertGreaterThan(snowPeriod, rainPeriod)
     }
 
-    func testOnlyAFewDropsRun() {
-        let rain = SkyField.specks(count: SkyField.ceiling, condition: .rain, seed: 2)
-        let runners = rain.filter(\.runs).count
-        XCTAssertLessThan(
-            Double(runners) / Double(rain.count),
-            0.4,
-            "If they all run, the leaf reads as a windscreen rather than paper."
-        )
+    func testRainAndStormDropsAreAbsorbedRatherThanRunning() {
+        for condition in [SkyCondition.rain, .storm] {
+            let drops = SkyField.specks(count: SkyField.ceiling, condition: condition, seed: 2)
+            XCTAssertFalse(drops.contains { $0.runs })
+        }
     }
 
     func testSnowCollectsAtTheHeadOfTheLeaf() {
@@ -521,10 +538,10 @@ final class SkyOnTheLeafTests: XCTestCase {
             offset: 0,
             runs: false
         )
-        // Late in the drying phase: the bead should be gone or nearly so while
+        // During drying: the bead should be gone while
         // the paper is still visibly damp. This is the whole difference between
         // wet paper and a dot drawn on top of a page.
-        let drying = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 9.2)
+        let drying = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 6)
         XCTAssertLessThan(drying.beadAlpha, drying.dampAlpha)
     }
 
@@ -611,7 +628,7 @@ final class SkyOnTheLeafTests: XCTestCase {
 
     func testWaverIsScaledByWindAndStaleness() {
         let fresh = PaperSky(condition: .cloud, intensity: 0, wind: 1, isDay: true, observedAt: noon)
-        XCTAssertEqual(fresh.foreEdgeWaver(at: noon), 3.4, accuracy: 0.0001)
+        XCTAssertEqual(fresh.foreEdgeWaver(at: noon), PaperSky.foreEdgeAmplitude, accuracy: 0.0001)
 
         let stale = fresh.foreEdgeWaver(at: noon.addingTimeInterval(PaperSky.staleAt + 60))
         XCTAssertEqual(stale, 0, "A stale wind reading must not still be moving the page.")
@@ -633,5 +650,193 @@ final class SkyOnTheLeafTests: XCTestCase {
                 }
             }
         }
+    }
+
+    // MARK: - Rain enters the paper in place
+
+    func testEvenALegacyRunnerStaysAtItsImpactPointWhileSoakingAndDrying() {
+        let speck = SkySpeck(laneX: 0.4, restY: 0.5, size: 0.8,
+                             period: 10, offset: 0, runs: true)
+        for condition in [SkyCondition.rain, .storm] {
+            for step in 3..<100 {
+                let frame = SkyField.frame(for: speck, condition: condition, wind: 1,
+                                           time: Double(step) * 0.1)
+                XCTAssertEqual(frame.x, speck.laneX, accuracy: 0.0001)
+                XCTAssertEqual(frame.y, speck.restY, accuracy: 0.0001)
+                XCTAssertEqual(frame.trail, 0)
+            }
+        }
+    }
+
+    func testBeadMeltsIntoAnExpandingDampPatchThenDriesCompletely() {
+        let speck = SkySpeck(laneX: 0.5, restY: 0.5, size: 0.5,
+                             period: 10, offset: 0, runs: false)
+        for condition in [SkyCondition.rain, .storm] {
+            let landed = SkyField.frame(for: speck, condition: condition, wind: 0, time: 0.25)
+            let soaking = SkyField.frame(for: speck, condition: condition, wind: 0, time: 1.2)
+            let absorbed = SkyField.frame(for: speck, condition: condition, wind: 0, time: 2.4)
+            let dry = SkyField.frame(for: speck, condition: condition, wind: 0, time: 9)
+            XCTAssertGreaterThan(landed.beadAlpha, soaking.beadAlpha)
+            XCTAssertGreaterThan(soaking.absorption, landed.absorption)
+            XCTAssertGreaterThan(soaking.dampAlpha, landed.dampAlpha)
+            XCTAssertEqual(absorbed.beadAlpha, 0, accuracy: 0.0001)
+            XCTAssertEqual(absorbed.absorption, 1, accuracy: 0.0001)
+            XCTAssertGreaterThan(absorbed.dampAlpha, soaking.dampAlpha)
+            XCTAssertEqual(dry.beadAlpha, 0)
+            XCTAssertEqual(dry.dampAlpha, 0)
+        }
+    }
+
+    // MARK: - Lightning
+
+    func testLightningIsBriefBoundedAndIrregular() {
+        var lit = 0
+        var strikes: [Double] = []
+        var wasLit = false
+        let step = 1.0 / 30
+        for frame in 0..<(30 * 600) { // ten minutes at 30fps
+            let time = Double(frame) * step
+            let flash = SkyField.lightning(at: time)
+            XCTAssert((0...1).contains(flash))
+            if flash > 0 {
+                lit += 1
+                if !wasLit { strikes.append(time) }
+            }
+            wasLit = flash > 0
+        }
+        // Dark nearly all the time.
+        XCTAssertLessThan(Double(lit) / Double(30 * 600), 0.05)
+        XCTAssertGreaterThan(strikes.count, 20, "a storm with no lightning in ten minutes")
+        // Never a strobe: flickers of one strike sit within 0.42 s, and
+        // separate strikes are seconds apart.
+        let gaps = zip(strikes.dropFirst(), strikes).map { $0 - $1 }.filter { $0 > 0.5 }
+        XCTAssertGreaterThan(gaps.min() ?? 0, 2)
+        XCTAssertGreaterThan(Set(gaps.map { ($0 * 10).rounded() }).count, 5, "strikes fell into a rhythm")
+    }
+
+    // MARK: - The forecast carries the weather between reads
+
+    private func slots(_ codes: [Int?], from start: Date) -> [Date] {
+        codes.indices.map { start.addingTimeInterval(Double($0) * PaperSkyOutlook.slotLength) }
+    }
+
+    func testRainDueLaterArrivesOnThePageWhenItIsDue() throws {
+        let current = SkyCode.reading(code: 3, observedAt: noon)
+        let start = noon.addingTimeInterval(5 * 60)
+        let codes: [Int?] = [3, 3, 3, 63, 63, 63, 3]
+        let outlook = SkyCode.outlook(current: current, slotStarts: slots(codes, from: start), codes: codes)
+
+        XCTAssertNil(outlook.settled(at: noon), "dry when read")
+        XCTAssertNil(outlook.settled(at: start.addingTimeInterval(40 * 60)))
+        let raining = try XCTUnwrap(outlook.settled(at: start.addingTimeInterval(50 * 60)))
+        XCTAssertEqual(raining.condition, .rain)
+        XCTAssertNil(outlook.settled(at: start.addingTimeInterval(95 * 60)), "and dry again when it stops")
+    }
+
+    func testRainFallingWhenReadStopsWhenTheForecastSaysSo() {
+        let current = SkyCode.reading(code: 63, precipitation: 3, observedAt: noon)
+        let start = noon.addingTimeInterval(10 * 60)
+        let codes: [Int?] = [63, 61, 3, 3]
+        let outlook = SkyCode.outlook(current: current, slotStarts: slots(codes, from: start), codes: codes)
+        XCTAssertEqual(outlook.settled(at: noon.addingTimeInterval(60))?.condition, .rain)
+        XCTAssertEqual(outlook.settled(at: start.addingTimeInterval(20 * 60))?.condition, .rain)
+        XCTAssertNil(outlook.settled(at: start.addingTimeInterval(31 * 60)))
+    }
+
+    func testTheMeasuredSkyCoversTheMinutesBeforeTheFirstSlot() {
+        let current = SkyCode.reading(code: 65, observedAt: noon)
+        // The row containing the read began before it and is dropped; the
+        // measurement is better than a forecast for the minutes it covers.
+        let codes: [Int?] = [3, 3, 3]
+        let starts = slots(codes, from: noon.addingTimeInterval(-5 * 60))
+        let outlook = SkyCode.outlook(current: current, slotStarts: starts, codes: codes)
+        XCTAssertEqual(outlook.ahead.count, 2)
+        XCTAssertEqual(outlook.settled(at: noon.addingTimeInterval(9 * 60))?.condition, .rain)
+        XCTAssertNil(outlook.settled(at: noon.addingTimeInterval(11 * 60)))
+    }
+
+    func testALongRainLastsWithoutAFreshReadForAsLongAsTheForecastIsBelieved() {
+        let current = SkyCode.reading(code: 63, observedAt: noon)
+        let codes: [Int?] = Array(repeating: 63, count: 36)
+        let outlook = SkyCode.outlook(
+            current: current,
+            slotStarts: slots(codes, from: noon.addingTimeInterval(60)),
+            codes: codes
+        )
+        // Long past where a single reading would have faded out.
+        let fiveHours = noon.addingTimeInterval(5 * 60 * 60)
+        XCTAssertNil(current.settled(at: fiveHours), "a bare reading is gone by now")
+        XCTAssertEqual(outlook.settled(at: fiveHours)?.intensity ?? 0, current.intensity, accuracy: 0.0001)
+
+        // Then thins once reads have been failing for hours, and is gone.
+        let fading = outlook.settled(at: noon.addingTimeInterval(7 * 60 * 60))
+        XCTAssertNotNil(fading)
+        XCTAssertLessThan(fading?.intensity ?? 1, current.intensity)
+        XCTAssertNil(outlook.settled(at: noon.addingTimeInterval(PaperSkyOutlook.forgottenAt + 60)))
+    }
+
+    func testTheOutlookEndsWhereTheForecastDoes() {
+        let current = SkyCode.reading(code: 63, observedAt: noon)
+        let codes: [Int?] = [63, 63, nil, 63]
+        let starts = slots(codes, from: noon.addingTimeInterval(60))
+        let outlook = SkyCode.outlook(current: current, slotStarts: starts, codes: codes)
+        XCTAssertEqual(outlook.ahead.count, 2, "a hole in the forecast is not weather")
+        XCTAssertNil(outlook.settled(at: starts[2].addingTimeInterval(60)))
+    }
+
+    func testForecastPrecipitationIsReadAsAnHourlyRate() {
+        let current = SkyCode.reading(code: 61, observedAt: noon)
+        let start = noon.addingTimeInterval(60)
+        // 1 mm in fifteen minutes is 4 mm an hour: the top of the scale.
+        let outlook = SkyCode.outlook(
+            current: current,
+            slotStarts: [start],
+            codes: [61],
+            precipitation: [1]
+        )
+        XCTAssertEqual(outlook.ahead.first?.sky.intensity ?? 0, 1, accuracy: 0.0001)
+    }
+
+    func testABareReadingStillFadesAsASnapshot() {
+        let outlook = PaperSkyOutlook(current: SkyCode.reading(code: 63, observedAt: noon))
+        XCTAssertNotNil(outlook.settled(at: noon.addingTimeInterval(PaperSky.freshFor - 60)))
+        XCTAssertNil(outlook.settled(at: noon.addingTimeInterval(PaperSky.staleAt + 60)))
+    }
+
+    func testAClockThatWentBackwardsShowsNoForecastWeather() {
+        let current = SkyCode.reading(code: 63, observedAt: noon)
+        let outlook = SkyCode.outlook(current: current, slotStarts: [noon.addingTimeInterval(60)], codes: [63])
+        XCTAssertNil(outlook.settled(at: noon.addingTimeInterval(-60)))
+    }
+
+    func testTheOutlookNamesEveryMomentItCanChange() {
+        let current = SkyCode.reading(code: 3, observedAt: noon)
+        let codes: [Int?] = [3, 63, 3]
+        let starts = slots(codes, from: noon.addingTimeInterval(60))
+        let outlook = SkyCode.outlook(current: current, slotStarts: starts, codes: codes)
+        let changes = outlook.changes(after: noon)
+        for start in starts { XCTAssertTrue(changes.contains(start)) }
+        XCTAssertTrue(changes.contains(starts[2].addingTimeInterval(PaperSkyOutlook.slotLength)))
+        XCTAssertTrue(changes.contains(noon.addingTimeInterval(PaperSkyOutlook.trustedFor)))
+        XCTAssertEqual(changes, changes.sorted())
+        XCTAssertTrue(changes.allSatisfy { $0 > noon })
+    }
+
+    // MARK: - Kept across a relaunch
+
+    @MainActor
+    func testTheOutlookSurvivesARelaunchAndCanBeForgotten() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "SkyOnTheLeafTests.\(UUID().uuidString)"))
+        let current = SkyCode.reading(code: 63, precipitation: 2, windSpeed: 30, observedAt: noon)
+        let codes: [Int?] = [63, 3]
+        let outlook = SkyCode.outlook(
+            current: current,
+            slotStarts: slots(codes, from: noon.addingTimeInterval(60)),
+            codes: codes
+        )
+        PaperSkyOutlookStore.save(outlook, to: defaults)
+        XCTAssertEqual(PaperSkyOutlookStore.load(from: defaults), outlook)
+        PaperSkyOutlookStore.clear(from: defaults)
+        XCTAssertNil(PaperSkyOutlookStore.load(from: defaults))
     }
 }

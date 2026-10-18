@@ -350,6 +350,12 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
             tags: [], supportedTemplates: [], defaultOpacity: 1, canTint: false)
         let kept = try MonthlyIssueRetainedMedia.retaining(asset, fileManager: files)
         XCTAssertEqual(kept, try MonthlyIssueRetainedMedia.retaining(asset, fileManager: files))
+        let storyPlate = BookPageMediaAsset(id: "story-plate", kind: .renderedImageFile,
+            reference: source.path, caption: "The scene", metadata: ["storyPlate": "true"])
+        let keptPlate = try MonthlyIssueRetainedMedia.retaining(storyPlate, fileManager: files)
+        XCTAssertEqual(keptPlate.reference, kept.assetName)
+        XCTAssertEqual(keptPlate.caption, storyPlate.caption)
+        XCTAssertEqual(keptPlate.metadata, storyPlate.metadata)
         let destination = URL(fileURLWithPath: kept.assetName)
         XCTAssertEqual(try files.contentsOfDirectory(atPath: destination.deletingLastPathComponent().path).count, 1)
         let stateURL = root.appendingPathComponent("state.json")
@@ -363,6 +369,7 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
             documentsURL: managed, stateURL: stateURL, fileManager: files), ["test-mark"])
         XCTAssertFalse(files.fileExists(atPath: source.path))
         XCTAssertEqual(try Data(contentsOf: destination), pixels)
+        XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: keptPlate.reference)), pixels)
         let restored = try JSONDecoder().decode(IlluminationAsset.self, from: JSONEncoder().encode(kept))
         XCTAssertEqual(try Data(contentsOf: URL(fileURLWithPath: restored.assetName)), pixels)
 
@@ -372,6 +379,9 @@ final class MonthlyIssueRehearsalTests: XCTestCase {
         var untrusted = asset
         untrusted.assetName = outside.path
         XCTAssertThrowsError(try MonthlyIssueRetainedMedia.retaining(untrusted, fileManager: files))
+        var untrustedPlate = storyPlate
+        untrustedPlate.reference = outside.path
+        XCTAssertThrowsError(try MonthlyIssueRetainedMedia.retaining(untrustedPlate, fileManager: files))
     }
 
     func testMonthlyMediaSurvivesContainerMoveAndRetirement() throws {

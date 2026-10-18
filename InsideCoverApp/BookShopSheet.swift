@@ -46,7 +46,11 @@ struct BookShopSheet: View {
     var onOpenBargain: (FaeBargain) -> Void = { _ in }
     var onMarkNextMarket: () -> Void = {}
 
-    // The Bindery shelf: sew a finished month (or year) into a keepable chapter.
+    // The edition shelf, from the daily paper to the annual volume.
+    var binderyBleedEditions: [BleedBinderyEdition] = []
+    var boundBleedPDFURLs: [String: URL] = [:]
+    var onOpenBleed: (String?) -> Void = { _ in }
+    var onBindBleed: (String) -> Void = { _ in }
     var binderyWeeklyIssueLabel: String = ""
     var binderyWeeklyIssuePageCount: Int = 0
     var binderyWeeklyIssueChoices: [PublicationCandidate] = []
@@ -147,6 +151,8 @@ struct BookShopSheet: View {
     /// A weekly issue on a thin week asks once, before anything is paid, whether the reader means it.
     @State private var thinWeekWarning: WeeklyThinness.Assessment?
     @State private var thinWeekAcknowledged = Set<String>()
+    @State private var selectedBinderyBleedID: String?
+    @State private var bleedPDFPreviewURL: URL?
     @State private var selectedBinderyWeeklyPeriodID: PublicationPeriodID?
     @State private var selectedBinderyMonthPeriodID: PublicationPeriodID?
     @State private var selectedBinderySeasonPeriodID: PublicationPeriodID?
@@ -453,7 +459,7 @@ struct BookShopSheet: View {
                         .font(.system(.title2, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.nightText)
                     Text(showsStandingOrder
-                         ? "The Book has put the subscriptions and the bindings in separate rooms. It was tired of people tripping over the thread."
+                         ? "I've put the subscriptions and the bindings in separate rooms. I was tired of people tripping over the thread."
                          : "Every month's story is already yours. These rooms are for paper, PDFs, and the people you'd give a Book to.")
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.nightText.opacity(0.82))
@@ -490,7 +496,7 @@ struct BookShopSheet: View {
                     .bindPDF,
                     ordinal: showsStandingOrder ? "IV" : "III",
                     title: "Bind PDF",
-                    detail: "Bind a weekly issue, month, season, or year as a digital PDF to read, keep, or share.",
+                    detail: "The Bleed for a day, an issue for a week, editions for a month, season, or year. Read, keep, or share them as PDFs.",
                     systemImage: "doc.richtext.fill",
                     accent: BookPalette.teal
                 )
@@ -757,7 +763,7 @@ struct BookShopSheet: View {
                 destinationHero(
                     eyebrow: "THE BINDERY LEDGER",
                     title: "Subscriptions",
-                    detail: "Two orders. Two exits. The Book has stopped stacking them on top of each other."
+                    detail: "Two orders. Two exits. I've stopped stacking them on top of each other."
                 )
 
                 bookshopRouteLink(
@@ -803,7 +809,7 @@ struct BookShopSheet: View {
                     title: "The Bound Year",
                     detail: DigitalStandingOrder.isOffered
                         ? "Each month's content pack comes in digital form as a free gift. The post gathers the year into three seasonal softcovers and one annual hardcover. Your first full week comes first, bound and posted, on us."
-                        : "The post gathers your year into three seasonal softcovers and one annual hardcover. Your first full week comes first, bound and posted, on us. Every month's story is already free in the Book."
+                        : "The post gathers your year into three seasonal softcovers and one annual hardcover. Your first full week comes first, bound and posted, on us. Every month's story is already free in here."
                 )
                 boundYearLedgerCard(showCadenceImmediately: true)
                 legalLinksRow
@@ -820,7 +826,7 @@ struct BookShopSheet: View {
                 destinationHero(
                     eyebrow: "DIGITAL ONLY",
                     title: "The Standing Order",
-                    detail: "A new story walks into the Book each month. It has its own season. The Pages you keep stay sewn in."
+                    detail: "A new story walks into me each month. It has its own season. The Pages you keep stay sewn in."
                 )
                 standingOrderLedgerCard
                 legalLinksRow
@@ -837,7 +843,7 @@ struct BookShopSheet: View {
                 destinationHero(
                     eyebrow: "DIGITAL BINDERY",
                     title: "Bind PDF",
-                    detail: "Weekly issue. Month. Season. Year. Pick the finished shape and the Book will sew a digital copy."
+                    detail: "Day. Week. Month. Season. Year. The Bleed is the daily paper; the longer editions gather more of you under one cover."
                 )
                 binderySection
                 legalLinksRow
@@ -1189,7 +1195,7 @@ struct BookShopSheet: View {
         if goblinWarmth > 0 {
             return "The clerk recognizes you. Some wares may be easier to part with today."
         }
-        return "The clerk looks over what the Book has entrusted to you and says nothing about the arithmetic."
+        return "The clerk looks over what I've entrusted to you and says nothing about the arithmetic."
     }
 
     private var ledgerActions: some View {
@@ -1536,7 +1542,7 @@ struct BookShopSheet: View {
             boundYearPromiseLine("leaf.fill", "Three seasonal softcovers")
             boundYearPromiseLine("books.vertical.fill", "The annual cloth-and-foil hardcover")
             boundYearPromiseLine("gift.fill", "Your first full week, bound and posted, on us")
-            boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or the Book's choice: included")
+            boundYearPromiseLine("photo.artframe", "Your photo, our rotating plates, or my choice: included")
             boundYearPromiseLine("character.cursor.ibeam", "A dedication in every volume")
             boundYearPromiseLine("hand.raised.fill", "A seven-day naming window, with hold instead of skip")
 
@@ -1779,7 +1785,7 @@ struct BookShopSheet: View {
                 paidThrough: remote.periodEndsAt ?? .distantPast, digitalPaymentVerified: false)
             restored.reconcile(remote)
             guard let onRecoveredBoundYear else {
-                recoveryNote = "Your membership still needs saving here. Finish checking again when the Book is ready."
+                recoveryNote = "Your membership still needs saving here. Finish checking again when I'm ready."
                 return
             }
             try await onRecoveredBoundYear(restored, id)
@@ -1874,7 +1880,7 @@ struct BookShopSheet: View {
             return
         }
         guard saved?.acceptsLuluFulfillment == true || physicalBookThirdPartyPrintConsent else {
-            boundYearStatusNote = "The print-house line needs your mark before any pages or address can leave the Book."
+            boundYearStatusNote = "The print-house line needs your mark before any pages or address can leave me."
             return
         }
         isChangingBoundYear = true
@@ -1957,7 +1963,7 @@ struct BookShopSheet: View {
             )
             membership.reconcile(remote)
             guard let onRecoveredBoundYear else {
-                boundYearStatusNote = "Payment found. Your purchase is still saved; come back when the Book is ready to keep its receipt."
+                boundYearStatusNote = "Payment found. Your purchase is still saved; come back when I'm ready to keep its receipt."
                 return
             }
             // The same durable handoff used by recovery must finish before
@@ -2039,7 +2045,84 @@ struct BookShopSheet: View {
         return PaymentSheet(paymentIntentClientSecret: clientSecret, configuration: configuration)
     }
 
-    /// reader will actually find them.
+    private var selectedBinderyBleed: BleedBinderyEdition? {
+        binderyBleedEditions.first { $0.id == selectedBinderyBleedID } ?? binderyBleedEditions.first
+    }
+
+    private var dailyEditionBinderyRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("The Bleed · Daily Edition", systemImage: "newspaper")
+                .font(.system(.headline, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+            Text("Penny's paper for one day, printed morning and evening. The first of your editions, before the weekly issue and the longer volumes.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.68))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let edition = selectedBinderyBleed {
+                Text(edition.label)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(BookPalette.ink)
+                if binderyBleedEditions.count > 1 {
+                    Menu {
+                        ForEach(binderyBleedEditions) { copy in
+                            Button {
+                                selectedBinderyBleedID = copy.id
+                            } label: {
+                                if edition.id == copy.id {
+                                    Label(copy.label, systemImage: "checkmark")
+                                } else {
+                                    Text(copy.label)
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Choose another daily edition", systemImage: "calendar.badge.clock")
+                    }
+                }
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) { dailyEditionControls(edition) }
+                    VStack(alignment: .leading, spacing: 10) { dailyEditionControls(edition) }
+                }
+                Button("Open today's paper") { onOpenBleed(nil) }
+                    .font(.caption2.weight(.bold))
+            } else {
+                Text("Open the paper to set today's type. Keep a copy and it will stay on this shelf.")
+                    .font(.caption2)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
+                Button { onOpenBleed(nil) } label: {
+                    Label("Open The Bleed", systemImage: "newspaper")
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .font(.caption2.weight(.bold))
+        .tint(BookPalette.teal)
+        .quickLookPreview($bleedPDFPreviewURL)
+    }
+
+    @ViewBuilder
+    private func dailyEditionControls(_ edition: BleedBinderyEdition) -> some View {
+        Button { onOpenBleed(edition.id) } label: {
+            Label("Read", systemImage: "book")
+        }
+        .buttonStyle(.borderedProminent)
+        if let url = boundBleedPDFURLs[edition.id] {
+            Button { bleedPDFPreviewURL = url } label: {
+                Label("Open PDF", systemImage: "doc.richtext")
+            }
+            .buttonStyle(.bordered)
+            ShareLink(item: url) {
+                Label("Share PDF", systemImage: "square.and.arrow.up")
+            }
+        } else {
+            Button { onBindBleed(edition.id) } label: {
+                Label("Bind PDF", systemImage: "doc.richtext")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
     @ViewBuilder
     private var binderySection: some View {
         let selectedWeekly = selectedBinderyWeeklyIssue
@@ -2070,6 +2153,14 @@ struct BookShopSheet: View {
             accent: BookPalette.teal
         ) {
             VStack(alignment: .leading, spacing: 10) {
+                dailyEditionBinderyRow
+
+                Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                Label("Weekly Issue", systemImage: "newspaper")
+                    .font(.system(.headline, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(weeklyPageCount > 0 ? weeklyLabel : "No weekly issue yet")
@@ -2141,6 +2232,10 @@ struct BookShopSheet: View {
                 }
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                Label("Monthly Edition", systemImage: "book.pages")
+                    .font(.system(.headline, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
 
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -2231,6 +2326,10 @@ struct BookShopSheet: View {
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
 
+                Label("Seasonal Edition", systemImage: "leaf")
+                    .font(.system(.headline, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(selectedSeason.map(seasonLabel) ?? "No finished season yet")
@@ -2303,6 +2402,10 @@ struct BookShopSheet: View {
                 }
 
                 Divider().overlay(BookPalette.ink.opacity(0.12))
+
+                Label("Annual Volume", systemImage: "books.vertical")
+                    .font(.system(.headline, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
 
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -4784,7 +4887,7 @@ struct BookShopSheet: View {
               let preparedPrintInteriorURL,
               let preparedPrintCoverURL,
               let checksums = physicalBookPrintFileChecksums else {
-            physicalBookSubmissionMessage = "This order needs a fresh secure quote before its print files can leave the Book."
+            physicalBookSubmissionMessage = "This order needs a fresh secure quote before its print files can leave me."
             return
         }
 
@@ -8193,7 +8296,7 @@ struct StandingOrderSheet: View {
                 .font(.system(.callout, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.nightText.opacity(0.9))
 
-            Text("Digital is carried inside this, so you never need both. Apple doesn't handle printed things, so the Bindery takes payment for the parcels without sending you out of the Book.")
+            Text("Digital is carried inside this, so you never need both. Apple doesn't handle printed things, so the Bindery takes payment for the parcels without sending you out of my pages.")
                 .font(.footnote)
                 .foregroundStyle(BookPalette.nightText.opacity(0.66))
                 .lineSpacing(2)
@@ -8885,54 +8988,239 @@ private struct GoblinTillWakeView: View {
     }
 }
 
-/// A compact working bindery: loose folios gather, the needle traverses their
-/// spine, and the wax seal holds. Unlike a generic spinner, every moving part
-/// describes the work the reader is waiting for.
+/// The weekly's little act of workmanship. It performs once, then leaves the
+/// needle holding an unfinished thread while the real binding continues.
+/// Nothing here gates generation or claims that the reading copy is ready.
 private struct BindingFolioGlyph: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var stitching = false
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var seconds = 0.0
+    @State private var didBegin = false
+    @State private var variation = Int.random(in: 0..<7)
 
     var body: some View {
-        ZStack {
-            ForEach(0..<3, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(BookPalette.page)
-                    .frame(width: 62, height: 76)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .stroke(BookPalette.parchmentEdge.opacity(0.72), lineWidth: 1)
-                    }
-                    .rotationEffect(.degrees(Double(index - 1) * (stitching && !reduceMotion ? 1.2 : 4.6)))
-                    .offset(x: CGFloat(index - 1) * (stitching && !reduceMotion ? 4 : 11))
-                    .shadow(color: .black.opacity(0.18), radius: 5, y: 3)
+        BindingFolioDrawing(seconds: seconds, variation: variation)
+            .frame(width: 268, height: 194)
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
+            .task {
+                guard !didBegin else { return }
+                didBegin = true
+                guard !reduceMotion, scenePhase == .active else {
+                    settle()
+                    return
+                }
+                await Task.yield()
+                guard !Task.isCancelled, !reduceMotion, scenePhase == .active else {
+                    settle()
+                    return
+                }
+                withAnimation(.linear(duration: BindingFolioDrawing.duration)) {
+                    seconds = BindingFolioDrawing.duration
+                }
             }
-
-            Capsule()
-                .fill(BookPalette.lampGold.opacity(0.72))
-                .frame(width: 2, height: 58)
-                .offset(x: -26)
-
-            Image(systemName: "needle")
-                .font(.system(size: 16, weight: .black))
-                .foregroundStyle(BookPalette.lampGold)
-                .rotationEffect(.degrees(28))
-                .offset(x: -26, y: reduceMotion ? 0 : (stitching ? 24 : -24))
-
-            Image(systemName: "seal.fill")
-                .font(.system(size: 22, weight: .black))
-                .foregroundStyle(BookPalette.lampGold)
-                .scaleEffect(reduceMotion ? 1 : (stitching ? 1.08 : 0.88))
-                .offset(x: 25, y: 25)
-                .shadow(color: BookPalette.lampGold.opacity(0.32), radius: 8)
-        }
-        .frame(width: 112, height: 92)
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
-                stitching = true
+            .onChange(of: reduceMotion) { _, reduced in
+                if reduced { settle() }
             }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { settle() }
+            }
+    }
+
+    private func settle() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { seconds = BindingFolioDrawing.duration }
+    }
+}
+
+/// A finite display-driven drawing, deliberately independent of streamed text.
+/// No timer, repeated animation, texture allocation, or per-frame randomness.
+private struct BindingFolioDrawing: View, Animatable {
+    static let duration = 3.8
+    var seconds: Double
+    let variation: Int
+
+    var animatableData: Double {
+        get { seconds }
+        set { seconds = newValue }
+    }
+
+    private func phase(_ start: Double, _ end: Double) -> Double {
+        let x = min(1, max(0, (seconds - start) / (end - start)))
+        return x * x * (3 - 2 * x)
+    }
+
+    private var tug: Double { sin(.pi * phase(3.12, 3.8)) }
+
+    private func leafPose(_ index: Int) -> (x: Double, y: Double, angle: Double) {
+        let i = Double(index)
+        let gather = phase(0.22 + i * 0.075, 1.28 + i * 0.075)
+        let escape = index == 6 ? sin(.pi * phase(1.05, 2.05)) : 0
+        let mischief = 25 + Double(variation) * 1.5
+        return (
+            (i - 3) * (23 * (1 - gather) + 1.15) + escape * mischief - tug * 1.8,
+            (i.truncatingRemainder(dividingBy: 3) - 1) * 9 * (1 - gather)
+                + (3 - i) * 1.15 - escape * 14 + tug * 0.8,
+            (i - 3) * 0.105 * (1 - gather) + escape * 0.21 - tug * 0.012
+        )
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            context.translateBy(x: size.width / 2, y: size.height / 2 + 1)
+            let scale = min(size.width / 268, size.height / 194)
+            context.scaleBy(x: scale, y: scale)
+
+            var shadow = context
+            shadow.addFilter(.blur(radius: 9))
+            shadow.fill(
+                Path(ellipseIn: CGRect(x: -63, y: 55, width: 128, height: 16)),
+                with: .color(.black.opacity(0.24 * phase(0, 0.7)))
+            )
+
+            for index in 0..<7 {
+                drawLeaf(index, in: context)
+            }
+            drawCatch(in: context)
+            drawStitch(in: context)
         }
-        .accessibilityHidden(true)
+    }
+
+    private func paperPath(_ index: Int) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: -45, y: -59))
+        // A few quiet irregularities suggest cut paper rather than a UI card.
+        path.addLine(to: CGPoint(x: 34, y: -59.5))
+        path.addQuadCurve(to: CGPoint(x: 46, y: -48), control: CGPoint(x: 45, y: -60))
+        path.addLine(to: CGPoint(x: 46.5, y: 21))
+        path.addLine(to: CGPoint(x: 45.5, y: 43))
+        path.addQuadCurve(to: CGPoint(x: 43, y: 59), control: CGPoint(x: 47, y: 60))
+        path.addLine(to: CGPoint(x: -44, y: 59.5 + Double(index % 2)))
+        path.addQuadCurve(to: CGPoint(x: -47, y: 54), control: CGPoint(x: -48, y: 60))
+        path.addLine(to: CGPoint(x: -47, y: -53))
+        path.addQuadCurve(to: CGPoint(x: -45, y: -59), control: CGPoint(x: -47, y: -59))
+        path.closeSubpath()
+        return path
+    }
+
+    private func drawLeaf(_ index: Int, in context: GraphicsContext) {
+        let pose = leafPose(index)
+        var leaf = context
+        leaf.opacity = phase(Double(index) * 0.055, 0.38 + Double(index) * 0.055)
+        leaf.translateBy(x: pose.x, y: pose.y)
+        leaf.rotate(by: .radians(pose.angle))
+        leaf.addFilter(.shadow(color: .black.opacity(0.17), radius: 2, x: 0, y: 2))
+        let outline = paperPath(index)
+        leaf.fill(outline, with: .linearGradient(
+            Gradient(colors: [BookPalette.page, BookPalette.page, BookPalette.parchmentEdge]),
+            startPoint: CGPoint(x: -20, y: -55), endPoint: CGPoint(x: 100, y: 120)
+        ))
+        leaf.stroke(outline, with: .color(BookPalette.parchmentEdge.opacity(0.7)), lineWidth: 0.65)
+        // Keep the shadow on the paper, not each printed line.
+        var printInk = context
+        printInk.opacity = leaf.opacity
+        printInk.translateBy(x: pose.x, y: pose.y)
+        printInk.rotate(by: .radians(pose.angle))
+
+        var fold = Path()
+        fold.move(to: CGPoint(x: -40, y: -52))
+        fold.addQuadCurve(to: CGPoint(x: -40, y: 53), control: CGPoint(x: -43, y: 0))
+        printInk.stroke(fold, with: .color(BookPalette.parchmentEdge.opacity(0.65)), lineWidth: 0.7)
+
+        // Abstract typesetting only: never invented reader words or previews.
+        for line in 0..<9 {
+            let y = -33.0 + Double(line) * 8.2
+            let width = line == 0 ? 42.0 : 31 + Double((line * 13 + index * 7) % 27)
+            let rect = CGRect(x: -28, y: y, width: width, height: line == 0 ? 2.8 : 1.15)
+            printInk.fill(Path(roundedRect: rect, cornerRadius: 0.6),
+                          with: .color(BookPalette.ink.opacity(line == 0 ? 0.38 : 0.17)))
+        }
+        var corner = Path()
+        corner.move(to: CGPoint(x: 34, y: -59.5))
+        corner.addQuadCurve(to: CGPoint(x: 46, y: -48), control: CGPoint(x: 35, y: -47))
+        printInk.stroke(corner, with: .color(BookPalette.parchmentEdge), lineWidth: 0.75)
+    }
+
+    private func drawCatch(in context: GraphicsContext) {
+        let visibility = phase(0.9, 1.18) * (1 - phase(1.9, 2.15))
+        guard visibility > 0 else { return }
+        let leaf = leafPose(6)
+        // The lasso follows the wandering leaf's corner, including its rotation.
+        let cornerX = leaf.x + cos(leaf.angle) * 36 - sin(leaf.angle) * 48
+        let cornerY = leaf.y + sin(leaf.angle) * 36 + cos(leaf.angle) * 48
+        var thread = Path()
+        thread.move(to: CGPoint(x: -53, y: 47))
+        thread.addCurve(
+            to: CGPoint(x: cornerX, y: cornerY),
+            control1: CGPoint(x: -20, y: 95 - 19 * phase(1.55, 2.05)),
+            control2: CGPoint(x: cornerX + 38, y: cornerY + 28)
+        )
+        thread.addCurve(
+            to: CGPoint(x: cornerX - 6, y: cornerY - 4),
+            control1: CGPoint(x: cornerX - 18, y: cornerY - 16),
+            control2: CGPoint(x: cornerX - 20, y: cornerY + 12)
+        )
+        context.stroke(thread, with: .color(BookPalette.lampGold.opacity(visibility)),
+                       style: StrokeStyle(lineWidth: 1.25, lineCap: .round))
+    }
+
+    private func drawStitch(in context: GraphicsContext) {
+        let appear = phase(1.8, 1.98)
+        guard appear > 0 else { return }
+        let stitch = phase(1.98, 3.12) * 4
+        let pose = leafPose(6)
+        var sewing = context
+        sewing.opacity = appear
+        sewing.translateBy(x: pose.x, y: pose.y)
+        sewing.rotate(by: .radians(pose.angle))
+
+        for hole in 0..<5 {
+            sewing.fill(Path(ellipseIn: CGRect(x: -41.6, y: -42 + Double(hole) * 21 - 1.1,
+                                               width: 2.2, height: 2.2)),
+                        with: .color(BookPalette.ink.opacity(0.35)))
+        }
+
+        let whole = Int(stitch)
+        let fraction = stitch - Double(whole)
+        let needleX = -40.5 - 27 * fraction * (1 - fraction)
+        let needleY = -42 + stitch * 21
+        var thread = Path()
+        thread.move(to: CGPoint(x: -40.5, y: -42))
+        for segment in 0..<4 {
+            let progress = min(1, max(0, stitch - Double(segment)))
+            guard progress > 0 else { break }
+            let y = -42 + Double(segment) * 21
+            // A laid stitch stays put; only its current loop passes the spine.
+            thread.move(to: CGPoint(x: -40.5, y: y))
+            thread.addQuadCurve(
+                to: CGPoint(x: -40.5 - 27 * progress * (1 - progress), y: y + 21 * progress),
+                control: CGPoint(x: -40.5 - 13.5 * progress, y: y + 10.5 * progress)
+            )
+        }
+        sewing.stroke(thread, with: .color(BookPalette.lampGold),
+                      style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+
+        let rest = phase(3.16, 3.8)
+        let eye = CGPoint(x: needleX + (-79 - needleX) * rest, y: needleY + (40 - needleY) * rest)
+        var tail = Path()
+        tail.move(to: CGPoint(x: needleX, y: needleY))
+        tail.addCurve(to: eye,
+                      control1: CGPoint(x: needleX - 24 - tug * 12, y: needleY + 23 - tug * 13),
+                      control2: CGPoint(x: eye.x + 8, y: eye.y + 17 * (1 - rest)))
+        sewing.stroke(tail, with: .color(BookPalette.lampGold.opacity(0.85)),
+                      style: StrokeStyle(lineWidth: 1.15, lineCap: .round))
+
+        var needle = sewing
+        needle.translateBy(x: eye.x, y: eye.y)
+        needle.rotate(by: .radians(-0.65 + rest * 0.9))
+        var shaft = Path()
+        shaft.move(to: CGPoint(x: 0, y: 2.5))
+        shaft.addLine(to: CGPoint(x: 0, y: 25))
+        needle.stroke(shaft, with: .color(BookPalette.nightText.opacity(0.9)),
+                      style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+        needle.stroke(Path(ellipseIn: CGRect(x: -1.7, y: -2.5, width: 3.4, height: 5)),
+                      with: .color(BookPalette.nightText.opacity(0.85)), lineWidth: 0.85)
     }
 }
 
@@ -8943,6 +9231,8 @@ private struct BindingFolioGlyph: View {
 /// cannot start a second bind or open a half-written issue.
 struct WeeklyIssueBindingOverlay: View {
     let note: String
+    var moment: BookMakingMoment? = nil
+    var coverTitle: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -8952,10 +9242,14 @@ struct WeeklyIssueBindingOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                BindingFolioGlyph()
+                if let moment {
+                    BookMakingScene(moment: moment, title: coverTitle)
+                } else {
+                    BindingFolioGlyph()
+                }
 
                 VStack(spacing: 7) {
-                    Text("Binding the week")
+                    Text(moment?.workingTitle ?? "Binding the week")
                         .font(.system(.title3, design: .serif).weight(.bold))
                         .foregroundStyle(BookPalette.nightText)
                     Text(note)
@@ -8965,7 +9259,7 @@ struct WeeklyIssueBindingOverlay: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                Text("The issue will open when the ink is dry.")
+                Text("The reading copy will open when the ink is dry.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.teal)
             }
@@ -8981,7 +9275,7 @@ struct WeeklyIssueBindingOverlay: View {
         }
         .transition(BookMotion.riseTransition(reduceMotion: reduceMotion))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Binding the weekly issue. (note)")
+        .accessibilityLabel("\(moment?.workingTitle ?? "Binding the weekly issue"). \(note)")
         .accessibilityAddTraits(.updatesFrequently)
     }
 }
@@ -9127,24 +9421,284 @@ struct AnnualEditionReader: Identifiable, Equatable {
 }
 
 /// A lightweight PDFKit host so the bound monthly edition reads on the glass with
-/// the same layout it prints with. Scrolls vertically as one continuous edition.
-private struct MonthlyEditionPDFView: UIViewRepresentable {
+/// the same layout it prints with. Scrolls vertically as one continuous edition;
+/// in a wide iPad window it lies open in facing pages, cover alone on the right,
+/// and can be shown at the size it will be printed.
+private struct MonthlyEditionPDFView: View {
     let url: URL
 
-    func makeUIView(context: Context) -> PDFView {
-        let view = PDFView()
-        view.autoScales = true
-        view.displayMode = .singlePageContinuous
+    @State private var isActualSize = false
+    @State private var isTurningPages = false
+
+    var body: some View {
+        Group {
+            if isTurningPages {
+                EditionProofBookView(url: url)
+            } else {
+                EditionProofPDFKitView(url: url, isActualSize: isActualSize)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if UIDevice.current.userInterfaceIdiom == .pad {
+                HStack(spacing: 8) {
+                    if !isTurningPages {
+                        proofButton(
+                            isActualSize ? "Fit to the window" : "Actual size",
+                            systemImage: isActualSize ? "arrow.down.right.and.arrow.up.left" : "ruler",
+                            hint: "Shows the pages at the size they'll be printed."
+                        ) { isActualSize.toggle() }
+                    }
+                    proofButton(
+                        isTurningPages ? "Scroll the proof" : "Turn the pages",
+                        systemImage: isTurningPages ? "scroll" : "book",
+                        hint: "Reads the proof as the bound book, a page at a time."
+                    ) { isTurningPages.toggle() }
+                }
+                .padding(12)
+            }
+        }
+    }
+
+    private func proofButton(
+        _ title: String,
+        systemImage: String,
+        hint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            BookFeedback.play(.select)
+            action()
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(.footnote.weight(.semibold))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityHint(hint)
+    }
+}
+
+#if DEBUG
+/// `--smoke-edition-reader`: the edition reader over Documents/smoke-edition.pdf,
+/// so the proof views can be seen without binding an edition first.
+struct EditionReaderSmokeView: View {
+    var body: some View {
+        MonthlyEditionPDFView(
+            url: FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("smoke-edition.pdf")
+        )
+        .background(BookPalette.nightPanel)
+    }
+}
+#endif
+
+/// The proof as the bound thing: its own pages, turned with a page curl.
+/// In a wide window it lies open across facing pages with the cover alone
+/// on the right, as a printed book opens; upright it turns a page at a time.
+private struct EditionProofBookView: View {
+    let url: URL
+
+    /// Width over height of one printed page, so the paper is exactly the
+    /// paper and no bar of empty canvas shows above or beside it.
+    private var pageAspect: CGFloat {
+        guard let bounds = PDFDocument(url: url)?.page(at: 0)?.bounds(for: .mediaBox),
+              bounds.height > 0 else { return 0.75 }
+        return bounds.width / bounds.height
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let opens = proxy.size.width > proxy.size.height && proxy.size.width >= 900
+            EditionProofCurlPager(url: url, liesOpen: opens)
+                .id(opens)
+                .aspectRatio(pageAspect * (opens ? 2 : 1), contentMode: .fit)
+                .shadow(color: .black.opacity(0.45), radius: 16, y: 10)
+                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+private struct EditionProofCurlPager: UIViewControllerRepresentable {
+    let url: URL
+    let liesOpen: Bool
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(document: PDFDocument(url: url), liesOpen: liesOpen)
+    }
+
+    func makeUIViewController(context: Context) -> UIPageViewController {
+        let controller = UIPageViewController(
+            transitionStyle: .pageCurl,
+            navigationOrientation: .horizontal,
+            options: liesOpen ? [.spineLocation: UIPageViewController.SpineLocation.mid.rawValue] : nil
+        )
+        controller.isDoubleSided = liesOpen
+        controller.dataSource = context.coordinator
+        controller.view.backgroundColor = .clear
+        let first = context.coordinator.opening(at: 0)
+        controller.setViewControllers(first, direction: .forward, animated: false)
+        return controller
+    }
+
+    func updateUIViewController(_ controller: UIPageViewController, context: Context) {}
+
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiViewController: UIPageViewController,
+        context: Context
+    ) -> CGSize? {
+        CGSize(width: proposal.width ?? 600, height: proposal.height ?? 800)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIPageViewControllerDataSource {
+        let document: PDFDocument?
+        let liesOpen: Bool
+        /// Faces in turning order. Open flat, a blank stands before the cover
+        /// so the cover lands on the right, and after the last page when the
+        /// count is odd so the final sheet has a back.
+        private let faces: [Int?]
+        private var controllers: [Int: EditionProofPageController] = [:]
+
+        init(document: PDFDocument?, liesOpen: Bool) {
+            self.document = document
+            self.liesOpen = liesOpen
+            let pages = (0..<(document?.pageCount ?? 0)).map { Optional($0) }
+            var faces = liesOpen ? [nil] + pages : pages
+            if liesOpen, !faces.count.isMultiple(of: 2) { faces.append(nil) }
+            self.faces = faces
+        }
+
+        func opening(at faceIndex: Int) -> [UIViewController] {
+            liesOpen
+                ? [controller(at: faceIndex), controller(at: faceIndex + 1)].compactMap { $0 }
+                : [controller(at: faceIndex)].compactMap { $0 }
+        }
+
+        private func controller(at faceIndex: Int) -> EditionProofPageController? {
+            guard faces.indices.contains(faceIndex) else { return nil }
+            if let existing = controllers[faceIndex] { return existing }
+            let page = faces[faceIndex].flatMap { document?.page(at: $0) }
+            let made = EditionProofPageController(page: page, faceIndex: faceIndex)
+            controllers[faceIndex] = made
+            return made
+        }
+
+        func pageViewController(
+            _ pageViewController: UIPageViewController,
+            viewControllerBefore viewController: UIViewController
+        ) -> UIViewController? {
+            guard let face = (viewController as? EditionProofPageController)?.faceIndex else { return nil }
+            return controller(at: face - 1)
+        }
+
+        func pageViewController(
+            _ pageViewController: UIPageViewController,
+            viewControllerAfter viewController: UIViewController
+        ) -> UIViewController? {
+            guard let face = (viewController as? EditionProofPageController)?.faceIndex else { return nil }
+            return controller(at: face + 1)
+        }
+    }
+}
+
+/// One printed page, drawn from the PDF at the size the glass shows it.
+private final class EditionProofPageController: UIViewController {
+    let page: PDFPage?
+    let faceIndex: Int
+    private let imageView = UIImageView()
+    private var renderedSize: CGSize = .zero
+
+    init(page: PDFPage?, faceIndex: Int) {
+        self.page = page
+        self.faceIndex = faceIndex
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = page == nil ? UIColor(white: 0.93, alpha: 1) : .white
+        imageView.contentMode = .scaleAspectFit
+        imageView.frame = view.bounds
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(imageView)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        guard let page, view.bounds.size != renderedSize, view.bounds.width > 0 else { return }
+        renderedSize = view.bounds.size
+        let scale = view.window?.screen.scale ?? 2
+        let size = CGSize(width: view.bounds.width * scale, height: view.bounds.height * scale)
+        imageView.image = page.thumbnail(of: size, for: .mediaBox)
+    }
+}
+
+private struct EditionProofPDFKitView: UIViewRepresentable {
+    let url: URL
+    let isActualSize: Bool
+
+    func makeUIView(context: Context) -> EditionProofPDFView {
+        let view = EditionProofPDFView()
         view.displayDirection = .vertical
         view.backgroundColor = .clear
         view.document = PDFDocument(url: url)
+        view.isActualSize = isActualSize
         return view
     }
 
-    func updateUIView(_ uiView: PDFView, context: Context) {
+    func updateUIView(_ uiView: EditionProofPDFView, context: Context) {
         if uiView.document?.documentURL != url {
             uiView.document = PDFDocument(url: url)
         }
+        uiView.isActualSize = isActualSize
+    }
+}
+
+/// Lays itself out for the window it is in: one page in a column, facing
+/// pages when there is room for a book lying open.
+private final class EditionProofPDFView: PDFView {
+    var isActualSize = false {
+        didSet { if isActualSize != oldValue { applyScale() } }
+    }
+    private var liesOpen: Bool?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        let opens = UIDevice.current.userInterfaceIdiom == .pad
+            && bounds.width > bounds.height
+            && bounds.width >= 900
+        guard opens != liesOpen else { return }
+        liesOpen = opens
+        displayMode = opens ? .twoUpContinuous : .singlePageContinuous
+        // Page one is the cover, and a cover stands alone on the right.
+        displaysAsBook = opens
+        applyScale()
+    }
+
+    private func applyScale() {
+        if isActualSize {
+            autoScales = false
+            scaleFactor = Self.screenPointsPerInch / 72
+        } else {
+            autoScales = true
+        }
+    }
+
+    /// PDF points are 1/72 inch. Every current iPad draws 264 pixels to the
+    /// inch except the mini, at 326; the mini is the one with the 2266-pixel
+    /// long side.
+    private static var screenPointsPerInch: CGFloat {
+        let screen = UIScreen.main
+        let longSide = max(screen.nativeBounds.width, screen.nativeBounds.height)
+        let pixelsPerInch: CGFloat = longSide == 2266 ? 326 : 264
+        return pixelsPerInch / screen.nativeScale
     }
 }
 

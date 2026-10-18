@@ -47,6 +47,33 @@ all or nothing.** The script therefore re-encodes any plate over the limit as a
 high-quality JPEG at 2400 px (quality 90 down to 70) and refuses the release if
 one still won't fit. Hand over the full-size PNGs; the script does the rest.
 
+## Story plates in the living Book
+
+An authored `storyScenes` entry or one of its `nodes` may carry an optional
+`illustration` using the existing `BookPageMediaAsset` model. Put the attachment
+on the exact passage the plate depicts. A scene-level attachment is used only
+for a scene without nodes or its entry node; continuation and alternative
+branches do not inherit it. A node attachment overrides the entry default.
+Older packs without this field continue to decode.
+
+October attaches its 12 scene plates to their depicted entry passages. The
+ordinary scene/choice lifecycle remains the gate: art travels on the Story
+Page, not in the month-long interleave pool. Both the folio and opened Story
+Page fit the complete plate, and the existing image inspector can enlarge it.
+Keeping a Page copies its art into the existing content-addressed
+`MonthlyIssueKeepsakes` archive, so retiring the runtime issue cannot remove
+art from a kept Page.
+
+Runtime attachments reference `{{asset-path:count-unbound.story-art.v1.<stem>}}`.
+`issue.json` maps that namespace to the same JPEG sources in `plates/`.
+Delivery currently separates runtime and publication scopes, so these are
+separate delivery IDs for the same source bytes. Existing publication plate
+IDs and filenames continue to serve the bound editions. The changed authored
+pack uses the new immutable delivery ID `count-unbound.runtime.v9`.
+
+Source and authoring checks do not establish device rendering. This change
+has not been built, installed, or published.
+
 ## October 2026 (Count Unbound): the list
 
 Frontispiece, then one plate per scene the month tells:

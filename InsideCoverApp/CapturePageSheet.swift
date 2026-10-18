@@ -1,5 +1,6 @@
 import SwiftUI
 import OSLog
+import QuickLook
 import Darwin.Mach
 #if canImport(AudioToolbox)
 import AudioToolbox
@@ -18,6 +19,32 @@ private extension View {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(accent.opacity(0.28), lineWidth: 1)
             }
+    }
+}
+
+/// A scene's own plate, fitted whole on the opened Page.
+private struct AuthoredStoryPlateView: View {
+    let surface: SurfacePage
+
+    var body: some View {
+        if let plate = surface.mediaAssets.first(where: { $0.metadata["storyPlate"] == "true" }) {
+            if plate.kind == .renderedImageFile,
+               let image = BookRenderedImageCache.shared.image(for: plate.reference) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(plate.caption)
+                    .imagePreviewOnTap { ImagePreview.url(forFilePath: plate.reference) }
+            } else if plate.kind == .bundledImage {
+                Image(plate.reference)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(plate.caption)
+                    .imagePreviewOnTap { ImagePreview.url(forAsset: plate.reference) }
+            }
+        }
     }
 }
 
@@ -1314,6 +1341,8 @@ struct CapturePageSheet: View {
     var onInstallLocalBrain: () -> Void = {}
     var onReplaceIlluminatedSurface: (SurfacePage) -> Void = { _ in }
     var onNavigateToSurface: (SurfacePage) -> Void = { _ in }
+    /// The paper's assignment coupon opens the dare it printed.
+    var onOpenBleedAssignment: ((SurfacePage) -> Void)? = nil
     var onCompleteCompassRun: (SurfacePage) -> Void = { _ in }
     var compassAnchors: [AnchorRecord] = []
     var onStoryMechanicCompleted: (SurfacePage, String) -> Void = { _, _ in }
@@ -1443,8 +1472,10 @@ struct CapturePageSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @State private var selectedWeather = ""
     @State private var isCommittingKeep = false
+    @State private var keepInkHasSunk = false
     @State private var isTuckingPage = false
     @State private var shelfMark: ReaderShelfMark = .unset
     @State private var centerGearOffset = 0
@@ -1581,6 +1612,7 @@ struct CapturePageSheet: View {
     @State private var isGeneratingPlayfulMission = false
     @State private var playfulMissionGenerationMessage = ""
     @State private var bleedPDFURL: URL?
+    @State private var bleedPDFPreviewURL: URL?
     @State private var bleedExportMessage = ""
     @State private var illuminatedQuoteCardURL: URL?
     @State private var isPreparingQuoteCard = false
@@ -3082,6 +3114,7 @@ struct CapturePageSheet: View {
         let _ = PerfProbeCounter.body("Capture")
         #endif
         pageRoot
+            .interactiveDismissDisabled(isCommittingKeep)
     }
 
     /// The Page type's paper: colour, accent, grain weight.
@@ -3291,6 +3324,8 @@ struct CapturePageSheet: View {
                 // paper. Shared labels and cards that also appear against the
                 // night pick bronze and ink here instead of lamplight.
                 .environment(\.bookSurfaceMaterial, .paper)
+                .environment(\.bookInkSubmissionActive, isCommittingKeep)
+                .disabled(isCommittingKeep)
                 .openedLeafPaper(
                     style: leafVisualStyle,
                     recipe: leafDecorationRecipe,
@@ -3319,7 +3354,7 @@ struct CapturePageSheet: View {
                     .zIndex(10)
                 }
 
-                if isCommittingKeep {
+                if isCommittingKeep && (reduceMotion || voiceOver || keepInkHasSunk) {
                     Label("KEPT", systemImage: "seal.fill")
                         .font(.system(.headline, design: .serif, weight: .black))
                         .tracking(1.4)
@@ -3358,7 +3393,7 @@ struct CapturePageSheet: View {
                             Spacer()
                             BookInterjectionDogEarMark(tint: LeafInk.gold)
                                 .frame(width: 62, height: 62)
-                                .accessibilityLabel("The Book dog-eared this Page")
+                                .accessibilityLabel("I dog-eared this Page")
                         }
                         Spacer()
                     }
@@ -3392,7 +3427,7 @@ struct CapturePageSheet: View {
                             Spacer()
                             BookInterjectionOpenLeafMark(tint: LeafInk.gold)
                                 .frame(width: 92, height: 50)
-                                .accessibilityLabel("The Book left an older Page open here")
+                                .accessibilityLabel("I left an older Page open here")
                         }
                     }
                     .padding(.bottom, 12)
@@ -3763,7 +3798,7 @@ struct CapturePageSheet: View {
             Text("Choose its coat")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
-            Text("Your photograph, a Bindery plate, or the Book's own choice. All included.")
+            Text("Your photograph, a Bindery plate, or my own choice. All included.")
                 .font(.caption2)
                 .foregroundStyle(openPageSecondaryText.opacity(0.78))
 
@@ -4216,15 +4251,17 @@ struct CapturePageSheet: View {
 
     private func commitCurrentPage() {
         guard !isCommittingKeep else { return }
+        // Freeze the authoritative submission before animation or dictation
+        // shutdown. The disappearing rendering never supplies the saved words.
+        let input = preparedInput
+        let proofSurface = effectiveProofSurface
+        let tags = preparedTags(for: proofSurface)
+        let extraMedia = keptExtraMedia
         withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.66)) {
             isCommittingKeep = true
         }
 
         let finish = {
-            let input = preparedInput
-            let proofSurface = effectiveProofSurface
-            let tags = preparedTags(for: proofSurface)
-            let extraMedia = keptExtraMedia
             markIlluminatedDraftKept()
             if proofSurface.type == .tarot {
                 tarotReadingDraftData = ""
@@ -4242,10 +4279,14 @@ struct CapturePageSheet: View {
                 completeTwoReadingsIfNeeded()
             }
         }
-        if reduceMotion {
+        if reduceMotion || voiceOver {
             finish()
         } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: finish)
+            let absorption = input.isEmpty ? 0 : BookInkTiming.absorptionDuration
+            DispatchQueue.main.asyncAfter(deadline: .now() + absorption) {
+                withAnimation(.easeOut(duration: 0.16)) { keepInkHasSunk = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.24, execute: finish)
+            }
         }
     }
 
@@ -4537,7 +4578,7 @@ struct CapturePageSheet: View {
                         Text("“\(excerpt)”")
                             .font(.system(.body, design: .serif, weight: .semibold))
                             .underline(true, color: LeafInk.gold.opacity(0.92))
-                            .accessibilityLabel("The Book underlined: \(excerpt)")
+                            .accessibilityLabel("I underlined: \(excerpt)")
                     }
                     Text(actedMargin)
                         .font(.system(
@@ -5853,14 +5894,16 @@ struct CapturePageSheet: View {
                 }
                 .accessibilityLabel("The Bleed pocket student newspaper")
 
-            if !surface.mediaAssets.isEmpty {
+            // The front page carries the day's own photograph; the rest of the file is listed here.
+            let filedPlates = surface.mediaAssets.filter { $0.metadata["bleedFrontPlate"] != "true" }
+            if !filedPlates.isEmpty {
                 VStack(alignment: .leading, spacing: 9) {
                     Text("PLATES FROM THE FILE")
                         .font(.caption2.weight(.black))
                         .tracking(0.8)
                         .foregroundStyle(BookPalette.ink.opacity(0.68))
 
-                    ForEach(surface.mediaAssets.prefix(2)) { asset in
+                    ForEach(filedPlates.prefix(2)) { asset in
                         HStack(alignment: .top, spacing: 10) {
                             BookOfYouMediaThumbnail(
                                 asset: asset,
@@ -5887,11 +5930,21 @@ struct CapturePageSheet: View {
             }
 
             if let bleedEditionText {
-                Text(bleedEditionText)
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(BookPalette.ink)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let paper = BleedReadingCopy.parse(bleedEditionText) {
+                    BleedNewspaperView(
+                        paper: paper,
+                        plate: surface.mediaAssets.first { $0.metadata["bleedFrontPlate"] == "true" },
+                        onTakeAssignment: onOpenBleedAssignment.flatMap { open in
+                            BleedDayDesk.assignmentIsOpen(in: surface, now: Date()) ? { open(surface) } : nil
+                        }
+                    )
+                } else {
+                    Text(bleedEditionText)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else {
                 Text("The formes are locked, but the ink hasn't reached this copy yet.")
                     .font(.system(.body, design: .serif))
@@ -5899,7 +5952,8 @@ struct CapturePageSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if let sources = surface.payload.metadata["bleedInterestSources"]?.nonEmpty {
+            if surface.payload.metadata["bleedNewsroomVersion"] == nil,
+               let sources = surface.payload.metadata["bleedInterestSources"]?.nonEmpty {
                 Text("I cut these clippings from: \(sources)")
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.56))
@@ -5910,15 +5964,24 @@ struct CapturePageSheet: View {
                 .overlay(BookPalette.ink.opacity(0.14))
 
             if let bleedPDFURL {
-                ShareLink(item: bleedPDFURL) {
-                    LeafInkMark(title: "Share The Bleed PDF", symbolName: "square.and.arrow.up", seed: leafSeed)
+                HStack(spacing: 16) {
+                    Button {
+                        bleedPDFPreviewURL = bleedPDFURL
+                    } label: {
+                        Label("Open print edition", systemImage: "newspaper")
+                    }
+                    .quickLookPreview($bleedPDFPreviewURL)
+                    ShareLink(item: bleedPDFURL) {
+                        Label("Share PDF", systemImage: "square.and.arrow.up")
+                    }
                 }
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(LeafInk.gold)
             } else {
                 Button {
                     bindBleedPDF()
                 } label: {
-                    Label("Bind The Bleed as PDF", systemImage: "newspaper")
+                    Label("Make print edition", systemImage: "newspaper")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -5940,6 +6003,13 @@ struct CapturePageSheet: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .onChange(of: bleedEditionText) { _, _ in
+            // A practical-strip refresh or a different edition needs its own
+            // export. Never offer the previous paper's cached PDF for it.
+            bleedPDFURL = nil
+            bleedPDFPreviewURL = nil
+            bleedExportMessage = ""
+        }
     }
 
     private func bindBleedPDF() {
@@ -5949,10 +6019,8 @@ struct CapturePageSheet: View {
             return
         }
         do {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd-HHmm"
             let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
+                .appendingPathComponent(BleedPrintDesign.fileName(slotID: surface.payload.metadata["bleedSlotID"], body: body))
             try BleedPDFWriter.write(
                 headline: surface.payload.headline,
                 body: body,
@@ -5960,7 +6028,8 @@ struct CapturePageSheet: View {
                 to: url
             )
             bleedPDFURL = url
-            bleedExportMessage = "The Bleed is bound for sharing."
+            bleedPDFPreviewURL = url
+            bleedExportMessage = "Your print edition is ready."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
             bleedExportMessage = "The edition wouldn't bind: \(error.localizedDescription)"
@@ -6509,15 +6578,16 @@ struct CapturePageSheet: View {
 
     private var radioPageView: some View {
         let unlocked = Set(PlayerVault.shared.data.ownedPacks ?? [])
-        let stations = RadioStationRegistry.stations(unlockedPackIDs: unlocked)
+        let available = RadioStationRegistry.availableStations(unlockedPackIDs: unlocked)
+        let stations = RadioStationRegistry.stations(in: available)
         let currentPlayback = radioManager.isPlaying ? radioManager.playback : (radioManager.playback.isTuned ? radioManager.playback : radioPlayback)
-        let dialStation = RadioStationRegistry.tunedStation(to: radioDialFrequency, unlockedPackIDs: unlocked)
+        let dialStation = RadioStationRegistry.tunedStation(to: radioDialFrequency, in: available)
         let liveDialIsBetweenStations = (radioManager.isPlayingTuningNoise || hasTouchedRadioDial) && dialStation == nil && selectedRadioStationID == nil
         let fallbackID = liveDialIsBetweenStations ? nil : (currentPlayback.activeStationID ?? surface.payload.metadata["radioStationID"] ?? stations.first?.id)
         let activeID = dialStation?.id ?? selectedRadioStationID ?? fallbackID
-        let active = activeID.flatMap { RadioStationRegistry.station(id: $0, unlockedPackIDs: unlocked) } ?? (liveDialIsBetweenStations ? nil : stations.first)
+        let active = RadioStationRegistry.station(id: activeID, in: available) ?? (liveDialIsBetweenStations ? nil : stations.first)
         let isPowered = radioManager.isPlaying
-        let interlude = RadioStationRegistry.currentInterlude(state: currentPlayback, unlockedPackIDs: unlocked)
+        let interlude = RadioStationRegistry.currentInterlude(state: currentPlayback, in: available)
         return VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
@@ -6602,7 +6672,7 @@ struct CapturePageSheet: View {
                     }
                     .onChange(of: radioDialFrequency) { _, value in
                         hasTouchedRadioDial = true
-                        let tuned = RadioStationRegistry.tunedStation(to: value, unlockedPackIDs: unlocked)
+                        let tuned = RadioStationRegistry.tunedStation(to: value, in: available)
                         if selectedRadioStationID != tuned?.id {
                             selectedRadioStationID = tuned?.id
                             radioManager.hapticTick()
@@ -8283,6 +8353,7 @@ struct CapturePageSheet: View {
                 if isWelcomeIntroductionPage {
                     welcomeIntroductionBody
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                    AuthoredStoryPlateView(surface: surface)
                     AuthoredSceneProseView(text: surface.payload.body)
                 } else {
                     Text(taleToldBody ?? surface.payload.metadata["taleFallbackBody"] ?? surface.payload.body)
@@ -8290,6 +8361,7 @@ struct CapturePageSheet: View {
                         .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
                         .task(id: surface.id) { await tellTaleWithGemmaIfPossible() }
+                        .bookPageArrival(moment: isOpenedLetterPage ? .letter : nil, identity: surface.id)
                 }
             }
 
@@ -10314,7 +10386,7 @@ struct CapturePageSheet: View {
                                 .font(.caption)
                                 .foregroundStyle(BookPalette.ink.opacity(0.62))
                         }
-                        Text("An enduring member of the Cast. When it brightens, the Book remembers to make room for it.")
+                        Text("An enduring member of the Cast. When it brightens, I remember to make room for it.")
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(BookPalette.teal.opacity(0.82))
                     }
@@ -12526,14 +12598,18 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.gold)
             }
 
-            if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
-                AuthoredSceneProseView(text: draft.scene)
-            } else {
-                Text(draft.scene)
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(BookPalette.ink)
-                    .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 14) {
+                if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                    AuthoredStoryPlateView(surface: draft.surface)
+                    AuthoredSceneProseView(text: draft.scene)
+                } else {
+                    Text(draft.scene)
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .bookPageArrival(moment: .vignette, identity: turn.id.uuidString)
 
             if surface.payload.metadata["authoredReaderAnchorOffer"] == "true" {
                 VStack(alignment: .leading, spacing: 8) {
@@ -12616,6 +12692,7 @@ struct CapturePageSheet: View {
                         }
                     }
                     .buttonStyle(.bookPress())
+                    .bookChoiceThread(selected: selectedStoryChoice?.id == choice.id, identity: choice.id)
                     .disabled(activeInkbonesThrow != nil || isGeneratingStoryResult || (isLocalBrainWorking && choice.mechanic.kind == .none))
                 }
             }
@@ -13474,7 +13551,7 @@ struct CapturePageSheet: View {
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                    .accessibilityLabel("The Book recognises this page")
+                    .accessibilityLabel("I recognise this page")
             }
 
             if isWorking {
@@ -15029,7 +15106,7 @@ struct CapturePageSheet: View {
             Rest:
             \(metadata["restPrompt"] ?? "Put the phone face down for sixty seconds and let the run land.")
 
-            Keep this page after the quiet minute to complete the run. The Book's Glow will warm.
+            Keep this page after the quiet minute to complete the run. My Glow will warm.
             """
         }
 
@@ -19920,3 +19997,437 @@ extension UIImage {
     }
 }
 #endif
+
+// MARK: - The Bleed, as a paper
+
+/// The pocket edition set as the Academy's newspaper, matching its print edition: the
+/// edition strip, the day on the front page with its plate and Penny's stamp, the Reader's
+/// words in their own hand, and each kind of piece in its own dress.
+struct BleedNewspaperView: View {
+    let paper: BleedReadingCopy
+    let plate: BookPageMediaAsset?
+    /// Set when today's assignment can still be taken: the coupon becomes a door.
+    var onTakeAssignment: (() -> Void)? = nil
+    @State private var screened: UIImage?
+
+    init(paper: BleedReadingCopy, plate: BookPageMediaAsset?, screened: UIImage? = nil, onTakeAssignment: (() -> Void)? = nil) {
+        self.paper = paper
+        self.plate = plate
+        self.onTakeAssignment = onTakeAssignment
+        _screened = State(initialValue: screened)
+    }
+
+    private var edition: BleedEditionKind { BleedPrintDesign.edition(in: paper) }
+    private var newsprint: Color { Color(red: 0.957, green: 0.937, blue: 0.890) }
+    private var ink: Color { Color(red: 0.12, green: 0.11, blue: 0.10) }
+    private var soft: Color { Color(red: 0.38, green: 0.35, blue: 0.31) }
+    private var accent: Color {
+        edition == .morning ? Color(red: 0.12, green: 0.32, blue: 0.35) : Color(red: 0.45, green: 0.13, blue: 0.18)
+    }
+    private var accentPale: Color {
+        edition == .morning ? Color(red: 0.86, green: 0.90, blue: 0.88) : Color(red: 0.93, green: 0.86, blue: 0.84)
+    }
+    private var readerInk: Color { Color(red: 0.13, green: 0.20, blue: 0.36) }
+
+    private typealias Piece = BleedPrintDesign.Piece
+
+    private func piece(_ article: BleedReadingCopy.Article) -> Piece {
+        BleedPrintDesign.piece(title: article.title, byline: article.byline)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            editionStrip
+            ForEach(Array(paper.articles.enumerated()), id: \.offset) { index, article in
+                pieceView(article)
+                if index < paper.articles.count - 1, piece(article) != .front {
+                    Text("❦")
+                        .font(.system(size: 13, design: .serif))
+                        .foregroundStyle(soft)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityHidden(true)
+                }
+            }
+            if let colophon = paper.colophon {
+                Text(colophon)
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(soft)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .padding(16)
+        .background(newsprint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(ink.opacity(0.18), lineWidth: 1) }
+        .task(id: plate?.reference) { if screened == nil { await screen() } }
+    }
+
+    // MARK: Strip
+
+    private var editionStrip: some View {
+        let number = paper.issueLine.components(separatedBy: "#").dropFirst().first?.prefix { $0.isNumber } ?? ""
+        let date = paper.issueLine.components(separatedBy: "·").dropFirst().first?.trimmingCharacters(in: .whitespaces) ?? ""
+        return VStack(spacing: 5) {
+            Rectangle().fill(ink).frame(height: 2)
+            Rectangle().fill(ink).frame(height: 0.6)
+            HStack {
+                tracked(edition == .morning ? "MORNING EDITION" : "EVENING EDITION", size: 10, color: accent)
+                Spacer(minLength: 8)
+                if !number.isEmpty { tracked("NO. \(number)", size: 10, color: ink) }
+            }
+            Text(date)
+                .font(.system(.footnote, design: .serif).italic())
+                .foregroundStyle(ink)
+                .frame(maxWidth: .infinity)
+            Rectangle().fill(ink.opacity(0.7)).frame(height: 0.6)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func tracked(_ text: String, size: CGFloat, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: size, weight: .bold, design: .serif))
+            .tracking(size * 0.16)
+            .foregroundStyle(color)
+    }
+
+    // MARK: Pieces
+
+    @ViewBuilder
+    private func pieceView(_ article: BleedReadingCopy.Article) -> some View {
+        switch piece(article) {
+        case .front: frontPage(article)
+        case .reading: reading(article)
+        case .puzzle: box(article, label: BleedDayDesk.titleCased(article.title).uppercased(), style: .ruled)
+        case .classifieds: box(article, label: "CLASSIFIED ADVERTISEMENTS", style: .ruled)
+        case .assignment:
+            VStack(alignment: .leading, spacing: 8) {
+                box(article, label: "YOUR ASSIGNMENT", style: .coupon)
+                if let onTakeAssignment {
+                    Button(action: onTakeAssignment) {
+                        Label("Take the assignment", systemImage: "scissors")
+                            .font(.system(.callout, design: .serif).weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(newsprint)
+                            .background(accent, in: Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens Wicker's dare. Keep it with your proof and tonight's paper prints your dispatch.")
+                }
+            }
+        case .stopPress: box(article, label: "STOP PRESS", style: .slug)
+        case .service, .timetable: box(article, label: BleedDayDesk.titleCased(article.title).uppercased(), style: .tinted)
+        case .weekBound: weekBound(article)
+        case .letters: letters(article)
+        case .readerLetter, .whispers: quoted(article, readerInk: piece(article) == .readerLetter)
+        case .fiction:
+            VStack(alignment: .leading, spacing: 6) {
+                header(article)
+                Text(article.body).font(.system(.body, design: .serif).italic()).foregroundStyle(ink)
+            }
+        case .plain:
+            VStack(alignment: .leading, spacing: 6) {
+                header(article)
+                Text(article.body).font(.system(.body, design: .serif)).foregroundStyle(ink).lineSpacing(3).textSelection(.enabled)
+                sources(article)
+            }
+        }
+    }
+
+    private func header(_ article: BleedReadingCopy.Article) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Rectangle().fill(accent).frame(width: 30, height: 2.5)
+            Text(BleedDayDesk.titleCased(article.title))
+                .font(.system(.title3, design: .serif).weight(.bold))
+                .foregroundStyle(ink)
+                .accessibilityAddTraits(.isHeader)
+            Text(article.byline)
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(accent)
+        }
+    }
+
+    @ViewBuilder
+    private func sources(_ article: BleedReadingCopy.Article) -> some View {
+        ForEach(Array(article.sources.enumerated()), id: \.offset) { _, url in
+            Link(destination: url) {
+                Label(url.host ?? "Read source", systemImage: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .padding(.vertical, 6)
+            }
+            .foregroundStyle(accent)
+            .accessibilityLabel("Read source: \(url.host ?? url.absoluteString)")
+        }
+    }
+
+    // MARK: The front page
+
+    private func frontPage(_ article: BleedReadingCopy.Article) -> some View {
+        let kicker = article.byline.components(separatedBy: " · ").first ?? "Exclusive"
+        let paragraphs = article.body.components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        return VStack(alignment: .leading, spacing: 12) {
+            tracked(kicker.uppercased(), size: 10, color: accent)
+                .frame(maxWidth: .infinity)
+            Text(article.title)
+                .font(.system(size: 30, weight: .bold, design: .serif))
+                .foregroundStyle(ink)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .minimumScaleFactor(0.7)
+                .accessibilityAddTraits(.isHeader)
+            Text("By our own correspondent · attested by Penny Blackletter")
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(soft)
+                .frame(maxWidth: .infinity)
+            Rectangle().fill(ink.opacity(0.6)).frame(height: 0.6)
+            if let screened, let plate {
+                VStack(alignment: .leading, spacing: 5) {
+                    Image(uiImage: screened)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 210)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .overlay { Rectangle().stroke(ink.opacity(0.7), lineWidth: 0.6) }
+                        .overlay(alignment: .bottomTrailing) { stamp.padding(10) }
+                        .accessibilityLabel("Your photograph, printed as the front page's plate")
+                    (Text("ENTERED INTO EVIDENCE  ").font(.system(size: 9, weight: .bold, design: .serif)).foregroundColor(accent)
+                        + Text(plate.caption).font(.system(.caption, design: .serif).italic()).foregroundColor(soft))
+                }
+            }
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { index, text in
+                frontParagraph(text, first: index == 0)
+            }
+            if screened == nil {
+                stamp.frame(maxWidth: .infinity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func frontParagraph(_ text: String, first: Bool) -> some View {
+        if text.hasPrefix("“") {
+            let lines = text.components(separatedBy: "\n")
+            VStack(alignment: .leading, spacing: 3) {
+                Text(lines[0])
+                    .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
+                    .foregroundStyle(readerInk)
+                    .textSelection(.enabled)
+                if lines.count > 1 {
+                    Text(lines.dropFirst().joined(separator: " "))
+                        .font(.system(.caption, design: .serif).italic())
+                        .foregroundStyle(soft)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        } else if BraidColophon.starts(text) {
+            Text(text).font(.system(.body, design: .serif).italic()).foregroundStyle(accent)
+        } else if text == "The whole story is in the Book of You." {
+            tracked("THE WHOLE STORY IS IN THE BOOK OF YOU", size: 10, color: accent)
+        } else if first, let dash = text.range(of: " — ") {
+            (Text(String(text[..<dash.lowerBound]) + " — ").font(.system(.body, design: .serif).weight(.bold))
+                + Text(String(text[dash.upperBound...])).font(.system(.body, design: .serif)))
+                .foregroundStyle(ink)
+                .lineSpacing(3)
+        } else {
+            Text(text).font(.system(.body, design: .serif)).foregroundStyle(ink).lineSpacing(3)
+        }
+    }
+
+    private var stamp: some View {
+        ZStack {
+            Circle().stroke(accent, lineWidth: 1.8).frame(width: 86, height: 86)
+            Circle().stroke(accent, lineWidth: 0.6).frame(width: 76, height: 76)
+            VStack(spacing: 2) {
+                Text("P · BLACKLETTER").font(.system(size: 5.2, weight: .bold, design: .serif)).tracking(0.4)
+                Text("ATTESTED").font(.system(size: 11, weight: .heavy, design: .serif)).tracking(1)
+                Text("DEPT OF ATTESTATION").font(.system(size: 4.4, weight: .bold, design: .serif)).tracking(0.2)
+            }
+            .foregroundStyle(accent)
+        }
+        .background(Circle().fill(newsprint.opacity(0.55)).frame(width: 86, height: 86))
+        .rotationEffect(.degrees(-7))
+        .accessibilityLabel("Attested by Penny Blackletter")
+    }
+
+    // MARK: Readings and boxes
+
+    private func reading(_ article: BleedReadingCopy.Article) -> some View {
+        let parts = article.body.components(separatedBy: "\n\nThe Book's reading:\n")
+        return VStack(alignment: .leading, spacing: 8) {
+            header(article)
+            ForEach(Array(parts[0].components(separatedBy: "\n\n").enumerated()), id: \.offset) { _, block in
+                let lines = block.components(separatedBy: "\n")
+                VStack(alignment: .leading, spacing: 3) {
+                    if lines.count > 1 {
+                        Text(lines[0]).font(.system(.caption, design: .serif).italic()).foregroundStyle(soft)
+                    }
+                    Text(lines.last ?? block)
+                        .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 18))
+                        .foregroundStyle(readerInk)
+                        .textSelection(.enabled)
+                }
+            }
+            if parts.count > 1 {
+                tracked("THE BOOK'S READING", size: 9.5, color: accent)
+                Text(parts.dropFirst().joined(separator: "\n\n"))
+                    .font(.system(.body, design: .serif)).foregroundStyle(ink).lineSpacing(3)
+            }
+        }
+    }
+
+    // MARK: Letters, whispers and the bound week
+
+    private func letters(_ article: BleedReadingCopy.Article) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header(article)
+            ForEach(Array(article.body.components(separatedBy: "\n\n").enumerated()), id: \.offset) { _, block in
+                let lines = block.components(separatedBy: "\n").filter { !$0.isEmpty }
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        if index == 0, line.hasPrefix("Dear ") {
+                            Text(line).font(.system(.callout, design: .serif).italic()).foregroundStyle(ink)
+                        } else if line.hasPrefix("— ") {
+                            Text(line).font(.system(.caption, design: .serif).italic()).foregroundStyle(accent)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        } else {
+                            Text(line).font(.system(.body, design: .serif)).foregroundStyle(ink).lineSpacing(3)
+                        }
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+    }
+
+    private func quoted(_ article: BleedReadingCopy.Article, readerInk hand: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header(article)
+            ForEach(Array(article.body.components(separatedBy: "\n\n").enumerated()), id: \.offset) { _, block in
+                let text = block.trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.hasPrefix("“") {
+                    let lines = text.components(separatedBy: "\n")
+                    VStack(alignment: .leading, spacing: 3) {
+                        if hand {
+                            Text(lines[0]).font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
+                                .foregroundStyle(readerInk).textSelection(.enabled)
+                        } else {
+                            Text(lines[0]).font(.system(.body, design: .serif).italic()).foregroundStyle(ink).lineSpacing(3)
+                        }
+                        if lines.count > 1 {
+                            Text(lines.dropFirst().joined(separator: " "))
+                                .font(.system(.caption, design: .serif).italic()).foregroundStyle(soft)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                } else if text.hasPrefix("The editor replies: ") {
+                    (Text("THE EDITOR REPLIES  ").font(.system(size: 10, weight: .bold, design: .serif)).foregroundColor(accent)
+                        + Text(String(text.dropFirst("The editor replies: ".count))).font(.system(.body, design: .serif)))
+                        .foregroundStyle(ink).lineSpacing(3)
+                } else if text.hasPrefix("This paper prints what it hears") {
+                    Text(text).font(.system(.caption, design: .serif).italic()).foregroundStyle(soft)
+                        .frame(maxWidth: .infinity).multilineTextAlignment(.center)
+                } else if !text.isEmpty {
+                    Text(text).font(.system(.body, design: .serif)).foregroundStyle(ink).lineSpacing(3)
+                }
+            }
+        }
+    }
+
+    private func weekBound(_ article: BleedReadingCopy.Article) -> some View {
+        let blocks = article.body.components(separatedBy: "\n\n")
+        return VStack(alignment: .leading, spacing: 10) {
+            tracked(article.title.uppercased(), size: 10, color: accent)
+            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                let lines = block.components(separatedBy: "\n")
+                if lines.allSatisfy({ $0.contains(" · ") }) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                            let parts = line.components(separatedBy: " · ")
+                            VStack(alignment: .leading, spacing: 1) {
+                                tracked(parts[0], size: 8.5, color: accent)
+                                Text(parts.dropFirst().joined(separator: " · "))
+                                    .font(.system(.callout, design: .serif).weight(.bold)).foregroundStyle(ink)
+                            }
+                            .accessibilityElement(children: .combine)
+                        }
+                    }
+                } else {
+                    Text(block).font(.system(.callout, design: .serif).italic()).foregroundStyle(soft)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay { Rectangle().stroke(ink.opacity(0.7), lineWidth: 0.7) }
+        .overlay { Rectangle().stroke(accent.opacity(0.8), lineWidth: 0.4).padding(3) }
+    }
+
+    private enum BoxStyle { case ruled, coupon, slug, tinted }
+
+    private func box(_ article: BleedReadingCopy.Article, label: String, style: BoxStyle) -> some View {
+        let text = style == .slug ? Color(red: 0.98, green: 0.96, blue: 0.92) : ink
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                tracked(label, size: 10, color: style == .slug ? text : accent)
+                Spacer()
+                if style == .coupon {
+                    Image(systemName: "scissors").font(.caption).foregroundStyle(accent).accessibilityHidden(true)
+                }
+            }
+            ForEach(Array(article.body.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
+                boxLine(line, color: text, puzzle: piece(article) == .puzzle)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            switch style {
+            case .slug: Rectangle().fill(accent)
+            case .tinted: Rectangle().fill(accentPale)
+            default: Rectangle().fill(Color.clear)
+            }
+        }
+        .overlay {
+            Rectangle()
+                .strokeBorder(style == .slug ? accent : ink.opacity(0.7),
+                              style: StrokeStyle(lineWidth: style == .coupon ? 1 : 0.7, dash: style == .coupon ? [4, 3] : []))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func boxLine(_ line: String, color: Color, puzzle: Bool) -> some View {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty {
+            EmptyView()
+        } else if puzzle, let dot = trimmed.range(of: " · "), trimmed[..<dot.lowerBound].allSatisfy(\.isUppercase) {
+            (Text(String(trimmed[..<dot.lowerBound])).font(.system(size: 16, weight: .bold, design: .serif)).tracking(3)
+                + Text("   " + String(trimmed[dot.upperBound...])).font(.system(.caption, design: .serif).italic()).foregroundColor(soft))
+                .foregroundStyle(color)
+        } else if trimmed.count > 3, trimmed == trimmed.uppercased(), trimmed.contains(where: \.isLetter) {
+            Text(trimmed).font(.system(.callout, design: .serif).weight(.bold)).tracking(0.8).foregroundStyle(color)
+        } else {
+            Text(trimmed).font(.system(.callout, design: .serif)).foregroundStyle(color).lineSpacing(2)
+        }
+    }
+
+    // MARK: The plate
+
+    private func screen() async {
+        guard let plate else { screened = nil; return }
+        let reference = plate.reference
+        let kind = plate.kind
+        let image = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            let source: UIImage?
+            switch kind {
+            case .bundledImage: source = UIImage(named: reference)
+            case .renderedImageFile: source = UIImage(contentsOfFile: reference)
+            default: source = nil
+            }
+            return source.flatMap { BleedPDFWriter.halftone($0, aspect: 1.6) }
+        }.value
+        screened = image
+    }
+}

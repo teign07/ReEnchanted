@@ -151,7 +151,7 @@ final class MonthlyReaderReadingTests: XCTestCase {
 
     func testPrintedMemoriesRestoreWholeSentencesFromShortPromptTags() throws {
         let line = "The table kept the small dent where my brother used to put his cup, through three changes of paint and a move across town, and I found it again when I finally sat down beside the window."
-        let braid = BraidPageDetails.annotated(page("long-braid", 12, "The Table\n\n\(line)\n\nThe Book kept the page: \(line)", type: .bookOfYou, origin: .generated), context: .empty)
+        let braid = BraidPageDetails.annotated(page("long-braid", 12, "The Table\n\n\(line)\n\nI kept the page: \(line)", type: .bookOfYou, origin: .generated), context: .empty)
         let edition = MonthlyEditionBuilder.edition(
             from: [BookDay(id: "2026-10-12", date: date(12), pages: [braid])],
             readerName: "Reader", startDate: date(1), endDate: date(31), generatedAt: date(31), calendar: calendar)

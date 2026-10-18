@@ -28,7 +28,7 @@ final class WeeklyIssueTests: XCTestCase {
 
                 The window listened while rain tapped the kitchen glass.
 
-                The Book kept the page: \(keptLine).
+                I kept the page: \(keptLine).
                 """,
                 tags: ["braid"]
             ),

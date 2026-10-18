@@ -133,6 +133,7 @@ private struct DictationInputModifier: ViewModifier {
     let alignment: Alignment
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.bookInkSubmissionActive) private var submissionActive
     @StateObject private var model = DictationInputModel()
     @State private var baseText = ""
 
@@ -161,6 +162,9 @@ private struct DictationInputModifier: ViewModifier {
             }
             .onDisappear {
                 model.stop()
+            }
+            .onChange(of: submissionActive) { _, active in
+                if active { model.stop() }
             }
     }
 

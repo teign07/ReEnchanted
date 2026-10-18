@@ -705,7 +705,7 @@ enum BraidTextPolisher {
     private static func limitedText(_ paragraphs: [String], maxParagraphs: Int, maxWords: Int) -> String {
         guard !paragraphs.isEmpty else { return "" }
 
-        let closingIndex = paragraphs.lastIndex { $0.hasPrefix("The Book kept the page:") }
+        let closingIndex = paragraphs.lastIndex { BraidColophon.starts($0) }
         var limited = paragraphs
         if limited.count > maxParagraphs {
             if let closingIndex, closingIndex == limited.indices.last {
@@ -717,7 +717,7 @@ enum BraidTextPolisher {
 
         while wordCount(in: limited.joined(separator: "\n\n")) > maxWords, limited.count > 2 {
             let removeIndex: Int
-            if let closingIndex = limited.lastIndex(where: { $0.hasPrefix("The Book kept the page:") }) {
+            if let closingIndex = limited.lastIndex(where: { BraidColophon.starts($0) }) {
                 removeIndex = max(0, closingIndex - 1)
             } else {
                 removeIndex = limited.count - 2
@@ -1860,6 +1860,7 @@ struct CuratorSurfacePreferences: Equatable {
     /// teach the Curator which particular Pages inside a family feel alive.
     func beliefProfile(for page: SurfacePage) -> PageBeliefProfile {
         pageBeliefProfiles[page.curatorContentNoveltyKey]
+            ?? pageBeliefProfiles[page.curatorLegacyContentNoveltyKey]
             ?? pageBeliefProfiles[page.varietyKey]
             ?? pageBeliefProfiles[page.sourceID]
             ?? BookPageSourceRegistry.beliefProfile(for: page.source)

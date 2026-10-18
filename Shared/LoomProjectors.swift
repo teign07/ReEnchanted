@@ -456,8 +456,8 @@ enum KeptPageProjector: LoomProjector {
         if page.hasReaderAudioRecording {
             out.append(LoomFeatureRef(
                 id: "media:voice", domain: "media", label: "your voice",
-                conditionClause: "you had spoken into the Book",
-                outcomeClause: "you spoke into the Book",
+                conditionClause: "you had spoken to me",
+                outcomeClause: "you spoke to me",
                 symbolName: "waveform", role: .either, provenance: .readerAuthored, rank: 72
             ))
         }

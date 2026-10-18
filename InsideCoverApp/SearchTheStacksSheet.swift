@@ -104,7 +104,7 @@ struct SearchTheStacksSheet: View {
                                             .transition(.opacity.combined(with: .move(edge: .leading)))
                                     }
                                 }
-                                .accessibilityLabel("The Book indexed: \(interpretedTerms.joined(separator: ", "))")
+                                .accessibilityLabel("I indexed: \(interpretedTerms.joined(separator: ", "))")
                             }
 
                             if query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -152,7 +152,7 @@ struct SearchTheStacksSheet: View {
             let quick = await clerk.lexicalResults(for: searchQuery)
             guard !Task.isCancelled else { return }
             results = quick
-            let deep = await clerk.hybridResults(for: searchQuery)
+            let deep = await clerk.hybridResults(for: searchQuery, lexicalResults: quick)
             guard !Task.isCancelled else { return }
             results = deep
         }
@@ -357,7 +357,7 @@ struct SearchTheStacksSheet: View {
             sourceID: "stacks-search",
             tags: ["search"]
         ), let raw = JSONSalvage.dictionary(from: response) else {
-            interpretationNote = "The Book squinted at the question but the index stayed dark. Plain words still work."
+            interpretationNote = "I squinted at the question but the index stayed dark. Plain words still work."
             return
         }
         let terms = (raw["terms"] as? [String]) ?? []

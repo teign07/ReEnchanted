@@ -19,7 +19,7 @@ final class BraidTextPolisherTests: XCTestCase {
 
         You touched the shoulder, found it cold, and left it hanging rather than move it near the heat where it would have dried by morning.
 
-        The Book kept the page: a coat left wet on purpose, and a Sunday not yet refused.
+        I kept the page: a coat left wet on purpose, and a Sunday not yet refused.
         """
 
         let polished = BraidTextPolisher.polishedBookOfYou(braid)
@@ -33,7 +33,7 @@ final class BraidTextPolisherTests: XCTestCase {
 
         The chair stood near the door and the coat hung without company beside it.
 
-        The Book kept the page: two quiet things left where they were.
+        I kept the page: two quiet things left where they were.
         """
 
         let polished = BraidTextPolisher.polishedBookOfYou(braid)
@@ -47,7 +47,7 @@ final class BraidTextPolisherTests: XCTestCase {
 
         Condensation caught on the glass near the lamp. The spoon clicked once and settled.
 
-        The Book kept the page: morning kept one clear edge.
+        I kept the page: morning kept one clear edge.
         """
 
         let polished = BraidTextPolisher.polishedBookOfYou(braid)
@@ -55,7 +55,7 @@ final class BraidTextPolisherTests: XCTestCase {
         XCTAssertTrue(polished.contains("The glass caught condensation by the lamp."))
         XCTAssertFalse(polished.contains("Condensation caught on the glass near the lamp."))
         XCTAssertTrue(polished.contains("The spoon clicked once and settled."))
-        XCTAssertTrue(polished.contains("The Book kept the page:"))
+        XCTAssertTrue(polished.contains("I kept the page:"))
     }
 
     func testPolisherRemovesRepeatedAbsenceMotifForSamePerson() {
@@ -66,7 +66,7 @@ final class BraidTextPolisherTests: XCTestCase {
 
         The silence held a lonely weight. It lacked Morgan's presence. The silence felt thin.
 
-        The Book kept the page: The light caught the condensation forming on the glass.
+        I kept the page: The light caught the condensation forming on the glass.
         """
 
         let polished = BraidTextPolisher.polishedBookOfYou(braid)
@@ -74,7 +74,7 @@ final class BraidTextPolisherTests: XCTestCase {
         XCTAssertTrue(polished.contains("It was lonely without Morgan near."))
         XCTAssertFalse(polished.contains("The silence felt lonely without Morgan."))
         XCTAssertFalse(polished.contains("It lacked Morgan's presence."))
-        XCTAssertTrue(polished.contains("The Book kept the page:"))
+        XCTAssertTrue(polished.contains("I kept the page:"))
     }
 
     func testPolisherLimitsParagraphsButPreservesClosing() {
@@ -91,13 +91,13 @@ final class BraidTextPolisherTests: XCTestCase {
 
         Six.
 
-        The Book kept the page: seven.
+        I kept the page: seven.
         """
 
         let polished = BraidTextPolisher.polishedBookOfYou(braid, maxParagraphs: 5, maxWords: 100)
         let paragraphs = polished.components(separatedBy: "\n\n")
 
         XCTAssertEqual(paragraphs.count, 5)
-        XCTAssertEqual(paragraphs.last, "The Book kept the page: seven.")
+        XCTAssertEqual(paragraphs.last, "I kept the page: seven.")
     }
 }

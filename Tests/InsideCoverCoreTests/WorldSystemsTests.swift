@@ -3095,7 +3095,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(preview?.payload.metadata["calendarDoorPreview"], "true")
         XCTAssertEqual(preview?.payload.metadata["requiresCalendarPermission"], "true")
         XCTAssertTrue(preview?.payload.body.contains("I want to see what's coming") == true)
-        XCTAssertTrue(preview?.payload.body.contains("A meeting before it pounces") == true)
+        XCTAssertTrue(preview?.payload.body.contains("before it pounces") == true)
     }
 
     func testCalendarDoorPreviewDoesNotInterruptExistingCalendarEvents() {
@@ -3893,8 +3893,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         // The reader meets the Book object, the Curse pact, and the one ask:
         // wake the sleeping brain, with the install checked before it counts.
         XCTAssertTrue(welcome?.payload.body.contains("This is the real me") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("we fight the Curse together") == true)
-        XCTAssertTrue(welcome?.payload.body.contains("its name is Gemma") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("against the Curse") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("name is Gemma") == true)
         XCTAssertTrue(welcome?.payload.body.contains("comes to live inside this phone") == true)
         XCTAssertTrue(welcome?.payload.body.contains("I'll test it") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
@@ -3916,7 +3916,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         ).first
 
         XCTAssertEqual(welcome?.payload.headline, "Oh. There You Are.")
-        XCTAssertTrue(welcome?.payload.body.contains("its name is Gemma") == true)
+        XCTAssertTrue(welcome?.payload.body.contains("name is Gemma") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
     }
 
@@ -4047,8 +4047,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(origin?.payload.body.contains("Not yet. Show me.") == true)
         XCTAssertTrue(origin?.payload.body.contains("peanut butter toast") == true)
         XCTAssertTrue(origin?.payload.body.contains("Small strange things count.") == true)
-        XCTAssertTrue(origin?.payload.body.contains("Funny little oddities") == true)
-        XCTAssertTrue(origin?.payload.body.contains("Let it get strange") == true)
+        XCTAssertTrue(origin?.payload.body.contains("funny little oddities") == true)
+        XCTAssertTrue(origin?.payload.body.contains("call me on my nonsense") == true)
     }
 
     func testInscriptionOriginSeparatesLegacyBookProseFromTheReadersFirstSentence() {
@@ -4071,7 +4071,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             now: startedAt
         ).first
 
-        XCTAssertTrue(origin?.payload.body.contains("First true sentence kept: The lamp made a small gold island on the desk.") == true)
+        XCTAssertTrue(origin?.payload.body.contains("The first true thing you gave me: \u{201C}The lamp made a small gold island on the desk.\u{201D}") == true)
         XCTAssertFalse(origin?.payload.body.contains("You picked up this Page") == true)
         XCTAssertFalse(origin?.payload.body.contains("The Page answered") == true)
     }
@@ -4094,7 +4094,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(welcome.sourceID, "labyrinth-welcome")
         XCTAssertEqual(welcome.payload.metadata["firstRunStep"], "first-door-welcome")
         XCTAssertTrue(welcome.payload.metadata["tags"]?.contains("local-brain") == true)
-        XCTAssertTrue(welcome.detail.contains("Open this first") == true)
+        XCTAssertTrue(welcome.detail.contains("Open me first") == true)
         XCTAssertTrue(welcome.payload.body.contains("Gemma") == true)
         XCTAssertTrue(FirstRunPageSequence.isCeremonySurface(welcome))
 
@@ -4163,6 +4163,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         ]
         inputs.firstRunEngagedKeys = [
             "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)",
             "source:labyrinth-welcome",
             "source:local-brain-awake"
         ]
@@ -4184,7 +4185,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(enchantment?.type, .enchantment)
         XCTAssertEqual(enchantment?.sourceID, FirstRunPageSequence.enchantmentIntroSourceID)
         XCTAssertEqual(enchantment?.payload.metadata["firstRunStep"], "enchantment-intro")
-        XCTAssertTrue(enchantment?.payload.body.contains("A little spell") == true)
+        XCTAssertTrue(enchantment?.payload.body.contains("little spell") == true)
 
         inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.enchantmentIntroSourceID)")
         inputs.calendarIntegrationEnabled = true
@@ -4219,6 +4220,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         ]
         inputs.firstRunEngagedKeys = [
             "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)",
             "source:local-brain-awake"
         ]
         inputs.localBrainIsReady = true
@@ -4334,6 +4336,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         ]
         inputs.firstRunEngagedKeys = [
             "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)",
             "source:labyrinth-welcome",
             "source:local-brain-awake",
             "source:\(FirstRunPageSequence.enchantmentIntroSourceID)"
@@ -4380,6 +4383,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         inputs.calendarIntegrationEnabled = true
         inputs.firstRunEngagedKeys = [
             "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)",
             "source:labyrinth-welcome",
             "source:local-brain-awake",
             "source:\(FirstRunPageSequence.enchantmentIntroSourceID)",
@@ -4509,6 +4513,36 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(FirstRunPageSequence.stepOwnsWholeDesk(welcome))
     }
 
+    /// How We Met no longer opens the Pagewright; it introduces itself on the
+    /// desk right after the first mission, once, and opens the worktable.
+    func testThePagewrightIntroducesItselfOnTheDeskAfterTheFirstMission() throws {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        inputs.calendarIntegrationEnabled = true
+        inputs.firstRunEngagedKeys = [
+            "source:labyrinth-welcome",
+            "source:\(FirstRunPageSequence.firstMissionSourceID)"
+        ]
+        let card = try XCTUnwrap(FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        ))
+        XCTAssertEqual(card.sourceID, FirstRunPageSequence.pagewrightIntroSourceID)
+        XCTAssertEqual(card.payload.metadata["opensPagewright"], "true")
+        XCTAssertTrue(card.payload.body.contains("Pagewright"))
+
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.pagewrightIntroSourceID)")
+        let next = FirstRunPageSequence.guidedRider(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: Date()
+        )
+        XCTAssertNotEqual(next?.sourceID, FirstRunPageSequence.pagewrightIntroSourceID)
+    }
+
     func testOptionalBrainDoesNotBlockTheLivingDeskOrLaterGuidance() {
         let now = date(2026, 6, 1, hour: 13, calendar: utcCalendar)
         let day = BookDay(id: "2026-06-01", date: now, pages: [])
@@ -4517,7 +4551,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         inputs.calendarIntegrationEnabled = true
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
-            "source:\(FirstRunPageSequence.firstMissionSourceID)"
+            "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)"
         ]
 
         XCTAssertNil(FirstRunPageSequence.surfaces(
@@ -4549,7 +4584,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         inputs.localBrainIsReady = true
         inputs.firstRunEngagedKeys = [
             "source:labyrinth-welcome",
-            "source:\(FirstRunPageSequence.firstMissionSourceID)"
+            "source:\(FirstRunPageSequence.firstMissionSourceID)",
+            "source:\(FirstRunPageSequence.pagewrightIntroSourceID)"
         ]
 
         XCTAssertNil(FirstRunPageSequence.surfaces(

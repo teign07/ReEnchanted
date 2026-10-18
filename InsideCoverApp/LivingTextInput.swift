@@ -1,4 +1,168 @@
 import SwiftUI
+import UIKit
+
+/// A visible leaf owns one arrival date. Prepared curl neighbors must not spend
+/// their reveal offscreen, and a recreated host must not replay settled ink.
+private struct BookLeafInkArrivalKey: EnvironmentKey {
+    static let defaultValue: Date? = nil
+}
+
+private struct BookLeafInkEnabledKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct BookInkSubmissionKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var bookLeafInkEnabled: Bool {
+        get { self[BookLeafInkEnabledKey.self] }
+        set { self[BookLeafInkEnabledKey.self] = newValue }
+    }
+
+    var bookInkSubmissionActive: Bool {
+        get { self[BookInkSubmissionKey.self] }
+        set { self[BookInkSubmissionKey.self] = newValue }
+    }
+    var bookLeafInkArrival: Date? {
+        get { self[BookLeafInkArrivalKey.self] }
+        set { self[BookLeafInkArrivalKey.self] = newValue }
+    }
+}
+
+enum BookInkTiming {
+    static let absorptionDuration = 1.65
+    static let arrivalDuration = 1.0
+    // Preserve the stagger and wet/dry proportions as the leaf clock shortens.
+    static let regionalDelaySpan = arrivalDuration * 0.40
+    static let regionalPhaseDuration = arrivalDuration * 0.56
+
+    /// Neighbouring sentences occupy different start bands, in a shuffled
+    /// order. Random offsets alone can bunch a whole paragraph together.
+    static func clockBand(_ seed: String, index: Int = 0) -> Int {
+        let order = [0, 2, 1]
+        let firstBand = Int(variation(seed, salt: 47) * 3)
+        let band = (firstBand + order[index % order.count]) % 3
+        return band * 3 + Int(variation(seed, salt: index + 101) * 2)
+    }
+
+    /// Three binary channels encode eight start times. Their endpoints survive
+    /// image colour conversion; grayscale timing data can be gamma-compressed.
+    static func clockColor(_ seed: String, index: Int = 0) -> UIColor {
+        let band = clockBand(seed, index: index)
+        return UIColor(red: band & 1 == 0 ? 0 : 1,
+                       green: band & 2 == 0 ? 0 : 1,
+                       blue: band & 4 == 0 ? 0 : 1, alpha: 1)
+    }
+
+    static func emergenceDelay(_ seed: String) -> Double {
+        Double(clockBand(seed)) / 7 * arrivalDuration / 3
+    }
+
+    static func emergenceDuration(_ seed: String) -> Double {
+        (0.78 + variation(seed, salt: 19) * 0.16) * arrivalDuration / 1.5
+    }
+
+    /// Each arrival inks a fresh pattern. The leaf's arrival date salts the
+    /// mark's seed, so a recreated host catching up to the same arrival still
+    /// draws the same stains, while the next time the leaf turns up differs.
+    static func arrivalSeed(_ seed: String, arrival: Date?) -> String {
+        guard let arrival else { return seed }
+        return "\(seed)@\(Int64(arrival.timeIntervalSinceReferenceDate * 1000))"
+    }
+
+    // Stable across launches; no abs(Int.min) or process-randomized Hasher.
+    static func variation(_ seed: String, salt: Int = 0) -> Double {
+        var hash: UInt64 = 14695981039346656037
+        for byte in "\(seed)|\(salt)".utf8 {
+            hash = (hash ^ UInt64(byte)) &* 1099511628211
+        }
+        return Double(hash % 10_000) / 10_000
+    }
+}
+
+extension View {
+    func bookInkEmergence(seed: String, sentenceClock: UIImage? = nil, isEnabled: Bool = true) -> some View {
+        modifier(BookInkEmergence(seed: seed, sentenceClock: sentenceClock, isEligible: isEnabled))
+    }
+
+    func bookInkAbsorption(isActive: Bool, seed: String, startedAt: Date? = nil) -> some View {
+        modifier(BookInkAbsorption(isActive: isActive, seed: seed, startedAt: startedAt))
+    }
+}
+
+private struct BookInkEmergence: ViewModifier {
+    let seed: String
+    let sentenceClock: UIImage?
+    let isEligible: Bool
+    @Environment(\.bookLeafInkArrival) private var arrival
+    @Environment(\.bookLeafInkEnabled) private var enabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @State private var progress: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(BookInkMaterialPhase(
+                progress: !isEligible || !enabled || reduceMotion || voiceOver ? 1 : progress,
+                seed: BookInkTiming.arrivalSeed(seed, arrival: arrival),
+                isSinking: false,
+                sentenceClock: sentenceClock
+            ))
+            .task(id: arrival) {
+                guard isEligible, enabled, !reduceMotion, !voiceOver else { return }
+                guard let arrival else { progress = 0; return }
+                // Stains begin on the first leaf frame. The shader owns each
+                // mark's later gathering phase, so stagger never hides the
+                // whole animation behind a task sleep.
+                let duration = BookInkTiming.arrivalDuration
+                let elapsed = Date().timeIntervalSince(arrival)
+                // Catch up to the leaf clock after host recreation or a late
+                // image load. Never restart an already settled illustration.
+                progress = min(1, max(0, elapsed / duration))
+                guard !Task.isCancelled, progress < 1 else { return }
+                withAnimation(.linear(duration: duration * (1 - progress))) {
+                    progress = 1
+                }
+            }
+    }
+}
+
+private struct BookInkAbsorption: ViewModifier {
+    let isActive: Bool
+    let seed: String
+    let startedAt: Date?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @State private var progress: Double = 0
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(BookInkMaterialPhase(
+                progress: reduceMotion || voiceOver ? (isActive ? 1 : 0) : progress,
+                seed: seed,
+                isSinking: true
+            ))
+            .onChange(of: isActive, initial: true) { _, active in
+                if active {
+                    let elapsed = startedAt.map { max(0, Date().timeIntervalSince($0)) } ?? 0
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        progress = min(1, elapsed / BookInkTiming.absorptionDuration)
+                    }
+                    withAnimation(.linear(duration: max(0, BookInkTiming.absorptionDuration - elapsed))) {
+                        progress = 1
+                    }
+                } else {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { progress = 0 }
+                }
+            }
+    }
+}
 
 private enum SentenceCustomChipTarget: Equatable {
     case move(tokenID: Int)
@@ -12,6 +176,14 @@ struct LivingTextEditor: View {
     var minHeight: CGFloat
     var builderPack: SentenceBuilderPack = .core
     var builderContext: SentenceBuilderContext = .empty
+    var isOnLeaf = true
+    var isAbsorbingInk = false
+    var inkAbsorptionStartedAt: Date? = nil
+
+    @FocusState private var isWriting: Bool
+    @Environment(\.bookInkSubmissionActive) private var submissionActive
+
+    private var inkIsSinking: Bool { isAbsorbingInk || submissionActive }
 
     @State private var isBuilderOpen = false
     @State private var selectedTokenID: Int?
@@ -52,7 +224,7 @@ struct LivingTextEditor: View {
         engine.souvenirShareText(for: text)
     }
 
-    private var builderStatusText: String {
+    private func builderStatusText(analysis: SentenceBuilderAnalysis) -> String {
         if analysis.isVivid {
             switch builderContext.intent {
             case .letterReply: return "Strong reply"
@@ -81,25 +253,36 @@ struct LivingTextEditor: View {
 
             ZStack(alignment: .topLeading) {
                 TextEditor(text: $text)
-                    .font(.body)
+                    .font(isOnLeaf ? .system(.body, design: .serif) : .body)
                     .foregroundStyle(BookPalette.ink)
                     .scrollContentBackground(.hidden)
+                    .focused($isWriting)
+                    .bookUIKitInkAbsorption(isActive: inkIsSinking, seed: title, startedAt: inkAbsorptionStartedAt)
                     .padding(.top, 34)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
                     .frame(minHeight: minHeight)
                     .inkFeedback(text: text)
                     .dictationInput(text: $text)
-                    .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .background(isOnLeaf ? Color.clear : BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                            .stroke(BookPalette.ink.opacity(isOnLeaf ? 0 : 0.14), lineWidth: 1)
+                    }
+                    .overlay(alignment: .bottom) {
+                        if isOnLeaf {
+                            Rectangle()
+                                .fill(BookPalette.ink.opacity(isWriting ? 0.24 : 0.10))
+                                .frame(height: 0.7)
+                                .padding(.horizontal, 15)
+                                .allowsHitTesting(false)
+                        }
                     }
 
-                if text.isEmpty {
+                if text.isEmpty, !inkIsSinking {
                     Text(placeholder)
                         .font(.body)
-                        .foregroundStyle(BookPalette.ink.opacity(0.3))
+                        .foregroundStyle(BookPalette.ink.opacity(isOnLeaf ? 0.48 : 0.3))
                         .padding(.horizontal, 15)
                         .padding(.top, 52)
                         .padding(.bottom, 18)
@@ -117,15 +300,25 @@ struct LivingTextEditor: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .environment(\.bookInkSubmissionActive, inkIsSinking)
+        .disabled(inkIsSinking)
+        .onChange(of: inkIsSinking) { _, absorbing in
+            if absorbing { isWriting = false; isBuilderOpen = false }
+        }
         .onChange(of: text) { _, _ in
             // Drop a stale selection if its word changed out from under us.
-            if let id = selectedTokenID, !scaffold.tokens.contains(where: { $0.id == id }) {
-                selectedTokenID = nil
-            }
-            if case let .move(tokenID) = customChipTarget,
-               !scaffold.tokens.contains(where: { $0.id == tokenID }) {
-                customChipTarget = nil
-                customChipText = ""
+            let movingTokenID: Int?
+            if case let .move(tokenID) = customChipTarget { movingTokenID = tokenID }
+            else { movingTokenID = nil }
+            if selectedTokenID != nil || movingTokenID != nil {
+                let tokens = scaffold.tokens
+                if let id = selectedTokenID, !tokens.contains(where: { $0.id == id }) {
+                    selectedTokenID = nil
+                }
+                if let tokenID = movingTokenID, !tokens.contains(where: { $0.id == tokenID }) {
+                    customChipTarget = nil
+                    customChipText = ""
+                }
             }
             handleTransmutation()
         }
@@ -155,7 +348,8 @@ struct LivingTextEditor: View {
 
     /// Fire the one-time "Tiny spell" shimmer the moment the sentence becomes vivid.
     private func handleTransmutation() {
-        if analysis.isVivid, !didTransmute {
+        let isVivid = analysis.isVivid
+        if isVivid, !didTransmute {
             didTransmute = true
             sentenceInkBurstTrigger += 1
             BookFeedback.play(.braidComplete)
@@ -163,7 +357,7 @@ struct LivingTextEditor: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
                 withAnimation(.easeOut(duration: 0.5)) { shimmer = false }
             }
-        } else if !analysis.isVivid {
+        } else if !isVivid {
             didTransmute = false
         }
     }
@@ -183,13 +377,14 @@ struct LivingTextEditor: View {
     }
 
     private var builderHeader: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let analysis = self.analysis
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .center, spacing: 8) {
                 Label(builderPack.ritualTitle, systemImage: "sparkle.magnifyingglass")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(BookPalette.lampGold)
                 Spacer()
-                Text(builderStatusText)
+                Text(builderStatusText(analysis: analysis))
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(analysis.canStandAsComplete ? BookPalette.teal : BookPalette.ink.opacity(0.56))
                     .padding(.horizontal, 8)
@@ -786,7 +981,9 @@ struct LivingTextEditor: View {
     }
 
     private var builderActions: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let canStand = analysis.canStandAsComplete
+        let shareText = self.shareText
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 if !shareText.isEmpty {
                     ShareLink(item: shareText) {
@@ -809,14 +1006,14 @@ struct LivingTextEditor: View {
                     }
                     BookFeedback.play(.braidComplete)
                 } label: {
-                    Label(analysis.canStandAsComplete ? "Keep sentence" : "Close helper", systemImage: analysis.canStandAsComplete ? "checkmark" : "xmark")
+                    Label(canStand ? "Keep sentence" : "Close helper", systemImage: canStand ? "checkmark" : "xmark")
                         .font(.caption.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
-                        .background((analysis.canStandAsComplete ? BookPalette.lampGold : BookPalette.page).opacity(analysis.canStandAsComplete ? 0.24 : 0.58), in: Capsule())
+                        .background((canStand ? BookPalette.lampGold : BookPalette.page).opacity(canStand ? 0.24 : 0.58), in: Capsule())
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(analysis.canStandAsComplete ? BookPalette.lampGold : BookPalette.ink.opacity(0.58))
+                .foregroundStyle(canStand ? BookPalette.lampGold : BookPalette.ink.opacity(0.58))
             }
         }
     }

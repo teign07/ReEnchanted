@@ -265,7 +265,7 @@ final class BraidKeptMaterialTests: XCTestCase {
         as expected: BraidDraftRejection,
         line: UInt = #line
     ) {
-        switch BraidDraftVerifier.verify(draft + "\nCOLOPHON The Book kept the page.", against: plan) {
+        switch BraidDraftVerifier.verify(draft + "\nCOLOPHON I kept the page.", against: plan) {
         case .success:
             XCTFail("draft was accepted: \(draft)", line: line)
         case .failure(let rejection):

@@ -170,14 +170,14 @@ final class BoundDayBookTests: XCTestCase {
 
     func testAWeeklyChapterIsNamedForWhatTheBookKept() throws {
         let book = try make(pages: [
-            page("b", .bookOfYou, day: 8, hour: 22, text: "The Kettle\n\nYou put the kettle on.\n\nThe Book kept the page: the kettle got its whole speech."),
+            page("b", .bookOfYou, day: 8, hour: 22, text: "The Kettle\n\nYou put the kettle on.\n\nI kept the page: the kettle got its whole speech."),
             page("d", .diary, day: 9, hour: 9, text: "Nothing much. Toast, standing up, and a long walk home.")
         ])
         let chapters = WeeklyTaleBuilder.chapters(of: book, from: date(8), to: date(14, hour: 23), calendar: calendar)
         XCTAssertEqual(chapters.count, 2)
         XCTAssertEqual(chapters[0].heading, "In which the kettle got its whole speech")
-        XCTAssertEqual(chapters[0].keptLine, "The Book kept the page: the kettle got its whole speech.")
-        XCTAssertFalse(chapters[0].telling?.contains("The Book kept the page") ?? true, "The colophon closes the chapter, not the telling.")
+        XCTAssertEqual(chapters[0].keptLine, "I kept the page: the kettle got its whole speech.")
+        XCTAssertFalse(chapters[0].telling?.contains("I kept the page") ?? true, "The colophon closes the chapter, not the telling.")
         XCTAssertTrue(chapters[0].opener.hasPrefix("Once upon a "))
         XCTAssertFalse(chapters[1].heading.contains("Toast"), "A heading is never the reader's own sentence.")
     }
@@ -368,7 +368,7 @@ final class BoundDayBookTests: XCTestCase {
 
     func testTheKeptLineIsTheNightsOwnClosing() {
         XCTAssertEqual(
-            BoundNightLine.keptLine(from: "You found the card.\n\nThe Book kept the page: the card came home from Portugal."),
+            BoundNightLine.keptLine(from: "You found the card.\n\nI kept the page: the card came home from Portugal."),
             "the card came home from Portugal."
         )
         XCTAssertEqual(BoundNightLine.keptLine(from: ""), "")
@@ -383,7 +383,7 @@ final class BoundDayBookTests: XCTestCase {
                 let d = calendar.date(from: DateComponents(year: 2026, month: month, day: day, hour: 20))!
                 days.append(BookDay(id: BookDay.id(for: d, calendar: calendar), date: calendar.startOfDay(for: d), pages: [
                     BookPage(id: "braid-\(month)-\(day)", type: .bookOfYou, createdAt: d, promptText: "Prompt",
-                             userInput: "Night \(month)/\(day)\n\nIt happened.\n\nThe Book kept the page: night \(month)/\(day) held.")
+                             userInput: "Night \(month)/\(day)\n\nIt happened.\n\nI kept the page: night \(month)/\(day) held.")
                 ]))
             }
         }
@@ -502,9 +502,9 @@ final class BoundDayBookTests: XCTestCase {
     }
 
     func testAColophonThatAlreadyHasAVerbIsNotGivenAnother() {
-        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("The Book kept the page: you heard the geese, even without seeing them.", readerWords: []),
+        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("I kept the page: you heard the geese, even without seeing them.", readerWords: []),
                        "In which you heard the geese, even without seeing them")
-        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("The Book kept the page: the cat on the long way.", readerWords: []),
+        XCTAssertEqual(WeeklyTaleBuilder.colophonHeading("I kept the page: the cat on the long way.", readerWords: []),
                        "In which there was the cat on the long way")
     }
 

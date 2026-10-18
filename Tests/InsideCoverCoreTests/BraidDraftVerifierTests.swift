@@ -58,7 +58,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let markerID = plan.markerID(forEvidenceID: "market#0.0")
         let draft = """
         LIVED:\(markerID) You bought plums at the market.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
 
         guard case .success(let accepted) = BraidDraftVerifier.salvage(
@@ -79,7 +79,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         The evening did what evenings do.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the night was lost to one unmarked line")
@@ -93,7 +93,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0 You felt lighter for the walk home.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the night was lost to one invented feeling")
@@ -109,7 +109,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         LIVED:market#0.1 You called Sam.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the honest half should have survived")
@@ -124,7 +124,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testADraftThatLosesTheAnchorIsRefusedWhole() {
         let draft = """
         BOOK:crow#0.0 The toll gate keeps its own hours.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .failure(let why) = salvage(draft) else {
             return XCTFail("a page with the anchor missing is not the night")
@@ -158,7 +158,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
 
         XCTAssertEqual(publication(draft).failure, .missingRequiredEvidence)
@@ -171,7 +171,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testOneTellingStillNeedsOneSafeNarrativeClaim() {
         let draft = """
         THE SCENE PLAN
-        COLOPHON The Book kept the page: nothing arrived.
+        COLOPHON I kept the page: nothing arrived.
         """
         guard case .failure = bestEffort(draft) else {
             return XCTFail("scaffold and a colophon are not narration")
@@ -197,7 +197,7 @@ final class BraidDraftVerifierTests: XCTestCase {
 
         WORLD:academy-toll-strike The eastern stair refused every toll.
         BOOK: f2, f5
-        COLOPHON The Book kept the page: the plum kept rolling.
+        COLOPHON I kept the page: the plum kept rolling.
         """
 
         let preview = BraidDraftVerifier.readerPreview(raw)
@@ -236,7 +236,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         LIVED:f1 space I watch the screen.
 
         WORLD:academy-frost space frost cut across the long window and halted.
-        COLOPHON The Book kept the page: the heat pump.
+        COLOPHON I kept the page: the heat pump.
         """
 
         let expected = """
@@ -244,7 +244,7 @@ final class BraidDraftVerifierTests: XCTestCase {
 
         frost cut across the long window and halted.
 
-        The Book kept the page: the heat pump.
+        I kept the page: the heat pump.
         """
         XCTAssertEqual(BraidDraftVerifier.readerPreview(raw), expected)
         XCTAssertEqual(BraidNarrativeOutput.cleaned(raw), expected)
@@ -252,30 +252,30 @@ final class BraidDraftVerifierTests: XCTestCase {
 
     // MARK: - What Rabbit's Gemma actually returns (2026-09-24)
 
-    /// Asked for a sentence beginning "The Book kept the page:", the phone's
+    /// Asked for a sentence beginning "I kept the page:", the phone's
     /// Gemma wrote exactly those words and stopped, on the same line as the
     /// last sentence. Only a stem on its own line used to be caught.
     func testADanglingColophonAtTheEndOfTheLastSentenceIsRemoved() {
-        let raw = "I watched the light shift across the dust, a silent vigil. The Book kept the page:"
+        let raw = "I watched the light shift across the dust, a silent vigil. I kept the page:"
         XCTAssertEqual(
             BraidNarrativeOutput.cleaned(raw),
             "I watched the light shift across the dust, a silent vigil."
         )
         XCTAssertEqual(
-            BraidNarrativeOutput.cleaned("The bell rang under the floor.\n\n\"The Book kept the page:\""),
+            BraidNarrativeOutput.cleaned("The bell rang under the floor.\n\n\"I kept the page:\""),
             "The bell rang under the floor."
         )
         XCTAssertEqual(
-            BraidNarrativeOutput.cleaned("The bell rang under the floor. The Book kept the page."),
+            BraidNarrativeOutput.cleaned("The bell rang under the floor. I kept the page."),
             "The bell rang under the floor."
         )
     }
 
     func testALandedColophonGetsItsOwnParagraph() {
-        let raw = "You put the bowl back. I objected to the pocket. The Book kept the page: the pocket kept growing."
+        let raw = "You put the bowl back. I objected to the pocket. I kept the page: the pocket kept growing."
         XCTAssertEqual(
             BraidNarrativeOutput.cleaned(raw),
-            "You put the bowl back. I objected to the pocket.\n\nThe Book kept the page: the pocket kept growing."
+            "You put the bowl back. I objected to the pocket.\n\nI kept the page: the pocket kept growing."
         )
     }
 
@@ -283,12 +283,12 @@ final class BraidDraftVerifierTests: XCTestCase {
         let raw = """
         You put the bowl back.
 
-        "The Book kept the page:"
+        "I kept the page:"
         the bowl went back where it lives.
         """
         XCTAssertEqual(
             BraidNarrativeOutput.cleaned(raw),
-            "You put the bowl back.\n\nThe Book kept the page: the bowl went back where it lives."
+            "You put the bowl back.\n\nI kept the page: the bowl went back where it lives."
         )
     }
 
@@ -303,8 +303,8 @@ final class BraidDraftVerifierTests: XCTestCase {
     }
 
     func testATellingCutOffByTheCeilingEndsOnItsLastFinishedSentence() {
-        let raw = "You put the bowl back. The pocket grew under my cover. The Book kept the page: the pocket kept gro"
-        let keeper = "The Book kept the page: it happened, and I wrote it down."
+        let raw = "You put the bowl back. The pocket grew under my cover. I kept the page: the pocket kept gro"
+        let keeper = "I kept the page: it happened, and I wrote it down."
         XCTAssertEqual(
             BraidNarrativeOutput.finished(raw, reachedCeiling: true, keeperColophon: keeper),
             "You put the bowl back. The pocket grew under my cover.\n\n\(keeper)"
@@ -321,15 +321,15 @@ final class BraidDraftVerifierTests: XCTestCase {
     }
 
     func testACopiedCommissionAfterTheColonCostsOnlyTheColophon() {
-        let keeper = "The Book kept the page: it happened, and I wrote it down."
-        let raw = "You made cold tea again. A pocket grew under my cover. The Book kept the page: then tells what one object from tonight did."
+        let keeper = "I kept the page: it happened, and I wrote it down."
+        let raw = "You made cold tea again. A pocket grew under my cover. I kept the page: then tells what one object from tonight did."
         XCTAssertEqual(
             BraidNarrativeOutput.finished(raw, reachedCeiling: false, keeperColophon: keeper),
             "You made cold tea again. A pocket grew under my cover.\n\n\(keeper)"
         )
         XCTAssertEqual(
             BraidNarrativeOutput.finished(
-                "The locket hummed. The Book kept the page: then showed the silver locket did.",
+                "The locket hummed. I kept the page: then showed the silver locket did.",
                 reachedCeiling: false,
                 keeperColophon: keeper
             ),
@@ -340,7 +340,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testTheBooksColophonInTheWrongMouthIsStillTheColophon() {
         XCTAssertEqual(
             BraidNarrativeOutput.cleaned("The moth ate the third shelf. I found the page: the moth left its secret."),
-            "The moth ate the third shelf.\n\nThe Book kept the page: the moth left its secret."
+            "The moth ate the third shelf.\n\nI kept the page: the moth left its secret."
         )
     }
 
@@ -360,7 +360,7 @@ final class BraidDraftVerifierTests: XCTestCase {
 
         While I was sorting the clutter, I watched the rain. I found it funny that the mug sulked.
 
-        The Book kept the page: the mug went on sulking.
+        I kept the page: the mug went on sulking.
         """
         let result = BraidPointOfView.returningTheReadersActions(in: prose, readerDay: readerDay)
         XCTAssertEqual(result.repaired, 2)
@@ -369,7 +369,7 @@ final class BraidDraftVerifierTests: XCTestCase {
 
         While I was sorting the clutter, I watched the rain. I found it funny that the mug sulked.
 
-        The Book kept the page: the mug went on sulking.
+        I kept the page: the mug went on sulking.
         """)
     }
 
@@ -411,10 +411,10 @@ final class BraidDraftVerifierTests: XCTestCase {
     }
 
     func testEveryFinishedBraidEndsOnTheRitualLine() {
-        let keeper = "The Book kept the page: it happened, and I wrote it down."
+        let keeper = "I kept the page: it happened, and I wrote it down."
         XCTAssertEqual(
             BraidNarrativeOutput.finished(
-                "The bell rang under the floor. The Book kept the page:",
+                "The bell rang under the floor. I kept the page:",
                 reachedCeiling: false,
                 keeperColophon: keeper
             ),
@@ -423,11 +423,11 @@ final class BraidDraftVerifierTests: XCTestCase {
         // Gemma's own landing is kept when it has one.
         XCTAssertEqual(
             BraidNarrativeOutput.finished(
-                "The bell rang under the floor. The Book kept the page: the bell rang for nobody.",
+                "The bell rang under the floor. I kept the page: the bell rang for nobody.",
                 reachedCeiling: false,
                 keeperColophon: keeper
             ),
-            "The bell rang under the floor.\n\nThe Book kept the page: the bell rang for nobody."
+            "The bell rang under the floor.\n\nI kept the page: the bell rang for nobody."
         )
         XCTAssertEqual(BraidNarrativeOutput.finished("", reachedCeiling: false, keeperColophon: keeper), "")
     }
@@ -479,7 +479,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         BOOK:f1 I hid one under the flyleaf. It complained.
         PARAGRAPH
         WORLD:academy-toll-strike The eastern stair refused every toll.
-        COLOPHON The Book kept the page: the plum kept rolling.
+        COLOPHON I kept the page: the plum kept rolling.
         """
 
         let preview = BraidDraftVerifier.readerPreview(raw)
@@ -493,7 +493,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
         PARAGRAPH
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: the plum kept rolling.
+        COLOPHON I kept the page: the plum kept rolling.
         """
 
         guard case .success(let kept) = bestEffort(draft) else {
@@ -508,7 +508,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: the plum kept rolling.
+        COLOPHON I kept the page: the plum kept rolling.
         """
 
         guard case .success(let kept) = bestEffort(draft) else {
@@ -524,7 +524,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         BOOK:market#0.0 \(leaked)
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: frost held the window.
+        COLOPHON I kept the page: frost held the window.
         """
 
         XCTAssertFalse(BraidDraftVerifier.readerPreview(draft).contains(leaked))
@@ -538,14 +538,14 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testAnEmptyColophonIsDroppedInsteadOfPrinted() {
         let draft = """
         BOOK:market#0.0 I tucked one plum under the flyleaf and heard it object.
-        COLOPHON The Book kept the page:
+        COLOPHON I kept the page:
         """
 
         guard case .success(let kept) = bestEffort(draft) else {
             return XCTFail("a broken craft ending should not cost the safe telling")
         }
         XCTAssertEqual(kept.dropped, [.malformedMarker])
-        XCTAssertFalse(kept.verified.text.contains("The Book kept the page:"))
+        XCTAssertFalse(kept.verified.text.contains("I kept the page:"))
     }
 
     /// The Book may name a pairing. It may never rule on one.
@@ -558,7 +558,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0,crow#0.0 The plums and the toll gate are really about the same refusal.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the honest sentences should have survived")
@@ -572,7 +572,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0,crow#0.0 The plums are on the same page as a toll gate, and I am leaving them there.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("noticing is not ruling")
@@ -584,7 +584,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:OWN I stole one plum for the gutter and the gutter demanded two.
-        COLOPHON The Book kept the page: the gutter is still bargaining.
+        COLOPHON I kept the page: the gutter is still bargaining.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the Book's own connective action should not need a false receipt")
@@ -610,7 +610,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
         BOOK:market#0.0 The plums arrived before I knew where to put them.
 
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
         guard case .success(let verified) = verify(draft) else {
             return XCTFail("refused: \(rejection(draft)?.rawValue ?? "?")")
@@ -628,7 +628,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         LIVED:market#0.0 You bought plums at the market.
         WORLD:crow#0.0 The crow at the toll gate named its price.
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
 
         XCTAssertEqual(publication(draft).failure, .missingRequiredEvidence)
@@ -639,7 +639,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         LIVED:market#0.0 You bought plums at the market.
         LIVED:market#0.1 You did not call Sam.
         WORLD:crow#0.0 The crow at the toll gate named its price.
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
 
         XCTAssertEqual(publication(draft).failure, .missingWorldBeat)
@@ -654,7 +654,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
         BOOK:market#0.0,crow#0.0 The plums and the toll gate have landed on the same page.
 
-        COLOPHON The Book kept the page: the plums outlasted the argument.
+        COLOPHON I kept the page: the plums outlasted the argument.
         """
 
         guard case .success(let accepted) = publication(draft) else {
@@ -674,7 +674,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         WORLD:crow#0.0 The crow at the toll gate named its price.
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
 
-        COLOPHON The Book kept the page: one plum still owes the stair a coin.
+        COLOPHON I kept the page: one plum still owes the stair a coin.
         """
 
         guard case .success(let accepted) = publication(draft) else {
@@ -695,7 +695,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         LIVED:market#0.1 You did not call Sam.
         WORLD:crow#0.0 The crow at the toll gate named its price.
         WORLD:academy-toll-strike The eastern stair has refused every toll since dusk.
-        COLOPHON The Book kept the page: the stair stayed hungry.
+        COLOPHON I kept the page: the stair stayed hungry.
         """
 
         XCTAssertEqual(
@@ -712,7 +712,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0 You cried beside the pool afterwards.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .claimedTheReadersLife)
     }
@@ -721,7 +721,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         WORLD:academy-toll-strike You walked the eastern stair until it gave in.
-        COLOPHON The Book kept the page: the stair held.
+        COLOPHON I kept the page: the stair held.
         """
         XCTAssertEqual(rejection(draft), .claimedTheReadersLife)
     }
@@ -730,7 +730,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         WORLD:academy-toll-strike A moonlit dragon ate the library clock.
-        COLOPHON The Book kept the page: the stair held.
+        COLOPHON I kept the page: the stair held.
         """
         XCTAssertEqual(rejection(draft), .ungroundedWorldClaim)
     }
@@ -741,7 +741,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0 I keep checking the chalk, which tells you what I expect.
-        COLOPHON The Book kept the page: the chalk held.
+        COLOPHON I kept the page: the chalk held.
         """
         XCTAssertNil(rejection(draft))
     }
@@ -751,7 +751,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testALivedSentenceMayNotReverseItsAtom() {
         let draft = """
         LIVED:market#0.1 You called Sam.
-        COLOPHON The Book kept the page: the call stood.
+        COLOPHON I kept the page: the call stood.
         """
         XCTAssertEqual(rejection(draft), .changedPolarity)
     }
@@ -759,7 +759,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testALivedSentenceMayNotAddAParticipant() {
         let draft = """
         LIVED:market#0.0 You bought plums at the market with your brother.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .inventedContent)
     }
@@ -768,7 +768,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testALivedSentenceMayBeRewritten() {
         let draft = """
         LIVED:market#0.0 At the market, plums.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertNil(rejection(draft))
     }
@@ -779,7 +779,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         The plums were heavier than they looked.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .missingMarker)
     }
@@ -787,7 +787,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testAnUnknownEvidenceIDRejectsTheDraft() {
         let draft = """
         LIVED:market#9.9 You bought plums at the market.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .unknownEvidenceID)
     }
@@ -797,7 +797,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testALivedClaimOnFictionIsTheWrongRealm() {
         let draft = """
         LIVED:crow#0.0 You met the crow at the toll gate.
-        COLOPHON The Book kept the page: the crow named its price.
+        COLOPHON I kept the page: the crow named its price.
         """
         XCTAssertEqual(rejection(draft), .wrongRealm)
     }
@@ -806,7 +806,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testAWorldClaimOnLivedEvidenceIsTheWrongRealm() {
         let draft = """
         WORLD:market#0.0 The market has been trading since before the Academy.
-        COLOPHON The Book kept the page: the market stood.
+        COLOPHON I kept the page: the market stood.
         """
         XCTAssertEqual(rejection(draft), .wrongRealm)
     }
@@ -816,7 +816,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let draft = """
         LIVED:market#0.0 You bought plums at the market.
         LIVED:market#0.0 You bought plums again on the way home.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .duplicateClaim)
     }
@@ -826,7 +826,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testOneLivedSentenceMayNotClaimTwoAtoms() {
         let draft = """
         LIVED:market#0.0,market#0.1 You called Sam about the plums.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .malformedMarker)
     }
@@ -843,7 +843,7 @@ final class BraidDraftVerifierTests: XCTestCase {
     func testAnUnknownRealmIsRefusedRatherThanGuessedAt() {
         let draft = """
         NARRATOR:market#0.0 You bought plums at the market.
-        COLOPHON The Book kept the page: the plums stayed.
+        COLOPHON I kept the page: the plums stayed.
         """
         XCTAssertEqual(rejection(draft), .missingMarker)
     }
@@ -898,7 +898,7 @@ final class BraidDraftVerifierTests: XCTestCase {
 
         You cried beside the pool for a long time afterwards.
 
-        The Book kept the page: the plums outlasted the afternoon.
+        I kept the page: the plums outlasted the afternoon.
         """
         let registerFailures = BraidOutputAudit
             .issues(in: invented, for: day, context: prepared)
@@ -910,7 +910,7 @@ final class BraidDraftVerifierTests: XCTestCase {
         let marked = """
         LIVED:market#0.0 You bought plums at the market.
         BOOK:market#0.0 You cried beside the pool for a long time afterwards.
-        COLOPHON The Book kept the page: the plums outlasted the afternoon.
+        COLOPHON I kept the page: the plums outlasted the afternoon.
         """
         XCTAssertEqual(
             BraidDraftVerifier.verify(marked, against: BraidScenePlanBuilder.plan(for: day)).failure,

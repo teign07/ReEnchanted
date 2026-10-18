@@ -59,7 +59,7 @@ final class AnnualEditionTests: XCTestCase {
 
                 The rain tapped the window while the lamp kept watch.
 
-                The Book kept the page: \(keptLine).
+                I kept the page: \(keptLine).
                 """,
                 tags: ["annual-test", "braid"],
                 sourceID: BookPageSourceRegistry.source(for: .bookOfYou).id
@@ -120,7 +120,7 @@ final class AnnualEditionTests: XCTestCase {
         let again = MonthlyEditionBuilder.annual(2026, from: days, readerName: "bj", now: date(12, 31), calendar: calendar)
         XCTAssertFalse(first.foreword.isEmpty)
         XCTAssertTrue(first.foreword.contains("2026"))
-        XCTAssertTrue(first.foreword.hasSuffix("\n\nThe Book"))
+        XCTAssertTrue(first.foreword.hasSuffix("\n\n- me"))
         XCTAssertFalse(first.closing.isEmpty)
         XCTAssertEqual(first, again, "the same year binds identically")
     }

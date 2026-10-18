@@ -340,7 +340,7 @@ struct TarotPageView: View {
                 .disabled(isAskingSerenity || isLocalBrainWorking || !localBrainIsReady)
 
                 if !localBrainIsReady {
-                    Text("Serenity needs the Book’s private mind installed for a full reading. The card notes above stay local and work without it.")
+                    Text("Serenity needs my private mind installed for a full reading. The card notes above stay local and work without it.")
                         .font(.caption)
                         .foregroundStyle(BookPalette.ink.opacity(0.64))
                 } else if !readingMessage.isEmpty {

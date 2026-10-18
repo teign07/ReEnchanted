@@ -58,7 +58,7 @@ def main():
         errors.append("pack: version must be a positive integer")
     # The app accepts an empty archetype list: a pack may carry only marks,
     # pencilings, word negotiations or undertakings. It must carry something.
-    other_content = ("marginaliaPack", "marginaliaSnippets", "wordNegotiations", "undertakings")
+    other_content = ("marginaliaPack", "marginaliaSnippets", "wordNegotiations", "undertakings", "interleafIllustrations")
     if not isinstance(pack["archetypes"], list):
         errors.append("pack: archetypes must be an array")
         fail(errors)
@@ -68,6 +68,45 @@ def main():
         fail(errors)
 
     seen_ids = set()
+    plates = pack.get("interleafIllustrations")
+    if plates is None:
+        plates = []
+    if not isinstance(plates, list):
+        errors.append("pack: interleafIllustrations must be an array")
+        plates = []
+    seen_plate_ids = set()
+    for index, plate in enumerate(plates):
+        where = f"interleafIllustrations[{index}]"
+        if not isinstance(plate, dict):
+            errors.append(f"{where}: must be an object")
+            continue
+        for key in ("id", "assetName", "title"):
+            if not isinstance(plate.get(key), str) or not plate[key].strip():
+                errors.append(f"{where}: missing or empty '{key}'")
+        plate_id = plate.get("id")
+        if isinstance(plate_id, str):
+            if plate_id in seen_plate_ids:
+                errors.append(f"{where}: duplicate illustration id")
+            seen_plate_ids.add(plate_id)
+        tags = plate.get("tags")
+        if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
+            errors.append(f"{where}: tags must be an array of strings")
+        trigger = plate.get("placementTrigger")
+        if trigger is not None:
+            if not isinstance(trigger, dict):
+                errors.append(f"{where}: placementTrigger must be an object")
+                continue
+            months = trigger.get("months")
+            if months is not None and (not isinstance(months, list) or any(type(month) is not int or not 1 <= month <= 12 for month in months)):
+                errors.append(f"{where}: months must contain integers from 1 to 12")
+            year = trigger.get("issueYear")
+            if year is not None and (type(year) is not int or year < 1):
+                errors.append(f"{where}: issueYear must be a positive integer")
+            for key in ("semanticTagsAny", "activeWorldEventIDs", "worldEventPhases"):
+                values = trigger.get(key)
+                if values is not None and (not isinstance(values, list) or any(not isinstance(value, str) for value in values)):
+                    errors.append(f"{where}: {key} must be an array of strings")
+
     for index, archetype in enumerate(pack["archetypes"]):
         where = f"archetype[{index}] ({archetype.get('id', '?')})"
         for key in ("id", "title", "headline", "detail", "reason", "bodyTemplate"):
@@ -84,6 +123,9 @@ def main():
             if not (0 <= hour <= 23):
                 errors.append(f"{where}: activeHours entry {hour} out of range 0-23")
         style = archetype.get("renderStyleRaw")
+        density = archetype.get("leafMarginaliaDensity")
+        if density is not None and density not in ("quiet", "ordinary", "rich", "overdone"):
+            errors.append(f"{where}: leafMarginaliaDensity must be quiet, ordinary, rich or overdone")
         if style and style not in KNOWN_RENDER_STYLES:
             errors.append(f"{where}: renderStyleRaw '{style}' not in {sorted(KNOWN_RENDER_STYLES)}")
         check_placeholders(archetype.get("bodyTemplate"), f"{where} bodyTemplate", errors)

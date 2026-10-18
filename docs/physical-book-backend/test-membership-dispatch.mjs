@@ -23,14 +23,12 @@ let membershipPrice = "price_annual";
 let membershipLive = false;
 let invoiceRequests = 0;
 function paidInvoice(month, cadence = "annual") {
-  // Every paid month here was paid out to the bank long ago.
-  kvValues.set(`funds-in-bank/txn_${month.replace("-", "")}`, "{}");
   const start = new Date(`${month}-21T12:00:00Z`);
   const end = new Date(start);
   end.setUTCMonth(end.getUTCMonth() + (cadence === "annual" ? 12 : 1));
   return {
     id: `in_${month}`, subscription: "sub_member", livemode: false, status: "paid", paid: true, amount_paid: 5000,
-    payment_intent: { status: "succeeded", latest_charge: { paid: true, amount: 5000, amount_refunded: 0, refunded: false, disputed: false, balance_transaction: `txn_${month.replace("-", "")}` } },
+    payment_intent: { status: "succeeded", latest_charge: { paid: true, livemode: false, currency: "usd", amount: 5000, amount_refunded: 0, refunded: false, disputed: false, balance_transaction: `txn_${month.replace("-", "")}` } },
     lines: { data: [{
       type: "subscription", subscription: "sub_member", proration: false, price: { id: `price_${cadence}` }, amount: 5000,
       period: { start: start.getTime() / 1000, end: end.getTime() / 1000 },
@@ -60,6 +58,7 @@ const r2 = {
   },
 };
 const env = {
+  PHYSICAL_BOOK_ADMIN_TOKEN: "test-admin-token",
   STRIPE_SECRET_KEY: "sk_test_mock",
   STRIPE_WEBHOOK_SECRET: "whsec_test_mock",
   STRIPE_BOUND_YEAR_MONTHLY_PRICE: "price_monthly",
@@ -132,6 +131,10 @@ globalThis.fetch = async (url, init = {}) => {
   if (href.endsWith("/v1/customers/cus_member")) return json({
     id: "cus_member", email: "reader@example.com", shipping: stripeShipping,
   });
+  if (new URL(href).pathname === "/v1/payouts/po_annual") return json({ id: "po_annual", status: "paid", automatic: true, type: "bank_account", method: "standard", reconciliation_status: "completed", amount: 4800, currency: "usd", livemode: false });
+  if (new URL(href).pathname === "/v1/balance_transactions") return json({ data: [{ id: "txn_202408", net: 4800, currency: "usd", type: "charge" }], has_more: false });
+  if (new URL(href).pathname === "/v1/balance_transactions/txn_202408") return json({ id: "txn_202408", net: 4800, currency: "usd", source: paidInvoices[0].payment_intent.latest_charge });
+  if (href.endsWith("/print-job-cost-calculations/")) return json({ currency: "USD", total_cost_incl_tax: "10.00" });
   if (href === env.LULU_AUTH_URL) return json({ access_token: "lulu-token" });
   if (href.includes("/print-jobs/?")) return json({ count: recoveredLuluJobs.length, next: null, results: recoveredLuluJobs });
   if (href.endsWith("/cover-dimensions/")) {
@@ -354,13 +357,16 @@ for (const kind of ["interior", "cover"]) {
   check(uploaded.response.status === 201, `${kind} PDF is accepted`);
 }
 
+const bankConfirmation = await worker.fetch(new Request("https://test/admin/printing-cash/confirm-deposit", { method: "POST", headers: { Authorization: `Bearer ${env.PHYSICAL_BOOK_ADMIN_TOKEN}`, "Content-Type": "application/json" }, body: JSON.stringify({ payoutID: "po_annual", receiptReference: "receipt_annual_test", depositedCents: 4800, printingCents: 4800, protectedForPrinting: true }) }), env);
+check(bankConfirmation.status === 200, "the annual charge has explicitly confirmed printing cash");
+membershipStatus = "canceled";
 console.log("Submitting without another charge:");
 const submitted = await send("/memberships/sub_member/dispatches/2024-S08/orders", token, {
   method: "POST",
   headers: { "X-Membership-Dispatch-Token": prepared.body.dispatchToken },
   body: "{}",
 });
-check(submitted.response.status === 201, "the prepaid parcel reaches Lulu");
+check(submitted.response.status === 201, "a funded earned parcel still reaches Lulu after cancellation");
 check(submitted.body.luluPrintJobID === "print-job-1", "the Lulu receipt returns");
 check(luluPayloads[0].line_items[0].title === request.editionTitle, "the saved seasonal edition title reaches Lulu");
 

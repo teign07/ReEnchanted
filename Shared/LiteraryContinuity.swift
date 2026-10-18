@@ -11535,16 +11535,21 @@ enum BookInteriorEngine {
 
     private static func eligibleFavoritePages(_ pages: [BookPage]) -> [BookPage] {
         let excluded: Set<BookPageType> = [.body, .fuel, .mood, .rest, .supportGuild, .askTheBook]
-        return pages
+        let eligible = pages
             .filter { !excluded.contains($0.type) }
             .filter { !isOnboardingPage($0) }
             .filter { favoriteText(for: $0)?.count ?? 0 >= 12 }
+        // Scored once per Page, then ordered by the scores. Scoring inside the
+        // comparator re-read every Page's evidence on every comparison, which
+        // made this the costliest step of each desk rebuild on a long archive.
+        // Same comparison, same stable sort, same order.
+        let ranked = eligible.indices
+            .map { (index: $0, score: favoriteScore(eligible[$0]), createdAt: eligible[$0].createdAt) }
             .sorted { lhs, rhs in
-                let leftScore = favoriteScore(lhs)
-                let rightScore = favoriteScore(rhs)
-                if leftScore == rightScore { return lhs.createdAt > rhs.createdAt }
-                return leftScore > rightScore
+                if lhs.score == rhs.score { return lhs.createdAt > rhs.createdAt }
+                return lhs.score > rhs.score
             }
+        return ranked.map { eligible[$0.index] }
     }
 
     private static func isOnboardingPage(_ page: BookPage) -> Bool {
@@ -12946,7 +12951,11 @@ enum BookInteriorEngine {
         for index in state.acquiredTastes.indices {
             let kind = state.acquiredTastes[index].kind
             guard let evidence = evidenceByKind[kind] else { continue }
-            let ids = evidence.sorted { $0.createdAt < $1.createdAt }.map(\.id)
+            // Ordered by date without moving whole Pages: sorting the Pages
+            // themselves copies a few kilobytes per swap.
+            let ids = evidence.map { (createdAt: $0.createdAt, id: $0.id) }
+                .sorted { $0.createdAt < $1.createdAt }
+                .map(\.id)
             let newIDs = ids.filter { !state.acquiredTastes[index].evidencePageIDs.contains($0) }
             guard !newIDs.isEmpty else { continue }
             state.acquiredTastes[index].evidencePageIDs = Array(ids.suffix(16))
@@ -13090,15 +13099,19 @@ enum BookInteriorEngine {
             ))
         }
 
+        // Each Page's searchable text, lowercased once rather than once per
+        // Cast member.
+        let searchableTexts = pages.map { page in
+            "\(page.promptText) \(page.userInput) \(page.playerReply) \(page.tags.joined(separator: " "))".lowercased()
+        }
         for index in state.loyalties.indices where state.loyalties[index].targetKind == .castMember {
             let targetID = state.loyalties[index].targetID
             let targetName = state.loyalties[index].targetName.lowercased()
-            let pageEvidence = pages.filter { page in
-                let text = "\(page.promptText) \(page.userInput) \(page.playerReply) \(page.tags.joined(separator: " "))".lowercased()
-                return text.contains(targetID) || text.contains(targetName)
-            }
+            let pageEvidenceIDs = pages.indices
+                .filter { searchableTexts[$0].contains(targetID) || searchableTexts[$0].contains(targetName) }
+                .map { pages[$0].id }
             state.loyalties[index].evidencePageIDs = Array(Set(
-                state.loyalties[index].evidencePageIDs + pageEvidence.map(\.id)
+                state.loyalties[index].evidencePageIDs + pageEvidenceIDs
             ).sorted().suffix(16))
 
             let pairKey = NarrativeGraphData.relationshipPairKey("the-book", targetID)
@@ -13126,7 +13139,7 @@ enum BookInteriorEngine {
                 previousStance: previous,
                 newStance: desiredStance,
                 reason: reason,
-                evidencePageIDs: Array(pageEvidence.map(\.id).suffix(8)),
+                evidencePageIDs: Array(pageEvidenceIDs.suffix(8)),
                 revisedAt: now
             ))
             state.loyalties[index].revisions = Array(state.loyalties[index].revisions.suffix(12))
@@ -16006,7 +16019,7 @@ enum BraidPromptBuilder {
             RECENT HOUSE HABITS. REST THESE MOVES:
             \(restedPatterns.prefix(8).map { "- \($0)" }.joined(separator: "\n"))
 
-            FRESHNESS LAW: (These are fingerprints of your own recent prose, not facts and not material for tonight.) Do not repeat or lightly paraphrase them. Changing only the ordinary noun still counts as repetition. (Change the sentence move, the objection, and the way the paragraph turns. Do not merely trade one animated noun for another.) The ritual stem "The Book kept the page:" remains required; everything after the colon must earn a different landing., If fidelity leaves only one honest sentence, keep the truth and accept the repetition. Novelty never outranks evidence.
+            FRESHNESS LAW: (These are fingerprints of your own recent prose, not facts and not material for tonight.) Do not repeat or lightly paraphrase them. Changing only the ordinary noun still counts as repetition. (Change the sentence move, the objection, and the way the paragraph turns. Do not merely trade one animated noun for another.) The ritual stem "I kept the page:" remains required; everything after the colon must earn a different landing., If fidelity leaves only one honest sentence, keep the truth and accept the repetition. Novelty never outranks evidence.
             """
         }
 
@@ -16147,6 +16160,10 @@ enum BraidPromptBuilder {
         var nowPlaying: String?
         var radioNarrativeEcho: RadioNarrativeEcho?
         var activeWorldEvents: [ResolvedWorldEvent] = []
+        /// Actual printed public world matter, including papers not Kept.
+        /// It coordinates today's pulse; it never counts as reader evidence.
+        var bleedPrintHistory: [BleedPrintRecord] = []
+        var worldStoryCutoff: Date? = nil
         /// Only encountered, frozen monthly outcomes selected for this night.
         /// Kept separately from real-life evidence and current phase packets.
         var authoredStoryReceipts: [AuthoredContentReceipt] = []
@@ -16341,6 +16358,7 @@ enum BraidPromptBuilder {
         learnedNotes: [String] = [],
         nowPlaying: String? = nil,
         activeWorldEvents: [ResolvedWorldEvent] = [],
+        bleedPrintHistory: [BleedPrintRecord] = [],
         castUndertakings: [CastUndertaking] = [],
         readerLexicon: ReaderLexicon = ReaderLexicon(),
         readerLearning: ReaderLearningModel = ReaderLearningModel(),
@@ -16508,6 +16526,8 @@ enum BraidPromptBuilder {
             learnedGuidance: merged.signals.isEmpty ? nil : merged,
             nowPlaying: nowPlaying,
             activeWorldEvents: activeWorldEvents,
+            bleedPrintHistory: bleedPrintHistory,
+            worldStoryCutoff: now,
             castUndertakings: castUndertakings,
             readerLexicon: readerLexicon,
             readerLearningPromptLines: contextualReaderLearning.promptLines(now: now),
@@ -17870,7 +17890,7 @@ enum BraidPromptBuilder {
         Braid the kept pages into one grounded, intimate tale about this particular day. The Book of You is one continuing book, not a stack of summaries.
         \(taleReading.promptSection)
 
-        TRUTH BEFORE SPELL: (The supplied tale reading chooses emphasis, not new facts. Today's kept pages remain the authority.) Silently choose a short title for the day, 2 to 7 concrete words. Print it as the first line with no "Title:" label. (Write in second-person past tense and hold that lens. Follow the real clock when time matters.) The selected narrative motion replaces a compulsory plot template. Do not force Once/Because/Until beats the day did not contain. (Make the causal movement legible: what entered, changed, cost, returned, was tended, was refused, or remained unresolved.) End with exactly one sentence beginning "The Book kept the page:". The ritual line may preserve, witness, name a price, leave a door open, or admit the Book does not understand yet.
+        TRUTH BEFORE SPELL: (The supplied tale reading chooses emphasis, not new facts. Today's kept pages remain the authority.) Silently choose a short title for the day, 2 to 7 concrete words. Print it as the first line with no "Title:" label. (Write in second-person past tense and hold that lens. Follow the real clock when time matters.) The selected narrative motion replaces a compulsory plot template. Do not force Once/Because/Until beats the day did not contain. (Make the causal movement legible: what entered, changed, cost, returned, was tended, was refused, or remained unresolved.) End with exactly one sentence beginning "I kept the page:". The ritual line may preserve, witness, name a price, leave a door open, or admit the Book does not understand yet.
 
         ONE TALE, TWO KINDS OF RECEIPT: (Internally, each kept page retains its provenance. In the finished prose, never announce a shelf, label a world, or explain the crossing.) Only lived receipts license ordinary claims about the reader's life. Labyrinth receipts may answer, steal from, rehearse, contradict, or impose one impossible relation on those facts. (A Keep does not transfer authorship. On a Book-authored Page, only lines labelled Reader's own words, Reader's fiction choice, Reader supplied a photograph, or Reader supplied a voice recording belong to the reader. Everything else on that Page is the Book's writing.) Give both kinds dignity, not equal word count. Let them share one tale while leaving each supplied mundane action intact. One-Sentence Souvenirs remain the strongest single spine candidates, because they are the reader choosing one true line. (A Labyrinth Page where the reader made a real decision) a chosen Story Page path, a paid bargain, an answered parley (may carry the spine as a choice, never as prose the reader wrote.) When receipts disagree about ordinary facts, the lived receipt wins. The crossing may trouble reality; it may not overwrite the receipt.
         \(souvenirSection)\(meaningfulSpineSection)\(supportingLogs)
@@ -17880,7 +17900,7 @@ enum BraidPromptBuilder {
         KEPT PAGES FROM TODAY. COMPLETE COMPACT LEDGER (\(eligiblePages.count) pages):
         \(evidence.isEmpty ? "- No kept pages yet. Write a quiet note about waiting for the day to gather." : evidence)\(clashSection)\(themeSection)\(chapterSection)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(RadioAtmosphere.promptSection(context.nowPlaying))\(RadioNarrativeEchoPrompt.section(context.radioNarrativeEcho))\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.continuityBeat?.promptSection ?? "")\(continuity)\(context.braidStyleMemory.promptSection)
 
-        FINAL WEAVING CHECK: (The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.) For a Full Braid, carry at least three distinct non-log details across at least four paragraphs. For a Small Braid, carry at least two distinct non-log details across at least three paragraphs. (If non-log pages exist, Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph and may not own the title or ending.) End with the required sentence beginning "The Book kept the page:".
+        FINAL WEAVING CHECK: (The ledger above contains all \(eligiblePages.count) braid-eligible kept pages; its excerpts are compact, not a ranking that permits later pages to erase earlier ones.) For a Full Braid, carry at least three distinct non-log details across at least four paragraphs. For a Small Braid, carry at least two distinct non-log details across at least three paragraphs. (If non-log pages exist, Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph and may not own the title or ending.) End with the required sentence beginning "I kept the page:".
         """
     }
 
@@ -18112,7 +18132,7 @@ enum BraidPromptBuilder {
         OPTIONAL COLOR, NEVER THE PLOT:
         \(color)\(learnedSection)\(readerLearningSection)\(memorySpineSection)\(semanticEchoSection)\(readerRoleSection(context.readerRole, transformation: context.roleTransformationClause))\(taleLawSection(context.standingTaleLaws))\(openTaleSection(context.openTale))\(readerStorySection(for: day, context: context))\(shadowSection(for: day, context: context))\(context.continuityBeat?.promptSection ?? "")\(context.activeWorldEvents.bookOfYouPromptSection)\(context.readerLexicon.languageLawSection())\(context.braidStyleMemory.promptSection)
 
-        WRITING CONTRACT: (First line: an unlabeled title of 2 to 7 concrete words.) Then \(score.taleReading.scale.promptLine) (Second-person past tense. Follow the supplied clock.) Carry the score's causal movement: what entered, changed, cost, returned, was refused, or remained unresolved.. Let the selected Labyrinth receipt and lived receipts trespass into one continuous tale. Never label the seam. (A Keep does not transfer authorship. Only ledger atoms explicitly labelled as the reader's words, choice, photograph, or recording belong to the reader; Book-authored Page text remains mine.) Preserve the actual fictional actor or phrase the reader's participation as a choice; do not rewrite a staged action as ordinary external biography. (Dramatize the relational lens through supplied details. Never mention statistics, confidence tiers, vectors, analysis, patterns, or an archive.) Give agency to at most one supplied ordinary thing. The strange relation must have a consequence; decorative whimsy fails. (Use at least two distinct non-log receipts on a Small Braid and three on a Full Braid. Do not list the day.) Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph when lived non-log pages exist. (Quote at most one short supplied phrase. Never explain symbolism.) Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, generic inspiration, and unsupported moth/moon/lamp/key/threshold imagery.. End with exactly one sentence beginning "The Book kept the page:". Fulfil the score's ending duty there without copying it verbatim.
+        WRITING CONTRACT: (First line: an unlabeled title of 2 to 7 concrete words.) Then \(score.taleReading.scale.promptLine) (Second-person past tense. Follow the supplied clock.) Carry the score's causal movement: what entered, changed, cost, returned, was refused, or remained unresolved.. Let the selected Labyrinth receipt and lived receipts trespass into one continuous tale. Never label the seam. (A Keep does not transfer authorship. Only ledger atoms explicitly labelled as the reader's words, choice, photograph, or recording belong to the reader; Book-authored Page text remains mine.) Preserve the actual fictional actor or phrase the reader's participation as a choice; do not rewrite a staged action as ordinary external biography. (Dramatize the relational lens through supplied details. Never mention statistics, confidence tiers, vectors, analysis, patterns, or an archive.) Give agency to at most one supplied ordinary thing. The strange relation must have a consequence; decorative whimsy fails. (Use at least two distinct non-log receipts on a Small Braid and three on a Full Braid. Do not list the day.) Weather, Body, Inner Weather, Fuel, and Rest together may color at most one short paragraph when lived non-log pages exist. (Quote at most one short supplied phrase. Never explain symbolism.) Avoid journey, profound, tapestry, echoes, hidden meaning, glimmer, generic inspiration, and unsupported moth/moon/lamp/key/threshold imagery.. End with exactly one sentence beginning "I kept the page:". Fulfil the score's ending duty there without copying it verbatim.
 
         Write in the Book's own voice, as your standing instructions describe it.
         Write only the finished page now.
@@ -18158,7 +18178,7 @@ enum BraidPromptBuilder {
         The reader's carried sentence for tonight is from \(anchor.pageTitle), kept at \(formatter.string(from: anchor.keptAt)): "\(anchor.keptText)"
         Why it matters: \(anchor.reason).
 
-        SOUVENIR RULE: (Let this sentence govern the braid's emphasis. Its concrete thing should affect the selected motion and normally return transformed in "The Book kept the page:".) Do not force it through opening, turn, and closing when tonight's honest form is a Vigil, Absence, or Glimpse. (Do not paste the full sentence back. Carry its image, object, action, or pressure through the braid so the reader can feel the Book read it.) If fiction pages are vivid, braid them around this sentence rather than away from it.
+        SOUVENIR RULE: (Let this sentence govern the braid's emphasis. Its concrete thing should affect the selected motion and normally return transformed in "I kept the page:".) Do not force it through opening, turn, and closing when tonight's honest form is a Vigil, Absence, or Glimpse. (Do not paste the full sentence back. Carry its image, object, action, or pressure through the braid so the reader can feel the Book read it.) If fiction pages are vivid, braid them around this sentence rather than away from it.
         """
     }
 
@@ -18379,7 +18399,7 @@ enum BraidPromptBuilder {
         \(reading.scale.promptLine)
         Motion: \(reading.motion.promptLine)
         Faerie pressure: \(reading.pressure.promptLine)
-        Truth anchor: \(reading.anchor.isEmpty ? "none supplied" : reading.anchor) (Use only supplied facts, in second-person past tense.) Carry distinct concrete details from the whole day rather than reciting a list. (Weather, Body, Inner Weather, Fuel, and Rest together may occupy at most one short paragraph when non-log pages exist.) End with exactly one sentence beginning "The Book kept the page:".
+        Truth anchor: \(reading.anchor.isEmpty ? "none supplied" : reading.anchor) (Use only supplied facts, in second-person past tense.) Carry distinct concrete details from the whole day rather than reciting a list. (Weather, Body, Inner Weather, Fuel, and Rest together may occupy at most one short paragraph when non-log pages exist.) End with exactly one sentence beginning "I kept the page:".
         \(scoreSection)
 
         COMPLETE LEDGER. ALL \(braidEligiblePages(in: day).count) BRAID-ELIGIBLE KEPT PAGES:
@@ -18856,7 +18876,7 @@ enum BraidOutputAudit {
             case .tooFewParagraphs:
                 return "Build the required multi-paragraph movement instead of compressing the day into one block."
             case .missingRitualEnding:
-                return "Finish with exactly one sentence beginning The Book kept the page:."
+                return "Finish with exactly one sentence beginning I kept the page:."
             case .missingTruthAnchor:
                 return "Restore a concrete word, object, action, or image from the supplied truth anchor."
             case .tooFewEvidenceThreads:
@@ -18876,7 +18896,7 @@ enum BraidOutputAudit {
             case .exposedRealitySeam:
                 return "Remove labels such as fiction, real life, lived shelf, or margins. Let the provenanced worlds cross without announcing the seam."
             case .bookSpokeFromOutside:
-                return "Speak as I, me, and my. The fixed keeper colophon is the only place allowed to say The Book."
+                return "Speak as I, me, and my. Never call yourself the Book."
             case .servantVoice:
                 return "Remove generic service language and unsolicited advice. Say what the Book noticed or did in ordinary words. Keep any kindness that belongs to the actual exchange."
             case .consoledUnbidden:
@@ -18976,7 +18996,7 @@ enum BraidOutputAudit {
         if paragraphs.count < minimumParagraphs(for: reading.scale) {
             result.append(.tooFewParagraphs)
         }
-        if !normalized.contains("The Book kept the page:") { result.append(.missingRitualEnding) }
+        if !BraidColophon.contains(normalized) { result.append(.missingRitualEnding) }
 
         let outputWords = contentWords(in: normalized)
         let anchorWords = contentWords(in: reading.anchor).subtracting(genericEvidenceWords)
@@ -19109,7 +19129,7 @@ enum BraidOutputAudit {
             for: day,
             context: context
         )
-        let spokenText = authoredText.replacingOccurrences(of: "The Book kept the page:", with: "")
+        let spokenText = BraidColophon.removingStems(from: authoredText)
         if spokenText.range(
             of: #"\bthe book\b"#,
             options: [.regularExpression, .caseInsensitive]
@@ -19232,7 +19252,7 @@ enum BraidOutputAudit {
     /// been removed by the caller, and the ritual colophon is excluded.
     static func hasClericalCadence(in text: String) -> Bool {
         let body = text.replacingOccurrences(
-            of: #"(?im)^The Book kept the page:.*$"#,
+            of: #"(?im)^(?:I|The Book) kept the page:.*$"#,
             with: "",
             options: .regularExpression
         )
@@ -19498,7 +19518,10 @@ struct BraidComposition: Equatable {
         }
         let openings = texts.map { BraidComposition.openingWord(of: $0) }
         var repeated = 0
-        for index in 1..<max(openings.count, 1) where openings[index] == openings[index - 1] {
+        // The colophon's "I kept the page:" is a fixed ritual, not a choice of
+        // opening, so it never counts as echoing the sentence before it.
+        for index in 1..<max(openings.count, 1)
+        where openings[index] == openings[index - 1] && !BraidColophon.starts(texts[index]) {
             repeated += 1
         }
         var longestFlat = 1
@@ -22346,7 +22369,7 @@ enum DeterministicBraidwright {
         if plan.hasUnclearedShadow {
             return (
                 "colophon:plain-shadow",
-                "The Book kept the page: the words stayed in the order they came."
+                "I kept the page: the words stayed in the order they came."
             )
         }
         let subject = articleSubject(plan.magicSubject ?? plan.primaryDisplay)
@@ -22354,7 +22377,7 @@ enum DeterministicBraidwright {
         guard plan.allowsNewMagic else {
             return (
                 "colophon:no-magic",
-                "The Book kept the page: \(subject) stayed exact, and I kept the rough edge."
+                "I kept the page: \(subject) stayed exact, and I kept the rough edge."
             )
         }
 
@@ -22418,7 +22441,7 @@ enum DeterministicBraidwright {
         }
         return (
             "colophon:\(pressure.rawValue):\(chosen)",
-            "The Book kept the page: \(endings[chosen])"
+            "I kept the page: \(endings[chosen])"
         )
     }
 
@@ -22433,7 +22456,7 @@ enum DeterministicBraidwright {
                     "We argued over whose turn it was. The blank won and sat on the good ink until midnight."
                 ),
                 [BraidSentence(
-                    text: "The Book kept the page: the blank kept the good ink and would not say what it wanted.",
+                    text: "I kept the page: the blank kept the good ink and wouldn't say what it wanted.",
                     provenance: .colophon
                 )]
             ],
@@ -22470,7 +22493,7 @@ enum DeterministicBraidwright {
                 )],
                 authoredUnits("My pencil prowled once around the edge and stopped."),
                 [BraidSentence(
-                    text: "The Book kept the page: the scrap kept its own words.",
+                    text: "I kept the page: the scrap kept its own words.",
                     provenance: .colophon
                 )]
             ],
@@ -23233,7 +23256,7 @@ struct BraidPageDetails: Equatable {
     /// as a small kicker above the braid so the reveal pays off the evening tease.
     var promiseEcho: String?
     /// A rare backwards-only question, shown *below* the braid's ritual ending
-    /// so it never competes with "The Book kept the page:" for the last word.
+    /// so it never competes with "I kept the page:" for the last word.
     var backwardQuestion: String?
 
     static let promiseEchoTagPrefix = "promise-echo:"
@@ -23529,7 +23552,7 @@ struct BraidPageDetails: Equatable {
     }
 
     private static func looksLikeTitle(_ value: String) -> Bool {
-        guard !value.hasPrefix("The Book kept the page:"),
+        guard !BraidColophon.starts(value),
               !value.localizedCaseInsensitiveContains("Title:"),
               value.count <= 64 else {
             return false
@@ -23615,7 +23638,7 @@ struct BookOfYouResidue: Equatable {
         let paragraphs = normalizedParagraphs(from: details.body)
         let keptLine = paragraphs
             .flatMap(sentences)
-            .last { $0.hasPrefix("The Book kept the page:") }
+            .last { BraidColophon.starts($0) }
             .map { clipped($0, limit: 140) }
             ?? clipped(paragraphs.last ?? details.body, limit: 140)
         // What the scene plan decided, where it decided it.
@@ -23634,7 +23657,7 @@ struct BookOfYouResidue: Equatable {
         let spineLine = planFact("braid-plan-spine:").map { clipped($0, limit: 140) }
             ?? paragraphs
                 .flatMap(sentences)
-                .first { !$0.hasPrefix("The Book kept the page:") }
+                .first { !BraidColophon.starts($0) }
                 .map { clipped($0, limit: 140) }
             ?? keptLine
         // Deliberately not filled from the plan. What a night held open is
@@ -23903,8 +23926,7 @@ struct BookOfYouResidue: Equatable {
     }
 
     private static func callback(from keptLine: String, fallbackTitle: String) -> String? {
-        let raw = keptLine
-            .replacingOccurrences(of: "The Book kept the page:", with: "")
+        let raw = BraidColophon.removingStems(from: keptLine)
             .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ".:")))
         return clipped(raw.nonEmpty ?? fallbackTitle, limit: 96).nonEmpty
     }
@@ -24344,7 +24366,7 @@ enum BraidLearningLoop {
         if note.localizedCaseInsensitiveContains("theme and chapter") {
             return "I learned to let theme and chapter move like weather."
         }
-        if note.localizedCaseInsensitiveContains("The Book kept the page") {
+        if BraidColophon.stems.contains(where: { note.localizedCaseInsensitiveContains($0.dropLast()) }) {
             return "I learned to leave the next page with a stronger final line."
         }
         if note.localizedCaseInsensitiveContains("one supplied ordinary thing") {
@@ -24389,7 +24411,7 @@ enum BraidLearningLoop {
             notes["concreteMagic"] = note(for: "concreteMagic")
         }
 
-        if edited.contains("The Book kept the page:") && !original.contains("The Book kept the page:") {
+        if BraidColophon.contains(edited) && !BraidColophon.contains(original) {
             weights["keeperSentence", default: 0] += 4
             notes["keeperSentence"] = note(for: "keeperSentence")
         }
@@ -24414,7 +24436,7 @@ enum BraidLearningLoop {
         case "souvenirSpine":
             return "Carry the reader's one-sentence souvenir through the opening, turn, and kept-page line."
         case "keeperSentence":
-            return "End with exactly one memorable sentence beginning 'The Book kept the page:'."
+            return "End with exactly one memorable sentence beginning 'I kept the page:'."
         case "concreteMagic":
             return "Give one supplied ordinary thing a strange rule or consequence; keep the rest ordinary and never explain the magic."
         case "setting":
@@ -24591,7 +24613,7 @@ enum BraidTastingRoom {
         let normalized = body.normalizedForBraidTasting
         let paragraphs = body.braidParagraphs
         let sentences = body.braidSentences
-        let closingSentences = sentences.filter { $0.hasPrefix("The Book kept the page:") }
+        let closingSentences = sentences.filter { BraidColophon.starts($0) }
 
         return Score(
             title: titleScore(details.title),
@@ -24822,8 +24844,8 @@ enum BraidTastingRoom {
         guard let opening, !opening.isEmpty else { return 0 }
         let openingWords = Set(significantWords(opening))
         guard !openingWords.isEmpty else { return 0 }
-        // Drop the fixed "the book kept the page" stem so it can't self-match.
-        let keeperStem = significantWords("the book kept the page")
+        // Drop the fixed "I kept the page" stem (either spelling) so it can't self-match.
+        let keeperStem = Set(significantWords("the book kept the page") + significantWords("i kept the page"))
         let echoes = significantWords(closing)
             .filter { !keeperStem.contains($0) && openingWords.contains($0) }
         return min(Set(echoes).count * 3, 6)
@@ -25959,19 +25981,30 @@ enum LiteraryContinuityProjector {
         let entities = NarrativePackRegistry.entities
         var profiles: [BeliefLifecycleProfile] = []
 
+        // Each Page's and event's searchable text, lowercased once rather than
+        // once per entity, and hits carried as indices rather than copies of
+        // whole Pages. Same matches, same order.
+        let pageTexts = pages.map { page in
+            "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
+        }
+        let eventSummaries = events.map { $0.summary.lowercased() }
+
         for entity in entities where entity.kind == .character || entity.kind == .motif || entity.kind == .talisman {
-            let pageHits = pages.filter { page in
-                let text = "\(page.promptText) \(page.userInput) \(page.tags.joined(separator: " "))".lowercased()
-                return text.contains(entity.id.lowercased()) || text.contains(entity.name.lowercased())
+            let entityID = entity.id.lowercased()
+            let entityName = entity.name.lowercased()
+            let pageHits = pages.indices.filter { index in
+                pageTexts[index].contains(entityID) || pageTexts[index].contains(entityName)
             }
-            let eventHits = events.filter { event in
-                event.effect.entityWeightDeltas.keys.contains(entity.id)
-                    || event.summary.lowercased().contains(entity.name.lowercased())
-                    || event.tags.contains(entity.id)
+            let eventHits = events.indices.filter { index in
+                events[index].effect.entityWeightDeltas.keys.contains(entity.id)
+                    || eventSummaries[index].contains(entityName)
+                    || events[index].tags.contains(entity.id)
             }
             let memoryHits = entityMemories.filter { $0.entityID == entity.id }
             guard pageHits.count + eventHits.count + memoryHits.count > 0 else { continue }
-            let dates = pageHits.map(\.createdAt) + eventHits.map(\.createdAt) + memoryHits.map(\.createdAt)
+            let dates = pageHits.map { pages[$0].createdAt }
+                + eventHits.map { events[$0].createdAt }
+                + memoryHits.map(\.createdAt)
             profiles.append(BeliefLifecycleProfile(
                 id: entity.id,
                 name: entity.name,
@@ -25981,16 +26014,18 @@ enum LiteraryContinuityProjector {
                 pageCount: pageHits.count,
                 eventCount: eventHits.count,
                 characterCount: entity.kind == .character ? 1 : 0,
-                evidencePageIDs: Array(pageHits.prefix(8).map(\.id)),
+                evidencePageIDs: Array(pageHits.prefix(8).map { pages[$0].id }),
                 relatedEntityIDs: [entity.id]
             ))
         }
 
         for profile in BookPageSourceRegistry.beliefProfiles(ledger: pageBelief) {
-            let pageHits = pages.filter { $0.sourceID == profile.sourceID || $0.type == profile.type }
-            let eventHits = events.filter { $0.sourcePageType == profile.type || $0.tags.contains(profile.sourceID) }
+            let pageHits = pages.indices.filter { pages[$0].sourceID == profile.sourceID || pages[$0].type == profile.type }
+            let eventHits = events.indices.filter {
+                events[$0].sourcePageType == profile.type || events[$0].tags.contains(profile.sourceID)
+            }
             guard pageHits.count + eventHits.count > 0 else { continue }
-            let dates = pageHits.map(\.createdAt) + eventHits.map(\.createdAt)
+            let dates = pageHits.map { pages[$0].createdAt } + eventHits.map { events[$0].createdAt }
             profiles.append(BeliefLifecycleProfile(
                 id: profile.sourceID,
                 name: profile.title,
@@ -26000,7 +26035,7 @@ enum LiteraryContinuityProjector {
                 pageCount: pageHits.count,
                 eventCount: eventHits.count,
                 characterCount: 0,
-                evidencePageIDs: Array(pageHits.prefix(8).map(\.id)),
+                evidencePageIDs: Array(pageHits.prefix(8).map { pages[$0].id }),
                 relatedEntityIDs: [],
                 isPageSource: true
             ))

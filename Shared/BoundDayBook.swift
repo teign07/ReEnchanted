@@ -687,7 +687,7 @@ enum BoundDayBookBuilder {
         return Array(words.prefix(3))
     }
 
-    private static func clock(_ date: Date, calendar: Calendar) -> String {
+    static func clock(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         let hour = parts.hour ?? 0
         let twelve = hour % 12 == 0 ? 12 : hour % 12
@@ -925,7 +925,7 @@ struct BoundNightLine: Codable, Equatable, Identifiable {
         let paragraphs = body.replacingOccurrences(of: "*", with: "")
             .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         guard var last = paragraphs.last else { return "" }
-        for prefix in ["The Book kept the page:", "The Book kept the page —", "Kept:"] where last.hasPrefix(prefix) {
+        for prefix in BraidColophon.stems + ["The Book kept the page —", "I kept the page —", "Kept:"] where last.hasPrefix(prefix) {
             last = String(last.dropFirst(prefix.count)).trimmingCharacters(in: .whitespaces)
         }
         if last.count > 110 {
@@ -1052,7 +1052,7 @@ struct WeeklyTaleChapter: Equatable, Identifiable {
 }
 
 enum WeeklyTaleBuilder {
-    static let colophonStem = "The Book kept the page:"
+    static let colophonStem = BraidColophon.stem
 
     static func chapters(of book: BoundDayBook, from start: Date, to end: Date, calendar: Calendar) -> [WeeklyTaleChapter] {
         let first = calendar.startOfDay(for: start)
@@ -1102,7 +1102,7 @@ enum WeeklyTaleBuilder {
         for raw in body.components(separatedBy: "\n") {
             let paragraph = raw.trimmingCharacters(in: .whitespaces)
             guard !paragraph.isEmpty else { continue }
-            if paragraph.hasPrefix(colophonStem) { kept = paragraph } else { paragraphs.append(paragraph) }
+            if BraidColophon.starts(paragraph) { kept = BraidColophon.modernized(paragraph) } else { paragraphs.append(paragraph) }
         }
         let telling = paragraphs.joined(separator: "\n\n")
         return (telling.isEmpty ? nil : telling, kept)

@@ -119,7 +119,7 @@ final class BraidContinuityTests: XCTestCase {
             type: .bookOfYou,
             createdAt: date("2026-09-02T21:00:00Z"),
             promptText: "The local Book brain braided today.",
-            userInput: "The Kettle Column\n\nThe Registry grew a new column.\n\nThe Book kept the page: the kettle stayed.",
+            userInput: "The Kettle Column\n\nThe Registry grew a new column.\n\nI kept the page: the kettle stayed.",
             tags: ["braid", "local-model", "gemma"],
             origin: .generated
         )
@@ -153,7 +153,7 @@ final class BraidContinuityTests: XCTestCase {
             type: .bookOfYou,
             createdAt: date("2026-09-02T21:00:00Z"),
             promptText: "The local Book brain braided today.",
-            userInput: "The Kettle\n\nYou polished the kettle.\n\nThe Book kept the page: the kettle stayed.",
+            userInput: "The Kettle\n\nYou polished the kettle.\n\nI kept the page: the kettle stayed.",
             tags: ["braid", "local-model", "gemma"],
             origin: .generated
         )
@@ -271,7 +271,7 @@ final class BraidContinuityTests: XCTestCase {
         let residue = BookOfYouResidue(
             title: "The Screw at the Door",
             spineLine: "A door started keeping the screw in mind.",
-            keptLine: "The Book kept the page: the screw stayed by the door.",
+            keptLine: "I kept the page: the screw stayed by the door.",
             motifs: ["screw", "door"],
             semanticEchoIDs: semanticEchoIDs,
             openedQuestion: nil,

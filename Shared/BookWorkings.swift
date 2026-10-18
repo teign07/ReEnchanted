@@ -327,10 +327,10 @@ enum BookWorkingEngine {
             initiatorKind: .book,
             initiatorID: "the-book",
             initiatorName: "The Book",
-            title: "An Opening the Book Stole",
-            summons: "The Book has made a small opening in the day. It refuses to explain it in advance.",
+            title: "An Opening I Stole",
+            summons: "I've made a small opening in the day. I won't explain it in advance.",
             invitation: "Let the next ordinary thing choose the plot for forty minutes.",
-            returnPrompt: "What happened in the opening the Book made? Bring back one exact detail.",
+            returnPrompt: "What happened in the opening I made? Bring back one exact detail.",
             durationMinutes: 40
         ),
         Recipe(

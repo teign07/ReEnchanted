@@ -77,7 +77,7 @@ final class ShareViewController: UIViewController {
                 keepButton.isEnabled = true
             }
         } catch {
-            await fail("The Book could not read this share.")
+            await fail("I couldn't read this share.")
         }
     }
 

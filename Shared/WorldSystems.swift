@@ -3062,7 +3062,7 @@ enum RadioStationRegistry {
         )
     ]
 
-    static var bundledPacks: [RadioStationPack] {
+    static let bundledPacks: [RadioStationPack] = {
         bundledPacksWithoutMeanings.map { pack in
             var enrichedPack = pack
             enrichedPack.stations = pack.stations.map { station in
@@ -3076,23 +3076,21 @@ enum RadioStationRegistry {
             }
             return enrichedPack
         }
-    }
+    }()
 
     static func userPacks(fileManager: FileManager = .default) -> [RadioStationPack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      var pack = try? decoder.decode(RadioStationPack.self, from: data) else {
-                    return nil
-                }
-                pack.stations = pack.stations.map { station in
-                    var station = station
-                    station.packID = station.packID ?? pack.id
-                    return station
-                }
-                return pack
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            guard var pack = try? decoder.decode(RadioStationPack.self, from: data) else {
+                return nil
             }
+            pack.stations = pack.stations.map { station in
+                var station = station
+                station.packID = station.packID ?? pack.id
+                return station
+            }
+            return pack
+        }
     }
 
     /// Frequencies that exist on the receiver but are intentionally absent
@@ -3118,7 +3116,9 @@ enum RadioStationRegistry {
             .min { $0.frequency < $1.frequency }
     }
 
-    private static func availableStations(unlockedPackIDs: Set<String>) -> [RadioStation] {
+    /// One fresh catalogue for a single projection. Includes hidden stations
+    /// for exact-frequency tuning; preset lists still filter them below.
+    static func availableStations(unlockedPackIDs: Set<String>) -> [RadioStation] {
         let delivered = userPacks()
         let edits = delivered
             .filter { PackEntitlements.owns($0.id, in: unlockedPackIDs) }
@@ -3126,6 +3126,8 @@ enum RadioStationRegistry {
         return catalogStations(in: bundledPacks + delivered, unlockedPackIDs: unlockedPackIDs)
             .map { station in edits.reduce(station) { $1.applied(to: $0) } }
     }
+
+    private static let bundledStationIDs = Set(bundledPacksWithoutMeanings.lazy.flatMap(\.stations).map(\.id))
 
     private static func catalogStations(in packs: [RadioStationPack], unlockedPackIDs: Set<String>) -> [RadioStation] {
         packs
@@ -3136,7 +3138,8 @@ enum RadioStationRegistry {
             .map { station in
                 // Only bundled catalogues receive this authored baseline. User
                 // packs must explicitly provide meaning before they can echo.
-                guard bundledPacks.flatMap(\.stations).contains(where: { $0.id == station.id }) else { return station }
+                guard bundledStationIDs.contains(station.id),
+                      station.tracks.contains(where: { $0.meaning == nil }) else { return station }
                 var enriched = station
                 enriched.tracks = station.tracks.map { track in
                     var authored = track
@@ -3150,13 +3153,21 @@ enum RadioStationRegistry {
     /// Listed presets only. Hidden frequencies remain resolvable by ID and by
     /// landing on their exact dial step through `nearestStation`.
     static func stations(unlockedPackIDs: Set<String> = []) -> [RadioStation] {
-        availableStations(unlockedPackIDs: unlockedPackIDs)
-            .filter { !hiddenStationIDs.contains($0.id) }
+        stations(in: availableStations(unlockedPackIDs: unlockedPackIDs))
+    }
+
+    static func stations(in available: [RadioStation]) -> [RadioStation] {
+        available.filter { !hiddenStationIDs.contains($0.id) }
     }
 
     static func station(id: String?, unlockedPackIDs: Set<String> = []) -> RadioStation? {
         guard let id else { return nil }
-        return availableStations(unlockedPackIDs: unlockedPackIDs).first { $0.id == id }
+        return station(id: id, in: availableStations(unlockedPackIDs: unlockedPackIDs))
+    }
+
+    static func station(id: String?, in available: [RadioStation]) -> RadioStation? {
+        guard let id else { return nil }
+        return available.first { $0.id == id }
     }
 
     static func nearestStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
@@ -3175,7 +3186,10 @@ enum RadioStationRegistry {
     /// Hidden pirate frequencies require the exact dial step; listed stations
     /// have a little analog forgiveness.
     static func tunedStation(to frequency: Double, unlockedPackIDs: Set<String> = []) -> RadioStation? {
-        let available = availableStations(unlockedPackIDs: unlockedPackIDs)
+        tunedStation(to: frequency, in: availableStations(unlockedPackIDs: unlockedPackIDs))
+    }
+
+    static func tunedStation(to frequency: Double, in available: [RadioStation]) -> RadioStation? {
         if let hidden = available.first(where: {
             hiddenStationIDs.contains($0.id) && abs($0.frequency - frequency) < 0.051
         }) {
@@ -3288,7 +3302,12 @@ enum RadioStationRegistry {
     }
 
     static func currentInterlude(state: RadioPlaybackState, unlockedPackIDs: Set<String> = [], now: Date = Date()) -> String? {
-        guard let station = station(id: state.activeStationID, unlockedPackIDs: unlockedPackIDs),
+        guard state.activeStationID != nil else { return nil }
+        return currentInterlude(state: state, in: availableStations(unlockedPackIDs: unlockedPackIDs), now: now)
+    }
+
+    static func currentInterlude(state: RadioPlaybackState, in available: [RadioStation], now: Date = Date()) -> String? {
+        guard let station = station(id: state.activeStationID, in: available),
               !station.interludeTitles.isEmpty else {
             return nil
         }
@@ -3735,7 +3754,13 @@ struct WeatherSourceSignal: Equatable {
     /// fetch. Only a live forecast carries the measured precipitation, wind,
     /// and observation time the leaf needs, and a sky the Book cannot vouch
     /// for should not be wetting the page. See `Shared/SkyOnTheLeaf.swift`.
-    var sky: PaperSky?
+    ///
+    /// Carries the next several hours as well as the moment it was read, so
+    /// the leaf can follow the weather between reads.
+    var skyOutlook: PaperSkyOutlook?
+
+    /// The sky as measured when this was read.
+    var sky: PaperSky? { skyOutlook?.current }
 
     var isAvailable: Bool {
         !phrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3747,14 +3772,14 @@ struct WeatherSourceSignal: Equatable {
         currentTemperature: String? = nil,
         forecast: String? = nil,
         conditionSymbolName: String? = nil,
-        sky: PaperSky? = nil
+        skyOutlook: PaperSkyOutlook? = nil
     ) {
         self.phrase = phrase
         self.source = source
         self.currentTemperature = currentTemperature ?? Self.extractTemperature(from: phrase)
         self.forecast = forecast ?? Self.extractForecast(from: phrase)
         self.conditionSymbolName = conditionSymbolName ?? Self.symbolName(for: phrase)
-        self.sky = sky
+        self.skyOutlook = skyOutlook
     }
 
     private static func extractTemperature(from phrase: String) -> String? {
@@ -11086,7 +11111,7 @@ enum Almanac {
                   beliefBonus: 3, greyShift: 0, symbolName: "circle.righthalf.filled", accent: "amber",
                   startMonth: 9, startDay: 21, endMonth: 9, endDay: 23),
         SabbatDef(id: "samhain", commonName: "Samhain", academyTitle: "The Thinning",
-                  blurb: "The door between the kept and the lost stands ajar. The Book remembers more than usual tonight, and is gentler about it.",
+                  blurb: "The door between the kept and the lost stands ajar. I remember more than usual tonight, and I'm gentler about it.",
                   invitationTitle: "The Thinning",
                   invitation: "Name someone or something you've lost, and one thing it left in your keeping. The veil is thin; be honest, be kind.",
                   beliefBonus: 5, greyShift: 1, symbolName: "flame", accent: "amber",
@@ -11819,11 +11844,11 @@ enum BookGreetingComposer {
             line.nonEmpty.map { "I remember this from your margins: \"\($0.bookPreviewSentenceLimit(1))\"" }
         })
         lines.append(contentsOf: context.rememberedFactLines.compactMap { line in
-            line.nonEmpty.map { "The Book remembers this about you: \($0.bookPreviewSentenceLimit(1))" }
+            line.nonEmpty.map { "I remember this about you: \($0.bookPreviewSentenceLimit(1))" }
         })
 
         if context.keptPageCount > 0 {
-            lines.append("I have \(context.keptPageCount) kept fragment\(context.keptPageCount == 1 ? "" : "s") of you in its margins. None of them were wasted.")
+            lines.append("I have \(context.keptPageCount) kept fragment\(context.keptPageCount == 1 ? "" : "s") of you in my margins. None of them were wasted.")
             lines.append("You've already taught me how to look for small bright things.")
         }
         if context.quietDays >= 2 {

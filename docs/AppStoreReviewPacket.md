@@ -1,6 +1,6 @@
 # ReEnchanted App Store Review Packet
 
-Last updated: 2026-10-11
+Last updated: 2026-10-13
 
 The working checklist for TestFlight external testing and first App Review.
 Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
@@ -8,8 +8,11 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 
 ## Submission posture
 
-- App name: ReEnchanted. Bundle ID `com.openclaw.enchantify.insidecover`
-  (+ `.widgets`, `.share`). App Group `group.com.openclaw.enchantify.insidecover`.
+- App name: ReEnchanted. Prepared submission bundle ID `app.reenchanted.book`
+  (+ `.widgets`, `.share`). App Group `group.app.reenchanted.book`.
+  The rename is staged on `rename/app-reenchanted-book`; the current checkout
+  still uses the old ID. Apply it after paid membership activation and preserve
+  the existing Book through the sealed-copy migration in the launch checklist.
 - Category: Books (`LSApplicationCategoryType = public.app-category.books`);
   secondary Entertainment.
 - Minimum OS: iOS 17. iPhone and iPad.
@@ -63,8 +66,9 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 
 ## App Store Connect tasks
 
-- Enroll; decide individual vs organization first (seller name is public; EU
-  trader status publishes contact details if the EU storefront is on).
+- Enroll as an individual (bj's decision, October 13). Organization enrollment
+  is deferred. Seller name is public; EU storefront availability remains a
+  separate decision, with public contact details for trader distribution.
 - Create the app record and the two extension bundle IDs + App Group.
 - Free Apps agreement only (no Paid Apps agreement needed with no IAP).
 - Privacy policy URL `https://reenchanted.app/privacy.html`; support URL

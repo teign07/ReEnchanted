@@ -31,7 +31,7 @@ private struct QuestionWidgetView: View {
         entry.snapshot.question ?? ReEnchantedWidgetQuestion(
             id: "question-fallback",
             title: "Did anything become real?",
-            prompt: "Bring the Book one true line when there is one.",
+            prompt: "Bring me one true line when there is one.",
             symbolName: "questionmark.bubble",
             urlPath: "question"
         )

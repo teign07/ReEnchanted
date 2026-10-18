@@ -2351,6 +2351,32 @@ enum LeafPaperStock: String, CaseIterable, Hashable {
     }
 }
 
+/// A ceiling, not a quota: the measured compositor may leave any mark off paper.
+enum LeafMarginaliaDensity: String, Codable, CaseIterable, Hashable {
+    case quiet, ordinary, rich, overdone
+
+    static func resolve(metadata: [String: String], documentID: String, leafIndex: Int, decorationPlate: Bool = false) -> Self {
+        if let raw = metadata["leafMarginaliaDensity"], let authored = Self(rawValue: raw) {
+            return authored
+        }
+        let seed = "\(documentID)|\(leafIndex)|marginalia-density-v1".stableHash
+        let draw = Int(UInt(bitPattern: seed.stableScramble) % 100)
+        if draw < (decorationPlate ? 12 : 24) { return .quiet }
+        if draw < (decorationPlate ? 40 : 76) { return .ordinary }
+        if draw < (decorationPlate ? 78 : 95) { return .rich }
+        return .overdone
+    }
+
+    var markBudget: Int {
+        switch self {
+        case .quiet: return 1
+        case .ordinary: return 2
+        case .rich: return 5
+        case .overdone: return 9
+        }
+    }
+}
+
 struct LeafDecorationRecipe: Equatable {
     var seed: Int
     var motifs: [String]
@@ -2368,11 +2394,13 @@ struct LeafDecorationRecipe: Equatable {
     var hasInkSpatter: Bool
     var hasSoftCrease: Bool
     var hasWornCorner: Bool
+    var density: LeafMarginaliaDensity = .ordinary
+    var companionAssets: [IlluminationAsset] = []
 }
 
-/// Gives every physical leaf a stable material history. It is intentionally
-/// restrained: grain and edge wear are common; loud marks and handwriting are
-/// not. The same Page gets the same marks after relaunching or repagination.
+/// Gives each leaf a stable material recipe and a deliberate density. Most
+/// reading leaves stay restrained; occasional open paper hosts a small riot.
+/// The measured compositor decides which marks actually fit.
 enum LeafDecorationLibrary {
     static func recipe(
         pageType: BookPageType,
@@ -2383,6 +2411,7 @@ enum LeafDecorationLibrary {
         decorationPlate: Bool = false
     ) -> LeafDecorationRecipe {
         let seed = "\(documentID)|\(leafIndex)|leaf-material-v1|\(decorationPlate)".stableHash
+        let density = LeafMarginaliaDensity.resolve(metadata: metadata, documentID: documentID, leafIndex: leafIndex, decorationPlate: decorationPlate)
         let motifs = resolvedMotifs(
             pageType: pageType,
             metadata: metadata,
@@ -2427,7 +2456,7 @@ enum LeafDecorationLibrary {
                 salt: 7
             )
             : nil)
-        let secondary = bucket(seed, salt: 11) < (decorationPlate ? 78 : 32)
+        let secondary = density != .quiet && bucket(seed, salt: 11) < (density == .ordinary ? 55 : 100)
             ? resolve(
                 resolver: resolver,
                 kind: primaryKind == .stamp ? .doodle : .stamp,
@@ -2440,7 +2469,7 @@ enum LeafDecorationLibrary {
                 excluding: Set([primary?.assetName].compactMap { $0 })
             )
             : nil
-        let support = bucket(seed, salt: 14) < (decorationPlate ? 58 : 24)
+        let support = density != .quiet && bucket(seed, salt: 14) < (decorationPlate ? 58 : 24)
             ? resolve(
                 resolver: resolver,
                 kind: .paperScrap,
@@ -2476,7 +2505,7 @@ enum LeafDecorationLibrary {
                 salt: 19
             )
             : nil
-        let snippet = bucket(seed, salt: 23) < (decorationPlate ? 58 : 36)
+        let snippet = density != .quiet && bucket(seed, salt: 23) < (density == .ordinary ? 36 : 85)
             ? IlluminationMarginaliaLibrary.select(
                 motifs: motifs,
                 placementContext: placementContext,
@@ -2484,12 +2513,29 @@ enum LeafDecorationLibrary {
                 count: 1
             ).first
             : nil
+        // Rich leaves need visible companions rather than a large pale watermark.
         let placement = directedPrimary?.directedOnly == true ? .lowerOuterCorner : [
             LeafMarginaliaPlacement.upperOuterMargin,
             .middleOuterMargin,
             .lowerOuterCorner,
             .faintWatermark
-        ][bucket(seed, salt: 29) % 4]
+        ][bucket(seed, salt: 29) % (density == .rich || density == .overdone ? 3 : 4)]
+        var used = Set([primary?.assetName, secondary?.assetName].compactMap { $0 })
+        var companions: [IlluminationAsset] = []
+        if density == .rich || density == .overdone {
+            // Select through the existing cabinet, including its occasion and
+            // subject gates. Never duplicate a mark to manufacture busyness.
+            for index in 0..<density.markBudget {
+                guard let asset = resolve(
+                    resolver: resolver, kind: index.isMultiple(of: 3) ? .stamp : .doodle,
+                    motifs: motifs, placementContext: placementContext,
+                    packs: preferredPacks, fallbackPacks: allPacks,
+                    seed: seed, salt: 151 + index * 17, excluding: used
+                ), !asset.directedOnly, !used.contains(asset.assetName) else { continue }
+                used.insert(asset.assetName)
+                companions.append(asset)
+            }
+        }
 
         return LeafDecorationRecipe(
             seed: seed,
@@ -2507,7 +2553,9 @@ enum LeafDecorationLibrary {
             hasWaterRing: bucket(seed, salt: 41) < 14,
             hasInkSpatter: bucket(seed, salt: 43) < 18,
             hasSoftCrease: bucket(seed, salt: 47) < 34,
-            hasWornCorner: bucket(seed, salt: 53) < 28
+            hasWornCorner: bucket(seed, salt: 53) < 28,
+            density: density,
+            companionAssets: companions
         )
     }
 
@@ -2543,7 +2591,7 @@ enum LeafDecorationLibrary {
         )
     }
 
-    private static func resolvedMotifs(
+    static func resolvedMotifs(
         pageType: BookPageType,
         metadata: [String: String],
         semanticText: String
@@ -2592,7 +2640,27 @@ enum LeafDecorationLibrary {
     /// does not infer a reader's mood, send prose elsewhere, or add another
     /// model call. Phrase boundaries also keep fragments such as "notebook"
     /// from accidentally summoning a Book mark.
+    /// Motifs a Page's own words name. Pure in `text`, and the folio asks
+    /// again at every Page boundary each time the desk changes — mostly about
+    /// the same Pages it asked about a moment ago — so answers are held per
+    /// text.
     static func semanticMotifs(in text: String) -> [String] {
+        semanticMotifLock.lock()
+        let held = semanticMotifMemo[text]
+        semanticMotifLock.unlock()
+        if let held { return held }
+        let motifs = computedSemanticMotifs(in: text)
+        semanticMotifLock.lock()
+        if semanticMotifMemo.count >= 512 { semanticMotifMemo.removeAll(keepingCapacity: true) }
+        semanticMotifMemo[text] = motifs
+        semanticMotifLock.unlock()
+        return motifs
+    }
+
+    private static let semanticMotifLock = NSLock()
+    nonisolated(unsafe) private static var semanticMotifMemo: [String: [String]] = [:]
+
+    private static func computedSemanticMotifs(in text: String) -> [String] {
         let folded = text
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .lowercased()
@@ -2642,10 +2710,15 @@ enum LeafDecorationLibrary {
             (["warning", "warnings", "beware"], ["warning", "danger"])
         ]
 
+        // A one-word phrase occurs, space-bounded, in the space-joined words
+        // exactly when it is one of the words, so most of the lexicon is a set
+        // lookup instead of a scan of the whole text. Phrases of more than one
+        // word still look for the run of words.
+        let wordSet = Set(words)
         var motifs: [String] = []
         var seen = Set<String>()
-        for entry in lexicon where entry.phrases.contains(where: {
-            searchable.contains(" \($0) ")
+        for entry in lexicon where entry.phrases.contains(where: { phrase in
+            phrase.contains(" ") ? searchable.contains(" \(phrase) ") : wordSet.contains(phrase)
         }) {
             for motif in entry.motifs where seen.insert(motif).inserted {
                 motifs.append(motif)
@@ -2655,7 +2728,7 @@ enum LeafDecorationLibrary {
         return motifs
     }
 
-    private static func resolvedPlacementContext(
+    static func resolvedPlacementContext(
         motifs: [String],
         metadata: [String: String]
     ) -> IlluminationPlacementContext {
@@ -3369,6 +3442,95 @@ enum IlluminatedPageComposer {
         let dx = ClosedDoubleRange(lowerBound: -x, upperBound: x).value(seed: seed, salt: salt)
         let dy = ClosedDoubleRange(lowerBound: -y, upperBound: y).value(seed: seed, salt: salt + 13)
         return CodablePoint(x: point.x + dx, y: point.y + dy)
+    }
+}
+
+/// A balanced binding, rather than ten independent dice rolls. Rotation and
+/// reversal vary the rhythm without allowing photo/illustration droughts.
+enum InterleafCuration {
+    enum Slot: Equatable { case photo, illustration, other }
+
+    static func slot(at index: Int, seed: Int) -> Slot {
+        let rhythm: [Slot] = [.photo, .illustration, .other, .other, .illustration,
+                              .photo, .other, .other, .illustration, .other]
+        let offset = Int(UInt(bitPattern: seed.stableScramble) % 10)
+        let direction = UInt(bitPattern: (seed &+ 71).stableScramble).isMultiple(of: 2) ? 1 : -1
+        let position = ((index % 10) * direction + offset + 10) % 10
+        return rhythm[position]
+    }
+
+    static func otherIndex(at index: Int, seed: Int) -> Int {
+        (index / 10) * 5 + (0..<(index % 10)).filter { slot(at: $0, seed: seed) == .other }.count
+    }
+}
+
+/// Ranks permissioned metadata only. Album subjects are evidence about an
+/// album, not a claim that the image depicts the surrounding Page's prose.
+enum InterleafPhotoCuration {
+    struct Attempt: Equatable {
+        let identifier: String
+        let allowsNetwork: Bool
+    }
+
+    static func loadingAttempts(identifiers: [String], allowsCloud: Bool) -> [Attempt] {
+        var seen = Set<String>()
+        let ids = Array(identifiers.filter { seen.insert($0).inserted }.prefix(10))
+        let local = ids.prefix(4).map { Attempt(identifier: $0, allowsNetwork: false) }
+        let cloud = allowsCloud ? ids.prefix(1).map { Attempt(identifier: $0, allowsNetwork: true) } : []
+        return local + cloud + ids.dropFirst(4).map { Attempt(identifier: $0, allowsNetwork: false) }
+    }
+
+    static func ranked(
+        _ candidates: [PhotoCandidate],
+        subjectTags: [String: Set<String>],
+        wantedTags: Set<String>,
+        relatedIdentifiers: Set<String>,
+        recentlySeen: [String: Date],
+        excluding: Set<String>,
+        captureDatesToAvoid: [Date],
+        now: Date,
+        seed: Int
+    ) -> [PhotoCandidate] {
+        guard !candidates.isEmpty else { return [] }
+        let unreserved = candidates.filter { !excluding.contains($0.assetLocalIdentifier) }
+        let available = unreserved.isEmpty ? candidates : unreserved
+        let fresh = available.filter {
+            recentlySeen[$0.assetLocalIdentifier].map { now.timeIntervalSince($0) >= 7 * 86_400 } ?? true
+        }
+        let freshPool = fresh.isEmpty ? available : fresh
+        let distinctCaptures = freshPool.filter { candidate in
+            guard let date = candidate.creationDate else { return true }
+            return !captureDatesToAvoid.contains { abs($0.timeIntervalSince(date)) < 90 }
+        }
+        let pool = distinctCaptures.isEmpty ? freshPool : distinctCaptures
+        return pool.map { candidate -> PhotoCandidate in
+            var ranked = candidate
+            let id = candidate.assetLocalIdentifier
+            let overlap = (subjectTags[id] ?? []).intersection(wantedTags).count
+            if overlap > 0 {
+                ranked.score += Double(min(3, overlap)) * 3
+                ranked.reasons.append("related album")
+            }
+            if relatedIdentifiers.contains(id) {
+                ranked.score += 6
+                ranked.reasons.append("photograph attached to a neighbouring Page")
+            }
+            if let date = candidate.creationDate,
+               captureDatesToAvoid.contains(where: { abs($0.timeIntervalSince(date)) < 90 }) {
+                ranked.score -= 16
+                ranked.reasons.append("near an already selected capture")
+            }
+            if let shown = recentlySeen[id] {
+                let days = max(0, now.timeIntervalSince(shown) / 86_400)
+                ranked.score -= max(0, 12 - days / 3)
+            }
+            // A small stable variation prevents the same favourite winning
+            // every boundary while keeping relevance ahead of novelty.
+            ranked.score += Double(UInt(bitPattern: (id.stableHash ^ seed).stableScramble) % 301) / 100
+            return ranked
+        }.sorted {
+            $0.score == $1.score ? $0.assetLocalIdentifier < $1.assetLocalIdentifier : $0.score > $1.score
+        }
     }
 }
 

@@ -1513,13 +1513,86 @@ protocol StacksSemanticScoring {
     func similarity(between query: String, and document: String) -> Double?
 }
 
+/// Exact, process-local results only. Repeated curator snapshots must not run
+/// the same native sentence models again; text never leaves this bounded memo.
+final class StacksSemanticScoreMemo: @unchecked Sendable {
+    private final class Key: NSObject {
+        let modelID: String
+        let query: String
+        let document: String
+
+        init(modelID: String, query: String, document: String) {
+            self.modelID = modelID
+            self.query = query
+            self.document = document
+        }
+
+        override var hash: Int {
+            var hasher = Hasher()
+            hasher.combine(modelID)
+            hasher.combine(query)
+            hasher.combine(document)
+            return hasher.finalize()
+        }
+
+        override func isEqual(_ object: Any?) -> Bool {
+            guard let other = object as? Key else { return false }
+            return modelID == other.modelID && query == other.query && document == other.document
+        }
+    }
+
+    private let values = NSCache<Key, NSNumber>()
+    // Also protects CoreNLP's shared mutable native state across model wrappers.
+    private let nativeLock = NSLock()
+
+    init() {
+        values.countLimit = 2_048
+        values.totalCostLimit = 4 * 1_024 * 1_024
+    }
+
+    func value(modelID: String, query: String, document: String, compute: () -> Double?) -> Double? {
+        guard !Task.isCancelled else { return nil }
+        let key = Key(modelID: modelID, query: query, document: document)
+        // NSCache is thread-safe; a known score need not queue behind a miss.
+        if let cached = values.object(forKey: key) {
+            return cached.doubleValue.isFinite ? cached.doubleValue : nil
+        }
+        nativeLock.lock()
+        defer { nativeLock.unlock() }
+        // A cancelled refresh may have been waiting behind another native call.
+        guard !Task.isCancelled else { return nil }
+        if let cached = values.object(forKey: key) {
+            return cached.doubleValue.isFinite ? cached.doubleValue : nil
+        }
+        let result = compute()
+        guard !Task.isCancelled else { return nil }
+        values.setObject(
+            NSNumber(value: result ?? .nan), forKey: key,
+            cost: modelID.utf8.count + query.utf8.count + document.utf8.count + 128
+        )
+        return result
+    }
+
+    func clear() {
+        nativeLock.lock()
+        defer { nativeLock.unlock() }
+        values.removeAllObjects()
+    }
+}
+
 #if canImport(NaturalLanguage)
 struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
     /// CoreNLP's sentence embedding can share mutable native state even across
     /// separate `NLEmbedding` wrappers. Surface refreshes may overlap, so all
     /// distance calls must cross one process-wide gate. Without it, concurrent
     /// calls can crash inside `CoreNLP::ContextualWordEmbedding`.
-    private static let distanceLock = NSLock()
+    private static let scoreMemo = StacksSemanticScoreMemo()
+    /// Each text's sentence vector, embedded once. `distance(between:and:)`
+    /// embeds both of its strings on every call, so scoring one query against
+    /// a whole archive's passages re-embedded the (long) query once per
+    /// passage, and a query that changes with the time of day missed the pair
+    /// memo above every few hours. Passages are embedded once and kept.
+    private static let vectors = SentenceVectorMemo()
 
     let language: NLLanguage
     let modelID: String
@@ -1536,11 +1609,67 @@ struct NaturalLanguageStacksEmbeddingScorer: StacksSemanticScoring {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedDocument = document.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty, !trimmedDocument.isEmpty else { return nil }
-        Self.distanceLock.lock()
-        let distance = embedding.distance(between: trimmedQuery, and: trimmedDocument)
-        Self.distanceLock.unlock()
+        return Self.scoreMemo.value(modelID: modelID, query: trimmedQuery, document: trimmedDocument) {
+            // Runs under the memo's native lock, like every call into the model.
+            if let queryVector = Self.vectors.unitVector(for: trimmedQuery, modelID: modelID, embedding: embedding),
+               let documentVector = Self.vectors.unitVector(for: trimmedDocument, modelID: modelID, embedding: embedding),
+               let score = Self.similarity(queryVector, documentVector) {
+                return score
+            }
+            let distance = embedding.distance(between: trimmedQuery, and: trimmedDocument)
+            guard distance.isFinite else { return nil }
+            return max(0, min(1, 1 - distance))
+        }
+    }
+
+    /// The model's sentence `distance` is the Euclidean distance between the
+    /// two sentences' unit vectors: measured against `distance(between:and:)`
+    /// on a hundred pairs it agreed to 5e-7, the model's own float precision.
+    /// So the same score comes from two stored vectors and a dot product.
+    static func similarity(_ left: [Double], _ right: [Double]) -> Double? {
+        guard left.count == right.count, !left.isEmpty else { return nil }
+        var dot = 0.0
+        for index in left.indices {
+            dot += left[index] * right[index]
+        }
+        let distance = max(0, 2 - 2 * dot).squareRoot()
         guard distance.isFinite else { return nil }
         return max(0, min(1, 1 - distance))
+    }
+}
+
+/// Unit sentence vectors by model and text, for `NaturalLanguageStacksEmbeddingScorer`.
+/// Bounded and process-local like the score memo; callers must already hold
+/// the native lock, because embedding a text is a call into the model.
+private final class SentenceVectorMemo: @unchecked Sendable {
+    private final class Box {
+        /// Nil when the model gave no usable vector, so the text is not tried
+        /// again; the scorer falls back to the model's own distance for it.
+        /// Doubles, not floats: the distance is a square root, so near-equal
+        /// texts magnify float rounding into a visibly different score.
+        let vector: [Double]?
+        init(_ vector: [Double]?) { self.vector = vector }
+    }
+
+    private let values = NSCache<NSString, Box>()
+
+    init() {
+        values.countLimit = 4_096
+        values.totalCostLimit = 16 * 1_024 * 1_024
+    }
+
+    func unitVector(for text: String, modelID: String, embedding: NLEmbedding) -> [Double]? {
+        let key = "\(modelID)\u{1F}\(text)" as NSString
+        if let held = values.object(forKey: key) { return held.vector }
+        var vector: [Double]?
+        if let raw = embedding.vector(for: text), !raw.isEmpty {
+            let length = raw.reduce(0) { $0 + $1 * $1 }.squareRoot()
+            if length.isFinite, length > 0 {
+                vector = raw.map { $0 / length }
+            }
+        }
+        values.setObject(Box(vector), forKey: key, cost: (vector?.count ?? 0) * 8 + text.utf8.count + 64)
+        return vector
     }
 }
 #endif
@@ -1687,10 +1816,15 @@ enum StacksSearchEngine {
         now: Date = Date(),
         limit: Int = 40,
         semanticScorer: StacksSemanticScoring? = defaultSemanticScorer(),
-        prebuiltGraph: (documents: [StacksSearchDocument], links: [StacksSearchLink])? = nil
+        prebuiltGraph: (documents: [StacksSearchDocument], links: [StacksSearchLink])? = nil,
+        precomputedLexicalResults: [StacksSearchResult]? = nil
     ) -> [StacksSearchResult] {
-        let lexicalResults = search(raw, in: dataset, extraTerms: extraTerms, now: now, limit: limit)
-        guard shouldRunSemanticSearch(raw, extraTerms: extraTerms),
+        // A caller's instant pass belongs to this same query, dataset and
+        // result limit. Share it with the deep pass rather than searching twice.
+        let lexicalResults = precomputedLexicalResults
+            ?? search(raw, in: dataset, extraTerms: extraTerms, now: now, limit: limit)
+        guard !Task.isCancelled,
+              shouldRunSemanticSearch(raw, extraTerms: extraTerms),
               let semanticScorer else { return lexicalResults }
 
         let graph = prebuiltGraph ?? buildSearchGraph(from: dataset, now: now)
@@ -1928,7 +2062,7 @@ enum StacksSearchEngine {
         #endif
     }
 
-    private static func shouldRunSemanticSearch(_ raw: String, extraTerms: [String]) -> Bool {
+    fileprivate static func shouldRunSemanticSearch(_ raw: String, extraTerms: [String]) -> Bool {
         let queryText = ([raw] + extraTerms).joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let meaningfulCharacters = queryText.filter { $0.isLetter || $0.isNumber }
@@ -2341,21 +2475,36 @@ actor StacksSearchService {
     /// The instant pass: pure lexical matching, cheap enough to run on every
     /// keystroke so results appear while the reader is still typing.
     func lexicalResults(for query: String, extraTerms: [String] = []) -> [StacksSearchResult] {
-        StacksSearchEngine.search(query, in: dataset, extraTerms: extraTerms)
+        guard !Task.isCancelled else { return [] }
+        return StacksSearchEngine.search(query, in: dataset, extraTerms: extraTerms)
     }
 
     /// The deep pass: lexical plus the sentence-embedding graph walk. Bails
     /// back to lexical partway through if the surrounding task is cancelled.
-    func hybridResults(for query: String, extraTerms: [String] = []) -> [StacksSearchResult] {
+    func hybridResults(
+        for query: String,
+        extraTerms: [String] = [],
+        lexicalResults: [StacksSearchResult]? = nil
+    ) -> [StacksSearchResult] {
+        guard !Task.isCancelled else { return lexicalResults ?? [] }
+        let quick = lexicalResults ?? StacksSearchEngine.search(query, in: dataset, extraTerms: extraTerms)
+        guard !Task.isCancelled,
+              StacksSearchEngine.shouldRunSemanticSearch(query, extraTerms: extraTerms),
+              let semanticScorer = scorer() else { return quick }
+        guard !Task.isCancelled else { return quick }
         if cachedGraph == nil {
-            cachedGraph = StacksSearchEngine.buildSearchGraph(from: dataset)
+            let graph = StacksSearchEngine.buildSearchGraph(from: dataset)
+            guard !Task.isCancelled else { return quick }
+            cachedGraph = graph
         }
+        guard !Task.isCancelled else { return quick }
         return StacksSearchEngine.hybridSearch(
             query,
             in: dataset,
             extraTerms: extraTerms,
-            semanticScorer: scorer(),
-            prebuiltGraph: cachedGraph
+            semanticScorer: semanticScorer,
+            prebuiltGraph: cachedGraph,
+            precomputedLexicalResults: quick
         )
     }
 
@@ -2446,7 +2595,7 @@ enum KeepEcho {
         let monthLine = sameYear ? "back in \(month)" : "in \(month) \(year)"
 
         let lines = [
-            "You\u{2019}ve written about \u{201C}\(chosen.word)\u{201D} before: \(monthLine). The Book remembers.",
+            "You\u{2019}ve written about \u{201C}\(chosen.word)\u{201D} before: \(monthLine). I remember.",
             "This rhymes with a page from \(monthLine): the one about \u{201C}\(chosen.word)\u{201D}.",
             "The Stacks stirred: \u{201C}\(chosen.word)\u{201D} again, first pressed \(monthLine)."
         ]
@@ -2547,6 +2696,7 @@ enum SemanticKeepEcho {
 
         var best: (page: BookPage, text: String, similarity: Double)?
         for candidate in candidates {
+            guard !Task.isCancelled else { return nil }
             guard let similarity = scorer.similarity(between: trimmed, and: candidate.text),
                   similarity >= similarityFloor else { continue }
             if let current = best {
@@ -2570,8 +2720,8 @@ enum SemanticKeepEcho {
         let seed = KeepMarginalia.seed(for: pageID)
         let lines = [
             "This page and one from \(monthLine): \u{201C}\(excerpt)\u{201D}: are the same feeling wearing different words.",
-            "The Book set this beside a page from \(monthLine): \u{201C}\(excerpt)\u{201D}. Different words. Same weather.",
-            "Somewhere \(monthLine) you wrote \u{201C}\(excerpt)\u{201D}. Today\u{2019}s page answers it. The Book cannot say how it knows. It knows."
+            "I set this beside a page from \(monthLine): \u{201C}\(excerpt)\u{201D}. Different words. Same weather.",
+            "Somewhere \(monthLine) you wrote \u{201C}\(excerpt)\u{201D}. Today\u{2019}s page answers it. I can\u{2019}t say how I know. I know."
         ]
         return Echo(
             sourcePageID: best.page.id,

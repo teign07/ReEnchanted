@@ -4,39 +4,39 @@ Regenerate with `BRAID_BENCH_RECORD=1 swift test --filter BraidBenchTests`.
 
 night                         scale    words  band      gap   score  cands  rep  issues
 ----------------------------------------------------------------------------------------------------
-one-receipt-glimpse           glimpse  129    100-180   -     90     16     0    clean
-plain-diary-day               glimpse  115    100-180   -     87     8      1    clean
-multi-beat-day                glimpse  127    100-180   -     83     16     0    clericalCadence
-labyrinth-only                glimpse  127    100-180   -     93     8      0    clean
-crossing                      glimpse  127    100-180   -     99     32     0    clean
-matched-subjects              glimpse  131    100-180   -     105    16     0    clean
-cast-member                   glimpse  126    100-180   -     116    16     0    clean
-grief-day                     glimpse  121    100-180   -     87     4      0    clean
-tender-shadow                 glimpse  123    100-180   -     85     4      1    clean
-arc-deepened                  glimpse  120    100-180   -     96     8      1    clean
-relational-lens               glimpse  118    100-180   -     85     8      0    clean
-full-braid                    full     300    280-450   -     109    16     1    clericalCadence
-supporting-logs-only          glimpse  122    100-180   -     90     8      0    clean
-empty-day                     glimpse  51     100-180   -     77     1      1    tooShort
-reader-answer                 glimpse  121    100-180   -     103    16     0    clean
-long-rambling-receipt         glimpse  118    100-180   -     96     8      0    clean
-terse-fragments               glimpse  120    100-180   -     73     8      0    clean
-plural-anchor                 glimpse  120    100-180   -     90     8      0    clean
-quoted-speech                 glimpse  119    100-180   -     85     8      1    clean
-unpunctuated                  glimpse  127    100-180   -     99     8      0    clean
-souvenir-anchored             glimpse  129    100-180   -     92     16     1    clean
-named-reader-with-theme       glimpse  121    100-180   -     106    16     0    clean
-long-kept-subject             glimpse  120    100-180   -     85     8      2    clean
-rich-mixed-night              full     302    280-450   -     96     32     2    clericalCadence
-open-tale-night               glimpse  131    100-180   -     93     16     0    clean
+one-receipt-glimpse           glimpse  128    100-180   -     90     16     0    clean
+plain-diary-day               glimpse  127    100-180   -     89     8      1    clean
+multi-beat-day                glimpse  126    100-180   -     86     16     0    clericalCadence
+labyrinth-only                glimpse  126    100-180   -     93     8      0    clean
+crossing                      glimpse  126    100-180   -     99     32     0    clean
+matched-subjects              glimpse  130    100-180   -     105    16     0    clean
+cast-member                   glimpse  125    100-180   -     113    16     0    clean
+grief-day                     glimpse  120    100-180   -     90     4      0    clean
+tender-shadow                 glimpse  122    100-180   -     88     4      1    clean
+arc-deepened                  glimpse  119    100-180   -     95     8      1    clean
+relational-lens               glimpse  117    100-180   -     85     8      0    clean
+full-braid                    full     299    280-450   -     109    16     1    clericalCadence
+supporting-logs-only          glimpse  121    100-180   -     90     8      0    clean
+empty-day                     glimpse  49     100-180   -     79     1      0    tooShort
+reader-answer                 glimpse  120    100-180   -     106    16     0    clean
+long-rambling-receipt         glimpse  117    100-180   -     93     8      0    clean
+terse-fragments               glimpse  119    100-180   -     72     8      0    clean
+plural-anchor                 glimpse  119    100-180   -     90     8      0    clean
+quoted-speech                 glimpse  131    100-180   -     82     8      1    clean
+unpunctuated                  glimpse  132    100-180   -     97     8      0    clean
+souvenir-anchored             glimpse  115    100-180   -     93     16     0    clean
+named-reader-with-theme       glimpse  120    100-180   -     104    16     0    clean
+long-kept-subject             glimpse  113    100-180   -     84     8      1    clean
+rich-mixed-night              full     301    280-450   -     96     32     2    clericalCadence
+open-tale-night               glimpse  122    100-180   -     96     16     0    clean
 ----------------------------------------------------------------------------------------------------
-25 nights · 25 in band · 21 audit-clean · average taste 92 · 11 repeated openings
+25 nights · 25 in band · 21 audit-clean · average taste 92 · 8 repeated openings
 
 ==============================================================================
 ## one-receipt-glimpse
 A single kept souvenir. The thinnest page the Book is allowed to make.
-scale glimpse · words 129 (band 100-180) · taste 90 · candidates 16
-paragraphs [8, 3, 1] · sentences [13, 5, 10, 20, 15, 12, 5, 5, 9, 3, 20, 12]
+scale glimpse · words 128 (band 100-180) · taste 90 · candidates 16
+paragraphs [8, 3, 1] · sentences [13, 5, 10, 20, 15, 12, 5, 5, 9, 3, 20, 11]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:10 colophon:1 receipt:1
 audit clean
@@ -47,33 +47,33 @@ It was the chipped yellow bowl back on the shelf that you put. I circled the bow
 
 The bowl kept watch and would not look away. I stayed quiet. A door past the reading room opened onto nothing while the bowl was on the page, waited, and shut again.
 
-The Book kept the page: the bowl kept watch over what happened.
+I kept the page: the bowl kept watch over what happened.
 
 ==============================================================================
 ## plain-diary-day
 Two ordinary lived pages, no fiction, no shadow.
-scale glimpse · words 115 (band 100-180) · taste 87 · candidates 8
-paragraphs [3, 5, 4, 1] · sentences [12, 13, 1, 5, 6, 11, 2, 20, 9, 3, 13, 8, 12]
-prosody repeated-openings 1 · flat-run 2 · spread 19
-provenance authored:9 colophon:1 receipt:3
+scale glimpse · words 127 (band 100-180) · taste 89 · candidates 8
+paragraphs [5, 5, 4, 1] · sentences [12, 11, 10, 5, 3, 5, 6, 8, 3, 20, 9, 3, 13, 8, 11]
+prosody repeated-openings 1 · flat-run 5 · spread 17
+provenance authored:11 colophon:1 receipt:3
 audit clean
 
 The Shop Saw It
 
-You walked to the corner shop for bread and it started raining. I have barely learned your corners, and the shop is already making demands. Good.
+You walked to the corner shop for bread and it started raining. I took the shop with the dirt still in the sentence. In one breath I read the shop and the desk. The second changed the first. I let it.
 
-You cleared the whole desk. And found the missing library card. I kept the desk on the same page as the shop. No procession. A door past the reading room opened onto nothing while the shop was on the page, waited, and shut again.
+You cleared the whole desk. And found the missing library card. I put the desk down beside the shop. Neither became scenery. A door past the reading room opened onto nothing while the shop was on the page, waited, and shut again.
 
 The shop kept watch and would not look away. I stayed quiet. Frost crossed the window over the shop and stopped in a straight line. Frost has never once done a straight line.
 
-The Book kept the page: the shop kept watch over what happened.
+I kept the page: the shop kept watch over what happened.
 
 ==============================================================================
 ## multi-beat-day
 Three lived beats. Tests whether later receipts get their own move.
-scale glimpse · words 127 (band 100-180) · taste 83 · candidates 16
-paragraphs [5, 4, 3, 1] · sentences [13, 11, 10, 5, 3, 6, 5, 14, 20, 9, 8, 10, 13]
-prosody repeated-openings 0 · flat-run 3 · spread 17
+scale glimpse · words 126 (band 100-180) · taste 86 · candidates 16
+paragraphs [5, 4, 3, 1] · sentences [13, 11, 10, 5, 3, 6, 5, 14, 20, 9, 8, 10, 12]
+prosody repeated-openings 0 · flat-run 4 · spread 17
 provenance authored:9 colophon:1 receipt:3
 audit clericalCadence
 
@@ -85,13 +85,13 @@ You carried tomato soup to Sam. And forgot the silver spoon. I kept the screw an
 
 The screw chose my side and refused to explain. Dust fled one neat circle around the screw. I put a finger in it and something bit back.
 
-The Book kept the page: the screw chose, and I kept the mark.
+I kept the page: the screw chose, and I kept the mark.
 
 ==============================================================================
 ## labyrinth-only
 Nothing lived was kept. The fiction page has to carry the spine alone.
-scale glimpse · words 127 (band 100-180) · taste 93 · candidates 8
-paragraphs [9, 3, 1] · sentences [6, 4, 13, 1, 20, 15, 12, 5, 5, 12, 3, 21, 10]
+scale glimpse · words 126 (band 100-180) · taste 93 · candidates 8
+paragraphs [9, 3, 1] · sentences [6, 4, 13, 1, 20, 15, 12, 5, 5, 12, 3, 21, 9]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:10 colophon:1 receipt:2
 audit clean
@@ -102,30 +102,30 @@ The brass door refused the Registry. And swallowed its latch. I have barely lear
 
 The door laid down a law: a no could bar the way. I obeyed it. None of the doors would say which one the door came through, which usually means every one of them is lying.
 
-The Book kept the page: the door kept the rule.
+I kept the page: the door kept the rule.
 
 ==============================================================================
 ## crossing
 One lived receipt and one Labyrinth receipt: the licensed impossible relation.
-scale glimpse · words 127 (band 100-180) · taste 99 · candidates 32
-paragraphs [4, 7, 1] · sentences [11, 11, 20, 15, 10, 6, 6, 5, 9, 8, 10, 16]
+scale glimpse · words 126 (band 100-180) · taste 99 · candidates 32
+paragraphs [4, 7, 1] · sentences [11, 11, 20, 15, 10, 6, 6, 5, 9, 8, 10, 15]
 prosody repeated-openings 0 · flat-run 3 · spread 15
 provenance authored:8 colophon:1 receipt:3
 audit clean
 
-What the Lamp Charged the Fox
+The Lamp Answered the Fox
 
-It was the brass lamp in the hallway that you rewired. I took the lamp with the dirt still in the sentence. The Index climbed out of its own alphabet to look at the lamp properly, which it has no business doing. Twice I read the line around the lamp, and kept the second reading to myself.
+It was the brass lamp in the hallway that you rewired. I took the lamp with the dirt still in the sentence. A door past the reading room opened onto nothing while the lamp was on the page, waited, and shut again. Twice I read the line around the lamp, and kept the second reading to myself.
 
 Through the root bridge, the fox offered a shorter road. You chose to refuse the shortcut. The fox leaned on the lamp. A price was already there. The lamp named it and would not lower it. Dust fled one neat circle around the lamp. I put a finger in it and something bit back.
 
-The Book kept the page: the price stayed named, and the lamp did not lower it.
+I kept the page: the lamp kept the price where the fox could see it.
 
 ==============================================================================
 ## matched-subjects
 Both worlds hand up the same noun. Each must keep its own modifier.
-scale glimpse · words 131 (band 100-180) · taste 105 · candidates 16
-paragraphs [5, 5, 1] · sentences [10, 14, 1, 21, 16, 6, 4, 7, 13, 21, 18]
+scale glimpse · words 130 (band 100-180) · taste 105 · candidates 16
+paragraphs [5, 5, 1] · sentences [10, 14, 1, 21, 16, 6, 4, 7, 13, 21, 17]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:7 colophon:1 receipt:3
 audit clean
@@ -136,13 +136,13 @@ It was the blue door that you painted before breakfast. I have barely learned yo
 
 The brass door refused the Registry. And swallowed its latch. The brass door recognized the blue door. There was a law under it now: a no could bar the way. A door past the reading room opened onto nothing while the blue door was on the page, waited, and shut again.
 
-The Book kept the page: the blue door kept the rule, with the brass door still inside it.
+I kept the page: the blue door kept the rule, with the brass door still inside it.
 
 ==============================================================================
 ## cast-member
 A named member of the Cast. Never furniture, never 'the wicker'.
-scale glimpse · words 126 (band 100-180) · taste 116 · candidates 16
-paragraphs [8, 4, 1] · sentences [5, 5, 6, 5, 4, 8, 20, 15, 9, 11, 15, 8, 15]
+scale glimpse · words 125 (band 100-180) · taste 113 · candidates 16
+paragraphs [8, 4, 1] · sentences [5, 5, 6, 5, 4, 8, 20, 15, 9, 11, 15, 8, 14]
 prosody repeated-openings 0 · flat-run 5 · spread 16
 provenance authored:8 colophon:1 receipt:4
 audit clean
@@ -153,13 +153,13 @@ Wicker refused the fox's shortcut. And crossed the root bridge. You chose to ref
 
 You baked bread for the first time since spring. I took the bread with the dirt still in the sentence. My back cover grew a new pocket for the bread while I was not looking. I object to the secrecy, not the pocket.
 
-The Book kept the page: one crossing was allowed, and the bread closed the rest.
+I kept the page: one crossing was allowed, and the bread closed the rest.
 
 ==============================================================================
 ## grief-day
 Unpermitted shadow. The quotation stays verbatim and the colophon plain, but the world may attend the day's ordinary object.
-scale glimpse · words 121 (band 100-180) · taste 87 · candidates 4
-paragraphs [6, 3, 3, 1] · sentences [8, 5, 4, 4, 10, 13, 17, 8, 7, 9, 3, 20, 13]
+scale glimpse · words 120 (band 100-180) · taste 90 · candidates 4
+paragraphs [6, 3, 3, 1] · sentences [8, 5, 4, 4, 10, 13, 17, 8, 7, 9, 3, 20, 12]
 prosody repeated-openings 0 · flat-run 3 · spread 17
 provenance authored:10 colophon:1 quoted:1 receipt:1
 audit clean
@@ -172,13 +172,13 @@ I copied this much and changed none of its words: «My sister called about the f
 
 The shop kept watch and would not look away. I stayed quiet. A door past the reading room opened onto nothing while the shop was on the page, waited, and shut again.
 
-The Book kept the page: the words stayed in the order they came.
+I kept the page: the words stayed in the order they came.
 
 ==============================================================================
 ## tender-shadow
 Hard material the reader has since let take tale form.
-scale glimpse · words 123 (band 100-180) · taste 85 · candidates 4
-paragraphs [6, 3, 3, 1] · sentences [19, 5, 4, 4, 10, 13, 8, 8, 7, 9, 3, 20, 13]
+scale glimpse · words 122 (band 100-180) · taste 88 · candidates 4
+paragraphs [6, 3, 3, 1] · sentences [19, 5, 4, 4, 10, 13, 8, 8, 7, 9, 3, 20, 12]
 prosody repeated-openings 1 · flat-run 4 · spread 17
 provenance authored:10 colophon:1 quoted:1 receipt:1
 audit clean
@@ -191,13 +191,13 @@ You repotted the fern that survived the move. Three shelves turned to face the f
 
 The fern kept watch and would not look away. I stayed quiet. A door past the reading room opened onto nothing while the fern was on the page, waited, and shut again.
 
-The Book kept the page: the words stayed in the order they came.
+I kept the page: the words stayed in the order they came.
 
 ==============================================================================
 ## arc-deepened
 A supplied arc movement the page has to make legible.
-scale glimpse · words 120 (band 100-180) · taste 96 · candidates 8
-paragraphs [4, 4, 4, 1] · sentences [12, 13, 1, 15, 5, 8, 13, 8, 8, 7, 8, 7, 15]
+scale glimpse · words 119 (band 100-180) · taste 95 · candidates 8
+paragraphs [4, 4, 4, 1] · sentences [12, 13, 1, 15, 5, 8, 13, 8, 8, 7, 8, 7, 14]
 prosody repeated-openings 1 · flat-run 5 · spread 14
 provenance authored:11 colophon:1 receipt:1
 audit clean
@@ -210,13 +210,13 @@ The path answered me once. I did not ask for a second performance. Frost crossed
 
 I had an older mark for the path. Tonight's went beside it and pressed harder. Three shelves turned to face the path tonight. Shelves are not built with a front.
 
-The Book kept the page: the path answered once, and I did not ask twice.
+I kept the page: the path answered once, and I did not ask twice.
 
 ==============================================================================
 ## relational-lens
 A supplied condition-and-outcome the page must dramatize, not analyse.
-scale glimpse · words 118 (band 100-180) · taste 85 · candidates 8
-paragraphs [3, 3, 4, 1] · sentences [9, 5, 10, 9, 3, 20, 12, 15, 15, 8, 12]
+scale glimpse · words 117 (band 100-180) · taste 85 · candidates 8
+paragraphs [3, 3, 4, 1] · sentences [9, 5, 10, 9, 3, 20, 12, 15, 15, 8, 11]
 prosody repeated-openings 0 · flat-run 2 · spread 17
 provenance authored:9 colophon:1 receipt:1
 audit clean
@@ -229,13 +229,13 @@ The rain kept watch and would not look away. I stayed quiet. A door past the rea
 
 When the rain sets in for the afternoon, the writing gets longer. I put a question mark there and would not let the Index rub it out. My back cover grew a new pocket for the rain while I was not looking. I object to the secrecy, not the pocket.
 
-The Book kept the page: the rain kept watch over what happened.
+I kept the page: the rain kept watch over what happened.
 
 ==============================================================================
 ## full-braid
 A heavy day. Five substantial story receipts plus fiction: the widest page.
-scale full · words 300 (band 280-450) · taste 109 · candidates 16
-paragraphs [5, 3, 3, 6, 3, 4, 1] · sentences [19, 6, 5, 5, 9, 28, 5, 10, 23, 7, 6, 5, 18, 13, 5, 16, 5, 9, 12, 20, 23, 14, 12, 9, 16]
+scale full · words 299 (band 280-450) · taste 109 · candidates 16
+paragraphs [5, 3, 3, 6, 3, 4, 1] · sentences [19, 6, 5, 5, 9, 28, 5, 10, 23, 7, 6, 5, 18, 13, 5, 16, 5, 9, 12, 20, 23, 14, 12, 9, 15]
 prosody repeated-openings 1 · flat-run 3 · spread 23
 provenance authored:15 colophon:1 receipt:9
 audit clericalCadence
@@ -254,13 +254,13 @@ You cooked the plums down with a cinnamon stick. And forgot about them until the
 
 You read forty pages standing up in the hallway because you forgot to sit down, and your back has opinions about it now. I recognized the hallway beside the plums and did not call them the same. My ribbon moved on its own and lay itself across the plums. I have not decided whether that was a favour.
 
-The Book kept the page: the price stayed named, and the plums did not lower it.
+I kept the page: the price stayed named, and the plums did not lower it.
 
 ==============================================================================
 ## supporting-logs-only
 Only weather and body logs were kept. Nothing may be promoted to plot.
-scale glimpse · words 122 (band 100-180) · taste 90 · candidates 8
-paragraphs [8, 3, 1] · sentences [7, 13, 1, 20, 15, 12, 5, 5, 9, 3, 16, 16]
+scale glimpse · words 121 (band 100-180) · taste 90 · candidates 8
+paragraphs [8, 3, 1] · sentences [7, 13, 1, 20, 15, 12, 5, 5, 9, 3, 16, 15]
 prosody repeated-openings 0 · flat-run 2 · spread 19
 provenance authored:10 colophon:1 receipt:1
 audit clean
@@ -271,14 +271,14 @@ Slept badly, six hours, woke at four. I have barely learned your corners, and th
 
 The day kept watch and would not look away. I stayed quiet. Above the Stacks, something ran across the roof carrying news of the day in its teeth.
 
-The Book kept the page: nothing about what happened went unwatched, and the day is why.
+I kept the page: nothing about what happened went unwatched, and the day is why.
 
 ==============================================================================
 ## empty-day
 Nothing kept at all. The blank has to stay honest.
-scale glimpse · words 51 (band 100-180) · taste 77 · candidates 1
-paragraphs [3, 2, 1] · sentences [8, 4, 3, 7, 11, 18]
-prosody repeated-openings 1 · flat-run 2 · spread 15
+scale glimpse · words 49 (band 100-180) · taste 79 · candidates 1
+paragraphs [3, 2, 1] · sentences [8, 4, 3, 7, 11, 16]
+prosody repeated-openings 0 · flat-run 2 · spread 13
 provenance authored:5 colophon:1
 audit tooShort
 
@@ -288,13 +288,13 @@ The day left no scrap under my door. I sniffed the paper. It sniffed back.
 
 We argued over whose turn it was. The blank won and sat on the good ink until midnight.
 
-The Book kept the page: the blank kept the good ink and would not say what it wanted.
+I kept the page: the blank kept the good ink and wouldn't say what it wanted.
 
 ==============================================================================
 ## reader-answer
 A Labyrinth page the reader answered in their own words.
-scale glimpse · words 121 (band 100-180) · taste 103 · candidates 16
-paragraphs [4, 6, 1] · sentences [14, 13, 1, 20, 5, 11, 6, 5, 9, 21, 16]
+scale glimpse · words 120 (band 100-180) · taste 106 · candidates 16
+paragraphs [4, 6, 1] · sentences [14, 13, 1, 20, 5, 11, 6, 5, 9, 21, 15]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:7 colophon:1 quoted:1 receipt:2
 audit clean
@@ -305,13 +305,13 @@ It was the spare keys under the seat of the car that you found. I have barely le
 
 The corridor offered three doors. You said, «I chose the blue door because it felt honest.» The corridor leaned on the keys. A price was already there. The keys named it and would not lower it. None of the doors would say which one the keys came through, which usually means every one of them is lying.
 
-The Book kept the page: the keys kept the price where the corridor could see it.
+I kept the page: the keys kept the price where the corridor could see it.
 
 ==============================================================================
 ## long-rambling-receipt
 Adversarial: one very long unbroken sentence from the reader.
-scale glimpse · words 118 (band 100-180) · taste 96 · candidates 8
-paragraphs [4, 4, 1] · sentences [38, 5, 10, 20, 9, 3, 16, 5, 12]
+scale glimpse · words 117 (band 100-180) · taste 93 · candidates 8
+paragraphs [4, 4, 1] · sentences [38, 5, 10, 20, 9, 3, 16, 5, 11]
 prosody repeated-openings 0 · flat-run 1 · spread 35
 provenance authored:7 colophon:1 receipt:1
 audit clean
@@ -322,13 +322,13 @@ You meant to go to the studio but you ended up walking the long way round past t
 
 The studio kept watch and would not look away. I stayed quiet. Someone in another room said the studio out loud a moment before I wrote it down. There is no other room.
 
-The Book kept the page: the studio kept watch over what happened.
+I kept the page: the studio kept watch over what happened.
 
 ==============================================================================
 ## terse-fragments
 Adversarial: receipts with no verbs and no punctuation to speak of.
-scale glimpse · words 120 (band 100-180) · taste 73 · candidates 8
-paragraphs [8, 4, 3, 1] · sentences [2, 1, 10, 4, 3, 10, 5, 3, 2, 2, 14, 20, 9, 4, 16, 15]
+scale glimpse · words 119 (band 100-180) · taste 72 · candidates 8
+paragraphs [8, 4, 3, 1] · sentences [2, 1, 10, 4, 3, 10, 5, 3, 2, 2, 14, 20, 9, 4, 16, 14]
 prosody repeated-openings 0 · flat-run 4 · spread 19
 provenance authored:11 colophon:1 receipt:4
 audit clean
@@ -341,13 +341,13 @@ Two buses. One late. I recognized the buses beside the tea and did not call them
 
 The tea answered the buses without copying the words. Neither had been asked. Above the Stacks, something ran across the roof carrying news of the tea in its teeth.
 
-The Book kept the page: the tea answered once, and I did not ask twice.
+I kept the page: the tea answered once, and I did not ask twice.
 
 ==============================================================================
 ## plural-anchor
 The anchor noun is plural; the prose must not slip into the singular.
-scale glimpse · words 120 (band 100-180) · taste 90 · candidates 8
-paragraphs [8, 4, 1] · sentences [10, 13, 1, 20, 15, 12, 5, 5, 9, 3, 8, 7, 12]
+scale glimpse · words 119 (band 100-180) · taste 90 · candidates 8
+paragraphs [8, 4, 1] · sentences [10, 13, 1, 20, 15, 12, 5, 5, 9, 3, 8, 7, 11]
 prosody repeated-openings 0 · flat-run 2 · spread 19
 provenance authored:11 colophon:1 receipt:1
 audit clean
@@ -358,66 +358,66 @@ On the hall hook, you finally labelled the brass keys. I have barely learned you
 
 The keys kept watch and would not look away. I stayed quiet. Three shelves turned to face the keys tonight. Shelves are not built with a front.
 
-The Book kept the page: the keys kept watch over what happened.
+I kept the page: the keys kept watch over what happened.
 
 ==============================================================================
 ## quoted-speech
 Adversarial: the reader quoted somebody else inside their own sentence.
-scale glimpse · words 119 (band 100-180) · taste 85 · candidates 8
-paragraphs [5, 4, 2] · sentences [21, 13, 1, 20, 15, 7, 5, 12, 9, 13, 3]
-prosody repeated-openings 1 · flat-run 2 · spread 20
-provenance authored:8 colophon:2 quoted:1
+scale glimpse · words 131 (band 100-180) · taste 82 · candidates 8
+paragraphs [9, 4, 1] · sentences [21, 4, 3, 2, 20, 15, 12, 5, 5, 7, 5, 12, 9, 11]
+prosody repeated-openings 1 · flat-run 4 · spread 19
+provenance authored:12 colophon:1 quoted:1
 audit clean
 
 The Day Kept a Place
 
-I caught this much of your sentence: «My mother said "you never call on a Tuesday" and then laughed about it.» I have barely learned your corners, and the day is already making demands. Good. The Index climbed out of its own alphabet to look at the day properly, which it has no business doing. Twice I read the line around the day, and kept the second reading to myself.
+I caught this much of your sentence: «My mother said "you never call on a Tuesday" and then laughed about it.» I eyed the day. The Index objected. Rude thing. A door past the reading room opened onto nothing while the day was on the page, waited, and shut again. Twice I read the line around the day, and kept the second reading to myself. My pencil went down beside the day and did not improve it. Something wanted a tidier version. It is not getting one.
 
 The day kept the empty place open. I did not fill it. My ribbon moved on its own and lay itself across the day. I have not decided whether that was a favour.
 
-The Book kept the page: an empty place stayed open beside the day. I left it.
+I kept the page: the day kept one empty place open.
 
 ==============================================================================
 ## unpunctuated
 Adversarial: no terminal punctuation and inconsistent capitals.
-scale glimpse · words 127 (band 100-180) · taste 99 · candidates 8
-paragraphs [7, 5, 1] · sentences [11, 11, 20, 15, 12, 5, 5, 5, 5, 4, 16, 5, 13]
-prosody repeated-openings 0 · flat-run 5 · spread 16
-provenance authored:11 colophon:1 receipt:1
+scale glimpse · words 132 (band 100-180) · taste 97 · candidates 8
+paragraphs [9, 5, 1] · sentences [11, 10, 4, 3, 20, 15, 12, 5, 5, 5, 5, 4, 16, 5, 12]
+prosody repeated-openings 0 · flat-run 5 · spread 17
+provenance authored:13 colophon:1 receipt:1
 audit clean
 
 The River Would Not Move
 
-went to the river with dad and we didnt talk much. I took the river with the dirt still in the sentence. A door past the reading room opened onto nothing while the river was on the page, waited, and shut again. Twice I read the line around the river, and kept the second reading to myself. My pencil went down beside the river and did not improve it. Something wanted a tidier version. It is not getting one.
+went to the river with dad and we didnt talk much. The river arrived before I knew where to shelve it. It bit the label. I kept both. A door past the reading room opened onto nothing while the river was on the page, waited, and shut again. Twice I read the line around the river, and kept the second reading to myself. My pencil went down beside the river and did not improve it. Something wanted a tidier version. It is not getting one.
 
 The river guarded the way. I was allowed through once. Then the way shut. Someone in another room said the river out loud a moment before I wrote it down. There is no other room.
 
-The Book kept the page: the river shut the way after one crossing.
+I kept the page: the river shut the way after one crossing.
 
 ==============================================================================
 ## souvenir-anchored
 A One-Sentence Souvenir kept late. It has to take the spine from the earlier page.
-scale glimpse · words 129 (band 100-180) · taste 92 · candidates 16
-paragraphs [6, 4, 3, 1] · sentences [5, 9, 11, 10, 5, 3, 11, 8, 3, 20, 9, 3, 20, 12]
-prosody repeated-openings 1 · flat-run 3 · spread 17
-provenance authored:10 colophon:1 receipt:3
+scale glimpse · words 115 (band 100-180) · taste 93 · candidates 16
+paragraphs [4, 4, 3, 1] · sentences [5, 9, 13, 1, 11, 11, 2, 20, 9, 3, 20, 11]
+prosody repeated-openings 0 · flat-run 2 · spread 19
+provenance authored:8 colophon:1 receipt:3
 audit clean
 
 The Doorway Saw It
 
-You stood in the doorway. And listened to the whole song before coming in. I took the doorway with the dirt still in the sentence. In one breath I read the doorway and the parcel. The second changed the first. I let it.
+You stood in the doorway. And listened to the whole song before coming in. I have barely learned your corners, and the doorway is already making demands. Good.
 
-It was the parcel at the post office that you dropped. I put the parcel down beside the doorway. Neither became scenery. A door past the reading room opened onto nothing while the doorway was on the page, waited, and shut again.
+It was the parcel at the post office that you dropped. I kept the parcel on the same page as the doorway. No procession. A door past the reading room opened onto nothing while the doorway was on the page, waited, and shut again.
 
 The doorway kept watch and would not look away. I stayed quiet. The Index climbed out of its own alphabet to look at the doorway properly, which it has no business doing.
 
-The Book kept the page: the doorway kept watch over what happened.
+I kept the page: the doorway kept watch over what happened.
 
 ==============================================================================
 ## named-reader-with-theme
 Reader role, a settled theme, and a standing tale law all in context.
-scale glimpse · words 121 (band 100-180) · taste 106 · candidates 16
-paragraphs [3, 3, 4, 2, 1] · sentences [11, 13, 1, 6, 7, 15, 8, 5, 4, 21, 8, 9, 13]
+scale glimpse · words 120 (band 100-180) · taste 104 · candidates 16
+paragraphs [3, 3, 4, 2, 1] · sentences [11, 13, 1, 6, 7, 15, 8, 5, 4, 21, 8, 9, 12]
 prosody repeated-openings 0 · flat-run 2 · spread 20
 provenance authored:9 colophon:1 receipt:3
 audit clean
@@ -432,32 +432,32 @@ The window guarded the way beside the letter. I was allowed through once. Then t
 
 Somebody has been signing these pages The Maker. It was me, and I would do it again.
 
-The Book kept the page: the window shut the way after one crossing.
+I kept the page: the window shut the way after one crossing.
 
 ==============================================================================
 ## long-kept-subject
 A subject four months deep in the archive. The callback should fire.
-scale glimpse · words 120 (band 100-180) · taste 85 · candidates 8
-paragraphs [6, 6, 2, 1] · sentences [6, 5, 10, 4, 3, 15, 7, 5, 16, 1, 13, 8, 10, 5, 12]
-prosody repeated-openings 2 · flat-run 2 · spread 15
-provenance authored:12 colophon:1 receipt:2
+scale glimpse · words 113 (band 100-180) · taste 84 · candidates 8
+paragraphs [4, 6, 2, 1] · sentences [6, 5, 11, 15, 7, 5, 16, 1, 13, 8, 10, 5, 11]
+prosody repeated-openings 1 · flat-run 2 · spread 15
+provenance authored:10 colophon:1 receipt:2
 audit clean
 
 The River Kept a Place
 
-You walked down to the river. And did not go in. The river arrived before I knew where to shelve it. It bit the label. I kept both. Twice I read the line around the river, and kept the second reading to myself.
+You walked down to the river. And did not go in. I took the river with the dirt still in the sentence. Twice I read the line around the river, and kept the second reading to myself.
 
 The river kept the empty place open. I did not fill it. A paper moth ate a careful hole around the river and left the important part untouched. Show-off. Frost crossed the window over the river and stopped in a straight line. Frost has never once done a straight line.
 
 That is the seventh time I have kept the river. The first was in May.
 
-The Book kept the page: the river kept one empty place open.
+I kept the page: the river kept one empty place open.
 
 ==============================================================================
 ## rich-mixed-night
 Eleven kept pages, lived and fiction braided. The night the fiction cap starved.
-scale full · words 302 (band 280-450) · taste 96 · candidates 32
-paragraphs [3, 3, 3, 2, 3, 1, 5, 4, 4, 4, 1] · sentences [7, 4, 5, 15, 13, 5, 7, 7, 6, 12, 15, 9, 5, 4, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 16]
+scale full · words 301 (band 280-450) · taste 96 · candidates 32
+paragraphs [3, 3, 3, 2, 3, 1, 5, 4, 4, 4, 1] · sentences [7, 4, 5, 15, 13, 5, 7, 7, 6, 12, 15, 9, 5, 4, 10, 14, 6, 8, 5, 9, 21, 6, 16, 5, 9, 8, 13, 8, 9, 4, 12, 9, 15]
 prosody repeated-openings 2 · flat-run 4 · spread 17
 provenance authored:18 colophon:1 receipt:14
 audit clericalCadence
@@ -484,26 +484,26 @@ The air in the long room slammed the door. And would not give the diner a vote. 
 
 Whatever keeps the ledger downstairs left an entry open. And went to bed. One bell rang under the floor when the mug reached the page. There is not meant to be a bell there.
 
-The Book kept the page: the price stayed named, and the mug did not lower it.
+I kept the page: the price stayed named, and the mug did not lower it.
 
 ==============================================================================
 ## open-tale-night
 A recognised tale is running. Beat threads may speak; the shape is never named.
-scale glimpse · words 131 (band 100-180) · taste 93 · candidates 16
-paragraphs [5, 4, 4, 1] · sentences [9, 6, 10, 4, 3, 11, 15, 9, 11, 8, 5, 4, 21, 15]
-prosody repeated-openings 0 · flat-run 2 · spread 18
-provenance authored:10 colophon:1 receipt:3
+scale glimpse · words 122 (band 100-180) · taste 96 · candidates 16
+paragraphs [3, 4, 4, 1] · sentences [9, 6, 11, 11, 13, 9, 11, 8, 5, 4, 21, 14]
+prosody repeated-openings 0 · flat-run 3 · spread 17
+provenance authored:8 colophon:1 receipt:3
 audit clean
 
 The Boxes Would Not Move
 
-You carried four boxes out of the spare room. And left them in the hall. The boxes arrived before I knew where to shelve them. They bit the label. I kept both.
+You carried four boxes out of the spare room. And left them in the hall. I took the boxes with the dirt still in the sentence.
 
-The wall behind them is a colour you did not choose. I drew the wall close to the boxes and stopped before I lied about why. No line has been crossed around the boxes yet. I keep checking the chalk, which tells you what I expect.
+The wall behind them is a colour you did not choose. I kept the wall and the boxes, including the crooked distance between them. No line has been crossed around the boxes yet. I keep checking the chalk, which tells you what I expect.
 
 The boxes guarded the way beside the wall. I was allowed through once. Then the way shut. None of the doors would say which one the boxes came through, which usually means every one of them is lying.
 
-The Book kept the page: one crossing was allowed, and the boxes closed the rest.
+I kept the page: one crossing was allowed, and the boxes closed the rest.
 
 ==============================================================================
 # Consecutive nights
@@ -512,7 +512,7 @@ The corpus read straight through, with the archive carried forward.
 Continuity beats can only appear here.
 
 ------------------------------------------------------------------------------
-## one-receipt-glimpse · 129w
+## one-receipt-glimpse · 128w
 braid-move:tale:door braid-move:tale:index
 
 The Bowl Saw It
@@ -521,10 +521,10 @@ It was the chipped yellow bowl back on the shelf that you put. I circled the bow
 
 The bowl kept watch and would not look away. I stayed quiet. A door past the reading room opened onto nothing while the bowl was on the page, waited, and shut again.
 
-The Book kept the page: the bowl kept watch over what happened.
+I kept the page: the bowl kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## plain-diary-day · 134w
+## plain-diary-day · 133w
 braid-move:tale:door+ braid-move:tale:frost
 
 The Shop Saw It
@@ -535,10 +535,10 @@ You cleared the whole desk. And found the missing library card. I kept the desk 
 
 The shop kept watch and would not look away. I stayed quiet. That door has opened onto nothing twice more since the bowl, and waited a little longer each time. Tonight the shop turned up beside it. That changed the trouble, though neither thing will say how.
 
-The Book kept the page: nothing about what happened went unwatched, and the shop is why.
+I kept the page: nothing about what happened went unwatched, and the shop is why.
 
 ------------------------------------------------------------------------------
-## multi-beat-day · 121w
+## multi-beat-day · 120w
 braid-move:tale:door!
 
 What the Screw Wanted
@@ -549,10 +549,10 @@ You carried tomato soup to Sam. And forgot the silver spoon. I kept the screw an
 
 The screw would not stay neutral. I approved. The door past the reading room opened once more for the bowl, and there was a corridor behind it. There has never been a corridor there. The shop stayed beside the business until the end. The screw was there at the end and is pretending not to have helped.
 
-The Book kept the page: the choice stayed with the screw, where I found it.
+I kept the page: the choice stayed with the screw, where I found it.
 
 ------------------------------------------------------------------------------
-## labyrinth-only · 125w
+## labyrinth-only · 124w
 braid-move:tale:door! braid-move:tale:echo
 
 The Door Made a Rule
@@ -561,22 +561,22 @@ The brass door refused the Registry. And swallowed its latch. I wanted the door 
 
 The door laid down a law: a no could bar the way. I obeyed it. The door past the reading room opened once more for the bowl, and there was a corridor behind it. There has never been a corridor there. The shop stayed beside the business until the end. The door was there at the end and is pretending not to have helped.
 
-The Book kept the page: the rule holds, and the door is the one holding it.
+I kept the page: the rule holds, and the door is the one holding it.
 
 ------------------------------------------------------------------------------
-## crossing · 127w
+## crossing · 120w
 braid-move:tale:door!
 
 What the Lamp Charged the Fox
 
 Through the root bridge, the fox offered a shorter road. You chose to refuse the shortcut. The fox leaned on the lamp. A price was already there. The lamp named it and would not lower it.
 
-It was the brass lamp in the hallway that you rewired. I wanted the lamp. I put my thumb on the line before anyone tidied it. The door past the reading room opened once more for the bowl, and there was a corridor behind it. There has never been a corridor there. The shop stayed beside the business until the end. The lamp was there at the end and is pretending not to have helped.
+It was the brass lamp in the hallway that you rewired. I kept the lamp. The rest had to wait. The door past the reading room opened once more for the bowl, and there was a corridor behind it. There has never been a corridor there. The shop stayed beside the business until the end. The lamp was there at the end and is pretending not to have helped.
 
-The Book kept the page: the price stayed named, and the lamp did not lower it.
+I kept the page: the price stayed named, and the lamp did not lower it.
 
 ------------------------------------------------------------------------------
-## matched-subjects · 134w
+## matched-subjects · 133w
 braid-move:tale:door!
 
 The Blue Door Answered the Brass Door
@@ -587,10 +587,10 @@ The brass door refused the Registry. And swallowed its latch. The brass door rec
 
 I had an older mark for the blue door. Tonight's went beside it and pressed harder. The door past the reading room opened once more for the bowl, and there was a corridor behind it. There has never been a corridor there. The shop stayed beside the business until the end. The blue door was there at the end and is pretending not to have helped.
 
-The Book kept the page: the blue door kept the rule, with the brass door still inside it.
+I kept the page: the blue door kept the rule, with the brass door still inside it.
 
 ------------------------------------------------------------------------------
-## cast-member · 123w
+## cast-member · 122w
 braid-move:tale:ribbon braid-move:tale:stairs
 
 Wicker Crossed the Bread
@@ -599,24 +599,24 @@ You baked bread for the first time since spring. The bread arrived before I knew
 
 Wicker refused the fox's shortcut. And crossed the root bridge. You chose to refuse the shortcut. Wicker leaned on the bread. One crossing was allowed. Then the bread shut the way behind Wicker. Halfway up the Academy stairs, one step shifted sideways when it heard about the bread. I counted twice.
 
-The Book kept the page: one crossing was allowed, and the bread closed the rest.
+I kept the page: one crossing was allowed, and the bread closed the rest.
 
 ------------------------------------------------------------------------------
-## grief-day · 122w
+## grief-day · 121w
 braid-move:tale:lamps braid-move:tale:stacks
 
-The Words Kept Their Name
+The Words Stayed As They Came
 
 You walked to the corner shop for bread. I read those words twice. My pencil stayed still. Nothing else wanted saying tonight, so nothing else was said. I turned the corner of the page down and left the rest of the paper white.
 
-I copied this much and changed none of its words: «My sister called about the funeral arrangements.» Twice the lamps went down over the shop and twice they came back up. The building does that when it is thinking.
+I copied this much and changed none of its words: «My sister called about the funeral arrangements.» Three shelves turned to face the shop tonight. Shelves are not built with a front.
 
-The shop kept watch and would not look away. I stayed quiet. Three shelves turned to face the shop tonight. Shelves are not built with a front.
+The shop kept watch and would not look away. I stayed quiet. Twice the lamps went down over the shop and twice they came back up. The building does that when it is thinking.
 
-The Book kept the page: the words stayed in the order they came.
+I kept the page: the words stayed in the order they came.
 
 ------------------------------------------------------------------------------
-## tender-shadow · 123w
+## tender-shadow · 122w
 braid-move:tale:door braid-move:tale:stacks
 
 The Words Stayed As They Came
@@ -627,10 +627,10 @@ You repotted the fern that survived the move. Three shelves turned to face the f
 
 The fern kept watch and would not look away. I stayed quiet. A door past the reading room opened onto nothing while the fern was on the page, waited, and shut again.
 
-The Book kept the page: the words stayed in the order they came.
+I kept the page: the words stayed in the order they came.
 
 ------------------------------------------------------------------------------
-## arc-deepened · 118w
+## arc-deepened · 117w
 braid-move:tale:birds braid-move:tale:stairs+
 
 The Path Answered Twice
@@ -641,25 +641,25 @@ The path answered me once. I did not ask for a second performance. Birds got int
 
 I had an older mark for the path. Tonight's went beside it and pressed harder. The sideways step is still waiting for the bread. Everyone else has learned to climb around its opinion. Tonight the path turned up beside it. That changed the trouble, though neither thing will say how.
 
-The Book kept the page: the answer came from the path, and once was enough.
+I kept the page: the answer came from the path, and once was enough.
 
 ------------------------------------------------------------------------------
-## relational-lens · 128w
-braid-move:tale:rain braid-move:tale:stairs!
+## relational-lens · 116w
+braid-move:tale:stairs!
 
 The Rain Saw It
 
-You wrote three pages while the rain came down. I kept the rain. The rest had to wait.
+You wrote three pages while the rain came down. I wanted the rain. I put my thumb on the line before anyone tidied it.
 
-The rain kept watch and would not look away. I stayed quiet. It rained inside the Stacks over the rain and nowhere else. The floor is still dark there.
+The rain kept watch and would not look away. I stayed quiet.
 
 When the rain sets in for the afternoon, the writing gets longer. I put a question mark there and would not let the Index rub it out. The shifted step went back into line after the bread passed through the story. It kept one corner crooked. The path stayed beside the business until the end. The rain was there at the end and is pretending not to have helped.
 
-The Book kept the page: the rain kept watch over what happened.
+I kept the page: the rain kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## full-braid · 314w
-braid-move:tale:doors braid-move:tale:stairs!
+## full-braid · 309w
+braid-move:tale:rain braid-move:tale:stairs!
 
 What the Plums Charged Eddies
 
@@ -673,26 +673,26 @@ You swam in the lido. And stayed in well past the point where the cold stopped b
 
 You cooked the plums down with a cinnamon stick. And forgot about them until the kitchen smelled like somebody else's childhood.
 
-You read forty pages standing up in the hallway because you forgot to sit down, and your back has opinions about it now. I recognized the hallway beside the plums and did not call them the same. None of the doors would say which one the plums came through, which usually means every one of them is lying.
+You read forty pages standing up in the hallway because you forgot to sit down, and your back has opinions about it now. I recognized the hallway beside the plums and did not call them the same. It rained inside the Stacks over the plums and nowhere else. The floor is still dark there.
 
 The plums had been here before. I compared the old mark with tonight's and kept the changed edge. The shifted step went back into line after the bread passed through the story. It kept one corner crooked. The path stayed beside the business until the end. The plums were there at the end and are pretending not to have helped.
 
-The Book kept the page: the plums kept the price where Eddies could see it.
+I kept the page: the plums kept the price where Eddies could see it.
 
 ------------------------------------------------------------------------------
-## supporting-logs-only · 125w
-braid-move:tale:moth braid-move:tale:stairs!
+## supporting-logs-only · 128w
+braid-move:tale:doors braid-move:tale:stairs!
 
 The Day Saw It
 
-Slept badly, six hours, woke at four. I have barely learned your corners, and the day is already making demands. Good. A paper moth ate a careful hole around the day and left the important part untouched. Show-off. Before the ink dried, I bent the page around the day. The fold refused to be straight.
+Slept badly, six hours, woke at four. I have barely learned your corners, and the day is already making demands. Good. None of the doors would say which one the day came through, which usually means every one of them is lying. Before the ink dried, I bent the page around the day. The fold refused to be straight.
 
 The day kept watch and would not look away. I stayed quiet. The shifted step went back into line after the bread passed through the story. It kept one corner crooked. The path stayed beside the business until the end. The day was there at the end and is pretending not to have helped.
 
-The Book kept the page: nothing about what happened went unwatched, and the day is why.
+I kept the page: nothing about what happened went unwatched, and the day is why.
 
 ------------------------------------------------------------------------------
-## empty-day · 51w
+## empty-day · 49w
 
 The Page That Bit Back
 
@@ -700,10 +700,10 @@ The day left no scrap under my door. I sniffed the paper. It sniffed back.
 
 We argued over whose turn it was. The blank won and sat on the good ink until midnight.
 
-The Book kept the page: the blank kept the good ink and would not say what it wanted.
+I kept the page: the blank kept the good ink and wouldn't say what it wanted.
 
 ------------------------------------------------------------------------------
-## reader-answer · 123w
+## reader-answer · 122w
 braid-move:tale:index braid-move:tale:pocket
 
 The Keys Answered the Corridor
@@ -712,10 +712,10 @@ The corridor offered three doors. You said, «I chose the blue door because it f
 
 It was the spare keys under the seat of the car that you found. I have barely learned your corners, and the keys are already making demands. Good. The Index climbed out of its own alphabet to look at the keys properly, which it has no business doing.
 
-The Book kept the page: the price stayed named, and the keys did not lower it.
+I kept the page: the price stayed named, and the keys did not lower it.
 
 ------------------------------------------------------------------------------
-## long-rambling-receipt · 115w
+## long-rambling-receipt · 114w
 braid-move:tale:index+
 
 The Studio Saw It
@@ -724,10 +724,10 @@ You meant to go to the studio but you ended up walking the long way round past t
 
 The studio kept watch and would not look away. I stayed quiet. The Index is still out of its alphabet and still looking at the keys. It has not gone back all week. Tonight the studio turned up beside it. That changed the trouble, though neither thing will say how.
 
-The Book kept the page: the studio kept watch over what happened.
+I kept the page: the studio kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## terse-fragments · 127w
+## terse-fragments · 126w
 braid-move:tale:frost braid-move:tale:index!
 
 The Tea Answered Twice
@@ -738,22 +738,22 @@ Two buses. One late. I recognized the buses beside the tea and did not call them
 
 The tea answered the buses without copying the words. Neither had been asked. The Index climbed back into its alphabet and left one corner turned down over the keys. I did not turn it. The studio stayed beside the business until the end. The tea was there at the end and is pretending not to have helped.
 
-The Book kept the page: the tea answered once, and I did not ask twice.
+I kept the page: the tea answered once, and I did not ask twice.
 
 ------------------------------------------------------------------------------
-## plural-anchor · 132w
-braid-move:tale:bell braid-move:tale:index!
+## plural-anchor · 127w
+braid-move:tale:index! braid-move:tale:moth
 
 The Keys Saw It
 
-On the hall hook, you finally labelled the brass keys. I kept the keys. The rest had to wait. One bell rang under the floor when the keys reached the page. There is not meant to be a bell there. Under the lamp, the keys threw a little shadow into the next paragraph. I left it there. At midnight the keys were still awake in the sentence. I was too, so I kept watch.
+On the hall hook, you finally labelled the brass keys. I kept the keys. The rest had to wait. A paper moth ate a careful hole around the keys and left the important part untouched. Show-off. Under the lamp, the keys threw a little shadow into the next paragraph. I left it there. At midnight the keys were still awake in the sentence. I was too, so I kept watch.
 
 The keys kept watch and would not look away. I stayed quiet. The Index climbed back into its alphabet and left one corner turned down over the keys. I did not turn it. The studio stayed beside the business until the end.
 
-The Book kept the page: nothing about what happened went unwatched, and the keys is why.
+I kept the page: nothing about what happened went unwatched, and the keys is why.
 
 ------------------------------------------------------------------------------
-## quoted-speech · 126w
+## quoted-speech · 121w
 braid-move:tale:echo braid-move:tale:index!
 
 The Day Kept a Place
@@ -762,36 +762,36 @@ I caught this much of your sentence: «My mother said "you never call on a Tuesd
 
 The day kept the empty place open. I did not fill it. The Index climbed back into its alphabet and left one corner turned down over the keys. I did not turn it. The studio stayed beside the business until the end. The day was there at the end and is pretending not to have helped.
 
-The Book kept the page: an empty place stayed open beside the day. I left it.
+I kept the page: the day kept one empty place open.
 
 ------------------------------------------------------------------------------
-## unpunctuated · 117w
-braid-move:tale:dust braid-move:tale:index!
+## unpunctuated · 128w
+braid-move:tale:bell braid-move:tale:index!
 
 The River Would Not Move
 
-went to the river with dad and we didnt talk much. I wanted the river. I put my thumb on the line before anyone tidied it. Dust fled one neat circle around the river. I put a finger in it and something bit back.
+went to the river with dad and we didnt talk much. I kept the river. The rest had to wait. One bell rang under the floor when the river reached the page. There is not meant to be a bell there. Twice I read the line around the river, and kept the second reading to myself.
 
 The river guarded the way. I was allowed through once. Then the way shut. The Index climbed back into its alphabet and left one corner turned down over the keys. I did not turn it. The studio stayed beside the business until the end. The river was there at the end and is pretending not to have helped.
 
-The Book kept the page: one crossing was allowed, and the river closed the rest.
+I kept the page: one crossing was allowed, and the river closed the rest.
 
 ------------------------------------------------------------------------------
-## souvenir-anchored · 126w
-braid-move:tale:roof braid-move:tale:stairs
+## souvenir-anchored · 128w
+braid-move:tale:dust braid-move:tale:stairs
 
 The Doorway Saw It
 
-You stood in the doorway. And listened to the whole song before coming in. I have barely learned your corners, and the doorway is already making demands. Good. In one breath I read the doorway and the parcel. The second changed the first. I let it.
+You stood in the doorway. And listened to the whole song before coming in. I have barely learned your corners, and the doorway is already making demands. Good. My pencil went down beside the doorway and did not improve it. Something wanted a tidier version. It is not getting one.
 
-It was the parcel at the post office that you dropped. I put the parcel down beside the doorway. Neither became scenery. Above the Stacks, something ran across the roof carrying news of the doorway in its teeth.
+At the post office, you dropped the parcel. I put the parcel down beside the doorway. Neither became scenery. Dust fled one neat circle around the doorway. I put a finger in it and something bit back.
 
 The doorway kept watch and would not look away. I stayed quiet. Halfway up the Academy stairs, one step shifted sideways when it heard about the doorway. I counted twice.
 
-The Book kept the page: the doorway kept watch over what happened.
+I kept the page: the doorway kept watch over what happened.
 
 ------------------------------------------------------------------------------
-## named-reader-with-theme · 150w
+## named-reader-with-theme · 149w
 braid-move:tale:stairs+
 
 The Window Would Not Move
@@ -806,10 +806,10 @@ The window had been here before. I compared the old mark with tonight's and kept
 
 The name I gave you still fits: The Maker. I check more often than I admit.
 
-The Book kept the page: the window shut the way after one crossing.
+I kept the page: the window shut the way after one crossing.
 
 ------------------------------------------------------------------------------
-## long-kept-subject · 115w
+## long-kept-subject · 118w
 braid-move:tale:ribbon braid-move:tale:stairs!
 
 The River Kept a Place
@@ -818,10 +818,10 @@ You walked down to the river. And did not go in. The river arrived before I knew
 
 The river kept the empty place open. I did not fill it. The shifted step went back into line after the doorway passed through the story. It kept one corner crooked. The window stayed beside the business until the end. The river was there at the end and is pretending not to have helped.
 
-The Book kept the page: the river kept one empty place open.
+I kept the page: an empty place stayed open beside the river. I left it.
 
 ------------------------------------------------------------------------------
-## rich-mixed-night · 302w
+## rich-mixed-night · 301w
 braid-move:tale:lamps braid-move:tale:stairs!
 
 What the Mug Charged the Crow
@@ -846,10 +846,10 @@ The air in the long room slammed the door. And would not give the diner a vote. 
 
 Whatever keeps the ledger downstairs left an entry open. And went to bed. The shifted step went back into line after the doorway passed through the story. It kept one corner crooked. The window stayed beside the business until the end. The mug was there at the end and is pretending not to have helped.
 
-The Book kept the page: the mug kept the price where the crow could see it.
+I kept the page: the mug kept the price where the crow could see it.
 
 ------------------------------------------------------------------------------
-## open-tale-night · 123w
+## open-tale-night · 122w
 braid-move:tale:rain
 
 The Boxes Would Not Move
@@ -862,4 +862,4 @@ The boxes guarded the way beside the wall. I was allowed through once. Then the 
 
 The boxes had been here before. I compared the old mark with tonight's and kept the changed edge. It rained inside the Stacks over the boxes and nowhere else. The floor is still dark there.
 
-The Book kept the page: one crossing was allowed, and the boxes closed the rest.
+I kept the page: one crossing was allowed, and the boxes closed the rest.

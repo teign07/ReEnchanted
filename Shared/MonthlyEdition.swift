@@ -203,7 +203,7 @@ enum PublicationHouseCatalogue {
         id: "special-people-you-kept",
         title: "The People You Kept",
         subtitle: "A private atlas of the people who altered the year",
-        invitation: "The Book has been keeping the doors between you. It could bind the ones that stayed open.",
+        invitation: "I've been keeping the doors between you. I could bind the ones that stayed open.",
         sourceKinds: [.keptPeople, .relationshipReceipts, .readerLetters, .keptPages],
         minimumItemCount: 3,
         bindingKinds: [.softcover, .illustratedHardcover, .clothFoilHardcover],
@@ -577,6 +577,9 @@ struct MonthlyEdition: Codable, Equatable {
     /// when it rains, the hour the ink runs heavy. Each with its base rate and the lines it was
     /// read from. Optional so older editions decode.
     var connections: [EditionConnection]? = nil
+    /// The Bleed's front pages for this month, pasted in as clippings. Optional so older
+    /// editions decode; nil or empty prints no leaf.
+    var frontPages: [BleedFrontPageRecord]? = nil
     /// Why the edition carries the title it does, printed in the colophon.
     var titleReason: String? = nil
     /// The thickness the reader chose for this copy. Nil prints the volume at
@@ -4294,17 +4297,17 @@ enum BookForewordWriter {
         //    ends where the naming started.
         if let role = readerRole {
             paragraphs.append(ReflectiveProse.pick([
-                "\(role.gloss) I decided that about you before this month began, and nothing in here argued with me.\n\nThe Book",
-                "Whatever else this month was, it got read. \(role.gloss) The evidence for that's bound behind this page.\n\nThe Book",
-                "I've read every page of this twice. Once as it arrived, once just now. Both times it read like yours. \(role.gloss)\n\nThe Book",
-                "None of it's going anywhere: I've checked the thread myself. \(role.gloss) Still true in \(monthTitle).\n\nThe Book"
+                "\(role.gloss) I decided that about you before this month began, and nothing in here argued with me.\n\n- me",
+                "Whatever else this month was, it got read. \(role.gloss) The evidence for that's bound behind this page.\n\n- me",
+                "I've read every page of this twice. Once as it arrived, once just now. Both times it read like yours. \(role.gloss)\n\n- me",
+                "None of it's going anywhere: I've checked the thread myself. \(role.gloss) Still true in \(monthTitle).\n\n- me"
             ], seed: beatSeed(seed, 41), salt: 0))
         } else {
             paragraphs.append(ReflectiveProse.pick([
-                "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed.\n\nThe Book",
-                "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it.\n\nThe Book",
-                "I've read every page of this twice. Once as it arrived, once just now.\n\nThe Book",
-                "None of it's going anywhere. I've checked the thread myself.\n\nThe Book"
+                "Whatever else this month was, it got read. I put a hand flat on it and told it to stay. It stayed.\n\n- me",
+                "It was a month and I caught it. That's the whole of my claim, and I'm pleased with it.\n\n- me",
+                "I've read every page of this twice. Once as it arrived, once just now.\n\n- me",
+                "None of it's going anywhere. I've checked the thread myself.\n\n- me"
             ], seed: beatSeed(seed, 41), salt: 0))
         }
 
@@ -4390,9 +4393,9 @@ enum BookForewordWriter {
         }
 
         paragraphs.append(ReflectiveProse.pick([
-            "The month is nailed down now. Come back and pry at it whenever you want; the bookmark will deny waiting. The next page is blank and already eavesdropping.\n\nThe Book",
-            "I stitched the month shut. It can still kick.\n\nThe Book",
-            "Shut it, or don't. The month keeps either way now: that was the entire point of the thread.\n\nThe Book"
+            "The month is nailed down now. Come back and pry at it whenever you want; the bookmark will deny waiting. The next page is blank and already eavesdropping.\n\n- me",
+            "I stitched the month shut. It can still kick.\n\n- me",
+            "Shut it, or don't. The month keeps either way now: that was the entire point of the thread.\n\n- me"
         ], seed: beatSeed(seed, 31), salt: 0))
 
         // The compass line is an imperative, so it lands last: the chapter
@@ -4518,7 +4521,7 @@ enum BookForewordWriter {
             paragraphs.append(scoreLine)
         }
 
-        paragraphs.append("Whatever else \(year) was, it was read: all the way to the end, and then once more, slowly, to make this. I wasn't always certain I understood it. I kept turning the pages anyway.\n\nThe Book")
+        paragraphs.append("Whatever else \(year) was, it was read: all the way to the end, and then once more, slowly, to make this. I wasn't always certain I understood it. I kept turning the pages anyway.\n\n- me")
         return paragraphs.joined(separator: "\n\n")
     }
 
@@ -4526,7 +4529,7 @@ enum BookForewordWriter {
     static func annualClosing(year: Int, chapters: [MonthlyEdition]) -> String {
         let count = chapters.count
         let span = count <= 1 ? "this chapter" : "these \(count) chapters"
-        return "Here \(year) ends and is kept. I bound \(span), tucked in the corners, and caught most of them escaping. Come back and pry at it whenever you want. The next page is blank and already eavesdropping.\n\nThe Book"
+        return "Here \(year) ends and is kept. I bound \(span), tucked in the corners, and caught most of them escaping. Come back and pry at it whenever you want. The next page is blank and already eavesdropping.\n\n- me"
     }
 
     /// A season is a landing, not the end of a year. Its final leaf closes the
@@ -4534,7 +4537,7 @@ enum BookForewordWriter {
     static func seasonalClosing(coverLine: String, chapters: [MonthlyEdition]) -> String {
         let count = chapters.count
         let span = count <= 1 ? "this one month" : "these \(count) months"
-        return "Here \(coverLine) shuts its covers. I bound \(span), tucked in the corners, and caught most of them escaping. The season is kept; the year is still loose somewhere ahead, making a mess of the blank pages.\n\nThe Book"
+        return "Here \(coverLine) shuts its covers. I bound \(span), tucked in the corners, and caught most of them escaping. The season is kept; the year is still loose somewhere ahead, making a mess of the blank pages.\n\n- me"
     }
 }
 

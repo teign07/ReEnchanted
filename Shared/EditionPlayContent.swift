@@ -157,13 +157,11 @@ enum EditionPlayCatalogue {
 
     static func userPacks(fileManager: FileManager = .default) -> [EditionPlayContentPack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      let pack = try? decoder.decode(EditionPlayContentPack.self, from: data),
-                      isValid(pack), pack.isCore != true else { return nil }
-                return pack
-            }
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            guard let pack = try? decoder.decode(EditionPlayContentPack.self, from: data),
+                  isValid(pack), pack.isCore != true else { return nil }
+            return pack
+        }
     }
 
     static func isValid(_ pack: EditionPlayContentPack) -> Bool {
@@ -506,7 +504,7 @@ enum EditionPlayCatalogue {
             templateSlot: .weeklyInterruption,
             footprint: .rectoWithBlankReverse,
             eventPhaseIDs: [],
-            body: "CUT ONLY THE DASHED LINES · The Book saw nothing.",
+            body: "CUT ONLY THE DASHED LINES · I saw nothing.",
             prompts: [
                 .init(id: "comma", label: "COMMA", writingLines: 3, note: "DISGUISE"),
                 .init(id: "question", label: "QUESTION MARK", writingLines: 3, note: "DISGUISE"),

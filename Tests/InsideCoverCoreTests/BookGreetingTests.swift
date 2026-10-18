@@ -30,7 +30,7 @@ final class BookGreetingTests: XCTestCase {
             keptPageCount: 4,
             seed: 0
         ))
-        XCTAssertTrue(fact.line.contains("Book remembers"))
+        XCTAssertTrue(fact.line.contains("I remember this about you"))
         XCTAssertTrue(fact.line.contains("small rituals"))
 
         let count = BookGreetingComposer.compose(.init(name: "bj", keptPageCount: 2, seed: 0))

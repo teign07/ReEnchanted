@@ -18,7 +18,7 @@ final class EditionQualityTests: XCTestCase {
     private func braid(_ id: String, title: String, body: String, on day: Date) -> BookPage {
         BookPage(id: id, type: .bookOfYou, createdAt: day,
                  promptText: "The local Book brain braided today.",
-                 userInput: "\(title)\n\n\(body)\n\nThe Book kept the page: \(title.lowercased()).",
+                 userInput: "\(title)\n\n\(body)\n\nI kept the page: \(title.lowercased()).",
                  tags: ["braid", "book-of-you", "local-model", "mlx", "gemma"], origin: .generated)
     }
 

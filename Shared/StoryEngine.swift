@@ -2446,7 +2446,7 @@ enum MeaningfulPassageSelector {
         includeKeptGeneratedPages: Bool = false,
         now: Date = Date()
     ) -> [Selection] {
-        guard limit > 0 else { return [] }
+        guard limit > 0, !Task.isCancelled else { return [] }
         let usedSourceIDs = honorPriorUse ? Set(pages.flatMap { page in
             page.tags.compactMap { tag -> String? in
                 let lowered = tag.lowercased()
@@ -2491,6 +2491,7 @@ enum MeaningfulPassageSelector {
         let queryWords = SemanticKeepEcho.contentWords(in: query)
         var ranked: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
         for candidate in eligible {
+            guard !Task.isCancelled else { return [] }
             let page = candidate.page
             let material = candidate.material
             let passage = bestPassage(
@@ -2500,6 +2501,7 @@ enum MeaningfulPassageSelector {
                 queryWords: queryWords,
                 scorer: scorer
             )
+            guard !Task.isCancelled else { return [] }
             let ageDays = max(0, now.timeIntervalSince(page.createdAt) / 86_400)
             let freshness = max(0, 8 - Int(ageDays / 14))
             let total = passage.score
@@ -2604,6 +2606,7 @@ enum MeaningfulPassageSelector {
         let fingerprintWords = Set(page.resolvedAttentionFingerprint.patternTokens)
         var best: PassageScore?
         for passage in candidates {
+            if Task.isCancelled { break }
             let lowered = passage.lowercased()
             let words = lowered.split { !$0.isLetter && !$0.isNumber }.map(String.init)
             let contentWords = SemanticKeepEcho.contentWords(in: passage)
@@ -4367,7 +4370,8 @@ enum GossipSimulationBuilder {
                slotID: slotID,
                serial: inputs.undertakingSerial,
                now: now,
-               events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents)
+               events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents),
+               preferredUndertakingIDs: BleedNewsroom.sceneLeadIDs(inputs: inputs, now: now)
            ) {
             return undertakingSurface(
                 for: undertaking,
@@ -4422,14 +4426,16 @@ enum GossipSimulationBuilder {
         slotID: String,
         serial: UndertakingSerial = UndertakingSerial(),
         now: Date = Date(),
-        events: UndertakingEventContext = .none
+        events: UndertakingEventContext = .none,
+        preferredUndertakingIDs: [String] = []
     ) -> CastUndertaking? {
         UndertakingSerialEngine.nextBeat(
             among: undertakings,
             serial: serial,
             slotID: slotID,
             now: now,
-            events: events
+            events: events,
+            preferredUndertakingIDs: preferredUndertakingIDs
         )
     }
 
@@ -4452,7 +4458,8 @@ enum GossipSimulationBuilder {
             slotID: slotID,
             serial: inputs.undertakingSerial,
             now: now,
-            events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents)
+            events: UndertakingEventContext(activeWorldEvents: inputs.activeWorldEvents),
+            preferredUndertakingIDs: BleedNewsroom.sceneLeadIDs(inputs: inputs, now: now)
         ) else { return nil }
 
         let surface = undertakingSurface(for: undertaking, slotID: slotID)
@@ -7782,6 +7789,26 @@ enum WickerDareRegistry {
             ]
             return placeDare(place)
         }
+        let pool = eligibleImmediateDares(inputs: inputs)
+        let onboardingMode = inputs.selfFacts.first {
+            $0.questionID == "onboarding-wicker-mode" && $0.usePermission != .doNotUse
+        }?.answer
+        let completedCount = inputs.days.flatMap(\.pages)
+            .compactMap(\.attributableLivedQuestReceipt).filter { $0.kind == .wickerDare }.count
+        return pool[
+            abs("\(day.id)-\(slot)-wicker-immediate-\(onboardingMode ?? "unwritten")-\(completedCount)".stableHash) % pool.count
+        ]
+    }
+
+    static func dares(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [WickerDare] {
+        let primary = dare(for: day, inputs: inputs, now: now)
+        let pool = [primary] + eligibleImmediateDares(inputs: inputs)
+            + inputs.nearbyPlaces.filter(isSuitablePublicPlace).map(placeDare)
+        var seen: Set<String> = []
+        return pool.filter { seen.insert($0.id).inserted }
+    }
+
+    private static func eligibleImmediateDares(inputs: BookSourceInputs) -> [WickerDare] {
         let onboardingMode = inputs.selfFacts.first {
             $0.questionID == "onboarding-wicker-mode" && $0.usePermission != .doNotUse
         }?.answer
@@ -7829,9 +7856,7 @@ enum WickerDareRegistry {
         }
         let freshPool = unlockedPool.filter { !recentIDs.contains($0.id) }
         let pool = freshPool.isEmpty ? unlockedPool : freshPool
-        return pool[
-            abs("\(day.id)-\(slot)-wicker-immediate-\(onboardingMode ?? "unwritten")-\(completed.count)".stableHash) % pool.count
-        ]
+        return pool
     }
 
     private static func isSuitablePublicPlace(_ place: LocalPlaceSignal) -> Bool {
@@ -10128,11 +10153,9 @@ enum StoryFormRegistry {
 
     static func userPacks(fileManager: FileManager = .default) -> [StoryFormPack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url) else { return nil }
-                return try? decoder.decode(StoryFormPack.self, from: data)
-            }
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            try? decoder.decode(StoryFormPack.self, from: data)
+        }
     }
 
     static func enabledPacks() -> [StoryFormPack] {

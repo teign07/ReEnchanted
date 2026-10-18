@@ -1414,7 +1414,7 @@ extension SurfacePage {
             score: 96,
             reason: "Penny found a photo with some ink hiding on it!",
             prompt: "Found in the Margins",
-            detail: "The Book spotted this in your camera roll and turned it into a page worth a look.",
+            detail: "I spotted this in your camera roll and turned it into a page worth a look.",
             payload: BookPagePayload(
                 headline: draft.analysis.marginalia.stampLabel,
                 body: draft.analysis.marginalia.closingLine,
@@ -3238,20 +3238,24 @@ enum BookCurator {
         // is excluded outright and does not count against the content window,
         // or taking Pages would push older ones out of the window and let them
         // back in.
-        var knownIDs = Set((alreadyShown + thisPull).map(documentID))
+        var knownIDs = Set(alreadyShown.lazy.map(documentID))
+        knownIDs.formUnion(thisPull.lazy.map(documentID))
         let recent = contentWindow.map { Array(alreadyShown.suffix($0)) } ?? alreadyShown
-        var knownContent = Set((recent + thisPull).map(\.curatorContentNoveltyKey))
+        var knownContent = Set(recent.lazy.map(\.curatorContentNoveltyKey))
+        knownContent.formUnion(thisPull.lazy.map(\.curatorContentNoveltyKey))
         let eligible = candidates.filter { candidate in
             if cupboardRestDays > 0,
                candidate.payload.metadata["evergreenPlayReserve"] == "true",
-               let record = history[candidate.curatorContentNoveltyKey],
+               let record = candidate.curatorContentHistoryRecord(in: history),
                now.timeIntervalSince(record.lastShownAt) < cupboardRestDays * 86_400 {
                 return false
             }
             return true
         }
         var next: [SurfacePage] = []
-        var perType: [BookPageType: Int] = [:]
+        var perType = thisPull.reduce(into: [BookPageType: Int]()) { counts, page in
+            counts[page.type, default: 0] += 1
+        }
         // One of each type before a second of any: a pull reads as a spread,
         // not as the first type in the bench, three times, and then the next.
         // Within a pass the candidates keep their order, so what the Curator
@@ -3261,32 +3265,31 @@ enum BookCurator {
         while next.count < limit, pass <= min(ceiling, eligible.count) {
             for candidate in eligible where next.count < limit {
                 guard perType[candidate.type, default: 0] < pass else { continue }
-                guard !knownIDs.contains(documentID(candidate)),
-                      !knownContent.contains(candidate.curatorContentNoveltyKey) else { continue }
-                knownIDs.insert(documentID(candidate))
-                knownContent.insert(candidate.curatorContentNoveltyKey)
+                let candidateID = documentID(candidate)
+                guard !knownIDs.contains(candidateID) else { continue }
+                let contentKey = candidate.curatorContentNoveltyKey
+                guard !knownContent.contains(contentKey) else { continue }
+                knownIDs.insert(candidateID)
+                knownContent.insert(contentKey)
                 perType[candidate.type, default: 0] += 1
                 next.append(candidate)
             }
+            // If no type is still at this pass's ceiling, every remaining
+            // candidate has already had its chance. A higher pass cannot
+            // uncover new content; rescanning an exhausted bench can be
+            // quadratic in its size. Keep going when thisPull or this pass
+            // filled a type's allowance, since its siblings may enter later.
+            if perType.values.allSatisfy({ $0 < pass }) { break }
             pass += 1
         }
         return next
     }
 
-    /// One "Explore deeper" pull. It always comes back full.
-    ///
-    /// Tiers, each used only for what the one above could not supply:
-    ///   1. the Curator's bench, content the folio has not shown, at most three
-    ///      of any one type (the app tops the bench up from a fresh curation in
-    ///      the background after each pull, so this is the usual source);
-    ///   2. the cupboard's Believings, Quotes and Journal prompts the reader
-    ///      has not met lately, at most two of a type;
-    ///   3. the same shelves recycled, longest-ago first, skipping only the
-    ///      last two pulls' worth of content;
-    ///   4. the same, skipping nothing and with no cap on a type, so the pull
-    ///      is full whatever happened above.
-    /// The reader can go on turning for as long as they like; what changes is
-    /// only how long ago they last met a Page.
+    /// One "Explore deeper" pull. Fresh Pages come from the whole Curator
+    /// bench, one of each type before siblings. If fresh Pages run short,
+    /// genuinely rested individual Pages from that same broad bench may return.
+    /// The emergency cupboard fills only a remaining material shortfall; it is
+    /// never the continuing supply for an exhausted opening sample.
     ///
     /// - Parameter cupboard: asked for Pages given how many variants of each
     ///   catalogue to offer, whether the fixed seeds should rest, and a tier
@@ -3297,17 +3300,42 @@ enum BookCurator {
         history: [String: SurfaceHistoryRecord],
         now: Date,
         limit: Int,
+        preferences: CuratorSurfacePreferences = .none,
         cupboard: (_ variants: Int, _ restsFixedSeeds: Bool, _ tier: Int) -> [SurfacePage]
     ) -> [SurfacePage] {
-        // No type may swamp a pull while there is anything else to offer. The
-        // catalogue families (Believings, Quotes, Journal prompts) are the only
-        // shelves that never run out, so left uncapped they became the whole
-        // pull once the bench was spent. The last tier lifts the cap, because a
-        // full pull outranks a varied one.
+        // Prefer breadth within this pull. Repeated appearances of a type on
+        // earlier pulls are never exclusions; only individual content rests.
+        // The cupboard's last tier can fill a genuine material shortfall.
+        let allowedBench = bench.filter { preferences.allows($0) }
         var next = freshDeeperPages(
-            from: bench, alreadyShown: alreadyShown, history: history, now: now,
+            from: allowedBench, alreadyShown: alreadyShown, history: history, now: now,
             maxPerType: 3, limit: limit
         )
+        // A Page does not lose its place forever merely because this folio
+        // already holds an earlier seating. Revisit the whole eligible bench,
+        // longest-rested first, only after the exact Page's normal rest has
+        // elapsed. New document IDs distinguish its leaves, never its content.
+        if next.count < limit {
+            let rested = allowedBench.compactMap { page -> (page: SurfacePage, lastShownAt: Date)? in
+                guard let record = page.curatorContentHistoryRecord(in: history),
+                      CuratorNoveltyPolicy.allowsAutomaticSurface(
+                        page, history: history, preferences: preferences, now: now,
+                        deckSize: page.declaredDeckSize
+                      ) else { return nil }
+                return (page, record.lastShownAt)
+            }.sorted {
+                $0.lastShownAt < $1.lastShownAt
+            }.map { rested in
+                rested.page.withMetadata([
+                    "pagesRisingFolioDocumentID": "\(rested.page.id)::explore-\(alreadyShown.count)-\(Int(now.timeIntervalSince1970))"
+                ])
+            }
+            next += freshDeeperPages(
+                from: rested, alreadyShown: alreadyShown, history: history, now: now,
+                contentWindow: limit * 2, maxPerType: 3,
+                alsoExcluding: next, limit: limit - next.count
+            )
+        }
         func top(
             variants: Int, rests: Bool, tier: Int, restDays: Double, window: Int?, cap: Int?
         ) {
@@ -3360,47 +3388,13 @@ enum BookCurator {
         )
     }
 
-    /// The families whose Pages come out of a catalogue far larger than the few
-    /// each curation offers, and whose pick is a hash of the clock's slot.
-    /// Nothing about them is dated: asking again for the same hour on an
-    /// earlier day gets different entries, with the same time-of-day and
-    /// weather gating. Every other adapter is left alone, because "today's
-    /// feast" asked for yesterday would be yesterday's feast.
-    static let deckDeepeningTypes: Set<BookPageType> = [
-        .affirmations, .quotes, .diary, .quip, .lore, .helpTips,
-        .wickerDare, .enchantment, .illustration
-    ]
-
-    /// What a deeper round adds to the pool: one more draw from each of those
-    /// catalogues per round, so a reader who keeps asking keeps meeting
-    /// entries they have not seen, from the whole range of the Book and not
-    /// only from whatever one curation happened to sample.
-    private static func deeperCatalogueCandidates(
-        for day: BookDay,
-        context: CuratorContext,
-        inputs: BookSourceInputs,
-        now: Date
-    ) -> [SurfacePage] {
-        guard inputs.deckRound > 0 else { return [] }
-        let draws = min(inputs.deckRound, 8)
-        return BookPageSourceAdapters.active
-            .filter { deckDeepeningTypes.contains($0.source.type) }
-            .flatMap { adapter in
-                (1...draws).flatMap { draw in
-                    adapter.candidates(
-                        for: day, context: context, inputs: inputs,
-                        now: now.addingTimeInterval(-86_400 * Double(draw))
-                    )
-                }
-            }
-    }
-
     private static func candidatePool(
         for day: BookDay,
         context: CuratorContext,
         resolvedInputs inputs: BookSourceInputs,
         now: Date
     ) -> [SurfacePage] {
+        guard !Task.isCancelled else { return [] }
         let preparedSurfaceIDs = Set([
             inputs.preparedAnchorSurface?.id,
             inputs.preparedIlluminatedPhotoSurface?.id,
@@ -3410,12 +3404,13 @@ enum BookCurator {
             inputs.preparedLetterSurface?.id,
             inputs.preparedBleedEditionSurface?.id
         ].compactMap { $0 })
+        let adapterCandidates = BookPageSourceAdapters.active.flatMap { adapter in
+            guard !Task.isCancelled else { return [SurfacePage]() }
+            return adapter.candidates(for: day, context: context, inputs: inputs, now: now)
+        }
+        guard !Task.isCancelled else { return [] }
         let eventFramedCandidates = (
-            BookPageSourceAdapters.active.flatMap { adapter in
-                adapter.candidates(for: day, context: context, inputs: inputs, now: now)
-            }
-            + deeperCatalogueCandidates(for: day, context: context, inputs: inputs, now: now)
-            + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
+            adapterCandidates + BookInteriorSurfaces.candidates(for: day, inputs: inputs, now: now)
         )
         .map { WorldEventEffects.framed($0, events: inputs.activeWorldEvents) }
         let rawCandidates = MonthlyIssuePageCuration.preparing(
@@ -3574,7 +3569,9 @@ enum BookCurator {
             mood: mood,
             now: now,
             intention: sessionIntention,
-            selectionSeed: sessionIntention.seed,
+            selectionSeed: inputs.deckRound > 0
+                ? "\(sessionIntention.seed)|explore-\(inputs.deckRound)"
+                : sessionIntention.seed,
             readerAliveness: inputs.readerAliveness,
             alivenessFacets: alivenessFacets
         ).map(\.page)
@@ -7391,8 +7388,15 @@ struct ReaderLearningModel: Codable, Equatable {
         let asOf = tasteReference
         let source = sourceAffinities[page.sourceID]?.curationAdjustment(scale: 4, maximum: 10, asOf: asOf) ?? 0
         let type = typeAffinities[page.type]?.curationAdjustment(scale: 5, maximum: 12, asOf: asOf) ?? 0
-        let content = contentAffinities?[page.curatorContentNoveltyKey]?
+        let currentContent = contentAffinities?[page.curatorContentNoveltyKey]?
             .curationAdjustment(scale: 5, maximum: 10, asOf: asOf) ?? 0
+        let priorContent = page.curatorLegacyContentNoveltyKey == page.curatorContentNoveltyKey
+            ? 0
+            : (contentAffinities?[page.curatorLegacyContentNoveltyKey]?
+                .curationAdjustment(scale: 5, maximum: 10, asOf: asOf) ?? 0)
+        // Keep the same exact-Page ceiling while retaining older evidence
+        // when new events start arriving under the catalogue identity.
+        let content = max(-10, min(10, currentContent + priorContent))
         let tag = page.readerLearningTags
             .compactMap { tagAffinities[$0]?.curationAdjustment(scale: 4, maximum: 4, asOf: asOf) }
             .sorted(by: >)
@@ -7946,6 +7950,11 @@ struct BookDeskRound: Equatable {
     static let reserveCapacity = 9
     /// Ranked material held back for those further pulls. Never displayed whole.
     static let candidateBenchCapacity = 27
+    /// Exploration keeps room for siblings from every eligible Page type,
+    /// rather than retaining only the families that won the opening sample.
+    static var explorationBenchCapacity: Int {
+        BookPageType.allCases.count * BookCurator.reserveSiblingsPerType
+    }
 
     enum Resolution: Equatable { case waiting, opened, passed }
     private(set) var resolutions: [String: Resolution] = [:]
@@ -8154,7 +8163,7 @@ enum BookEvergreenPlayReserve {
         }
         .filter { page in
             guard restsFixedSeeds, page.payload.metadata["evergreenFixedSeed"] == "true",
-                  let record = history[page.curatorContentNoveltyKey] else { return true }
+                  let record = page.curatorContentHistoryRecord(in: history) else { return true }
             return now.timeIntervalSince(record.lastShownAt) >= restDays * 86_400
         }
     }
@@ -8200,7 +8209,7 @@ enum BookEvergreenPlayReserve {
                     !$0.isPact && $0.text.count > 40
                 }
                 let chosen = choose(gifts, salt: "believing") {
-                    ["affirmation:\($0.id)", "content:evergreen-play-reserve-affirmations:evergreen-affirmation-\($0.id)"]
+                    ["content:catalogue-affirmations-affirmationID:\($0.id)", "affirmation:\($0.id)", "content:evergreen-play-reserve-affirmations:evergreen-affirmation-\($0.id)"]
                 }
                 guard !chosen.isEmpty else { return fallback }
                 return chosen.map { entry in
@@ -8228,7 +8237,7 @@ enum BookEvergreenPlayReserve {
                 }
             case .quotes:
                 let chosen = choose(QuoteLibraryRegistry.allQuotes, salt: "quote") {
-                    ["content:evergreen-play-reserve-quotes:evergreen-quote-\($0.id)"]
+                    ["content:catalogue-quotes-quoteID:\($0.id)", "content:evergreen-play-reserve-quotes:evergreen-quote-\($0.id)"]
                 }
                 guard !chosen.isEmpty else { return fallback }
                 return chosen.map { quote in
@@ -8254,7 +8263,7 @@ enum BookEvergreenPlayReserve {
                         && !$0.question.contains("{") && !$0.deeperQuestion.contains("{")
                 }
                 let chosen = choose(pool, salt: "journal") {
-                    ["journal:\($0.id)", "content:evergreen-play-reserve-diary:evergreen-journal-\($0.id)"]
+                    ["content:catalogue-diary-journalPromptID:\($0.id)", "journal:\($0.id)", "content:evergreen-play-reserve-diary:evergreen-journal-\($0.id)"]
                 }
                 guard !chosen.isEmpty else { return fallback }
                 return chosen.map { entry in
@@ -8384,6 +8393,24 @@ struct CalendarEventSignal: Codable, Equatable, Identifiable {
     var startsAt: Date
     var endsAt: Date? = nil
     var isAllDay: Bool
+
+    /// EventKit returns overlapping events, including multi-day and all-day
+    /// events whose start precedes the requested day. Keep that meaning all
+    /// the way to the printed strip. An end exactly at midnight is exclusive.
+    func overlaps(_ interval: DateInterval) -> Bool {
+        if let endsAt, endsAt > startsAt {
+            return startsAt < interval.end && endsAt > interval.start
+        }
+        return startsAt >= interval.start && startsAt < interval.end
+    }
+
+    static func readingWindow(now: Date, horizonDays: Int, calendar: Calendar = .current) -> DateInterval {
+        let start = calendar.startOfDay(for: now)
+        let days = max(1, min(7, horizonDays))
+        let end = calendar.date(byAdding: .day, value: days, to: start)
+            ?? start.addingTimeInterval(Double(days) * 86_400)
+        return DateInterval(start: start, end: end)
+    }
 }
 
 extension SurfacePage {
@@ -8503,6 +8530,28 @@ extension SurfacePage {
     /// source-family rotation. Adapters may provide a semantic `noveltyKey`;
     /// otherwise the reader-visible copy forms a stable local fingerprint.
     var curatorContentNoveltyKey: String {
+        // A catalogue entry stays one Page when its host, framing, cadence,
+        // or emergency seating changes. Never file the whole type together.
+        // Authored monthly atoms retain their own occurrence/content contract.
+        if !belongsToAuthoredIssue {
+            if type == .illustration, payload.metadata["plateID"] == nil,
+               let id = payload.metadata["entityID"]?.nonEmpty {
+                return "content:catalogue-illustration-entityID:\(id)"
+            }
+            for key in ["playfulMissionID", "wickerDareID", "journalPromptID",
+                        "affirmationID", "quoteID", "quipID", "snippetID",
+                        "enchantmentID", "spellID", "tipID", "plateID", "rememberedPageID"] {
+                if let id = payload.metadata[key]?.nonEmpty {
+                    return "content:catalogue-\(type.rawValue)-\(key):\(id)"
+                }
+            }
+        }
+        return curatorLegacyContentNoveltyKey
+    }
+
+    /// Read the prior fingerprint as well, so existing on-device rests survive
+    /// adoption of semantic catalogue identities.
+    var curatorLegacyContentNoveltyKey: String {
         if let explicit = payload.metadata["noveltyKey"]?.nonEmpty {
             return "content:\(sourceID):\(explicit)"
         }
@@ -8525,9 +8574,16 @@ extension SurfacePage {
         return keys
     }
 
+    func curatorContentHistoryRecord(in history: [String: SurfaceHistoryRecord]) -> SurfaceHistoryRecord? {
+        [history[curatorContentNoveltyKey], history[curatorLegacyContentNoveltyKey]]
+            .compactMap { $0 }
+            .max { $0.lastShownAt < $1.lastShownAt }
+    }
+
     var curatorServedHistoryKeys: [String] {
         var keys = [
             curatorContentNoveltyKey,
+            curatorLegacyContentNoveltyKey,
             varietyKey,
             "source:\(sourceID)",
             CuratorVarietyGovernor.typeKey(for: type)
@@ -8608,14 +8664,14 @@ extension SurfacePage {
     /// source settings and Belief; otherwise an inexhaustible desk can be
     /// accidentally exhausted one family at a time.
     var curatorDismissalRestKeys: Set<String> {
-        if payload.metadata["authoredStoryNodeID"] != nil || payload.metadata["authoredMissionOffer"] == "true" {
-            // Durable monthly receipts retire the atom; resting this leaf must
-            // not suppress its next node or an accepted mission's return.
-            return [id, curatorContentNoveltyKey]
+        var keys: Set<String> = [id, curatorContentNoveltyKey, curatorLegacyContentNoveltyKey]
+        if let occurrence = curatorAutomaticRecurrenceHistoryKey {
+            keys.insert(occurrence)
         }
-        return Set(curatorDeskExclusionKeys.filter {
-            !$0.hasPrefix("source:") && !$0.hasPrefix("type:")
-        })
+        // Variety may be shared by a whole Compass family, sender, or Cast
+        // member. It guides ranking, but putting down one Page must never
+        // put down the other experiences that share that notation.
+        return keys
     }
 
     /// The desk slot a card logically occupies. Raw ids can't identify a slot:
@@ -9197,7 +9253,7 @@ enum CuratorNoveltyPolicy {
         _ page: SurfacePage,
         history: [String: SurfaceHistoryRecord]
     ) -> Bool {
-        history[page.curatorContentNoveltyKey] == nil
+        page.curatorContentHistoryRecord(in: history) == nil
     }
 
     static func isNewSource(
@@ -9282,13 +9338,13 @@ enum CuratorNoveltyPolicy {
             guard let rawRestDays = page.payload.metadata["automaticRepeatRestDays"],
                   let restDays = Double(rawRestDays), restDays > 0,
                   !isNewContent(page, history: history),
-                  let record = history[page.curatorContentNoveltyKey] else {
+                  let record = page.curatorContentHistoryRecord(in: history) else {
                 return true
             }
             return now.timeIntervalSince(record.lastShownAt) >= restDays * 86_400
         }
         if isNewContent(page, history: history) { return true }
-        guard let record = history[page.curatorContentNoveltyKey] else { return true }
+        guard let record = page.curatorContentHistoryRecord(in: history) else { return true }
         // Instruments are tools, not readings. The reader reaching for the fuel
         // log twice in one day is the Book working, not the Book repeating
         // itself, so these are spaced by the clock instead of rested by
@@ -9415,7 +9471,7 @@ enum CuratorNoveltyPolicy {
         // Never shown at all is already answered by the novelty welcome above.
         // Patience is for what the desk has forgotten, not what it has yet to
         // meet.
-        guard let record = history[page.curatorContentNoveltyKey] else { return 0 }
+        guard let record = page.curatorContentHistoryRecord(in: history) else { return 0 }
         let tempo = ReaderTempo.current(history: history, now: now)
         let sitting = max(1, tempo.hoursBetweenSittings)
         let waited = now.timeIntervalSince(record.lastShownAt) / 3600 / sitting

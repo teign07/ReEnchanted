@@ -62,7 +62,7 @@ enum WorldAccountEngine {
         let options = [
             "Nobody has reconciled these two versions, and nobody seems in a hurry to.",
             "Both accounts are still in circulation. I've got no way to choose between them.",
-            "These do not agree. The Book is recording that rather than settling it."
+            "These don't agree. I'm writing that down instead of settling it."
         ]
         let seed = accounts.map(\.id).joined()
         return options[abs(seed.stableHash) % options.count]
@@ -95,7 +95,7 @@ enum WorldAccountEngine {
                 ? "In \(place): two cups, one chair pushed back hard, and no sign anybody raised their voice at all."
                 : "In \(place): the arrangement of the furniture afterwards suggested a conversation that went on longer than intended."
         case .cautious:
-            return "The Book's reading, offered lightly: something between \(actor) and \(target) changed, and the Book is not certain it has the order right."
+            return "My reading, offered lightly: something between \(actor) and \(target) changed, and I'm not certain I've got the order right."
         }
     }
 }

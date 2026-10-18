@@ -561,7 +561,9 @@ extension Gazetteer {
         dayID: String = "",
         calendar: Calendar = .current
     ) -> GazetteerLeaf? {
-        let entries = entries(anchors: anchors, days: days)
+        // This leaf uses place/count/plate facts, never the Gazetteer's prose
+        // previews. Do not trim and clip kept writing it will not display.
+        let entries = entries(anchors: anchors, days: days, happeningsPerPlace: 0)
         guard !entries.isEmpty else { return nil }
         var byID: [String: AnchorRecord] = [:]
         for anchor in anchors { byID[anchor.id] = anchor }

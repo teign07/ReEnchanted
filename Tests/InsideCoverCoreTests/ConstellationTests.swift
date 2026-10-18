@@ -571,7 +571,7 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue(foreword.contains("May 2026"))
         XCTAssertTrue(foreword.contains("The Harbor Thread"))
         XCTAssertTrue(foreword.contains("wrong"))
-        XCTAssertTrue(foreword.hasSuffix("\n\nThe Book"))
+        XCTAssertTrue(foreword.hasSuffix("\n\n- me"))
     }
 
     func testMonthlyEditionCarriesForeword() {

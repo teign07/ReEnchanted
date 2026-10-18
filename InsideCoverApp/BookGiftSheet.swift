@@ -452,7 +452,7 @@ struct BookGiftSheet: View {
             giftHero(
                 eyebrow: "THEIR BOOK. THEIR KEY.",
                 title: "What kind of Book?",
-                detail: "You pay. They choose what belongs in it. The Book keeps its nose out."
+                detail: "You pay. They choose what belongs in it. I keep my nose out."
             )
 
             giftChoice(
@@ -496,7 +496,7 @@ struct BookGiftSheet: View {
                     Label("Payment received", systemImage: "checkmark.circle.fill")
                         .font(.headline)
                         .foregroundStyle(BookPalette.violet)
-                    Text("No card again. The Book only needs to finish sealing the share link.")
+                    Text("No card again. I only need to finish sealing the share link.")
                         .font(.caption)
                         .foregroundStyle(BookPalette.ink.opacity(0.66))
                     Button {

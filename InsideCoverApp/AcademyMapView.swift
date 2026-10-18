@@ -20,10 +20,21 @@ struct AcademyMapView: View {
     var onOpenCastMember: (String) -> Void = { _ in }
 
     @State private var isOpen = false
+    /// On an iPad the map folds straight out when its division is opened: the
+    /// glass is big enough to be the map, so there is no small plate to touch
+    /// first. Closing it leaves the plate on the leaf, as before.
+    @State private var didFoldOut = false
 
     var body: some View {
         TimelineView(.everyMinute) { _ in
             leaf(AcademyCartographer.chart(inputs.at(Date())), clock: Date())
+        }
+        .onAppear {
+            #if os(iOS)
+            guard UIDevice.current.userInterfaceIdiom == .pad, !didFoldOut else { return }
+            didFoldOut = true
+            isOpen = true
+            #endif
         }
         #if os(iOS)
         .fullScreenCover(isPresented: $isOpen) {
@@ -86,6 +97,24 @@ struct AcademyMapViewer: View {
     var onOpenPage: (BookPage) -> Void = { _ in }
     var onOpenCastMember: (String) -> Void = { _ in }
 
+    var body: some View {
+        TimelineView(.everyMinute) { _ in
+            AcademyMapGlass(
+                source: AcademyCartographer.chart(inputs.at(Date())),
+                onOpenPage: onOpenPage,
+                onOpenCastMember: onOpenCastMember
+            )
+        }
+    }
+}
+
+/// Camera and selection updates belong to the glass. They must not ask the
+/// Cartographer to reconstruct the school's life on every drag or pinch.
+private struct AcademyMapGlass: View {
+    let source: AcademyChart
+    var onOpenPage: (BookPage) -> Void
+    var onOpenCastMember: (String) -> Void
+
     @Environment(\.dismiss) private var dismiss
     @State private var selectedID: String?
     @State private var unfoldedDoors: Set<String> = []
@@ -108,9 +137,7 @@ struct AcademyMapViewer: View {
     static let deepestZoom: CGFloat = 6
 
     var body: some View {
-        TimelineView(.everyMinute) { _ in
-            glass(AcademyCartographer.chart(inputs.at(Date())), at: Date())
-        }
+        glass(source, at: Date())
     }
 
     private func glass(_ source: AcademyChart, at now: Date) -> some View {

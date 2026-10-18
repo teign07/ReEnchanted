@@ -11,6 +11,17 @@ private struct MeaningfulSurfaceTestScorer: StacksSemanticScoring {
     }
 }
 
+private final class SupersededPassageScorer: StacksSemanticScoring, @unchecked Sendable {
+    let modelID = "superseded-passage-test"
+    private(set) var calls = 0
+
+    func similarity(between query: String, and document: String) -> Double? {
+        calls += 1
+        withUnsafeCurrentTask { $0?.cancel() }
+        return 0.92
+    }
+}
+
 final class MeaningfulPassageSurfaceTests: XCTestCase {
     private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
     private let sender = NarrativeWorldEntity(
@@ -34,6 +45,26 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
             userInput: "I washed the cups before bed. I left the porch light on because coming home should not require bravery. The cat stole my chair afterward.",
             origin: .userAuthored
         )
+    }
+
+    func testSupersededSearchStopsAfterItsCurrentNativeCallAndReturnsNoPartialRanking() async {
+        let pages = [authoredPage(), authoredPage(id: "another-keep")]
+        let scorer = SupersededPassageScorer()
+        let now = self.now
+        let task = Task {
+            MeaningfulPassageSelector.rankedSelections(
+                pages: pages,
+                query: "homecoming and the porch light",
+                inputs: .empty,
+                scorer: scorer,
+                limit: 2,
+                minimumScore: 0,
+                now: now
+            )
+        }
+        let selections = await task.value
+        XCTAssertTrue(selections.isEmpty)
+        XCTAssertEqual(scorer.calls, 1)
     }
 
     func testQuickNoteUsesSelectedMiddlePassageInsteadOfRecentPageOpenings() throws {
@@ -178,7 +209,7 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
                 type: .bookOfYou,
                 createdAt: now.addingTimeInterval(-4 * 86_400),
                 promptText: "Book of You",
-                userInput: "The Empty Seat\n\nThe bus carried one unanswered shape.\n\nThe Book kept the page: the door stayed possible.",
+                userInput: "The Empty Seat\n\nThe bus carried one unanswered shape.\n\nI kept the page: the door stayed possible.",
                 tags: ["braid"],
                 origin: .generated
             ),
@@ -226,7 +257,7 @@ final class MeaningfulPassageSurfaceTests: XCTestCase {
                 type: .bookOfYou,
                 createdAt: firstKeepDate.addingTimeInterval(2 * 86_400),
                 promptText: "Book of You",
-                userInput: "The Empty Seat\n\nThe bus carried one unanswered shape.\n\nThe Book kept the page: the door stayed possible.",
+                userInput: "The Empty Seat\n\nThe bus carried one unanswered shape.\n\nI kept the page: the door stayed possible.",
                 tags: ["braid"],
                 origin: .generated
             ),

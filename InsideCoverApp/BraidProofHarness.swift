@@ -141,7 +141,7 @@ enum BraidProofHarness {
                         in: BraidNarrativeOutput.finished(
                             text,
                             reachedCeiling: reachedCeiling,
-                            keeperColophon: "The Book kept the page: [keeper line]."
+                            keeperColophon: "I kept the page: [keeper line]."
                         ),
                         readerDay: readerDay(in: item.brief)
                     ).text,

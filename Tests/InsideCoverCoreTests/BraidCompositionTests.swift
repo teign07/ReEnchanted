@@ -81,7 +81,7 @@ final class BraidCompositionTests: XCTestCase {
     let colophon = composition.sentences.last
     XCTAssertEqual(colophon?.provenance, .colophon)
     XCTAssertEqual(colophon?.license, .locked)
-    XCTAssertTrue(colophon?.text.hasPrefix("The Book kept the page:") == true)
+    XCTAssertTrue(colophon?.text.hasPrefix("I kept the page:") == true)
 
     let authored = composition.sentences.filter { $0.provenance == .authored }
     XCTAssertFalse(authored.isEmpty, "The Book said nothing in its own voice.")
@@ -283,7 +283,7 @@ final class BraidRevisionVerifierTests: XCTestCase {
 
     XCTAssertTrue(
       result.decisions.contains { $0.rejection == .changedLockedSentence }, "\(result.rejections)")
-    XCTAssertTrue(result.composition.text.contains("The Book kept the page:"))
+    XCTAssertTrue(result.composition.text.contains("I kept the page:"))
     XCTAssertFalse(result.composition.text.contains("the lesson was"))
   }
 
@@ -295,7 +295,7 @@ final class BraidRevisionVerifierTests: XCTestCase {
 
         You tightened the loose screw. And then something else entirely happened here.
 
-        The Book kept the page: the screw kept watch over what happened.
+        I kept the page: the screw kept watch over what happened.
         """,
       of: original, day: day(), context: .empty)
 

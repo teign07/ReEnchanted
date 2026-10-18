@@ -192,7 +192,7 @@ final class BraidSceneWriterTests: XCTestCase {
             let claims = BraidSceneWriter.write(plan)
             XCTAssertEqual(claims.last?.realm, .colophon, night.name)
             XCTAssertTrue(
-                claims.last?.text.hasPrefix("The Book kept the page:") ?? false, night.name)
+                claims.last?.text.hasPrefix("I kept the page:") ?? false, night.name)
         }
     }
 
@@ -213,7 +213,7 @@ final class BraidSceneWriterTests: XCTestCase {
                 .issues(in: page.userInput, for: night.day, context: context)
                 .filter(\.isRegisterFailure)
             XCTAssertTrue(failures.isEmpty, "\(night.name): \(failures.map(\.rawValue))")
-            XCTAssertTrue(page.userInput.contains("The Book kept the page:"), night.name)
+            XCTAssertTrue(page.userInput.contains("I kept the page:"), night.name)
         }
     }
 
@@ -264,7 +264,7 @@ final class BraidSceneWriterTests: XCTestCase {
         XCTAssertGreaterThan(words, 60, page.userInput)
         // The Book's own voice, the reader's own past, and the world's business.
         XCTAssertTrue(page.tags.contains { $0.hasPrefix("braid-claim:world:") }, "\(page.tags)")
-        XCTAssertTrue(page.userInput.contains("The Book kept the page:"), page.userInput)
+        XCTAssertTrue(page.userInput.contains("I kept the page:"), page.userInput)
     }
 
     /// With nothing new to read, the Book rereads - and because the old line

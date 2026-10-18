@@ -49,6 +49,7 @@ final class TheBleedTests: XCTestCase {
     func testAnnouncementCarriesBriefsAndInterest() {
         var inputs = BookSourceInputs.empty
         inputs.selfFacts = [interestFact("interest-01", "sailing"), interestFact("interest-02", "weird history")]
+        inputs.allowsPersonalizedWebResearch = true
         inputs.bleedIssueNumber = 12
         let announcement = TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: date(10, hour: 8), calendar: calendar)
         XCTAssertNotNil(announcement)
@@ -56,13 +57,14 @@ final class TheBleedTests: XCTestCase {
         XCTAssertTrue(announcement?.payload.headline.contains("Issue #12") == true)
         XCTAssertTrue(announcement?.prompt.contains("The newest edition") == true)
         let briefs = TheBleedEditionBuilder.decodedBriefs(announcement?.payload.metadata["bleedBriefs"] ?? "")
-        XCTAssertTrue(briefs.contains { $0.id == "front-page" && $0.needsLocalBrain })
+        XCTAssertFalse(briefs.contains { $0.id == "front-page" })
+        XCTAssertTrue(briefs.contains { $0.id == "diversion" && !$0.needsLocalBrain })
         XCTAssertTrue(briefs.contains { $0.id == "weather-desk" && !$0.needsLocalBrain })
         XCTAssertTrue(briefs.contains { $0.id == "interest-desk" })
         XCTAssertFalse((announcement?.payload.metadata["bleedInterest"] ?? "").isEmpty)
     }
 
-    func testThemeDeskReportsUnstableThemeInTheBleed() throws {
+    func testProvisionalThemeRemainsMetadataRatherThanDailyNews() throws {
         let pages = [
             themePage("theme-1", day: 1, text: "The harbor kept a secret and the secret kept the harbor."),
             themePage("theme-2", day: 3, text: "The harbor made the secret sound like weather."),
@@ -81,15 +83,13 @@ final class TheBleedTests: XCTestCase {
 
         let announcement = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: date(10, hour: 8), calendar: calendar))
         let briefs = TheBleedEditionBuilder.decodedBriefs(announcement.payload.metadata["bleedBriefs"] ?? "")
-        let themeBrief = try XCTUnwrap(briefs.first { $0.id == "theme-desk" })
+        XCTAssertFalse(briefs.contains { $0.id == "theme-desk" })
 
         XCTAssertEqual(announcement.payload.metadata["monthlyThemeStatus"], "provisional")
-        XCTAssertTrue(announcement.payload.body.contains("still unstable"))
-        XCTAssertTrue(themeBrief.composedBody.contains("UNSTABLE THEME WATCH"))
-        XCTAssertTrue(themeBrief.composedBody.contains("reading the headline in pencil"))
+        XCTAssertFalse(announcement.payload.body.contains("Theme desk:"))
     }
 
-    func testThemeDeskReportsStableThemeInTheBleed() throws {
+    func testStableThemeRemainsMetadataRatherThanDailyNews() throws {
         let pages = [
             themePage("theme-1", day: 1, text: "The harbor kept a secret and the secret kept the harbor."),
             themePage("theme-2", day: 3, text: "The harbor made the secret sound like weather."),
@@ -112,12 +112,10 @@ final class TheBleedTests: XCTestCase {
 
         let announcement = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(for: day, inputs: inputs, now: date(13, hour: 8), calendar: calendar))
         let briefs = TheBleedEditionBuilder.decodedBriefs(announcement.payload.metadata["bleedBriefs"] ?? "")
-        let themeBrief = try XCTUnwrap(briefs.first { $0.id == "theme-desk" })
+        XCTAssertFalse(briefs.contains { $0.id == "theme-desk" })
 
         XCTAssertEqual(announcement.payload.metadata["monthlyThemeStatus"], "stable")
-        XCTAssertTrue(announcement.payload.body.contains("is stable for the month"))
-        XCTAssertTrue(themeBrief.composedBody.contains("STABLE MONTHLY THEME"))
-        XCTAssertTrue(themeBrief.composedBody.contains("set in type for the month"))
+        XCTAssertFalse(announcement.payload.body.contains("Theme desk:"))
     }
 
     func testAnnouncementCarriesActiveWorldEventPacket() {
@@ -132,7 +130,7 @@ final class TheBleedTests: XCTestCase {
         XCTAssertEqual(announcement?.payload.metadata["worldEventIDs"], "dictionary-rebellion")
         XCTAssertTrue(announcement?.payload.metadata["worldEventBleedPacket"]?.contains("Treat the rebellion as live campus news") == true)
         XCTAssertTrue(announcement?.payload.metadata["tags"]?.contains("event:dictionary-rebellion") == true)
-        XCTAssertTrue(announcement?.payload.body.contains("Special bulletin: The Dictionary Rebellion") == true)
+        XCTAssertTrue(announcement?.payload.body.contains("From the Academy: The Dictionary Rebellion") == true)
     }
 
     func testMorningAndEveningPickDifferentInterests() {
@@ -263,8 +261,7 @@ final class TheBleedTests: XCTestCase {
             calendar: calendar
         )
 
-        XCTAssertTrue(column.contains("Calendar Doorway is closed"))
-        XCTAssertTrue(column.contains("not an empty day"))
+        XCTAssertTrue(column.isEmpty)
     }
 
     func testAlmanacBriefRefreshesAfterCalendarPermissionArrivesAtPressTime() throws {
@@ -311,7 +308,7 @@ final class TheBleedTests: XCTestCase {
             calendar: calendar
         )
         let staleWeather = try XCTUnwrap(staleBriefs.first { $0.id == "weather-desk" })
-        XCTAssertTrue(staleWeather.composedBody.contains("sky declined to file"))
+        XCTAssertTrue(staleWeather.composedBody.isEmpty)
 
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(
@@ -329,7 +326,7 @@ final class TheBleedTests: XCTestCase {
         XCTAssertFalse(weather.composedBody.contains("Academy's own translation"))
     }
 
-    func testWeatherBriefStillUsesGeneratedEnchantedForecastWhenAvailable() throws {
+    func testPracticalWeatherDoesNotPadTheForecastWithAnInterpretation() throws {
         var inputs = BookSourceInputs.empty
         inputs.weather = WeatherSourceSignal(
             phrase: "Current: Fog, 55 F | Forecast: mist through noon",
@@ -357,14 +354,17 @@ final class TheBleedTests: XCTestCase {
         let weather = try XCTUnwrap(refreshed.first { $0.id == "weather-desk" })
 
         XCTAssertTrue(weather.composedBody.contains("Current: Fog, 55 F"))
-        XCTAssertTrue(weather.composedBody.contains("The Academy's own translation: The world is speaking in pencil."))
+        XCTAssertFalse(weather.composedBody.contains("The world is speaking in pencil."))
     }
 
     func testCompositedBodyReadsLikeAPaper() {
+        var inputs = BookSourceInputs.empty
+        inputs.allowsPersonalizedWebResearch = true
+        inputs.weather = WeatherSourceSignal(phrase: "Rain, 64 F", source: "test")
         let briefs = TheBleedEditionBuilder.columnBriefs(
             kind: .morning,
             day: day,
-            inputs: .empty,
+            inputs: inputs,
             interest: "sailing",
             now: date(10, hour: 8),
             calendar: calendar
@@ -375,8 +375,8 @@ final class TheBleedTests: XCTestCase {
         let body = TheBleedEditionBuilder.compositedBody(kind: .morning, issueNumber: 7, columns: columns, now: date(10, hour: 8), calendar: calendar)
         XCTAssertTrue(body.contains("THE BLEED - MORNING EDITION"))
         XCTAssertTrue(body.contains("Issue #7"))
-        XCTAssertTrue(body.contains("CASEMENT WEATHER"))
-        XCTAssertTrue(body.contains("THE READER'S SHELF: SAILING"))
+        XCTAssertTrue(body.contains("— At the window —"))
+        XCTAssertTrue(body.contains("— Worth a look: sailing —"))
         XCTAssertTrue(body.contains("P. Blackletter"))
     }
 

@@ -17,7 +17,9 @@ import InsideCoverCore
 ///    clear day, a stale reading, or an intensity that rounds away, and the
 ///    caller does not mount this view at all. There is no idling timeline.
 /// 2. **Only weather that lands is drawn.** `SkyCondition.marksThePaper` is
-///    false for clear, cloudy, *and* foggy skies — see the note on it.
+///    false for clear, cloudy, *and* foggy skies — see the note on it. A dry
+///    sky with a real draught (`PaperSky.draught`) moves the fore-edge and
+///    puts nothing on the page.
 /// 3. **One `Canvas`, one timeline, capped at 30fps.** The specks and the
 ///    fore-edge are drawn in a single pass. No per-drop views, and no animating
 ///    `Shape`, which would re-tessellate a path every frame.
@@ -26,6 +28,30 @@ import InsideCoverCore
 /// 5. **It never takes a touch.** The leaves turn via `UIPageViewController`,
 ///    which hit-tests untransformed frames; a greedy overlay here would eat
 ///    page turns without looking as though it had.
+/// Follows the forecast: mounts the layer while the outlook says something is
+/// falling or blowing, and takes it away when that stops.
+///
+/// The outlook only changes when a read lands, but what it *says* changes with
+/// the clock — rain due at four o'clock has to arrive at four whether or not
+/// anything else on screen redraws then. An explicit timeline wakes this at
+/// the outlook's own boundaries and nowhere else, so a dry afternoon is a
+/// handful of wakes and no frames.
+struct SkyOnTheLeafMount: View {
+    let outlook: PaperSkyOutlook
+    let bookRect: CGRect
+    var isPaused = false
+
+    var body: some View {
+        let now = Date()
+        TimelineView(.explicit([now] + outlook.changes(after: now))) { context in
+            if let sky = outlook.settled(at: max(context.date, now)) {
+                SkyOnTheLeafLayer(sky: sky, bookRect: bookRect, isPaused: isPaused)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 struct SkyOnTheLeafLayer: View {
     /// The settled reading — already faded for staleness by the caller.
     let sky: PaperSky
@@ -39,6 +65,8 @@ struct SkyOnTheLeafLayer: View {
     /// ask for a chosen instant, so how the weather actually looks on paper can
     /// be checked without booting the whole app.
     var frozenTime: TimeInterval? = nil
+    /// Lets an offscreen render of a storm show a strike at `frozenTime`.
+    var frozenFlash = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -53,6 +81,8 @@ struct SkyOnTheLeafLayer: View {
     /// The cool grey a flake casts onto cream paper. Without this, snow glows
     /// through the leaf like a firefly instead of resting on it.
     private static let flakeShadow = Color(red: 0.42, green: 0.45, blue: 0.52)
+    /// Lightning through a window: cold, slightly blue against the lamp.
+    private static let strike = Color(red: 0.86, green: 0.90, blue: 1.0)
 
     /// The leaf inside the Book's frame.
     ///
@@ -131,6 +161,13 @@ struct SkyOnTheLeafLayer: View {
         let leaf = leafRect
         let isSnow = sky.condition == .snow
 
+        // Lightning first, so the drops sit on a lit page rather than under
+        // a wash. A held frame never flashes: stillness is asked for by people
+        // who would least welcome it.
+        if sky.condition == .storm, !isStill, frozenTime == nil || frozenFlash {
+            drawLightning(in: context, time: time)
+        }
+
         for speck in specks {
             let frame = SkyField.frame(
                 for: speck,
@@ -156,44 +193,49 @@ struct SkyOnTheLeafLayer: View {
         drawForeEdge(in: context, time: time, wind: wind)
     }
 
-    /// A drop of water sitting on paper.
-    ///
-    /// The thing that makes this read as water rather than as a grey stud is
-    /// that the drop is mostly *not there*: paper shows straight through it.
-    /// What the eye actually reads is the darkening it causes — the soaked
-    /// halo around it, and the ring where the curve of the drop bends the light
-    /// at its own edge. The bright speck is the smallest part, not the biggest.
+    /// A brief bead, absorbed in place into a soft patch of paper.
     private func drawDrop(
         _ frame: SkySpeckFrame,
         at point: CGPoint,
         in context: GraphicsContext
     ) {
-        // Heavier weather makes bigger drops, not only more of them.
-        let radius = (1.5 + frame.size * 2.4) * (0.82 + sky.intensity * 0.42)
-
-        // Water darkens paper. Multiplying is what makes this soak *into* the
-        // page instead of settling as a grey film on top of it.
+        let radius = (1.7 + frame.size * 2.5) * (0.85 + sky.intensity * 0.30)
         var wet = context
         wet.blendMode = .multiply
 
-        // The soaked halo, as a radial gradient. A flat ellipse at low alpha
-        // reads as a disc with an edge; the whole point of a damp mark is that
-        // it has no edge.
+        // The fibres draw water outwards as the surface bead contracts. An
+        // uneven, feathered patch avoids the circular lens of water on glass.
         if frame.dampAlpha > 0.01 {
-            let spread = radius * 2.8
-            let strength = 0.30 * frame.dampAlpha * (0.45 + sky.intensity * 0.55)
+            let spread = radius * (1.15 + frame.absorption * 2.1)
+            let strength = 0.22 * frame.dampAlpha * (0.65 + sky.intensity * 0.35)
+            let squash = 0.82 + frame.size * 0.12
+            var patch = Path()
+            patch.move(to: CGPoint(x: -0.96, y: -0.08))
+            patch.addCurve(to: CGPoint(x: 0.06, y: -0.94),
+                           control1: CGPoint(x: -1.08, y: -0.60),
+                           control2: CGPoint(x: -0.36, y: -1.02))
+            patch.addCurve(to: CGPoint(x: 0.98, y: 0.12),
+                           control1: CGPoint(x: 0.62, y: -0.86),
+                           control2: CGPoint(x: 0.88, y: -0.42))
+            patch.addCurve(to: CGPoint(x: -0.10, y: 0.92),
+                           control1: CGPoint(x: 1.06, y: 0.62),
+                           control2: CGPoint(x: 0.34, y: 1.02))
+            patch.addCurve(to: CGPoint(x: -0.96, y: -0.08),
+                           control1: CGPoint(x: -0.62, y: 0.84),
+                           control2: CGPoint(x: -0.86, y: 0.38))
+            patch.closeSubpath()
+            let shape = patch.applying(CGAffineTransform(
+                a: spread, b: 0, c: 0, d: spread * squash,
+                tx: point.x, ty: point.y
+            ))
             wet.fill(
-                Path(ellipseIn: CGRect(
-                    x: point.x - spread,
-                    y: point.y - spread * 0.88,
-                    width: spread * 2,
-                    height: spread * 1.76
-                )),
+                shape,
                 with: .radialGradient(
                     Gradient(stops: [
                         .init(color: Self.damp.opacity(strength), location: 0),
-                        .init(color: Self.damp.opacity(strength * 0.55), location: 0.45),
-                        .init(color: Self.damp.opacity(0), location: 1)
+                        .init(color: Self.damp.opacity(strength * 0.60), location: 0.38),
+                        .init(color: Self.damp.opacity(strength * 0.16), location: 0.70),
+                        .init(color: Self.damp.opacity(0), location: 0.96)
                     ]),
                     center: point,
                     startRadius: 0,
@@ -203,76 +245,40 @@ struct SkyOnTheLeafLayer: View {
         }
 
         guard frame.beadAlpha > 0.01 else { return }
-
-        // The streak behind an arriving drop. Short on purpose: this is
-        // weather on the leaf, and a streak spanning the page would be drawing
-        // rain in the room instead.
-        if frame.arrival < 1 {
-            var streak = Path()
-            streak.move(to: CGPoint(x: point.x, y: point.y - radius * 5.5 * (1 - frame.arrival)))
-            streak.addLine(to: point)
-            wet.stroke(
-                streak,
-                with: .color(Self.damp.opacity(0.20 * frame.beadAlpha)),
-                style: StrokeStyle(lineWidth: radius * 0.42, lineCap: .round)
-            )
-        }
-
+        let beadRadius = radius * (1 - frame.absorption * 0.75)
         let body = CGRect(
-            x: point.x - radius,
-            y: point.y - radius * 0.88,
-            width: radius * 2,
-            height: radius * 1.76
+            x: point.x - beadRadius,
+            y: point.y - beadRadius * 0.88,
+            width: beadRadius * 2,
+            height: beadRadius * 1.76
         )
-
-        // The lens itself. A drop darkens the paper most at its perimeter,
-        // where its curve is steepest and turns the light furthest aside — but
-        // that darkening is a gradient, not a drawn ring. Stroking a circle
-        // here is precisely what makes a drop look like a small metal washer.
-        //
-        // The gradient's centre sits up and to the left of the drop's own
-        // centre, toward the lamp, so the far rim carries more weight than the
-        // near one and the bead reads as round rather than as a hoop.
         wet.fill(
             Path(ellipseIn: body),
             with: .radialGradient(
                 Gradient(stops: [
                     .init(color: Self.damp.opacity(0.03 * frame.beadAlpha), location: 0),
-                    .init(color: Self.damp.opacity(0.08 * frame.beadAlpha), location: 0.52),
-                    .init(color: Self.damp.opacity(0.26 * frame.beadAlpha), location: 0.84),
-                    .init(color: Self.damp.opacity(0.44 * frame.beadAlpha), location: 1)
+                    .init(color: Self.damp.opacity(0.08 * frame.beadAlpha), location: 0.58),
+                    .init(color: Self.damp.opacity(0.22 * frame.beadAlpha), location: 0.86),
+                    .init(color: Self.damp.opacity(0), location: 1)
                 ]),
-                center: CGPoint(x: point.x - radius * 0.18, y: point.y - radius * 0.20),
+                center: point,
                 startRadius: 0,
-                endRadius: radius * 1.14
+                endRadius: beadRadius * 1.14
             )
         )
 
-        // The lamp, caught once. Small and sharp — this is a specular
-        // highlight, not a painted dot.
+        // Just enough light to catch the initial bead; it disappears as the
+        // water enters the paper. No falling streak, runoff, or bright caustic.
         var lit = context
         lit.blendMode = .plusLighter
         lit.fill(
             Path(ellipseIn: CGRect(
-                x: point.x - radius * 0.60,
-                y: point.y - radius * 0.66,
-                width: radius * 0.46,
-                height: radius * 0.38
+                x: point.x - beadRadius * 0.55,
+                y: point.y - beadRadius * 0.60,
+                width: beadRadius * 0.38,
+                height: beadRadius * 0.30
             )),
-            with: .color(Self.beadLight.opacity(0.62 * frame.beadAlpha))
-        )
-
-        // And the light that went through the drop and landed under its far
-        // side. Faint, but it is the difference between a bead of water and a
-        // hole in the page.
-        lit.fill(
-            Path(ellipseIn: CGRect(
-                x: point.x + radius * 0.05,
-                y: point.y + radius * 0.20,
-                width: radius * 0.80,
-                height: radius * 0.52
-            )),
-            with: .color(Self.beadLight.opacity(0.20 * frame.beadAlpha))
+            with: .color(Self.beadLight.opacity(0.40 * frame.beadAlpha))
         )
     }
 
@@ -282,7 +288,7 @@ struct SkyOnTheLeafLayer: View {
         in context: GraphicsContext
     ) {
         guard frame.beadAlpha > 0.01 else { return }
-        let radius = (1.4 + frame.size * 2.2) * (0.85 + sky.intensity * 0.4)
+        let radius = (2.2 + frame.size * 3.2) * (0.85 + sky.intensity * 0.4)
 
         // The shadow first, so the flake sits on the paper rather than glowing
         // through it. Offset down-right, opposite the lamp.
@@ -293,7 +299,7 @@ struct SkyOnTheLeafLayer: View {
                 width: radius * 1.6,
                 height: radius * 1.6
             )),
-            with: .color(Self.flakeShadow.opacity(0.20 * frame.beadAlpha))
+            with: .color(Self.flakeShadow.opacity(0.28 * frame.beadAlpha))
         )
 
         context.fill(
@@ -303,7 +309,38 @@ struct SkyOnTheLeafLayer: View {
                 width: radius * 2,
                 height: radius * 2
             )),
-            with: .color(Self.flake.opacity(0.82 * frame.beadAlpha))
+            with: .color(Self.flake.opacity(0.96 * frame.beadAlpha))
+        )
+    }
+
+    /// A strike, seen as light thrown across the page.
+    ///
+    /// A radial wash that reaches nothing well inside the Book's frame, so it
+    /// never shows the edge of the guessed leaf — the reason fog is not drawn.
+    /// It is brief enough to be seen at a strength that would be a grey panel
+    /// if it stayed.
+    private func drawLightning(in context: GraphicsContext, time: TimeInterval) {
+        let flash = frozenTime != nil && frozenFlash
+            ? 0.9
+            : SkyField.lightning(at: time, seed: 0x5707)
+        guard flash > 0.01 else { return }
+        let leaf = leafRect
+        let centre = CGPoint(x: leaf.midX, y: leaf.minY + leaf.height * 0.38)
+        let reach = min(leaf.width, leaf.height) * 0.62
+        var lit = context
+        lit.blendMode = .plusLighter
+        lit.fill(
+            Path(bookRect),
+            with: .radialGradient(
+                Gradient(stops: [
+                    .init(color: Self.strike.opacity(0.34 * flash), location: 0),
+                    .init(color: Self.strike.opacity(0.18 * flash), location: 0.5),
+                    .init(color: Self.strike.opacity(0), location: 1)
+                ]),
+                center: centre,
+                startRadius: 0,
+                endRadius: reach
+            )
         )
     }
 
@@ -350,7 +387,7 @@ struct SkyOnTheLeafLayer: View {
             // The band widens where the curl is greatest, which is what gives
             // the edge a sense of turning toward the light rather than sliding
             // sideways.
-            innerPoints.append(CGPoint(x: edgeX + offset - 1.5 - lift * 5, y: y))
+            innerPoints.append(CGPoint(x: edgeX + offset - 2 - lift * 8, y: y))
         }
 
         var inner = Path()
@@ -366,9 +403,9 @@ struct SkyOnTheLeafLayer: View {
             with: .linearGradient(
                 Gradient(colors: [
                     BookPalette.lampGold.opacity(0),
-                    BookPalette.lampGold.opacity(0.22 * wind)
+                    BookPalette.lampGold.opacity(0.34 * wind)
                 ]),
-                startPoint: CGPoint(x: edgeX - 7, y: top),
+                startPoint: CGPoint(x: edgeX - 10, y: top),
                 endPoint: CGPoint(x: edgeX + amplitude, y: top)
             )
         )
@@ -378,8 +415,8 @@ struct SkyOnTheLeafLayer: View {
         shade.blendMode = .multiply
         shade.stroke(
             inner,
-            with: .color(Color(red: 0.28, green: 0.21, blue: 0.13).opacity(0.20 * wind)),
-            style: StrokeStyle(lineWidth: 3.2, lineCap: .round, lineJoin: .round)
+            with: .color(Color(red: 0.28, green: 0.21, blue: 0.13).opacity(0.30 * wind)),
+            style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
         )
     }
 }

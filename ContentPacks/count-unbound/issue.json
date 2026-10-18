@@ -8,7 +8,7 @@
   },
   "files": [
     {
-      "id": "count-unbound.runtime.v8",
+      "id": "count-unbound.runtime.v9",
       "kind": "worldEventPack",
       "source": "opening.reenchantedevents.json",
       "fileName": "count-unbound.reenchantedevents.json"
@@ -42,6 +42,11 @@
       "prefix": "count-unbound.play.",
       "directory": ".",
       "suffix": ".png"
+    },
+    {
+      "prefix": "count-unbound.story-art.v1.",
+      "directory": "plates",
+      "suffix": ".jpg"
     }
   ],
   "audio": {

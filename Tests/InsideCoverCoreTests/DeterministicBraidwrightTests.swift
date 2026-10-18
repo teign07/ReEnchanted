@@ -139,14 +139,14 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
       In fiction, Wicker refused the fox's shortcut. The chair heard him and made the refusal its own rule.
 
-      The Book kept the page: the blue chair held while Wicker crossed the root bridge.
+      I kept the page: the blue chair held while Wicker crossed the root bridge.
       """
     let unlabeled = """
       You tightened the loose screw on the blue kitchen chair.
 
       Wicker refused the fox's shortcut. The chair heard him and made the refusal its own rule.
 
-      The Book kept the page: the blue chair held while Wicker crossed the root bridge.
+      I kept the page: the blue chair held while Wicker crossed the root bridge.
       """
 
     let labeledIssues = BraidOutputAudit.issues(
@@ -181,7 +181,7 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
       Wicker refused the fox's shortcut. The chair took his side.
 
-      The Book kept the page: the chair held while Wicker crossed the root bridge.
+      I kept the page: the chair held while Wicker crossed the root bridge.
       """
 
     let firstPersonIssues = BraidOutputAudit.issues(
@@ -196,7 +196,7 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
         Wicker refused the fox's shortcut. The chair took his side.
 
-        The Book kept the page: the chair held while Wicker crossed the root bridge.
+        I kept the page: the chair held while Wicker crossed the root bridge.
         """
       XCTAssertTrue(
         BraidOutputAudit.issues(in: page, for: fixture.day, context: braidContext)
@@ -224,14 +224,14 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
       You tightened the blue chair. It's okay; you did your best.
 
-      The Book kept the page: the chair kept Wicker's rule.
+      I kept the page: the chair kept Wicker's rule.
       """
     let attributed = """
       Blue Chair
 
       I caught this much of your sentence: «It's okay; you did your best.» I kept the blue chair.
 
-      The Book kept the page: the chair kept Wicker's rule.
+      I kept the page: the chair kept Wicker's rule.
       """
     var sourcedDay = fixture.day
     sourcedDay.pages.append(
@@ -278,7 +278,7 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
         \(disclaimer)
 
-        The Book kept the page: the chair kept Wicker's rule.
+        I kept the page: the chair kept Wicker's rule.
         """
       XCTAssertTrue(
         BraidOutputAudit.issues(in: page, for: fixture.day, context: braidContext)
@@ -850,7 +850,7 @@ final class DeterministicBraidwrightTests: XCTestCase {
       XCTAssertFalse(text.contains("the mug chose my side"))
       // The colophon does not always lead with the subject, but the anchor it
       // closes on must still be the first receipt's and not the later mug's.
-      guard let colophon = text.components(separatedBy: "the book kept the page:").last else {
+      guard let colophon = text.components(separatedBy: "i kept the page:").last else {
         return XCTFail("no colophon in \(details.body)")
       }
       XCTAssertTrue(colophon.contains("the day"), colophon)
@@ -1005,7 +1005,7 @@ final class DeterministicBraidwrightTests: XCTestCase {
 
     let page = DeterministicBraidwright.page(for: fixture.day, context: braidContext)
     let body = BraidPageDetails.details(for: page).body
-    let spokenBody = body.components(separatedBy: "The Book kept the page:").first ?? body
+    let spokenBody = body.components(separatedBy: "I kept the page:").first ?? body
     let lowered = spokenBody.lowercased()
 
     XCTAssertNotNil(

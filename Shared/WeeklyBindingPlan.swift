@@ -569,7 +569,7 @@ enum WeeklyBindingWriter {
         for sentence in WonderBraid.sentences(WeeklyCuration.cleaned(body)) {
             let count = sentence.split(whereSeparator: \.isWhitespace).count
             guard (6...28).contains(count) else { continue }
-            guard !sentence.hasPrefix("The Book kept the page") else { continue }
+            guard !BraidColophon.starts(sentence) else { continue }
             if WonderBraid.stockPattern.firstMatch(in: sentence, range: NSRange(sentence.startIndex..., in: sentence)) != nil { continue }
             if sentence.range(of: "\\b(felt|smell\\w*|tast\\w*|my (?:fingers?|hands?|eyes?|skin|heart))\\b",
                               options: [.regularExpression, .caseInsensitive]) != nil { continue }
@@ -598,17 +598,17 @@ enum WeeklyBindingWriter {
     private static func colophon(for plan: WeeklyBindingPlan) -> String {
         let options: [String]
         if !plan.stillOpenIDs.isEmpty {
-            options = ["The Book bound the week: some of it is still going.",
-                       "The Book bound the week and left a door ajar.",
-                       "The Book bound the week; a few threads stayed loose."]
+            options = ["I bound the week: some of it is still going.",
+                       "I bound the week and left a door ajar.",
+                       "I bound the week; a few threads stayed loose."]
         } else if !plan.returns.isEmpty {
-            options = ["The Book bound the week: the same things kept arriving.",
-                       "The Book bound the week, and what came back is in it twice.",
-                       "The Book bound the week, repeats and all."]
+            options = ["I bound the week: the same things kept arriving.",
+                       "I bound the week, and what came back is in it twice.",
+                       "I bound the week, repeats and all."]
         } else {
-            options = ["The Book bound the week: seven days, kept as they came.",
-                       "The Book bound the week, plainly, in the order it happened.",
-                       "The Book bound the week and kept the receipts."]
+            options = ["I bound the week: seven days, kept as they came.",
+                       "I bound the week, plainly, in the order it happened.",
+                       "I bound the week and kept the receipts."]
         }
         return options[abs(plan.issueNumber) % options.count]
     }

@@ -22,6 +22,28 @@
 /* BookBackground: the app's still room, with its ambient letters and one Pixie. */
 body{background:#0a0816;isolation:isolate}.book-atmosphere{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:linear-gradient(135deg,rgb(6,7,15),rgb(15,14,27),rgb(29,19,22))}.book-atmosphere:after{content:"";position:absolute;inset:0;background:linear-gradient(transparent,rgba(14,16,31,.14)),rgba(0,0,0,.18);pointer-events:none}.room-stars,.room-letters{position:absolute;inset:0;pointer-events:none}.room-letters{mix-blend-mode:plus-lighter}.room-pixie{position:fixed;inset:0;z-index:70;pointer-events:none}.room-lavender{position:absolute;bottom:-32px;left:-20px;width:130px;opacity:.11;rotate:-8deg}.room-star{position:absolute;bottom:-24px;right:-36px;width:150px;opacity:.08;rotate:11deg}
 @media print{.book-atmosphere,.room-pixie{display:none}}
+/* Only a resting Pixie can be caught. Her scrap is loose paper on the desk. */
+.pixie-catcher{position:fixed;z-index:71;width:48px;height:48px;transform:translate(-50%,-50%);padding:0;border:0;border-radius:50%;background:transparent;touch-action:manipulation;cursor:pointer;color:#f6dfa9}
+.pixie-catcher:before{content:"";position:absolute;inset:4px;border:1px solid #efdbb844;border-radius:50%;opacity:0;box-shadow:0 0 16px #ffdca533;transition:opacity .2s}
+.pixie-catcher:hover:before,.pixie-catcher:focus-visible:before{opacity:1}
+.pixie-hint{position:absolute;top:48px;left:50%;transform:translateX(-50%);width:max-content;max-width:170px;padding:7px 10px;border:1px solid #e9cc9730;border-radius:3px;background:#15121de8;font:italic 12px/1.4 var(--serif);color:#eed9ae;opacity:0;pointer-events:none;transition:opacity .2s}
+.pixie-catcher:hover .pixie-hint,.pixie-catcher:focus-visible .pixie-hint{opacity:1}
+.pixie-scrap{position:fixed;z-index:74;width:min(292px,calc(100vw - 32px));max-height:calc(100svh - 24px);overflow:auto;padding:22px 26px 24px;color:#3d2b1b;background:radial-gradient(ellipse at 90% 10%,#a46c2822,transparent 55%),url('./assets/book/paper.jpg') center/cover,#f0dfb9;box-shadow:0 14px 38px #0008,0 2px 3px #0005,inset 0 0 24px #9f753529;border:1px solid #c0a06b;border-radius:2px 9px 3px 4px;transform:rotate(-2deg);isolation:isolate}
+.pixie-scrap:before{content:"";position:absolute;top:8px;left:9px;width:42px;height:2px;background:#98724044;transform:rotate(-28deg);pointer-events:none}
+.pixie-scrap-close{position:absolute;top:1px;right:1px;width:44px;height:44px;border:0;background:transparent;color:#7a5a3b;font:23px/1 var(--serif)}
+.pixie-scrap-eyebrow{margin:0 22px 6px 0;color:#795730;font:9px/1.5 var(--sans);letter-spacing:.16em;text-transform:uppercase}
+.pixie-found-mark{display:block;min-width:68px;max-width:100%;min-height:58px;margin:0 auto 8px;padding:0 8px;border:0;background:transparent;color:#7c4226;font:italic 66px/.95 var(--serif);text-shadow:1px 2px 0 #fffa;transition:transform .2s,color .2s;overflow-wrap:anywhere}
+.pixie-found-mark:hover{transform:rotate(8deg) scale(1.08);color:#a45422}
+.pixie-found-mark.is-word{font-size:30px;line-height:1.15;min-height:50px;padding-top:9px}
+.pixie-found-mark:disabled{opacity:1;cursor:default;transform:rotate(-8deg);color:#614e40}
+.pixie-scrap h2{font-size:21px;line-height:1.2;margin:0 0 10px}
+.pixie-scrap-line{font-size:15px;line-height:1.55;margin:0 0 16px;text-wrap:pretty}
+.pixie-scrap-action{display:inline-block;padding:4px 0;border:0;border-bottom:1px solid #94633177;background:none;color:#744422;text-align:left;text-decoration:none;font:12px/1.5 var(--serif)}
+.pixie-scrap.is-unfolded .pixie-scrap-line{font-style:italic}
+.pixie-announcement{position:fixed;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;pointer-events:none}
+@media(max-width:759px){.pixie-scrap{width:min(320px,calc(100vw - 40px));padding:17px 24px 20px;transform:rotate(-1deg)}.pixie-found-mark{font-size:48px;min-height:42px;margin-bottom:4px}.pixie-found-mark.is-word{font-size:26px;min-height:38px}.pixie-scrap h2{font-size:20px}.pixie-scrap-line{font-size:14px;margin-bottom:10px}}
+@media(prefers-reduced-motion:reduce){.pixie-catcher:before,.pixie-hint,.pixie-found-mark{transition:none}.pixie-scrap{transform:none}.pixie-found-mark:hover,.pixie-found-mark:disabled{transform:none}}
+@media print{.pixie-catcher,.pixie-scrap,.pixie-announcement{display:none}}
 
 /* The five bookmarks sit inside the binding, like FolioSealBookmarkRail. */
 .binding-tabs{left:calc(100% - 15px)}.binding-tabs a{width:55px;padding-left:20px;font-family:var(--serif);font-size:9px;font-weight:700;letter-spacing:.085em;background-image:linear-gradient(90deg,#000b,transparent 40%,#0002),url('./assets/book/paper.jpg');background-blend-mode:multiply;box-shadow:2px 3px 5px #0008,inset 0 0 0 1px #1a100c66,inset -2px 0 3px #ffffff12}.binding-tabs a:hover,.binding-tabs a[aria-expanded="true"],.binding-tabs a[aria-current]{width:60px}.binding-tabs a[aria-expanded="true"]{outline:1px solid #d1b98588;outline-offset:-3px}.binding-tabs .tab-glow{background-color:#a8853f}.binding-tabs .tab-contents{background-color:#8a795b}.binding-tabs .tab-body{background-color:#814a45}.binding-tabs .tab-place{background-color:#6b5163}.binding-tabs .tab-radio{background-color:#ac843d}

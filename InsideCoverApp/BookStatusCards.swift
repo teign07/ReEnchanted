@@ -1129,6 +1129,8 @@ enum GlowMenuAction {
     case openBookSection(String)
     case openPagewright
     case openBindery
+    case openBleed
+    case bindBleed
     case bindWeeklyIssue
     case rebindWeeklyIssue
     case bindMonthlyEdition
@@ -1177,7 +1179,7 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
-            return "Make, share, print, and preserve kept pages."
+            return "The daily paper, weekly issue, longer editions, and copies."
         case .book:
             return "Read the Wonder Compass source."
         }
@@ -1230,6 +1232,385 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
 
 }
 
+enum JournalSealChoice: String, Identifiable {
+    case photo, text, audio, weather, anchor, gazetteer, atlas, labyrinthMap
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .photo: "Photo"
+        case .text: "Text"
+        case .audio: "Audio"
+        case .weather: "Weather Page"
+        case .anchor: "Nearby Anchor"
+        case .gazetteer: "The Gazetteer"
+        case .atlas: "The Atlas"
+        case .labyrinthMap: "Map of the Labyrinth"
+        }
+    }
+    var note: String {
+        switch self {
+        case .photo: "Something you saw."
+        case .text: "Something you want to tell me."
+        case .audio: "Something said aloud."
+        case .weather: "What the sky is doing."
+        case .anchor: "Let me remember this spot."
+        case .gazetteer: "The places you have kept."
+        case .atlas: "Follow the marks on the map."
+        case .labyrinthMap: "The Academy, room by room."
+        }
+    }
+}
+
+/// The Book draws each finished card out of its leaves before seating it.
+private enum BookCommandCardArrival {
+    static var extraction: Animation { .easeOut(duration: 0.24) }
+    static var settling: Animation { .spring(response: 0.48, dampingFraction: 0.88) }
+
+    static func offset(
+        stage: Int,
+        sourceBookRect: CGRect,
+        viewportWidth: CGFloat,
+        panelWidth: CGFloat,
+        panelTop: CGFloat,
+        stackHeight: CGFloat
+    ) -> CGSize {
+        switch stage {
+        case 0:
+            let measured = sourceBookRect.width > 40 && sourceBookRect.height > 80
+            return CGSize(
+                width: measured ? sourceBookRect.midX - (viewportWidth - 14 - panelWidth / 2) : 34,
+                height: measured ? sourceBookRect.midY - (panelTop + stackHeight / 2) : 32
+            )
+        case 1: return CGSize(width: 72, height: 10)
+        default: return .zero
+        }
+    }
+}
+
+/// Glow's dark, gold-edged stock with its inset cotton leaf. Shadows belong
+/// to the cut paper, so scrolling the words does not blur the whole menu again.
+private struct BookCommandCardPaper: View {
+    let seed: Int
+
+    var body: some View {
+        ZStack {
+            DeckledPaperScrapShape(seed: seed, amplitude: 2.2)
+                .fill(BookPalette.nightPanel)
+                .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
+            Color.clear
+                .overlay { frame }
+                .clipShape(DeckledPaperScrapShape(seed: seed, amplitude: 2.2))
+                .drawingGroup()
+        }
+    }
+
+    private var frame: some View {
+        let outerCut = DeckledPaperScrapShape(seed: seed, amplitude: 2.2)
+        let innerCut = DeckledPaperScrapShape(seed: seed &+ 919, amplitude: 1.65)
+
+        return ZStack {
+            outerCut.fill(BookPalette.nightPanel)
+            BookCommandCardTexture(
+                stock: .archiveFlecked,
+                seed: seed,
+                opacity: 0.15
+            )
+            .clipShape(outerCut)
+            outerCut.stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
+
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        BookPalette.paper,
+                        BookPalette.page.opacity(0.99),
+                        BookPalette.lampGold.opacity(0.12)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                BookCommandCardTexture(
+                    stock: .laidCotton,
+                    seed: seed &+ 919,
+                    opacity: 0.25
+                )
+                innerCut.stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+            }
+            .clipShape(innerCut)
+            .padding(8)
+        }
+        .clipShape(outerCut)
+    }
+}
+
+private struct BookCommandCardTexture: View {
+    let stock: LeafPaperStock
+    let seed: Int
+    let opacity: Double
+
+    var body: some View {
+        func materialUnit(_ salt: Int) -> CGFloat {
+            let mixed = seed &+ salt &* 5_003
+            let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
+            return CGFloat(raw) / 9_999
+        }
+
+        // Texture fills the paper's measured bounds; its source image must
+        // never enlarge a row's ZStack and cover the preceding choices.
+        return GeometryReader { proxy in
+            Image(stock.assetName)
+                .resizable()
+                .scaledToFill()
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .saturation(0)
+                .contrast(1.06)
+                .scaleEffect(1.05)
+                .rotationEffect(.degrees(Double(materialUnit(11) - 0.5) * 1.2))
+                .offset(
+                    x: (materialUnit(13) - 0.5) * 10,
+                    y: (materialUnit(17) - 0.5) * 10
+                )
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+        }
+        .opacity(opacity)
+        .blendMode(.multiply)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct BookCommandCardCloseSeal: View {
+    let label: String
+    let onClose: () -> Void
+
+    var body: some View {
+        Button(action: onClose) {
+            ZStack {
+                Circle().fill(BookPalette.nightPanel)
+                Circle().stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1.4)
+                Image(systemName: "xmark")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(BookPalette.lampGold)
+            }
+            .frame(width: 54, height: 54)
+            .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 6)
+        }
+        .buttonStyle(.bookPress())
+        .accessibilityLabel(label)
+    }
+}
+
+private struct BookCommandCardRings: View {
+    var body: some View {
+        ZStack {
+            ForEach(0..<4, id: \.self) { index in
+                Circle()
+                    .stroke(BookPalette.lampGold.opacity(0.08), lineWidth: 1)
+                    .frame(width: CGFloat(360 + index * 160), height: CGFloat(360 + index * 160))
+                    .offset(x: 150, y: -180)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    }
+}
+
+/// Capture and Place are leaves of the Book now, not cards drawn out of it:
+/// Place is the map pasted inside the front board, Capture the first of the
+/// Notes at the back. Each keeps its own field drawings and destinations.
+enum JournalSealLeafKind: Hashable {
+    case capture, place
+
+    var title: String { self == .capture ? "Capture" : "Place" }
+    /// The running head, as the leaf is printed.
+    var runningHead: String { self == .capture ? "NOTES" : "THE ENDPAPER MAP" }
+    var aside: String {
+        self == .capture ? "A little of the outside." : "Where your feet have been."
+    }
+    var choices: [JournalSealChoice] {
+        self == .capture ? [.photo, .text, .audio] : [.weather, .anchor, .gazetteer, .atlas, .labyrinthMap]
+    }
+    var motif: JournalFieldDrawing.Motif { self == .capture ? .moth : .compass }
+}
+
+/// One destination on a Capture or Place leaf: a deckled scrap tipped onto
+/// the paper, with its pen drawing in a little fibre window.
+struct JournalSealChoiceRow: View {
+    let choice: JournalSealChoice
+    var isEnabled: Bool = true
+    let action: () -> Void
+
+    var body: some View {
+        let rowSeed = "journal-option-\(choice.id)".stableHash
+        let cut = DeckledPaperScrapShape(seed: rowSeed, amplitude: 1.45)
+        let stock: LeafPaperStock = switch choice {
+        case .photo, .gazetteer: .archiveFlecked
+        case .text: .laidCotton
+        case .audio, .anchor: .vellum
+        case .weather, .labyrinthMap: .ragHandmade
+        case .atlas: .rebelWeathered
+        }
+
+        return Button(action: action) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Image("ParchmentFiber")
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.42)
+                    JournalFieldDrawing(motif: .choice(choice))
+                        .padding(4)
+                        .foregroundStyle(BookPalette.ink.opacity(0.78))
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay { RoundedRectangle(cornerRadius: 8).stroke(BookPalette.lampGold.opacity(0.40), lineWidth: 1) }
+                .padding(1)
+                .drawingGroup()
+                .padding(-1)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(choice.title)
+                        .font(.system(.headline, design: .serif).weight(.bold))
+                    Text(choice.note)
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.74))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.38))
+            }
+            .foregroundStyle(BookPalette.ink)
+            .padding(8)
+            .frame(maxWidth: .infinity, minHeight: 62, alignment: .leading)
+            .background {
+                ZStack {
+                    cut.fill(LinearGradient(
+                        colors: [BookPalette.paper.opacity(0.92), BookPalette.page.opacity(0.86)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    BookCommandCardTexture(stock: stock, seed: rowSeed, opacity: 0.22)
+                    cut.stroke(BookPalette.ink.opacity(0.10), lineWidth: 1)
+                }
+                .clipShape(cut)
+                .drawingGroup()
+            }
+            .contentShape(cut)
+        }
+        .buttonStyle(.bookPress())
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.48)
+        .accessibilityLabel(choice.title)
+        .accessibilityHint(isEnabled ? choice.note : "The Weather Page is already opening, or the Book is busy with another working.")
+    }
+}
+
+/// Small pen drawings rather than chrome icons: all share the same thin,
+/// rounded ink stroke, with a little asymmetry in the feather and fern.
+struct JournalFieldDrawing: View {
+    enum Motif { case moth, compass, sprig, choice(JournalSealChoice) }
+    let motif: Motif
+
+    var body: some View {
+        Canvas { context, size in
+            context.scaleBy(x: size.width / 48, y: size.height / 48)
+            var ink = Path()
+            func line(_ points: [CGPoint]) {
+                guard let first = points.first else { return }
+                ink.move(to: first)
+                for point in points.dropFirst() { ink.addLine(to: point) }
+            }
+            func segment(_ x: CGFloat, _ y: CGFloat, _ a: CGFloat, _ b: CGFloat) {
+                line([CGPoint(x: x, y: y), CGPoint(x: a, y: b)])
+            }
+            switch motif {
+            case .moth:
+                ink.move(to: CGPoint(x: 24, y: 29))
+                ink.addCurve(to: CGPoint(x: 8, y: 15), control1: CGPoint(x: 10, y: 34), control2: CGPoint(x: 2, y: 12))
+                ink.addQuadCurve(to: CGPoint(x: 24, y: 23), control: CGPoint(x: 15, y: 13))
+                ink.addQuadCurve(to: CGPoint(x: 40, y: 15), control: CGPoint(x: 34, y: 10))
+                ink.addCurve(to: CGPoint(x: 24, y: 29), control1: CGPoint(x: 47, y: 31), control2: CGPoint(x: 31, y: 35))
+                segment(24, 18, 24, 36)
+                segment(24, 19, 20, 13)
+                segment(24, 19, 28, 12)
+                segment(13, 21, 20, 27)
+                segment(35, 20, 28, 27)
+            case .compass, .choice(.atlas):
+                ink.addEllipse(in: CGRect(x: 9, y: 9, width: 30, height: 30))
+                line([CGPoint(x: 24, y: 5), CGPoint(x: 29, y: 24), CGPoint(x: 24, y: 43), CGPoint(x: 19, y: 24), CGPoint(x: 24, y: 5)])
+                segment(4, 24, 15, 24)
+                segment(33, 24, 44, 24)
+                segment(24, 12, 24, 35)
+            case .sprig:
+                ink.move(to: CGPoint(x: 5, y: 39))
+                ink.addQuadCurve(to: CGPoint(x: 42, y: 10), control: CGPoint(x: 29, y: 35))
+                for index in 0..<5 {
+                    let x = CGFloat(12 + index * 6)
+                    let y = CGFloat(35 - index * 5)
+                    segment(x, y, x - 4, y - 10)
+                    segment(x + 1, y - 1, x + 11, y + 1)
+                }
+            case .choice(.photo):
+                line([CGPoint(x: 8, y: 10), CGPoint(x: 40, y: 12), CGPoint(x: 38, y: 37), CGPoint(x: 6, y: 35), CGPoint(x: 8, y: 10)])
+                line([CGPoint(x: 11, y: 29), CGPoint(x: 20, y: 21), CGPoint(x: 27, y: 28), CGPoint(x: 32, y: 24), CGPoint(x: 35, y: 30)])
+                ink.addEllipse(in: CGRect(x: 28, y: 16, width: 5, height: 5))
+            case .choice(.text):
+                ink.move(to: CGPoint(x: 12, y: 37))
+                ink.addQuadCurve(to: CGPoint(x: 37, y: 7), control: CGPoint(x: 14, y: 8))
+                ink.addQuadCurve(to: CGPoint(x: 12, y: 37), control: CGPoint(x: 38, y: 31))
+                segment(8, 42, 32, 14)
+                segment(19, 28, 28, 27)
+                segment(24, 22, 33, 21)
+                segment(7, 43, 28, 43)
+            case .choice(.audio):
+                ink.addRoundedRect(in: CGRect(x: 19, y: 7, width: 10, height: 23), cornerSize: CGSize(width: 5, height: 5))
+                ink.move(to: CGPoint(x: 13, y: 22))
+                ink.addCurve(to: CGPoint(x: 35, y: 22), control1: CGPoint(x: 13, y: 40), control2: CGPoint(x: 35, y: 40))
+                segment(24, 35, 24, 42)
+                segment(17, 42, 31, 42)
+                segment(7, 18, 7, 26)
+                segment(41, 16, 41, 28)
+            case .choice(.weather):
+                ink.move(to: CGPoint(x: 10, y: 29))
+                ink.addCurve(to: CGPoint(x: 13, y: 18), control1: CGPoint(x: 0, y: 23), control2: CGPoint(x: 5, y: 15))
+                ink.addCurve(to: CGPoint(x: 32, y: 18), control1: CGPoint(x: 16, y: 5), control2: CGPoint(x: 32, y: 7))
+                ink.addCurve(to: CGPoint(x: 37, y: 30), control1: CGPoint(x: 47, y: 13), control2: CGPoint(x: 49, y: 30))
+                segment(10, 30, 37, 30)
+                segment(15, 35, 12, 41)
+                segment(26, 35, 23, 41)
+                segment(37, 35, 34, 41)
+            case .choice(.anchor):
+                ink.addEllipse(in: CGRect(x: 21, y: 6, width: 6, height: 6))
+                segment(24, 12, 24, 40)
+                segment(15, 20, 33, 20)
+                ink.move(to: CGPoint(x: 8, y: 29))
+                ink.addQuadCurve(to: CGPoint(x: 24, y: 40), control: CGPoint(x: 12, y: 40))
+                ink.addQuadCurve(to: CGPoint(x: 40, y: 29), control: CGPoint(x: 38, y: 40))
+                line([CGPoint(x: 8, y: 35), CGPoint(x: 8, y: 29), CGPoint(x: 14, y: 31)])
+                line([CGPoint(x: 34, y: 31), CGPoint(x: 40, y: 29), CGPoint(x: 40, y: 35)])
+            case .choice(.gazetteer):
+                line([CGPoint(x: 6, y: 12), CGPoint(x: 23, y: 16), CGPoint(x: 41, y: 10), CGPoint(x: 41, y: 35), CGPoint(x: 24, y: 41), CGPoint(x: 6, y: 36), CGPoint(x: 6, y: 12)])
+                segment(24, 17, 24, 40)
+                segment(10, 20, 18, 22)
+                segment(10, 27, 18, 29)
+                segment(29, 22, 36, 19)
+                segment(29, 29, 36, 26)
+            case .choice(.labyrinthMap):
+                // A little surveyed maze, distinct from the Atlas compass.
+                line([CGPoint(x: 27, y: 7), CGPoint(x: 7, y: 7), CGPoint(x: 7, y: 41), CGPoint(x: 41, y: 41), CGPoint(x: 41, y: 7), CGPoint(x: 34, y: 7)])
+                line([CGPoint(x: 15, y: 7), CGPoint(x: 15, y: 24), CGPoint(x: 25, y: 24)])
+                line([CGPoint(x: 34, y: 7), CGPoint(x: 34, y: 33), CGPoint(x: 15, y: 33), CGPoint(x: 15, y: 41)])
+                line([CGPoint(x: 23, y: 15), CGPoint(x: 27, y: 15), CGPoint(x: 27, y: 24)])
+                segment(7, 24, 15, 24)
+                segment(24, 33, 24, 41)
+            }
+            context.stroke(ink, with: .foreground, style: StrokeStyle(lineWidth: 1.05, lineCap: .round, lineJoin: .round))
+        }
+    }
+}
+
 struct GlowCommandMenu: View {
     let score: Int
     let surfaceCount: Int
@@ -1239,6 +1620,8 @@ struct GlowCommandMenu: View {
     let bookSections: [GlowBookSectionMenuItem]
     let enchantments: [GlowEnchantmentMenuItem]
     let spells: [GlowSpellMenuItem]
+    let bleedEditionLabel: String?
+    let preparedBleedPDFURL: URL?
     let canBindWeeklyIssue: Bool
     let canBindMonthlyEdition: Bool
     let canBindSeasonalEdition: Bool
@@ -1340,19 +1723,14 @@ struct GlowCommandMenu: View {
             let submenuTop = panelTop + (selectedSection?.rowOffset ?? 0) + 44
             let submenuTrailing = isCompact ? 26 : panelWidth + 22
             let panelStackHeight = headerChrome + roleChrome + starClearanceChrome + panelHeight
-            let bookIsMeasured = sourceBookRect.width > 40 && sourceBookRect.height > 80
-            let tuckedY = bookIsMeasured
-                ? sourceBookRect.midY - (panelTop + panelStackHeight / 2)
-                : 32
-            let tuckedX = bookIsMeasured
-                ? sourceBookRect.midX - (proxy.size.width - 14 - panelWidth / 2)
-                : 34
-            let extractionOffset = CGSize(width: 72, height: 10)
-            let paperOffset: CGSize = switch paperArrivalStage {
-            case 0: CGSize(width: tuckedX, height: tuckedY)
-            case 1: extractionOffset
-            default: .zero
-            }
+            let paperOffset = BookCommandCardArrival.offset(
+                stage: paperArrivalStage,
+                sourceBookRect: sourceBookRect,
+                viewportWidth: proxy.size.width,
+                panelWidth: panelWidth,
+                panelTop: panelTop,
+                stackHeight: panelStackHeight
+            )
 
             ZStack {
                 Color.black.opacity(0.48)
@@ -1439,13 +1817,13 @@ struct GlowCommandMenu: View {
             // The sheet is already at full size. Its first visible frame is
             // just beyond the right fore-edge, as though it has cleared the
             // page stack; the second beat draws it left into its final seat.
-            withAnimation(.easeOut(duration: 0.24)) {
+            withAnimation(BookCommandCardArrival.extraction) {
                 paperArrivalStage = 1
             }
             Task { @MainActor in
                 try? await Task.sleep(for: .seconds(0.24))
                 guard !Task.isCancelled else { return }
-                withAnimation(.spring(response: 0.48, dampingFraction: 0.88)) {
+                withAnimation(BookCommandCardArrival.settling) {
                     paperArrivalStage = 2
                 }
             }
@@ -1542,22 +1920,7 @@ struct GlowCommandMenu: View {
     /// beneath the paper and apart from the rows. The rows need no mask: they
     /// sit well inside the cut, and the frame beneath them is already cut to it.
     private var panelPaper: some View {
-        ZStack {
-            DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2)
-                .fill(BookPalette.nightPanel)
-                .shadow(color: .black.opacity(0.50), radius: 30, x: 0, y: 20)
-
-            // Cut to the panel the way the panel's own mask used to cut it.
-            // The frame lays itself out across the square its paper stock
-            // fills, so only the panel's cut, taken from the panel's frame,
-            // gives the edges it has always had.
-            Color.clear
-                .overlay {
-                    outerFrame
-                }
-                .clipShape(DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2))
-                .drawingGroup()
-        }
+        BookCommandCardPaper(seed: menuPaperSeed)
     }
 
     /// The shadow the star and the close seal throw, cast by silhouettes that
@@ -2048,6 +2411,35 @@ struct GlowCommandMenu: View {
                 onSelectAction(.openPagewright)
             }
 
+            menuButton(
+                title: "The Bleed · Daily Edition",
+                detail: bleedEditionLabel.map { "Read the \($0) paper." }
+                    ?? "Penny's daily paper, in morning and evening editions.",
+                systemImage: "newspaper",
+                compact: compact
+            ) {
+                onSelectAction(.openBleed)
+            }
+
+            menuButton(
+                title: "Bind The Bleed as PDF",
+                detail: "Choose a morning or evening copy, including older papers you kept.",
+                systemImage: "doc.richtext",
+                compact: compact
+            ) {
+                onSelectAction(.bindBleed)
+            }
+
+            if let preparedBleedPDFURL {
+                shareMenuButton(
+                    title: "Share The Bleed PDF",
+                    detail: "The daily edition, just as it was printed.",
+                    systemImage: "square.and.arrow.up",
+                    url: preparedBleedPDFURL,
+                    compact: compact
+                )
+            }
+
             weeklyIssueBinderyActions(compact: compact)
 
             binderyExportButton(
@@ -2508,21 +2900,7 @@ struct GlowCommandMenu: View {
     }
 
     private var closeSeal: some View {
-        Button(action: onClose) {
-            ZStack {
-                Circle()
-                    .fill(BookPalette.nightPanel)
-                Circle()
-                    .stroke(BookPalette.lampGold.opacity(0.72), lineWidth: 1.4)
-                Image(systemName: "xmark")
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(BookPalette.lampGold)
-            }
-            .frame(width: 54, height: 54)
-            .shadow(color: .black.opacity(0.32), radius: 10, x: 0, y: 6)
-        }
-        .buttonStyle(.bookPress())
-        .accessibilityLabel("Close Glow menu")
+        BookCommandCardCloseSeal(label: "Close Glow menu", onClose: onClose)
     }
 
     @ViewBuilder
@@ -2572,43 +2950,6 @@ struct GlowCommandMenu: View {
         }
     }
 
-    private var outerFrame: some View {
-        let outerCut = DeckledPaperScrapShape(seed: menuPaperSeed, amplitude: 2.2)
-        let innerCut = DeckledPaperScrapShape(seed: menuPaperSeed &+ 919, amplitude: 1.65)
-
-        return ZStack {
-            outerCut.fill(BookPalette.nightPanel)
-            glowPaperTexture(
-                stock: .archiveFlecked,
-                seed: menuPaperSeed,
-                opacity: 0.15
-            )
-            .clipShape(outerCut)
-            outerCut.stroke(BookPalette.lampGold.opacity(0.78), lineWidth: 1.4)
-
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        BookPalette.paper,
-                        BookPalette.page.opacity(0.99),
-                        BookPalette.lampGold.opacity(0.12)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                glowPaperTexture(
-                    stock: .laidCotton,
-                    seed: menuPaperSeed &+ 919,
-                    opacity: 0.25
-                )
-                innerCut.stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
-            }
-            .clipShape(innerCut)
-            .padding(8)
-        }
-        .clipShape(outerCut)
-    }
-
     private func glowPaperStock(for section: GlowMenuSection) -> LeafPaperStock {
         switch section {
         case .bindery: return .archiveFlecked
@@ -2624,38 +2965,11 @@ struct GlowCommandMenu: View {
         seed: Int,
         opacity: Double
     ) -> some View {
-        func materialUnit(_ salt: Int) -> CGFloat {
-            let mixed = seed &+ salt &* 5_003
-            let raw = UInt(bitPattern: mixed.stableScramble) % 10_000
-            return CGFloat(raw) / 9_999
-        }
-
-        return Image(stock.assetName)
-            .resizable()
-            .scaledToFill()
-            .saturation(0)
-            .contrast(1.06)
-            .scaleEffect(1.05)
-            .rotationEffect(.degrees(Double(materialUnit(11) - 0.5) * 1.2))
-            .offset(
-                x: (materialUnit(13) - 0.5) * 10,
-                y: (materialUnit(17) - 0.5) * 10
-            )
-            .opacity(opacity)
-            .blendMode(.multiply)
-            .allowsHitTesting(false)
+        BookCommandCardTexture(stock: stock, seed: seed, opacity: opacity)
     }
 
     private var ambientRings: some View {
-        ZStack {
-            ForEach(0..<4, id: \.self) { index in
-                Circle()
-                    .stroke(BookPalette.lampGold.opacity(0.08), lineWidth: 1)
-                    .frame(width: CGFloat(360 + index * 160), height: CGFloat(360 + index * 160))
-                    .offset(x: 150, y: -180)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        BookCommandCardRings()
     }
 }
 
@@ -2837,51 +3151,6 @@ struct KeepMarginNoteToast: View {
                 .stroke(BookPalette.gold.opacity(0.2), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-    }
-}
-
-/// The faint echo the retired keep toast leaves tucked at the page edge: the
-/// cast portrait plus one quiet receipt, dimmed, so the settled desk remembers
-/// both the interruption and what took hold without holding a second toast.
-struct KeepMarginTrace: View {
-    let note: KeepMarginalia.Note
-
-    private var voice: KeepMarginalia.Voice? { KeepMarginalia.voice(forSlug: note.castSlug) }
-    private var accent: Color { voice.map { Color(bookHex: $0.accentHex) } ?? BookPalette.gold }
-    private var settledLine: String? {
-        note.consequenceLines.first
-            ?? note.braidThreadLine
-            ?? note.carryOutLine
-            ?? note.rippleLine
-    }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(note.assetName)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 22, height: 22)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(accent.opacity(0.4), lineWidth: 1))
-            if let glyph = voice?.glyph {
-                Text(glyph)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(accent.opacity(0.7))
-            }
-            if let settledLine {
-                Text(settledLine)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(BookPalette.nightText.opacity(0.78))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .frame(maxWidth: 260, alignment: .leading)
-        .background(BookPalette.nightPanel.opacity(0.56), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .opacity(0.66)
-        .accessibilityHidden(true)
     }
 }
 
@@ -3099,7 +3368,16 @@ private struct ScribeWorkDescriptor {
                 quip: "The binding thread is waiting for one final honest paragraph.",
                 accent: BookPalette.lampGold
             )
-        case let value where value.contains("gossip") || value.contains("bleed"):
+        case let value where value.contains("bleed"):
+            self.init(
+                title: "Penny is setting the paper",
+                scribe: "Penny Blackletter",
+                assetName: "LabyrinthCharacterPennyBlackletter",
+                status: "The columns are finding their places.",
+                quip: "Hold that corner. The type is trying to get out.",
+                accent: BookPalette.lampGold
+            )
+        case let value where value.contains("gossip"):
             self.init(
                 title: "The margins are comparing notes",
                 scribe: "Marginalia Goblin",
@@ -3155,6 +3433,7 @@ struct LocalBrainWorkingStatusCard: View {
     var queuedCount = 0
     var liveText: String? = nil
     var progressLine: String? = nil
+    var liveProgress: LocalBrainProgressViewState? = nil
     var presentation: ScribeWorkPresentation = .page
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -3166,12 +3445,6 @@ struct LocalBrainWorkingStatusCard: View {
 
     private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
     private var isCompact: Bool { presentation == .compact }
-    private var livePreview: String? {
-        liveText?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-    }
-    private var progressCaption: String? {
-        progressLine?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
-    }
     private var emergenceOffset: CGSize {
         switch presentation {
         case .shelf: return CGSize(width: 26, height: 124)
@@ -3215,7 +3488,7 @@ struct LocalBrainWorkingStatusCard: View {
                 scribePortrait
 
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("WRITING PRIVATELY ON THIS DEVICE")
+                    Text(makingMoment == .bleed ? "AT THE PRESS" : "WRITING PRIVATELY ON THIS DEVICE")
                         .font(.caption2.weight(.black))
                         .tracking(0.7)
                         .foregroundStyle(descriptor.accent)
@@ -3245,10 +3518,18 @@ struct LocalBrainWorkingStatusCard: View {
             }
 
             if !isCompact {
-                if let livePreview {
-                    liveInkPreview(livePreview)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                if let makingMoment {
+                    BookMakingScene(moment: makingMoment, onPaper: true)
+                        .frame(maxWidth: .infinity)
+                        .id(makingMoment)
                 }
+
+                ScribeLiveInkPreview(
+                    progress: liveProgress,
+                    text: liveText,
+                    caption: progressLine,
+                    accent: descriptor.accent
+                )
 
                 Text(quip?.nonEmpty ?? descriptor.quip)
                     .font(.system(.body, design: .serif, weight: .semibold))
@@ -3259,7 +3540,10 @@ struct LocalBrainWorkingStatusCard: View {
 
                 waitActivities
 
-                Label("No cloud. This page and its private source material don't leave your device.", systemImage: "lock.shield")
+                Label(makingMoment == .bleed
+                      ? "Your reading copy will open when the paper is set."
+                      : "No cloud. This page and its private source material don't leave your device.",
+                      systemImage: makingMoment == .bleed ? "newspaper" : "lock.shield")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.56))
                     .fixedSize(horizontal: false, vertical: true)
@@ -3291,8 +3575,12 @@ struct LocalBrainWorkingStatusCard: View {
             await performPaperArrival()
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(descriptor.scribe). \(descriptor.title). Writing privately on this device.")
+        .accessibilityLabel(makingMoment == .bleed
+                            ? "\(descriptor.scribe). \(descriptor.title). At the press."
+                            : "\(descriptor.scribe). \(descriptor.title). Writing privately on this device.")
     }
+
+    private var makingMoment: BookMakingMoment? { BookMakingMoment.writing(label: label) }
 
     @MainActor
     private func performPaperArrival() async {
@@ -3314,35 +3602,6 @@ struct LocalBrainWorkingStatusCard: View {
         withAnimation(.easeOut(duration: 0.20)) {
             inkIsVisible = true
         }
-    }
-
-    private func liveInkPreview(_ text: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Label("Wet ink", systemImage: "text.cursor")
-                    .font(.caption2.weight(.black))
-                    .textCase(.uppercase)
-                    .foregroundStyle(descriptor.accent)
-                Spacer(minLength: 8)
-                if let progressCaption {
-                    Text(progressCaption)
-                        .font(.caption2.monospacedDigit().weight(.bold))
-                        .foregroundStyle(BookPalette.ink.opacity(0.46))
-                        .lineLimit(1)
-                }
-            }
-
-            GhostInkText(text: text)
-                .font(.system(.callout, design: .serif))
-                .lineSpacing(3)
-                .foregroundStyle(BookPalette.ink.opacity(0.82))
-                .lineLimit(nil)
-                .fixedSize(horizontal: false, vertical: true)
-                .layoutPriority(1)
-                .contentTransition(.opacity)
-        }
-        .waitActivitySurface(accent: descriptor.accent)
-        .animation(.easeInOut(duration: 0.18), value: text.count)
     }
 
     private var scribePortrait: some View {
@@ -3485,9 +3744,67 @@ struct LocalBrainWorkingStatusCard: View {
     }
 }
 
-/// Observation boundary for live Gemma output. This deliberately forwards the
-/// exact same text and progress caption to `LocalBrainWorkingStatusCard`; its
-/// only job is to keep high-frequency progress invalidations inside this card.
+/// Observe the changing preview at the smallest layout boundary. The portrait,
+/// paper arrival and optional wait activities do not read progress snapshots.
+private struct ScribeLiveInkPreview: View {
+    let progress: LocalBrainProgressViewState?
+    let text: String?
+    let caption: String?
+    let accent: Color
+
+    private var progressCaption: String? {
+        let value: String?
+        if let progress { value = progress.progressLine }
+        else { value = caption }
+        return value?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    private var livePreview: String? {
+        let value: String?
+        if let progress { value = progress.preview }
+        else { value = text }
+        return value?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    var body: some View {
+        if let text = livePreview {
+            preview(text)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+    }
+
+    private func preview(_ text: String) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 8) {
+                Label("Wet ink", systemImage: "text.cursor")
+                    .font(.caption2.weight(.black))
+                    .textCase(.uppercase)
+                    .foregroundStyle(accent)
+                Spacer(minLength: 8)
+                if let progressCaption {
+                    Text(progressCaption)
+                        .font(.caption2.monospacedDigit().weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.46))
+                        .lineLimit(1)
+                }
+            }
+
+            GhostInkText(text: text)
+                .font(.system(.callout, design: .serif))
+                .lineSpacing(3)
+                .foregroundStyle(BookPalette.ink.opacity(0.82))
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+                .contentTransition(.opacity)
+        }
+        .waitActivitySurface(accent: accent)
+        .animation(.easeInOut(duration: 0.18), value: text.count)
+    }
+}
+
+/// Pass the progress reference through without observing its text here. The
+/// wet-ink child owns those invalidations and preserves every streamed update.
 struct LiveLocalBrainWorkingStatusCard: View {
     let progress: LocalBrainProgressViewState
     let label: String
@@ -3502,8 +3819,7 @@ struct LiveLocalBrainWorkingStatusCard: View {
             quip: quip,
             startedAt: startedAt,
             queuedCount: queuedCount,
-            liveText: progress.preview,
-            progressLine: progress.progressLine,
+            liveProgress: progress,
             presentation: presentation
         )
     }
@@ -4946,5 +5262,175 @@ private struct ShelfFetchCard: View {
         .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(ShelfFetchNarration.headline). \(line)")
+    }
+}
+
+
+// MARK: - Book Today: the doorstep and the keepsake
+
+/// The paper on the mat and the day's one claim. Newsprint on the Book's own leaf, so it reads
+/// as an object that arrived; each row is a door.
+struct BookTodayDoorstepCard: View {
+    let edition: BookTodayEdition
+    var tilted = true
+    var onOpenPaper: () -> Void = {}
+    var onOpenAssignment: (BookTodayEdition.Assignment) -> Void = { _ in }
+
+    private let newsprint = Color(red: 0.957, green: 0.937, blue: 0.890)
+    private let newsInk = Color(red: 0.12, green: 0.11, blue: 0.10)
+    private var accent: Color {
+        edition.doorstep?.kind == .evening
+            ? Color(red: 0.45, green: 0.13, blue: 0.18) : Color(red: 0.12, green: 0.32, blue: 0.35)
+    }
+
+    var body: some View {
+        if edition.doorstep != nil || edition.assignment != nil {
+            VStack(alignment: .leading, spacing: 0) {
+                if let paper = edition.doorstep { paperRow(paper) }
+                if let assignment = edition.assignment {
+                    if edition.doorstep != nil { cutLine }
+                    assignmentRow(assignment)
+                }
+            }
+            // The paper casts the shadow; the type stays crisp on it.
+            .background {
+                Rectangle().fill(newsprint).shadow(color: .black.opacity(0.22), radius: 8, y: 5)
+            }
+            .overlay { Rectangle().stroke(newsInk.opacity(0.25), lineWidth: 0.6) }
+            .rotationEffect(.degrees(tilted ? -0.6 : 0))
+        }
+    }
+
+    private func paperRow(_ paper: BookTodayEdition.Doorstep) -> some View {
+        Button(action: onOpenPaper) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(paper.kind == .morning ? "THE BLEED \u{00B7} MORNING EDITION" : "THE BLEED \u{00B7} EVENING EDITION")
+                        .font(.system(size: 9, weight: .black, design: .serif))
+                        .tracking(1.2)
+                        .foregroundStyle(accent)
+                    Spacer()
+                    Image(systemName: "newspaper")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(accent)
+                }
+                Rectangle().fill(newsInk).frame(height: 1.4)
+                if !paper.kicker.isEmpty {
+                    Text(paper.kicker.uppercased())
+                        .font(.system(size: 8.5, weight: .bold, design: .serif))
+                        .tracking(0.9)
+                        .foregroundStyle(accent)
+                }
+                Text(paper.headline)
+                    .font(.system(.title3, design: .serif, weight: .bold))
+                    .foregroundStyle(newsInk)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(paper.line)
+                    .font(.system(.footnote, design: .serif).italic())
+                    .foregroundStyle(newsInk.opacity(0.7))
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(paper.line) Headline: \(paper.headline)")
+        .accessibilityHint("Opens the paper.")
+    }
+
+    private var cutLine: some View {
+        Rectangle()
+            .fill(newsInk.opacity(0.5))
+            .frame(height: 0.8)
+            .padding(.horizontal, 14)
+            .overlay(alignment: .trailing) {
+                Image(systemName: "scissors")
+                    .font(.system(size: 10))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 3)
+                    .background(newsprint)
+                    .padding(.trailing, 18)
+            }
+            .accessibilityHidden(true)
+    }
+
+    private func assignmentRow(_ assignment: BookTodayEdition.Assignment) -> some View {
+        Button {
+            if !assignment.filed { onOpenAssignment(assignment) }
+        } label: {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: assignment.filed ? "checkmark.seal.fill" : "figure.walk.departure")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(assignment.filed ? "ASSIGNMENT FILED" : "YOUR ASSIGNMENT")
+                        .font(.system(size: 9, weight: .black, design: .serif))
+                        .tracking(1.1)
+                        .foregroundStyle(accent)
+                    Text(assignment.title)
+                        .font(.system(.callout, design: .serif, weight: .bold))
+                        .foregroundStyle(newsInk)
+                    Text(assignment.filed ? "You brought it back. Tonight's paper has it." : assignment.challenge)
+                        .font(.system(.footnote, design: .serif))
+                        .foregroundStyle(newsInk.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                if !assignment.filed {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(newsInk.opacity(0.4))
+                        .padding(.top, 2)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(assignment.filed)
+        .accessibilityHint(assignment.filed ? "" : "Opens Wicker's dare.")
+    }
+}
+
+/// A line or photograph of the Reader's own, quoted back in their hand.
+struct BookTodayKeepsakeView: View {
+    let keepsake: BookTodayEdition.Keepsake
+    var onOpen: () -> Void = {}
+
+    var body: some View {
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(keepsake.label.uppercased())
+                    .font(.system(size: 9, weight: .black, design: .serif))
+                    .tracking(1)
+                    .foregroundStyle(MaterialInk.gilt.opacity(0.85))
+                if let photo = keepsake.photo {
+                    BookOfYouMediaThumbnail(asset: photo, width: 260, height: 170)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if let text = keepsake.text {
+                    Text("\u{201C}\(text)\u{201D}")
+                        .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
+                        .foregroundStyle(Color(red: 0.13, green: 0.20, blue: 0.36))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(keepsake.aside)
+                    .font(.system(.caption, design: .serif).italic())
+                    .foregroundStyle(MaterialInk.text.opacity(0.7))
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .leading) {
+                Rectangle().fill(BookPalette.lampGold.opacity(0.5)).frame(width: 2)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Opens that Page.")
     }
 }

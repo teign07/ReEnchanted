@@ -554,7 +554,7 @@ enum WeeklyThinness {
         var message: String {
             let pages = "\(keptPages) \(keptPages == 1 ? "page" : "pages")"
             let span = keptDays.map { " on \($0) \($0 == 1 ? "day" : "days")" } ?? ""
-            return "You kept \(pages)\(span) this week, so the printed issue will be on the thin side, with more of the Book's own pages around your few. "
+            return "You kept \(pages)\(span) this week, so the printed issue will be on the thin side, with more of my own pages around your few. "
                 + "Nothing is lost by looking first: you can read the whole issue here for free, save it as a PDF, or print it yourself from the app. "
                 + "Order it anyway if you'd like to hold it."
         }

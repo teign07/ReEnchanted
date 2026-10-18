@@ -31,7 +31,7 @@ import Foundation
 /// Deliberately smaller than Open-Meteo's code list. The paper cannot tell
 /// "drizzle" from "light rain", and pretending otherwise would add branches
 /// that never render differently.
-public enum SkyCondition: String, Equatable, CaseIterable, Sendable {
+public enum SkyCondition: String, Equatable, CaseIterable, Sendable, Codable {
     case clear
     case cloud
     case fog
@@ -62,7 +62,7 @@ public enum SkyCondition: String, Equatable, CaseIterable, Sendable {
 /// One reading of the real sky, with the two facts the paper needs beyond the
 /// condition itself: how hard it is coming down, and how much the air is
 /// moving.
-public struct PaperSky: Equatable, Sendable {
+public struct PaperSky: Equatable, Sendable, Codable {
     public var condition: SkyCondition
     /// How much of the condition there is, 0...1. Drizzle and a downpour are
     /// the same `.rain` with very different intensities.
@@ -127,23 +127,43 @@ public struct PaperSky: Equatable, Sendable {
     /// reason to draw nothing — a clear sky, a stale reading, an intensity
     /// that rounds away — so no view has to remember the whole list.
     public func settled(at now: Date) -> PaperSky? {
-        guard condition.marksThePaper else { return nil }
+        guard condition.marksThePaper || wind >= Self.draught else { return nil }
         let presence = presence(at: now)
         guard presence > 0.02 else { return nil }
-        let faded = intensity * presence
-        guard faded > 0.02 else { return nil }
         var copy = self
-        copy.intensity = faded
         copy.wind = wind * presence
+        if condition.marksThePaper {
+            let faded = intensity * presence
+            guard faded > 0.02 else { return nil }
+            copy.intensity = faded
+        } else {
+            // A dry sky reaches the paper only through the fore-edge, and only
+            // while the wind it was read with is still a real draught.
+            guard copy.wind >= Self.draught * 0.5 else { return nil }
+            copy.intensity = 0
+        }
         return copy
     }
+
+    /// The wind that moves the page on a dry day, 0...1 — about 20 km/h, when
+    /// loose paper outdoors stops staying where it was put.
+    ///
+    /// Below this a dry sky draws nothing at all, so a still clear day still
+    /// costs nothing. In rain or snow any wind at all reaches the edge, because
+    /// the layer is already on the page.
+    public static let draught: Double = 0.5
+
+    /// Whether this reading puts drops or flakes on the leaf, rather than only
+    /// moving its edge.
+    public var isFalling: Bool { condition.marksThePaper }
 
     /// The furthest the fore-edge ever moves, in points, at a full gale.
     ///
     /// Wind is the one effect that reads as *the book* rather than as weather
-    /// on it, so it stays small. A page that flaps is a cartoon; a page whose
-    /// edge is never quite still is a page in a room with a draught.
-    public static let foreEdgeAmplitude: Double = 3.4
+    /// on it, so it stays modest. A page that flaps is a cartoon; a page whose
+    /// edge lifts and settles is a page in a room with a draught. At 3.4 pt it
+    /// was a page nobody noticed moving at all.
+    public static let foreEdgeAmplitude: Double = 6
 
     /// How far the fore-edge should waver for this reading, in points.
     ///
@@ -296,7 +316,8 @@ public enum SkyCode {
 
     /// Build a reading from what the forecast endpoint returns.
     ///
-    /// `precipitation` (mm in the last hour) and `windSpeed` (km/h) are both
+    /// `precipitation` (mm per hour — callers convert from whatever interval
+    /// the source summed over) and `windSpeed` (km/h) are both
     /// optional because the reading has to survive a response that predates
     /// them — an old cached signal, or a partial decode.
     public static func reading(
@@ -355,8 +376,7 @@ public struct SkySpeck: Equatable, Sendable {
     /// Where in that cycle it is at t = 0, 0...1. Staggers the field so drops
     /// do not arrive in unison.
     public var offset: Double
-    /// Whether this one runs a little way down the page before it stops.
-    /// A few do; a field where they all do looks like a car window.
+    /// Legacy trait retained for callers; paper now absorbs every drop in place.
     public var runs: Bool
 
     public init(
@@ -390,10 +410,13 @@ public struct SkySpeckFrame: Equatable, Sendable {
     /// This is the part that actually reads as *wet paper* rather than as a
     /// dot drawn on top of a page.
     public var dampAlpha: Double
-    /// How far it has fallen toward its resting place, 0...1. Below 1 the
-    /// speck is still arriving and should be drawn with a short streak behind
-    /// it rather than as a bead.
+    /// How far it has fallen toward its resting place, 0...1.
     public var arrival: Double
+    /// Legacy output; absorbed drops leave no running track.
+    public var trail: Double = 0
+    /// Water entering the fibres, 0...1. The bead contracts as its damp patch
+    /// spreads, with both staying centred on the point of impact.
+    public var absorption: Double = 0
 }
 
 /// The field of specks: how many, where, and where each one is now.
@@ -403,7 +426,7 @@ public enum SkyField {
     /// A hard ceiling rather than a guideline. Everything else in this file is
     /// cheap per speck, so the only way this layer can become a performance
     /// problem is by drawing an unbounded number of them.
-    public static let ceiling = 26
+    public static let ceiling = 64
 
     /// How many specks a leaf of this size, in this weather, should carry.
     ///
@@ -414,12 +437,12 @@ public enum SkyField {
         leafArea: Double
     ) -> Int {
         guard reading.condition.marksThePaper else { return 0 }
-        // A phone leaf is roughly 105_000 sq pt. This puts a moderate rain at
-        // about a dozen drops on it, which is enough to read as weather and
-        // few enough to still read as individual drops.
-        let density = leafArea / 9_000
+        // A phone leaf carries about ten marks in moderate rain, seventeen
+        // in a downpour. Leave room to read between them. Snow keeps its density.
+        let isSnow = reading.condition == .snow
+        let density = leafArea / (isSnow ? 3_100 : 6_200)
         let scaled = density * (0.25 + reading.intensity * 0.75)
-        return min(ceiling, max(3, Int(scaled.rounded())))
+        return min(ceiling, max(isSnow ? 6 : 3, Int(scaled.rounded())))
     }
 
     /// Build the speck table for a field of `count`.
@@ -463,17 +486,16 @@ public enum SkyField {
                 size: unit(2),
                 period: period,
                 offset: unit(4),
-                // Runners are rain only, and rare. Snow does not run.
-                runs: !isSnow && unit(8) > 0.82
+                runs: false
             )
         }
     }
 
     /// Where a speck is at time `t`.
     ///
-    /// The cycle is: arrive (a short fall onto the paper), sit as a bead, then
-    /// dry — the bead going first and the damp mark lingering behind it. Every
-    /// phase is a straight function of the cycle position, so this is a few
+    /// Rain lands, beads briefly, then soaks into the fibres and dries. Snow
+    /// keeps its slower arrival and rest. Every phase is a straight function
+    /// of the cycle position, so this is a few
     /// arithmetic operations and no branching on stored state.
     public static func frame(
         for speck: SkySpeck,
@@ -488,8 +510,8 @@ public enum SkyField {
         if u < 0 { u += 1 }
 
         // Snow takes longer to come down and sits far longer once it has.
-        let arriveEnd = isSnow ? 0.22 : 0.09
-        let dryStart = isSnow ? 0.72 : 0.55
+        let arriveEnd = isSnow ? 0.22 : 0.025
+        let dryStart = isSnow ? 0.84 : 0.24
 
         let arrival = u < arriveEnd ? u / arriveEnd : 1
 
@@ -497,26 +519,26 @@ public enum SkyField {
         // from the top of the screen. This is weather *on the leaf*, so a drop
         // that streaked the whole height of the page would be drawing rain in
         // the room instead — and the room is deliberately a still stage.
-        let approach = isSnow ? 0.20 : 0.11
-        var y = speck.restY - approach * (1 - arrival)
+        let approach = isSnow ? 0.20 : 0.012
+        let y = speck.restY - approach * (1 - arrival)
 
-        // Runners creep a little further down once landed, then stop. Water
-        // beading and then letting go is the whole charm; water sliding the
-        // full height of the page is a windscreen.
-        if speck.runs, arrival >= 1 {
-            let since = (u - arriveEnd) / max(0.0001, 1 - arriveEnd)
-            y += 0.06 * min(1, since * 2.4)
-        }
+        // Water spreads through the paper, never down its face. Smooth the
+        // handoff so the bead melts into the growing damp patch.
+        let soak = isSnow ? 0 : min(1, max(0, (u - arriveEnd) / (dryStart - arriveEnd)))
+        let absorption = soak * soak * (3 - 2 * soak)
 
         // Wind pushes the arriving speck sideways and lets it straighten as it
         // lands. Snow, being slower and lighter, is pushed much further.
-        let sway = isSnow ? 0.16 : 0.05
+        let sway = isSnow ? 0.16 : 0.008
         let gust = sin(time * 0.8 + speck.offset * 6.28) * 0.5 + 0.5
         let x = speck.laneX + wind * sway * (1 - arrival) * (0.4 + gust * 0.6)
 
-        // The bead: brightest just after it lands, gone by the end of drying.
+        // Rain loses its bead during absorption; snow keeps its longer rest.
         let beadAlpha: Double
-        if u < arriveEnd {
+        if !isSnow {
+            let surfaceWater = 1 - absorption
+            beadAlpha = u < arriveEnd ? arrival : surfaceWater * surfaceWater * surfaceWater
+        } else if u < arriveEnd {
             beadAlpha = arrival
         } else if u < dryStart {
             beadAlpha = 1
@@ -530,13 +552,15 @@ public enum SkyField {
         // The damp mark: arrives with the drop, outlasts it, fades out flat.
         let dampAlpha: Double
         if u < arriveEnd {
-            dampAlpha = arrival * 0.55
+            dampAlpha = arrival * (isSnow ? 0.55 : 0.18)
         } else if u < dryStart {
             let sit = (u - arriveEnd) / max(0.0001, dryStart - arriveEnd)
-            dampAlpha = 0.55 + sit * 0.45
+            dampAlpha = isSnow ? 0.55 + sit * 0.45 : 0.18 + absorption * 0.82
         } else {
-            let dry = (u - dryStart) / max(0.0001, 1 - dryStart)
-            dampAlpha = max(0, 1 - dry)
+            // Rain leaves a short dry interval before the next impact.
+            let dryEnd = isSnow ? 1.0 : 0.88
+            let dry = min(1, (u - dryStart) / (dryEnd - dryStart))
+            dampAlpha = max(0, 1 - dry) * (isSnow ? 1 : 1 - dry)
         }
 
         return SkySpeckFrame(
@@ -545,7 +569,8 @@ public enum SkyField {
             size: speck.size,
             beadAlpha: min(1, max(0, beadAlpha)),
             dampAlpha: min(1, max(0, dampAlpha)),
-            arrival: arrival
+            arrival: arrival,
+            absorption: absorption
         )
     }
 
@@ -565,5 +590,238 @@ public enum SkyField {
         // reader's thumb; the middle of the fore-edge is what actually moves.
         let held = sin(t * .pi)
         return (travelling * 0.62 + slow * 0.38) * amplitude * held
+    }
+}
+
+// MARK: - Lightning
+
+extension SkyField {
+    /// How brightly the leaf is lit by lightning at time `t`, 0...1.
+    ///
+    /// Storms only. Time is cut into windows of uneven length; most windows
+    /// carry one strike — a bright flicker, a gap, and a weaker second one,
+    /// which is what lightning actually looks like through a window — and the
+    /// rest carry none, so the strikes never fall into a rhythm. Pure, like
+    /// every other figure here: the renderer asks, nothing is remembered.
+    ///
+    /// Kept well under the photosensitivity line: at most two flickers in a
+    /// third of a second, then at least several seconds of dark.
+    public static func lightning(at time: TimeInterval, seed: Int = 0) -> Double {
+        let window = 9.0
+        let index = Int((time / window).rounded(.down))
+        func unit(_ salt: Int) -> Double {
+            let mixed = (seed &+ index &* 6_007 &+ salt &* 92_821).stableScramble
+            return Double(UInt(bitPattern: mixed) % 10_000) / 9_999
+        }
+        // About two windows in three strike.
+        guard unit(1) < 0.66 else { return 0 }
+        let strikeAt = Double(index) * window + 1 + unit(2) * (window - 2.5)
+        let since = time - strikeAt
+        guard since >= 0, since < 0.42 else { return 0 }
+        let strength = 0.65 + unit(3) * 0.35
+        // First flicker 0...0.09s, dark, second weaker flicker 0.16...0.42s.
+        if since < 0.09 {
+            return strength * (1 - since / 0.09 * 0.35)
+        }
+        if since < 0.16 { return 0 }
+        let tail = (since - 0.16) / 0.26
+        return strength * 0.55 * (1 - tail)
+    }
+}
+
+// MARK: - How long the weather lasts
+
+/// The sky the Book was told about, and what it was told comes next.
+///
+/// A single reading is a snapshot: rain that starts ten minutes after it was
+/// read stays off the paper until the next read, and rain that stops keeps
+/// wetting it. The forecast endpoint already knows the next several hours in
+/// fifteen-minute steps, so the Book keeps those too and the leaf follows them
+/// — the rain arrives on the page when it is due to arrive outside, and dries
+/// when it is due to stop, whether or not a fresh read has landed in between.
+///
+/// Honesty still governs it. A forecast is only as good as its age, so the
+/// whole outlook is trusted for `trustedFor` after it was read and gone by
+/// `forgottenAt`. While reads succeed on the hour that fade never shows; a
+/// sky thinning off the page still means the Book has stopped being able to
+/// look out.
+public struct PaperSkyOutlook: Equatable, Sendable, Codable {
+    /// One step of the forecast: the sky expected from `from` for one
+    /// `slotLength`.
+    public struct Slot: Equatable, Sendable, Codable {
+        public var from: Date
+        /// Its `observedAt` is `from` — the moment it describes.
+        public var sky: PaperSky
+
+        public init(from: Date, sky: PaperSky) {
+            self.from = from
+            self.sky = sky
+        }
+    }
+
+    /// When the Book asked.
+    public var readAt: Date
+    /// The sky as measured when it asked. It covers the time until the first
+    /// slot begins.
+    public var current: PaperSky
+    /// What comes next, in order, every slot beginning after `readAt`.
+    public var ahead: [Slot]
+
+    /// Open-Meteo's `minutely_15` step.
+    public static let slotLength: TimeInterval = 15 * 60
+    /// How long a forecast is believed at full strength. Six hours ahead is
+    /// still a firm forecast for rain or no rain; the hourly reads replace it
+    /// long before this matters unless they are failing.
+    public static let trustedFor: TimeInterval = 6 * 60 * 60
+    /// And when it is no longer believed at all.
+    public static let forgottenAt: TimeInterval = 8 * 60 * 60
+
+    public init(current: PaperSky, ahead: [Slot] = [], readAt: Date? = nil) {
+        let readAt = readAt ?? current.observedAt
+        self.readAt = readAt
+        self.current = current
+        self.ahead = ahead
+            .filter { $0.from > readAt }
+            .sorted { $0.from < $1.from }
+    }
+
+    /// How far the forecast is still believed, 0...1.
+    public func trust(at now: Date) -> Double {
+        let age = now.timeIntervalSince(readAt)
+        guard age >= 0 else { return 0 }
+        if age <= Self.trustedFor { return 1 }
+        if age >= Self.forgottenAt { return 0 }
+        return 1 - (age - Self.trustedFor) / (Self.forgottenAt - Self.trustedFor)
+    }
+
+    /// The sky the forecast says is overhead at `now`, before any honesty
+    /// fade — or `nil` past the end of what the Book was told.
+    public func sky(at now: Date) -> PaperSky? {
+        guard now >= readAt else { return nil }
+        guard let first = ahead.first else { return current }
+        if now < first.from { return current }
+        guard let slot = ahead.last(where: { $0.from <= now }),
+              now < slot.from.addingTimeInterval(Self.slotLength) else { return nil }
+        return slot.sky
+    }
+
+    /// The sky as it should be drawn at `now`, or `nil` when there is nothing
+    /// to draw. The single gate the renderer asks, as `PaperSky.settled` is
+    /// for one reading.
+    public func settled(at now: Date) -> PaperSky? {
+        guard let sky = sky(at: now) else { return nil }
+        // A reading with no forecast behind it is a snapshot, and fades as one.
+        guard !ahead.isEmpty else { return sky.settled(at: now) }
+        let trust = trust(at: now)
+        guard trust > 0.02 else { return nil }
+        var believed = sky
+        believed.intensity *= trust
+        believed.wind *= trust
+        // Its own age is at most one slot, so this is the precipitation and
+        // draught gate rather than a second staleness toll.
+        return believed.settled(at: max(now, believed.observedAt))
+    }
+
+    /// The moments after `now` when `settled(at:)` can change: each slot
+    /// boundary, and steps through the honesty fade. A view redraws at these
+    /// and at no other time, so a dry outlook costs nothing between them.
+    public func changes(after now: Date, fadeStep: TimeInterval = 10 * 60) -> [Date] {
+        var dates = ahead.map(\.from).filter { $0 > now }
+        let (fadeFrom, fadeTo) = ahead.isEmpty
+            ? (current.observedAt.addingTimeInterval(PaperSky.freshFor),
+               current.observedAt.addingTimeInterval(PaperSky.staleAt))
+            : (readAt.addingTimeInterval(Self.trustedFor),
+               readAt.addingTimeInterval(Self.forgottenAt))
+        var step = fadeFrom
+        while step <= fadeTo {
+            if step > now { dates.append(step) }
+            step = step.addingTimeInterval(fadeStep)
+        }
+        if let last = ahead.last {
+            let end = last.from.addingTimeInterval(Self.slotLength)
+            if end > now { dates.append(end) }
+        }
+        return Array(Set(dates)).sorted()
+    }
+}
+
+extension SkyCode {
+    /// Build an outlook from the forecast's fifteen-minute rows.
+    ///
+    /// The arrays are the endpoint's own columns, matched by index. Each row's
+    /// precipitation is what falls in its fifteen minutes, so it is scaled to
+    /// the hourly rate `reading(code:precipitation:...)` expects. A row with no
+    /// weather code is a hole in the forecast, not a dry spell, and the
+    /// outlook ends there rather than inventing weather across it.
+    public static func outlook(
+        current: PaperSky,
+        slotStarts: [Date],
+        codes: [Int?],
+        precipitation: [Double?] = [],
+        windSpeed: [Double?] = [],
+        isDay: [Int?] = []
+    ) -> PaperSkyOutlook {
+        var slots: [PaperSkyOutlook.Slot] = []
+        for (index, start) in slotStarts.enumerated() {
+            guard index < codes.count, let code = codes[index] else { break }
+            let rain = index < precipitation.count ? precipitation[index] : nil
+            let wind = index < windSpeed.count ? windSpeed[index] : nil
+            let day = index < isDay.count ? isDay[index] : nil
+            slots.append(PaperSkyOutlook.Slot(
+                from: start,
+                sky: reading(
+                    code: code,
+                    precipitation: rain.map { $0 * 3_600 / PaperSkyOutlook.slotLength },
+                    windSpeed: wind,
+                    isDay: (day ?? (current.isDay ? 1 : 0)) == 1,
+                    observedAt: start
+                )
+            ))
+        }
+        return PaperSkyOutlook(current: current, ahead: slots, readAt: current.observedAt)
+    }
+}
+
+// MARK: - Remembering the sky across a relaunch
+
+/// The last outlook the Book was given, kept on the device.
+///
+/// The live reading lives in view state and is gone when the app is. Without
+/// this, every launch began with a dry page until the first read returned —
+/// and a launch with no signal stayed dry through a storm the Book had been
+/// told about an hour earlier. The outlook's own trust window decides how long
+/// a remembered one is still worth drawing, so keeping it claims nothing.
+@MainActor
+public enum PaperSkyOutlookStore {
+    static let key = "paperSkyOutlook.v1"
+    private static var cache: (data: Data, outlook: PaperSkyOutlook)?
+
+    public static func load(from defaults: UserDefaults = .standard) -> PaperSkyOutlook? {
+        guard let data = defaults.data(forKey: key) else {
+            cache = nil
+            return nil
+        }
+        // Asked from a view body. Decoding three dozen slots on every pass
+        // would be needless; the bytes only change when a read lands.
+        if let cache, cache.data == data { return cache.outlook }
+        guard let outlook = try? JSONDecoder().decode(PaperSkyOutlook.self, from: data) else {
+            return nil
+        }
+        cache = (data, outlook)
+        return outlook
+    }
+
+    public static func save(_ outlook: PaperSkyOutlook, to defaults: UserDefaults = .standard) {
+        guard let data = try? JSONEncoder().encode(outlook) else { return }
+        defaults.set(data, forKey: key)
+        cache = (data, outlook)
+    }
+
+    /// Forget it — the weather doorway was closed, or the Weather source was
+    /// turned off. A sky the reader withdrew permission for has no business
+    /// still wetting the page from memory.
+    public static func clear(from defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: key)
+        cache = nil
     }
 }

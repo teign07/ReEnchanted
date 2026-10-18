@@ -344,7 +344,7 @@ final class WonderBraidTests: XCTestCase {
     XCTAssertEqual(output.paragraphs[1], "I drew this out of the clock. The pins enjoy being handled.", "the Book's kept words follow paragraph one")
     XCTAssertFalse(output.paragraphs.contains { $0.contains("bumped a stack of old maps") }, "few entries do not need an invented adventure")
     XCTAssertEqual(output.paragraphs.last, thinDay.business, "the authored Book thread closes without a made-up hunt result")
-    XCTAssertFalse(output.prose.contains("The Book kept the page"))
+    XCTAssertFalse(output.prose.contains("I kept the page"))
     XCTAssertEqual(output.jobsFellBack, 0)
   }
 

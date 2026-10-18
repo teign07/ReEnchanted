@@ -266,10 +266,10 @@ final class ReaderStoryTests: XCTestCase {
     func testConsolingOrResolvingProseFailsTheAuditOnShadowNights() {
         let heavy = day("2026-07-01", pages: [page("The funeral was on Tuesday. I did not speak.")])
 
-        let consoling = "You did your best, and that was enough. The Book kept the page: the chairs stayed empty."
+        let consoling = "You did your best, and that was enough. I kept the page: the chairs stayed empty."
         XCTAssertTrue(BraidOutputAudit.registerIssues(in: consoling, for: heavy).contains(.consoledUnbidden))
 
-        let closing = "By evening you had made peace with it. The Book kept the page: the chairs stayed empty."
+        let closing = "By evening you had made peace with it. I kept the page: the chairs stayed empty."
         XCTAssertTrue(BraidOutputAudit.registerIssues(in: closing, for: heavy).contains(.resolvedTheUnresolved))
 
         let explaining = "It happened for a reason, and the lesson arrived later."
@@ -278,7 +278,7 @@ final class ReaderStoryTests: XCTestCase {
         let mindreading = "Deep down you felt the room close, and part of you wanted to run."
         XCTAssertTrue(BraidOutputAudit.registerIssues(in: mindreading, for: heavy).contains(.spokeForTheReader))
 
-        let clean = "Tuesday. Eleven chairs, four of them filled. You stood at the back and did not speak. The Book kept the page: the chairs stayed empty."
+        let clean = "Tuesday. Eleven chairs, four of them filled. You stood at the back and did not speak. I kept the page: the chairs stayed empty."
         XCTAssertTrue(BraidOutputAudit.registerIssues(in: clean, for: heavy).isEmpty)
     }
 
@@ -468,7 +468,7 @@ final class ReaderStoryTests: XCTestCase {
             type: .bookOfYou,
             createdAt: iso("2026-07-01T21:00:00Z"),
             promptText: "Book of You",
-            userInput: "Soup, and the balcony. The Book kept the page: the stock was better than the recipe.",
+            userInput: "Soup, and the balcony. I kept the page: the stock was better than the recipe.",
             tags: []
         )
         let marked = BraidPageDetails.withBackwardQuestion(
@@ -477,7 +477,7 @@ final class ReaderStoryTests: XCTestCase {
         )
 
         // Carried as page metadata, so it can never be mistaken for braid prose
-        // and can never displace "The Book kept the page:".
+        // and can never displace "I kept the page:".
         XCTAssertEqual(marked.userInput, braid.userInput)
         XCTAssertEqual(BraidPageDetails.details(for: marked).backwardQuestion, "You used to call that stretch \u{201C}The Fog.\u{201D}")
         XCTAssertNil(BraidPageDetails.details(for: braid).backwardQuestion)

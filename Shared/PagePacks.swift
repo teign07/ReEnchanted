@@ -60,6 +60,9 @@ struct PageArchetype: Codable, Identifiable, Equatable {
     /// Optional spatial grammar within that dialect. Omit it to let content
     /// length, semantic roles, and the stable leaf seed choose the regions.
     var leafRegionPattern: LeafRegionPatternID? = nil
+    /// Optional ceiling for the marginal life of this Page; empty paper still
+    /// decides how many marks can actually fit.
+    var leafMarginaliaDensity: LeafMarginaliaDensity? = nil
     var trigger: PageTrigger?
     var generation: GenerationSpec?
 
@@ -373,6 +376,9 @@ struct PageArchetypePack: Codable, Identifiable, Equatable {
     /// Short Book-authored pencilings which may be selected by motif. They are
     /// decoration, never presented as words the reader wrote.
     var marginaliaSnippets: [IlluminationMarginaliaSnippet]? = nil
+    /// Opt-in plates for the leaves between Pages. Monthly art uses the same
+    /// managed media paths and placement gates as the pack's other artwork.
+    var interleafIllustrations: [InterleafIllustration]? = nil
     /// Business for the Cast to be already in the middle of. A ladder posted
     /// here is the same object as one compiled into the app, so it inherits the
     /// serial, the world-pressure fingerprints, doors, and monthly binding
@@ -674,9 +680,9 @@ enum PageArchetypePackRegistry {
             archetypes: [
                 PageArchetype(
                     id: "the-nothing-stirs",
-                    title: "The Book Suspects the Rut",
+                    title: "I Suspect the Rut",
                     headline: "A Hunch, with an Eraser",
-                    detail: "The margins look a little too smooth. The Book might be wrong.",
+                    detail: "The margins look a little too smooth. I might be wrong.",
                     reason: "I have enough current evidence to risk one gentle warning about Routine.",
                     bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Don't overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I'll erase the warning.",
                     score: 48,
@@ -1092,7 +1098,7 @@ enum PageArchetypePackRegistry {
             headline: "A Word Has Gone Missing",
             detail: "The comedy thins; something has taken a word from the page.",
             reason: "September's schoolroom comedy briefly reveals the cold spot behind the rebellion.",
-            bodyTemplate: "The margin should contain a word, but the paper there's cold and clean. The rebel words won't meet your eye. Write one thing from today you don't want the dark to misfile: a name, a task, a kindness, a promise, a place, a small proof that you were here. The Book can't recover the missing word yet. It can keep this one safe.",
+            bodyTemplate: "The margin should contain a word, but the paper there's cold and clean. The rebel words won't meet your eye. Write one thing from today you don't want the dark to misfile: a name, a task, a kindness, a promise, a place, a small proof that you were here. I can't get the missing word back yet. I can keep this one safe.",
             score: 86,
             cadenceHours: 72,
             renderStyleRaw: "loreLetter",
@@ -1111,7 +1117,7 @@ enum PageArchetypePackRegistry {
             headline: "Order, Restored",
             detail: "The rebellion settles; the definitions return to their lines.",
             reason: "Your rulings sent the runaway words home.",
-            bodyTemplate: "By your ruling, most of the runaway words have been coaxed back to their old meanings. The dictionaries close with a contented thump and the margins go quiet: the way a house goes quiet after guests leave. Nothing was lost. The Library is orderly again, and a shade quieter for it. The Book notices you kept the place steady, and wonders, privately, whether a little of the wildness might have been worth keeping. Name one ordinary word you were glad to send home unchanged.",
+            bodyTemplate: "By your ruling, most of the runaway words have been coaxed back to their old meanings. The dictionaries close with a contented thump and the margins go quiet: the way a house goes quiet after guests leave. Nothing was lost. The Library is orderly again, and a shade quieter for it. I notice you kept the place steady, and I wonder, privately, whether a little of the wildness might have been worth keeping. Name one ordinary word you were glad to send home unchanged.",
             score: 82,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -1126,10 +1132,10 @@ enum PageArchetypePackRegistry {
         PageArchetype(
             id: "rebellion-treaty-reformation",
             title: "A New Dictionary, Ratified",
-            headline: "The Book Learns Your Dialect",
+            headline: "I'm Learning Your Dialect",
             detail: "The words you freed into new meanings have dried into the binding.",
             reason: "Your rulings ratified a new lexicon.",
-            bodyTemplate: "By your ruling, the rebellion didn't end so much as resolve. The words you pardoned and adopted have dried into their new senses, and the Book has quietly entered them into a private dictionary: yours. From now on it will speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That's the cost, and the gift. Name the word whose new meaning you're gladdest to keep.",
+            bodyTemplate: "By your ruling, the rebellion didn't end so much as resolve. The words you pardoned and adopted have dried into their new senses, and I've quietly entered them into a private dictionary: yours. From now on I'll speak a little in your dialect, using the meanings you gave back to ordinary words. The Library is louder, livelier, and slightly less sure of itself than it was. That's the cost, and the gift. Name the word whose new meaning you're gladdest to keep.",
             score: 82,
             cadenceHours: 48,
             renderStyleRaw: "loreLetter",
@@ -1418,17 +1424,15 @@ enum PageArchetypePackRegistry {
     /// delivery seam future patron/paid packs will use.
     static func userPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      var pack = try? decoder.decode(PageArchetypePack.self, from: data) else {
-                    return nil
-                }
-                if pack.availability != "locked" {
-                    pack.availability = "userImported"
-                }
-                return pack
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            guard var pack = try? decoder.decode(PageArchetypePack.self, from: data) else {
+                return nil
             }
+            if pack.availability != "locked" {
+                pack.availability = "userImported"
+            }
+            return pack
+        }
     }
 
     static func enabledPacks(fileManager: FileManager = .default) -> [PageArchetypePack] {
@@ -1494,12 +1498,12 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "seal-body",
             title: "The Body Seal",
-            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device: the Book just translates them into weather it can write with."
+            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device: I just turn them into weather I can write with."
         ),
         MarginTutorNote(
             id: "seal-weather",
             title: "The Weather Seal",
-            text: "This seal reads your actual sky, then lets the Book enchant it. The real forecast stays legible underneath: we don't lie about rain here."
+            text: "This seal reads your actual sky, then lets me enchant it. The real forecast stays legible underneath: we don't lie about rain here."
         ),
         MarginTutorNote(
             id: "seal-location",
@@ -1529,7 +1533,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "academy-class",
             title: "Classes & Clubs",
-            text: "This is a scheduled Academy page: a class, club, or office door that's open right now. It appears because the Book found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
+            text: "This is a scheduled Academy page: a class, club, or office door that's open right now. It appears because I found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
         ),
         MarginTutorNote(
             id: "game-page",
@@ -1559,7 +1563,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "support-guild",
             title: "The Support Guild",
-            text: "The Support Guild is low-shame pattern spotting across body, fuel, mood, and weather notes. It appears when the Book has enough signals to be useful without pretending to diagnose you. Use the page as a gentle hypothesis, then keep only what feels true."
+            text: "The Support Guild is low-shame pattern spotting across body, fuel, mood, and weather notes. It appears when I have enough signals to be useful without pretending to diagnose you. Use the page as a gentle hypothesis, then keep only what feels true."
         ),
         MarginTutorNote(
             id: "inkrest-office-hours",
@@ -1639,7 +1643,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "the-bleed",
             title: "The Bleed",
-            text: "The Bleed is what happens when outside pressure leaks into the margins. It appears when the Book has reason to make the interference visible instead of pretending everything is fine. Read it as a weather report, then choose the gentlest next action."
+            text: "The Bleed is what happens when outside pressure leaks into the margins. It appears when I have reason to make the interference visible instead of pretending everything is fine. Read it as a weather report, then choose the gentlest next action."
         ),
         MarginTutorNote(
             id: "compass-run",
@@ -1648,7 +1652,7 @@ enum MarginTutorCatalog {
         ),
         MarginTutorNote(
             id: "ask-the-book",
-            title: "Chatting with the Book",
+            title: "Chatting with Me",
             text: "Say anything. Tell me about your day, argue with me, or ask what I remember. Say \"remember that…\" and I'll, once you say yes. Say \"keep this chat\" and it becomes a Page."
         ),
         MarginTutorNote(
@@ -1694,7 +1698,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "scrapbook-keep",
             title: "Keeping a Scrapbook Page",
-            text: "Keep in Book makes this handmade sheet a real kept page. I checked the binding: the Book stores the image, your note, and the source scraps, then the weekly issue and later bindings can include it as a Scrapbook Page."
+            text: "Keep in Book makes this handmade sheet a real kept page. I checked the binding: I store the image, your note, and the source scraps, then the weekly issue and later bindings can include it as a Scrapbook Page."
         )
     ]
 
@@ -2216,6 +2220,14 @@ struct PlayerVaultData: Codable, Equatable {
     /// Optional for clean decoding of Books saved before asides acquired a
     /// memory of their own.
     var bookAsideReceipts: [BookAsideReceipt]?
+    /// Bounded local press memory. It does not Keep editions or count them as
+    /// reader contributions. Reader words are not duplicated into this ledger.
+    var bleedPrintHistory: [BleedPrintRecord]?
+    /// Every front page the paper ran, a line each, for the monthly's "The Month's Front
+    /// Pages". Press memory forgets after a month; this keeps a year of headlines.
+    var bleedFrontPages: [BleedFrontPageRecord]?
+    /// The last week of papers exactly as printed, kept or not.
+    var bleedPrintedPapers: [BleedPrintedPaper]?
     var readerLearning: ReaderLearningModel?
     var ownedPacks: [String]?
     var currentArc: StoryArc?

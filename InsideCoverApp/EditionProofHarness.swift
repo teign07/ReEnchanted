@@ -1,3 +1,4 @@
+import SwiftUI
 import Foundation
 import UIKit
 import PDFKit
@@ -584,6 +585,240 @@ enum EditionProofHarness {
                 season, spec: .perfectBoundSoftcover6x9, pageCount: pages,
                 to: directory.appendingPathComponent("seasonal-cover.pdf"))
             return "\(season.title), \(season.chapters.count) chapters, \(pages) print pages"
+        }
+
+        // The Bleed, morning and evening, for the 19th of October: yesterday held the
+        // blue-door photograph, so the morning front page has a plate.
+        step("bleed") {
+            let fieldDays = FieldBookFixture.yearKeepsakes(days: try FieldBookFixture.augment(
+                days: days, directory: directory, calendar: calendar), calendar: calendar, months: 10...10)
+            var lines: [String] = []
+            for (kind, hour) in [(BleedEditionKind.morning, 7), (BleedEditionKind.evening, 18)] {
+                let now = SyntheticReaderYear.date(2026, 10, 19, hour: hour)
+                let start = calendar.startOfDay(for: now)
+                var today = fieldDays.first { calendar.isDate($0.date, inSameDayAs: now) }
+                    ?? BookDay(id: BookDay.id(for: now, calendar: calendar), date: start, pages: [])
+                // The morning paper is printed before anything's been kept today.
+                if kind == .morning { today.pages = [] } else { today.pages = today.pages.filter { $0.createdAt <= now } }
+                if kind == .evening {
+                    // The correspondent went out on the morning's assignment and filed.
+                    var dare = BookPage(id: "proof-dare", type: .wickerDare, createdAt: start.addingTimeInterval(16.2 * 3600),
+                                        promptText: "Lose a staring contest to a pigeon.",
+                                        userInput: "The pigeon won. It knew it won. It walked off like it had somewhere better to be.")
+                    dare.livedQuestReceipt = LivedQuestReceipt(
+                        kind: .wickerDare, questID: "pigeon", title: "The Staring Contest", invitation: "Lose a staring contest to a pigeon.",
+                        proofPrompt: "Who blinked?", facets: [], sourceTags: [], hasWrittenProof: true, hasVisualProof: false,
+                        completedAt: dare.createdAt, wasPromptedByBook: true)
+                    today.pages.append(dare)
+                }
+                var inputs = BookSourceInputs.empty
+                inputs.days = fieldDays.filter { $0.date < start }
+                // Last night's paper, kept, with a letter to the editor in its margin.
+                if let yesterday = inputs.days.indices.last {
+                    var kept = BookPage(id: "proof-bleed-margin", type: .theBleed, createdAt: start.addingTimeInterval(-3 * 3600),
+                                        promptText: "The Evening Edition, unfolded.",
+                                        userInput: "THE BLEED - EVENING EDITION\n\n— Wren Fed the Heron —\nLate final\n\nThe paper.\n\nMargin note: The heron by the canal was back today. Is it the same heron? How would anyone know?")
+                    kept.metadata = ["bleedEditionKind": "evening"]
+                    inputs.days[yesterday].pages.append(kept)
+                }
+                // Something going round the Academy.
+                inputs.castStoryMemories = CastStoryMemoryLedger(memories: [CastStoryMemory(
+                    id: "count-unbound|bread|zara-finch", entityID: "zara-finch", key: "bread",
+                    memory: "At lunch, Wicker passed Serenity the bigger half of the loaf.",
+                    aside: "Pippa says Wicker gave Serenity the bigger half of the bread. No joke with it. I'd have paid to see that.",
+                    witness: .heard, storyTitle: "The Count Unbound", momentTitle: "Lunch", runID: "count-unbound",
+                    sourceID: "proof", happenedAt: start.addingTimeInterval(-20 * 3600), frozenAt: start,
+                    heardFromID: "pippa-pilcrow", heardFromName: "Pippa")])
+                // This morning the week is bound.
+                inputs.publicationEpoch = BookPublicationEpoch(
+                    readerWeekAnchorDayID: BookDay.id(for: SyntheticReaderYear.date(2026, 10, 12), calendar: calendar),
+                    timeZoneIdentifier: calendar.timeZone.identifier, establishedAt: SyntheticReaderYear.date(2026, 10, 12))
+                inputs.bleedIssueNumber = kind == .morning ? 47 : 48
+                inputs.selfFacts = [SelfFact(id: "name", questionID: "onboarding-name", question: "Your name?", answer: reader,
+                                             bookTranslation: reader, sensitivity: .identity, usePermission: .quoteAllowed,
+                                             tags: ["name"], createdAt: now, updatedAt: now)]
+                guard let surface = TheBleedEditionBuilder.announcementSurface(
+                    for: today, inputs: inputs, now: now, calendar: calendar, settingTheType: true) else {
+                    throw ProofError("no \(kind.rawValue) announcement")
+                }
+                let briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
+                // No model in the harness: a desk that needs one prints its floor.
+                let columns = briefs.map { (brief: $0, body: $0.needsLocalBrain ? ($0.fallbackBody ?? "") : $0.composedBody) }
+                    .filter { !$0.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                let body = TheBleedEditionBuilder.compositedBody(kind: kind, issueNumber: inputs.bleedIssueNumber,
+                                                                columns: columns, now: now, calendar: calendar)
+                let plates = TheBleedEditionBuilder.decodedPlateAssets(
+                    surface.payload.metadata[TheBleedEditionBuilder.plateAssetsMetadataKey] ?? "")
+                try body.write(to: directory.appendingPathComponent("bleed-\(kind.rawValue).txt"), atomically: true, encoding: .utf8)
+                try BleedPDFWriter.write(headline: surface.payload.headline, body: body, mediaAssets: plates,
+                                         to: directory.appendingPathComponent("bleed-\(kind.rawValue).pdf"))
+                // The in-app paper, rendered the way the leaf shows it.
+                if let paper = BleedReadingCopy.parse(body) {
+                    let front = plates.first { $0.metadata["bleedFrontPlate"] == "true" }
+                    let screened = front.flatMap { UIImage(contentsOfFile: $0.reference) }
+                        .flatMap { BleedPDFWriter.halftone($0, aspect: 1.6) }
+                    let render: () -> Data? = {
+                        MainActor.assumeIsolated {
+                            let renderer = ImageRenderer(content: BleedNewspaperView(paper: paper, plate: front, screened: screened,
+                                                                           onTakeAssignment: kind == .morning ? {} : nil)
+                                .frame(width: 390).padding(12).background(Color(white: 0.2)))
+                            renderer.scale = 2
+                            return renderer.uiImage?.pngData()
+                        }
+                    }
+                    let png = Thread.isMainThread ? render() : DispatchQueue.main.sync(execute: render)
+                    if let png {
+                        try png.write(to: directory.appendingPathComponent("bleed-\(kind.rawValue)-leaf.png"))
+                    }
+                }
+                lines.append("\(kind.rawValue): \(columns.map(\.brief.id).joined(separator: ","))")
+            }
+            return lines.joined(separator: " | ")
+        }
+
+        // Two weeks of papers in a row, each remembering what the last ones printed. The lint
+        // fails on any piece, letter, whisper or Reader quotation that prints twice.
+        step("bleed-fortnight") {
+            let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
+            var history: [BleedPrintRecord] = []
+            var report: [String] = []
+            var seenStories: [String: String] = [:]
+            var seenQuotes: [String: String] = [:]
+            var problems: [String] = []
+            var issue = 30
+            var frontPages: [BleedFrontPageRecord] = []
+            for dayOfMonth in 6...19 {
+                for (kind, hour) in [(BleedEditionKind.morning, 7), (BleedEditionKind.evening, 18)] {
+                    let now = SyntheticReaderYear.date(2026, 10, dayOfMonth, hour: hour)
+                    let start = calendar.startOfDay(for: now)
+                    var today = fieldDays.first { calendar.isDate($0.date, inSameDayAs: now) }
+                        ?? BookDay(id: BookDay.id(for: now, calendar: calendar), date: start, pages: [])
+                    today.pages = kind == .morning ? [] : today.pages.filter { $0.createdAt <= now }
+                    var inputs = BookSourceInputs.empty
+                    inputs.days = fieldDays.filter { $0.date < start }
+                    inputs.bleedPrintHistory = history
+                    issue += 1
+                    inputs.bleedIssueNumber = issue
+                    inputs.selfFacts = [SelfFact(id: "name", questionID: "onboarding-name", question: "Your name?", answer: reader,
+                                                 bookTranslation: reader, sensitivity: .identity, usePermission: .quoteAllowed,
+                                                 tags: ["name"], createdAt: now, updatedAt: now)]
+                    guard let surface = TheBleedEditionBuilder.announcementSurface(
+                        for: today, inputs: inputs, now: now, calendar: calendar, settingTheType: true) else {
+                        problems.append("\(today.id) \(kind.rawValue): no paper")
+                        continue
+                    }
+                    let briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
+                    let columns = briefs.map { (brief: $0, body: $0.needsLocalBrain ? ($0.fallbackBody ?? "") : $0.composedBody) }
+                        .filter { !$0.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    let body = TheBleedEditionBuilder.compositedBody(kind: kind, issueNumber: issue, columns: columns, now: now, calendar: calendar)
+                    let printed = TheBleedEditionBuilder.preparedCopy(of: surface, body: body, interestSources: "", columns: columns, printedAt: now)
+                    if let record = BleedPrintRecord.decode(printed.payload.metadata[BleedPrintRecord.metadataKey]) {
+                        history.insert(record, at: 0)
+                    }
+                    if let front = BleedFrontPageRecord.from(columns: columns.map(\.brief), kind: kind, issueNumber: issue, printedAt: now) {
+                        frontPages = BleedFrontPageRecord.remembering(front, in: frontPages)
+                    }
+                    let label = "\(today.id) \(kind.rawValue)"
+                    try body.write(to: directory.appendingPathComponent("fortnight-\(today.id)-\(kind.rawValue).txt"),
+                                   atomically: true, encoding: .utf8)
+                    for column in columns {
+                        // Practical strips and the evening answer are meant to recur in kind, not in words.
+                        guard let story = column.brief.storyID,
+                              !["weather-desk", "almanac", "stop-press", "academy-day"].contains(column.brief.id) else { continue }
+                        if let first = seenStories[story] { problems.append("\(label): \(story) already printed \(first)") }
+                        seenStories[story] = label
+                    }
+                    // The Reader's own sentences: each printed once across the fortnight.
+                    for line in body.components(separatedBy: "\n") where line.hasPrefix("“") {
+                        if let first = seenQuotes[line], first != label { problems.append("\(label): quote reprinted from \(first): \(line.prefix(60))") }
+                        seenQuotes[line] = seenQuotes[line] ?? label
+                    }
+                    report.append("\(label): " + columns.map(\.brief.id).joined(separator: ","))
+                }
+            }
+            let text = (report + ["", "PROBLEMS (\(problems.count))"] + problems).joined(separator: "\n")
+            try text.write(to: directory.appendingPathComponent("fortnight-report.txt"), atomically: true, encoding: .utf8)
+            // The month's book, with the front pages the fortnight ran pasted in.
+            let start = SyntheticReaderYear.date(2026, 10, 1, hour: 0)
+            let end = SyntheticReaderYear.date(2026, 10, 31, hour: 23)
+            var edition = MonthlyEditionBuilder.edition(from: fieldDays, readerName: reader, startDate: start, endDate: end,
+                                                        generatedAt: end, calendar: calendar)
+            edition.frontPages = BleedFrontPageRecord.month(of: start, in: frontPages, calendar: calendar)
+            let monthURL = directory.appendingPathComponent("fortnight-monthly.pdf")
+            _ = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: .perfectBoundSoftcover6x9, to: monthURL)
+            if let document = PDFDocument(url: monthURL),
+               let index = (0..<document.pageCount).first(where: { document.page(at: $0)?.string?.contains("The Month's Front Pages") == true }),
+               let page = document.page(at: index) {
+                let image = page.thumbnail(of: CGSize(width: 900, height: 1350), for: .mediaBox)
+                try image.pngData()?.write(to: directory.appendingPathComponent("fortnight-frontpages.png"))
+            }
+            return "\(report.count) papers, \(problems.count) repeats"
+        }
+
+        // Book Today from a lived-in Book: what it says, morning and evening, and the doorstep
+        // and keepsake as the reader sees them.
+        step("book-today") {
+            let fieldDays = try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar)
+            var out: [String] = []
+            for hour in [8, 18] {
+                let now = SyntheticReaderYear.date(2026, 10, 19, hour: hour)
+                let start = calendar.startOfDay(for: now)
+                var today = fieldDays.first { calendar.isDate($0.date, inSameDayAs: now) }
+                    ?? BookDay(id: BookDay.id(for: now, calendar: calendar), date: start, pages: [])
+                today.pages = today.pages.filter { $0.createdAt <= now }
+                var inputs = BookSourceInputs.empty
+                inputs.days = fieldDays.filter { $0.date < start }
+                inputs.selfFacts = [SelfFact(id: "name", questionID: "onboarding-name", question: "Your name?", answer: reader,
+                                             bookTranslation: reader, sensitivity: .identity, usePermission: .quoteAllowed,
+                                             tags: ["name"], createdAt: now, updatedAt: now)]
+                inputs.bleedPrintHistory = [BleedPrintRecord(slotID: "evening-18", printedAt: now.addingTimeInterval(-14 * 3600), items: [
+                    .init(storyID: "cast-letter:wicker-eddies:1", revision: "", title: "The Academy Writes In",
+                          body: "Dear Editor,\nOne.\n— W.\n\nDear Editor,\nTwo.\n— P.", sourcePageIDs: [])])]
+                inputs.bleedFrontPages = (1...12).map {
+                    BleedFrontPageRecord(reportedDayID: "2026-10-\(String(format: "%02d", $0))", kind: .morning,
+                                         printedAt: now, issueNumber: $0, kicker: "Exclusive", headline: "Headline \($0)")
+                }
+                inputs.castStoryMemories = CastStoryMemoryLedger(memories: [CastStoryMemory(
+                    id: "count-unbound|bread|zara-finch", entityID: "zara-finch", key: "bread",
+                    memory: "At lunch, Wicker passed Serenity the bigger half of the loaf.",
+                    aside: "Pippa says Wicker gave Serenity the bigger half of the bread. No joke with it. I'd have paid to see that.",
+                    witness: .heard, storyTitle: "The Count Unbound", momentTitle: "Lunch", runID: "count-unbound",
+                    sourceID: "proof", happenedAt: now.addingTimeInterval(-10 * 3600), frozenAt: now,
+                    heardFromID: "pippa-pilcrow", heardFromName: "Pippa")])
+                let edition = BookTodayProjector.edition(for: today, inputs: inputs, relationship: .firstOpening,
+                                                         experienceProgram: nil, now: now, calendar: calendar, selectionSeed: hour)
+                out.append("=== \(hour):00 ===")
+                out.append("HEADLINE: \(edition.headline)")
+                out.append("READING: \(edition.reading)")
+                if let k = edition.keepsake { out.append("KEEPSAKE: \(k.label) | \(k.text ?? "-") | photo:\(k.photo != nil) | \(k.aside)") }
+                if let d = edition.doorstep { out.append("PAPER: [\(d.kicker)] \(d.headline) | \(d.line)") }
+                if let a = edition.assignment { out.append("ASSIGNMENT: \(a.title) filed:\(a.filed) | \(a.challenge)") }
+                for beat in edition.beats { out.append("BEAT \(beat.kind.title): \(beat.line)") }
+                for more in edition.margins { out.append("  MARGIN: \(more.line)") }
+                out.append("CENSUS \(edition.census.title): \(edition.census.pageCount) pages")
+                for fact in edition.census.facts { out.append("  \(fact.value) \(fact.line)") }
+                for fact in edition.census.whileAway { out.append("  AWAY: \(fact.line)") }
+                out.append("  CLOSING: \(edition.census.closingLine)")
+                let render: () -> Data? = {
+                    MainActor.assumeIsolated {
+                        let view = VStack(alignment: .leading, spacing: 18) {
+                            BookTodayDoorstepCard(edition: edition)
+                            if let keepsake = edition.keepsake { BookTodayKeepsakeView(keepsake: keepsake) }
+                        }
+                        .padding(18)
+                        .frame(width: 390)
+                        .background(Color(red: 0.93, green: 0.88, blue: 0.86))
+                        .environment(\.bookSurfaceMaterial, .paper)
+                        let renderer = ImageRenderer(content: view)
+                        renderer.scale = 2
+                        return renderer.uiImage?.pngData()
+                    }
+                }
+                let png = Thread.isMainThread ? render() : DispatchQueue.main.sync(execute: render)
+                try png?.write(to: directory.appendingPathComponent("book-today-\(hour).png"))
+            }
+            try out.joined(separator: "\n").write(to: directory.appendingPathComponent("book-today.txt"), atomically: true, encoding: .utf8)
+            return "two openings"
         }
 
         step("annual") {

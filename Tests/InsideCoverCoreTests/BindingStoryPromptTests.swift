@@ -28,7 +28,7 @@ final class BindingStoryPromptTests: XCTestCase {
 
                 \(scene)
 
-                The Book kept the page: \(kept).
+                I kept the page: \(kept).
                 """,
                 tags: ["braid"]
             ),

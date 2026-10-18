@@ -221,22 +221,41 @@ extension ContentView {
             || isPeopleOfTheBookPresented
     }
 
-    /// The real sky, as much of it as the Book can still honestly claim — or
-    /// `nil` when there is nothing to draw on the paper.
+    /// What the Book knows about the sky — now and for the next few hours —
+    /// or `nil` when it knows nothing it may draw.
     ///
-    /// This is the whole gate for `SkyOnTheLeafLayer`. It returns `nil` on a
-    /// clear day, a cloudy one, a reading that has gone stale, and a Book that
-    /// has never been given the location doorway, which together are the large
-    /// majority of the time. The layer is not mounted in any of those cases,
-    /// so a dry day costs nothing at all.
+    /// The live reading when this session has one; otherwise the last one
+    /// kept on the device, so a relaunch shows the weather straight away
+    /// instead of a dry page until the first read returns. The remembered one
+    /// is only offered while the location doorway is still open: a reader who
+    /// closed it should not find the Book still drawing from what it saw
+    /// before. Its own trust window decides how long it is still worth
+    /// drawing.
+    var skyOutlook: PaperSkyOutlook? {
+        if let live = (weatherPageSignal ?? weatherSignal)?.skyOutlook { return live }
+        guard didGrantLocationContextAccess else { return nil }
+        return PaperSkyOutlookStore.load()
+    }
+
+    /// The sky on the leaf at this moment, or `nil` when nothing is drawn.
+    ///
+    /// `SkyOnTheLeafMount` follows the outlook through the hours by itself;
+    /// this is for anything that only wants to know what is falling now.
+    /// Nil on a clear day, a cloudy one, a stale reading, and a Book that has
+    /// never been given the location doorway, which together are the large
+    /// majority of the time.
     var skyOnTheLeaf: PaperSky? {
-        guard let sky = (weatherPageSignal ?? weatherSignal)?.sky else { return nil }
-        // Quantised to the minute. The staleness fade runs over two hours, so
-        // minute steps are invisible — but an input derived from a raw `Date()`
-        // would differ on every body pass, which is a needlessly moving target
-        // for a view that is otherwise only rebuilt when the weather changes.
-        let minute = (Date().timeIntervalSinceReferenceDate / 60).rounded(.down) * 60
-        return sky.settled(at: Date(timeIntervalSinceReferenceDate: minute))
+        skyOutlook?.settled(at: Date())
+    }
+
+    /// The outlook the leaf's own weather layer draws. Only a DEBUG probe run
+    /// (`--perf-sky`) differs from `skyOutlook`, and only here: the map and the
+    /// stored reading never see weather that was not in the sky.
+    var leafSkyOutlook: PaperSkyOutlook? {
+        #if DEBUG
+        if let forced = PerfProbeSwitches.shared.forcedSky { return forced }
+        #endif
+        return skyOutlook
     }
 
     var pagewrightCandidatePages: [BookPage] {
@@ -265,6 +284,14 @@ extension ContentView {
         let keptPages = ArchiveMemo.value("archive.all-pages", days: days) {
             days.flatMap(\.pages)
         }
+        return bookwideMarginaliaAchievementContext(pages: keptPages)
+    }
+
+    /// The ledgers half of the context, around whichever Pages the caller
+    /// brings: the whole archive, or none when only the ledgers are wanted.
+    private func bookwideMarginaliaAchievementContext(
+        pages keptPages: [BookPage]
+    ) -> BookwideMarginaliaAchievement.Context {
         let completedCompassRuns = Set(
             completedCompassRunLedger
                 .split(separator: ",")
@@ -287,59 +314,56 @@ extension ContentView {
         )
     }
 
+    /// Read by `body` on every pass, to notice when an achievement may have
+    /// come due. The archive half is a dozen passes over every kept Page, so
+    /// it is held for as long as `days` is the very same archive; only the
+    /// small ledgers half is read each time.
     var bookwideMarginaliaAchievementSignature: String {
-        let context = bookwideMarginaliaAchievementContext
-        let weatherCounts = Dictionary(
-            grouping: context.pages.flatMap { $0.context?.weatherTags ?? [] },
-            by: { $0 }
-        )
-        .map { "\($0.key):\($0.value.count)" }
-        .sorted()
-        .joined(separator: "|")
-        let typeCounts = Dictionary(grouping: context.pages, by: \.type)
-            .map { "\($0.key.rawValue):\($0.value.count)" }
-            .sorted()
-            .joined(separator: "|")
-        let livedQuestCounts = Dictionary(grouping: context.livedQuestReceipts, by: \.kind)
-            .map { "\($0.key.rawValue):\($0.value.count)" }
-            .sorted()
-            .joined(separator: "|")
-        let livedWonderFacets = context.distinctLivedWonderFacetRawValues.sorted().joined(separator: "|")
-        let longGameCounts = Dictionary(grouping: context.longGameEvidence, by: \.capacity)
+        let ledgers = bookwideMarginaliaAchievementContext(pages: [])
+        let longGameCounts = Dictionary(grouping: ledgers.longGameEvidence, by: \.capacity)
             .map { "\($0.key.rawValue):\($0.value.count)" }
             .sorted()
             .joined(separator: "|")
         return [
-            "\(context.pages.count)",
-            "\(context.keptDayIDs.count)",
-            typeCounts,
-            weatherCounts,
-            "\(context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count)",
-            "\(context.pages.filter(\.hasMarginaliaAchievementVisual).count)",
-            "\(context.readerAnchors.count)",
-            "\(Set(context.readerAnchors.map(\.kind)).count)",
-            "\(context.readerAnchors.reduce(0) { $0 + $1.visitCount })",
-            "\(context.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0)",
-            "\(context.completedBookJumps)",
-            "\(context.completedCompassRuns)",
-            "\(context.completedElectives)",
-            livedQuestCounts,
-            livedWonderFacets,
+            BookwideMarginaliaArchiveSignature.signature(for: days),
+            "\(ledgers.readerAnchors.count)",
+            "\(Set(ledgers.readerAnchors.map(\.kind)).count)",
+            "\(ledgers.readerAnchors.reduce(0) { $0 + $1.visitCount })",
+            "\(ledgers.entityBeliefOffsets[ShadowWonder.duskThornTalismanID] ?? 0)",
+            "\(ledgers.completedBookJumps)",
+            "\(ledgers.completedCompassRuns)",
+            "\(ledgers.completedElectives)",
             longGameCounts,
-            context.sensoryModalities.sorted().joined(separator: "|"),
-            context.distinctReaderProofKindRawValues.sorted().joined(separator: "|"),
-            context.hasChosenQuill ? "quill" : "waiting"
+            // With no Pages in hand these are the electives' proofs alone; the
+            // Pages' proofs are in the archive half.
+            ledgers.distinctReaderProofKindRawValues.sorted().joined(separator: "|"),
+            ledgers.hasChosenQuill ? "quill" : "waiting"
         ].joined(separator: "§")
     }
 
+    /// Checking every achievement against the archive runs on a utility task:
+    /// it fires on the render pass straight after a Keep, where it would cost
+    /// the keep burst its frames. The ledger only ever grows, so a check that
+    /// finishes after a newer one simply finds nothing new to add.
     func refreshBookwideMarginaliaAchievements(announce: Bool = true) {
+        let context = BookwideMarginaliaArchiveSignature.Snapshot(context: bookwideMarginaliaAchievementContext)
+        Task { @MainActor in
+            let completedIDs = await Task.detached(priority: .utility) {
+                Set(BookwideMarginaliaAchievement.all
+                    .filter { $0.isComplete(in: context.context) }
+                    .map(\.id))
+            }.value
+            applyBookwideMarginaliaAchievements(completedIDs: completedIDs, announce: announce)
+        }
+    }
+
+    private func applyBookwideMarginaliaAchievements(completedIDs: Set<String>, announce: Bool) {
         let completedBefore = Set(
             completedMarginaliaAchievementLedger
                 .split(separator: ",")
                 .map(String.init)
         )
-        let context = bookwideMarginaliaAchievementContext
-        let completedNow = BookwideMarginaliaAchievement.all.filter { $0.isComplete(in: context) }
+        let completedNow = BookwideMarginaliaAchievement.all.filter { completedIDs.contains($0.id) }
         let newlyCompleted = completedNow.filter { !completedBefore.contains($0.id) }
         guard !newlyCompleted.isEmpty else {
             didSeedBookwideMarginaliaAchievements = true
@@ -665,19 +689,17 @@ extension ContentView {
 
     @MainActor
     func pressWeatherSeal() async {
-        guard busySealID == nil else { return }
-        busySealID = "weather"
-        defer { busySealID = nil }
+        guard !isRequestingWeather else { return }
         BookFeedback.play(.sourceRefresh)
         tutorTouch("seal-weather")
         await openManualPage(.weather)
     }
 
+    /// The Location seal turns the Book back to the map pasted inside its
+    /// front board. Pressed again from that map, it turns back to the leaf.
     @MainActor
     func presentLocationSealChoices() {
-        guard busySealID == nil, !isAnchoringPlace else { return }
-        BookFeedback.play(.tap)
-        isLocationSealChoicesPresented = true
+        folioTravelRequest = .endpaperMap
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(320))
             guard !Task.isCancelled else { return }
@@ -686,15 +708,39 @@ extension ContentView {
     }
 
     /// The Input seal is the "add anything" door: photo, plain text, or
-    /// voice. Tapping it fans out into those three, mirroring the Location seal.
+    /// voice. It turns forward to the Notes at the back of the Book.
     func presentInputChoices() {
-        guard busySealID == nil else { return }
-        BookFeedback.play(.tap)
-        isInputChoicesPresented = true
+        folioTravelRequest = .notes
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(320))
             guard !Task.isCancelled else { return }
             tutorTouch("seal-camera")
+        }
+    }
+
+    /// All entrances (tabs, Contents and Glow) use these same existing doors.
+    /// The Book stays open to the Capture or Place leaf beneath whatever opens.
+    @MainActor
+    func selectJournalSealChoice(_ choice: JournalSealChoice) {
+        switch choice {
+        case .photo:
+            Task { await pressGlassSeal() }
+        case .text:
+            plainPageAutoRecord = false
+            isPlainPagePresented = true
+        case .audio:
+            plainPageAutoRecord = true
+            isPlainPagePresented = true
+        case .weather:
+            Task { await pressWeatherSeal() }
+        case .anchor:
+            Task { await pressAnchorSeal() }
+        case .gazetteer:
+            openBookDivision(.gazetteer)
+        case .atlas:
+            openBookDivision(.atlas)
+        case .labyrinthMap:
+            openBookDivision(.labyrinthMap)
         }
     }
 
@@ -1681,6 +1727,10 @@ extension ContentView {
             vault.data.attentionProbes = attentionProbes
             vault.save()
         }
+        // The event getter used to assemble sourceInputs again after this one
+        // ledger change. Apply that change to the same request's snapshot.
+        var eventInputs = inputs
+        eventInputs.attentionProbes = attentionProbes
         BookWhispers.refreshAll(context: .init(
             cadence: cadence ?? bookWhisperCadence,
             day: today,
@@ -1690,7 +1740,7 @@ extension ContentView {
             calendarEvents: calendarEvents,
             whisperController: whisperController,
             whisperSovereign: whisperSovereign,
-            eventWhisper: worldEventWhisperToday,
+            eventWhisper: worldEventWhisperToday(inputs: eventInputs),
             festivalWhisper: festivalWhisperToday,
             bookInterior: inputs.bookInterior,
             attentionProbes: attentionProbes
@@ -1801,7 +1851,7 @@ extension ContentView {
             calendarEvents = await CalendarDoorway.upcomingEvents(horizonDays: 5)
         }
         surfaceRefreshDate = Date()
-        writeWidgetSnapshot()
+        scheduleWidgetSnapshotWrite()
     }
 
     @MainActor
@@ -2038,7 +2088,7 @@ extension ContentView {
         }
         statusMessage = elective.bookFavorID == nil
             ? "\(elective.characterName) will remember this. My Glow warms."
-            : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") The Book's Glow warms."
+            : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") My Glow warms."
         BookFeedback.play(.braidComplete, fill: true)
     }
 
@@ -2347,64 +2397,53 @@ extension ContentView {
     /// continuity digest, advances the durable constellation ledger, opens
     /// any wagers whose date has come, and seals new ones. Runs alongside
     /// tendArc so the Book's long memory moves whenever the field does.
+    ///
+    /// The digest reads the whole archive — on a lived-in Book it was the
+    /// single largest piece of main-thread work after a Keep, landing in the
+    /// middle of the keep burst. Everything it reads is snapshotted here and
+    /// the projection runs on a utility task, the way the desk build already
+    /// runs the same digest. The ledgers are published only if nothing else
+    /// moved them meanwhile; a newer tend supersedes an older one.
     @MainActor
     func tendConstellations(now: Date = Date()) {
-        let previousConstellations = vault.data.constellations ?? []
-        var digest = LiteraryContinuityProjector.digest(
+        let request = ConstellationTendRequest(
             days: days,
             events: narrativeEvents,
             entityMemories: entityMemories,
             entityBelief: entityBeliefLedger,
             pageBelief: pageBeliefLedger,
+            radio: vault.data.radio ?? .off,
+            ownedPackIDs: Set(vault.data.ownedPacks ?? []),
+            constellations: vault.data.constellations ?? [],
+            wagers: vault.data.wagers ?? [],
+            themes: vault.data.themes ?? [],
             now: now
         )
-        // A station the reader keeps returning to becomes a companion
-        // constellation ("You and Thornwave keep meeting…").
-        digest.signals += RadioStationRegistry.listeningSignals(
-            state: vault.data.radio ?? .off,
-            unlockedPackIDs: Set(vault.data.ownedPacks ?? []),
-            now: now
-        )
-        let advanced = ConstellationKeeper.advanced(
-            previousConstellations,
-            observing: digest,
-            now: now
-        )
-        var wagers = SealedMarginEngine.resolved(vault.data.wagers ?? [], against: days, now: now)
-        wagers += SealedMarginEngine.mintWagers(from: digest, existing: wagers, now: now)
-
-        let calendar = Calendar.current
-        let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)
-        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
-        let monthPages = days
-            .filter { $0.date >= calendar.startOfDay(for: monthStart) }
-            .flatMap(\.pages)
-        let currentTheme = BookThemeEngine.theme(
-            for: monthPages,
-            digest: digest,
-            constellations: advanced,
-            monthKey: monthKey,
-            now: now
-        )
-        let themes = BookThemeEngine.remembered(vault.data.themes ?? [], observing: currentTheme, monthKey: monthKey)
-
-        let changed = advanced != (vault.data.constellations ?? [])
-            || wagers != (vault.data.wagers ?? [])
-            || themes != (vault.data.themes ?? [])
-        guard changed else { return }
-        // Publish the related long-memory ledgers as one observable change so
-        // SwiftUI does not rebuild the whole Book once per field.
-        vault.mutate {
-            $0.constellations = advanced
-            $0.wagers = wagers
-            $0.themes = themes
+        ConstellationTendRequest.generation &+= 1
+        let generation = ConstellationTendRequest.generation
+        Task { @MainActor in
+            let tended = await Task.detached(priority: .utility) {
+                request.tended()
+            }.value
+            guard generation == ConstellationTendRequest.generation,
+                  let tended,
+                  (vault.data.constellations ?? []) == request.constellations,
+                  (vault.data.wagers ?? []) == request.wagers,
+                  (vault.data.themes ?? []) == request.themes else { return }
+            // Publish the related long-memory ledgers as one observable change
+            // so SwiftUI does not rebuild the whole Book once per field.
+            vault.mutate {
+                $0.constellations = tended.constellations
+                $0.wagers = tended.wagers
+                $0.themes = tended.themes
+            }
+            vault.save()
+            let previousIDs = Set(request.constellations.map(\.id))
+            if let discovered = tended.constellations.first(where: { !previousIDs.contains($0.id) }) {
+                BookFeedback.constellationDiscovered(nodes: max(2, discovered.evidencePageIDs.count))
+            }
+            surfaceRefreshDate = now
         }
-        vault.save()
-        let previousIDs = Set(previousConstellations.map(\.id))
-        if let discovered = advanced.first(where: { !previousIDs.contains($0.id) }) {
-            BookFeedback.constellationDiscovered(nodes: max(2, discovered.evidencePageIDs.count))
-        }
-        surfaceRefreshDate = now
     }
 
     // MARK: - The Bleed press run
@@ -2425,31 +2464,10 @@ extension ContentView {
             return false
         }
 
-        if let prepared = generation.preparedBleedEditionSurface,
-           prepared.payload.metadata["bleedSlotID"] == surface.payload.metadata["bleedSlotID"] {
-            return true
-        }
-
         generation.isPreparingBleedEdition = true
         defer { generation.isPreparingBleedEdition = false }
+        statusMessage = "Penny is gathering today's paper…"
 
-        // The desk hands over an announcement without its type tray, because
-        // composing the columns for every paper the Book merely *considers*
-        // offering was the most expensive thing in the desk build. Set the type
-        // now, for this leaf's own edition.
-        var briefs = TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedBriefs"] ?? "")
-        if briefs.isEmpty {
-            briefs = TheBleedEditionBuilder.settingTheType(
-                for: surface,
-                day: today,
-                inputs: sourceInputs,
-                now: Date()
-            )
-        }
-        guard !briefs.isEmpty else {
-            statusMessage = "The type tray came up empty. Penny is re-sorting the briefs."
-            return false
-        }
         let kind = BleedEditionKind(rawValue: surface.payload.metadata["bleedEditionKind"] ?? "") ?? .morning
         let issueNumber = Int(surface.payload.metadata["bleedIssueNumber"] ?? "") ?? 1
         let pressTime = Date()
@@ -2457,14 +2475,13 @@ extension ContentView {
         // The first paper should not quietly print an empty noticeboard merely
         // because the Calendar Doorway has never been offered. Ask once at the
         // moment the issue needs it; a refusal remains a refusal.
-        if issueNumber == 1,
-           !didHandleBleedCalendarDoorway,
+        if !didHandleBleedCalendarDoorway,
            !bookCalendarEnabled,
            CalendarDoorway.isAvailable {
             didHandleBleedCalendarDoorway = true
             switch CalendarDoorway.accessState {
             case .notDetermined:
-                statusMessage = "The first issue needs its noticeboard. Penny is asking whether the Calendar Doorway may open..."
+                statusMessage = "Penny is asking whether your appointments may go in the paper..."
                 let events = await CalendarDoorway.upcomingEvents(now: pressTime)
                 if CalendarDoorway.accessState == .authorized {
                     bookCalendarEnabled = true
@@ -2482,98 +2499,192 @@ extension ContentView {
             calendarEvents = await CalendarDoorway.upcomingEvents(now: pressTime)
         }
 
-        var pressInputs = sourceInputs
-        pressInputs.calendarIntegrationEnabled = bookCalendarEnabled
-        pressInputs.calendarEvents = calendarEvents
-        briefs = TheBleedEditionBuilder.refreshingAlmanacBriefs(
-            briefs,
-            kind: kind,
-            inputs: pressInputs,
-            now: pressTime
-        )
-
-        if briefs.contains(where: { $0.id == "weather-desk" }) {
-            var weatherInputs = pressInputs
-            if weatherInputs.weather?.isAvailable != true {
-                statusMessage = "Penny is checking the window before the weather desk goes to type..."
-                _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
-                weatherInputs = sourceInputs
-            }
-            briefs = TheBleedEditionBuilder.refreshingWeatherBriefs(
-                briefs,
-                kind: kind,
-                inputs: weatherInputs
+        // The press already printed this edition, maybe before a restart: that copy stands.
+        if let prepared = currentBleedPaper,
+           prepared.payload.metadata["bleedSlotID"] == surface.payload.metadata["bleedSlotID"],
+           prepared.payload.metadata["bleedNewsroomVersion"] == BleedNewsroom.version {
+            generation.preparedBleedEditionSurface = TheBleedEditionBuilder.refreshingPracticalStrips(
+                of: prepared, inputs: sourceInputs, now: pressTime
             )
+            if let refreshed = generation.preparedBleedEditionSurface { rememberPrintedBleedPaper(refreshed) }
+            surfaceRefreshDate = pressTime
+            statusMessage = bookCalendarEnabled ? (CalendarDoorway.accessProblem ?? "Your paper's appointments are up to date.") : ""
+            return true
         }
 
-        let interest = surface.payload.metadata["bleedInterest"]?.nonEmpty
-        var clippings = ""
-        var clippingSources = ""
-        if let interest, personalizedWebResearchOptIn {
-            statusMessage = "Penny is interviewing the wider world about \(interest)..."
-            let research = await BleedInterestSearcher().clippings(for: interest)
-            clippings = research.text
-            clippingSources = research.sources
+        if sourceInputs.weather?.isAvailable != true {
+            statusMessage = "Penny is checking the weather..."
+            _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
         }
+
+        // Pick again at press time, after permissions and any new Academy
+        // movement. Authored inserts remain frozen on the delivered leaf.
+        let pressInputs = sourceInputs
+        var pool = TheBleedEditionBuilder.settingTheType(
+            for: surface, day: today, inputs: pressInputs, now: pressTime, curating: false
+        )
+        let history = BleedNewsroom.history(day: today, inputs: pressInputs, now: pressTime)
+        var briefs = BleedIssueCurator.select(from: pool, kind: kind, history: history)
+        let interest = briefs.first { $0.id == "interest-desk" }?.researchQuery
+        var clippingSources = ""
+        if let interest, personalizedWebResearchOptIn, pressInputs.localBrainIsReady,
+           let index = pool.firstIndex(where: { $0.id == "interest-desk" }) {
+            statusMessage = "Penny is finding a recent story about \(interest)..."
+            let printedURLs = Set(history.flatMap(\.items).compactMap(\.newsURL))
+            if let article = await BleedInterestSearcher().article(
+                for: interest, previouslyPrintedURLs: printedURLs, now: pressTime
+            ) {
+                pool[index] = BleedInterestNewsDesk.setting(pool[index], with: article)
+                clippingSources = article.url.absoluteString
+            } else {
+                pool.remove(at: index)
+            }
+        } else {
+            pool.removeAll { $0.id == "interest-desk" }
+        }
+        // A search request is not an article. Re-edit after discovery so an
+        // unavailable clipping can yield its room to a real bench item.
+        briefs = BleedIssueCurator.select(from: pool, kind: kind, history: history)
 
         let writer = BleedColumnWriter()
         var columns: [(brief: BleedColumnBrief, body: String)] = []
         for brief in briefs {
+            if brief.id == "interest-desk", !personalizedWebResearchOptIn { continue }
             if brief.needsLocalBrain {
                 statusMessage = "Setting type: \(brief.title)..."
             }
-            let body = await writer.write(brief: brief, clippings: clippings)
-            columns.append((brief, body))
+            let body = await writer.write(brief: brief, clippings: "")
+            if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let sourceNote = brief.id == "interest-desk" && !clippingSources.isEmpty
+                    ? "\n\nSources:\n" + clippingSources : ""
+                columns.append((brief, body + sourceNote))
+            }
         }
 
         let body = TheBleedEditionBuilder.compositedBody(
             kind: kind,
             issueNumber: issueNumber,
             columns: columns,
-            now: Date()
+            now: pressTime
         )
         generation.preparedBleedEditionSurface = TheBleedEditionBuilder.preparedCopy(
             of: surface,
             body: body,
-            interestSources: clippingSources
+            interestSources: columns.contains { $0.brief.id == "interest-desk" } ? clippingSources : "",
+            columns: columns,
+            printedAt: pressTime
         )
+        if let prepared = generation.preparedBleedEditionSurface,
+           let record = BleedPrintRecord.decode(prepared.payload.metadata[BleedPrintRecord.metadataKey]) {
+            vault.data.bleedPrintHistory = BleedPrintRecord.remembering(record, in: vault.data.bleedPrintHistory ?? [])
+            rememberPrintedBleedPaper(prepared)
+            // The headline joins the year's front pages, for the month's book.
+            if let front = BleedFrontPageRecord.from(columns: columns.map(\.brief), kind: kind,
+                                                     issueNumber: issueNumber, printedAt: pressTime) {
+                vault.data.bleedFrontPages = BleedFrontPageRecord.remembering(front, in: vault.data.bleedFrontPages ?? [])
+            }
+            vault.save()
+        }
         surfaceRefreshDate = Date()
         statusMessage = "Issue #\(issueNumber) is off the press."
         BookFeedback.play(.braidComplete)
         return true
     }
 
-    /// Binds the most recent edition (prepared or kept today) as a PDF.
+    var bleedBinderyEditions: [BleedBinderyEdition] {
+        BleedBinderyEdition.shelf(days: days, prepared: currentBleedPaper,
+                                  printed: vault.data.bleedPrintedPapers ?? [])
+    }
+
+    /// This edition's paper: the one in hand, or the copy the press saved before a restart.
+    var currentBleedPaper: SurfacePage? {
+        generation.preparedBleedEditionSurface
+            ?? BleedPrintedPaper.current(in: vault.data.bleedPrintedPapers ?? [], day: today, now: Date())
+    }
+
+    func isCurrentBleedSlot(_ surface: SurfacePage) -> Bool {
+        guard let kind = TheBleedEditionBuilder.editionKind(for: Date()) else { return false }
+        return surface.payload.metadata["bleedSlotID"] == TheBleedEditionBuilder.slotID(for: kind, day: today)
+    }
+
+    /// Saves the paper exactly as printed, so it can be read again whether or not it's kept.
+    func rememberPrintedBleedPaper(_ surface: SurfacePage) {
+        guard let paper = BleedPrintedPaper(surface) else { return }
+        vault.data.bleedPrintedPapers = BleedPrintedPaper.remembering(paper, in: vault.data.bleedPrintedPapers ?? [])
+        vault.save()
+    }
+
+    private func bleedPDFLocation(for edition: BleedBinderyEdition) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("BleedBindery", isDirectory: true)
+            .appendingPathComponent(edition.revisionID, isDirectory: true)
+            .appendingPathComponent(BleedPrintDesign.fileName(slotID: edition.slotID, body: edition.body))
+    }
+
+    func bleedPDFURL(for edition: BleedBinderyEdition) -> URL? {
+        let url = boundBleedPDFURLs[edition.revisionID] ?? bleedPDFLocation(for: edition)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    var latestBleedPDFURL: URL? {
+        bleedBinderyEditions.first.flatMap { bleedPDFURL(for: $0) }
+    }
+
+    /// Reuse the paper's reader, including kept historical copies. A new paper
+    /// is commissioned only when the reader explicitly asks for today's press.
+    func openBleedEdition(id: String? = nil) {
+        let copies = bleedBinderyEditions
+        if let edition = id.flatMap({ requested in copies.first { $0.id == requested } }) ?? (id == nil ? copies.first : nil) {
+            if let pageID = edition.keptPageID,
+               let page = days.lazy.flatMap(\.pages).first(where: { $0.id == pageID }) {
+                openKeptPage(page)
+            } else if let prepared = currentBleedPaper, prepared.payload.metadata["bleedSlotID"] == edition.slotID {
+                openDeskSurface(prepared)
+            } else if let printed = (vault.data.bleedPrintedPapers ?? []).first(where: { $0.slotID == edition.slotID }) {
+                // A paper nobody kept, still on the shelf: the copy as it was printed.
+                openDeskSurface(printed.surface)
+            }
+        } else if id == nil {
+            Task { await openManualPage(.theBleed) }
+        } else {
+            statusMessage = "That paper is no longer on the shelf."
+        }
+    }
+
+    func openTodaysBleedEdition() {
+        let now = Date()
+        let kind = TheBleedEditionBuilder.editionKind(for: now)
+        if let current = bleedBinderyEditions.first(where: {
+            Calendar.current.isDate($0.printedAt, inSameDayAs: now) && (kind == nil || $0.kind == kind)
+        }) {
+            openBleedEdition(id: current.id)
+        } else {
+            Task { await openManualPage(.theBleed) }
+        }
+    }
+
+    /// Binds exactly the daily copy selected on the shelf, without regenerating it.
     @MainActor
-    func exportBleedPDF() {
-        let candidate: (headline: String, body: String, mediaAssets: [BookPageMediaAsset])? = {
-            if let prepared = generation.preparedBleedEditionSurface,
-               let prose = prepared.payload.metadata["bleedProse"]?.nonEmpty {
-                return (prepared.payload.headline, prose, prepared.mediaAssets)
-            }
-            if let kept = today.pages.last(where: { $0.type == .theBleed && !$0.userInput.isEmpty }) {
-                return (kept.promptText.nonEmpty ?? "The Bleed", kept.userInput, kept.mediaAssets)
-            }
-            return nil
-        }()
+    func exportBleedPDF(editionID: String? = nil) {
+        let copies = bleedBinderyEditions
+        let candidate = editionID.flatMap { requested in copies.first { $0.id == requested } }
+            ?? (editionID == nil ? copies.first : nil)
         guard let candidate else {
-            statusMessage = "No edition has been printed yet today."
+            statusMessage = "Open The Bleed to print a daily edition first."
             BookFeedback.play(.error)
             return
         }
         do {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd-HHmm"
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("TheBleed-\(formatter.string(from: Date())).pdf")
+            let url = bleedPDFLocation(for: candidate)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try BleedPDFWriter.write(
                 headline: candidate.headline,
                 body: candidate.body,
                 mediaAssets: candidate.mediaAssets,
                 to: url
             )
-            preparedBleedPDFURL = url
-            statusMessage = "The Bleed is bound for sharing."
+            boundBleedPDFURLs[candidate.revisionID] = url
+            statusMessage = "The Bleed · \(candidate.label) is ready as a PDF."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
             statusMessage = "The edition wouldn't bind: \(error.localizedDescription)"
@@ -2747,34 +2858,68 @@ extension ContentView {
         }
     }
 
-    var glowWeeklyIssuePDFURL: URL? {
-        guard let periodID = bindableWeeklyPublicationCandidates.first?.id else { return nil }
-        return boundWeeklyIssuePDFURL(for: periodID)
-            ?? (preparedWeeklyIssuePeriodID == periodID ? preparedWeeklyIssuePDFURL : nil)
+    struct GlowPublicationMenuSnapshot {
+        var bleedLabel: String?
+        var bleedPDFURL: URL?
+        var canBindWeekly = false
+        var canBindMonthly = false
+        var canBindSeasonal = false
+        var weeklyPDFURL: URL?
+        var weeklyCardURL: URL?
+        var monthlyURL: URL?
+        var seasonalURL: URL?
+        var annualURL: URL?
     }
 
-    var glowWeeklyIssueCardURL: URL? {
-        guard let periodID = bindableWeeklyPublicationCandidates.first?.id else { return nil }
-        return boundWeeklyIssueCardURL(for: periodID)
-            ?? (preparedWeeklyIssuePeriodID == periodID ? preparedWeeklyIssueCardURL : nil)
-    }
-
-    var glowMonthlyEditionURL: URL? {
-        guard let periodID = monthlyPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
-        return boundMonthlyEditionPDFURL(for: periodID)
-            ?? (preparedMonthlyEditionPeriodID == periodID ? preparedMonthlyEditionURL : nil)
-    }
-
-    var glowSeasonalEditionURL: URL? {
-        guard let periodID = seasonalPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
-        return boundMonthlyEditionPDFURL(for: periodID)
-            ?? (preparedMonthlyEditionPeriodID == periodID ? preparedMonthlyEditionURL : nil)
-    }
-
-    var glowAnnualEditionURL: URL? {
-        guard let periodID = annualPublicationCandidates.first(where: \.isBindable)?.id else { return nil }
-        return boundAnnualEditionPDFURL(for: periodID)
-            ?? (preparedAnnualEditionPeriodID == periodID ? preparedAnnualEditionURL : nil)
+    /// One fresh projection per open menu or Contents rebuild. Reuse the
+    /// revision ledger and chosen periods across availability, labels and
+    /// share links; file existence still goes through the live lookup helpers.
+    var glowPublicationMenuSnapshot: GlowPublicationMenuSnapshot {
+        let revisions = boundPublicationRevisionCounts
+        let currentDay = today
+        let now = Date()
+        let weekCalendar = vault.data.publicationEpoch?.calendar() ?? .current
+        let weekly = PublicationPeriodCatalog.readerWeeks(
+            days: days, today: currentDay,
+            frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: weekCalendar),
+            boundRevisionCounts: revisions, now: now, calendar: weekCalendar
+        ).first(where: \.isBindable)?.id
+        let monthly = PublicationPeriodCatalog.calendarMonths(
+            days: days, today: currentDay, boundRevisionCounts: revisions, now: now
+        ).first(where: \.isBindable)?.id
+        let seasonal = PublicationPeriodCatalog.calendarSeasons(
+            days: days, today: currentDay, boundRevisionCounts: revisions, now: now
+        ).first(where: \.isBindable)?.id
+        let annual = PublicationPeriodCatalog.calendarYears(
+            days: days, today: currentDay, boundRevisionCounts: revisions, now: now
+        ).first(where: \.isBindable)?.id
+        let daily = bleedBinderyEditions.first
+        var result = GlowPublicationMenuSnapshot(
+            bleedLabel: daily?.label,
+            bleedPDFURL: daily.flatMap { bleedPDFURL(for: $0) },
+            canBindWeekly: weekly != nil,
+            canBindMonthly: monthly != nil,
+            canBindSeasonal: seasonal != nil
+        )
+        if let weekly {
+            result.weeklyPDFURL = boundWeeklyIssuePDFURL(for: weekly)
+                ?? (preparedWeeklyIssuePeriodID == weekly ? preparedWeeklyIssuePDFURL : nil)
+            result.weeklyCardURL = boundWeeklyIssueCardURL(for: weekly)
+                ?? (preparedWeeklyIssuePeriodID == weekly ? preparedWeeklyIssueCardURL : nil)
+        }
+        if let monthly {
+            result.monthlyURL = boundMonthlyEditionPDFURL(for: monthly)
+                ?? (preparedMonthlyEditionPeriodID == monthly ? preparedMonthlyEditionURL : nil)
+        }
+        if let seasonal {
+            result.seasonalURL = boundMonthlyEditionPDFURL(for: seasonal)
+                ?? (preparedMonthlyEditionPeriodID == seasonal ? preparedMonthlyEditionURL : nil)
+        }
+        if let annual {
+            result.annualURL = boundAnnualEditionPDFURL(for: annual)
+                ?? (preparedAnnualEditionPeriodID == annual ? preparedAnnualEditionURL : nil)
+        }
+        return result
     }
 
     /// Works out what the Book could bind while the reader is reading, so the
@@ -4124,6 +4269,8 @@ extension ContentView {
         guard let candidate else { return nil }
         var edition = buildMonth(starting: candidate.period.startDate)
         edition.publicationRecipeID = candidate.period.recipe.rawValue
+        let frontPages = BleedFrontPageRecord.month(of: candidate.period.startDate, in: vault.data.bleedFrontPages ?? [])
+        edition.frontPages = frontPages.isEmpty ? nil : frontPages
         let coverLedger = PublicationMonthlyCoverSelectionLedger.decode(
             officialMonthlyCoverSelectionLedgerData
         )
@@ -4142,6 +4289,7 @@ extension ContentView {
         useGemmaClosing _: Bool = false,
         dedication: BoundDedication? = nil
     ) {
+        guard weeklyIssueBindingNote == nil, publicationBindingMoment == nil else { return }
         guard let edition = resolveEditionForBinding(periodID: periodID) else {
             colophonBindingNote = "I turned to that month and found the leaves still blank. Keep a page or two there first, and I'll have something to sew."
             BookFeedback.play(.error)
@@ -4152,7 +4300,10 @@ extension ContentView {
         let wasShopOpen = isBookShopPresented
         isBookShopPresented = false
         colophonBindingNote = "Asking Gemma to write the cover leaves for \(edition.monthName)…"
+        publicationBindingTitle = edition.title
+        publicationBindingMoment = .monthly
         Task { @MainActor in
+            defer { publicationBindingMoment = nil }
             do {
                 let bound = try await gemmaMonthlyBinding(for: pending)
                 // Composed before the binding starts, so the plate work never lands
@@ -4183,11 +4334,17 @@ extension ContentView {
         _ edition: MonthlyEdition,
         periodID: PublicationPeriodID? = nil
     ) {
+        guard weeklyIssueBindingNote == nil, publicationBindingMoment == nil else { return }
         let wasShopOpen = isBookShopPresented
         isBookShopPresented = false
         colophonBindingNote = "The digital needle has \(edition.title) by the corners…"
+        publicationBindingTitle = edition.title
+        publicationBindingMoment = edition.publicationKind == .annual ? .annual
+            : edition.publicationKind == .seasonal ? .seasonal : .monthly
+        if publicationBindingMoment == .annual { statusMessage = colophonBindingNote ?? "" }
 
         Task { @MainActor in
+            defer { publicationBindingMoment = nil }
             do {
                 let plates = await illuminatedPlates(for: edition)
                 let startKey = BookThemeEngine.monthKey(for: edition.startDate)
@@ -4235,7 +4392,7 @@ extension ContentView {
         dedication: BoundDedication? = nil,
         replacesDedication: Bool = false
     ) {
-        guard weeklyIssueBindingNote == nil else { return }
+        guard weeklyIssueBindingNote == nil, publicationBindingMoment == nil else { return }
         let candidate: PublicationCandidate?
         if let periodID {
             candidate = bindableWeeklyPublicationCandidates.first { $0.id == periodID }
@@ -6121,6 +6278,7 @@ extension ContentView {
         periodID: PublicationPeriodID? = nil,
         dedication: BoundDedication? = nil
     ) {
+        guard weeklyIssueBindingNote == nil, publicationBindingMoment == nil else { return }
         do {
             let archiveEvents = (try? BookDatabase.narrativeEvents(limit: 20000)) ?? narrativeEvents
             let archiveMemories = (try? BookDatabase.entityMemories(limit: 20000)) ?? entityMemories
@@ -6168,9 +6326,13 @@ extension ContentView {
             let wasShopOpen = isBookShopPresented
             isBookShopPresented = false
             statusMessage = "Asking Gemma to write the year’s cover leaves…"
+            publicationBindingTitle = "\(targetYear)"
+            publicationBindingMoment = .annual
             Task { @MainActor in
+                defer { publicationBindingMoment = nil }
                 do {
                     let bound = try await gemmaAnnualBinding(for: annual)
+                    statusMessage = "The year's words are stored. I'm setting the pages and plates…"
                     let plates = await illuminatedPlates(for: bound)
                     // A year is the span these charts were built for: the
                     // endpaper of a bound year is the shape of a life.
@@ -7144,7 +7306,7 @@ extension ContentView {
 
         \(bName) says \(bStance). Not because \(aName) is wrong, exactly, but because another truth is standing at the edge of the same sentence.\(bridge)
 
-        The Book won't settle this. It only places both readings in the margin and waits to see which one you keep closer.
+        I won't settle this. I'll put both readings in the margin and wait to see which one you keep closer.
         """
     }
 
@@ -7573,11 +7735,11 @@ extension ContentView {
 
             The Inscription closes behind you with the soft, final sound of a promise finding its place.
 
-            “A deal with the fae is never only a price,” the Book writes. “You offered me a Standing Order. While it stands, I owe you movement.”
+            “A deal with the fae is never only a price,” I write. “You offered me a Standing Order. While it stands, I owe you movement.”
 
             Somewhere in the stacks, new characters look up. A sealed mystery changes shelves. A song clears its throat. Next month's folio starts walking toward you.
 
-            The Book hasn't purchased your attention. It has promised to keep earning it.
+            I haven't bought your attention. I've promised to keep earning it.
 
             Then the cover falls open onto Home.
 
@@ -9884,6 +10046,10 @@ struct PagewrightOccasionNote: Equatable {
 struct PagewrightSheet: View {
     enum Experience: Equatable {
         case studio
+        /// The whole studio, opened from the Inscription. Same tools; the
+        /// only differences are a plain Keep button in the corner (the
+        /// export menu hides it three taps deep) and a way back that says
+        /// where it goes.
         case inscription
     }
 
@@ -10179,7 +10345,9 @@ struct PagewrightSheet: View {
 
     private var filteredPages: [BookPage] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return cachedKeptPages.filter { page in
+        let pages = cachedKeptPages
+        if selectedDayID == PagewrightDayBucket.allID, query.isEmpty { return pages }
+        return pages.filter { page in
             let cached = pageCache.cached(for: page)
             let matchesDay = selectedDayID == PagewrightDayBucket.allID
                 || cached.dayID == selectedDayID
@@ -10194,21 +10362,19 @@ struct PagewrightSheet: View {
     }
 
     private var trayFilteredPages: [BookPage] {
-        let activeCachedPage = activePage.map { pageCache.cached(for: $0) }
-        return filteredPages.filter { page in
-            let cached = pageCache.cached(for: page)
-            switch selectedScrapTrayScope {
-            case .all:
-                return true
-            case .sameType:
-                guard let activePage else { return true }
-                return page.type == activePage.type
-            case .sameDay:
-                guard let activeCachedPage else { return true }
-                return cached.dayID == activeCachedPage.dayID
-            case .photos:
-                return cached.hasVisualMedia
-            }
+        let pages = filteredPages
+        switch selectedScrapTrayScope {
+        case .all:
+            return pages
+        case .sameType:
+            guard let activePage else { return pages }
+            return pages.filter { $0.type == activePage.type }
+        case .sameDay:
+            guard let activePage else { return pages }
+            let dayID = pageCache.cached(for: activePage).dayID
+            return pages.filter { pageCache.cached(for: $0).dayID == dayID }
+        case .photos:
+            return pages.filter { pageCache.cached(for: $0).hasVisualMedia }
         }
     }
 
@@ -10246,11 +10412,12 @@ struct PagewrightSheet: View {
     }
 
     private var activePage: BookPage? {
+        let pages = selectedPages
         if let element = activeElement, element.kind == .page {
-            return selectedPages.first { $0.id == element.sourceID }
+            return pages.first { $0.id == element.sourceID }
         }
-        guard let activePageID else { return selectedPages.first }
-        return selectedPages.first { $0.id == activePageID } ?? selectedPages.first
+        guard let activePageID else { return pages.first }
+        return pages.first { $0.id == activePageID } ?? pages.first
     }
 
     private var activeElement: PagewrightCanvasElement? {
@@ -10332,9 +10499,7 @@ struct PagewrightSheet: View {
             GeometryReader { proxy in
                 let isWide = proxy.size.width >= 820
                 Group {
-                    if experience == .inscription {
-                        inscriptionStudio
-                    } else if isWide {
+                    if isWide {
                         HStack(spacing: 0) {
                             libraryPanel
                                 .frame(width: 330)
@@ -10351,15 +10516,28 @@ struct PagewrightSheet: View {
                 }
                 .background(BookPalette.nightPanel.opacity(0.98).ignoresSafeArea())
             }
-            .navigationTitle(experience == .inscription ? "The Pagewright's Worktable" : "Scrapbook Studio")
+            .navigationTitle(experience == .inscription ? "The Pagewright" : "Scrapbook Studio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(experience == .inscription ? "Back to the Book" : "Done") { dismiss() }
+                    Button(experience == .inscription ? "Back" : "Done") { dismiss() }
                         .foregroundStyle(BookPalette.nightText)
                 }
-                if experience == .studio {
-                    ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: .primaryAction) {
+                    if experience == .inscription {
+                        Button {
+                            keepCurrentDraft()
+                            dismiss()
+                        } label: {
+                            Label("Keep Page", systemImage: "bookmark.fill")
+                                .labelStyle(.titleAndIcon)
+                                .font(.subheadline.weight(.bold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(BookPalette.lampGold)
+                        .disabled(!hasPrimaryCanvasContent)
+                        .accessibilityHint("Gives this Page to the Book and goes back")
+                    } else {
                         exportMenu
                     }
                 }
@@ -10596,88 +10774,6 @@ struct PagewrightSheet: View {
         }
         .clipped()
         .accessibilityHidden(true)
-    }
-
-    /// The Pagewright's first appearance is a story beat with a small toolset,
-    /// not the whole studio dropped into onboarding. The Book has already put
-    /// the reader's three scraps on the table; they may rearrange them, change
-    /// the paper, choose a line, and add photographs from their own world.
-    private var inscriptionStudio: some View {
-        ZStack(alignment: .bottom) {
-            inscriptionWorktable
-
-            // The marks tray slides up over the canvas exactly as it does in
-            // the full studio.
-            if let activeTrayMode, activeTrayMode == .marks {
-                compactTray(activeTrayMode)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(20)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background {
-            pagewrightWorktableSurface
-                .ignoresSafeArea(edges: .bottom)
-        }
-        .animation(.snappy(duration: 0.22), value: activeTrayMode?.id)
-    }
-
-    private var inscriptionWorktable: some View {
-        VStack(spacing: 10) {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("THE PAGEWRIGHT HAS BEEN SUMMONED")
-                        .font(.system(size: 10, weight: .black))
-                        .tracking(1.1)
-                        .foregroundStyle(BookPalette.lampGold)
-                    Text("The Book is tired of asking questions.")
-                        .font(.system(.title3, design: .serif, weight: .bold))
-                        .foregroundStyle(BookPalette.nightText)
-                    Text("\u{201C}Answers are loose things,\u{201D} it says. \u{201C}Make me a Page I can keep.\u{201D}\n\nA small person with ink on both elbows climbs onto the worktable. \u{201C}Two scraps from the door,\u{201D} says the Pagewright. \u{201C}And one of your photographs, if the outside world will lend us one.\u{201D}")
-                        .font(.callout)
-                        .foregroundStyle(BookPalette.nightText.opacity(0.72))
-                        .fixedSize(horizontal: false, vertical: true)
-                    personalPhotoPicker
-                    TextField("Name this Page", text: pageTitleBinding)
-                        .font(.system(.headline, design: .serif, weight: .bold))
-                        .foregroundStyle(BookPalette.nightText)
-                        .textFieldStyle(.plain)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(BookPalette.nightText.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .onChange(of: title) { _, _ in invalidateExports() }
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-            }
-            .frame(maxHeight: 236)
-
-            compactCanvasViewport
-
-            worktableDrawerBank(columnCount: 4) { drawerWidth in
-                compactToolMenu("Layout", "rectangle.grid.2x2", width: drawerWidth) { layoutMenuContent }
-                compactToolMenu("Paper", "paintpalette", width: drawerWidth) { materialsMenuContent }
-                compactToolButton("Marks", "seal", width: drawerWidth, isActive: activeTrayMode == .marks) {
-                    toggleTray(.marks)
-                }
-                compactToolMenu("Line", "text.quote", width: drawerWidth) { quoteMenuContent }
-            }
-
-            Button {
-                keepCurrentDraft()
-                dismiss()
-            } label: {
-                Label("Give this Page to the Book", systemImage: "text.book.closed.fill")
-                    .font(.headline.weight(.bold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 11)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(BookPalette.lampGold)
-            .disabled(!hasPrimaryCanvasContent)
-        }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 12)
     }
 
     private var compactCanvasViewport: some View {
@@ -11230,7 +11326,8 @@ struct PagewrightSheet: View {
     }
 
     private var scrapTrayContent: some View {
-        VStack(spacing: 9) {
+        let pages = trayFilteredPages
+        return VStack(spacing: 9) {
             personalPhotoPicker
 
             HStack(spacing: 8) {
@@ -11265,13 +11362,13 @@ struct PagewrightSheet: View {
                 .padding(.vertical, 1)
             }
 
-            if trayFilteredPages.isEmpty {
+            if pages.isEmpty {
                 ContentUnavailableView("No matching scraps", systemImage: selectedScrapTrayScope.symbolName, description: Text("Try another filter, day, or search."))
                     .foregroundStyle(BookPalette.nightText)
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        ForEach(trayFilteredPages) { page in
+                        ForEach(pages) { page in
                             scrapTrayRow(page)
                         }
                     }
@@ -13634,25 +13731,29 @@ struct PagewrightSheet: View {
     }
 
     private func smartPages(for template: PagewrightTemplate) -> [BookPage] {
-        let pool = (filteredPages.isEmpty ? keptPages : filteredPages)
+        let filtered = filteredPages
+        let pool = filtered.isEmpty ? keptPages : filtered
+        guard pool.count > 1 else { return Array(pool.prefix(template.defaultPageCount)) }
         let sorted: [BookPage]
         switch template {
         case .polaroidScatter:
-            sorted = pool.sorted {
-                let leftHasVisual = pageCache.cached(for: $0).hasVisualMedia
-                let rightHasVisual = pageCache.cached(for: $1).hasVisualMedia
+            let hasVisualMedia = pool.map { pageCache.cached(for: $0).hasVisualMedia }
+            sorted = pool.indices.sorted {
+                let leftHasVisual = hasVisualMedia[$0]
+                let rightHasVisual = hasVisualMedia[$1]
                 if leftHasVisual != rightHasVisual {
                     return leftHasVisual
                 }
-                return $0.createdAt > $1.createdAt
-            }
+                return pool[$0].createdAt > pool[$1].createdAt
+            }.map { pool[$0] }
         case .letterHome:
-            sorted = pool.sorted {
-                let left = pageCache.cached(for: $0).excerpt1000.count
-                let right = pageCache.cached(for: $1).excerpt1000.count
-                if left == right { return $0.createdAt > $1.createdAt }
+            let excerptLengths = pool.map { pageCache.cached(for: $0).excerpt1000.count }
+            sorted = pool.indices.sorted {
+                let left = excerptLengths[$0]
+                let right = excerptLengths[$1]
+                if left == right { return pool[$0].createdAt > pool[$1].createdAt }
                 return left > right
-            }
+            }.map { pool[$0] }
         case .fieldNotes:
             sorted = pool.sorted {
                 if $0.type.rawValue == $1.type.rawValue { return $0.createdAt > $1.createdAt }
@@ -14286,22 +14387,101 @@ struct PagewrightDayBucket: Identifiable {
 }
 
 #if canImport(UIKit)
-@MainActor
-private final class PagewrightRenderedImageCache {
-    static let shared = PagewrightRenderedImageCache()
+private struct BookRenderedImageFileStamp: Equatable, Sendable {
+    let modifiedAt: Date?
+    let size: UInt64
+    let fileNumber: UInt64?
+}
 
-    private let cache = NSCache<NSString, UIImage>()
+/// The existing rendered-file cache also serves folio leaves and thumbnails.
+/// Cache complete source images; layout and inspection retain their own sizing.
+@MainActor
+final class BookRenderedImageCache {
+    static let shared = BookRenderedImageCache()
+
+    private final class Entry: NSObject {
+        let image: UIImage
+        let stamp: BookRenderedImageFileStamp
+        init(image: UIImage, stamp: BookRenderedImageFileStamp) {
+            self.image = image
+            self.stamp = stamp
+        }
+    }
+
+    private let cache: NSCache<NSString, Entry> = {
+        let cache = NSCache<NSString, Entry>()
+        cache.countLimit = 24
+        cache.totalCostLimit = 48 * 1_024 * 1_024
+        return cache
+    }()
+    private struct Preparation {
+        let id = UUID()
+        let task: Task<(image: UIImage, stamp: BookRenderedImageFileStamp)?, Never>
+    }
+    private var preparing: [String: Preparation] = [:]
 
     func image(for path: String) -> UIImage? {
-        let key = path as NSString
-        if let cached = cache.object(forKey: key) {
-            return cached
-        }
-        guard let image = UIImage(contentsOfFile: path) else {
+        guard let stamp = Self.stamp(for: path) else {
+            cache.removeObject(forKey: path as NSString)
             return nil
         }
-        cache.setObject(image, forKey: key)
+        if let image = cachedImage(for: path, stamp: stamp) { return image }
+        guard let image = UIImage(contentsOfFile: path) else { return nil }
+        if Self.stamp(for: path) == stamp { store(image, for: path, stamp: stamp) }
         return image
+    }
+
+    /// Only the existing neighboring/successor leaves ask for speculative
+    /// decoding. A cancelled queue finishes its shared file, then stops.
+    func prepare(_ paths: [String]) async {
+        var seen = Set<String>()
+        for path in paths where seen.insert(path).inserted {
+            guard !Task.isCancelled else { return }
+            guard let stamp = Self.stamp(for: path), cachedImage(for: path, stamp: stamp) == nil else { continue }
+            let preparation: Preparation
+            if let pending = preparing[path] {
+                preparation = pending
+            } else {
+                let task = Task.detached(priority: .utility) { () -> (image: UIImage, stamp: BookRenderedImageFileStamp)? in
+                    guard let before = Self.stamp(for: path),
+                          let source = UIImage(contentsOfFile: path) else { return nil }
+                    let image = source.preparingForDisplay() ?? source
+                    guard Self.stamp(for: path) == before else { return nil }
+                    return (image, before)
+                }
+                preparation = Preparation(task: task)
+                preparing[path] = preparation
+            }
+            let result = await preparation.task.value
+            if preparing[path]?.id == preparation.id { preparing.removeValue(forKey: path) }
+            if let result, Self.stamp(for: path) == result.stamp {
+                store(result.image, for: path, stamp: result.stamp)
+            }
+        }
+    }
+
+    private func cachedImage(for path: String, stamp: BookRenderedImageFileStamp) -> UIImage? {
+        guard let entry = cache.object(forKey: path as NSString) else { return nil }
+        guard entry.stamp == stamp else {
+            cache.removeObject(forKey: path as NSString)
+            return nil
+        }
+        return entry.image
+    }
+
+    private func store(_ image: UIImage, for path: String, stamp: BookRenderedImageFileStamp) {
+        let cost = image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+        cache.setObject(Entry(image: image, stamp: stamp), forKey: path as NSString, cost: cost)
+    }
+
+    nonisolated private static func stamp(for path: String) -> BookRenderedImageFileStamp? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attributes[.size] as? NSNumber else { return nil }
+        return BookRenderedImageFileStamp(
+            modifiedAt: attributes[.modificationDate] as? Date,
+            size: size.uint64Value,
+            fileNumber: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value
+        )
     }
 }
 
@@ -14338,7 +14518,7 @@ struct PagewrightMediaPreview: View {
                     .resizable()
                     .scaledToFill()
             case .renderedImageFile:
-                if let image = PagewrightRenderedImageCache.shared.image(for: asset.reference) {
+                if let image = BookRenderedImageCache.shared.image(for: asset.reference) {
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
@@ -15010,11 +15190,13 @@ struct PlainPageSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @StateObject private var recorder = KeptVoiceRecorder()
     @State private var text = ""
     @State private var voiceAsset: BookPageMediaAsset?
     @State private var voiceMessage: String?
     @State private var isTranscribingVoice = false
+    @State private var isGivingInk = false
     @FocusState private var isWriting: Bool
 
     private var canKeep: Bool {
@@ -15038,6 +15220,7 @@ struct PlainPageSheet: View {
                         .scrollContentBackground(.hidden)
                         .focused($isWriting)
                         .inkFeedback(text: text)
+                        .bookUIKitInkAbsorption(isActive: isGivingInk, seed: "plain-page")
                 }
                 .opacity(recorder.isRecording ? 0.44 : 1)
                 .scaleEffect(recorder.isRecording && !reduceMotion ? 0.985 : 1, anchor: .top)
@@ -15075,16 +15258,16 @@ struct PlainPageSheet: View {
                     Spacer()
 
                     Button("Keep") {
-                        onKeep(text, voiceAsset.map { [$0] } ?? [])
-                        dismiss()
+                        giveInkToBook()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(BookPalette.teal)
-                    .disabled(!canKeep || recorder.isRecording || isTranscribingVoice)
+                    .disabled(!canKeep || recorder.isRecording || isTranscribingVoice || isGivingInk)
                 }
             }
             .padding(20)
             .background(BookPalette.paper)
+            .disabled(isGivingInk)
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -15093,9 +15276,11 @@ struct PlainPageSheet: View {
                         recorder.discard()
                         dismiss()
                     }
+                    .disabled(isGivingInk)
                 }
             }
         }
+        .interactiveDismissDisabled(isGivingInk)
         .animation(BookMotion.reveal(reduceMotion), value: recorder.isRecording)
         .animation(BookMotion.result(reduceMotion), value: voiceAsset?.reference)
         .onAppear {
@@ -15104,6 +15289,22 @@ struct PlainPageSheet: View {
             } else {
                 isWriting = true
             }
+        }
+    }
+
+    private func giveInkToBook() {
+        guard canKeep, !isGivingInk, !recorder.isRecording, !isTranscribingVoice else { return }
+        let words = text
+        let media = voiceAsset.map { [$0] } ?? []
+        isWriting = false
+        isGivingInk = true
+        let keep = onKeep
+        let close = dismiss
+        let delay = reduceMotion || voiceOver || words.isEmpty ? 0 : BookInkTiming.absorptionDuration
+        Task { @MainActor in
+            if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
+            keep(words, media)
+            close()
         }
     }
 
@@ -15204,3 +15405,236 @@ private struct PlainVoiceRecordingCard: View {
         .shadow(color: BookPalette.lampGold.opacity(0.10), radius: 14, y: 6)
     }
 }
+
+// MARK: - Keep-time work kept off the animation
+
+/// Everything `tendConstellations` reads, snapshotted on the main actor so the
+/// whole-archive projection can run on a utility task. Value types only;
+/// `@unchecked Sendable` follows the `SurfaceBuildRequest` pattern
+/// (read-only across the boundary).
+struct ConstellationTendRequest: @unchecked Sendable {
+    struct Tended {
+        var constellations: [Constellation]
+        var wagers: [BookWager]
+        var themes: [BookTheme]
+    }
+
+    /// The latest tend wins; an older projection finishing late is dropped.
+    @MainActor static var generation = 0
+
+    var days: [BookDay]
+    var events: [NarrativeEvent]
+    var entityMemories: [NarrativeEntityMemory]
+    var entityBelief: [String: Int]
+    var pageBelief: [String: Int]
+    var radio: RadioPlaybackState
+    var ownedPackIDs: Set<String>
+    var constellations: [Constellation]
+    var wagers: [BookWager]
+    var themes: [BookTheme]
+    var now: Date
+
+    /// The new ledgers, or nil when nothing would change.
+    func tended() -> Tended? {
+        var digest = LiteraryContinuityProjector.digest(
+            days: days,
+            events: events,
+            entityMemories: entityMemories,
+            entityBelief: entityBelief,
+            pageBelief: pageBelief,
+            now: now
+        )
+        // A station the reader keeps returning to becomes a companion
+        // constellation ("You and Thornwave keep meeting…").
+        digest.signals += RadioStationRegistry.listeningSignals(
+            state: radio,
+            unlockedPackIDs: ownedPackIDs,
+            now: now
+        )
+        let advanced = ConstellationKeeper.advanced(
+            constellations,
+            observing: digest,
+            now: now
+        )
+        var tendedWagers = SealedMarginEngine.resolved(wagers, against: days, now: now)
+        tendedWagers += SealedMarginEngine.mintWagers(from: digest, existing: tendedWagers, now: now)
+
+        let calendar = Calendar.current
+        let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let monthPages = days
+            .filter { $0.date >= calendar.startOfDay(for: monthStart) }
+            .flatMap(\.pages)
+        let currentTheme = BookThemeEngine.theme(
+            for: monthPages,
+            digest: digest,
+            constellations: advanced,
+            monthKey: monthKey,
+            now: now
+        )
+        let tendedThemes = BookThemeEngine.remembered(themes, observing: currentTheme, monthKey: monthKey)
+
+        guard advanced != constellations || tendedWagers != wagers || tendedThemes != themes else {
+            return nil
+        }
+        return Tended(constellations: advanced, wagers: tendedWagers, themes: tendedThemes)
+    }
+}
+
+/// The archive half of `bookwideMarginaliaAchievementSignature`, held for as
+/// long as the archive is the same storage. `days` is assigned whole whenever
+/// it changes, so sharing storage means nothing in it has moved; any change at
+/// all, including enrichment of an existing Page, arrives as a new array.
+@MainActor
+enum BookwideMarginaliaArchiveSignature {
+    /// Carries the achievement context across to the utility task. Values
+    /// only, read-only across the boundary.
+    struct Snapshot: @unchecked Sendable {
+        var context: BookwideMarginaliaAchievement.Context
+    }
+
+    private static var heldDays: [BookDay] = []
+    private static var held: String?
+
+    static func signature(for days: [BookDay]) -> String {
+        if let held, sharesStorage(heldDays, days) { return held }
+        let context = BookwideMarginaliaAchievement.Context(
+            pages: days.flatMap(\.pages),
+            anchors: [],
+            entityBeliefOffsets: [:],
+            completedBookJumps: 0,
+            completedCompassRuns: 0,
+            electives: [],
+            longGameEvidence: [],
+            hasChosenQuill: false
+        )
+        let weatherCounts = Dictionary(
+            grouping: context.pages.flatMap { $0.context?.weatherTags ?? [] },
+            by: { $0 }
+        )
+        .map { "\($0.key):\($0.value.count)" }
+        .sorted()
+        .joined(separator: "|")
+        let typeCounts = Dictionary(grouping: context.pages, by: \.type)
+            .map { "\($0.key.rawValue):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "|")
+        let livedQuestCounts = Dictionary(grouping: context.livedQuestReceipts, by: \.kind)
+            .map { "\($0.key.rawValue):\($0.value.count)" }
+            .sorted()
+            .joined(separator: "|")
+        let signature = [
+            "\(context.pages.count)",
+            "\(context.keptDayIDs.count)",
+            typeCounts,
+            weatherCounts,
+            "\(context.readerEvidencePages.filter { $0.context?.dayPart == "night" }.count)",
+            "\(context.pages.filter(\.hasMarginaliaAchievementVisual).count)",
+            livedQuestCounts,
+            context.distinctLivedWonderFacetRawValues.sorted().joined(separator: "|"),
+            context.sensoryModalities.sorted().joined(separator: "|"),
+            context.distinctReaderProofKindRawValues.sorted().joined(separator: "|")
+        ].joined(separator: "§")
+        heldDays = days
+        held = signature
+        return signature
+    }
+
+    private static func sharesStorage(_ lhs: [BookDay], _ rhs: [BookDay]) -> Bool {
+        lhs.count == rhs.count && lhs.withUnsafeBufferPointer { left in
+            rhs.withUnsafeBufferPointer { right in left.baseAddress == right.baseAddress }
+        }
+    }
+}
+
+/// Pending widget snapshot writes. See `scheduleWidgetSnapshotWrite()`.
+@MainActor
+enum WidgetSnapshotSchedule {
+    static var ticket = 0
+    /// Long enough to outlast a Keep's durable write and its enrichment, short
+    /// enough that the widget is never a moment behind the reader.
+    static let settleDelay: TimeInterval = 1.5
+}
+
+/// What is waiting for a Cast member to finish answering a Keep. See
+/// `presentWhatWaitedForTheKeepNote()`.
+@MainActor
+enum KeepReplyStage {
+    /// The Book's own line for this Keep (a return line after grey days).
+    static var pendingBookLine: String?
+    /// A tutor note that came due while the Cast note had the floor.
+    static var pendingTutorNoteID: String?
+
+    /// Until when background desk work should not publish: the reader's own
+    /// moment (a keep burst, a leaf settling) gets the frames.
+    private static var quietUntil = Date.distantPast
+
+    static func holdBackgroundPublication(for seconds: TimeInterval) {
+        quietUntil = max(quietUntil, Date().addingTimeInterval(seconds))
+    }
+
+    /// Returns at once when nothing is in the air. Re-reads the window after
+    /// each wait, so a second Keep inside it extends the hold.
+    static func waitForQuiet() async {
+        while case let remaining = quietUntil.timeIntervalSinceNow, remaining > 0 {
+            try? await Task.sleep(for: .seconds(remaining))
+            if Task.isCancelled { return }
+        }
+    }
+}
+
+#if DEBUG
+/// `--perf-build-log`: one line per desk build (start, end, kind, whether it
+/// was cancelled) in Library/Caches/surface-builds.txt, so overlapping builds
+/// after launch can be counted rather than inferred from a sample.
+enum SurfaceBuildLog {
+    struct Entry {
+        var id: Int
+        var heavy: Bool
+        var digest: Bool
+        var started: Date
+    }
+
+    private static let enabled = ProcessInfo.processInfo.arguments.contains("--perf-build-log")
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var nextID = 0
+    nonisolated(unsafe) private static var running = 0
+
+    static func begin(heavy: Bool, digest: Bool) -> Entry? {
+        guard enabled else { return nil }
+        lock.lock()
+        nextID += 1
+        running += 1
+        let entry = Entry(id: nextID, heavy: heavy, digest: digest, started: Date())
+        let concurrent = running
+        lock.unlock()
+        write("start #\(entry.id) \(heavy ? "heavy" : "light")\(digest ? "+digest" : "") running=\(concurrent)")
+        return entry
+    }
+
+    static func end(_ entry: Entry?) {
+        guard let entry else { return }
+        lock.lock()
+        running -= 1
+        let concurrent = running
+        lock.unlock()
+        let seconds = Date().timeIntervalSince(entry.started)
+        write(String(format: "end   #%d %.2fs%@ running=%d", entry.id, seconds, Task.isCancelled ? " CANCELLED" : "", concurrent))
+    }
+
+    private static func write(_ line: String) {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let url = caches.appendingPathComponent("surface-builds.txt")
+        let entry = String(format: "%.3f ", Date().timeIntervalSince1970) + line + "\n"
+        lock.lock()
+        defer { lock.unlock() }
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile()
+            handle.write(Data(entry.utf8))
+            try? handle.close()
+        } else {
+            try? entry.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+}
+#endif

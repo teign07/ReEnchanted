@@ -167,6 +167,8 @@ struct AuthoredStoryNode: Codable, Identifiable, Equatable {
     /// Sentences present only if somebody remembers an earlier moment, by key,
     /// across issues. Runtime 11.
     var recalls: [AuthoredCastRecall]? = nil
+    /// Art belongs to this passage, so another branch cannot reveal it early.
+    var illustration: BookPageMediaAsset? = nil
 }
 
 struct AuthoredStoryScene: MonthlyIssueNativeContent {
@@ -200,6 +202,15 @@ struct AuthoredStoryScene: MonthlyIssueNativeContent {
     var castIDs: [String]? = nil
     /// What the Cast carry away when the reader completes the scene.
     var castMemories: [AuthoredCastMemory]? = nil
+
+    /// Used for a scene without nodes, or its entry passage only.
+    var illustration: BookPageMediaAsset? = nil
+
+    func illustration(for nodeID: String?) -> BookPageMediaAsset? {
+        guard let nodes, !nodes.isEmpty else { return illustration }
+        guard let nodeID, let node = nodes.first(where: { $0.id == nodeID }) else { return nil }
+        return node.illustration ?? (node.id == nodes.first?.id ? illustration : nil)
+    }
 }
 
 struct AuthoredRadioBanter: MonthlyIssueNativeContent {
@@ -219,6 +230,12 @@ struct AuthoredBleedArticle: MonthlyIssueNativeContent {
     var body: String
     var editionKinds: [BleedEditionKind] = BleedEditionKind.allCases
     var tags: [String] = []
+    /// A `classified` article's evening answer, printed only after the morning ran the ad.
+    var reply: String? = nil
+
+    /// Small ads and letters to the editor are pieces of the paper's own desks, not
+    /// standalone features: the classified box and the letters page set them.
+    var isDeskPiece: Bool { tags.contains("classified") || tags.contains("cast-letter") }
 }
 
 /// A directed use of an installed illumination asset. The asset remains in
@@ -619,6 +636,11 @@ enum AuthoredStoryScenePageAdapter {
                 "world-event:\(scene.eventID)"
             ]
         )).sorted()
+        var illustration = scene.illustration(for: nodeID)
+        if illustration?.kind == .renderedImageFile, let path = illustration?.reference {
+            illustration?.reference = MonthlyIssueMediaPath.resolving(path)
+        }
+        illustration?.metadata["storyPlate"] = "true"
         return SurfacePage(
             id: "authored-story-scene-\(scene.id)-\(nodeID ?? "leaf")-\(Int(now.timeIntervalSince1970 / 3_600))",
             type: .narrativeOS,
@@ -638,6 +660,9 @@ enum AuthoredStoryScenePageAdapter {
                     "authoredStorySceneID": scene.id,
                     "storySceneID": scene.id,
                     "storyScene": scene.opening,
+                    BookPageMediaAsset.surfaceMetadataKey: BookPageMediaAsset.encodedForSurfaceMetadata(
+                        illustration.map { [$0] } ?? []
+                    ) ?? "",
                     "authoredBraidText": scene.braidText ?? "",
                     choicesMetadataKey: encodedChoices,
                     "selectedEntities": scene.entities.joined(separator: ", "),
@@ -799,7 +824,7 @@ enum AuthoredBleedArticleResolver {
             now: now
         ).compactMap { content in
             let artifactID = "\(content.manifest.eventPackID):\(content.manifest.eventID):\(content.atom.reference.id)"
-            guard let article = artifacts[artifactID],
+            guard let article = artifacts[artifactID], !article.isDeskPiece,
                   article.packID == content.manifest.eventPackID,
                   article.eventID == content.manifest.eventID,
                   article.editionKinds.contains(kind) else { return nil }
@@ -1776,7 +1801,7 @@ enum MonthlyIssueBraidMatter {
                 .joined(separator: "\n\n")
         }
         let text = result.userInput
-        let closing = text.range(of: "The Book kept the page:", options: .backwards)?.lowerBound
+        let closing = BraidColophon.lastRange(in: text)?.lowerBound
         var insertion = closing ?? text.endIndex
         if page.tags.contains(interludeTag),
            let titleBreak = text.range(of: "\n\n"),

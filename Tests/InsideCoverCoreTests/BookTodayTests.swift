@@ -45,7 +45,6 @@ final class BookTodayTests: XCTestCase {
             calendar: utcCalendar
         )
 
-        XCTAssertEqual(edition.form, .weatherMap)
         // The forecast is written out once, in the At the Windows beat. The headline never carries it.
         XCTAssertFalse(edition.headline.contains("Fog along the harbor"))
         XCTAssertEqual(edition.beats.first?.kind, .atTheWindows)
@@ -81,7 +80,6 @@ final class BookTodayTests: XCTestCase {
             calendar: utcCalendar
         )
 
-        XCTAssertEqual(edition.form, .observatoryWindow)
         XCTAssertTrue(edition.reading.contains("one thing you've stopped seeing"))
         XCTAssertTrue(edition.reading.contains("One glint will do"))
         XCTAssertTrue(edition.reading.contains("I'm trying"))
@@ -102,7 +100,6 @@ final class BookTodayTests: XCTestCase {
             calendar: utcCalendar
         )
 
-        XCTAssertEqual(edition.form, .almanacLeaf)
         XCTAssertTrue(edition.reading.contains("I'm watching"))
         XCTAssertTrue(edition.beats.isEmpty)
     }
@@ -394,7 +391,7 @@ final class BookTodayTests: XCTestCase {
         XCTAssertTrue(edition.census.facts.allSatisfy { $0.value > 0 })
     }
 
-    func testCensusSelectionIsStableForOneOpeningAndLimitedToFourDrawers() throws {
+    func testCensusSelectionIsStableForOneOpeningAndLimitedToItsDrawers() throws {
         let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-08-08T03:00:00Z"))
         let pageTypes: [BookPageType] = [
             .plainPage, .diary, .souvenir, .bookRemembered, .bookOfYou, .letter
@@ -455,7 +452,7 @@ final class BookTodayTests: XCTestCase {
 
         XCTAssertEqual(first, rebuilt)
         XCTAssertNotEqual(first.facts, nextOpening.facts)
-        XCTAssertEqual(first.facts.count, 4)
+        XCTAssertEqual(first.facts.count, BookTodayCensusProjector.drawerCount)
         XCTAssertEqual(Set(first.facts.map(\.id)).count, first.facts.count)
         XCTAssertTrue(first.facts.allSatisfy { $0.value > 0 })
         for drainedPhrase in ["not a score", "no pressure", "you don't have to", "when you're ready"] {
@@ -537,5 +534,96 @@ final class BookTodayTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
+    }
+}
+
+/// Book Today leads with the Reader: a line of their own, the paper they're on the front of,
+/// and the day's one claim. The census proves the Book carried on while they were out.
+final class BookTodayDoorstepTests: XCTestCase {
+    private var calendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        return calendar
+    }
+
+    private func date(_ day: Int, _ hour: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour))!
+    }
+
+    private func bookDay(_ day: Int, _ pages: [BookPage]) -> BookDay {
+        let start = calendar.startOfDay(for: date(day, 9))
+        return BookDay(id: BookDay.id(for: start, calendar: calendar), date: start, pages: pages)
+    }
+
+    private let heron = "The heron by the canal was back today and it looked straight at me."
+
+    private func edition(today: BookDay, days: [BookDay], at now: Date, configure: (inout BookSourceInputs) -> Void = { _ in }) -> BookTodayEdition {
+        var inputs = BookSourceInputs.empty
+        inputs.days = days
+        configure(&inputs)
+        return BookTodayProjector.edition(for: today, inputs: inputs, relationship: .firstOpening,
+                                          experienceProgram: nil, now: now, calendar: calendar, selectionSeed: 7)
+    }
+
+    func testTheReadersOwnLineComesBackInTheirWords() throws {
+        let yesterday = bookDay(15, [BookPage(id: "heron", type: .souvenir, createdAt: date(15, 18),
+                                              promptText: "One true sentence", userInput: heron)])
+        let edition = edition(today: bookDay(16, []), days: [yesterday], at: date(16, 8))
+        let keepsake = try XCTUnwrap(edition.keepsake)
+        XCTAssertEqual(keepsake.pageID, "heron")
+        XCTAssertEqual(keepsake.text, heron)
+        XCTAssertEqual(keepsake.label, "Yesterday, you wrote")
+        // The reading talks about what they kept, not about nothing.
+        XCTAssertTrue(edition.reading.contains("the heron"), edition.reading)
+        XCTAssertEqual(BookTodayDoorstep.thing(in: "Found a coin with a hole through it by the river."), "coin")
+        XCTAssertEqual(BookTodayDoorstep.thing(in: "Walked the dog with Amanda."), "dog")
+        XCTAssertNil(BookTodayDoorstep.thing(in: "Tea with Amanda at Gran's."))
+    }
+
+    func testTheMorningPaperIsOnTheMatWithTheReaderOnTheFront() throws {
+        let yesterday = bookDay(15, [BookPage(id: "heron", type: .souvenir, createdAt: date(15, 18),
+                                              promptText: "One true sentence", userInput: heron)])
+        let edition = edition(today: bookDay(16, []), days: [yesterday], at: date(16, 8))
+        let paper = try XCTUnwrap(edition.doorstep)
+        XCTAssertEqual(paper.kind, .morning)
+        XCTAssertFalse(paper.headline.isEmpty)
+        XCTAssertTrue(paper.line.hasPrefix("The morning paper's come."))
+        // The paper's assignment is the day's claim, until the paper's hours are over.
+        XCTAssertNotNil(edition.assignment)
+        XCTAssertNil(self.edition(today: bookDay(16, []), days: [yesterday], at: date(16, 14)).doorstep)
+    }
+
+    func testAFiledDareShowsAsFiled() throws {
+        var dare = BookPage(id: "dare", type: .wickerDare, createdAt: date(16, 11),
+                            promptText: "Lose a staring contest to a pigeon.", userInput: "The pigeon won.")
+        dare.livedQuestReceipt = LivedQuestReceipt(
+            kind: .wickerDare, questID: "pigeon", title: "The Staring Contest", invitation: "Lose a staring contest.",
+            proofPrompt: "Who blinked?", facets: [], sourceTags: [], hasWrittenProof: true, hasVisualProof: false,
+            completedAt: dare.createdAt, wasPromptedByBook: true)
+        let assignment = try XCTUnwrap(edition(today: bookDay(16, [dare]), days: [], at: date(16, 15)).assignment)
+        XCTAssertTrue(assignment.filed)
+        XCTAssertEqual(assignment.title, "The Staring Contest")
+    }
+
+    func testWhileYouWereAwayCountsOnlyTheLastDaysReceipts() throws {
+        let braid = BookPage(id: "braid", type: .bookOfYou, createdAt: date(15, 23), promptText: "Tonight",
+                             userInput: "The Lampshade Tenant\n\nA moth had taken the lampshade for the winter.")
+        let old = BookPage(id: "old-braid", type: .bookOfYou, createdAt: date(10, 23), promptText: "Tonight",
+                           userInput: "An Older Night\n\nLong ago.")
+        let edition = edition(today: bookDay(16, []), days: [bookDay(10, [old]), bookDay(15, [braid])], at: date(16, 8)) { inputs in
+            inputs.bleedPrintHistory = [BleedPrintRecord(slotID: "evening-15", printedAt: date(15, 18), items: [])]
+        }
+        let away = edition.census.whileAway
+        XCTAssertEqual(away.first { $0.id == "away-braid" }?.line,
+                       "I braided a whole day into \u{201C}The Lampshade Tenant\u{201D} while you slept.")
+        XCTAssertEqual(away.first { $0.id == "away-papers" }?.value, 1)
+        XCTAssertFalse(away.contains { $0.line.contains("An Older Night") })
+    }
+
+    func testAHardDayIsNeverQuotedBack() {
+        let hard = bookDay(15, [BookPage(id: "hard", type: .souvenir, createdAt: date(15, 18), promptText: "One true sentence",
+                                         userInput: "I can't do this any more. The kitchen is a mess and so am I.")])
+        let edition = edition(today: bookDay(16, []), days: [hard], at: date(16, 8))
+        XCTAssertNotEqual(edition.keepsake?.pageID, "hard")
     }
 }

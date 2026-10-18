@@ -1762,7 +1762,8 @@ enum UndertakingSerialEngine {
         serial: UndertakingSerial,
         slotID: String,
         now: Date,
-        events: UndertakingEventContext = .none
+        events: UndertakingEventContext = .none,
+        preferredUndertakingIDs: [String] = []
     ) -> CastUndertaking? {
         // Recover story identities from v1 occurrence keys without rewriting
         // the vault. This also collapses any duplicate generations an older
@@ -1833,6 +1834,13 @@ enum UndertakingSerialEngine {
            serial.isWithinContinuationWindow(of: now),
            let next = unmet.first(where: { $0.id == followed }) {
             return next
+        }
+
+        // The paper can introduce a thread worth meeting in person. Choose
+        // only from the already-occurred, earliest-unseen projection above;
+        // printing a report neither witnesses the scene nor skips its opening.
+        for id in preferredUndertakingIDs {
+            if let reported = unmet.first(where: { $0.id == id }) { return reported }
         }
 
         var weighted: [CastUndertaking] = []

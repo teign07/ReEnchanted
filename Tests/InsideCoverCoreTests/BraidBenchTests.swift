@@ -51,7 +51,7 @@ final class BraidBenchTests: XCTestCase {
       XCTAssertFalse(report.text.isEmpty, report.name)
       XCTAssertFalse(report.title.isEmpty, report.name)
       XCTAssertTrue(
-        report.text.contains("The Book kept the page:"),
+        report.text.contains("I kept the page:"),
         "\(report.name) lost its ritual line")
     }
   }

@@ -767,18 +767,16 @@ enum WorldEventRegistry {
 
     static func userPacks(fileManager: FileManager = .default) -> [WorldEventPack] {
         let decoder = ContentPackFileLocator.decoder()
-        return ContentPackFileLocator.urls(suffix: userPackFileSuffix, fileManager: fileManager)
-            .compactMap { url in
-                guard let data = try? Data(contentsOf: url),
-                      var pack = try? decoder.decode(WorldEventPack.self, from: data) else {
-                    return nil
-                }
-                guard (pack.minimumRuntimeVersion ?? 1) <= MonthlyIssueDeliveryPolicy.runtimeVersion else { return nil }
-                if pack.availability != .locked {
-                    pack.availability = .userImported
-                }
-                return pack
+        return ContentPackFileLocator.decodedPacks(suffix: userPackFileSuffix, fileManager: fileManager) { data in
+            guard var pack = try? decoder.decode(WorldEventPack.self, from: data) else {
+                return nil
             }
+            guard (pack.minimumRuntimeVersion ?? 1) <= MonthlyIssueDeliveryPolicy.runtimeVersion else { return nil }
+            if pack.availability != .locked {
+                pack.availability = .userImported
+            }
+            return pack
+        }
     }
 
     static func enabledPacks(fileManager: FileManager = .default) -> [WorldEventPack] {
@@ -1050,7 +1048,7 @@ enum WorldEventRegistry {
                 lexicalRules: [
                     WorldEventLexicalRule(id: "verdict-words", words: ["remember", "return", "true"], instruction: "Let the final note leave a useful mark rather than a punishment.")
                 ],
-                scene: "The trial resolves not into punishment but annotation. In careful blue ink I write my findings in the margins: what mattered, what was missed, what may yet return. The scraps are released back into the world, each carrying a small mark that means *seen*. The lamp gutters low over the desk. Court, for tonight, is adjourned, though the Book leaves the ledger open, in case you have evidence of your own."
+                scene: "The trial resolves not into punishment but annotation. In careful blue ink I write my findings in the margins: what mattered, what was missed, what may yet return. The scraps are released back into the world, each carrying a small mark that means *seen*. The lamp gutters low over the desk. Court, for tonight, is adjourned, though I leave the ledger open, in case you have evidence of your own."
             )
         ],
         triggers: [.calendar, .keptRelatedPage, .letterKept],
@@ -2239,7 +2237,7 @@ enum ContentPackFileLocator {
         return directories.flatMap { directory in
             (try? fileManager.contentsOfDirectory(
                 at: directory,
-                includingPropertiesForKeys: nil,
+                includingPropertiesForKeys: Array(stampKeys),
                 options: [.skipsHiddenFiles]
             )) ?? []
         }
@@ -2247,6 +2245,72 @@ enum ContentPackFileLocator {
         .filter { seen.insert($0.standardizedFileURL.path).inserted }
         .sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
+
+    /// Every pack file under `suffix`, decoded.
+    ///
+    /// Decoding is the expensive half of reading a pack — each illustration
+    /// asset resolves its media path against the sandbox as it decodes — and
+    /// the folio asks for the same packs at every Page boundary, the desk and
+    /// the widget ask again, all inside the moment after a Keep. So each file's
+    /// decode is held for exactly as long as that file is unchanged: same path,
+    /// size, creation and modification date. A pack installed, replaced or
+    /// removed is seen on the very next read, as before; only an untouched file
+    /// skips being read and decoded again.
+    static func decodedPacks<Pack>(
+        suffix: String,
+        fileManager: FileManager = .default,
+        decode: (Data) -> Pack?
+    ) -> [Pack] {
+        let kind = "\(suffix)|\(String(reflecting: Pack.self))"
+        return urls(suffix: suffix, fileManager: fileManager).compactMap { url in
+            let key = "\(kind)|\(url.standardizedFileURL.path)"
+            let stamp = FileStamp(url)
+            if let stamp {
+                decodedLock.lock()
+                let held = decodedFiles[key]
+                decodedLock.unlock()
+                if let held, held.stamp == stamp {
+                    return held.pack as? Pack
+                }
+            }
+            let pack = (try? Data(contentsOf: url)).flatMap(decode)
+            if let stamp {
+                decodedLock.lock()
+                decodedFiles[key] = DecodedFile(stamp: stamp, pack: pack)
+                decodedLock.unlock()
+            }
+            return pack
+        }
+    }
+
+    private static let stampKeys: Set<URLResourceKey> = [
+        .fileSizeKey, .contentModificationDateKey, .creationDateKey
+    ]
+
+    private struct FileStamp: Equatable {
+        var size: Int
+        var modified: Date
+        var created: Date?
+
+        init?(_ url: URL) {
+            guard let values = try? url.resourceValues(forKeys: ContentPackFileLocator.stampKeys),
+                  let size = values.fileSize,
+                  let modified = values.contentModificationDate else { return nil }
+            self.size = size
+            self.modified = modified
+            created = values.creationDate
+        }
+    }
+
+    private struct DecodedFile {
+        var stamp: FileStamp
+        /// Nil when the file did not decode, so a broken file is not re-read
+        /// on every pass either; editing it changes its stamp.
+        var pack: Any?
+    }
+
+    private static let decodedLock = NSLock()
+    nonisolated(unsafe) private static var decodedFiles: [String: DecodedFile] = [:]
 }
 
 enum MonthlyIssueDeliveryPlanner {
@@ -2837,19 +2901,33 @@ enum MonthlyIssueMediaPath {
     }
 }
 
-/// A kept mark is publication material, separate from the disposable download.
+/// Kept monthly art is publication material, separate from the disposable download.
 /// Use content-addressed copies so keeping the same art on many leaves is cheap.
 enum MonthlyIssueRetainedMedia {
     static func retaining(_ asset: IlluminationAsset, fileManager: FileManager = .default) throws -> IlluminationAsset {
         guard asset.assetName.hasPrefix("/") else { return asset }
-        let path = MonthlyIssueMediaPath.resolving(asset.assetName,
+        var kept = asset
+        kept.assetName = try retainingFile(asset.assetName, id: asset.id, fileManager: fileManager)
+        kept.placementTrigger = nil
+        return kept
+    }
+
+    static func retaining(_ asset: BookPageMediaAsset, fileManager: FileManager = .default) throws -> BookPageMediaAsset {
+        guard asset.kind == .renderedImageFile else { return asset }
+        var kept = asset
+        kept.reference = try retainingFile(asset.reference, id: asset.id, fileManager: fileManager)
+        return kept
+    }
+
+    private static func retainingFile(_ reference: String, id: String, fileManager: FileManager) throws -> String {
+        let path = MonthlyIssueMediaPath.resolving(reference,
             supportDirectory: fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first)
         let source = URL(fileURLWithPath: path).resolvingSymlinksInPath()
         guard let managed = MonthlyIssueDeliveryPolicy.managedContentDirectory(fileManager: fileManager)?.resolvingSymlinksInPath(),
               source.path.hasPrefix(managed.path + "/"),
               source.lastPathComponent.hasPrefix(MonthlyIssueDeliveryPolicy.managedFilePrefix),
               let support = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            throw MonthlyIssueDeliveryError.unsafeFileName(asset.id)
+            throw MonthlyIssueDeliveryError.unsafeFileName(id)
         }
         let data = try Data(contentsOf: source, options: .mappedIfSafe)
         let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -2857,9 +2935,6 @@ enum MonthlyIssueRetainedMedia {
         try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
         let target = root.appendingPathComponent(hash).appendingPathExtension(source.pathExtension)
         if !fileManager.fileExists(atPath: target.path) { try data.write(to: target, options: .atomic) }
-        var kept = asset
-        kept.assetName = target.path
-        kept.placementTrigger = nil
-        return kept
+        return target.path
     }
 }

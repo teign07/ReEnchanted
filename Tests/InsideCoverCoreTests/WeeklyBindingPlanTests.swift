@@ -35,7 +35,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         return BookPage(
             id: id, type: .bookOfYou, createdAt: date("\(day)T21:00:00Z"),
             promptText: "Book of You",
-            userInput: "A Night\n\n\(spine)\n\nThe Book kept the page: it held.",
+            userInput: "A Night\n\n\(spine)\n\nI kept the page: it held.",
             tags: tags,
             origin: .generated)
     }
@@ -112,7 +112,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         NIGHT:fri You walked the long way home past the bakery.
         NIGHT:mon You bought plums at the market before work.
         WEEK:mon,wed The plums are in both halves of this issue.
-        COLOPHON The Book bound the week: the same things kept arriving.
+        COLOPHON I bound the week: the same things kept arriving.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("an honest issue was refused")
@@ -127,7 +127,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let draft = """
         NIGHT:fri You walked the long way home past the bakery.
         NIGHT:fri You walked past the bakery and then called your father.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .success(let salvage) = salvage(draft) else {
             return XCTFail("the issue should survive with the invention removed")
@@ -146,7 +146,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let draft = """
         NIGHT:mon You called the surgery back.
         NIGHT:wed Rain all afternoon.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .success(let salvage) = WeeklyBindingVerifier.salvage(draft, against: plan) else {
             return XCTFail("the honest half should have survived")
@@ -161,7 +161,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let draft = """
         NIGHT:fri You walked the long way home past the bakery.
         WEEK:mon,wed You spent the week grieving quietly.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .success(let salvage) = salvage(draft) else { return XCTFail("refused whole") }
         XCTAssertTrue(salvage.dropped.contains(.claimedTheReadersLife), "\(salvage.dropped)")
@@ -171,7 +171,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let draft = """
         NIGHT:fri You walked the long way home past the bakery.
         WEEK:mon,wed The plums and the bakery are really about the same hunger.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .success(let salvage) = salvage(draft) else { return XCTFail("refused whole") }
         XCTAssertTrue(salvage.dropped.contains(.declaredMeaning), "\(salvage.dropped)")
@@ -183,7 +183,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let draft = """
         NIGHT:mon,wed You bought plums and cooked them the same evening.
         NIGHT:fri You walked the long way home past the bakery.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .success(let salvage) = salvage(draft) else { return XCTFail("refused whole") }
         XCTAssertTrue(salvage.dropped.contains(.malformedMarker), "\(salvage.dropped)")
@@ -193,7 +193,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
     func testAnIssueThatLosesItsCoverIsRefusedWhole() {
         let draft = """
         NIGHT:mon You bought plums at the market before work.
-        COLOPHON The Book bound the week: it held.
+        COLOPHON I bound the week: it held.
         """
         guard case .failure(let why) = salvage(draft) else {
             return XCTFail("an issue without its cover night is not the issue")
@@ -216,7 +216,7 @@ final class WeeklyBindingPlanTests: XCTestCase {
         let prose = try XCTUnwrap(WeeklyBindingWriter.issue(for: plan))
         XCTAssertTrue(prose.contains("bakery"), prose)
         XCTAssertTrue(prose.lowercased().contains("plums"), prose)
-        XCTAssertTrue(prose.contains("The Book bound the week"), prose)
+        XCTAssertTrue(prose.contains("I bound the week"), prose)
         // It leads with the night the plan chose, not with Monday.
         XCTAssertTrue(prose.hasPrefix("You walked the long way"), prose)
         // And the issue's own framing is the issue's, not the night's.
