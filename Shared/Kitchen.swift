@@ -538,7 +538,18 @@ struct KitchenRecipePageSourceAdapter: BookPageSourceAdapter {
         return KitchenOffering.rescueSurface(dayID: day.id)
     }
 
+    /// The Kitchen opens with the story: All Souls' Eve-eve, when Ambrose starts
+    /// the soul cakes. Before that nothing's on the desk, so the first recipe a
+    /// reader ever meets is the one the Guest knocks for.
+    static let opensOn = DateComponents(year: 2026, month: 10, day: 30)
+
+    static func isOpen(on now: Date, calendar: Calendar = .current) -> Bool {
+        guard let opening = calendar.date(from: opensOn) else { return true }
+        return now >= calendar.startOfDay(for: opening)
+    }
+
     func offer(for day: BookDay, inputs: BookSourceInputs, now: Date) -> KitchenOffering.Offer? {
+        guard Self.isOpen(on: now) else { return nil }
         let busy = Calendar.current.component(.month, from: now) == 11
             || inputs.activeWorldEvents.contains { Self.busyEventIDs.contains($0.id) }
         let weather = RadioPageContext.weatherTags(weather: inputs.weather, enchanted: inputs.enchantedWeather)

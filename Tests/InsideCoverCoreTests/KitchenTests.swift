@@ -84,6 +84,16 @@ final class KitchenTests: XCTestCase {
         XCTAssertEqual(KitchenOffering.keepTags(for: KitchenOffering.rescueSurface(dayID: "x"), outcome: .made), [])
     }
 
+    func testTheKitchenOpensWithTheStory() {
+        let adapter = KitchenRecipePageSourceAdapter()
+        func offered(_ month: Int, _ day: Int) -> KitchenOffering.Offer? {
+            let now = date(month, day, hour: 10)
+            return adapter.offer(for: BookDay(id: BookDay.id(for: now), date: now, pages: []), inputs: .empty, now: now)
+        }
+        for day in 1...29 { XCTAssertNil(offered(10, day), "a recipe on 10/\(day), before the Kitchen opens") }
+        XCTAssertEqual(offered(10, 30)?.recipe.id, "soul-cakes", "the first recipe anyone meets is the soul cakes")
+    }
+
     func testAMadeRecipeIsDoneForItsWindow() {
         let made = KitchenLedger.workings(in: days([kept("soul-cakes", .made, on: date(10, 31))]))
         XCTAssertNotEqual(offer(on: date(11, 1), workings: made)?.recipe.id, "soul-cakes")

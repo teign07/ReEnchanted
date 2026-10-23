@@ -130,7 +130,7 @@ final class LeafInvitationTests: XCTestCase {
 }
 
 /// Leaf purpose stays the same across devices, content lengths and Page states.
-final class LeafPresentationTests: XCTestCase {
+final class LeafPresentationContractTests: XCTestCase {
     private func page(_ type: BookPageType, body: String = "A small beginning.", metadata: [String: String] = [:]) -> SurfacePage {
         SurfacePage(id: "leaf-contract", type: type, sourceID: "probe", score: 10,
             prompt: "A question", detail: "A little context",
