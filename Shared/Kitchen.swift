@@ -11,7 +11,7 @@ import Foundation
 
 /// Which shelf a recipe sits on in the Kitchen.
 enum KitchenShelf: String, Codable, CaseIterable, Equatable {
-    /// Somebody's own kitchen, set down faithfully: Family recipe contributor's binder.
+    /// Somebody's own kitchen, set down faithfully: Gayle O'Brien's binder.
     case inherited
     /// *The Middlemost Cookery* and the Academy's own: the story's recipes.
     case cookery
@@ -43,7 +43,7 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
     var id: String
     var title: String
     var shelf: KitchenShelf
-    /// Whose it is: "Family recipe contributor", "The Middlemost Cookery".
+    /// Whose it is: "Gayle O'Brien, Mom", "The Middlemost Cookery".
     var credit: String?
     /// One line over the recipe: Ambrose's, or the Book's.
     var line: String
@@ -316,7 +316,7 @@ enum KitchenOffering {
             return Offer(recipe: recipe, reason: .weather)
         }
 
-        // 4. Family recipe contributor's first on ordinary days, then the rest of the shelf. Never
+        // 4. Gayle's first on ordinary days, then the rest of the shelf. Never
         // the same recipe twice in a row of offered days if there's a choice.
         let inherited = fresh.filter { $0.shelf == .inherited }
         let unmadeInherited = inherited.filter { lastMade($0.id) == nil }
@@ -607,7 +607,7 @@ enum KitchenRoom {
         return line
     }
 
-    /// The whole room: Family recipe contributor's first, then the days, the Cookery, and what the reader rescued.
+    /// The whole room: Gayle's first, then the days, the Cookery, and what the reader rescued.
     static func sections(days: [BookDay], now: Date, recipes: [KitchenRecipe] = KitchenRecipeRegistry.all,
                          calendar: Calendar = .current) -> [KitchenShelfSection] {
         let workings = KitchenLedger.workings(in: days)

@@ -264,7 +264,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
 
 - 👤 Notes on the eight scenes.
 - ✅ Trencher and Boggle: yes (written into scenes 2, 7, 8).
-- ✅ Credit: "Family recipe contributor". 👤 Photos of the typed binder (no photos ship).
+- ✅ Credit: "Gayle O'Brien, Mom". 👤 Photos of the typed binder (no photos ship).
 - ✅ The Hob's name: Aiken Drum, revealed only if he stays. He joins the Cast as The Guest on
   introduction, with the same ID after the name reveal (runtime 12; Rabbit validation pending).
 - 👤 Scope and timing: short foreshadow, or two drops (§0).

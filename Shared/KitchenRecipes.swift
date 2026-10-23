@@ -5,10 +5,10 @@ import Foundation
 /// Every quantity here comes from a tested, widely published version of the
 /// dish and is never adjusted for prose (house laws 1, 4 and 5 in
 /// docs/kitchen-november-pack.md). Allergens are named in the ingredient line
-/// and listed. Family recipe contributor's are transcribed from her binder, word for word,
+/// and listed. Gayle O'Brien's are transcribed from her binder, word for word,
 /// with her own notes kept as she wrote them.
 enum KitchenRecipeRegistry {
-    static let gayle = "Family recipe contributor"
+    static let gayle = "Gayle O'Brien, Mom"
     static let cookery = "The Middlemost Cookery"
 
     /// Recipes a monthly pack posted (`PageArchetypePack.recipes`).
@@ -331,7 +331,7 @@ enum KitchenRecipeRegistry {
         ),
     ]
 
-    // MARK: Family recipe contributor
+    // MARK: Gayle O'Brien, Mom
     //
     // Transcribed from her binder. Filled in from bj's photos; nothing here
     // until it's been set down word for word.

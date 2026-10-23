@@ -10,7 +10,7 @@ Agreed with the project owner 2026-10-19. The long plan and the house laws are i
   runtime 12 for The Guest's Cast role. Install the matching app before publishing that pack.
 - **The recipes live in the app,** not the monthly pack, so they never retire with a month. A later
   pack can add more (`PageArchetypePack.recipes`, read the same way).
-- **Family recipe contributor's recipes ship for everybody,** credited as **"Family recipe contributor"**. They're
+- **Gayle O'Brien's recipes ship for everybody,** credited as **"Gayle O'Brien, Mom"**. They're
   transcribed from her typed binder (the project owner sends photos; no photos ship in the app). They're never
   story machinery and never the magic dish.
 - **The tally never gates an ending.** Made recipes restore *The Middlemost Cookery*'s letters; the
@@ -29,14 +29,14 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
     var id: String
     var title: String
     var shelf: KitchenShelf          // .inherited / .cookery / .custom / .rescued
-    var credit: String?              // "Family recipe contributor"; "The Middlemost Cookery"; "All Souls, England"
+    var credit: String?              // "Gayle O'Brien, Mom"; "The Middlemost Cookery"; "All Souls, England"
     var line: String                 // one line: Ambrose's, or the Book's
     var makes: String?               // "about 20", "4 bowls"
     var minutes: Int?
     var ingredients: [String]        // as written; allergens named in the line
     var allergens: [String]          // "milk", "egg", "wheat", ... for the row and the Page
     var steps: [String]
-    var cookNote: String?            // the source's own note, word for word (Family recipe contributor's margin)
+    var cookNote: String?            // the source's own note, word for word (Gayle's margin)
     var window: KitchenWindow?       // pinned days, e.g. Oct 31 to Nov 2 for soul cakes
     var months: [Int]?               // in season; nil is any time
     var weatherTags: [String]?       // "cold", "rain"... (RadioPageContext tags)
@@ -64,13 +64,13 @@ At most one Recipe Page a day, deterministic for the day:
 2. **A re-offer:** a recipe offered more than four days ago and never made. Ambrose puts it down again
    ("I gave you this on the 3rd.") rather than nagging.
 3. **The weather:** cold or rain brings soup.
-4. **Otherwise Family recipe contributor's** on ordinary days, then the rest of the shelf.
+4. **Otherwise Gayle's** on ordinary days, then the rest of the shelf.
 
 A recipe made in the last five days rests. "Not yet" counts as offered, not made.
 
 ### 4. The Kitchen (`BookObjectDivision.kitchen`)
 
-A room in the contents, after the Bestiary. Three shelves: **Family recipe contributor**, ***The Middlemost
+A room in the contents, after the Bestiary. Three shelves: **Gayle O'Brien, Mom**, ***The Middlemost
 Cookery*** (story and custom recipes) and **Rescued** (the reader's own). Each row: the title, how
 many times it's been made, the last time ("Made 3 times. Last on 12 November, in the rain."), and the
 reader's notes. A row opens the recipe as a Page, to make it again. **Rescue a recipe** sits at the
@@ -113,7 +113,7 @@ three failures found by the full run; see the Cast handoff for the exact verific
   while the event runs; drawers for recipes made and rescued).
 - ✅ Packs can post recipes (`PageArchetypePack.recipes`), installed at launch with the undertakings.
 - ✅ Aiken Drum named in the Stay ending and the December scene; Trencher and Boggle written in.
-- ⬜ **Family recipe contributor's recipes:** waiting for the binder photos. They go in
+- ⬜ **Gayle O'Brien's recipes:** waiting for the binder photos. They go in
   `KitchenRecipeRegistry.inherited`, word for word, with her notes as `cookNote`.
 - ✅ **The Guest as Cast:** implementation, portrait and native regression checks complete for
   runtime 12. Release installed/launched on Rabbit; hands-on story and illustration QA remains.
@@ -131,6 +131,6 @@ three failures found by the full run; see the Cast handoff for the exact verific
 4. The Kitchen room in the contents.
 5. The Cookery count in the Bleed and on Book Today.
 6. The corpus: the story's recipes (soul cakes, parkin, bonfire toffee, Martinmas bread, stone soup,
-   soda bread, leek and potato soup, Christmas pudding, the Hob's bowl), then Family recipe contributor's from the binder.
+   soda bread, leek and potato soup, Christmas pudding, the Hob's bowl), then Gayle's from the binder.
 7. Aiken Drum: pack text, then the entity.
 8. A build on Rabbit by about Oct 30.

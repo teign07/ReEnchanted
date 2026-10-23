@@ -86,7 +86,7 @@ The worker update remains a separate reviewed deployment, including the later pr
 - **Pending on Rabbit:** meet the Guest; open his map marker and Cast page; inspect the full
   illustration, memory and relationship sections; confirm no name before Stay; exercise all three
   endings in a rehearsal save; restart; confirm the same identity and correct Kitchen presence.
-- **Pending separately:** the rest of November's art, recorded radio, Family recipe contributor's transcribed recipes,
+- **Pending separately:** the rest of November's art, recorded radio, Gayle's transcribed recipes,
   scene review and publication. The broader Serenity memory-surrender feature remains separate;
   this Cast addition doesn't implement it.
 
