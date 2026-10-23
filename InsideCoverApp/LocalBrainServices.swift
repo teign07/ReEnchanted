@@ -4382,7 +4382,8 @@ extension PhotoAnalysis {
             souvenirCandidates: [
                 "This moment returned because the present recognized it.",
                 "The season found an earlier page still carrying its light."
-            ]
+            ],
+            usesFallbackMarginalia: true
         ))
     }
 }
@@ -6448,41 +6449,50 @@ struct BleedInterestSearcher {
         for interest: String, previouslyPrintedURLs: Set<String>, now: Date = Date()
     ) async -> BleedNewsArticle? {
         var candidates: [BleedNewsCandidate] = []
-        if let url = BleedInterestNewsDesk.searchURL(for: interest), let html = await page(at: url) {
+        // Prefer the structured feed: the HTML news-card attributes are not a
+        // stable discovery contract and are absent from some search responses.
+        if let url = BleedInterestNewsDesk.feedURL(for: interest), let feed = await page(at: url) {
+            candidates = BleedInterestNewsDesk.candidates(from: feed.text, interest: interest)
+        }
+        if candidates.isEmpty,
+           let url = BleedInterestNewsDesk.searchURL(for: interest), let html = await page(at: url) {
             candidates = BleedInterestNewsDesk.candidates(from: html.text, interest: interest)
         }
-        if candidates.isEmpty {
-            // Ordinary search is discovery only. A result still needs a dated,
-            // readable publisher article; a search snippet cannot become copy.
-            candidates = await WebSearchFallback().clippings(for: "\(interest) latest news research discovery", limit: 4)
-                .compactMap { clipping in
-                    guard let url = URL(string: clipping.sourceURL), BleedInterestNewsDesk.validPublisherURL(url) else { return nil }
-                    return BleedNewsCandidate(headline: clipping.fact, url: url, sourceName: clipping.sourceName)
-                }
-        }
         let used = Set(previouslyPrintedURLs.compactMap(URL.init(string:)).map(BleedInterestNewsDesk.canonicalURL))
-        let freshCandidates = candidates.filter { !used.contains(BleedInterestNewsDesk.canonicalURL($0.url)) }
-        var articles: [BleedNewsArticle] = []
-        // At most four publisher reads, two in flight. Stop before fetching the
-        // next pair when a useful, current article has already earned the desk.
-        for offset in stride(from: 0, to: min(4, freshCandidates.count), by: 2) {
-            let pair = Array(freshCandidates.dropFirst(offset).prefix(2))
-            let fetched = await withTaskGroup(of: BleedNewsArticle?.self) { group in
-                for candidate in pair {
-                    group.addTask {
-                        guard let page = await self.page(at: candidate.url) else { return nil }
-                        return BleedInterestNewsDesk.article(from: page.text, candidate: candidate, resolvedURL: page.url)
-                    }
+        let fresh = candidates.filter { !used.contains(BleedInterestNewsDesk.canonicalURL($0.url)) }
+        let firstPair = Array(fresh.prefix(2))
+        let firstArticles = await read(firstPair)
+        if let chosen = BleedInterestNewsDesk.choose(from: firstArticles, interest: interest,
+            previouslyPrintedURLs: previouslyPrintedURLs, now: now) { return chosen }
+
+        // Unreadable, old or unsuitable publisher pages also need discovery
+        // fallback. Merely finding search results used to disable this route.
+        let searched = await WebSearchFallback().clippings(for: "\(interest) latest news research discovery", limit: 4)
+        let attempted = Set(firstPair.map { BleedInterestNewsDesk.canonicalURL($0.url) })
+        var seen = attempted.union(used)
+        let alternates = searched.compactMap { clipping -> BleedNewsCandidate? in
+            guard let url = BleedInterestNewsDesk.publisherURL(clipping.sourceURL),
+                  seen.insert(BleedInterestNewsDesk.canonicalURL(url)).inserted else { return nil }
+            return BleedNewsCandidate(headline: clipping.fact, url: url, sourceName: clipping.sourceName)
+        } + fresh.dropFirst(2).filter { seen.insert(BleedInterestNewsDesk.canonicalURL($0.url)).inserted }
+        // Four publisher reads total per subject, with two in flight.
+        let articles = firstArticles + (await read(Array(alternates.prefix(2))))
+        return BleedInterestNewsDesk.choose(from: articles, interest: interest,
+            previouslyPrintedURLs: previouslyPrintedURLs, now: now)
+    }
+
+    private func read(_ candidates: [BleedNewsCandidate]) async -> [BleedNewsArticle] {
+        await withTaskGroup(of: BleedNewsArticle?.self) { group in
+            for candidate in candidates {
+                group.addTask {
+                    guard let page = await self.page(at: candidate.url) else { return nil }
+                    return BleedInterestNewsDesk.article(from: page.text, candidate: candidate, resolvedURL: page.url)
                 }
-                var found: [BleedNewsArticle] = []
-                for await article in group { if let article { found.append(article) } }
-                return found
             }
-            articles += fetched
-            if let chosen = BleedInterestNewsDesk.choose(from: articles, interest: interest,
-                previouslyPrintedURLs: previouslyPrintedURLs, now: now) { return chosen }
+            var articles: [BleedNewsArticle] = []
+            for await article in group { if let article { articles.append(article) } }
+            return articles
         }
-        return nil
     }
 
     private func page(at url: URL) async -> (text: String, url: URL)? {

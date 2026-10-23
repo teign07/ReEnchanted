@@ -141,7 +141,9 @@ enum BookKnowledgePromptBuilder {
             )
         }
 
-        entries += NarrativePackRegistry.bundledPacks.flatMap(\.entities).map { entity in
+        entries += NarrativePackRegistry.bundledPacks.flatMap(\.entities)
+            .filter { $0.id != GuestCast.entityID || GuestCast.current.introduced }
+            .map { $0.id == GuestCast.entityID ? GuestCast.current.resolving($0) : $0 }.map { entity in
             KnowledgeEntry(
                 id: "entity-\(entity.id)",
                 category: entity.kind == .character ? "Cast" : entity.kind.rawValue,
@@ -155,8 +157,11 @@ enum BookKnowledgePromptBuilder {
             KnowledgeEntry(id: "thread-\($0.id)", category: "Story thread", title: $0.title, body: $0.summary, tags: [$0.id, $0.phase.rawValue] + $0.tags)
         }
 
-        entries += NarrativePackRegistry.bundledPacks.flatMap(\.relationships).compactMap { relationship in
+        entries += NarrativePackRegistry.bundledPacks.flatMap(\.relationships)
+            .filter { ![$0.sourceEntityID, $0.targetEntityID].contains(GuestCast.entityID) || GuestCast.current.introduced }
+            .compactMap { relationship in
             let entities = NarrativePackRegistry.bundledPacks.flatMap(\.entities)
+                .map { $0.id == GuestCast.entityID ? GuestCast.current.resolving($0) : $0 }
             let source = entities.first { $0.id == relationship.sourceEntityID }?.name ?? relationship.sourceEntityID
             let target = entities.first { $0.id == relationship.targetEntityID }?.name ?? relationship.targetEntityID
             return KnowledgeEntry(
@@ -176,7 +181,8 @@ enum BookKnowledgePromptBuilder {
             KnowledgeEntry(id: "lore-\($0.id)", category: "Lore", title: $0.title, body: "\($0.prompt) \($0.body)", tags: ["lore", $0.sourceID] + $0.tags)
         }
 
-        entries += BookReferenceCatalog.characterIllustrations.map {
+        entries += BookReferenceCatalog.characterIllustrations
+            .filter { $0.slug != GuestCast.entityID || GuestCast.current.introduced }.map {
             KnowledgeEntry(
                 id: "illustration-\($0.id)",
                 category: $0.illustrationDossierKind,
@@ -579,6 +585,7 @@ enum CharacterVoiceCatalog {
         "gwendolyn-mythwright",
         "lydia-boggle",
         "ambrose-trencher",
+        GuestCast.entityID,
         "soren-ng",
         "professor-kyle-momort",
         "professor-eleanor-euphony",
@@ -932,6 +939,8 @@ enum CharacterVoiceCatalog {
                     "I have never tasted quince cooked this way. Sit down; we can be disappointed together."
                 ]
             )
+        case GuestCast.entityID:
+            return GuestCast.voice
         case "soren-ng":
             return WritingVoiceProfile(
                 register: "quiet, exact, pattern-minded; invitation concealed inside an elegant system",
@@ -1202,6 +1211,14 @@ struct CharacterVoiceEvaluationScenario: Identifiable, Equatable {
 /// one another; the hardest test is recognition after speaker names are hidden.
 enum CharacterVoiceEvaluationDeck {
     static let scenarios: [CharacterVoiceEvaluationScenario] = [
+        .init(
+            id: "guest-ambrose-second-helping",
+            characterIDs: [GuestCast.entityID, "ambrose-trencher"],
+            surface: "Story Page",
+            scene: "The Guest sits beside the range with an empty bowl. Ambrose has one ladleful left. Neither has asked a question yet. The Guest's name and history are still unknown.",
+            identificationClues: ["Ambrose feeds before explaining", "the Guest asks for a place with exact, patient courtesy"],
+            forbiddenTransfers: ["the Guest speaks like a cheerful kitchen goblin", "Ambrose gives a faerie riddle", "either reveals the Guest's name or invents a bargain"]
+        ),
         .init(
             id: "penny-wicker-misfiled-key",
             characterIDs: ["penny-blackletter", "wicker-eddies"],
@@ -3330,9 +3347,9 @@ enum NarrativePackRegistry {
             version: "0.1",
             author: "The Book",
             availability: .bundledFree,
-            entities: coreEntities + coreLocations + coreTalismans,
+            entities: coreEntities + [GuestCast.entity] + coreLocations + coreTalismans,
             threads: coreThreads,
-            relationships: coreRelationships
+            relationships: coreRelationships + GuestCast.relationships
         ),
         // Back-to-School / Dictionary Rebellion cast. Locked and gated by the
         // same "dictionary-rebellion" entitlement as the event and pages, so
@@ -3407,7 +3424,21 @@ enum NarrativePackRegistry {
     }
 
     static var entities: [NarrativeWorldEntity] {
-        enabledPacks.flatMap(\.entities)
+        let guest = GuestCast.current
+        return knownEntities(guest: guest).filter { $0.id != GuestCast.entityID || guest.isPresent() }
+    }
+
+    /// The Cast shelf remembers somebody who left. The living world above
+    /// doesn't recruit them into new scenes, letters or autonomous business.
+    static var knownEntities: [NarrativeWorldEntity] {
+        knownEntities(guest: GuestCast.current)
+    }
+
+    static func knownEntities(guest: GuestCastState) -> [NarrativeWorldEntity] {
+        return enabledPacks.flatMap(\.entities).compactMap { entity in
+            guard entity.id == GuestCast.entityID else { return entity }
+            return guest.introduced ? guest.resolving(entity) : nil
+        }
     }
 
     static var threads: [NarrativeStoryThread] {
@@ -3415,7 +3446,17 @@ enum NarrativePackRegistry {
     }
 
     static var relationships: [NarrativeRelationshipEdge] {
-        enabledPacks.flatMap(\.relationships)
+        let present = GuestCast.current.isPresent()
+        return enabledPacks.flatMap(\.relationships).filter {
+            ![$0.sourceEntityID, $0.targetEntityID].contains(GuestCast.entityID) || present
+        }
+    }
+
+    static var knownRelationships: [NarrativeRelationshipEdge] {
+        let introduced = GuestCast.current.introduced
+        return enabledPacks.flatMap(\.relationships).filter {
+            ![$0.sourceEntityID, $0.targetEntityID].contains(GuestCast.entityID) || introduced
+        }
     }
 
     private static let coreEntities: [NarrativeWorldEntity] = [
@@ -4807,6 +4848,134 @@ enum NarrativePackRegistry {
     }
 }
 
+// MARK: - The Guest joins the Cast through the story
+
+/// A projection of existing receipts and memories, never another save ledger.
+/// The staged visitor keeps its original ID when it becomes a named housemate.
+struct GuestCastState: Equatable {
+    enum Ending: String { case home, stay, court }
+    var introduced = false
+    var ending: Ending? = nil
+    var liveEndsAt: Date? = nil
+
+    var name: String { ending == .stay ? "Aiken Drum" : "The Guest" }
+
+    func isPresent(at now: Date = Date()) -> Bool {
+        guard introduced else { return false }
+        if let ending { return ending == .stay }
+        return liveEndsAt.map { now < $0 } ?? false
+    }
+
+    func resolving(_ original: NarrativeWorldEntity) -> NarrativeWorldEntity {
+        var entity = original
+        entity.name = name
+        if ending == .stay {
+            entity.traits = ["particular", "industrious", "watchful", "learning to belong"]
+            entity.faults = ["takes a household rule literally even when somebody needs an exception", "does a job again instead of admitting it wants company"]
+            entity.goals = ["keep the Academy's pots and the nightly bowl", "learn the habits of a house that has asked it to stay", "never invent a new bargain or rewrite the Reader's November choices"]
+            entity.tags += ["household-hob", "resident"]
+            entity.tags.removeAll { $0 == "visitor" }
+        } else if let ending {
+            entity.traits += ["remembered, absent from the Academy"]
+            entity.goals = [ending == .home
+                ? "The Reader sent it home through the west door; it is absent now."
+                : "The Reader let it go back to the Court; it is absent now.",
+                "Do not invent a return, new conversation, letter, or household work after its departure."]
+            entity.tags += ["departed"]
+        }
+        return entity
+    }
+
+    static func resolve(receipts: AuthoredContentReceiptLedger, memories: CastStoryMemoryLedger,
+                        now: Date = Date(), calendar: Calendar = .current) -> Self {
+        let seenStates: Set<AuthoredContentReceiptState> = [.opened, .acted, .kept, .completed, .nodeCompleted, .reported, .concluded]
+        let seen = receipts.receipts.filter {
+            $0.recordedAt <= now && $0.channel == .storyScene && seenStates.contains($0.state)
+                && $0.contentID.hasPrefix("the-guest.scene.")
+        }
+        let known = memories.memories.filter {
+            $0.happenedAt <= now && $0.frozenAt <= now && $0.runID.hasPrefix("the-guest:")
+                && $0.key != "the-guest.soul-cakes.forty"
+        }
+        guard !seen.isEmpty || !known.isEmpty else { return Self() }
+        let latestRun = (seen.compactMap { r in r.scope.runID.map { ($0, r.recordedAt) } }
+            + known.map { ($0.runID, $0.happenedAt) }).max { $0.1 < $1.1 }?.0
+        let inRun = seen.filter { latestRun == nil || $0.scope.runID == latestRun }
+        let runMemories = known.filter { latestRun == nil || $0.runID == latestRun }
+        // Delivery, a report and hearsay cannot choose the Reader's ending.
+        let committed: Set<AuthoredContentReceiptState> = [.acted, .kept, .completed, .nodeCompleted, .concluded]
+        let choice = inRun.filter {
+            $0.contentID == "the-guest.scene.the-bowl" && committed.contains($0.state)
+                && ["send-home", "ask-to-stay", "let-it-go-back"].contains($0.choiceID ?? "")
+        }.max { $0.recordedAt < $1.recordedAt }?.choiceID
+        let choices: [String: Ending] = ["send-home": .home, "ask-to-stay": .stay, "let-it-go-back": .court]
+        let keys: [String: Ending] = ["the-guest.bowl.sent-home": .home, "the-guest.bowl.stayed": .stay,
+                                      "the-guest.bowl.went-back": .court]
+        let witnessed = runMemories.filter { $0.witness == .withReader && keys[$0.key] != nil }
+            .max { $0.happenedAt < $1.happenedAt }
+        let ending = choice.flatMap { choices[$0] } ?? witnessed.flatMap { keys[$0.key] }
+        let year = latestRun?.split(separator: ":").last.flatMap { Int($0) }
+            ?? calendar.component(.year, from: seen.first?.recordedAt ?? known[0].happenedAt)
+        let start = calendar.date(from: DateComponents(year: year, month: 11, day: 1))
+        return Self(introduced: true, ending: ending,
+                    liveEndsAt: start.flatMap { calendar.date(byAdding: .day, value: 30, to: $0) })
+    }
+}
+
+enum GuestCast {
+    static let entityID = "visitor-the-guest"
+    static let assetName = "LabyrinthCharacterTheGuest"
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var state = GuestCastState()
+    static var current: GuestCastState {
+        get { lock.lock(); defer { lock.unlock() }; return state }
+        set { lock.lock(); defer { lock.unlock() }; state = newValue }
+    }
+
+    static func synchronize(with vault: PlayerVaultData, now: Date = Date()) {
+        current = .resolve(receipts: vault.authoredContentReceipts ?? .empty,
+                           memories: vault.castStoryMemories ?? .empty, now: now)
+    }
+
+    static let voice = WritingVoiceProfile(
+        register: "quiet, old, exact; a guest who has learned to ask for very little",
+        rhythm: "short courteous statements, patient pauses, a concrete household noun where an explanation ought to be",
+        diction: ["bowl", "house", "enough", "cold", "pots", "keep"],
+        habits: ["asks before occupying a place", "notices a pan's condition before a person's rank", "takes food in small careful bites"],
+        avoid: ["cute goblin patter", "thanking a host", "revealing an unrevealed name or allegiance", "inventing bargains or powers outside the authored story", "claiming to have returned after leaving"],
+        exemplars: ["There's a place by the fire. Is it taken?", "The pot wasn't clean. It is now.", "Enough. If there's enough."])
+
+    static let entity = NarrativeWorldEntity(
+        id: entityID, packID: NarrativePackRegistry.corePackID, name: "The Guest", kind: .character,
+        belief: 18, narrativeWeight: 16, chapter: nil,
+        unwrittenInterest: "The shape a hand wears into a spoon, the smallest bowl in a cupboard, the sound of a house after everybody sleeps, and whether a place laid at a table is really meant for you.",
+        traits: ["patient", "scrupulously polite", "watchful", "hungry"],
+        quirks: ["wears an oversized wet green coat with brass buttons", "keeps its face under its hood and its hands very clean", "eats without dropping a crumb", "scrubs already-clean pots after dark", "never says thank you"],
+        faults: ["can't leave a household task unfinished", "takes hospitality literally", "accepts another helping before asking what the house can spare"],
+        beliefs: ["a place offered at a hearth means something", "the work of a house matters even when nobody sees it"],
+        goals: ["keep the terms of the house it has entered", "find a place beside the fire", "let only the authored November scenes reveal its history, name, bargain and ending"],
+        tags: ["character", "the-guest", "kitchens", "hearth", "food", "household", "hospitality", "visitor", "active-cast"],
+        writingVoice: voice)
+
+    static let relationships: [NarrativeRelationshipEdge] = [
+        edge("ambrose-trencher", .care, 17, 10, 12, "Ambrose fed it before asking a question. It watches his hands at the range and returns each pot cleaner than he left it. He keeps giving it a second helping."),
+        edge("lydia-boggle", .stewardship, 13, 8, 12, "Boggle notices the housework nobody saw happen. She keeps the household's rules and watches whether the Guest keeps them too."),
+        edge("serenity-brown", .attention, 8, 16, 6, "Serenity first watched the Guest over a plate she couldn't taste. It watched her back. Neither mistook the other's silence for comfort. The authored Offer alone decides what passes between them; never infer her answer."),
+        edge("min-seo-kim", .care, 13, 6, 10, "Min-seo is a student. While everyone else asks what the Guest is, she asks what it needs. It listens to the question before answering."),
+        edge("dr-vellum", .tension, 5, 16, 5, "Vellum wants to examine it. The Guest keeps its hands folded. Ambrose insists that being curious about a guest doesn't give anybody leave to experiment on it."),
+        edge("headmistress-thorne", .tension, 4, 17, 6, "Thorne won't eat in a room where the Guest sits. It never asks why. The Book can't tell whether she knows too much or is afraid of knowing more."),
+        edge("penny-blackletter", .attention, 6, 10, 8, "Penny counts the Cookery's letters and records what the Guest actually does. It lets her count. Neither supplies the explanation the other is waiting for."),
+        edge("the-book", .tension, 4, 16, 5, "The Book can't smell the Guest through its paper. It keeps its leaves close after dark and watches the clean hands from the table's far end.")
+    ]
+
+    private static func edge(_ other: String, _ kind: NarrativeRelationshipKind, _ warmth: Int,
+                             _ tension: Int, _ trust: Int, _ note: String) -> NarrativeRelationshipEdge {
+        NarrativeRelationshipEdge(id: "guest-and-\(other)", packID: NarrativePackRegistry.corePackID,
+            sourceEntityID: entityID, targetEntityID: other, kind: kind, warmth: warmth,
+            tension: tension, trust: trust, narrativeWeight: 15, note: note, tags: ["the-guest", "household", "hospitality"])
+    }
+}
+
 enum NarrativeEventResolver {
     static func events(
         forKept page: BookPage,
@@ -5219,6 +5388,11 @@ enum NarrativeEventResolver {
             // moves the ordinary-magic thread the same way a feast does.
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2
+        case .recipe:
+            // Something made in a real kitchen. Ambrose is the one who notices.
+            entityDeltas["ambrose-trencher", default: 0] += 2
+            threadDeltas["ordinary-magic", default: 0] += 1
+            createdHint = "A recipe made in the reader's own kitchen puts something back on the table that was missing."
         case .festival:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2

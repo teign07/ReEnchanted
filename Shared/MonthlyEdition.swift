@@ -68,6 +68,7 @@ struct BoundReaderRole: Codable, Equatable {
     /// than to a blank page.
     var patronPlateAssetName: String? {
         guard let patronSlug, !patronSlug.isEmpty else { return nil }
+        if patronSlug == GuestCast.entityID { return GuestCast.assetName }
         let pascal = patronSlug
             .split(separator: "-")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
@@ -959,6 +960,7 @@ enum CastMarginalia {
     /// blank page.
     static func plateAssetName(forSlug slug: String) -> String? {
         guard !slug.isEmpty else { return nil }
+        if slug == GuestCast.entityID { return GuestCast.assetName }
         if let asset = KeepMarginalia.voice(forSlug: slug)?.asset { return asset }
         let pascal = slug
             .split(separator: "-")

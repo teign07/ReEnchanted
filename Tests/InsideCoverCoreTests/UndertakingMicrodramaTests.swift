@@ -430,7 +430,7 @@ final class UndertakingMicrodramaTests: XCTestCase {
         XCTAssertEqual(serial.runLength, 1)
     }
 
-    func testTheSerialStaysBounded() {
+    func testAuthoredCompletionNeverExpiresAfterMoreThanEightyScenes() throws {
         var serial = UndertakingSerial()
         for index in 0..<400 {
             serial.met(
@@ -440,14 +440,94 @@ final class UndertakingMicrodramaTests: XCTestCase {
                 at: start
             )
         }
-        XCTAssertEqual(serial.rememberedBeats.count, UndertakingSerial.rememberedBeatLimit)
-        XCTAssertEqual(serial.rememberedStoryBeats.count, UndertakingSerial.rememberedBeatLimit)
-        // The most recent beats are the ones worth keeping.
-        XCTAssertTrue(serial.hasMet(undertakingID: "thread-399", stageIndex: 4))
-        XCTAssertFalse(serial.hasMet(undertakingID: "thread-0", stageIndex: 0))
+        let restored = try JSONDecoder().decode(UndertakingSerial.self, from: JSONEncoder().encode(serial))
+        XCTAssertEqual(restored.rememberedBeats.count, 400)
+        XCTAssertEqual(restored.rememberedStoryBeats.count, 400)
+        XCTAssertTrue(restored.hasMet(undertakingID: "thread-399", stageIndex: 4))
+        XCTAssertTrue(restored.hasMet(undertakingID: "thread-0", stageIndex: 0))
+        XCTAssertTrue(restored.hasMetStoryBeat("actor-0#stage-0"))
     }
 
     // MARK: - What the reader actually gets
+
+    func testResolvedAmbroseSceneCannotReturnFromPreparedGossipOrAside() throws {
+        var inputs = BookSourceInputs.empty
+        let ambrose = try XCTUnwrap(CastUndertakingEngine.seeded(existing: [], now: start)
+            .first { $0.actorID == "ambrose-trencher" })
+        inputs.castUndertakings = [ambrose]
+        let scene = try XCTUnwrap(GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: start))
+        XCTAssertTrue(scene.payload.body.contains("radiator"))
+        let aside = BookAsideForm.draft(from: scene)
+        inputs.undertakingSerial.met(metadata: aside.payload.metadata, undertakings: [ambrose], at: start)
+        let restored = try JSONDecoder().decode(UndertakingSerial.self,
+                                               from: JSONEncoder().encode(inputs.undertakingSerial))
+        inputs.undertakingSerial = restored
+        let later = days(200)
+        let day = BookDay(id: BookDay.id(for: later), date: later, pages: [])
+        inputs.preparedGossipPageSurface = scene
+        XCTAssertTrue(GossipPageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: later
+        ).isEmpty)
+        inputs.preparedGossipPageSurface = aside
+        XCTAssertTrue(BookAsidePageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: later
+        ).isEmpty)
+
+        // Keeping one scene does not retire Ambrose's next authored scene.
+        inputs.preparedGossipPageSurface = nil
+        inputs.castUndertakings[0].stageIndex = 1
+        let next = try XCTUnwrap(GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: later))
+        XCTAssertEqual(next.payload.metadata[GossipSimulationBuilder.undertakingStageIndexKey], "1")
+    }
+
+    func testLegacyKeptSceneRecoversStableIdentityAndPreservesNewerContinuation() throws {
+        let thread = try XCTUnwrap(CastUndertakingEngine.seeded(existing: [], now: start).first)
+        var inputs = BookSourceInputs.empty
+        inputs.castUndertakings = [thread]
+        let scene = try XCTUnwrap(GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: start))
+        var metadata = scene.payload.metadata
+        metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey] = nil // legacy Page
+        let kept = BookPage(type: .gossip, createdAt: start, promptText: scene.prompt,
+                            userInput: scene.payload.body, sourceID: scene.sourceID, metadata: metadata)
+        let day = BookDay(id: BookDay.id(for: start), date: start, pages: [kept])
+        var serial = UndertakingSerial()
+        serial.met(undertakingID: "newer-thread", stageIndex: 2, at: days(5))
+        let recovered = serial.recoveringResolvedPages(days: [day], events: [], undertakings: [thread])
+        XCTAssertTrue(recovered.hasMet(metadata: scene.payload.metadata))
+        XCTAssertTrue(recovered.hasMetStoryBeat(try XCTUnwrap(
+            scene.payload.metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey]
+        )))
+        XCTAssertEqual(recovered.lastThreadID, "newer-thread")
+        XCTAssertEqual(recovered.lastMetAt, days(5))
+        XCTAssertEqual(recovered.recoveringResolvedPages(
+            days: [day], events: [], undertakings: [thread]
+        ), recovered)
+    }
+
+    func testLegacyRipRetiresOnlyTheExactAuthoredScene() throws {
+        let thread = try XCTUnwrap(CastUndertakingEngine.seeded(existing: [], now: start).first)
+        var inputs = BookSourceInputs.empty
+        inputs.castUndertakings = [thread]
+        let scene = try XCTUnwrap(GossipSimulationBuilder.undertakingCandidate(inputs: inputs, now: start))
+        func event(_ action: ReaderLearningAction) -> ReaderLearningEvent {
+            ReaderLearningEvent(dayID: BookDay.id(for: start), occurredAt: start, action: action,
+                                surfaceID: scene.id, sourceID: scene.sourceID, type: scene.type,
+                                varietyKey: scene.varietyKey, hour: 12)
+        }
+        XCTAssertEqual(UndertakingSerial().recoveringResolvedPages(
+            days: [], events: [event(.surfaced), event(.opened)], undertakings: [thread]
+        ), UndertakingSerial())
+        let recovered = UndertakingSerial().recoveringResolvedPages(
+            days: [], events: [event(.dismissed)], undertakings: [thread]
+        )
+        XCTAssertTrue(recovered.hasMet(metadata: scene.payload.metadata))
+        XCTAssertFalse(recovered.hasMet(undertakingID: thread.id, stageIndex: 1))
+        var asideRip = event(.dismissed)
+        asideRip.surfaceID = BookAsideForm.draft(from: scene).id
+        XCTAssertTrue(UndertakingSerial().recoveringResolvedPages(
+            days: [], events: [asideRip], undertakings: [thread]
+        ).hasMet(metadata: scene.payload.metadata))
+    }
 
     func testAWorldBusinessPageDoesNotLabelItsResidue() {
         var inputs = BookSourceInputs.empty

@@ -334,7 +334,7 @@ final class BleedDailyEditionTests: XCTestCase {
         XCTAssertEqual(october.map(\.headline), ["The Moth Kept the Light On", "Wren Fed the Heron"])
     }
 
-    func testTodaysPaperOpensTheDareItPrintedEvenAfterTheDeskMovesOn() throws {
+    func testTodaysPaperOpensTheAssignmentItPrintedEvenAfterTheDeskMovesOn() throws {
         let inputs = inputs(days: [yesterday()])
         let today = bookDay(10, 16, [])
         let paper = try XCTUnwrap(TheBleedEditionBuilder.announcementSurface(for: today, inputs: inputs,
@@ -342,9 +342,9 @@ final class BleedDailyEditionTests: XCTestCase {
         let dareID = try XCTUnwrap(BleedDayDesk.assignedDareID(in: paper))
         XCTAssertTrue(BleedDayDesk.assignmentIsOpen(in: paper, now: date(10, 16, 15), calendar: calendar))
         XCTAssertFalse(BleedDayDesk.assignmentIsOpen(in: paper, now: date(10, 17, 9), calendar: calendar))
-        // The afternoon desk rotates its dare; the paper's door still opens the one it printed.
+        // The afternoon desk rotates; the paper retains its exact assignment family and ask.
         let opened = try XCTUnwrap(BleedDayDesk.assignmentSurface(for: paper, day: today, inputs: inputs, now: date(10, 16, 15)))
-        XCTAssertEqual(opened.payload.metadata["wickerDareID"], dareID)
+        XCTAssertEqual(BleedDayDesk.assignmentDetails(opened).id, dareID)
         XCTAssertNotNil(opened.payload.metadata["bleedAssignment"])
     }
 

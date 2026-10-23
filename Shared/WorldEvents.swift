@@ -2162,7 +2162,9 @@ enum MonthlyIssueRequestPolicy {
 }
 
 enum MonthlyIssueDeliveryPolicy {
-    static let runtimeVersion = 11
+    // 12: November's staged Guest is a story-gated Cast member, with a
+    // persistent identity, memories and a dossier before the name reveal.
+    static let runtimeVersion = 12
     static let maximumSingleAssetBytes = 180 * 1_024 * 1_024
     static let maximumInstalledBytes = 350 * 1_024 * 1_024
     static let maximumPublicationBytes = 2 * 1_024 * 1_024

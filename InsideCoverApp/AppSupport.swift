@@ -692,9 +692,16 @@ extension View {
     /// under each character the reader types. Attach it to any field the reader
     /// writes *into the Book* with, not to search boxes, addresses, or keys,
     /// which are errands rather than writing.
+    @MainActor
     func inkFeedback(text: String) -> some View {
         onChange(of: text) { old, new in
             BookFeedback.inkTick(from: old, to: new)
+            // This seam covers folio, plain Pages, replies and first writing.
+            // Loading/restoring text with no active editor is silent.
+            if PippaWordFinds.addedExclamation(before: old, after: new),
+               UIApplication.shared.reenchantedHasFocusedTextInput() {
+                BookPixieSummons.shared.readerWroteAnExclamation()
+            }
         }
     }
 }
@@ -2717,6 +2724,14 @@ private extension UIResponder {
             for: nil
         )
         return focusedTextInputCurrentResponder
+    }
+}
+
+extension UIApplication {
+    /// The shake receiver may use an idle responder slot, but must never take
+    /// focus from a text input (including one using a hardware keyboard).
+    func reenchantedHasFocusedTextInput() -> Bool {
+        UIResponder.reenchantedCurrentFirstResponder() is UIKeyInput
     }
 }
 
@@ -6007,6 +6022,7 @@ final class PlayerVault {
     private init() {
         if let bytes = try? Data(contentsOf: Self.fileURL),
            var decoded = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
+            let storedFirstRunProgress = decoded.firstRunEngaged
             // One-time seed: first-run steps used to advance on served-history
             // alone. Anyone already served a step under that rule counts as
             // engaged, so onboarding never replays for existing readers.
@@ -6025,10 +6041,23 @@ final class PlayerVault {
                     decoded.firstRunEngaged = []
                 }
             }
+            // Previously shown introductions stay retired across updates even
+            // if this vault already had the old interaction-only ledger.
+            if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
+                decoded.firstRunEngaged = FirstRunPageSequence.recordingShownGuidance(
+                    in: decoded.firstRunEngaged ?? [],
+                    history: decoded.surfaceHistory ?? [:]
+                )
+            }
             data = decoded
+            if decoded.firstRunEngaged != storedFirstRunProgress {
+                persistImmediately(decoded)
+            }
+            GuestCast.synchronize(with: decoded)
             return
         }
         data = Self.migrateFromLegacyLedgers()
+        GuestCast.synchronize(with: data)
         persistImmediately(data)
     }
 
@@ -6046,6 +6075,7 @@ final class PlayerVault {
     func mutate(_ change: (inout PlayerVaultData) -> Void) {
         var draft = data
         change(&draft)
+        GuestCast.synchronize(with: draft)
         data = draft
     }
 
@@ -6055,6 +6085,7 @@ final class PlayerVault {
         // every tap/keep/economy tick, producing visible interaction hitches.
         // Coalesce bursts and serialize the durable writes on a utility queue.
         let snapshot = data
+        GuestCast.synchronize(with: snapshot)
         let url = Self.fileURL
         persistenceLock.lock()
         persistenceRevision &+= 1
@@ -6077,6 +6108,7 @@ final class PlayerVault {
     @MainActor
     func saveDurably() async throws {
         let snapshot = data
+        GuestCast.synchronize(with: snapshot)
         let url = Self.fileURL
         persistenceLock.withLock { persistenceRevision &+= 1 }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in

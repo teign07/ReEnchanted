@@ -73,6 +73,8 @@ struct BleedColumnBrief: Codable, Equatable {
     var readerQuoteBlock: String? = nil
     var readerQuotes: [String]? = nil
     var readerForm: String? = nil
+    /// The exact outward Page printed here, including its family and local ask.
+    var assignmentPage: SurfacePage? = nil
 
     var needsLocalBrain: Bool { composedBody.isEmpty && !packet.isEmpty }
 }
@@ -92,6 +94,7 @@ struct BleedPrintRecord: Codable, Equatable {
         var worldEventRunID: String? = nil
         var undertakingID: String? = nil
         var readerForm: String? = nil
+        var assignmentPage: SurfacePage? = nil
     }
 
     static let metadataKey = "bleedPrintRecord"
@@ -497,21 +500,14 @@ enum BleedNewsroom {
             briefs.append(academy)
         }
         if let interest, inputs.allowsPersonalizedWebResearch {
-            let previous = history.flatMap(\.items).first { $0.storyID == "interest:\(interest.lowercased())" }
-            briefs.append(BleedColumnBrief(
-                id: "interest-desk", title: kind == .morning ? "Worth a look: \(interest)" : "A good read: \(interest)",
-                byline: "selected by Penny Blackletter", composedBody: "",
-                packet: TheBleedEditionBuilder.interestPacket(interest: interest, kind: kind)
-                    + (previous.map { "\nALREADY PRINTED; choose a different finding, or omit the column:\n\($0.body)" } ?? ""),
-                maxTokens: 260, storyID: "interest:\(interest.lowercased())", researchQuery: interest
-            ))
+            briefs.append(interestBrief(interest: interest, kind: kind, history: history))
         }
         // A puzzle made from the Reader's own week, when there's a week to make it from.
         let diversion = BleedDayDesk.wordPuzzle(kind: kind, day: day, inputs: inputs, now: now,
                                                 calendar: calendar, history: history)
             ?? BleedDiversions.selection(kind: kind, now: now, calendar: calendar, history: history)
         briefs.append(diversion)
-        if let assignment = BleedDayDesk.assignment(kind: kind, day: day, inputs: inputs, now: now) {
+        if let assignment = BleedDayDesk.assignment(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar) {
             briefs.append(assignment)
         } else if kind == .morning, let invitation = BleedDiversions.invitation(now: now, calendar: calendar, history: history) {
             briefs.append(invitation)
@@ -520,6 +516,17 @@ enum BleedNewsroom {
             briefs.append(stop)
         }
         return briefs
+    }
+
+    static func interestBrief(interest: String, kind: BleedEditionKind, history: [BleedPrintRecord]) -> BleedColumnBrief {
+        let previous = history.flatMap(\.items).first { $0.storyID == "interest:\(interest.lowercased())" }
+        return BleedColumnBrief(
+            id: "interest-desk", title: kind == .morning ? "Worth a look: \(interest)" : "A good read: \(interest)",
+            byline: "selected by Penny Blackletter", composedBody: "",
+            packet: TheBleedEditionBuilder.interestPacket(interest: interest, kind: kind)
+                + (previous.map { "\nALREADY PRINTED; choose a different finding, or omit the column:\n\($0.body)" } ?? ""),
+            maxTokens: 260, storyID: "interest:\(interest.lowercased())", researchQuery: interest
+        )
     }
 }
 
@@ -708,6 +715,7 @@ enum BleedIssueCurator {
         for brief in ranked where desk(brief) != .practical {
             let section = desk(brief)
             let protected = brief.id.hasPrefix("authored-")
+                || (brief.id == "interest-desk" && brief.newsHeadline != nil && counts[.outside, default: 0] == 0)
             let limit = section == .world || section == .pleasure || section == .letters || section == .front ? 2 : 1
             // The front page never counts against the paper's features.
             let featureCount = selected.filter { desk($0) != .front }.count
@@ -925,6 +933,24 @@ enum BleedInterestNewsDesk {
         return components?.url
     }
 
+    static func feedURL(for interest: String) -> URL? {
+        guard let search = searchURL(for: interest),
+              var parts = URLComponents(url: search, resolvingAgainstBaseURL: false) else { return nil }
+        parts.queryItems = (parts.queryItems ?? []) + [URLQueryItem(name: "format", value: "rss")]
+        return parts.url
+    }
+
+    /// News feeds link through a click tracker. Only the embedded publisher
+    /// URL is evidence; search-provider pages never become article sources.
+    static func publisherURL(_ raw: String) -> URL? {
+        guard let url = URL(string: clean(raw)) else { return nil }
+        if let host = url.host?.lowercased(), host == "bing.com" || host.hasSuffix(".bing.com"),
+           let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
+           let destination = parts.queryItems?.first(where: { $0.name == "url" })?.value,
+           let publisher = URL(string: destination), validPublisherURL(publisher) { return publisher }
+        return validPublisherURL(url) ? url : nil
+    }
+
     static func canonicalURL(_ url: URL) -> String {
         var parts = URLComponents(url: url, resolvingAgainstBaseURL: false)
         parts?.fragment = nil
@@ -939,16 +965,28 @@ enum BleedInterestNewsDesk {
 
     static func candidates(from html: String, interest: String) -> [BleedNewsCandidate] {
         var seen = Set<String>()
-        return matches(#"<div\b[^>]*\bclass\s*=\s*["'][^"']*\bnews-card\b[^"']*["'][^>]*>"#, in: html)
+        let feed = matches(#"<item\b[^>]*>([\s\S]*?)</item>"#, in: html, group: 1)
+            .compactMap { item -> BleedNewsCandidate? in
+                guard let rawTitle = matches(#"<title\b[^>]*>([\s\S]*?)</title>"#, in: item, group: 1).first,
+                      let rawURL = matches(#"<link\b[^>]*>([\s\S]*?)</link>"#, in: item, group: 1).first,
+                      let url = publisherURL(rawURL) else { return nil }
+                let headline = clean(rawTitle.replacingOccurrences(of: "<![CDATA[", with: "").replacingOccurrences(of: "]]>", with: ""))
+                guard !isBackground(headline), !unwantedStockTip(headline, interest: interest),
+                      seen.insert(canonicalURL(url)).inserted else { return nil }
+                let source = matches(#"<source\b[^>]*>([\s\S]*?)</source>"#, in: item, group: 1).first.map(clean)
+                return BleedNewsCandidate(headline: headline, url: url, sourceName: source ?? url.host ?? "Publisher")
+            }
+        let cards = matches(#"<div\b[^>]*\bclass\s*=\s*["'][^"']*\bnews-card\b[^"']*["'][^>]*>"#, in: html)
             .compactMap { tag -> BleedNewsCandidate? in
                 let attrs = attributes(tag)
                 guard let headline = attrs["data-title"], !isBackground(headline),
                       !unwantedStockTip(headline, interest: interest),
-                      let raw = attrs["data-url"], let url = URL(string: raw),
-                      validPublisherURL(url), seen.insert(canonicalURL(url)).inserted else { return nil }
+                      let raw = attrs["data-url"], let url = publisherURL(raw),
+                      seen.insert(canonicalURL(url)).inserted else { return nil }
                 return BleedNewsCandidate(headline: headline, url: url,
                     sourceName: attrs["data-author"] ?? url.host ?? "Publisher")
-            }.sorted {
+            }
+        return (feed + cards).sorted {
                 let left = candidateValue($0, interest: interest)
                 let right = candidateValue($1, interest: interest)
                 if left != right { return left > right }
@@ -971,12 +1009,16 @@ enum BleedInterestNewsDesk {
         let json = structured.first
         // A search filter is not evidence of publication. Only the publisher's
         // actual datePublished/published_time is accepted, never dateModified.
-        guard let stamp = (json?["datePublished"] as? String) ?? meta["article:published_time"] ?? meta["datepublished"],
+        let timeTag = matches(#"<time\b[^>]*\bitemprop\s*=\s*["']datePublished["'][^>]*>"#, in: html).first
+        let timeStamp = timeTag.flatMap { attributes($0)["datetime"] }
+        guard let stamp = (json?["datePublished"] as? String) ?? meta["article:published_time"]
+                ?? meta["datepublished"] ?? meta["parsely-pub-date"] ?? timeStamp,
               let published = publicationDate(stamp) else { return nil }
         let headline = clean(meta["og:title"] ?? (json?["headline"] as? String) ?? candidate.headline)
         guard !isBackground(headline) else { return nil }
         let articleHTML = matches(#"<article\b[^>]*>([\s\S]*?)</article>"#, in: html, group: 1).first
-        let mainHTML = articleHTML ?? matches(#"<main\b[^>]*>([\s\S]*?)</main>"#, in: html, group: 1).first
+        let articleBody = matches(#"<div\b[^>]*\bitemprop\s*=\s*["']articleBody["'][^>]*>([\s\S]*?)</div>"#, in: html, group: 1).first
+        let mainHTML = articleHTML ?? articleBody ?? matches(#"<main\b[^>]*>([\s\S]*?)</main>"#, in: html, group: 1).first
         let paragraphs = mainHTML.map {
             matches(#"<p\b[^>]*>([\s\S]*?)</p>"#, in: $0, group: 1).map(clean)
                 .filter { $0.count >= 60 && !isBoilerplate($0) }.prefix(8).joined(separator: "\n\n")
@@ -1020,6 +1062,11 @@ enum BleedInterestNewsDesk {
         copy.newsHeadline = article.headline
         copy.newsURL = canonicalURL(article.url)
         copy.revision = BleedNewsroom.revision(copy.newsURL ?? article.url.absoluteString)
+        // The full article has already passed freshness, relevance and source
+        // checks. A failed model/review can still print an attributed clipping,
+        // rather than silently deleting the only researched piece in the paper.
+        let excerpt = article.text.split(whereSeparator: \.isWhitespace).prefix(25).joined(separator: " ")
+        copy.fallbackBody = "\(article.sourceName) reports: \(article.headline)\n\nFrom the report: “\(excerpt)…”"
         copy.packet = """
         READER INTEREST: \(brief.researchQuery ?? "not supplied")
         ONE SELECTED NEWS ARTICLE — write only about this development.
@@ -1136,7 +1183,8 @@ enum BleedInterestNewsDesk {
     }
 
     static func clean(_ html: String) -> String {
-        var text = html.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
+        let withoutCDATA = html.replacingOccurrences(of: "<![CDATA[", with: "").replacingOccurrences(of: "]]>", with: "")
+        var text = withoutCDATA.replacingOccurrences(of: #"<[^>]+>"#, with: " ", options: .regularExpression)
         for (entity, value) in [("&quot;", "\""), ("&#39;", "'"), ("&apos;", "'"), ("&nbsp;", " "),
                                 ("&lt;", "<"), ("&gt;", ">"), ("&amp;", "&")] {
             text = text.replacingOccurrences(of: entity, with: value)
@@ -1653,9 +1701,18 @@ enum TheBleedEditionBuilder {
         from facts: [SelfFact], dayID: String, kind: BleedEditionKind,
         history: [BleedPrintRecord] = []
     ) -> String? {
+        researchInterests(from: facts, dayID: dayID, kind: kind, history: history).first
+    }
+
+    /// A failed search for one hobby must not close the whole outside desk.
+    /// These are only explicit interests, never inferred from private Pages.
+    static func researchInterests(
+        from facts: [SelfFact], dayID: String, kind: BleedEditionKind,
+        history: [BleedPrintRecord] = []
+    ) -> [String] {
         let candidates = facts
             .filter { fact in
-                fact.questionID.hasPrefix("interest-")
+                (fact.questionID.hasPrefix("interest-") || fact.tags.contains("interest"))
                     && fact.usePermission != .doNotUse
                     && !fact.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
@@ -1670,17 +1727,18 @@ enum TheBleedEditionBuilder {
                     unique.append(interest)
                 }
             }
-        guard !candidates.isEmpty else { return nil }
+        guard !candidates.isEmpty else { return [] }
         let offset = kind == .morning ? 0 : 1
         let index = (ConstellationKeeper.stableIndex(for: "bleed-interest-\(dayID)", count: candidates.count) + offset) % candidates.count
         let ordered = (0..<candidates.count).map { candidates[(index + $0) % candidates.count] }
-        return ordered.first { interest in
-            BleedNewsroom.previous("interest:\(interest.lowercased())", in: history) == nil
-        } ?? ordered.min { left, right in
-            let leftDate = history.first { $0.items.contains { $0.storyID == "interest:\(left.lowercased())" } }?.printedAt ?? .distantPast
-            let rightDate = history.first { $0.items.contains { $0.storyID == "interest:\(right.lowercased())" } }?.printedAt ?? .distantPast
-            return leftDate < rightDate
-        }
+        return ordered.enumerated().sorted { left, right in
+            func lastPrinted(_ interest: String) -> Date {
+                history.filter { $0.items.contains { $0.storyID == "interest:\(interest.lowercased())" } }
+                    .map(\.printedAt).max() ?? .distantPast
+            }
+            let l = lastPrinted(left.element), r = lastPrinted(right.element)
+            return l == r ? left.offset < right.offset : l < r
+        }.map(\.element)
     }
 
     // MARK: Deterministic columns
@@ -2117,7 +2175,8 @@ enum TheBleedEditionBuilder {
                 title: column.brief.title, body: String(body.prefix(1800)),
                 sourcePageIDs: column.brief.sourcePageIDs ?? [], newsURL: column.brief.newsURL,
                 worldFactID: column.brief.worldFactID, worldEventRunID: column.brief.worldEventRunID,
-                undertakingID: column.brief.undertakingID, readerForm: column.brief.readerForm
+                undertakingID: column.brief.undertakingID, readerForm: column.brief.readerForm,
+                assignmentPage: column.brief.assignmentPage
             )
         }
         metadata[BleedPrintRecord.metadataKey] = BleedPrintRecord(
@@ -2154,6 +2213,17 @@ enum TheBleedEditionBuilder {
             return []
         }
         return briefs
+    }
+
+    /// An explicit retry adds only the missing outside piece. The reporting,
+    /// assignment and already-written prose in the printed copy stay intact.
+    static func addingInterestBrief(_ article: BleedColumnBrief?, to printed: [BleedColumnBrief]) -> [BleedColumnBrief] {
+        guard let article, article.id == "interest-desk", article.newsHeadline != nil,
+              !printed.contains(where: { $0.id == "interest-desk" }) else { return printed }
+        var result = printed
+        let position = result.firstIndex { [.pleasure, .practical].contains(BleedIssueCurator.desk($0)) } ?? result.endIndex
+        result.insert(article, at: position)
+        return result
     }
 
     /// Refresh only practical strips on an already-opened edition. Its stories,
@@ -2575,7 +2645,7 @@ enum BleedDayDesk {
         let hard = DistressSignals.evaluate(day: source).isActive
         let kickers = kind == .morning ? morningKickers : eveningKickers
         // The correspondent went out and came back with proof: the paper says so.
-        let dispatch = source.pages.first { $0.attributableLivedQuestReceipt?.kind == .wickerDare }
+        let dispatch = filedAssignmentPage(day: source, inputs: inputs)
         let dispatched = dispatch != nil
         // Tonight's lead is the assignment itself, when it came back today.
         let dispatchHeadline = kind == .evening ? dispatch?.attributableLivedQuestReceipt?.title.nonEmpty
@@ -2708,23 +2778,118 @@ enum BleedDayDesk {
 
     // MARK: Your assignment
 
-    /// Every morning the paper sends the Reader out as its correspondent: today's dare,
-    /// the same one waiting on their desk. Never on a hard day, and never a debt.
-    static func assignment(kind: BleedEditionKind, day: BookDay, inputs: BookSourceInputs, now: Date) -> BleedColumnBrief? {
+    /// All three families use their existing Page and proof routes. The day,
+    /// rather than the opening hour, rotates the family and fixes its selection.
+    static func dailyAssignmentPage(day: BookDay, inputs: BookSourceInputs, now: Date,
+                                    calendar: Calendar = .current) -> SurfacePage {
+        if let printed = printedAssignment(day: day, inputs: inputs) {
+            if let page = printed.assignmentPage { return page }
+            if let id = assignmentID(story: printed.storyID),
+               let page = dareSurface(id: id, day: day, inputs: inputs, now: now) { return page }
+        }
+        let morning = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: day.date) ?? day.date
+        let index = GrimoireDay.index(for: day.date, calendar: calendar)
+        switch ((index % 3) + 3) % 3 {
+        case 1:
+            return WonderCompassPageSourceAdapter().manualPlayfulMissionSurface(
+                for: day, context: .make(for: day), inputs: inputs, now: morning)
+        case 2:
+            if let page = ElectivePageSourceAdapter().assignmentSurface(for: day, inputs: inputs, now: morning) {
+                return page
+            }
+            return WonderCompassPageSourceAdapter().manualPlayfulMissionSurface(
+                for: day, context: .make(for: day), inputs: inputs, now: morning)
+        default:
+            let dare = WickerDareRegistry.dare(for: day, inputs: inputs, now: morning)
+            return WickerDarePageSourceAdapter().surface(for: day, inputs: inputs, now: morning, dare: dare)
+        }
+    }
+
+    static func printedAssignment(day: BookDay, inputs: BookSourceInputs) -> BleedPrintRecord.Item? {
+        inputs.bleedPrintHistory.flatMap(\.items).first {
+            $0.storyID.hasPrefix("assignment:") && $0.storyID.hasSuffix(":" + day.id)
+        }
+    }
+
+    private static func assignmentID(story: String) -> String? {
+        guard story.hasPrefix("assignment:") else { return nil }
+        var parts = story.dropFirst("assignment:".count).split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        parts.removeLast()
+        return parts.joined(separator: ":").nonEmpty
+    }
+
+    static func assignmentDetails(_ page: SurfacePage) -> (id: String, title: String, challenge: String, proof: String) {
+        let m = page.payload.metadata
+        return (
+            m["wickerDareID"] ?? m["playfulMissionID"].map { "mission:" + $0 }
+                ?? m["electiveID"].map { "elective:" + $0 } ?? "elective-offer:" + page.id,
+            m["wickerDareTitle"] ?? m["playfulMissionTitle"] ?? m["electiveTitle"] ?? page.prompt,
+            m["challenge"] ?? m["mission"] ?? m["electiveAsk"] ?? page.detail,
+            m["souvenirPrompt"] ?? m["electivePractice"] ?? "Bring back one sentence about what happened."
+        )
+    }
+
+    static func isAssignmentReceipt(_ receipt: LivedQuestReceipt) -> Bool {
+        [.wickerDare, .playfulMission, .elective].contains(receipt.kind)
+    }
+
+    static func filedAssignmentPage(day: BookDay, inputs: BookSourceInputs) -> BookPage? {
+        let printed = printedAssignment(day: day, inputs: inputs)
+        return day.pages.first { page in
+            guard let receipt = page.attributableLivedQuestReceipt, isAssignmentReceipt(receipt) else { return false }
+            // Older records contain only Wicker's identity. An unprinted day
+            // can still report a completed outward Page from any of the families.
+            guard let printed else { return true }
+            guard let assignment = printed.assignmentPage else {
+                return receipt.kind == .wickerDare && receipt.questID == assignmentID(story: printed.storyID)
+            }
+            let m = assignment.payload.metadata
+            switch receipt.kind {
+            case .wickerDare: return receipt.questID == m["wickerDareID"]
+            case .playfulMission: return receipt.questID == m["playfulMissionID"]
+            case .elective:
+                if let id = m["electiveID"] { return receipt.questID == id }
+                return inputs.electives.contains {
+                    $0.id == receipt.questID && $0.characterID == m["senderID"] && $0.ask == m["electiveAsk"]
+                }
+            default: return false
+            }
+        }
+    }
+
+    /// An accepted elective uses the Flyleaf's existing proof controls. Never
+    /// offer the same note again after the reader has already said yes.
+    static func openingAssignmentPage(_ page: SurfacePage, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        guard page.type == .elective, page.payload.metadata["electiveOffer"] == "true",
+              inputs.electives.contains(where: {
+                  $0.characterID == page.payload.metadata["senderID"]
+                      && $0.ask == page.payload.metadata["electiveAsk"]
+              }) else { return page }
+        return ElectivePageSourceAdapter().flyleafSurface(for: day, inputs: inputs, now: now)
+    }
+
+    /// Every morning the paper sends the Reader out as its correspondent.
+    /// Never on a hard day, and never a debt.
+    static func assignment(kind: BleedEditionKind, day: BookDay, inputs: BookSourceInputs, now: Date,
+                           calendar: Calendar = .current) -> BleedColumnBrief? {
         guard kind == .morning, !DistressSignals.evaluate(day: day).isActive else { return nil }
-        let dare = WickerDareRegistry.dare(for: day, inputs: inputs, now: now)
+        let page = dailyAssignmentPage(day: day, inputs: inputs, now: now, calendar: calendar)
+        let details = assignmentDetails(page)
+        let sender = page.payload.metadata["senderName"] ?? page.payload.metadata["missionHostName"] ?? "Wicker"
         let body = """
-        The editor is sending you out. Wicker set it; Penny printed it, under protest.
+        The editor is sending you out. This one came from \(sender).
 
-        \(dare.title.uppercased())
-        \(dare.challenge)
+        \(details.title.uppercased())
+        \(details.challenge)
 
-        \(dare.proofPrompt) Keep Wicker's page and tonight's paper will want to hear how it went. No dispatch, no matter: the paper prints the weather instead.
+        \(details.proof) Bring it back through the Page and tonight's paper will want to hear how it went. No dispatch, no matter: the paper prints the weather instead.
         """
         return BleedColumnBrief(
             id: "assignment", title: "Your Assignment", byline: "from the editor's desk",
             composedBody: body, packet: "", maxTokens: 0,
-            storyID: "assignment:\(dare.id):\(day.id)", revision: BleedNewsroom.revision(body)
+            storyID: "assignment:\(details.id):\(day.id)", revision: BleedNewsroom.revision(body),
+            assignmentPage: page
         )
     }
 
@@ -2761,11 +2926,14 @@ enum BleedDayDesk {
         return story.hasSuffix(":" + BookDay.id(for: now, calendar: calendar))
     }
 
-    /// The assignment's door: the same dare the paper printed, opened as Wicker's Page and
-    /// marked as the paper's, so a kept proof comes back as tonight's dispatch.
+    /// The assignment's door preserves its printed Page and native proof route.
     static func assignmentSurface(for paper: SurfacePage, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage? {
-        guard let id = assignedDareID(in: paper), let dare = dare(id: id, day: day, inputs: inputs, now: now) else { return nil }
-        return WickerDarePageSourceAdapter().surface(for: day, inputs: inputs, now: now, dare: dare)
+        let briefs = TheBleedEditionBuilder.decodedBriefs(paper.payload.metadata["bleedPrintedColumns"] ?? "")
+            + TheBleedEditionBuilder.decodedBriefs(paper.payload.metadata["bleedBriefs"] ?? "")
+        let snapshot = briefs.first { $0.id == "assignment" }?.assignmentPage
+        let page = snapshot ?? assignedDareID(in: paper).flatMap { dareSurface(id: $0, day: day, inputs: inputs, now: now) }
+        guard let page else { return nil }
+        return openingAssignmentPage(page, day: day, inputs: inputs, now: now)
             .withMetadata(["bleedAssignment": paper.payload.metadata["bleedSlotID"] ?? paper.id])
     }
 
@@ -2944,7 +3112,7 @@ extension BleedDayDesk {
             if kind == .morning, let braid = bound.braids.first?.title.nonEmpty {
                 cues.insert(.braid); slots["braid"] = braid
             }
-            if source.pages.contains(where: { $0.attributableLivedQuestReceipt?.kind == .wickerDare }) { cues.insert(.dispatch) }
+            if filedAssignmentPage(day: source, inputs: inputs) != nil { cues.insert(.dispatch) }
             if let sky = bound.almanac.skyWords.first?.lowercased().nonEmpty {
                 cues.insert(.sky); slots["sky"] = sky; slots["Sky"] = sky.prefix(1).uppercased() + sky.dropFirst()
             }
@@ -2973,8 +3141,9 @@ extension BleedDayDesk {
         let lastWriter = history.first?.items.first { $0.storyID.hasPrefix("cast-letter:") }?.storyID
             .split(separator: ":").dropFirst().first.map(String.init)
         func id(_ letter: CastLetter) -> String { "cast-letter:\(letter.slug):\(abs(letter.text.stableHash) % 100_000)" }
-        let fromPack = Set(packLetters(inputs: inputs).map(\.text))
-        let eligible = (packLetters(inputs: inputs) + castLetters).filter {
+        let monthLetters = packLetters(inputs: inputs, now: now)
+        let fromPack = Set(monthLetters.map(\.text))
+        let eligible = (monthLetters + castLetters).filter {
             cues.contains($0.cue) && !recent.contains(id($0)) && $0.slug != lastWriter && $0.text.fillsEverySlot(from: slots)
         }
         guard !eligible.isEmpty else { return nil }
@@ -3014,8 +3183,8 @@ extension BleedDayDesk {
 
     /// Letters a monthly pack wrote for its month: a Bleed article tagged `cast-letter`,
     /// `cast:<slug>` and `cue:<cue>`, signed in its byline. Live only while its event runs.
-    static func packLetters(inputs: BookSourceInputs) -> [CastLetter] {
-        activePackDeskPieces(inputs: inputs, tag: "cast-letter").compactMap { article in
+    static func packLetters(inputs: BookSourceInputs, now: Date = Date()) -> [CastLetter] {
+        activePackDeskPieces(inputs: inputs, tag: "cast-letter", now: now).compactMap { article in
             let value = { (prefix: String) in article.tags.first { $0.hasPrefix(prefix) }.map { String($0.dropFirst(prefix.count)) } }
             guard let slug = value("cast:"), let cue = value("cue:").flatMap(LetterCue.init(rawValue:)),
                   let signature = article.byline.nonEmpty, let text = article.body.nonEmpty else { return nil }
@@ -3024,9 +3193,20 @@ extension BleedDayDesk {
     }
 
     /// A pack's desk pieces for the month that's actually running.
-    static func activePackDeskPieces(inputs: BookSourceInputs, tag: String) -> [AuthoredBleedArticle] {
-        let live = Set(inputs.activeWorldEvents.map { "\($0.packID)|\($0.id)" })
-        return inputs.authoredBleedArticles.filter { $0.tags.contains(tag) && live.contains("\($0.packID)|\($0.eventID)") }
+    /// A piece tagged `from-day:N` waits for the month's live day N, so an ad about Martinmas
+    /// doesn't run on the first.
+    static func activePackDeskPieces(inputs: BookSourceInputs, tag: String, now: Date = Date(),
+                                     calendar: Calendar = .current) -> [AuthoredBleedArticle] {
+        let live = Dictionary(inputs.activeWorldEvents.map { ("\($0.packID)|\($0.id)", $0.startedAt) },
+                              uniquingKeysWith: { first, _ in first })
+        return inputs.authoredBleedArticles.filter { article in
+            guard article.tags.contains(tag), let started = live["\(article.packID)|\(article.eventID)"] else { return false }
+            guard let fromDay = article.tags.first(where: { $0.hasPrefix("from-day:") })
+                .flatMap({ Int($0.dropFirst("from-day:".count)) }) else { return true }
+            let day = calendar.dateComponents([.day], from: calendar.startOfDay(for: started),
+                                              to: calendar.startOfDay(for: now)).day ?? 0
+            return day >= fromDay
+        }
     }
 
     // MARK: Corridor whispers
@@ -3093,6 +3273,7 @@ extension BleedDayDesk {
             let name = feast.academyTitle == feast.commonName ? feast.commonName : "\(feast.academyTitle) (\(feast.commonName))"
             lines.append("KEPT \(kind == .morning ? "TODAY" : "TOMORROW")\n\(name). \(feast.blurb)")
         }
+        lines += KitchenTally.bleedLines(on: date, inputs: inputs, calendar: calendar)
         let moon = MoonPhaseCalendar.phase(on: date)
         lines.append("THE MOON\n\(moon.name). \(moon.enchantedLine)")
         guard lines.count > 1 else { return nil }
@@ -3188,7 +3369,7 @@ extension BleedDayDesk {
     static func castClassified(kind: BleedEditionKind, now: Date, calendar: Calendar, history: [BleedPrintRecord],
                                inputs: BookSourceInputs = .empty) -> BleedColumnBrief? {
         // This month's pack places its own ads first; the house's dozen fill in.
-        let pack = activePackDeskPieces(inputs: inputs, tag: "classified").compactMap { article -> (id: String, morning: String, evening: String)? in
+        let pack = activePackDeskPieces(inputs: inputs, tag: "classified", now: now, calendar: calendar).compactMap { article -> (id: String, morning: String, evening: String)? in
             guard let reply = article.reply?.nonEmpty, let ad = article.body.nonEmpty else { return nil }
             return (article.id, ad, reply)
         }

@@ -122,7 +122,8 @@ enum InterleafIllustrationLibrary {
 
     static var available: [InterleafIllustration] {
         let profiles = Dictionary(BookReferenceCatalog.labyrinthIllustrations.map { ($0.assetName, $0) }, uniquingKeysWith: { first, _ in first })
-        let evergreen = BookReferenceCatalog.bundledCharacterIllustrationAssetNames.sorted().map { name in
+        let evergreen = BookReferenceCatalog.bundledCharacterIllustrationAssetNames.sorted()
+            .filter { $0 != GuestCast.assetName || GuestCast.current.isPresent() }.map { name in
             let profile = profiles[name]
             return InterleafIllustration(
                 id: "evergreen::\(name)", assetName: name,
@@ -2566,14 +2567,37 @@ enum BookReferenceCatalog {
 
     static var characterIllustrations: [CharacterIllustrationProfile] {
         let profiles = bundledLibrary.characterIllustrations
-        return profiles.isEmpty ? fallbackCharacterIllustrations + fallbackScheduledProfessorIllustrations : profiles
+        let all = profiles.isEmpty ? fallbackCharacterIllustrations + fallbackScheduledProfessorIllustrations : profiles
+        // Package tests and damaged/missing resource recovery use the same
+        // Cast plate contract as the resource-backed app catalogue.
+        let complete = all.contains { $0.slug == GuestCast.entityID } ? all : all + [guestIllustrationFallback]
+        return complete.map { original in
+            guard original.slug == GuestCast.entityID else { return original }
+            var profile = original
+            profile.characterName = GuestCast.current.name
+            return profile
+        }
     }
 
     static var labyrinthIllustrations: [LabyrinthIllustrationPlate] {
         characterIllustrationPlates
     }
 
+    private static let guestIllustrationFallback = CharacterIllustrationProfile(
+        id: GuestCast.entityID, characterName: "The Guest", slug: GuestCast.entityID, status: "canonical", chapter: nil,
+        core: "A small patient visitor with very clean hands and a rain-dark green coat. Its face stays under its hood. It never says thank you.",
+        signature: "an oversized green coat, worn brass buttons and a cross-cut soul cake",
+        palette: "moss green, tarnished brass, soot, warm old paper", silhouette: "small, still and hooded",
+        continuity: "One character throughout the story. Keep the hood up. The title is The Guest.",
+        avoid: "revealed face, unrevealed name, Court insignia, cute gnome",
+        assetName: GuestCast.assetName, intendedAssetName: GuestCast.assetName,
+        prompt: "Antique parchment Cast dossier: one small hooded visitor in an oversized rain-dark green coat, clean hands and a soul cake. Title: The Guest.",
+        negativePrompt: "No revealed face, unrevealed name, Court insignia or cartoon gnome.",
+        marginalia: ["Clean hands.", "The west door.", "No crumbs.", "Nobody thanked it."],
+        tags: ["canonical", "character", "the-guest", "kitchens", "illustration", GuestCast.entityID])
+
     static let bundledCharacterIllustrationAssetNames: Set<String> = [
+        GuestCast.assetName,
         "LabyrinthCharacterMook",
         "LabyrinthCharacterPilcrow",
         "LabyrinthCharacterDrElowenVellum",
@@ -2619,6 +2643,7 @@ enum BookReferenceCatalog {
 
     private static var characterIllustrationPlates: [LabyrinthIllustrationPlate] {
         characterIllustrations.compactMap { profile in
+            guard profile.slug != GuestCast.entityID || GuestCast.current.isPresent() else { return nil }
             let assetName = profile.assetName?.isEmpty == false ? profile.assetName ?? profile.intendedAssetName : profile.intendedAssetName
             guard bundledCharacterIllustrationAssetNames.contains(assetName) else {
                 return nil
@@ -3823,6 +3848,10 @@ enum CharacterPortrait {
     static func profile(forName name: String) -> CharacterIllustrationProfile? {
         let target = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !target.isEmpty else { return nil }
+        // Both names refer to the same plate, including on a frozen old Page.
+        if target == "the guest" || target == "aiken drum" {
+            return BookReferenceCatalog.characterIllustrations.first { $0.slug == GuestCast.entityID }
+        }
         return BookReferenceCatalog.characterIllustrations.first {
             $0.characterName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == target
         }
@@ -3869,10 +3898,22 @@ enum CharacterPortrait {
 /// falls back to the generated dossier in `LabyrinthIllustrationPageSourceAdapter`.
 enum CastDossier {
     static func bio(forSlug slug: String) -> String? {
-        bios[slug]
+        if slug == GuestCast.entityID, let introduction = bios[slug] {
+            switch GuestCast.current.ending {
+            case .stay:
+                return introduction + "\n\nWe know its name now. Aiken Drum. You asked it to stay, and it told us. The bowl goes on the hearth each night. The pots are done before anybody wakes. I still keep an eye on the hood. Some habits take longer than a month."
+            case .home:
+                return introduction + "\n\nYou told it to go home. It said it was grateful at the west door, and went. Ambrose keeps one brass button in his apron pocket. I keep this page. Somebody leaving doesn't make them unhappen."
+            case .court:
+                return introduction + "\n\nYou told it the house couldn't take it back. It went out into the cold and told Ambrose to keep cooking. He's cooking. The gaps are still in the Cookery. This page stays here too."
+            case nil: return introduction
+            }
+        }
+        return bios[slug]
     }
 
     static let bios: [String: String] = [
+        "visitor-the-guest": "Somebody came to the west door in a green coat. Ambrose gave them a soul cake before he asked a question. He hasn't asked the question yet. The coat's much too big. Its brass buttons look as if they've outlived three other coats. Under the hood I can't see a face. I can see the hands. They're very clean.\n\nIt sits on the low stool by the fire and eats in careful bites. No crumbs. No thank-you. Everybody else has a smell that gets into my paper. This one hasn't. I've leaned as far as I dare. Nothing. Like a kitchen that used to be there. I keep my cover a little closer now.\n\nIt watches the range while Ambrose puts the kettle on. It watches the pot handles. I think it knows what all of them are for. I think it's counting. Ambrose sets another cake within reach. He doesn't ask it to explain being hungry.\n\nI don't know what to call it yet, so I've put The Guest at the top. It hasn't objected. It hasn't looked at this page either. I think.",
         "pippa-pilcrow": "Pippa Pilcrow tickles the margins until the punctuation gives up and runs wild. Professor Mook keeps the words at their posts. Pippa shows up like a held breath finally let go, and every sentence in the room starts reaching for a meaning nobody gave it. She's delighted, quick, and light as a comma. The Registry files her under *menace*. They say it fondly. They'll regret the full stop.\n\nShe's the chaos in the rebellion and she isn't sorry. Her creed is four words, *words set free*, and she means it the way kids mean a dare. Here's what I watch. She can't always tell a word that's longing to change from a word that only needed a bit of mercy, and when she's thrilled she'll pull loose a word that wanted to stay put. Delight can be careless. She forgets that. But when your day has gone stiff and correct and scared, she's the one who sets a comma loose in it so you can breathe.\n\nI know her by the big interrobang she rides like a broom and the wings she cut from torn marginalia. You can still read them if you catch them in the light. Correction-mark red, ink black, one flick of gold at her throat. When she visits, silence is optional. Even Mook admits that much. The words finally get up and stretch their legs.",
 
         "professor-thaddeus-mook": "Professor Mook polices words. His department is called Lexical Diversity. That's the Academy's little joke, because nobody in the Labyrinth likes a word that wants to be two things at once less than he does. He believes with his whole starched heart that a word out of place is a student out of place in life, and he'll correct both with the same red pen and the same flat voice.\n\nGive him this: the order he keeps is hard work. He's read all twenty-one volumes twice. He can tell you what a word meant in 1743 and why it should be ashamed of what it means now. His fault is that he thinks the dictionary is the world. He'd sooner defend a rule than admit it stopped being kind. This autumn the words started peeling off their pages to go and look for better meanings, and he called it vandalism. It was language asking to be alive. He puts up with the rebellion. He'll never forgive it.\n\nI know him by the huge chained Dictionary padlocked to its lectern and the red pen tucked behind his ear like a surgeon's tool. *Lex Ordo Veritas* says the medallion at his throat, and he means all three words. Oxblood, tarnished brass, ink black. If a sentence of yours ever came back bleeding in the margins, corrected and no truer, that was him. He loves you the only way he knows how: exactly, and against your will.",

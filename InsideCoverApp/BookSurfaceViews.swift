@@ -49,10 +49,17 @@ struct IlluminatedArtifactPreview: View {
     let draft: IlluminatedPhotoDraft
     var sourceImage: UIImage? = nil
     private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private static let fileDecorationImages: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.totalCostLimit = 16 * 1_024 * 1_024
+        return cache
+    }()
 
     private var plan: IlluminatedCompositionPlan {
         draft.compositionPlan
     }
+
+    private var hasUnifiedLayout: Bool { (plan.layoutVersion ?? 0) >= 2 }
 
     var body: some View {
         GeometryReader { proxy in
@@ -107,7 +114,8 @@ struct IlluminatedArtifactPreview: View {
 
     private func illuminatedPhoto(scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
         let frame = plan.photoFrame
-        let variation = OrganicPlacementVariation(seed: plan.randomSeed, key: "photo-frame")
+        let variation = OrganicPlacementVariation(seed: plan.randomSeed, key: "photo-frame",
+            maxOffset: hasUnifiedLayout ? 0 : 6, maxRotation: hasUnifiedLayout ? 0 : 3)
         return Group {
             if renderLayer == .clock {
                 illuminationClock(0)
@@ -148,7 +156,86 @@ struct IlluminatedArtifactPreview: View {
         }
     }
 
+    @ViewBuilder
     private func illuminatedTextSlot(_ slot: IlluminatedTextSlot, scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
+        if hasUnifiedLayout {
+            unifiedAnnotation(slot, scale: scale, xOffset: xOffset, yOffset: yOffset)
+        } else {
+            legacyIlluminatedTextSlot(slot, scale: scale, xOffset: xOffset, yOffset: yOffset)
+        }
+    }
+
+    private func unifiedAnnotation(_ slot: IlluminatedTextSlot, scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
+        let isPaper = slot.annotationStyle == .tornPaper
+        let isStamp = slot.annotationStyle == .stamp
+        let padding: CGFloat = isPaper ? 22 : 8
+        return ZStack(alignment: .topLeading) {
+            if renderLayer == .all || renderLayer == .paper {
+                if isPaper {
+                    IlluminatedTornNote(seed: plan.randomSeed)
+                        .fill(BookPalette.paper.opacity(0.91))
+                        .overlay {
+                            Image(slot.paperAssetName)
+                                .resizable()
+                                .scaledToFill()
+                                .opacity(0.18)
+                                .blendMode(.multiply)
+                                .clipShape(IlluminatedTornNote(seed: plan.randomSeed))
+                        }
+                        .shadow(color: .black.opacity(0.10), radius: 3 * scale, x: 0, y: 2 * scale)
+                }
+            }
+            if renderLayer == .clock {
+                illuminationClock(1 + 2 * (plan.textSlots.firstIndex { $0.id == slot.id } ?? 0))
+            } else if renderLayer != .paper {
+                VStack(alignment: .leading, spacing: 9 * scale) {
+                    if let title = slot.title, !title.isEmpty {
+                        Text(title.uppercased())
+                            .font(.system(size: 25 * scale, weight: .semibold, design: .serif))
+                            .tracking(2 * scale)
+                            .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    }
+                    Text(slot.body)
+                        .font(annotationFont(for: slot.fontStyle, scale: scale))
+                        .foregroundStyle(BookPalette.ink.opacity(isStamp ? 0.84 : 0.96))
+                        .tracking(isStamp ? 2.5 * scale : 0)
+                        .lineSpacing(5 * scale)
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.60)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    if isStamp {
+                        Rectangle()
+                            .fill(BookPalette.ink.opacity(0.68))
+                            .frame(height: max(0.5, scale))
+                    }
+                }
+                .padding(padding * scale)
+                .bookInkEmergence(seed: "note-\(slot.slotId)")
+            }
+        }
+        .frame(width: slot.size.width * scale, height: slot.size.height * scale)
+        .rotationEffect(.degrees(slot.rotationDegrees))
+        .position(x: xOffset + (slot.position.x + slot.size.width / 2) * scale,
+                  y: yOffset + (slot.position.y + slot.size.height / 2) * scale)
+    }
+
+    private func annotationFont(for style: IlluminatedFontStyle, scale: CGFloat) -> Font {
+        switch style {
+        case .handwritten:
+            if UIFont(name: "BradleyHandITCTT-Bold", size: 34) != nil {
+                return .custom("BradleyHandITCTT-Bold", fixedSize: 36 * scale)
+            }
+            return .system(size: 34 * scale, design: .serif).italic()
+        case .stamp:
+            return .system(size: 27 * scale, weight: .semibold, design: .serif)
+        case .serifTitle:
+            return .system(size: 36 * scale, weight: .semibold, design: .serif)
+        case .serifBody:
+            return .system(size: 32 * scale, design: .serif)
+        }
+    }
+
+    private func legacyIlluminatedTextSlot(_ slot: IlluminatedTextSlot, scale: CGFloat, xOffset: CGFloat, yOffset: CGFloat) -> some View {
         let variation = OrganicPlacementVariation(seed: plan.randomSeed, key: "text-\(slot.slotId)", maxOffset: 5, maxRotation: 2.2)
         let safeFrame = marginaliaSafeTextFrame(for: slot, variation: variation)
         return ZStack(alignment: .topLeading) {
@@ -246,8 +333,8 @@ struct IlluminatedArtifactPreview: View {
             maxScaleVariation: 0.18
         )
         let adaptiveFrame = adaptiveDecorationFrame(for: decoration, variation: variation)
-        let isUnderText = decorationIsUnderText(adaptiveFrame)
-        let opacity = isUnderText
+        let isUnderText = !hasUnifiedLayout && decorationIsUnderText(adaptiveFrame)
+        let opacity = hasUnifiedLayout ? decoration.opacity : isUnderText
             ? (decoration.kind == .stamp
                 ? max(0.12, min(0.62, decoration.opacity + variation.opacityLift * 0.16 - 0.08))
                 : max(0.16, min(0.86, decoration.opacity + variation.opacityLift * 0.10 - 0.04)))
@@ -260,16 +347,21 @@ struct IlluminatedArtifactPreview: View {
                 Image(uiImage: stamp)
                     .resizable()
                     .scaledToFit()
+            } else if decoration.assetName.hasPrefix("/"),
+                      let image = snapshotDecorationImage(assetName: decoration.assetName) {
+                // ImageRenderer does not run a view's asynchronous .task.
+                // Resolve downloaded cabinet marks before taking its snapshot.
+                Image(uiImage: image).resizable().scaledToFit()
             } else {
                 BookMarginaliaImage(assetName: decoration.assetName)
                     .scaledToFit()
             }
         }
         .opacity(renderLayer == .clock ? 1 : opacity)
-        .blendMode(renderLayer != .clock && decoration.kind == .stamp ? .multiply : .normal)
+        .blendMode(!hasUnifiedLayout && renderLayer != .clock && decoration.kind == .stamp ? .multiply : .normal)
         .frame(width: adaptiveFrame.width * scale, height: adaptiveFrame.height * scale)
         .bookInkEmergence(seed: "decoration-\(decoration.assetName)")
-        .rotationEffect(.degrees(decoration.rotationDegrees + variation.rotationDegrees))
+        .rotationEffect(.degrees(decoration.rotationDegrees + (hasUnifiedLayout ? 0 : variation.rotationDegrees)))
         .position(
             x: xOffset + adaptiveFrame.midX * scale,
             y: yOffset + adaptiveFrame.midY * scale
@@ -285,6 +377,10 @@ struct IlluminatedArtifactPreview: View {
         for decoration: DecorationPlacement,
         variation: OrganicPlacementVariation
     ) -> CGRect {
+        if hasUnifiedLayout {
+            return CGRect(x: decoration.position.x, y: decoration.position.y,
+                          width: decoration.size.width, height: decoration.size.height)
+        }
         let asset = IlluminationPackRegistry.pack(for: plan.assetPackId)?
             .allAssets
             .first(where: { $0.assetName == decoration.assetName })
@@ -416,8 +512,24 @@ struct IlluminatedArtifactPreview: View {
         }
     }
 
+    private func snapshotDecorationImage(assetName: String) -> UIImage? {
+        guard assetName.hasPrefix("/") else { return UIImage(named: assetName) }
+        if let cached = Self.fileDecorationImages.object(forKey: assetName as NSString) { return cached }
+        guard let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: assetName) as CFURL, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceThumbnailMaxPixelSize: 1_536,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceShouldCacheImmediately: true
+              ] as CFDictionary) else { return nil }
+        let image = UIImage(cgImage: cgImage)
+        Self.fileDecorationImages.setObject(image, forKey: assetName as NSString,
+            cost: cgImage.bytesPerRow * cgImage.height)
+        return image
+    }
+
     private func distressedStampImage(assetName: String, variation: OrganicPlacementVariation) -> UIImage? {
-        guard let image = UIImage(named: assetName),
+        guard let image = snapshotDecorationImage(assetName: assetName),
               let input = CIImage(image: image) else {
             return nil
         }
@@ -504,6 +616,32 @@ struct IlluminatedArtifactPreview: View {
         case .quietMatte:
             return 0.0
         }
+    }
+}
+
+private struct IlluminatedTornNote: Shape {
+    let seed: Int
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let steps = 17
+        for edge in 0..<4 {
+            for step in 0..<steps {
+                let fraction = CGFloat(step) / CGFloat(steps - 1)
+                let tooth = CGFloat(IlluminatedPhotoLayout.bucket(seed, salt: edge * steps + step, count: 7))
+                    / 7 * min(rect.width, rect.height) * 0.022
+                let point: CGPoint
+                switch edge {
+                case 0: point = CGPoint(x: rect.minX + fraction * rect.width, y: rect.minY + tooth)
+                case 1: point = CGPoint(x: rect.maxX - tooth, y: rect.minY + fraction * rect.height)
+                case 2: point = CGPoint(x: rect.maxX - fraction * rect.width, y: rect.maxY - tooth)
+                default: point = CGPoint(x: rect.minX + tooth, y: rect.maxY - fraction * rect.height)
+                }
+                if edge == 0 && step == 0 { path.move(to: point) } else { path.addLine(to: point) }
+            }
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -8389,6 +8527,20 @@ struct PageVisualStyle {
                 smallMarginalia: "MarginaliaStar",
                 watermarkMarginalia: "MarginaliaSeal"
             )
+        case .recipe:
+            // A page out of somebody's kitchen: flour, copper, a little grease.
+            return PageVisualStyle(
+                accent: Color(red: 0.62, green: 0.34, blue: 0.20),
+                symbolColor: Color(red: 0.70, green: 0.44, blue: 0.22),
+                paperTop: Color(red: 0.97, green: 0.93, blue: 0.84),
+                paperMiddle: Color(red: 0.90, green: 0.84, blue: 0.70),
+                paperBottom: Color(red: 0.72, green: 0.62, blue: 0.48),
+                scrapColor: Color(red: 0.88, green: 0.81, blue: 0.66),
+                sideMarginalia: "IlluminationScrapS01_15",
+                cornerMarginalia: "IlluminationScrapS03_24",
+                smallMarginalia: "MarginaliaStar",
+                watermarkMarginalia: "MarginaliaSeal"
+            )
         case .festival:
             return PageVisualStyle(
                 accent: Color(red: 0.44, green: 0.33, blue: 0.60),
@@ -9073,35 +9225,43 @@ private struct AmbientLetterField: View {
 /// The Pixie's ear on the room.
 ///
 /// She lives at the app root and the reader types inside the Book, so there has
-/// to be some thread between them. This is it, and it carries one fact: an
-/// exclamation point was just written.
+/// to be some thread between them: an exclamation point was just written, and
+/// whether the reader is still writing. She answers when their hands are free.
 ///
 /// Deliberately not a general event bus. She is interested in one mark, and a
-/// channel that can only say one thing cannot quietly grow into a way for any
-/// view to make her dance.
+/// this stays specific to her appetite and the reader's writing, rather than
+/// becoming a way for any view to make her dance.
 @MainActor
 @Observable
 final class BookPixieSummons {
     static let shared = BookPixieSummons()
 
-    /// When the reader last wrote an exclamation point.
+    /// Retained until the Book is free to answer, rather than expiring behind
+    /// an editor or a sheet before the reader can possibly see her.
     private(set) var exclaimedAt: Date?
+    private var writingEditors: Set<UUID> = []
+    @ObservationIgnored private var acknowledgedExclamation: Date?
+
+    var isWriting: Bool { !writingEditors.isEmpty }
 
     private init() {}
 
-    /// Call while the reader is still typing — not on save. Her whole appeal is
-    /// arriving before the thumb is up.
+    /// Notice the mark during editing; do not interrupt the reader to answer it.
     func readerWroteAnExclamation() {
         exclaimedAt = Date()
     }
 
-    /// Old summons expire. She answers, then goes back to her own business;
-    /// she does not hover for the rest of the session because of one keystroke.
-    func isCalling(at moment: Date, within window: TimeInterval = 7) -> Bool {
-        guard let exclaimedAt else { return false }
-        let elapsed = moment.timeIntervalSince(exclaimedAt)
-        return elapsed >= 0 && elapsed < window
+    func setWriting(_ writing: Bool, editorID: UUID) {
+        if writing { writingEditors.insert(editorID) }
+        else { writingEditors.remove(editorID) }
     }
+
+    func takePendingExclamation() -> Bool {
+        guard let exclaimedAt, exclaimedAt != acknowledgedExclamation else { return false }
+        acknowledgedExclamation = exclaimedAt
+        return true
+    }
+
 }
 
 /// Where the Book is, sent up to whoever is hosting the room.
@@ -9150,28 +9310,32 @@ struct BookPixiePerch: Identifiable, Equatable {
 ///
 /// 1. **She ignores you.** A creature that wants attention is Clippy. She has
 ///    her own business and mostly attends to it.
-/// 2. **She respects reading.** She will not cross the open text block, and she
-///    goes still while the reader is writing. The north star is lamplight and
-///    attention; a thing flitting over the sentence you are reading is a bug.
-/// 3. **She is not a button.** Tapping her usually just startles her. Only when
-///    she is actually carrying something can she be made to give it up.
+/// 2. **She respects writing.** Editors and presentations still her; a queued
+///    exclamation gets its answer after the reader finishes.
+/// 3. **Her gifts are physical.** A deliberate shake or touch makes her bring
+///    one readable scrap. She drops it and returns to her own business.
 struct BookPixieLayer: View {
     /// Places the Book has offered her.
     var perches: [BookPixiePerch] = []
-    /// The reader's own words, gathered from what they kept. She carries these
-    /// rather than the fixed alphabet the backdrop drifts.
-    var carried: [String] = []
     /// Where the Book is sitting, in her coordinate space. She ranges over the
     /// whole app — tabs, the space below the binding, the room around it — and
     /// this is only how she knows where the furniture is worth landing on.
     var bookRect: CGRect = .zero
     var isPaused: Bool = false
-    /// Fires when a startled Pixie drops what she was carrying.
-    var onDropped: (String) -> Void = { _ in }
-
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startledAt: TimeInterval?
-    @State private var fleeCorner = CGPoint(x: 0.9, y: 0.12)
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var textInputActive = false
+    @State private var activeFlight: PippaDeliveryFlight?
+    @State private var cardFlight: PippaDeliveryFlight?
+    @State private var scrap: PippaScrap?
+    @State private var deliveryTask: Task<Void, Never>?
+    @State private var lastInteractionAt = Date.distantPast
+
+    private var isUnavailable: Bool {
+        isPaused || scenePhase != .active || textInputActive
+            || BookPixieSummons.shared.isWriting || bookRect.isEmpty
+    }
 
     var body: some View {
         GeometryReader { proxy in
@@ -9181,89 +9345,188 @@ struct BookPixieLayer: View {
             // touches nothing but this value, so it can run off the main thread.
             let flight = PixieFlight(
                 perches: perches,
-                carried: carried,
                 bookRect: bookRect,
-                fleeCorner: fleeCorner,
-                startledAt: startledAt,
-                exclaimedAt: BookPixieSummons.shared.exclaimedAt
+                fleeCorner: CGPoint(x: 0.9, y: 0.12),
+                startledAt: activeFlight?.startedAt,
+                delivery: activeFlight
             )
-            if isPaused || reduceMotion {
-                // Reduced motion still gets her, simply at rest. Removing her
-                // entirely would take a character out of the room rather than
-                // calming her down.
-                Canvas { context, canvasSize in
-                    flight.draw(in: context, size: canvasSize, time: 0, startle: 0)
-                }
-                .allowsHitTesting(false)
-            } else {
-                ZStack {
-                    // Drawn from `flight` alone, on the main thread. Drawing her
-                    // asynchronously took the surface wait (`RBLayer display →
-                    // wait_image_queue`) off the main thread, but on a busy
-                    // phone her frames then arrived late and her flight visibly
-                    // skipped (bj, 2026-10-18), so she stays synchronous. What
-                    // makes her wait is the render server's load beneath her;
-                    // cut that instead (see the Glow lamp's breath).
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
-                        let now = PixieFlight.clock(timeline.date)
-                        Canvas(rendersAsynchronously: Self.drawsOffMain) { context, canvasSize in
-                            flight.draw(
-                                in: context,
-                                size: canvasSize,
-                                time: now,
-                                startle: flight.startleStrength(now: now)
-                            )
-                        }
+            ZStack {
+                if isUnavailable || reduceMotion || voiceOver {
+                    // Reduced motion still gets her, simply at rest. Removing her
+                    // entirely would take a character out of the room rather than
+                    // calming her down.
+                    Canvas { context, canvasSize in
+                        flight.draw(in: context, size: canvasSize, time: 0, startle: 0)
                     }
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                } else {
+                    ZStack {
+                        // Drawn from `flight` alone, on the main thread. Drawing her
+                        // asynchronously took the surface wait (`RBLayer display →
+                        // wait_image_queue`) off the main thread, but on a busy
+                        // phone her frames then arrived late and her flight visibly
+                        // skipped (bj, 2026-10-18), so she stays synchronous. What
+                        // makes her wait is the render server's load beneath her;
+                        // cut that instead (see the Glow lamp's breath).
+                        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+                            let now = PixieFlight.clock(timeline.date)
+                            Canvas(rendersAsynchronously: Self.drawsOffMain) { context, canvasSize in
+                                flight.draw(
+                                    in: context,
+                                    size: canvasSize,
+                                    time: now,
+                                    startle: flight.startleStrength(now: now)
+                                )
+                            }
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
 
-                    // Only she is touchable, only where she is, and only
-                    // when she has settled. Its own clock, so the drawing above
-                    // never waits on a view that takes touches.
-                    //
-                    // She ranges over the whole app now — the leaf, the
-                    // bookmarks, the charms at the tail — so a target that
-                    // followed her in flight would drift across every
-                    // control in the Book and occasionally swallow a Keep.
-                    // Catching her while she is sitting still is both the
-                    // safe rule and the better one: a fae in flight should
-                    // not be grabbable.
-                    TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
-                        let now = PixieFlight.clock(timeline.date)
-                        if flight.perchSettle(time: now) > 0.3 {
-                            Circle()
-                                .fill(Color.clear)
-                                .contentShape(Circle())
-                                .frame(width: 48, height: 48)
-                                .position(flight.position(size: size, time: now, startle: flight.startleStrength(now: now)))
-                                .onTapGesture { touch(now: now, size: size, flight: flight) }
+                        // Only she is touchable, only where she is, and only
+                        // when she has settled. Its own clock, so the drawing above
+                        // never waits on a view that takes touches.
+                        //
+                        // She ranges over the whole app now — the leaf, the
+                        // bookmarks, the charms at the tail — so a target that
+                        // followed her in flight would drift across every
+                        // control in the Book and occasionally swallow a Keep.
+                        // Catching her while she is sitting still is both the
+                        // safe rule and the better one: a fae in flight should
+                        // not be grabbable.
+                        TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
+                            let now = PixieFlight.clock(timeline.date)
+                            if activeFlight == nil, flight.perchSettle(time: now) > 0.3 {
+                                Circle()
+                                    .fill(Color.clear)
+                                    .contentShape(Circle())
+                                    .frame(width: 48, height: 48)
+                                    .position(flight.position(size: size, time: now, startle: flight.startleStrength(now: now)))
+                                    .onTapGesture { deliver(kind: .touch, size: size, flight: flight) }
+                                    .accessibilityLabel("Pippa Pilcrow")
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityAction { deliver(kind: .touch, size: size, flight: flight) }
+                            }
                         }
                     }
                 }
+                if let scrap, let cardFlight, !isUnavailable {
+                    PippaMessageCard(scrap: scrap, flight: cardFlight,
+                                     restsImmediately: reduceMotion || voiceOver,
+                                     isReleased: activeFlight == nil,
+                                     dismiss: putScrapAway)
+                        .id(cardFlight.startedAt)
+                }
+                if (reduceMotion || voiceOver), !isUnavailable {
+                    Button {
+                        deliver(kind: .touch, size: size, flight: flight)
+                    } label: {
+                        Color.clear.frame(width: 48, height: 48).contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .position(flight.position(size: size, time: 0, startle: 0))
+                    .accessibilityLabel("Pippa Pilcrow")
+                    .accessibilityHint("Ask her for a scrap")
+                }
+            }
+            .background {
+                PippaShakeReceiver(isEnabled: !isUnavailable) {
+                    deliver(kind: .shake, size: size, flight: flight)
+                }
+                .frame(width: 0, height: 0)
+            }
+            .onChange(of: isUnavailable) { _, unavailable in
+                if unavailable { putScrapAway() }
+                else { answerExclamation(size: size, flight: flight) }
+            }
+            .onAppear {
+                DispatchQueue.main.async { answerExclamation(size: size, flight: flight) }
+            }
+            .onChange(of: BookPixieSummons.shared.exclaimedAt) { _, _ in
+                answerExclamation(size: size, flight: flight)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                textInputActive = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+                textInputActive = false
+                DispatchQueue.main.async { answerExclamation(size: size, flight: flight) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidBeginEditingNotification)) { _ in
+                textInputActive = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { _ in
+                textInputActive = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextView.textDidEndEditingNotification)) { _ in
+                textInputActive = false
+                DispatchQueue.main.async { answerExclamation(size: size, flight: flight) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidEndEditingNotification)) { _ in
+                textInputActive = false
+            }
+            .onChange(of: size) { _, _ in putScrapAway() }
+            .onChange(of: PippaReadingDesk.shared.reading) { _, reading in
+                // A removed/edited Page must not leave an obsolete claim open.
+                if let scrap, !scrap.sourcePageIDs.isEmpty,
+                   !reading.scraps.contains(scrap),
+                   scrap.word.flatMap({ reading.favouriteScrap(for: $0) }) != scrap {
+                    putScrapAway()
+                }
+            }
+            .onDisappear { putScrapAway() }
+            .accessibilityAction(named: Text("Ask Pippa for a scrap")) {
+                deliver(kind: .touch, size: size, flight: flight)
             }
         }
-        .accessibilityHidden(true)
     }
 
-    // MARK: Being touched
+    private func answerExclamation(size: CGSize, flight: PixieFlight) {
+        guard !isUnavailable, activeFlight == nil, size.width > 100,
+              !UIApplication.shared.reenchantedHasFocusedTextInput(),
+              BookPixieSummons.shared.takePendingExclamation() else { return }
+        deliver(kind: .exclamation, size: size, flight: flight)
+    }
 
-    private func touch(now: TimeInterval, size: CGSize, flight: PixieFlight) {
-        let her = flight.position(size: size, time: now, startle: flight.startleStrength(now: now))
-        // Already fleeing: let her finish. Rapid taps should not stack.
-        guard startledAt == nil || now - (startledAt ?? 0) > 2.6 else { return }
-
-        fleeCorner = CGPoint(
-            x: her.x > size.width / 2 ? 0.08 : 0.92,
-            y: Double.random(in: 0.08...0.3)
+    private func deliver(kind: PippaDeliveryFlight.Kind, size: CGSize, flight: PixieFlight) {
+        guard !isUnavailable, activeFlight == nil, size.width > 100,
+              !UIApplication.shared.reenchantedHasFocusedTextInput() else { return }
+        guard kind == .exclamation || Date().timeIntervalSince(lastInteractionAt) >= 8 else { return }
+        deliveryTask?.cancel()
+        let now = PixieFlight.clock(Date())
+        let delivery = PippaDeliveryFlight(
+            kind: kind, startedAt: now,
+            origin: flight.position(size: size, time: now, startle: 0),
+            landing: CGPoint(x: min(size.width - 25, bookRect.maxX - 18),
+                             y: max(40, bookRect.minY + 50)),
+            cardCentre: CGPoint(x: size.width / 2,
+                                y: max(150, min(size.height - 180, bookRect.midY))),
+            room: size, cardWidth: min(310, size.width - 48)
         )
-        startledAt = now
-        BookFeedback.play(.tap)
-
-        // Rule 3. Startling her is the whole interaction; the drop is what
-        // happens when she was carrying something and you made her jump.
-        if let word = carried.randomElement(), Bool.random() {
-            onDropped(word)
+        let message = kind == .exclamation ? PippaScrap.exclamation : PippaReadingDesk.shared.nextScrap()
+        scrap = message
+        cardFlight = delivery
+        activeFlight = reduceMotion || voiceOver ? nil : delivery
+        if kind != .exclamation { lastInteractionAt = Date() }
+        BookFeedback.play(.tap, sound: false)
+        deliveryTask = Task { @MainActor in
+            if !reduceMotion && !voiceOver {
+                do { try await Task.sleep(for: .seconds(PippaDeliveryFlight.duration)) } catch { return }
+            }
+            guard !Task.isCancelled else { return }
+            activeFlight = nil
+            if voiceOver { UIAccessibility.post(notification: .announcement, argument: "Pippa says: \(message.line)") }
+            deliveryTask = nil
+            answerExclamation(size: size, flight: flight)
         }
+    }
+
+    private func putScrapAway() {
+        deliveryTask?.cancel()
+        deliveryTask = nil
+        activeFlight = nil
+        cardFlight = nil
+        scrap = nil
     }
 
     /// DEBUG `--perf-pixie-async` draws her off the main thread, to measure
@@ -9286,12 +9549,10 @@ struct BookPixieLayer: View {
 /// here from the view on 2026-10-18.
 struct PixieFlight {
     var perches: [BookPixiePerch]
-    var carried: [String]
     var bookRect: CGRect
     var fleeCorner: CGPoint
     var startledAt: TimeInterval?
-    /// When the reader last wrote an exclamation point (`BookPixieSummons`).
-    var exclaimedAt: Date?
+    var delivery: PippaDeliveryFlight?
 
     /// The light she carries.
     private static let lamp = Color(red: 1.0, green: 0.90, blue: 0.68)
@@ -9322,9 +9583,10 @@ struct PixieFlight {
     func startleStrength(now: TimeInterval) -> Double {
         guard let startledAt else { return 0 }
         let elapsed = now - startledAt
-        guard elapsed < 2.6 else { return 0 }
+        guard elapsed < PippaDeliveryFlight.duration else { return 0 }
         // Bolts, then eases back to her own business.
-        return elapsed < 0.22 ? smooth(elapsed / 0.22) : smooth((2.6 - elapsed) / 2.38)
+        return elapsed < 0.22 ? smooth(elapsed / 0.22)
+            : smooth((PippaDeliveryFlight.duration - elapsed) / (PippaDeliveryFlight.duration - 0.22))
     }
 
     // MARK: Where she is
@@ -9336,14 +9598,8 @@ struct PixieFlight {
     /// Exclamation points are her weakness, not her job. Everything else she
     /// does is on her own schedule; this is the one thing that makes her drop it.
     private func eagerness(now: TimeInterval) -> Double {
-        let moment = Date(timeIntervalSinceReferenceDate: now)
-        guard let called = exclaimedAt else { return 0 }
-        let elapsed = moment.timeIntervalSince(called)
-        // `BookPixieSummons.isCalling`'s window, read from the value taken.
-        guard elapsed >= 0, elapsed < 7 else { return 0 }
-        // Snaps to attention, then loses interest the way she loses interest in
-        // everything.
-        return elapsed < 0.35 ? smooth(elapsed / 0.35) : smooth((7 - elapsed) / 6.65)
+        guard let delivery, delivery.kind == .exclamation else { return 0 }
+        return sin(delivery.progress(at: now) * .pi)
     }
 
     func position(size: CGSize, time: TimeInterval, startle: Double) -> CGPoint {
@@ -9361,29 +9617,15 @@ struct PixieFlight {
             point.y += (target.y - point.y) * CGFloat(settle)
         }
 
-        // Called. The margin note lives at the foot of the open leaf, so that is
-        // where she goes, with a tight excited orbit rather than a landing —
-        // she is not settling, she is hovering over the thing.
-        let called = eagerness(now: time)
-        if called > 0, !bookRect.isEmpty {
-            let mark = CGPoint(
-                x: bookRect.minX + bookRect.width * 0.62,
-                y: bookRect.minY + bookRect.height * 0.74
-            )
-            let fizz = CGPoint(
-                x: mark.x + cos(time * 3.1) * 26,
-                y: mark.y + sin(time * 4.3) * 14
-            )
-            point.x += (fizz.x - point.x) * CGFloat(called)
-            point.y += (fizz.y - point.y) * CGFloat(called)
-        }
-
         if startle > 0 {
             let away = CGPoint(x: size.width * fleeCorner.x, y: size.height * fleeCorner.y)
             point.x += (away.x - point.x) * CGFloat(startle)
             point.y += (away.y - point.y) * CGFloat(startle)
         }
 
+        if let delivery, time >= delivery.startedAt {
+            return delivery.fairy(at: delivery.progress(at: time), returningTo: point)
+        }
         return point
     }
 
@@ -9473,6 +9715,19 @@ struct PixieFlight {
         // A Pixie who has just found an exclamation point is not settling on
         // anything, however long she had been sitting.
         let settle = perchSettle(time: time) * (1 - startle) * (1 - called)
+
+        // A single tow thread makes the little light's relationship to the
+        // readable card clear. It exists only during this brief delivery.
+        if let delivery {
+            let progress = delivery.progress(at: time)
+            if progress >= 0.30, progress < PippaDeliveryFlight.release {
+                let card = delivery.card(at: progress)
+                var thread = Path()
+                thread.move(to: her)
+                thread.addLine(to: CGPoint(x: card.x + delivery.cardWidth * 0.38, y: card.y - 65))
+                context.stroke(thread, with: .color(Self.contour.opacity(0.55)), lineWidth: 0.8)
+            }
+        }
 
         // The trail thins as she settles: a sitting creature leaves no wake.
         for index in (1...10).reversed() {
@@ -9578,53 +9833,6 @@ struct PixieFlight {
             )
         }
 
-        drawWhatSheCarries(in: body, time: time, settle: settle, startle: startle)
-    }
-
-    /// What she is carrying, shown only when it means something.
-    ///
-    /// Three words orbiting her at all times read as a HUD bolted to a creature,
-    /// and they fought the one clear silhouette the Navi shape had just earned.
-    /// She keeps carrying them; they are simply not on display. A word appears
-    /// when she sets one down at a perch, and they scatter when she is startled
-    /// — which is the moment they matter, because that is when one can fall.
-    private func drawWhatSheCarries(
-        in context: GraphicsContext,
-        time: TimeInterval,
-        settle: Double,
-        startle: Double
-    ) {
-        guard !carried.isEmpty else { return }
-
-        if startle > 0.05 {
-            // Flung loose. All of them, briefly, on their way out.
-            for (index, word) in carried.prefix(3).enumerated() {
-                let angle = Double(index) * (2 * .pi / 3) - 0.6
-                let reach = 16 + startle * 40
-                let point = CGPoint(x: cos(angle) * reach, y: sin(angle) * reach * 0.8)
-                draw(word, at: point, opacity: startle * 0.6, in: context)
-            }
-            return
-        }
-
-        // Set down beside her while she sits, and only ever one.
-        if settle > 0.55, let word = carried.first {
-            let shown = (settle - 0.55) / 0.45
-            draw(word, at: CGPoint(x: 13, y: 7), opacity: shown * 0.5, in: context)
-        }
-    }
-
-    private func draw(
-        _ word: String,
-        at point: CGPoint,
-        opacity: Double,
-        in context: GraphicsContext
-    ) {
-        guard opacity > 0.02 else { return }
-        let text = Text(word)
-            .font(.system(size: 8, design: .serif).italic())
-            .foregroundColor(Self.contour.opacity(opacity))
-        context.draw(context.resolve(text), at: point)
     }
 }
 

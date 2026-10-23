@@ -8,14 +8,15 @@ struct TarotPageView: View {
     let onRequestSerenityReading: (TarotReadingArtifact, Bool) async -> TarotReadingArtifact
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var heldQuestion = ""
-    @State private var revealedCount = 0
-    @State private var isAskingSerenity = false
-    @State private var readingMessage = ""
-    @State private var showContextReceipt = false
+    @FolioPageState("heldQuestion") private var heldQuestion = ""
+    @FolioPageState("revealedCount") private var revealedCount = 0
+    @FolioPageState("isAskingSerenity") private var isAskingSerenity = false
+    @FolioPageState("readingMessage") private var readingMessage = ""
+    @FolioPageState("showContextReceipt") private var showContextReceipt = false
+    @FolioPageState("didSeedTarotPage") private var didSeedTarotPage = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        FolioControlStack(alignment: .leading, spacing: 20) {
             hostNote
 
             if let reading {
@@ -25,6 +26,8 @@ struct TarotPageView: View {
             }
         }
         .onAppear {
+            guard !didSeedTarotPage else { return }
+            didSeedTarotPage = true
             if let reading {
                 heldQuestion = reading.question
                 revealedCount = isReadOnly ? reading.cards.count : 0
@@ -69,7 +72,7 @@ struct TarotPageView: View {
                 }
                 .accessibilityLabel("Serenity Brown")
 
-            VStack(alignment: .leading, spacing: 3) {
+            FolioControlStack(alignment: .leading, spacing: 3) {
                 Text("SERENITY READS BESIDE YOU")
                     .font(.caption2.weight(.black))
                     .tracking(1.1)
@@ -89,18 +92,19 @@ struct TarotPageView: View {
     }
 
     private var unopenedDeck: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        FolioControlStack(alignment: .leading, spacing: 18) {
             tarotCardBack
                 .frame(width: 150, height: 252)
                 .frame(maxWidth: .infinity)
                 .shadow(color: BookPalette.ink.opacity(0.22), radius: 16, y: 10)
 
-            VStack(alignment: .leading, spacing: 7) {
+            FolioControlStack(alignment: .leading, spacing: 7) {
                 Text("Hold something lightly")
                     .font(.headline)
                     .foregroundStyle(BookPalette.ink)
                 TextField("A question, situation, or nothing at all", text: $heldQuestion, axis: .vertical)
                     .textFieldStyle(.plain)
+                    .folioControlUnbroken()
                     .inkFeedback(text: heldQuestion)
                     .foregroundStyle(BookPalette.ink)
                     .padding(13)
@@ -119,7 +123,7 @@ struct TarotPageView: View {
                         Image(systemName: spread == .oneCard ? "rectangle.portrait" : "rectangle.portrait.on.rectangle.portrait.angled")
                             .font(.title3)
                             .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
+                        FolioControlStack(alignment: .leading, spacing: 2) {
                             Text(spread.title)
                                 .font(.headline)
                             Text(spread.subtitle)
@@ -135,6 +139,7 @@ struct TarotPageView: View {
                     .background(BookPalette.lampGold.opacity(0.26), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
             }
 
             Text("78 cards · drawn on this device · no card is chosen by AI")
@@ -146,8 +151,8 @@ struct TarotPageView: View {
 
     @ViewBuilder
     private func readingView(_ artifact: TarotReadingArtifact) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 22) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Text(artifact.spread.title.uppercased())
                     .font(.caption.weight(.black))
                     .tracking(1.2)
@@ -182,6 +187,7 @@ struct TarotPageView: View {
                     .background(BookPalette.violet, in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
             }
 
             if revealedCount == artifact.cards.count {
@@ -207,8 +213,8 @@ struct TarotPageView: View {
     @ViewBuilder
     private func cardPlace(_ drawn: TarotDrawnCard, isRevealed: Bool) -> some View {
         let card = TarotDeck.card(id: drawn.cardID)
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
+            FolioControlStack(alignment: .leading, spacing: 3) {
                 Text(drawn.position.title.uppercased())
                     .font(.caption2.weight(.black))
                     .tracking(1.3)
@@ -241,7 +247,7 @@ struct TarotPageView: View {
             .frame(maxWidth: .infinity)
 
             if isRevealed, let card {
-                VStack(alignment: .leading, spacing: 9) {
+                FolioControlStack(alignment: .leading, spacing: 9) {
                     Text(card.name)
                         .font(.system(.title3, design: .serif, weight: .bold))
                         .foregroundStyle(BookPalette.ink)
@@ -284,7 +290,7 @@ struct TarotPageView: View {
 
     @ViewBuilder
     private func serenityReadingSection(_ artifact: TarotReadingArtifact) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if let prose = artifact.castReading?.trimmingCharacters(in: .whitespacesAndNewlines),
                !prose.isEmpty {
                 HStack(spacing: 8) {
@@ -313,6 +319,7 @@ struct TarotPageView: View {
                         .foregroundStyle(BookPalette.ink)
                     }
                     .buttonStyle(.plain)
+                    .folioControlUnbroken()
 
                     if showContextReceipt {
                         contextReceipt(receipt)
@@ -329,6 +336,7 @@ struct TarotPageView: View {
                     serenityButtonLabel("Let Serenity read the cards", symbol: "map")
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .disabled(isAskingSerenity || isLocalBrainWorking || !localBrainIsReady)
 
                 Button {
@@ -337,6 +345,7 @@ struct TarotPageView: View {
                     serenityButtonLabel("Read beside my recent Pages", symbol: "point.3.connected.trianglepath.dotted")
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .disabled(isAskingSerenity || isLocalBrainWorking || !localBrainIsReady)
 
                 if !localBrainIsReady {
@@ -378,13 +387,13 @@ struct TarotPageView: View {
     }
 
     private func contextReceipt(_ receipt: TarotReadingContextReceipt) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text("\(receipt.sources.count) SOURCES · \(receipt.edges.count) EDGES")
                 .font(.caption2.weight(.black))
                 .tracking(0.9)
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
             ForEach(receipt.sources) { source in
-                VStack(alignment: .leading, spacing: 2) {
+                FolioControlStack(alignment: .leading, spacing: 2) {
                     Text(source.title)
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.ink)
@@ -408,7 +417,7 @@ struct TarotPageView: View {
     }
 
     private var readerNotes: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        FolioControlStack(alignment: .leading, spacing: 18) {
             readingEditor(
                 title: "Before the field notes",
                 prompt: "What did you notice first?",
@@ -436,7 +445,7 @@ struct TarotPageView: View {
         placeholder: String,
         text: Binding<String>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
                 .tracking(1.1)
@@ -454,6 +463,7 @@ struct TarotPageView: View {
                     .lineLimit(2...6)
                     .inkFeedback(text: text.wrappedValue)
                     .textFieldStyle(.plain)
+                    .folioControlUnbroken()
                     .foregroundStyle(BookPalette.ink)
                     .padding(13)
                     .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))

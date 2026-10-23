@@ -269,9 +269,8 @@ struct BookSourceInputs: Equatable {
     /// lexical, fingerprint, archive, and passage-salience fallback without
     /// main-thread ML.
     var semanticPassageSelectionEnabled = false
-    /// History keys of first-run steps the reader engaged with (opened or
-    /// deliberately swiped away). The first-run script advances on these, not
-    /// on served-history, so a card can't be skipped by merely flashing past.
+    /// Durable first-run progress: the Welcome requires an open or dismissal;
+    /// extended guidance retires after its first appearance on the live desk.
     var firstRunEngagedKeys: Set<String> = []
     /// The People of the Book ledger from the vault. The Book reads it as a
     /// witness; a person only enters the story when the reader writes them in
@@ -7724,7 +7723,6 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         }
         if active.count < UnwrittenElective.maxActive,
            !offeredToday,
-           bookFavor == nil,
            (10..<21).contains(hour),
            let sender = offerSender(inputs: inputs, day: day, now: now) {
             pages.append(offerSurface(sender: sender, inputs: inputs, day: day, now: now))
@@ -7753,6 +7751,46 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
     /// when the binding is empty.
     func flyleafSurface(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         authorCapabilities(on: flyleafSurface(ledger: FlyleafLedger(day: day, inputs: inputs, now: now), day: day, now: now))
+    }
+
+    /// The morning paper can offer a quest before the ordinary desk's daytime
+    /// window. Accepted work opens the existing Flyleaf, rather than another offer.
+    func assignmentSurface(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage? {
+        guard source.isActive else { return nil }
+        let active = inputs.electives.filter(\.isActive).sorted { $0.id < $1.id }
+        if !active.isEmpty {
+            let elective = active[(GrimoireDay.index(for: day.date) / 3) % active.count]
+            return flyleafSurface(for: day, inputs: inputs, now: now).withMetadata([
+                "electiveID": elective.id,
+                "electiveTitle": elective.title,
+                "electiveAsk": elective.ask,
+                "electivePractice": elective.practiceShape,
+                "senderID": elective.characterID,
+                "senderName": elective.characterName
+            ])
+        }
+        guard !inputs.electives.contains(where: { Calendar.current.isDate($0.createdAt, inSameDayAs: now) }),
+              let sender = offerSender(inputs: inputs, day: day, now: now) else { return nil }
+        return preparedOffer(offerSurface(sender: sender, inputs: inputs, day: day, now: now))
+    }
+
+    /// A complete offline note keeps real-place quests available while the
+    /// local brain is asleep, and preserves the exact ask printed by the paper.
+    private func preparedOffer(_ page: SurfacePage) -> SurfacePage {
+        let offer = ElectiveOfferFallback.offer(surface: page)
+        let body = "\(offer.ask)\n\n\(offer.whyItMatters)\n\nBring back: \(offer.practiceShape)\n\nKeep this Page to accept. Send it away to say no."
+        var metadata = page.payload.metadata
+        metadata["electivePrepared"] = "true"
+        metadata["electiveTitle"] = offer.title
+        metadata["electiveAsk"] = offer.ask
+        metadata["electiveWhy"] = offer.whyItMatters
+        metadata["electivePractice"] = offer.practiceShape
+        return authorCapabilities(on: SurfacePage(
+            id: page.id, type: page.type, sourceID: page.sourceID, intent: page.intent,
+            renderStyle: page.renderStyle, score: page.score, reason: page.reason,
+            prompt: "\(offer.title): \(metadata["senderName"] ?? "a character")", detail: offer.ask,
+            payload: BookPagePayload(headline: offer.title, body: body, metadata: metadata)
+        ))
     }
 
     private func authorCapabilities(on page: SurfacePage) -> SurfacePage {
@@ -7820,13 +7858,13 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
 
     private func offerSurface(sender: NarrativeWorldEntity, inputs: BookSourceInputs, day: BookDay, now: Date) -> SurfacePage {
         let cooledPlaces = availableNearbyPlaces(inputs: inputs, now: now)
-        return SurfacePage(
+        let page = SurfacePage(
             id: "\(source.id)-offer-\(sender.id)-\(day.id)",
             type: .elective,
             sourceID: source.id,
             intent: .capture,
             renderStyle: .loreLetter,
-            score: 70,
+            score: cooledPlaces.isEmpty ? 70 : 78,
             reason: "\(sender.name) has been working up the nerve to ask a quest.",
             prompt: "\(sender.name) has a quest to ask",
             detail: "A little folded note, tucked into the flyleaf, waiting for you to open it.",
@@ -7854,6 +7892,10 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
                 ]
             )
         )
+        // Keep the existing character writer when it is available. A scouted
+        // local quest also has a complete offline path, rather than disappearing
+        // with the writer-only candidates while the brain is asleep.
+        return !cooledPlaces.isEmpty && !inputs.localBrainIsReady ? preparedOffer(page) : page
     }
 
     private func bookFavorSurface(_ favor: BookFavor, day: BookDay) -> SurfacePage {
@@ -8186,7 +8228,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        guard inputs.surfaceHistory["source:\(source.id)"] == nil else { return [] }
+        guard !FirstRunPageSequence.hasSeenGuidance("source:\(source.id)", inputs: inputs) else { return [] }
         guard !day.pages.contains(where: { $0.type == .welcome || $0.tags.contains("welcome-labyrinth") }) else { return [] }
 
         return [
@@ -8372,7 +8414,7 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        guard inputs.surfaceHistory["first-door-origin"] == nil else { return [] }
+        guard !FirstRunPageSequence.hasSeenGuidance("first-door-origin", inputs: inputs) else { return [] }
         guard !day.pages.contains(where: { $0.sourceID == source.id || $0.tags.contains("first-door-origin") }) else { return [] }
         guard let profile = InscriptionReaderProfile.from(inputs), profile.hasOriginEvidence else { return [] }
         return [
@@ -8736,7 +8778,7 @@ struct InscriptionApprenticeshipPageSourceAdapter: BookPageSourceAdapter {
         if dayIndex == 0, hasOnboardingSouvenir(day: day, inputs: inputs) {
             return []
         }
-        guard inputs.surfaceHistory["first-door-apprenticeship:\(dayIndex)"] == nil else { return [] }
+        guard !FirstRunPageSequence.hasSeenGuidance("first-door-apprenticeship:\(dayIndex)", inputs: inputs) else { return [] }
         guard !day.pages.contains(where: { $0.tags.contains("first-door-apprenticeship-\(dayIndex)") }) else { return [] }
         return [
             surface(
@@ -11768,7 +11810,8 @@ struct GossipPageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
         if let prepared = inputs.preparedGossipPageSurface,
-           prepared.type == .gossip {
+           prepared.type == .gossip,
+           !inputs.undertakingSerial.hasMet(metadata: prepared.payload.metadata) {
             return [prepared]
         }
 
@@ -11793,7 +11836,8 @@ struct BookAsidePageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive,
               let prepared = inputs.preparedGossipPageSurface,
-              prepared.type == .bookAside else { return [] }
+              prepared.type == .bookAside,
+              !inputs.undertakingSerial.hasMet(metadata: prepared.payload.metadata) else { return [] }
         return [prepared]
     }
 }
@@ -12520,7 +12564,7 @@ struct LocalBrainAwakePageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
         guard inputs.localBrainIsReady else { return [] }
-        guard inputs.surfaceHistory["source:\(source.id)"] == nil else { return [] }
+        guard !FirstRunPageSequence.hasSeenGuidance("source:\(source.id)", inputs: inputs) else { return [] }
         guard !day.pages.contains(where: { $0.tags.contains("local-brain-awake") }) else { return [] }
         return [awakeSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs), score: 96)]
     }
@@ -12647,17 +12691,47 @@ struct BookJumpPageSourceAdapter: BookPageSourceAdapter {
 }
 
 enum FirstRunPageSequence {
-    /// A step is done when the reader engaged with its card, opened it or
-    /// deliberately swiped it away, never merely because the desk served it
-    /// once. Served-history advancement let a few quick desk rebuilds (right
-    /// after the local brain finished downloading, say) burn through steps
-    /// nobody read, and full curation overrode the rest of the onboarding.
+    /// The opening Welcome waits for an open, Keep, or deliberate dismissal.
+    /// Extended introductions only get one automatic appearance.
     private static func engaged(_ key: String, inputs: BookSourceInputs) -> Bool {
         inputs.firstRunEngagedKeys.contains(key)
     }
 
+    /// Keep from the folio is an engagement too; it need not pass through Open.
+    static func recordingEngagement(in progress: [String], page: SurfacePage) -> [String] {
+        guard page.payload.metadata["firstRunStep"] != nil
+                || page.payload.metadata["calendarDoorPreview"] == "true"
+                || page.sourceID == BookPageSourceRegistry.source(for: .welcome).id else {
+            return progress
+        }
+        return Set(progress).union(page.curatorServedHistoryKeys).sorted()
+    }
+
+    /// Repair older folio Keeps that never wrote the engagement marker. A
+    /// hidden/served Welcome is deliberately insufficient evidence.
+    static func recordingResolvedGuidance(
+        in progress: [String], days: [BookDay], events: [ReaderLearningEvent]
+    ) -> [String] {
+        let eligible = automaticGuidanceKeys.union(stepEngagementKeys)
+        var resolved = Set(progress)
+        for page in days.flatMap(\.pages) {
+            var keys = ["source:\(page.sourceID)"]
+            if let index = page.metadata?["firstDoorApprenticeshipDay"] {
+                keys.append("first-door-apprenticeship:\(index)")
+            }
+            if page.metadata?["firstRunStep"] == "first-door-origin" {
+                keys.append("first-door-origin")
+            }
+            resolved.formUnion(Set(keys).intersection(eligible))
+        }
+        for event in events where [.opened, .kept, .dismissed].contains(event.action) {
+            resolved.formUnion(Set(["source:\(event.sourceID)", event.varietyKey]).intersection(eligible))
+        }
+        return resolved.sorted()
+    }
+
     /// Home begins with one clear Welcome from the Book. It owns Pages Rising
-    /// until the reader opens or deliberately dismisses it, so the first live
+    /// until the reader opens, keeps, or deliberately dismisses it, so the first live
     /// mission and ordinary curation cannot crowd out the Gemma invitation and
     /// its inline download button.
     static func surfaces(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage]? {
@@ -12679,30 +12753,26 @@ enum FirstRunPageSequence {
         inputs: BookSourceInputs,
         now: Date
     ) -> SurfacePage? {
-        // This particular invitation is a single knock. Unlike the other
-        // guided cards, putting it on the desk once is enough to retire it;
-        // requiring an open or dismissal made it return on every later desk
-        // rebuild (and again on following days) until the reader touched it.
-        let firstMissionFinished = engaged("source:\(firstMissionSourceID)", inputs: inputs)
-            || inputs.surfaceHistory["source:\(firstMissionSourceID)"] != nil
+        // Every extended introduction is a single knock. Opening a tool by
+        // hand remains available after its introduction has rested.
+        let firstMissionFinished = hasSeenGuidance("source:\(firstMissionSourceID)", inputs: inputs)
             || day.pages.contains(where: { $0.tags.contains("first-run-mission") })
         if !firstMissionFinished {
             return firstMissionSurface(playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs))
         }
 
-        let combinedCompassShown = engaged("source:\(compassIntroductionSourceID)", inputs: inputs)
+        let combinedCompassShown = hasSeenGuidance("source:\(compassIntroductionSourceID)", inputs: inputs)
         let legacyCompassExplanationShown = [
             compassWhatSourceID,
             compassGiftSourceID,
             compassWhySourceID
-        ].allSatisfy { engaged("source:\($0)", inputs: inputs) }
+        ].allSatisfy { hasSeenGuidance("source:\($0)", inputs: inputs) }
 
         // The Pagewright moved out of How We Met and onto the desk, where the
         // reader has a real kept Page to cut up. Like the mission, one knock
         // is enough. Readers already past the compass met the Pagewright in
         // the old onboarding, so it never reaches them.
-        let pagewrightIntroFinished = engaged("source:\(pagewrightIntroSourceID)", inputs: inputs)
-            || inputs.surfaceHistory["source:\(pagewrightIntroSourceID)"] != nil
+        let pagewrightIntroFinished = hasSeenGuidance("source:\(pagewrightIntroSourceID)", inputs: inputs)
         if !pagewrightIntroFinished, !combinedCompassShown, !legacyCompassExplanationShown {
             return pagewrightIntroSurface(
                 playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
@@ -12713,7 +12783,7 @@ enum FirstRunPageSequence {
         // The month's story has been running without this reader. One Page,
         // once, tells it as it stands. Only when a run is live and the reader
         // hasn't met any of it; otherwise the chain moves on.
-        if !engaged("source:\(StorySoFarPageSourceAdapter.onboardingSourceID)", inputs: inputs),
+        if !hasSeenGuidance("source:\(StorySoFarPageSourceAdapter.onboardingSourceID)", inputs: inputs),
            let story = StorySoFarPageSourceAdapter.onboardingSurface(for: day, inputs: inputs, now: now) {
             return story
         }
@@ -12723,14 +12793,14 @@ enum FirstRunPageSequence {
         // download is skipped.
         if inputs.localBrainIsReady,
            engaged("source:local-brain-awake", inputs: inputs),
-           !engaged("source:\(enchantmentIntroSourceID)", inputs: inputs),
+           !hasSeenGuidance("source:\(enchantmentIntroSourceID)", inputs: inputs),
            !day.pages.contains(where: { $0.tags.contains("first-run-enchantment-intro") }) {
             return enchantmentIntroSurface(for: day, context: context, inputs: inputs, now: now)
         }
 
         let calendarAdapter = CalendarPageSourceAdapter()
         let calendarDoor = calendarAdapter.previewSurface(for: day)
-        let calendarDoorShown = engaged("source:\(calendarDoor.sourceID)", inputs: inputs)
+        let calendarDoorShown = hasSeenGuidance("source:\(calendarDoor.sourceID)", inputs: inputs)
         if !inputs.calendarIntegrationEnabled, !calendarDoorShown {
             return calendarDoor
         }
@@ -12856,6 +12926,88 @@ enum FirstRunPageSequence {
         stepEngagementKeys.filter { history[$0] != nil }
     }
 
+    enum Introduction: String, CaseIterable, Identifiable {
+        case origin, firstMission, pagewright, localBrain, enchantment, calendar, compass, compassRun, firstWeek
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .origin: return "The Inscription"
+            case .firstMission: return "Your First Little Job"
+            case .pagewright: return "Meet the Pagewright"
+            case .localBrain: return "The Book's Brain"
+            case .enchantment: return "Photos and Enchantments"
+            case .calendar: return "Calendar"
+            case .compass: return "The Wonder Compass"
+            case .compassRun: return "How a Compass Run Works"
+            case .firstWeek: return "First Week Practice"
+            }
+        }
+    }
+
+    /// Explicit requests use the same authored Pages without clearing any
+    /// progress or making the automatic sequence eligible again.
+    static func requestedIntroduction(
+        _ introduction: Introduction,
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date
+    ) -> SurfacePage {
+        let name = LabyrinthWelcomePageSourceAdapter.playerName(from: inputs)
+        switch introduction {
+        case .origin:
+            return InscriptionOriginPageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+        case .firstMission:
+            return firstMissionSurface(playerName: name)
+        case .pagewright:
+            return pagewrightIntroSurface(playerName: name, inputs: inputs)
+        case .localBrain:
+            if inputs.localBrainIsReady {
+                return LocalBrainAwakePageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+            }
+            return LabyrinthWelcomePageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+        case .enchantment:
+            return enchantmentIntroSurface(for: day, context: context, inputs: inputs, now: now)
+        case .calendar:
+            return CalendarPageSourceAdapter().previewSurface(for: day)
+        case .compass:
+            return compassIntroductionSurface()
+        case .compassRun:
+            return compassRunIntroSurface(for: day, context: context, inputs: inputs, now: now)
+        case .firstWeek:
+            return InscriptionApprenticeshipPageSourceAdapter().manualSurface(for: day, context: context, inputs: inputs, now: now)
+        }
+    }
+
+    /// Stable identities, independent of app version, date, or edited prose.
+    /// Stored in the existing first-run ledger, which also travels in sealed
+    /// copies. Ordinary variety history expires after four months.
+    static var automaticGuidanceKeys: Set<String> {
+        Set(stepEngagementKeys.filter {
+            $0 != "source:\(BookPageSourceRegistry.source(for: .welcome).id)"
+        } + (0...6).map { "first-door-apprenticeship:\($0)" })
+    }
+
+    static func hasSeenGuidance(_ key: String, inputs: BookSourceInputs) -> Bool {
+        inputs.firstRunEngagedKeys.contains(key) || inputs.surfaceHistory[key] != nil
+    }
+
+    /// Call only for Pages admitted to the live desk, never a curation bench or
+    /// the hidden desk underneath onboarding. Old served records are promoted
+    /// too, even when this Book already has an engagement ledger.
+    static func recordingShownGuidance(
+        in progress: [String],
+        history: [String: SurfaceHistoryRecord],
+        pages: [SurfacePage] = []
+    ) -> [String] {
+        let eligible = automaticGuidanceKeys
+        let previouslyShown = eligible.filter { history[$0] != nil }
+        let newlyShown = Set(pages.flatMap(\.curatorServedHistoryKeys)).intersection(eligible)
+        return Set(progress).union(previouslyShown).union(newlyShown).sorted()
+    }
+
     static let firstMissionSourceID = "first-run-mission"
     static let pagewrightIntroSourceID = "first-run-pagewright"
     static let localBrainSetupSourceID = "first-run-local-brain-setup"
@@ -12902,8 +13054,8 @@ enum FirstRunPageSequence {
     }
 
     /// Compatibility hook for callers that still ask for the optional brain
-    /// card as a rider. Once the reader has engaged its one clear Inscription
-    /// turn, it rests in the Colophon rather than following every later desk.
+    /// card as a rider. After its one appearance it rests in the Colophon
+    /// instead of following every later desk.
     static func pendingLocalBrainUpgrade(inputs: BookSourceInputs) -> SurfacePage? {
         guard !inputs.localBrainIsReady else { return nil }
         guard engaged(
@@ -12914,7 +13066,7 @@ enum FirstRunPageSequence {
             playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
             downloadLabel: inputs.localBrainDownloadLabel
         )
-        guard !engaged("source:\(surface.sourceID)", inputs: inputs) else { return nil }
+        guard !hasSeenGuidance("source:\(surface.sourceID)", inputs: inputs) else { return nil }
         return surface
     }
 
@@ -13084,7 +13236,7 @@ enum FirstRunPageSequence {
     }
 
     private static func shouldSurfaceFirstCompassRun(inputs: BookSourceInputs, day: BookDay) -> Bool {
-        guard !engaged("source:\(compassRunIntroSourceID)", inputs: inputs) else { return false }
+        guard !hasSeenGuidance("source:\(compassRunIntroSourceID)", inputs: inputs) else { return false }
         guard !day.pages.contains(where: { $0.tags.contains("first-run-compass-run") || $0.tags.contains("wonder-compass-run") }) else { return false }
         return true
     }
@@ -16599,6 +16751,7 @@ enum BookPageSourceAdapters {
         PactErrandPageSourceAdapter(),
         FestivalPageSourceAdapter(),
         SpellPageSourceAdapter(),
+        KitchenRecipePageSourceAdapter(),
         TodaysSkyPageSourceAdapter(),
         RadioPageSourceAdapter(),
         BookJumpPageSourceAdapter(),

@@ -48,6 +48,8 @@ struct PhotoAnalysis: Codable, Equatable {
     /// default still throws `keyNotFound` when the key is missing, and this type
     /// is decoded straight from Gemma's JSON, which will never mention it.
     var creatures: [CreatureSighting]? = nil
+    /// Fallback words describe the Book's handling of a photo, never its unseen contents.
+    var usesFallbackMarginalia: Bool? = nil
 }
 
 enum IlluminationAssetKind: String, Codable, Equatable {
@@ -620,6 +622,14 @@ struct IlluminationTemplate: Identifiable, Codable, Equatable {
     var backgroundTags: [String]
 }
 
+enum IlluminatedAnnotationStyle: String, Codable, Equatable {
+    case ink, tornPaper, stamp
+}
+
+enum IlluminatedPhotoPurpose: Equatable {
+    case photograph, enchantment
+}
+
 struct IlluminatedTextSlot: Identifiable, Codable, Equatable {
     var id: UUID
     var slotId: String
@@ -630,6 +640,7 @@ struct IlluminatedTextSlot: Identifiable, Codable, Equatable {
     var size: CodableSize
     var rotationDegrees: Double
     var fontStyle: IlluminatedFontStyle
+    var annotationStyle: IlluminatedAnnotationStyle? = nil
 }
 
 struct IlluminatedCompositionPlan: Codable, Equatable {
@@ -646,6 +657,8 @@ struct IlluminatedCompositionPlan: Codable, Equatable {
     /// A canvas-space region that scraps and marks may approach but not cover.
     /// Old saved plans decode with no guard and retain their original layout.
     var marginaliaExclusionRect: CodableRect? = nil
+    /// Version 2 stores final geometry shared by text and artwork. Renderers must not re-jitter it.
+    var layoutVersion: Int? = nil
 }
 
 struct IlluminatedPhotoDraft: Identifiable, Codable, Equatable {
@@ -778,7 +791,8 @@ extension PhotoAnalysis {
         souvenirCandidates: [
             "One ordinary detail stood up and became evidence.",
             "The scene waited patiently to be noticed."
-        ]
+        ],
+        usesFallbackMarginalia: true
     )
 
     static let goodCompanyFallback = PhotoAnalysis(
@@ -801,7 +815,8 @@ extension PhotoAnalysis {
         souvenirCandidates: [
             "The day held still long enough for good company.",
             "Two smiles made the background less important."
-        ]
+        ],
+        usesFallbackMarginalia: true
     )
 
     static let harborFallback = PhotoAnalysis(
@@ -824,7 +839,8 @@ extension PhotoAnalysis {
         souvenirCandidates: [
             "The harbor arranged its small evidence in plain sight.",
             "The water held the day without asking why."
-        ]
+        ],
+        usesFallbackMarginalia: true
     )
 }
 
@@ -2966,152 +2982,403 @@ enum IlluminationMarginaliaLibrary {
     }
 }
 
+/// A varied vocabulary for photos we have not described: the Book's small
+/// courtesies, imagined Faerie-tales, and invitations back to the physical world.
+/// These offer possibilities without inventing events inside the photograph.
+enum IlluminatedPhotoFallbackWords {
+    static func marginalia(seed: Int) -> PhotoMarginalia {
+        let openings = [
+            "I put my finger here.",
+            "This bit stays.",
+            "I made room. Bring the picture.",
+            "Caught it by the corner.",
+            "I want another look.",
+            "Wait. Leave this one open.",
+            "I have paper. This can stay.",
+            "A photograph fits between my ribs.",
+            "I nosed this into the light.",
+            "One picture. Plenty to poke at.",
+            "I kept a little room beside it.",
+            "Let me hold the edge.",
+            "No, don't file it yet.",
+            "I tucked this under my wing.",
+            "My pages wanted a picture.",
+            "I saved this patch of paper.",
+            "A corner for looking twice.",
+            "I can carry this much.",
+            "Ordinary is a very good disguise.",
+            "I would leave a little room for Faerie.",
+            "The world may be wearing its plainest coat.",
+            "The small doors are rarely labelled.",
+            "This could be where the tale begins.",
+            "I brought no crown. Will a leaf do?",
+            "Let's give the smallest thing a kingdom.",
+            "A pocket is a perfectly good treasury.",
+            "I like a kingdom you can walk through.",
+            "My kind of spell leaves crumbs.",
+            "I would ask the moths, given the chance.",
+            "Even a quest has an ordinary afternoon.",
+            "What would a beetle call this place?",
+            "I want the kind of magic with dirt on it.",
+            "Suppose the errand was part of the tale.",
+            "Bring your ordinary things. They'll do.",
+            "A hello might be the smallest spell.",
+            "I have a weakness for unlikely treasure.",
+            "You have a whole body outside this picture.",
+            "The air is touching you even now.",
+            "I like you here. All warm and real.",
+            "Your weight belongs somewhere. Feel where.",
+            "Look up. There is more world.",
+            "Let your hands have some of the adventure.",
+            "The room has a sound of its own.",
+            "You brought your whole self to this bit.",
+            "There is weather on the other side of me.",
+            "I can wait while you feel the air.",
+            "A breath fits between these words.",
+            "The world has edges you can feel.",
+            "I want a little of the real light.",
+            "Your skin knows things a picture doesn't.",
+            "There is a world beyond this rectangle.",
+            "Even stillness has weight.",
+            "Let the next sound come to you.",
+            "I like adventures that leave you windblown."
+        ]
+        let closings = [
+            "You know what happened outside the frame.",
+            "The rest belongs to you.",
+            "I can hold the picture. You keep the telling.",
+            "No caption owed. Looking counts.",
+            "I won't name it before you do.",
+            "Stay a moment, or turn my page.",
+            "You can leave the remembering till later.",
+            "I'll mind the corner.",
+            "There is room here for what I don't know.",
+            "Nothing to solve. Just a place to look.",
+            "The picture can keep its secrets.",
+            "I left the edges loose.",
+            "Tell me if you want. I'll be here.",
+            "I have no teeth for this kind of keeping.",
+            "A whole elsewhere, caught on paper.",
+            "I won't squeeze a lesson out of it.",
+            "Your eyes get the last word.",
+            "You may turn the leaf whenever you like.",
+            "A Faerie-tale can begin halfway through an ordinary day.",
+            "If you met a tiny monarch here, what would you offer?",
+            "Give an ordinary thing a secret name. You needn't tell me.",
+            "What would you carry from here if your pockets were very small?",
+            "Imagine a door only as tall as your thumb. Where would it go?",
+            "Choose something a crow might keep. That can be the treasure.",
+            "You can go on an errand and come back with a tale.",
+            "If the day were a tale, you would be in it already.",
+            "A kindness can be the whole spell. A very small one will do.",
+            "What would count as treasure if nobody could buy it?",
+            "I would take a little bread on an adventure. And a good pocket.",
+            "Perhaps the first step of a quest is just opening the curtains.",
+            "You may give a puddle a grand name. It needn't earn one.",
+            "What would you show someone who had never been human before?",
+            "Even an enchanted forest has beetles going about their business.",
+            "If you could tuck one small blessing here, what would it be?",
+            "Leave a little of the tale untold. Give it somewhere to grow.",
+            "You can be the person who stops to help the small creature.",
+            "Before the next page, feel what is holding your weight.",
+            "Look away from me for a moment. Let something real catch your eye.",
+            "Find one patch of warmth or coolness against your skin.",
+            "Listen past the nearest sound. What is further away?",
+            "Let your next breath take the time it takes.",
+            "You can close me and keep this bit of looking.",
+            "Notice one thing your hand can feel that this picture cannot show.",
+            "See if the light has reached somewhere you hadn't noticed.",
+            "Feel the weight of whatever you are holding. I can wait.",
+            "Let your attention wander all the way to the edge of the room.",
+            "What does being here feel like against your skin?",
+            "There is more of you here than can fit inside a photograph.",
+            "The next part of the tale can happen with me closed.",
+            "Stay for one small sound, if you like.",
+            "The air, your weight, a little light. Plenty to begin with.",
+            "Let something in the room be interesting without being useful.",
+            "You may take this moment at the speed of a living thing.",
+            "What feels different when you look up again?"
+        ]
+        let invitations = [
+            "Find the smallest thing here",
+            "Look all the way to an edge",
+            "Follow one patch of colour",
+            "Leave one thing unnamed",
+            "What sits just outside the frame?",
+            "Where does your eye go first?",
+            "Look once without a caption",
+            "Pick a corner to begin",
+            "Find a shape you nearly missed",
+            "Let your eye take the long way",
+            "Keep one detail to yourself",
+            "Try looking from the bottom up",
+            "What would be treasure to a beetle?",
+            "Give one small thing a secret name",
+            "Imagine a door as tall as your thumb",
+            "Where would a tired faerie rest?",
+            "Choose a colour for a tiny kingdom",
+            "What would a crow carry away?",
+            "Invent a courtesy for this little kingdom",
+            "Where might a very small quest begin?",
+            "What would you offer a visiting moth?",
+            "Give an ordinary object a noble title",
+            "Imagine telling this bit beside a fire",
+            "Feel where your weight is resting",
+            "Notice the air against your skin",
+            "Listen for the furthest sound you can hear",
+            "Find a warm place or a cool one",
+            "Look up. Where is the light now?",
+            "Let your next breath arrive by itself",
+            "Notice the weight of what you are holding",
+            "Feel one texture within easy reach",
+            "Listen for a sound you didn't make",
+            "What colour is nearest to you now?",
+            "Notice where cloth meets skin",
+            "Let your eyes rest on something far away",
+            "What is moving around you right now?",
+            "Find a shadow beyond this page",
+            "Feel the shape your hand is making",
+            "What can you smell where you are?",
+            "Notice a tiny change in the light",
+            "Let one ordinary sound finish",
+            "Find a colour the photograph doesn't hold",
+            "What is soft within reach?",
+            "Notice the space around your body",
+            "Let the room have your attention a moment",
+            "Find something real with an uneven edge",
+            "What does the air feel like today?",
+            "Look away, then come back if you like"
+        ]
+        let labels = [
+            "LOOK HERE",
+            "KEPT A CORNER",
+            "DO NOT FLATTEN",
+            "ANOTHER LOOK",
+            "ROOM INSIDE",
+            "STILL HERE",
+            "FOUND A PLACE",
+            "HANDLE SOFTLY",
+            "FAERIE BUSINESS",
+            "POCKET KINGDOM",
+            "A SMALL ENCHANTMENT",
+            "QUEST IN PROGRESS",
+            "ORDINARY DISGUISE",
+            "TREASURE, POSSIBLY",
+            "ROOM FOR WONDER",
+            "LEAVE A LITTLE WILD",
+            "WARM AND REAL",
+            "STILL IN THE WORLD",
+            "AIR AGAINST SKIN",
+            "A BREATH HERE",
+            "WEIGHT AND WEATHER",
+            "THE TALE GOES ON",
+            "DIRT ON THE MAGIC",
+            "LOOK UP A MOMENT"
+        ]
+        func pick(_ values: [String], _ salt: Int) -> String {
+            values[IlluminatedPhotoLayout.bucket(seed, salt: salt, count: values.count)]
+        }
+        let first = IlluminatedPhotoLayout.bucket(seed, salt: 37, count: invitations.count)
+        return PhotoMarginalia(
+            fieldNote: pick(openings, 11), stampLabel: pick(labels, 23),
+            observationList: (0..<3).map { invitations[(first + $0 * 5) % invitations.count] },
+            closingLine: pick(closings, 53)
+        )
+    }
+}
+
+/// Geometry is settled once, before rendering, for handwriting and cabinet art
+/// together. Rotated bounds include breathing room and stay inside the leaf.
+enum IlluminatedPhotoLayout {
+    static func bucket(_ seed: Int, salt: Int, count: Int) -> Int {
+        Int(UInt(bitPattern: (seed &+ salt &* 7_919).stableScramble) % UInt(max(1, count)))
+    }
+
+    static func footprint(position: CodablePoint, size: CodableSize, rotation: Double, padding: Double = 14) -> CodableRect {
+        let radians = rotation * .pi / 180
+        let width = abs(size.width * cos(radians)) + abs(size.height * sin(radians)) + padding * 2
+        let height = abs(size.width * sin(radians)) + abs(size.height * cos(radians)) + padding * 2
+        return CodableRect(x: position.x + (size.width - width) / 2,
+                           y: position.y + (size.height - height) / 2, width: width, height: height)
+    }
+
+    static func intersectionArea(_ a: CodableRect, _ b: CodableRect) -> Double {
+        max(0, min(a.x + a.width, b.x + b.width) - max(a.x, b.x)) *
+        max(0, min(a.y + a.height, b.y + b.height) - max(a.y, b.y))
+    }
+
+    static func position(size: CodableSize, rotation: Double, preferred: CodablePoint,
+                         canvas: CodableSize, avoiding: [CodableRect]) -> CodablePoint? {
+        let origin = footprint(position: CodablePoint(x: 0, y: 0), size: size, rotation: rotation)
+        let insetX = -origin.x
+        let insetY = -origin.y
+        let left = 28 + insetX
+        let right = canvas.width - 28 - size.width - insetX
+        let top = 28 + insetY
+        let bottom = canvas.height - 56 - size.height - insetY
+        guard right >= left, bottom >= top else { return nil }
+        let preferredX = min(right, max(left, preferred.x))
+        let preferredY = min(bottom, max(top, preferred.y))
+        var candidates = [CodablePoint(x: preferredX, y: preferredY)]
+        var xs = [left, right, preferredX]
+        var ys = [top, bottom, preferredY]
+        // Exact edge candidates matter: a coarse grid can miss a perfectly
+        // usable narrow strip above a rotated photograph.
+        for box in avoiding {
+            xs += [box.x - size.width - insetX - 1, box.x + box.width + insetX + 1]
+            ys += [box.y - size.height - insetY - 1, box.y + box.height + insetY + 1]
+        }
+        for x in xs { for y in ys { candidates.append(CodablePoint(x: x, y: y)) } }
+        // Search the whole leaf, rather than independently pushing every item
+        // to the same nearest edge of the protected subject.
+        for row in 0...24 {
+            for column in 0...16 {
+                candidates.append(CodablePoint(x: 42 + Double(column) * 72, y: 42 + Double(row) * 70))
+            }
+        }
+        return candidates.filter { point in
+            let box = footprint(position: point, size: size, rotation: rotation)
+            return box.x >= 28 && box.y >= 28 && box.x + box.width <= canvas.width - 28
+                && box.y + box.height <= canvas.height - 56
+                && avoiding.allSatisfy { intersectionArea(box, $0) == 0 }
+        }.min { a, b in
+            let da = pow(a.x - preferred.x, 2) + pow(a.y - preferred.y, 2)
+            let db = pow(b.x - preferred.x, 2) + pow(b.y - preferred.y, 2)
+            return da < db
+        }
+    }
+}
+
 enum IlluminatedPageComposer {
     private static let canvasSize = CodableSize(width: 1290, height: 1800)
 
-    private struct TextLayoutVariant {
-        var position: CodablePoint
-        var size: CodableSize
-        var rotationRange: ClosedDoubleRange
-    }
-
-    private struct AdaptedTextLayout {
-        var position: CodablePoint
-        var size: CodableSize
-    }
-
     static func compose(
-        analysis: PhotoAnalysis,
+        analysis originalAnalysis: PhotoAnalysis,
         sourceAssetName: String,
         seed: Int,
         assetLocalIdentifier: String? = nil,
-        sourceImageSize: CodableSize? = nil
+        sourceImageSize: CodableSize? = nil,
+        purpose: IlluminatedPhotoPurpose = .photograph
     ) -> IlluminatedPhotoDraft {
-        let template = IlluminationTemplateLibrary.template(for: analysis.suggestedTemplate)
-        let pack = IlluminationPackRegistry.preferredPack(for: template.id, motifs: analysis.motifs)
+        var analysis = originalAnalysis
+        if purpose == .photograph && analysis.usesFallbackMarginalia == true {
+            analysis.marginalia = IlluminatedPhotoFallbackWords.marginalia(seed: seed)
+            analysis.souvenirCandidates = []
+        }
+        let templateID = analysis.suggestedTemplate
+        let template = IlluminationTemplateLibrary.template(for: templateID)
+        let pack = IlluminationPackRegistry.preferredPack(for: templateID, motifs: analysis.motifs)
         let resolver = IlluminationAssetResolver()
-        let background = resolver.resolveAsset(kind: .background, tags: template.backgroundTags, template: template.id, installedPacks: [pack])
-        let overlays = pack.overlays.map(\.assetName)
+        let background = resolver.resolveAsset(kind: .background, tags: template.backgroundTags,
+            template: templateID, installedPacks: [pack], seed: seed)
+        let isSpell = purpose == .enchantment
+        // A spell's result gets one generous space, not a full result repeated
+        // in both an observation card and a closing card.
+        let resultLines = analysis.marginalia.closingLine.components(separatedBy: .newlines)
+            .reduce(0) { $0 + max(1, Int(ceil(Double($1.count) / 55))) }
+        let resultHeight = min(730.0, max(240, Double(resultLines) * 42 + 60))
+        let photoTop = isSpell ? 350.0 : 290.0
+        let photoHeight = isSpell ? min(960, canvasSize.height - photoTop - resultHeight - 140) : 1010
         let photoFrame = PhotoFrameSpec(
-            position: jittered(CodablePoint(x: 210, y: 280), seed: seed, salt: 99, x: 26, y: 30),
-            size: CodableSize(width: 870, height: 1010),
-            rotationDegrees: ClosedDoubleRange(lowerBound: -2.0, upperBound: 2.0).value(seed: seed, salt: 99),
-            cornerRadius: 18
+            position: CodablePoint(x: 210 + Double(IlluminatedPhotoLayout.bucket(seed, salt: 3, count: 31)) - 15, y: photoTop),
+            size: CodableSize(width: 870, height: photoHeight),
+            rotationDegrees: ClosedDoubleRange(lowerBound: -1.5, upperBound: 1.5).value(seed: seed, salt: 99),
+            cornerRadius: 10
         )
-        let exclusionRect = marginaliaExclusionRect(
-            photoFrame: photoFrame,
-            subjectRegion: analysis.subjectRegion,
-            sourceImageSize: sourceImageSize
-        )
-        var usedPaperAssetNames = Set<String>()
-        var textSlots = (template.requiredSlots + template.optionalSlots).enumerated().map { offset, spec in
-            let body = body(for: spec.contentKey, analysis: analysis)
-            let scrap = resolver.resolveAsset(
-                kind: .paperScrap,
-                tags: spec.paperTags,
-                template: template.id,
-                installedPacks: [pack],
-                seed: seed,
-                salt: 101 + offset * 37,
-                excludingAssetNames: usedPaperAssetNames
-            )
-            if let scrap {
-                usedPaperAssetNames.insert(scrap.assetName)
-            }
-            let layout = textLayout(for: spec, seed: seed, salt: offset)
-            let adaptedLayout = adaptiveTextLayout(
-                position: jittered(layout.position, seed: seed, salt: offset, x: 46, y: 38),
-                proposedSize: layout.size,
-                body: body,
-                paperAsset: scrap,
-                seed: seed,
-                salt: 211 + offset * 31
-            )
-            return IlluminatedTextSlot(
-                id: UUID(),
-                slotId: spec.id,
-                paperAssetName: scrap?.assetName ?? "ParchmentFiber",
-                title: spec.title,
-                body: body,
-                position: adaptedLayout.position,
-                size: adaptedLayout.size,
-                rotationDegrees: layout.rotationRange.value(seed: seed, salt: offset),
-                fontStyle: spec.fontStyle
-            )
-        }
-        textSlots.append(contentsOf: extraMarginaliaSlots(
-            analysis: analysis,
-            seed: seed,
-            resolver: resolver,
-            template: template.id,
-            pack: pack,
-            excludingPaperAssetNames: usedPaperAssetNames
-        ))
-        var decorations = template.decorationSlots.enumerated().compactMap { offset, slot -> DecorationPlacement? in
-            guard let asset = resolver.resolveAsset(kind: slot.kind, tags: slot.tags + analysis.motifs, template: template.id, installedPacks: [pack]) else {
-                return slot.required ? DecorationPlacement(id: UUID(), assetName: "MarginaliaStar", kind: slot.kind, position: slot.position, size: slot.size, rotationDegrees: 0, opacity: 0.24) : nil
-            }
-            return DecorationPlacement(
-                id: UUID(),
-                assetName: asset.assetName,
-                kind: slot.kind,
-                position: jittered(slot.position, seed: seed, salt: offset + 41),
-                size: slot.size,
-                rotationDegrees: slot.rotationRange.value(seed: seed, salt: offset + 41),
-                opacity: slot.opacityRange.value(seed: seed, salt: offset + 71)
-            )
-        }
-        decorations.append(contentsOf: extraDecorationSlots(
-            analysis: analysis,
-            seed: seed,
-            resolver: resolver,
-            template: template.id,
-            pack: pack
-        ))
-        let plan = IlluminatedCompositionPlan(
-            templateId: template.id,
-            assetPackId: pack.id,
-            randomSeed: seed,
-            canvasSize: canvasSize,
-            photoFrame: photoFrame,
-            photoTreatment: template.defaultPhotoTreatment,
-            textSlots: textSlots,
-            decorations: decorations,
-            backgroundAssetName: background?.assetName ?? "ParchmentTexture",
-            textureOverlayNames: overlays,
-            marginaliaExclusionRect: exclusionRect
-        )
-        let now = Date()
-        return IlluminatedPhotoDraft(
-            id: UUID(),
-            assetLocalIdentifier: assetLocalIdentifier ?? "bundled:\(sourceAssetName)",
-            sourceAssetName: sourceAssetName,
-            analysis: analysis,
-            compositionPlan: plan,
-            renderedPreviewPath: "",
-            status: .proposed,
-            createdAt: now,
-            updatedAt: now
-        )
-    }
+        let exclusionRect = marginaliaExclusionRect(photoFrame: photoFrame,
+            subjectRegion: analysis.subjectRegion, sourceImageSize: sourceImageSize)
+        let photoBounds = IlluminatedPhotoLayout.footprint(position: photoFrame.position,
+            size: photoFrame.size, rotation: photoFrame.rotationDegrees, padding: 22)
+        var occupied: [CodableRect] = []
+        var textSlots: [IlluminatedTextSlot] = []
+        let paperIndex = IlluminatedPhotoLayout.bucket(seed, salt: 43, count: 3)
+        let prefersRight = IlluminatedPhotoLayout.bucket(seed, salt: 47, count: 2) == 0
 
-    private static func body(for key: MarginaliaContentKey, analysis: PhotoAnalysis) -> String {
-        switch key {
-        case .fieldNote:
-            return analysis.marginalia.fieldNote
-        case .stampLabel:
-            return analysis.marginalia.stampLabel
-        case .observationList:
-            return analysis.marginalia.observationList.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-        case .closingLine:
-            return analysis.marginalia.closingLine
-        case .souvenirCandidate:
-            return analysis.souvenirCandidates.first ?? ""
-        case .fixedCompassReminder:
-            return "Walk. Notice. Record. Return. Repeat."
-        case .fixedFrameLine:
-            return "The frame is fictional.\nThe attention is real."
+        func addNote(id: String, body: String, style: IlluminatedAnnotationStyle, preferred: CodablePoint,
+                     width: Double, height: Double, rotation: Double, title: String? = nil,
+                     font: IlluminatedFontStyle = .handwritten) {
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !textSlots.contains(where: { $0.body == trimmed }) else { return }
+            let size = CodableSize(width: width, height: height)
+            guard let position = IlluminatedPhotoLayout.position(size: size, rotation: rotation, preferred: preferred,
+                canvas: canvasSize, avoiding: occupied + [photoBounds]) else { return }
+            let paper = style == .tornPaper ? resolver.resolveAsset(kind: .paperScrap,
+                tags: ["blank", "torn"], template: templateID, installedPacks: [pack], seed: seed, salt: 101) : nil
+            textSlots.append(IlluminatedTextSlot(id: UUID(), slotId: id,
+                paperAssetName: paper?.assetName ?? "ParchmentFiber", title: title, body: trimmed,
+                position: position, size: size, rotationDegrees: rotation, fontStyle: font, annotationStyle: style))
+            occupied.append(IlluminatedPhotoLayout.footprint(position: position, size: size, rotation: rotation))
         }
+
+        // Short opening ink lives above the photograph. Its changing alignment
+        // and slant give each composition a gesture without moving on revisit.
+        addNote(id: "field-note", body: analysis.marginalia.fieldNote,
+            style: paperIndex == 0 && !isSpell ? .tornPaper : .ink,
+            preferred: CodablePoint(x: prefersRight ? 585 : 100, y: 68),
+            width: 570, height: isSpell ? 225 : 175, rotation: prefersRight ? 2 : -2.5,
+            title: isSpell ? analysis.marginalia.stampLabel : nil)
+
+        let showObservations = !isSpell && IlluminatedPhotoLayout.bucket(seed, salt: 59, count: 3) == 0
+        let mainBody = showObservations
+            ? analysis.marginalia.observationList.prefix(3).joined(separator: "\n")
+            : analysis.marginalia.closingLine
+        addNote(id: showObservations ? "observation-list" : "closing-line", body: mainBody,
+            style: paperIndex == 1 && !isSpell ? .tornPaper : .ink,
+            preferred: CodablePoint(x: isSpell ? 80 : (prefersRight ? 400 : 90), y: photoFrame.position.y + photoHeight + 65),
+            width: isSpell ? 1120 : 760, height: isSpell ? resultHeight : 275,
+            rotation: isSpell ? 0 : (prefersRight ? -1.2 : 1.5), font: isSpell ? .serifBody : .handwritten)
+
+        // Sometimes just two notes are enough. A third is a small stamp, never
+        // another generic slogan on its own index card.
+        if !isSpell && IlluminatedPhotoLayout.bucket(seed, salt: 61, count: 3) != 0 {
+            addNote(id: "stamp-label", body: analysis.marginalia.stampLabel,
+                style: .stamp, preferred: CodablePoint(x: prefersRight ? 75 : 910, y: 1550),
+                width: 285, height: 100, rotation: prefersRight ? -5 : 4, font: .stamp)
+        }
+
+        var decorations: [DecorationPlacement] = []
+        var usedAssets = Set<String>()
+        let motifTags = LeafDecorationLibrary.resolvedMotifs(pageType: .illuminatedPhoto,
+            metadata: ["motifs": analysis.motifs.joined(separator: ",")], semanticText: analysis.scene)
+        let choices: [(IlluminationAssetKind, [String])] = [
+            (.doodle, ["marginalia"] + analysis.motifs),
+            (.doodle, analysis.motifs + ["botanical"]),
+            (.stamp, analysis.motifs + ["stamp"]),
+            (.doodle, motifTags + ["flourish"])
+        ]
+        let anchors = [CodablePoint(x: 45, y: 420), CodablePoint(x: 1090, y: 640),
+                       CodablePoint(x: 80, y: 1120), CodablePoint(x: 965, y: 1420),
+                       CodablePoint(x: 1040, y: 85), CodablePoint(x: 120, y: 1520)]
+        // The subject stays protected. Small artwork can kiss a photo edge,
+        // while the exact same occupied list protects all readable annotations.
+        let protectedSubject = CodableRect(x: exclusionRect.x - 40, y: exclusionRect.y - 40,
+            width: exclusionRect.width + 80, height: exclusionRect.height + 80)
+        for (index, choice) in choices.enumerated() {
+            guard let asset = resolver.resolveAsset(kind: choice.0, tags: choice.1,
+                template: templateID, installedPacks: [pack], seed: seed, salt: 811 + index * 37,
+                excludingAssetNames: usedAssets), !usedAssets.contains(asset.assetName) else { continue }
+            let ratio = min(2.5, max(0.45, asset.leafTraits?.aspectRatio ?? 1))
+            let longSide = index == 0 ? 245.0 : 185.0
+            let size = ratio > 1 ? CodableSize(width: longSide, height: longSide / ratio)
+                : CodableSize(width: longSide * ratio, height: longSide)
+            let rotation = ClosedDoubleRange(lowerBound: -6, upperBound: 6).value(seed: seed, salt: index + 733)
+            let anchor = anchors[(index + IlluminatedPhotoLayout.bucket(seed, salt: 83, count: anchors.count)) % anchors.count]
+            guard let position = IlluminatedPhotoLayout.position(size: size, rotation: rotation,
+                preferred: anchor, canvas: canvasSize, avoiding: occupied + [protectedSubject]) else { continue }
+            decorations.append(DecorationPlacement(id: UUID(), assetName: asset.assetName, kind: asset.kind,
+                position: position, size: size, rotationDegrees: rotation,
+                opacity: asset.kind == .stamp ? 0.82 : 0.94))
+            occupied.append(IlluminatedPhotoLayout.footprint(position: position, size: size, rotation: rotation))
+            usedAssets.insert(asset.assetName)
+        }
+        let plan = IlluminatedCompositionPlan(templateId: templateID, assetPackId: pack.id, randomSeed: seed,
+            canvasSize: canvasSize, photoFrame: photoFrame, photoTreatment: template.defaultPhotoTreatment,
+            textSlots: textSlots, decorations: decorations, backgroundAssetName: background?.assetName ?? "ParchmentTexture",
+            textureOverlayNames: pack.overlays.map(\.assetName), marginaliaExclusionRect: exclusionRect, layoutVersion: 2)
+        let now = Date()
+        return IlluminatedPhotoDraft(id: UUID(), assetLocalIdentifier: assetLocalIdentifier ?? "bundled:\(sourceAssetName)",
+            sourceAssetName: sourceAssetName, analysis: analysis, compositionPlan: plan, renderedPreviewPath: "",
+            status: .proposed, createdAt: now, updatedAt: now)
     }
 
     /// Maps Vision's bottom-left normalized subject box through the same
@@ -3190,259 +3457,7 @@ enum IlluminatedPageComposer {
         return CodableRect(x: left, y: top, width: right - left, height: bottom - top)
     }
 
-    private static func jittered(_ point: CodablePoint, seed: Int, salt: Int) -> CodablePoint {
-        let dx = ClosedDoubleRange(lowerBound: -26, upperBound: 26).value(seed: seed, salt: salt)
-        let dy = ClosedDoubleRange(lowerBound: -22, upperBound: 22).value(seed: seed, salt: salt + 13)
-        return CodablePoint(x: point.x + dx, y: point.y + dy)
-    }
 
-    private static func textLayout(for spec: TemplateTextSlotSpec, seed: Int, salt: Int) -> TextLayoutVariant {
-        let variants: [TextLayoutVariant]
-        switch spec.contentKey {
-        case .fieldNote:
-            variants = [
-                textVariant(x: 92, y: 190, width: 390, height: 185, rotationLower: -7, rotationUpper: 4),
-                textVariant(x: 105, y: 650, width: 335, height: 210, rotationLower: -8, rotationUpper: 3),
-                textVariant(x: 780, y: 470, width: 330, height: 210, rotationLower: -4, rotationUpper: 6),
-                textVariant(x: 135, y: 930, width: 330, height: 230, rotationLower: -6, rotationUpper: 4),
-                textVariant(x: 810, y: 1030, width: 310, height: 240, rotationLower: -3, rotationUpper: 7)
-            ]
-        case .observationList:
-            variants = [
-                textVariant(x: 330, y: 1165, width: 520, height: 230, rotationLower: -3, rotationUpper: 3),
-                textVariant(x: 235, y: 1250, width: 560, height: 225, rotationLower: -4, rotationUpper: 2),
-                textVariant(x: 455, y: 1085, width: 540, height: 225, rotationLower: -2, rotationUpper: 4),
-                textVariant(x: 265, y: 1015, width: 530, height: 230, rotationLower: -5, rotationUpper: 2)
-            ]
-        case .closingLine:
-            variants = [
-                textVariant(x: 890, y: 1088, width: 280, height: 260, rotationLower: -4, rotationUpper: 5),
-                textVariant(x: 105, y: 1060, width: 310, height: 250, rotationLower: -7, rotationUpper: 2),
-                textVariant(x: 840, y: 760, width: 305, height: 255, rotationLower: -2, rotationUpper: 7),
-                textVariant(x: 760, y: 1340, width: 320, height: 215, rotationLower: 1, rotationUpper: 8)
-            ]
-        case .fixedFrameLine:
-            variants = [
-                textVariant(x: 390, y: 178, width: 520, height: 150, rotationLower: -3, rotationUpper: 3),
-                textVariant(x: 310, y: 110, width: 540, height: 155, rotationLower: -5, rotationUpper: 2),
-                textVariant(x: 485, y: 245, width: 500, height: 145, rotationLower: -2, rotationUpper: 5),
-                textVariant(x: 160, y: 135, width: 430, height: 160, rotationLower: -6, rotationUpper: 2)
-            ]
-        case .fixedCompassReminder:
-            variants = [
-                textVariant(x: 900, y: 700, width: 250, height: 250, rotationLower: -4, rotationUpper: 5),
-                textVariant(x: 885, y: 520, width: 265, height: 250, rotationLower: -3, rotationUpper: 7),
-                textVariant(x: 110, y: 1180, width: 285, height: 250, rotationLower: -7, rotationUpper: 2),
-                textVariant(x: 835, y: 980, width: 270, height: 250, rotationLower: -2, rotationUpper: 6)
-            ]
-        case .souvenirCandidate:
-            variants = [
-                textVariant(x: 110, y: 1010, width: 310, height: 230, rotationLower: -6, rotationUpper: 3),
-                textVariant(x: 120, y: 1320, width: 325, height: 215, rotationLower: -6, rotationUpper: 2),
-                textVariant(x: 790, y: 1160, width: 330, height: 220, rotationLower: -2, rotationUpper: 7),
-                textVariant(x: 90, y: 720, width: 305, height: 220, rotationLower: -8, rotationUpper: 2)
-            ]
-        case .stampLabel:
-            variants = [
-                TextLayoutVariant(position: spec.position, size: spec.size, rotationRange: spec.rotationRange)
-            ]
-        }
-        let index = abs((seed &+ salt * 6151).stableScramble) % variants.count
-        return variants[index]
-    }
-
-    private static func textVariant(
-        x: Double,
-        y: Double,
-        width: Double,
-        height: Double,
-        rotationLower: Double,
-        rotationUpper: Double
-    ) -> TextLayoutVariant {
-        TextLayoutVariant(
-            position: CodablePoint(x: x, y: y),
-            size: CodableSize(width: width, height: height),
-            rotationRange: ClosedDoubleRange(lowerBound: rotationLower, upperBound: rotationUpper)
-        )
-    }
-
-    private static func extraMarginaliaSlots(
-        analysis: PhotoAnalysis,
-        seed: Int,
-        resolver: IlluminationAssetResolver,
-        template: IlluminatedTemplateID,
-        pack: IlluminationAssetPack,
-        excludingPaperAssetNames: Set<String>
-    ) -> [IlluminatedTextSlot] {
-        let anchors = [
-            (CodablePoint(x: 95, y: 785), CodableSize(width: 280, height: 190), ClosedDoubleRange(lowerBound: -7, upperBound: -2)),
-            (CodablePoint(x: 780, y: 130), CodableSize(width: 340, height: 150), ClosedDoubleRange(lowerBound: 1, upperBound: 5)),
-            (CodablePoint(x: 940, y: 470), CodableSize(width: 230, height: 230), ClosedDoubleRange(lowerBound: -4, upperBound: 4)),
-            (CodablePoint(x: 140, y: 1340), CodableSize(width: 300, height: 190), ClosedDoubleRange(lowerBound: -5, upperBound: 2)),
-            (CodablePoint(x: 810, y: 1375), CodableSize(width: 310, height: 190), ClosedDoubleRange(lowerBound: 2, upperBound: 7)),
-            (CodablePoint(x: 500, y: 1020), CodableSize(width: 320, height: 150), ClosedDoubleRange(lowerBound: -3, upperBound: 3)),
-            (CodablePoint(x: 735, y: 620), CodableSize(width: 285, height: 185), ClosedDoubleRange(lowerBound: -2, upperBound: 6)),
-            (CodablePoint(x: 120, y: 430), CodableSize(width: 300, height: 170), ClosedDoubleRange(lowerBound: -6, upperBound: 1)),
-            (CodablePoint(x: 705, y: 250), CodableSize(width: 330, height: 165), ClosedDoubleRange(lowerBound: -3, upperBound: 5))
-        ]
-        let snippets = IlluminationMarginaliaLibrary.select(motifs: analysis.motifs, seed: seed, count: 3)
-        var usedPaperAssetNames = excludingPaperAssetNames
-        return snippets.enumerated().map { offset, snippet in
-            let anchor = anchors[abs((seed &+ offset * 4049).stableScramble) % anchors.count]
-            let scrap = resolver.resolveAsset(
-                kind: .paperScrap,
-                tags: ["scrap", offset.isMultiple(of: 2) ? "torn" : "wide"],
-                template: template,
-                installedPacks: [pack],
-                seed: seed,
-                salt: 601 + offset * 43,
-                excludingAssetNames: usedPaperAssetNames
-            )
-            if let scrap {
-                usedPaperAssetNames.insert(scrap.assetName)
-            }
-            let position = jittered(anchor.0, seed: seed, salt: 401 + offset * 29, x: 58, y: 52)
-            let adaptedLayout = adaptiveTextLayout(
-                position: position,
-                proposedSize: anchor.1,
-                body: snippet.text,
-                paperAsset: scrap,
-                seed: seed,
-                salt: 617 + offset * 47
-            )
-            return IlluminatedTextSlot(
-                id: UUID(),
-                slotId: "marginalia-\(snippet.id)",
-                paperAssetName: scrap?.assetName ?? "ParchmentFiber",
-                title: snippet.title,
-                body: snippet.text,
-                position: adaptedLayout.position,
-                size: adaptedLayout.size,
-                rotationDegrees: anchor.2.value(seed: seed, salt: 511 + offset),
-                fontStyle: .handwritten
-            )
-        }
-    }
-
-    private static func adaptiveTextLayout(
-        position: CodablePoint,
-        proposedSize: CodableSize,
-        body: String,
-        paperAsset: IlluminationAsset?,
-        seed: Int,
-        salt: Int
-    ) -> AdaptedTextLayout {
-        let proposedWidth = max(1, proposedSize.width)
-        let proposedHeight = max(1, proposedSize.height)
-        let proposedRatio = proposedWidth / proposedHeight
-        let paperRatio = min(2.8, max(0.72, paperAsset?.leafTraits?.aspectRatio ?? proposedRatio))
-        // Text still owns most of the shape. The paper's authored proportions
-        // can tug a scrap wider or taller without turning readable copy into a
-        // decorative sliver.
-        let aspectRatio = proposedRatio * 0.68 + paperRatio * 0.32
-        let visualWeight = min(1.45, max(0.72, paperAsset?.leafTraits?.visualWeight ?? 1))
-        let organicScale = ClosedDoubleRange(lowerBound: 0.88, upperBound: 1.14)
-            .value(seed: seed, salt: salt)
-        let contentExpansion = 1 + min(0.26, Double(max(0, body.count - 72)) / 520)
-        let targetArea = proposedWidth
-            * proposedHeight
-            * visualWeight
-            * organicScale
-            * organicScale
-            * contentExpansion
-        var height = sqrt(targetArea / aspectRatio)
-        var width = height * aspectRatio
-
-        width = max(proposedWidth * 0.82, width)
-        height = max(proposedHeight * 0.84, height)
-        let canvasInset = 28.0
-        let availableWidth = max(1, canvasSize.width - canvasInset * 2)
-        let availableHeight = max(1, canvasSize.height - canvasInset * 2)
-        let fitScale = min(1, min(availableWidth / width, availableHeight / height))
-        width *= fitScale
-        height *= fitScale
-
-        let maximumX = max(canvasInset, canvasSize.width - canvasInset - width)
-        let maximumY = max(canvasInset, canvasSize.height - canvasInset - height)
-        return AdaptedTextLayout(
-            position: CodablePoint(
-                x: min(max(canvasInset, position.x), maximumX),
-                y: min(max(canvasInset, position.y), maximumY)
-            ),
-            size: CodableSize(width: width, height: height)
-        )
-    }
-
-    private static func extraDecorationSlots(
-        analysis: PhotoAnalysis,
-        seed: Int,
-        resolver: IlluminationAssetResolver,
-        template: IlluminatedTemplateID,
-        pack: IlluminationAssetPack
-    ) -> [DecorationPlacement] {
-        let slots = [
-            (["tape"], IlluminationAssetKind.tape, CodablePoint(x: 235, y: 184), CodableSize(width: 150, height: 48), 0.32),
-            (["tape"], IlluminationAssetKind.tape, CodablePoint(x: 940, y: 1230), CodableSize(width: 130, height: 44), 0.30),
-            (["shell", "harbor"], IlluminationAssetKind.doodle, CodablePoint(x: 1000, y: 1415), CodableSize(width: 118, height: 118), 0.42),
-            (["heart", "company"], IlluminationAssetKind.doodle, CodablePoint(x: 1040, y: 1040), CodableSize(width: 80, height: 80), 0.34),
-            (["marginalia"], IlluminationAssetKind.doodle, CodablePoint(x: 95, y: 420), CodableSize(width: 245, height: 170), 0.76),
-            (["marginalia"], IlluminationAssetKind.doodle, CodablePoint(x: 850, y: 330), CodableSize(width: 260, height: 175), 0.70),
-            (["stamp"], IlluminationAssetKind.stamp, CodablePoint(x: 930, y: 150), CodableSize(width: 170, height: 170), 0.40),
-            (["botanical"], IlluminationAssetKind.doodle, CodablePoint(x: 95, y: 1160), CodableSize(width: 130, height: 300), 0.48),
-            (["tag"], IlluminationAssetKind.doodle, CodablePoint(x: 1010, y: 765), CodableSize(width: 150, height: 230), 0.66),
-            (["book", "library"], IlluminationAssetKind.stamp, CodablePoint(x: 145, y: 1370), CodableSize(width: 155, height: 155), 0.36),
-            (["wonder", "ordinary"], IlluminationAssetKind.doodle, CodablePoint(x: 650, y: 1450), CodableSize(width: 165, height: 120), 0.50),
-            (["light"], IlluminationAssetKind.doodle, CodablePoint(x: 210, y: 285), CodableSize(width: 135, height: 210), 0.46)
-        ]
-        return slots.enumerated().compactMap { offset, slot in
-            guard let asset = pickAsset(
-                kind: slot.1,
-                tags: slot.0 + analysis.motifs,
-                template: template,
-                pack: pack,
-                seed: seed,
-                salt: 811 + offset * 37
-            ) ?? resolver.resolveAsset(kind: slot.1, tags: slot.0 + analysis.motifs, template: template, installedPacks: [pack]) else {
-                return nil
-            }
-            return DecorationPlacement(
-                id: UUID(),
-                assetName: asset.assetName,
-                kind: slot.1,
-                position: jittered(slot.2, seed: seed, salt: 701 + offset * 31, x: 52, y: 44),
-                size: slot.3,
-                rotationDegrees: ClosedDoubleRange(lowerBound: -12, upperBound: 12).value(seed: seed, salt: 733 + offset),
-                opacity: slot.4
-            )
-        }
-    }
-
-    private static func pickAsset(
-        kind: IlluminationAssetKind,
-        tags: [String],
-        template: IlluminatedTemplateID,
-        pack: IlluminationAssetPack,
-        seed: Int,
-        salt: Int
-    ) -> IlluminationAsset? {
-        let normalizedTags = Set(tags.map { $0.lowercased() })
-        let matches = pack.allAssets.filter { asset in
-            asset.kind == kind
-                && asset.supportedTemplates.contains(template)
-                && !normalizedTags.isDisjoint(with: Set(asset.tags.map { $0.lowercased() }))
-        }
-        guard !matches.isEmpty else {
-            return nil
-        }
-        let index = abs((seed &+ salt * 7919).stableScramble) % matches.count
-        return matches[index]
-    }
-
-    private static func jittered(_ point: CodablePoint, seed: Int, salt: Int, x: Double, y: Double) -> CodablePoint {
-        let dx = ClosedDoubleRange(lowerBound: -x, upperBound: x).value(seed: seed, salt: salt)
-        let dy = ClosedDoubleRange(lowerBound: -y, upperBound: y).value(seed: seed, salt: salt + 13)
-        return CodablePoint(x: point.x + dx, y: point.y + dy)
-    }
 }
 
 /// A balanced binding, rather than ten independent dice rolls. Rotation and

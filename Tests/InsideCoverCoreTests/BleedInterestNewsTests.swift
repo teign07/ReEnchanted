@@ -156,4 +156,102 @@ final class BleedInterestNewsTests: XCTestCase {
         XCTAssertEqual(record?.items.count, 1)
         XCTAssertNil(record?.items.first?.newsURL)
     }
+
+    func testNewsFeedResolvesPublisherLinksWithoutHTMLCardAttributes() throws {
+        let html = """
+        <rss><channel><item>
+          <title><![CDATA[Researchers released an AI model &amp; field results]]></title>
+          <link><![CDATA[https://www.bing.com/news/apiclick.aspx?ref=feed&amp;url=https%3A%2F%2Fpublisher.example%2Ffield-results%3Futm_source%3Dfeed]]></link>
+          <source>Field Notes</source>
+        </item><item>
+          <title>What is artificial intelligence?</title><link>https://publisher.example/definition</link>
+        </item></channel></rss>
+        """
+        let found = BleedInterestNewsDesk.candidates(from: html, interest: "artificial intelligence")
+        XCTAssertEqual(found.count, 1)
+        XCTAssertEqual(found.first?.headline, "Researchers released an AI model & field results")
+        XCTAssertEqual(found.first?.url.host, "publisher.example")
+        XCTAssertEqual(found.first?.sourceName, "Field Notes")
+        XCTAssertEqual(found.first.map { BleedInterestNewsDesk.canonicalURL($0.url) }, "https://publisher.example/field-results")
+        let feedURL = try XCTUnwrap(BleedInterestNewsDesk.feedURL(for: "sailing"))
+        XCTAssertTrue(feedURL.absoluteString.contains("format=rss"))
+    }
+
+    func testExplicitPublicationTimeAndArticleBodyMarkupAreReadable() throws {
+        let html = """
+        <meta property="og:title" content="Researchers released a small AI model">
+        <time datetime="2026-10-14T10:00:00Z" itemprop="datePublished"></time>
+        <div class="story" itemprop="articleBody"><p>\(detail)</p></div>
+        """
+        let found = try XCTUnwrap(BleedInterestNewsDesk.article(from: html, candidate: candidate, resolvedURL: url))
+        XCTAssertEqual(found.text, detail)
+        XCTAssertEqual(found.publishedAt, BleedInterestNewsDesk.publicationDate("2026-10-14T10:00:00Z"))
+    }
+
+    func testResearchedArticleHasAnAttributedFallbackIfTheWriterFails() throws {
+        let selected = BleedInterestNewsDesk.setting(brief, with: article())
+        let fallback = try XCTUnwrap(selected.fallbackBody)
+        let excerpt = detail.split(whereSeparator: \.isWhitespace).prefix(25).joined(separator: " ")
+        XCTAssertTrue(fallback.contains("Field Notes"))
+        XCTAssertTrue(fallback.contains(excerpt))
+        XCTAssertFalse(fallback.contains("{{CLIPPINGS}}"))
+        XCTAssertEqual(selected.newsURL, url.absoluteString)
+    }
+
+    func testResearchedArticleRetainsItsSeatWhenCanonicalNewsFillsThePaper() {
+        let authored = (0..<10).map { index in
+            BleedColumnBrief(id: "authored-\(index)", title: "Academy \(index)", byline: "A witness",
+                composedBody: "An authored incident.", packet: "", maxTokens: 0, storyID: "academy:\(index)")
+        }
+        let selected = BleedIssueCurator.select(from: authored + [BleedInterestNewsDesk.setting(brief, with: article())],
+                                               kind: .morning, history: [])
+        XCTAssertEqual(selected.filter { $0.id == "interest-desk" }.count, 1)
+        XCTAssertEqual(selected.filter { $0.id.hasPrefix("authored-") }.count, authored.count)
+    }
+
+    func testOnlyOneResearchedInterestArticleFitsThePaper() {
+        var second = BleedInterestNewsDesk.setting(brief, with: article())
+        second.storyID = "interest:second"
+        let selected = BleedIssueCurator.select(from: [BleedInterestNewsDesk.setting(brief, with: article()), second],
+                                               kind: .morning, history: [])
+        XCTAssertEqual(selected.filter { $0.id == "interest-desk" }.count, 1)
+    }
+
+    func testInterestRetryKeepsEveryPrintedColumnAndAddsOnlyTheArticle() {
+        let printed = [
+            BleedColumnBrief(id: "front-page", title: "Yesterday", byline: "Penny", composedBody: "The original front page.", packet: "", maxTokens: 0),
+            BleedColumnBrief(id: "assignment", title: "Your Assignment", byline: "Penny", composedBody: "The original dare.", packet: "", maxTokens: 0),
+            BleedColumnBrief(id: "diversion", title: "Puzzle", byline: "Penny", composedBody: "The original puzzle.", packet: "", maxTokens: 0)
+        ]
+        let added = TheBleedEditionBuilder.addingInterestBrief(BleedInterestNewsDesk.setting(brief, with: article()), to: printed)
+        XCTAssertEqual(added.filter { $0.id != "interest-desk" }, printed)
+        XCTAssertEqual(added.map(\.id), ["front-page", "assignment", "interest-desk", "diversion"])
+        XCTAssertEqual(TheBleedEditionBuilder.addingInterestBrief(nil, to: printed), printed)
+        XCTAssertEqual(TheBleedEditionBuilder.addingInterestBrief(BleedInterestNewsDesk.setting(brief, with: article()), to: added), added)
+    }
+
+    func testInterestPlanIncludesTaggedFactsAndSkipsForbiddenAndNonInterestFacts() {
+        func fact(_ id: String, _ answer: String, tags: [String], permission: SelfFactUsePermission = .quoteAllowed) -> SelfFact {
+            SelfFact(id: id, questionID: id, question: "An interest?", answer: answer, bookTranslation: "", sensitivity: .delight,
+                     usePermission: permission, tags: tags, createdAt: now, updatedAt: now)
+        }
+        let facts = [fact("interest-01", "Sailing; Botany", tags: []), fact("custom-interest", "pottery", tags: ["interest"]),
+                     fact("interest-hidden", "secret hobby", tags: ["interest"], permission: .doNotUse),
+                     fact("home", "Private Town", tags: ["home"]), fact("interest-copy", "sailing", tags: [])]
+        let plan = TheBleedEditionBuilder.researchInterests(from: facts, dayID: "2026-10-15", kind: .morning)
+        XCTAssertEqual(Set(plan.map { $0.lowercased() }), ["sailing", "botany", "pottery"])
+        XCTAssertEqual(plan.count, 3)
+        XCTAssertEqual(TheBleedEditionBuilder.selectedInterest(from: facts, dayID: "2026-10-15", kind: .morning), plan.first)
+    }
+
+    func testUnvisitedInterestsGetTheirTurnBeforeRecentOnes() {
+        let facts = [SelfFact(id: "interest", questionID: "interest-01", question: "Interests?", answer: "sailing, botany, pottery",
+            bookTranslation: "", sensitivity: .delight, usePermission: .quoteAllowed, tags: [], createdAt: now, updatedAt: now)]
+        let history = [BleedPrintRecord(slotID: "last-paper", printedAt: now, items: [
+            .init(storyID: "interest:sailing", revision: "one", title: "Sailing", body: "A report", sourcePageIDs: [])])]
+        let plan = TheBleedEditionBuilder.researchInterests(from: facts, dayID: "2026-10-15", kind: .morning, history: history)
+        XCTAssertEqual(plan.last, "sailing")
+        XCTAssertEqual(Set(plan.prefix(2)), ["botany", "pottery"])
+    }
+
 }

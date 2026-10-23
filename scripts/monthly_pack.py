@@ -8,7 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 
-RUNTIME_VERSION = 11
+RUNTIME_VERSION = 12
 CHANNELS = {'storyScene': 'storyScenes', 'radioBanter': 'radioBanters',
             'bleedArticle': 'bleedArticles', 'marginalia': 'marginalia'}
 

@@ -432,6 +432,7 @@ enum CastStoryAside {
 
     /// The portrait for any Cast member, by the plates' naming.
     static func plateAssetName(for entityID: String) -> String {
+        if entityID == GuestCast.entityID { return GuestCast.assetName }
         let pascal = entityID
             .split(separator: "-")
             .map { $0.prefix(1).uppercased() + $0.dropFirst() }
@@ -448,6 +449,7 @@ enum CastStoryNames {
 
     /// "Wicker", "Professor Permancer", "Professor Villanelle".
     static func short(_ fullName: String) -> String {
+        if fullName.lowercased() == "the guest" { return fullName }
         let words = fullName.split(separator: " ").map(String.init)
         guard let first = words.first else { return fullName }
         if titles.contains(first.lowercased()), let last = words.last, words.count > 1 {
@@ -628,7 +630,10 @@ enum LetsChatCastMemory {
         now: Date = Date()
     ) -> [Recall] {
         cast
-            .filter { CastStoryNames.mentions(message, name: $0.name) }
+            .filter {
+                CastStoryNames.mentions(message, name: $0.name)
+                    || ($0.id == GuestCast.entityID && CastStoryNames.mentions(message, name: "The Guest"))
+            }
             .prefix(2)
             .map { member in
                 Recall(
@@ -774,8 +779,10 @@ enum CastStoryMemoryAudit {
                 for memory in entry.castMemories ?? [] {
                     check(memory, at: entry.id, allowed: nil)
                     // A record memory belongs to somebody the account names.
+                    // Role prefixes aren't names: the permanent visitor ID
+                    // remains visitor-the-guest after joining the Cast.
                     let first = memory.entityID.split(separator: "-")
-                        .first { !["professor", "dr"].contains($0) }.map(String.init) ?? memory.entityID
+                        .first { !["professor", "dr", "visitor", "the"].contains($0) }.map(String.init) ?? memory.entityID
                     if !entry.account.lowercased().contains(first.lowercased()) {
                         found.append("record memory for someone the account doesn't name: \(entry.id)/\(memory.entityID)")
                     }

@@ -22839,6 +22839,9 @@ enum DeterministicBraidwright {
     private static let castNameTokens: Set<String> = castNameTokens(
         from: Array(CastDossier.bios.keys)
             + BookReferenceCatalog.characterIllustrations.map(\.characterName)
+            // This vocabulary is cached before a possible November reveal.
+            // Recognizing the later name doesn't publish it to the Reader.
+            + ["Aiken Drum"]
     )
 
     /// Split roster names into the words a Cast member can be called by.

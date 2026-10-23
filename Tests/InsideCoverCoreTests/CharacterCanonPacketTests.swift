@@ -68,7 +68,7 @@ final class CharacterCanonPacketTests: XCTestCase {
     }
 
     func testEveryBundledCharacterShipsABespokeVoiceCardWithCadenceExamples() {
-        XCTAssertEqual(CharacterVoiceCatalog.bundledCharacterIDs.count, 25)
+        XCTAssertEqual(CharacterVoiceCatalog.bundledCharacterIDs.count, 26)
         XCTAssertEqual(
             CharacterVoiceCatalog.bundledCharacterIDs.count,
             Set(CharacterVoiceCatalog.bundledCharacterIDs).count

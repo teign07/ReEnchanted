@@ -24,10 +24,10 @@ struct ChapterBindingFormView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var ceremonyIsAwake = false
-    @State private var celebrationBurst = false
-    @State private var isAcceptingBinding = false
-    @State private var didPlayReveal = false
+    @FolioPageState("ceremonyIsAwake") private var ceremonyIsAwake = false
+    @FolioPageState("celebrationBurst") private var celebrationBurst = false
+    @FolioPageState("isAcceptingBinding") private var isAcceptingBinding = false
+    @FolioPageState("didPlayReveal") private var didPlayReveal = false
 
     private var chosenChapter: AcademyChapter? {
         AcademyChapterRegistry.chapter(id: surface.payload.metadata["chosenChapterID"] ?? "")
@@ -93,9 +93,9 @@ struct ChapterBindingFormView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             if let chapter = chosenChapter {
-                VStack(alignment: .leading, spacing: 12) {
+                FolioControlStack(alignment: .leading, spacing: 12) {
                     ZStack(alignment: .bottomLeading) {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(ceremony.gradient)
@@ -122,14 +122,14 @@ struct ChapterBindingFormView: View {
                             reduceMotion: reduceMotion
                         )
 
-                        VStack(alignment: .leading, spacing: 10) {
+                        FolioControlStack(alignment: .leading, spacing: 10) {
                             HStack(alignment: .center, spacing: 10) {
                                 Image(systemName: chapter.symbolName)
                                     .font(.title.weight(.bold))
                                     .foregroundStyle(BookPalette.lampGold)
                                     .frame(width: 42, height: 42)
                                     .background(.black.opacity(0.16), in: Circle())
-                                VStack(alignment: .leading, spacing: 2) {
+                                FolioControlStack(alignment: .leading, spacing: 2) {
                                     Text("The Binding Recognizes")
                                         .font(.caption2.weight(.black))
                                         .textCase(.uppercase)
@@ -158,7 +158,7 @@ struct ChapterBindingFormView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     if !memoryFragments.isEmpty {
-                        VStack(alignment: .leading, spacing: 7) {
+                        FolioControlStack(alignment: .leading, spacing: 7) {
                             Text("Your Life In The Fracture")
                                 .font(.caption2.weight(.black))
                                 .textCase(.uppercase)
@@ -175,7 +175,7 @@ struct ChapterBindingFormView: View {
                         .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
+                    FolioControlStack(alignment: .leading, spacing: 8) {
                         Label(ceremony.sensoryLine, systemImage: ceremony.sensorySymbol)
                             .font(.caption.weight(.bold))
                             .foregroundStyle(ceremony.accent)
@@ -191,7 +191,7 @@ struct ChapterBindingFormView: View {
                     }
 
                     if let acceptance {
-                        VStack(alignment: .leading, spacing: 10) {
+                        FolioControlStack(alignment: .leading, spacing: 10) {
                             Label("The seal gives you work", systemImage: "seal.fill")
                                 .font(.caption.weight(.black))
                                 .textCase(.uppercase)
@@ -237,7 +237,7 @@ struct ChapterBindingFormView: View {
             }
 
             if !evidenceLines.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 6) {
                     Text("What the Binding read")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
@@ -267,6 +267,7 @@ struct ChapterBindingFormView: View {
                     .padding(.vertical, 13)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(chosenChapter == nil || isAcceptingBinding)
 
@@ -360,7 +361,7 @@ private struct ChapterBindingAcceptedOverlay: View {
     let accent: Color
     let reduceMotion: Bool
 
-    @State private var sealPressed = false
+    @FolioPageState("sealPressed") private var sealPressed = false
 
     var body: some View {
         ZStack {
@@ -373,7 +374,7 @@ private struct ChapterBindingAcceptedOverlay: View {
                     )
                 )
 
-            VStack(spacing: 12) {
+            FolioControlStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(accent.opacity(0.24))
@@ -475,11 +476,11 @@ struct AnchorOfferFormView: View {
     let onAnchorPlace: (AnchorPlaceDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var anchorPlaceName = ""
-    @State private var anchorPlaceWords = ""
-    @State private var anchorPlaceKind: AnchorKind = .notice
-    @State private var selectedAnchorPlaceID: String?
-    @State private var usesRealPlaceNameInStory = true
+    @FolioPageState("anchorPlaceName") private var anchorPlaceName = ""
+    @FolioPageState("anchorPlaceWords") private var anchorPlaceWords = ""
+    @FolioPageState("anchorPlaceKind") private var anchorPlaceKind: AnchorKind = .notice
+    @FolioPageState("selectedAnchorPlaceID") private var selectedAnchorPlaceID: String?
+    @FolioPageState("usesRealPlaceNameInStory") private var usesRealPlaceNameInStory = true
 
     private var placeCandidates: [LocalPlaceSignal] {
         guard let raw = surface.payload.metadata["anchorPlaceCandidates"]?.data(using: .utf8),
@@ -494,9 +495,9 @@ struct AnchorOfferFormView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if !placeCandidates.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
+                FolioControlStack(alignment: .leading, spacing: 7) {
                     Text("I ASKED THE MAP. IT GUESSED:")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -509,7 +510,7 @@ struct AnchorOfferFormView: View {
                             HStack(spacing: 9) {
                                 Image(systemName: selectedAnchorPlaceID == place.id ? "checkmark.circle.fill" : "circle")
                                     .foregroundStyle(selectedAnchorPlaceID == place.id ? BookPalette.teal : BookPalette.ink.opacity(0.34))
-                                VStack(alignment: .leading, spacing: 2) {
+                                FolioControlStack(alignment: .leading, spacing: 2) {
                                     Text(place.name)
                                         .font(.callout.weight(.bold))
                                         .foregroundStyle(BookPalette.ink)
@@ -523,6 +524,7 @@ struct AnchorOfferFormView: View {
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
+                        .folioControlUnbroken()
                     }
                     Button {
                         BookFeedback.play(.tap)
@@ -533,6 +535,7 @@ struct AnchorOfferFormView: View {
                             .foregroundStyle(BookPalette.ink.opacity(0.72))
                     }
                     .buttonStyle(.plain)
+                    .folioControlUnbroken()
 
                     if selectedPlace != nil {
                         Toggle("Let the room use the Maps name", isOn: $usesRealPlaceNameInStory)
@@ -547,7 +550,7 @@ struct AnchorOfferFormView: View {
 
             sheetLabeledField("What is this place called?", text: $anchorPlaceName, placeholder: "The co-op, the back porch, the trailhead...")
 
-            VStack(alignment: .leading, spacing: 6) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 Text("WHAT DOES THIS PLACE HOLD? (OPTIONAL)")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -559,6 +562,7 @@ struct AnchorOfferFormView: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
+                .folioControlUnbroken()
                 .lineLimit(2...5)
                 .inkFeedback(text: anchorPlaceWords)
                 .dictationInput(text: $anchorPlaceWords)
@@ -570,7 +574,7 @@ struct AnchorOfferFormView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 Text("WHICH DIRECTION DOES IT POINT?")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -580,6 +584,7 @@ struct AnchorOfferFormView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .folioControlUnbroken()
             }
 
             Button {
@@ -622,6 +627,7 @@ struct AnchorOfferFormView: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(anchorPlaceName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
@@ -639,7 +645,7 @@ struct AnchorOfferFormView: View {
     }
 
     private func sheetLabeledField(_ title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -647,6 +653,7 @@ struct AnchorOfferFormView: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
+                .folioControlUnbroken()
                 .lineLimit(1...3)
                 .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
@@ -667,20 +674,20 @@ struct ElectiveFlyleafListView: View {
     let onOpenDoor: (FlyleafDoor) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var electiveProofDrafts: [String: String] = [:]
-    @State private var proofPhotoURLs: [String: String] = [:]
-    @State private var proofMessages: [String: String] = [:]
-    @State private var locationProofSummaries: [String: String] = [:]
-    @State private var verifyingLocationIDs: Set<String> = []
-    @State private var completedElectiveIDs: Set<String> = []
-    @State private var releaseCandidateID: String?
+    @FolioPageState("electiveProofDrafts") private var electiveProofDrafts: [String: String] = [:]
+    @FolioPageState("proofPhotoURLs") private var proofPhotoURLs: [String: String] = [:]
+    @FolioPageState("proofMessages") private var proofMessages: [String: String] = [:]
+    @FolioPageState("locationProofSummaries") private var locationProofSummaries: [String: String] = [:]
+    @FolioPageState("verifyingLocationIDs") private var verifyingLocationIDs: Set<String> = []
+    @FolioPageState("completedElectiveIDs") private var completedElectiveIDs: Set<String> = []
+    @FolioPageState("releaseCandidateID") private var releaseCandidateID: String?
 
     private var activeElectives: [UnwrittenElective] {
         ledger.electives
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if !activeElectives.isEmpty {
                 flyleafSectionTitle(
                     "What you said yes to",
@@ -689,7 +696,7 @@ struct ElectiveFlyleafListView: View {
             }
 
             ForEach(activeElectives) { elective in
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text(elective.bookFavorID == nil ? "CHARACTER QUEST" : "BOOK FAVOR")
                         .font(.caption2.weight(.black))
                         .tracking(0.6)
@@ -728,6 +735,7 @@ struct ElectiveFlyleafListView: View {
                     )
                     .font(.callout)
                     .textFieldStyle(.plain)
+                    .folioControlUnbroken()
                     .lineLimit(1...3)
                     .inkFeedback(text: electiveProofDrafts[elective.id] ?? "")
                     .dictationInput(text: Binding(
@@ -756,6 +764,7 @@ struct ElectiveFlyleafListView: View {
                             .font(.caption.weight(.bold))
                         }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                         .tint(BookPalette.gold)
 
                         Button {
@@ -768,6 +777,7 @@ struct ElectiveFlyleafListView: View {
                             .font(.caption.weight(.bold))
                         }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                         .tint(BookPalette.teal)
                         .disabled(elective.targetLatitude == nil || verifyingLocationIDs.contains(elective.id))
                     }
@@ -824,6 +834,7 @@ struct ElectiveFlyleafListView: View {
                             .padding(.vertical, 8)
                         }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .tint(BookPalette.teal)
                         .disabled(
                             completedElectiveIDs.contains(elective.id) ||
@@ -839,6 +850,7 @@ struct ElectiveFlyleafListView: View {
                                 .padding(.vertical, 8)
                         }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                         .tint(BookPalette.ink.opacity(0.72))
                         .disabled(completedElectiveIDs.contains(elective.id))
                     }
@@ -903,7 +915,7 @@ struct ElectiveFlyleafListView: View {
     }
 
     private func flyleafSectionTitle(_ title: String, detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        FolioControlStack(alignment: .leading, spacing: 3) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
                 .tracking(0.8)
@@ -920,7 +932,7 @@ struct ElectiveFlyleafListView: View {
             BookFeedback.play(.openPage)
             onOpenDoor(door)
         } label: {
-            VStack(alignment: .leading, spacing: 7) {
+            FolioControlStack(alignment: .leading, spacing: 7) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Label(door.eyebrow, systemImage: symbolName(for: door.kind))
                         .font(.caption2.weight(.black))
@@ -956,6 +968,7 @@ struct ElectiveFlyleafListView: View {
             }
         }
         .buttonStyle(.plain)
+        .folioControlUnbroken()
         .accessibilityLabel("\(door.eyebrow), \(door.title). \(door.statusLine). \(door.actionTitle)")
     }
 
@@ -1028,7 +1041,7 @@ struct SupportGuildSectionView: View {
     let surface: SurfacePage
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Text(surface.payload.body)
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.82))

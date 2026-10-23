@@ -1583,17 +1583,13 @@ struct UndertakingSerial: Codable, Equatable {
     /// starts being a stranger halfway through a sentence.
     static let continuationWindowDays: Double = 10
 
-    /// Enough to keep a season's worth of beats from repeating, bounded so the
-    /// vault does not accumulate a life's history of the Academy.
-    static let rememberedBeatLimit = 80
-
     var version: Int = currentVersion
     /// The thread whose beat the reader most recently met.
     var lastThreadID: String?
     var lastStageIndex: Int?
     var lastMetAt: Date?
-    /// Beats already presented, so the same one is never served twice. Ordered
-    /// oldest-first; trimmed from the front.
+    /// Permanent completion identities. These are finite authored scenes, not
+    /// a rolling variety history: forgetting an old key would replay its story.
     var rememberedBeats: [String] = []
     /// Authored scene identities already presented. This is separate from an
     /// undertaking occurrence ID so a legacy duplicate generation cannot make
@@ -1641,6 +1637,91 @@ struct UndertakingSerial: Codable, Equatable {
         rememberedStoryBeats.contains(storyBeatID)
     }
 
+    /// Prepared Gossip and Book Asides carry the same authored identity.
+    func hasMet(metadata: [String: String]) -> Bool {
+        if let covered = metadata[GossipSimulationBuilder.undertakingCoveredStoryBeatIDsKey], !covered.isEmpty {
+            return covered.split(separator: ",").allSatisfy { hasMetStoryBeat(String($0)) }
+        }
+        if let storyBeatID = metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey],
+           hasMetStoryBeat(storyBeatID) { return true }
+        guard let undertakingID = metadata[GossipSimulationBuilder.undertakingKey] else { return false }
+        if let covered = metadata[GossipSimulationBuilder.undertakingCoveredStageIndexesKey], !covered.isEmpty {
+            return covered.split(separator: ",").allSatisfy {
+                guard let index = Int($0) else { return false }
+                return hasMet(undertakingID: undertakingID, stageIndex: index)
+            }
+        }
+        guard let index = Int(metadata[GossipSimulationBuilder.undertakingStageIndexKey] ?? "") else { return false }
+        return hasMet(undertakingID: undertakingID, stageIndex: index)
+    }
+
+    /// Shared by Keep, Rip It Out, and recovery of older kept Pages. Record
+    /// identity independently of the surface's current presentation type.
+    mutating func met(metadata: [String: String], undertakings: [CastUndertaking], at date: Date) {
+        guard let undertakingID = metadata[GossipSimulationBuilder.undertakingKey] else { return }
+        let covered = metadata[GossipSimulationBuilder.undertakingCoveredStageIndexesKey]?
+            .split(separator: ",").compactMap { Int($0) } ?? []
+        let coveredStories = metadata[GossipSimulationBuilder.undertakingCoveredStoryBeatIDsKey]?
+            .split(separator: ",").map(String.init) ?? []
+        let indexes = covered.isEmpty
+            ? Int(metadata[GossipSimulationBuilder.undertakingStageIndexKey] ?? "").map { [$0] } ?? []
+            : covered
+        let undertaking = undertakings.first { $0.id == undertakingID }
+        for (offset, index) in indexes.enumerated() {
+            let explicit = covered.isEmpty
+                ? metadata[GossipSimulationBuilder.undertakingStoryBeatIDKey]?.nonEmpty
+                : (coveredStories.indices.contains(offset) ? coveredStories[offset].nonEmpty : nil)
+            let recovered = undertaking.flatMap { thread -> String? in
+                guard thread.stages.indices.contains(index) else { return nil }
+                return Self.storyBeatKey(actorID: thread.actorID, stageID: thread.stages[index].id)
+            }
+            met(undertakingID: undertakingID, stageIndex: index, storyBeatID: explicit ?? recovered, at: date)
+        }
+    }
+
+    /// Promote existing archives and explicit interactions before launch
+    /// curation. Merely being offered a scene never completes it.
+    func recoveringResolvedPages(
+        days: [BookDay], events: [ReaderLearningEvent], undertakings: [CastUndertaking]
+    ) -> Self {
+        var result = self
+        // Preserve v1 occurrence-only memory under stable authored identities.
+        for thread in undertakings {
+            for index in thread.stages.indices where hasMet(undertakingID: thread.id, stageIndex: index) {
+                let key = Self.storyBeatKey(actorID: thread.actorID, stageID: thread.stages[index].id)
+                if !result.rememberedStoryBeats.contains(key) { result.rememberedStoryBeats.append(key) }
+            }
+        }
+        var evidence = days.flatMap(\.pages).compactMap { page -> (Date, [String: String])? in
+            guard let metadata = page.metadata,
+                  metadata[GossipSimulationBuilder.undertakingKey] != nil else { return nil }
+            return (page.createdAt, metadata)
+        }
+        let interactions = events.filter { [.kept, .dismissed].contains($0.action) }
+        for thread in undertakings {
+            for index in thread.stages.indices {
+                let surfaceID = "\(BookPageSourceRegistry.source(for: .gossip).id)-business-\(thread.id)-\(index)"
+                let asideID = "\(BookPageSourceRegistry.source(for: .bookAside).id)-\(surfaceID)"
+                for event in interactions where event.surfaceID == surfaceID || event.surfaceID == asideID {
+                    evidence.append((event.occurredAt, [
+                        GossipSimulationBuilder.undertakingKey: thread.id,
+                        GossipSimulationBuilder.undertakingStageIndexKey: String(index)
+                    ]))
+                }
+            }
+        }
+        for (date, metadata) in evidence.sorted(by: { $0.0 < $1.0 }) {
+            guard !result.hasMet(metadata: metadata) else { continue }
+            let lastMet = (result.lastThreadID, result.lastStageIndex, result.lastMetAt, result.runLength)
+            result.met(metadata: metadata, undertakings: undertakings, at: date)
+            // Historical repair must not move a newer continuation backwards.
+            if let latest = lastMet.2, latest >= date {
+                (result.lastThreadID, result.lastStageIndex, result.lastMetAt, result.runLength) = lastMet
+            }
+        }
+        return result
+    }
+
     func isWithinContinuationWindow(of now: Date) -> Bool {
         guard let lastMetAt else { return false }
         return now.timeIntervalSince(lastMetAt) <= Self.continuationWindowDays * 86_400
@@ -1665,15 +1746,9 @@ struct UndertakingSerial: Codable, Equatable {
         let key = Self.beatKey(undertakingID: undertakingID, stageIndex: stageIndex)
         if !rememberedBeats.contains(key) {
             rememberedBeats.append(key)
-            if rememberedBeats.count > Self.rememberedBeatLimit {
-                rememberedBeats.removeFirst(rememberedBeats.count - Self.rememberedBeatLimit)
-            }
         }
         if let storyBeatID, !rememberedStoryBeats.contains(storyBeatID) {
             rememberedStoryBeats.append(storyBeatID)
-            if rememberedStoryBeats.count > Self.rememberedBeatLimit {
-                rememberedStoryBeats.removeFirst(rememberedStoryBeats.count - Self.rememberedBeatLimit)
-            }
         }
         // A run is consecutive beats of the same thread, in order, close enough
         // together to still read as the same story.

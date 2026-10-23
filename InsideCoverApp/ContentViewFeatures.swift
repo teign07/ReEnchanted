@@ -961,11 +961,9 @@ extension ContentView {
             didCompleteStoryOnboarding = true
             isStoryOnboardingPaused = false
         }
-        // Completing a real Inscription begins a new visible Welcome handoff.
-        // Do this unconditionally: development resets, interrupted onboarding,
-        // and restored vaults can all carry an older engagement ledger even
-        // though this reader has not lived this Inscription's mission yet.
-        vault.data.firstRunEngaged = []
+        // First-time Books already have an empty progress ledger. Preserve an
+        // existing Book's introductions if the Inscription is completed again
+        // after an interrupted setup, restore, or development update.
         var firstRunDismissals = decodedDismissalLedger()
         firstRunDismissals.dismissedAtByDay[today.id] = nil
         dismissedSurfaceLedgerV2 = encodedDismissalLedger(firstRunDismissals)
@@ -2452,7 +2450,10 @@ extension ContentView {
     /// call per written column, composited into a single edition page.
     @MainActor
     @discardableResult
-    func prepareBleedEditionIfPossible(from announcement: SurfacePage? = nil) async -> Bool {
+    func prepareBleedEditionIfPossible(
+        from announcement: SurfacePage? = nil,
+        researchMissingInterest: Bool = false
+    ) async -> Bool {
         guard !generation.isPreparingBleedEdition, !localBrainTelemetry.isWorking else { return false }
         let surface: SurfacePage
         if let announcement {
@@ -2462,6 +2463,10 @@ extension ContentView {
         } else {
             statusMessage = "The presses rest in the afternoon. The next edition sets at four."
             return false
+        }
+        if researchMissingInterest {
+            guard personalizedWebResearchOptIn, isCurrentBleedSlot(surface),
+                  surface.payload.metadata["keptPageID"] == nil else { return false }
         }
 
         generation.isPreparingBleedEdition = true
@@ -2500,7 +2505,7 @@ extension ContentView {
         }
 
         // The press already printed this edition, maybe before a restart: that copy stands.
-        if let prepared = currentBleedPaper,
+        if !researchMissingInterest, let prepared = currentBleedPaper,
            prepared.payload.metadata["bleedSlotID"] == surface.payload.metadata["bleedSlotID"],
            prepared.payload.metadata["bleedNewsroomVersion"] == BleedNewsroom.version {
             generation.preparedBleedEditionSurface = TheBleedEditionBuilder.refreshingPracticalStrips(
@@ -2524,27 +2529,39 @@ extension ContentView {
             for: surface, day: today, inputs: pressInputs, now: pressTime, curating: false
         )
         let history = BleedNewsroom.history(day: today, inputs: pressInputs, now: pressTime)
-        var briefs = BleedIssueCurator.select(from: pool, kind: kind, history: history)
-        let interest = briefs.first { $0.id == "interest-desk" }?.researchQuery
+        let interests = TheBleedEditionBuilder.researchInterests(
+            from: pressInputs.selfFacts, dayID: today.id, kind: kind, history: history)
         var clippingSources = ""
-        if let interest, personalizedWebResearchOptIn, pressInputs.localBrainIsReady,
-           let index = pool.firstIndex(where: { $0.id == "interest-desk" }) {
-            statusMessage = "Penny is finding a recent story about \(interest)..."
+        var interestStatus = personalizedWebResearchOptIn ? (interests.isEmpty ? "no-interests" : "no-article") : "disabled"
+        pool.removeAll { $0.id == "interest-desk" }
+        if personalizedWebResearchOptIn {
             let printedURLs = Set(history.flatMap(\.items).compactMap(\.newsURL))
-            if let article = await BleedInterestSearcher().article(
-                for: interest, previouslyPrintedURLs: printedURLs, now: pressTime
-            ) {
-                pool[index] = BleedInterestNewsDesk.setting(pool[index], with: article)
+            // A quiet shelf need not make the article vanish. Try up to three
+            // explicit interests, and publish only the first supported finding.
+            for interest in interests.prefix(3) {
+                guard personalizedWebResearchOptIn else { break }
+                statusMessage = "Penny is finding a recent story about \(interest)..."
+                guard let article = await BleedInterestSearcher().article(
+                    for: interest, previouslyPrintedURLs: printedURLs, now: pressTime
+                ) else { continue }
+                guard personalizedWebResearchOptIn else { break }
+                let brief = BleedNewsroom.interestBrief(interest: interest, kind: kind, history: history)
+                pool.append(BleedInterestNewsDesk.setting(brief, with: article))
                 clippingSources = article.url.absoluteString
-            } else {
-                pool.remove(at: index)
+                interestStatus = "published"
+                break
             }
-        } else {
-            pool.removeAll { $0.id == "interest-desk" }
         }
-        // A search request is not an article. Re-edit after discovery so an
-        // unavailable clipping can yield its room to a real bench item.
-        briefs = BleedIssueCurator.select(from: pool, kind: kind, history: history)
+        var briefs = BleedIssueCurator.select(from: pool, kind: kind, history: history)
+        // A Reader can add the missing article to today's unkept paper after
+        // enabling research. Keep its already-printed reporting and dateline.
+        let printedColumns = researchMissingInterest
+            ? TheBleedEditionBuilder.decodedBriefs(surface.payload.metadata["bleedPrintedColumns"] ?? "") : []
+        if !printedColumns.isEmpty {
+            briefs = TheBleedEditionBuilder.addingInterestBrief(pool.first { $0.id == "interest-desk" }, to: printedColumns)
+        }
+        let compositionTime = printedColumns.isEmpty ? pressTime
+            : BleedPrintRecord.decode(surface.payload.metadata[BleedPrintRecord.metadataKey])?.printedAt ?? pressTime
 
         let writer = BleedColumnWriter()
         var columns: [(brief: BleedColumnBrief, body: String)] = []
@@ -2553,7 +2570,12 @@ extension ContentView {
             if brief.needsLocalBrain {
                 statusMessage = "Setting type: \(brief.title)..."
             }
-            let body = await writer.write(brief: brief, clippings: "")
+            let body: String
+            if brief.id == "interest-desk", !pressInputs.localBrainIsReady {
+                body = brief.fallbackBody ?? ""
+            } else {
+                body = await writer.write(brief: brief, clippings: "")
+            }
             if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 let sourceNote = brief.id == "interest-desk" && !clippingSources.isEmpty
                     ? "\n\nSources:\n" + clippingSources : ""
@@ -2565,15 +2587,15 @@ extension ContentView {
             kind: kind,
             issueNumber: issueNumber,
             columns: columns,
-            now: pressTime
+            now: compositionTime
         )
         generation.preparedBleedEditionSurface = TheBleedEditionBuilder.preparedCopy(
             of: surface,
             body: body,
             interestSources: columns.contains { $0.brief.id == "interest-desk" } ? clippingSources : "",
             columns: columns,
-            printedAt: pressTime
-        )
+            printedAt: compositionTime
+        ).withMetadata(["bleedInterestResearchStatus": personalizedWebResearchOptIn ? interestStatus : "disabled"])
         if let prepared = generation.preparedBleedEditionSurface,
            let record = BleedPrintRecord.decode(prepared.payload.metadata[BleedPrintRecord.metadataKey]) {
             vault.data.bleedPrintHistory = BleedPrintRecord.remembering(record, in: vault.data.bleedPrintHistory ?? [])
@@ -6418,6 +6440,7 @@ extension ContentView {
             for day in save.days {
                 days = (try? BookDatabase.upsert(day, fallbackDays: days)) ?? days
             }
+            PippaReadingDesk.shared.prepare(days: days)
             for fact in save.selfFacts {
                 try? BookDatabase.upsertSelfFact(fact)
             }

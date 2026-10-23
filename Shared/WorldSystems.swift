@@ -5759,15 +5759,29 @@ enum ElectiveOfferFallback {
         // add their own punctuation, so strip it to avoid a double period.
         let interest = (surface.payload.metadata["senderInterest"]?.nonEmpty ?? "the ordinary magic of where you live")
             .trimmingCharacters(in: CharacterSet(charactersIn: ". "))
-        if let firstPlace = surface.payload.metadata["nearbyPlaces"]?
-            .split(separator: "\n").first.map(String.init),
+        let focus = interest.components(separatedBy: ",").first ?? interest
+        let study = localStudy(focus: focus.lowercased())
+        let places = surface.payload.metadata["nearbyPlaces"]?.split(separator: "\n").map(String.init) ?? []
+        // Prefer a place whose actual category fits the sender's interests.
+        // Ties retain the scout's order; no named destination is invented.
+        let words = Set(interest.lowercased().split { !$0.isLetter }.filter { $0.count > 3 }.map(String.init))
+        let rankedPlaces = places.enumerated().sorted { left, right in
+            func score(_ line: String) -> Int {
+                let text = line.lowercased()
+                let lexical = Set(text.split { !$0.isLetter }.map(String.init)).intersection(words).count
+                return lexical + (study.places.contains(where: { text.contains($0) }) ? 5 : 0)
+            }
+            let l = score(left.element), r = score(right.element)
+            return l == r ? left.offset < right.offset : l > r
+        }
+        if let firstPlace = rankedPlaces.first?.element,
            let placeName = firstPlace.split(separator: "(").first?.trimmingCharacters(in: .whitespaces),
            !placeName.isEmpty {
             return ElectiveOfferDraft(
                 title: "A Visit to \(placeName)",
-                ask: "\(sender) asks: go to \(placeName) this week. Find the thing they're quietly proudest of (it's usually near the register or on the most worn shelf) smell it if it can be smelled, and photograph it or bring back one sentence about it.",
+                ask: "\(sender) asks: go to \(placeName) this week. \(study.act) Bring back a photograph or one sentence saying exactly what you found.",
                 whyItMatters: "It feeds what \(sender) has been privately studying: \(interest).",
-                practiceShape: "One photo or one specific sentence from inside \(placeName)."
+                practiceShape: "One photo or one specific sentence from \(placeName). No purchase needed."
             )
         }
         return ElectiveOfferDraft(
@@ -5776,6 +5790,41 @@ enum ElectiveOfferFallback {
             whyItMatters: "It feeds what \(sender) has been privately studying.",
             practiceShape: "One specific sentence of proof, with a real detail in it."
         )
+    }
+
+    /// Concrete offline studies, keyed to what the sender studies first. The
+    /// model-backed writer still handles notes without a scouted destination.
+    private static func localStudy(focus: String) -> (places: [String], act: String) {
+        func has(_ terms: [String]) -> Bool { terms.contains { focus.contains($0) } }
+        if has(["flavour", "flavor", "breakfast", "comfort", "fuel", "homes", "recipe"]) {
+            return (["bakery", "diner", "coffee", "market", "restaurant", "pizza"],
+                    "Find one smell you can notice from a public spot. What food or place does it remind you of? No need to buy anything.")
+        }
+        if has(["sound", "song", "karaoke"]) {
+            return (["coffee", "diner", "park", "music"],
+                    "Stand still for a minute and listen. Pick out one repeating sound, then try to describe it without naming what makes it.")
+        }
+        if has(["moss", "plant"]) {
+            return (["park", "trail", "garden", "farm"],
+                    "Look for one plant growing somewhere nobody seems to have invited it. Show me where it found room.")
+        }
+        if has(["architecture", "threshold", "spare key", "enchantment"]) {
+            return (["library", "hardware", "antiques", "bookstore"],
+                    "Look at the entrance from a public spot. Find one worn edge, repair, or odd little feature, and tell me what people have done to it.")
+        }
+        if has(["zine", "spelling", "typo", "last word", "reread"]) {
+            return (["bookstore", "library", "thrift", "hardware"],
+                    "Find a sign, label, or notice someone made by hand. Bring me its exact words and one detail about the lettering.")
+        }
+        if has(["map", "street", "cold water", "cryptid"]) {
+            return (["park", "trail", "waterfront", "harbor", "marina"],
+                    "From a public path, find one small track or route people or animals have made for themselves. Tell me where it leads. You don't have to follow it.")
+        }
+        if has(["doing nothing", "cozy", "shadow"]) {
+            return (["park", "library", "coffee"],
+                    "Find a public place to pause for two minutes. Watch one ordinary thing and tell me the smallest change you saw.")
+        }
+        return ([], "Find one ordinary detail that makes you curious about \(focus). Describe the detail first, then the question it gave you.")
     }
 }
 

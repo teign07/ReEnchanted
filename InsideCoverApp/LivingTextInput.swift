@@ -179,8 +179,10 @@ struct LivingTextEditor: View {
     var isOnLeaf = true
     var isAbsorbingInk = false
     var inkAbsorptionStartedAt: Date? = nil
+    var offersSentenceBuilder = true
 
     @FocusState private var isWriting: Bool
+    @State private var pippaEditorID = UUID()
     @Environment(\.bookInkSubmissionActive) private var submissionActive
 
     private var inkIsSinking: Bool { isAbsorbingInk || submissionActive }
@@ -258,7 +260,7 @@ struct LivingTextEditor: View {
                     .scrollContentBackground(.hidden)
                     .focused($isWriting)
                     .bookUIKitInkAbsorption(isActive: inkIsSinking, seed: title, startedAt: inkAbsorptionStartedAt)
-                    .padding(.top, 34)
+                    .padding(.top, offersSentenceBuilder ? 34 : 10)
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
                     .frame(minHeight: minHeight)
@@ -284,18 +286,20 @@ struct LivingTextEditor: View {
                         .font(.body)
                         .foregroundStyle(BookPalette.ink.opacity(isOnLeaf ? 0.48 : 0.3))
                         .padding(.horizontal, 15)
-                        .padding(.top, 52)
+                        .padding(.top, offersSentenceBuilder ? 52 : 28)
                         .padding(.bottom, 18)
                         .allowsHitTesting(false)
                 }
 
-                builderToggleButton
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 8)
-                    .padding(.trailing, 10)
+                if offersSentenceBuilder {
+                    builderToggleButton
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, 8)
+                        .padding(.trailing, 10)
+                }
             }
 
-            if isBuilderOpen {
+            if offersSentenceBuilder && isBuilderOpen {
                 sentenceBuilderDrawer
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -304,6 +308,12 @@ struct LivingTextEditor: View {
         .disabled(inkIsSinking)
         .onChange(of: inkIsSinking) { _, absorbing in
             if absorbing { isWriting = false; isBuilderOpen = false }
+        }
+        .onChange(of: isWriting) { _, writing in
+            BookPixieSummons.shared.setWriting(writing, editorID: pippaEditorID)
+        }
+        .onDisappear {
+            BookPixieSummons.shared.setWriting(false, editorID: pippaEditorID)
         }
         .onChange(of: text) { _, _ in
             // Drop a stale selection if its word changed out from under us.

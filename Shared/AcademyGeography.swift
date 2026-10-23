@@ -1393,6 +1393,9 @@ enum AcademyWhereabouts {
 
     /// Nobody but the reader is ever in the Dorm. It's theirs.
     static let haunts: [Haunt] = [
+        Haunt(characterID: GuestCast.entityID, mapName: "The Guest",
+              day: ["location-kitchens"], evening: ["location-kitchens"],
+              night: ["location-kitchens"], meals: "location-kitchens"),
         Haunt(characterID: "penny-blackletter", mapName: "Penny",
               day: ["location-stacks", "location-corridor-whispered"],
               evening: ["location-stacks", "location-great-hall"],
@@ -1530,6 +1533,7 @@ enum AcademyWhereabouts {
         var seenVisitors: Set<String> = []
         let visitors = staging.staging
             .filter { !rosterIDs.contains($0.castID) && staging.room(id: $0.roomID) != nil && !closed.contains($0.roomID) && $0.roomID != AcademyGeography.dormID }
+            .filter { $0.castID != GuestCast.entityID || !GuestCast.current.introduced || GuestCast.current.isPresent(at: date) }
             .reversed()
             .filter { seenVisitors.insert($0.castID).inserted }
             .map { staged in
@@ -1548,12 +1552,12 @@ enum AcademyWhereabouts {
             if haunt.night.isEmpty { haunt.night = [quarters] }
             // Supper is still supper. The quiet hours before bed belong to
             // the Chapter; professors can retreat to their own landing.
-            if hour >= 19 && hour < 22 {
+            if hour >= 19 && hour < 22 && entity.id != GuestCast.entityID {
                 haunt.evening = [isStaff(entity) ? quarters : common]
             }
             let name = entity.name
             func here(_ room: String, _ why: AcademyWhereabout.Why, _ note: String? = nil) -> AcademyWhereabout {
-                AcademyWhereabout(characterID: haunt.characterID, name: name, mapName: haunt.mapName,
+                AcademyWhereabout(characterID: haunt.characterID, name: name, mapName: entity.id == GuestCast.entityID ? entity.name : haunt.mapName,
                                   roomID: room, why: why, note: note)
             }
             if let story = storyRoom[haunt.characterID], story.room != AcademyGeography.dormID, !closed.contains(story.room) {
@@ -1582,6 +1586,7 @@ enum AcademyWhereabouts {
     }
 
     static func residence(for entity: NarrativeWorldEntity) -> String {
+        if entity.id == GuestCast.entityID { return "location-kitchens" }
         if isStaff(entity) { return AcademyGeography.facultyID }
         if let chapter = AcademyChapterRegistry.chapter(named: entity.chapter) {
             return AcademyGeography.dormitoriesID(chapter.id)
@@ -1590,6 +1595,7 @@ enum AcademyWhereabouts {
     }
 
     private static func shortName(_ entity: NarrativeWorldEntity) -> String {
+        if entity.id == GuestCast.entityID { return entity.name }
         let bare = entity.name.components(separatedBy: " (").first ?? entity.name
         let titles: Set<String> = ["Professor", "Dr.", "Headmistress", "The"]
         let parts = bare.split(separator: " ").map(String.init).filter { !titles.contains($0) }

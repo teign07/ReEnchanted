@@ -755,6 +755,66 @@ enum EditionProofHarness {
             return "\(report.count) papers, \(problems.count) repeats"
         }
 
+        // The Kitchen: what's offered each day of November, a Recipe Page's words, and the room.
+        step("kitchen") {
+            var out: [String] = []
+            var archive: [BookDay] = []
+            func keep(_ id: String, _ outcome: KitchenOutcome, _ month: Int, _ day: Int, _ note: String = "") {
+                let at = SyntheticReaderYear.date(2026, month, day, hour: 19)
+                archive.append(BookDay(id: BookDay.id(for: at, calendar: calendar), date: at, pages: [
+                    BookPage(type: .recipe, createdAt: at, promptText: id, userInput: note, tags: outcome.tags(recipeID: id))]))
+            }
+            keep("soul-cakes", .made, 10, 31, "Nutmeg everywhere. The cross went wonky on half of them.")
+            keep("stone-soup", .notYet, 11, 7)
+            keep("parkin", .madeBadly, 11, 2, "Burnt the edges. Ate the middle.")
+            var rescue = BookPage(type: .recipe, createdAt: SyntheticReaderYear.date(2026, 11, 15, hour: 20),
+                                  promptText: "Rescue a Recipe", userInput: "Grandad's chilli\nEnough beans. Cook it till it looks right.",
+                                  tags: ["kitchen", KitchenLedger.rescuedTag])
+            rescue.metadata = [KitchenLedger.rescueTitleKey: "Grandad's chilli", KitchenLedger.rescueWhoseKey: "Grandad"]
+            archive.append(BookDay(id: "2026-11-15", date: rescue.createdAt, pages: [rescue]))
+            for offset in 0...32 {
+                let now = SyntheticReaderYear.date(2026, 10, 30, hour: 9).addingTimeInterval(Double(offset) * 86_400)
+                let past = archive.filter { $0.date < now }
+                let offer = KitchenOffering.offer(on: now, dayID: BookDay.id(for: now, calendar: calendar),
+                                                  workings: KitchenLedger.workings(in: past),
+                                                  weatherTags: offset % 4 == 0 ? ["cold", "rain"] : [],
+                                                  kitchenBusy: true, calendar: calendar)
+                out.append("\(BookDay.id(for: now, calendar: calendar)): \(offer.map { "\($0.recipe.id) (\($0.reason))" } ?? "-")")
+            }
+            let now = SyntheticReaderYear.date(2026, 11, 20, hour: 9)
+            let page = KitchenOffering.surface(for: KitchenRecipeRegistry.recipe(id: "parkin")!,
+                                               reason: .reoffer(owedSince: SyntheticReaderYear.date(2026, 11, 7, hour: 9)),
+                                               dayID: "2026-11-20", days: archive, now: now, calendar: calendar)
+            out.append("\n=== PAGE: \(page.prompt) — \(page.reason)\n\(page.payload.body)")
+            out.append("\n\(KitchenTally.count(liveDay: 20, eventStart: SyntheticReaderYear.date(2026, 11, 1, hour: 0), days: archive).line)")
+            let sections = KitchenRoom.sections(days: archive, now: now, calendar: calendar)
+            for section in sections {
+                out.append("\n== \(section.title)")
+                for entry in section.entries { out.append("  \(entry.title): \(entry.madeLine)\(entry.notes.first.map { " “\($0)”" } ?? "")") }
+            }
+            let render: () -> Data? = {
+                MainActor.assumeIsolated {
+                    let view = VStack(alignment: .leading, spacing: 10) {
+                        ForEach(sections) { section in
+                            Text(section.title.uppercased()).font(.caption2.weight(.black)).foregroundStyle(BookPalette.gold)
+                            ForEach(section.entries.prefix(3)) { KitchenRow(entry: $0) }
+                        }
+                    }
+                    .padding(18)
+                    .frame(width: 390)
+                    .background(Color(red: 0.95, green: 0.90, blue: 0.80))
+                    .environment(\.bookSurfaceMaterial, .paper)
+                    let renderer = ImageRenderer(content: view)
+                    renderer.scale = 2
+                    return renderer.uiImage?.pngData()
+                }
+            }
+            let png = Thread.isMainThread ? render() : DispatchQueue.main.sync(execute: render)
+            try png?.write(to: directory.appendingPathComponent("kitchen.png"))
+            try out.joined(separator: "\n").write(to: directory.appendingPathComponent("kitchen.txt"), atomically: true, encoding: .utf8)
+            return "\(KitchenRecipeRegistry.all.count) recipes"
+        }
+
         // Book Today from a lived-in Book: what it says, morning and evening, and the doorstep
         // and keepsake as the reader sees them.
         step("book-today") {

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B1FFA0000000000000000001 /* PippaScraps.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000101 /* PippaScraps.swift */; };
+		B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000102 /* PippaWordFinds.swift */; };
 		0A1012000000000000000002 /* BookPigment.metal in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000102 /* BookPigment.metal */; };
 		0A1012000000000000000001 /* BookPigmentInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000101 /* BookPigmentInk.swift */; };
 		010000000000000000000001 /* InsideCoverApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000101 /* InsideCoverApp.swift */; };
@@ -114,6 +116,8 @@
 		02000000000000000000031A /* GrimoireSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031B /* GrimoireSurfacing.swift */; };
 		02000000000000000000031C /* Atlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031D /* Atlas.swift */; };
 		02000000000000000000031E /* Bestiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031F /* Bestiary.swift */; };
+		0200000000000000000003A2 /* KitchenRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003A3 /* KitchenRecipes.swift */; };
+		0200000000000000000003A0 /* Kitchen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003A1 /* Kitchen.swift */; };
 		020000000000000000000324 /* CreatureLore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000325 /* CreatureLore.swift */; };
 		020000000000000000000322 /* BestiarySurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000323 /* BestiarySurfacing.swift */; };
 		020000000000000000000326 /* ReadersWear.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000327 /* ReadersWear.swift */; };
@@ -204,6 +208,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		B1FFA0000000000000000101 /* PippaScraps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaScraps.swift; sourceTree = "<group>"; };
+		B1FFA0000000000000000102 /* PippaWordFinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaWordFinds.swift; sourceTree = "<group>"; };
 		0A1012000000000000000102 /* BookPigment.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = BookPigment.metal; sourceTree = "<group>"; };
 		0A1012000000000000000101 /* BookPigmentInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPigmentInk.swift; sourceTree = "<group>"; };
 		0A0000000000000000000101 /* MonthlySubscriptions.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Testing/MonthlyContent/MonthlySubscriptions.storekit; sourceTree = SOURCE_ROOT; };
@@ -314,6 +320,8 @@
 		02000000000000000000031B /* GrimoireSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireSurfacing.swift; sourceTree = "<group>"; };
 		02000000000000000000031D /* Atlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Atlas.swift; sourceTree = "<group>"; };
 		02000000000000000000031F /* Bestiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bestiary.swift; sourceTree = "<group>"; };
+		0200000000000000000003A3 /* KitchenRecipes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitchenRecipes.swift; sourceTree = "<group>"; };
+		0200000000000000000003A1 /* Kitchen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Kitchen.swift; sourceTree = "<group>"; };
 		020000000000000000000325 /* CreatureLore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatureLore.swift; sourceTree = "<group>"; };
 		020000000000000000000323 /* BestiarySurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiarySurfacing.swift; sourceTree = "<group>"; };
 		020000000000000000000327 /* ReadersWear.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadersWear.swift; sourceTree = "<group>"; };
@@ -427,6 +435,7 @@
 				01000000000000000000011D /* PerfScrollProbe.swift */,
 				01000000000000000000011E /* AcademyMapView.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
+				B1FFA0000000000000000101 /* PippaScraps.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
 				0E0000000000000000000101 /* EditionProofHarness.swift */,
 				0F0000000000000000000101 /* BraidProofHarness.swift */,
@@ -475,6 +484,7 @@
 				030000000000000000000107 /* PressedPhotograph.swift */,
 				030000000000000000000108 /* PlainInkExport.swift */,
 				020000000000000000000100 /* PageModel.swift */,
+				B1FFA0000000000000000102 /* PippaWordFinds.swift */,
 				020000000000000000000112 /* BookInterruptionBudget.swift */,
 				B00C70000000000000000113 /* BookToday.swift */,
 				02000000000000000000011A /* BookWorkings.swift */,
@@ -518,6 +528,8 @@
 				02000000000000000000031B /* GrimoireSurfacing.swift */,
 				02000000000000000000031D /* Atlas.swift */,
 				02000000000000000000031F /* Bestiary.swift */,
+				0200000000000000000003A3 /* KitchenRecipes.swift */,
+				0200000000000000000003A1 /* Kitchen.swift */,
 				020000000000000000000325 /* CreatureLore.swift */,
 				020000000000000000000323 /* BestiarySurfacing.swift */,
 				020000000000000000000327 /* ReadersWear.swift */,
@@ -779,6 +791,8 @@
 				010000000000000000000025 /* PerfScrollProbe.swift in Sources */,
 				010000000000000000000026 /* AcademyMapView.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
+				B1FFA0000000000000000001 /* PippaScraps.swift in Sources */,
+				B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */,
 				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
 				0E0000000000000000000001 /* EditionProofHarness.swift in Sources */,
 				0F0000000000000000000001 /* BraidProofHarness.swift in Sources */,
@@ -859,6 +873,8 @@
 				02000000000000000000031A /* GrimoireSurfacing.swift in Sources */,
 				02000000000000000000031C /* Atlas.swift in Sources */,
 				02000000000000000000031E /* Bestiary.swift in Sources */,
+				0200000000000000000003A2 /* KitchenRecipes.swift in Sources */,
+				0200000000000000000003A0 /* Kitchen.swift in Sources */,
 				020000000000000000000324 /* CreatureLore.swift in Sources */,
 				020000000000000000000322 /* BestiarySurfacing.swift in Sources */,
 				020000000000000000000326 /* ReadersWear.swift in Sources */,

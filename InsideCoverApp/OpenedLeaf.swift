@@ -1,8 +1,355 @@
 import SwiftUI
+import Observation
+import Combine
 
 #if canImport(UIKit)
 import UIKit
 #endif
+
+/// One draft per logical Page, shared by every physical control leaf. A curl
+/// may keep two leaves alive at once; both must edit the very same answers.
+@Observable
+final class FolioControlSession {
+    var currentSurface: SurfacePage?
+    var navigationRevision = 0
+    var presentationOwner = 0
+    @ObservationIgnored private var slots: [String: Any] = [:]
+
+    fileprivate func slot<Value>(_ key: String, initialValue: Value) -> FolioControlStateSlot<Value> {
+        if let slot = slots[key] as? FolioControlStateSlot<Value> { return slot }
+        let slot = FolioControlStateSlot(value: initialValue)
+        slots[key] = slot
+        return slot
+    }
+
+    func navigate(to surface: SurfacePage) {
+        currentSurface = surface
+        navigationRevision += 1
+        presentationOwner = 0
+    }
+}
+
+@Observable
+fileprivate final class FolioControlStateSlot<Value> {
+    var value: Value {
+        didSet { observeObjectIfNeeded() }
+    }
+    private var revision = 0
+    @ObservationIgnored private var objectSubscription: AnyCancellable?
+
+    init(value: Value) {
+        self.value = value
+        observeObjectIfNeeded()
+    }
+
+    var current: Value {
+        _ = revision
+        return value
+    }
+
+    private func observeObjectIfNeeded() {
+        objectSubscription = nil
+        if let object = value as? any ObservableObject { observe(object) }
+    }
+
+    private func observe<Object: ObservableObject>(_ object: Object) {
+        objectSubscription = object.objectWillChange.sink { [weak self] _ in
+            DispatchQueue.main.async { self?.revision &+= 1 }
+        }
+    }
+}
+
+private struct FolioControlSessionKey: EnvironmentKey { static let defaultValue: FolioControlSession? = nil }
+private struct FolioControlPageIndexKey: EnvironmentKey { static let defaultValue = 0 }
+private struct FolioControlStateScopeKey: EnvironmentKey { static let defaultValue = "" }
+
+extension EnvironmentValues {
+    var folioControlSession: FolioControlSession? {
+        get { self[FolioControlSessionKey.self] }
+        set { self[FolioControlSessionKey.self] = newValue }
+    }
+    var folioControlPageIndex: Int {
+        get { self[FolioControlPageIndexKey.self] }
+        set { self[FolioControlPageIndexKey.self] = newValue }
+    }
+    var folioControlStateScope: String {
+        get { self[FolioControlStateScopeKey.self] }
+        set { self[FolioControlStateScopeKey.self] = newValue }
+    }
+}
+
+/// Ordinary local State in a modal; a shared draft slot in the bound Book.
+/// The Page's existing bindings and validation use either home unchanged.
+@propertyWrapper
+struct FolioPageState<Value>: DynamicProperty {
+    @Environment(\.folioControlSession) private var session
+    @Environment(\.folioControlPageIndex) private var pageIndex
+    @Environment(\.folioControlStateScope) private var scope
+    @State private var local: FolioControlStateSlot<Value>
+    private let initialValue: Value
+    private let key: String
+    private let isPresentation: Bool
+
+    init(wrappedValue: Value, _ name: String, presentation: Bool = false, file: StaticString = #fileID) {
+        initialValue = wrappedValue
+        _local = State(initialValue: FolioControlStateSlot(value: wrappedValue))
+        key = "\(file):\(name)"
+        isPresentation = presentation
+    }
+
+    init(_ name: String, presentation: Bool = false, file: StaticString = #fileID) where Value: ExpressibleByNilLiteral {
+        self.init(wrappedValue: nil, name, presentation: presentation, file: file)
+    }
+
+    var wrappedValue: Value {
+        get {
+            if let session { return session.slot("\(scope)|\(key)", initialValue: initialValue).current }
+            return local.current
+        }
+        nonmutating set {
+            if let session {
+                if isPresentation {
+                    let value = newValue as Any
+                    let isOpen = (value as? Bool) ?? !(Mirror(reflecting: value).displayStyle == .optional
+                        && Mirror(reflecting: value).children.isEmpty)
+                    if isOpen { session.presentationOwner = pageIndex }
+                }
+                session.slot("\(scope)|\(key)", initialValue: initialValue).value = newValue
+            } else {
+                local.value = newValue
+            }
+        }
+    }
+
+    var projectedValue: Binding<Value> {
+        Binding(get: { wrappedValue }, set: { wrappedValue = $0 })
+    }
+}
+
+struct FolioControlPaginationKey: PreferenceKey {
+    static var defaultValue: [CGFloat] = [0]
+    static func reduce(value: inout [CGFloat], nextValue: () -> [CGFloat]) { value = nextValue() }
+}
+
+/// The paper footer owns disposition. Embedded controls supply its existing
+/// Keep button with the same validation and action as the opened Page.
+struct FolioControlSubmission: Equatable {
+    var identity = ""
+    var canKeep = false
+    var isBusy = false
+    var keep: (() -> Void)?
+    var unfold: (() -> Void)?
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.identity == rhs.identity && lhs.canKeep == rhs.canKeep && lhs.isBusy == rhs.isBusy
+    }
+}
+
+struct FolioControlSubmissionKey: PreferenceKey {
+    static var defaultValue = FolioControlSubmission()
+    static func reduce(value: inout FolioControlSubmission, nextValue: () -> FolioControlSubmission) {
+        let next = nextValue()
+        if !next.identity.isEmpty { value = next }
+    }
+}
+
+private enum FolioControlPaper {
+    static let coordinateSpace = "folio-control-paper"
+}
+
+private struct FolioControlBoundsKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
+}
+
+private struct FolioUnbrokenControlBoundsKey: PreferenceKey {
+    static var defaultValue: [CGRect] = []
+    static func reduce(value: inout [CGRect], nextValue: () -> [CGRect]) { value += nextValue() }
+}
+
+private struct FolioUnbrokenControl: ViewModifier {
+    @Environment(\.folioMeasuresControls) private var measuresControls
+    func body(content: Content) -> some View {
+        content.background {
+            if measuresControls {
+                GeometryReader { proxy in
+                    Color.clear.preference(key: FolioUnbrokenControlBoundsKey.self,
+                        value: [proxy.frame(in: .named(FolioControlPaper.coordinateSpace))])
+                }
+            }
+        }
+    }
+}
+
+extension View {
+    /// Choice labels can contain their own stack of text. Keep the whole
+    /// tappable choice together, rather than treating its lines as breaks.
+    func folioControlUnbroken() -> some View { modifier(FolioUnbrokenControl()) }
+}
+
+private struct FolioControlHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct FolioMeasuresControlsKey: EnvironmentKey { static let defaultValue = false }
+private struct FolioVisibleControlPaperKey: EnvironmentKey { static let defaultValue: CGRect? = nil }
+
+private extension EnvironmentValues {
+    var folioMeasuresControls: Bool {
+        get { self[FolioMeasuresControlsKey.self] }
+        set { self[FolioMeasuresControlsKey.self] = newValue }
+    }
+    var folioVisibleControlPaper: CGRect? {
+        get { self[FolioVisibleControlPaperKey.self] }
+        set { self[FolioVisibleControlPaperKey.self] = newValue }
+    }
+}
+
+/// Ordinary VStack layout in a modal. On a leaf its rows also provide safe
+/// paper breaks, so a field or choice that fits is kept on one fixed page.
+struct FolioControlStack: View {
+    private let makeContent: () -> AnyView
+
+    init<Content: View>(
+        alignment: HorizontalAlignment = .center,
+        spacing: CGFloat? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        // Building nested Page stacks in init kept every parent's temporary
+        // values on the stack. Opening a prepared Page, or redrawing it during
+        // Keep, could exhaust the iPhone's main-thread stack before layout.
+        // Defer each builder to its own body evaluation and hide its concrete
+        // type from enclosing stacks. Keep the row tree inside the erasure so
+        // pagination still measures individual controls, rather than one box.
+        makeContent = {
+            AnyView(FolioControlStackContent(alignment: alignment, spacing: spacing, content: content()))
+        }
+    }
+
+    var body: some View { makeContent() }
+}
+
+private struct FolioControlStackContent<Content: View>: View {
+    var alignment: HorizontalAlignment
+    var spacing: CGFloat?
+    var content: Content
+    @Environment(\.folioMeasuresControls) private var measuresControls
+
+    var body: some View {
+        if measuresControls {
+            _VariadicView.Tree(FolioControlStackRoot(alignment: alignment, spacing: spacing)) { content }
+        } else {
+            VStack(alignment: alignment, spacing: spacing) { content }
+        }
+    }
+}
+
+private struct FolioControlStackRoot: _VariadicView.MultiViewRoot {
+    var alignment: HorizontalAlignment
+    var spacing: CGFloat?
+    func body(children: _VariadicView.Children) -> some View {
+        VStack(alignment: alignment, spacing: spacing) {
+            ForEach(children) { child in
+                FolioMeasuredControlUnit { child }
+            }
+        }
+    }
+}
+
+private struct FolioMeasuredControlUnit<Content: View>: View {
+    @ViewBuilder var content: Content
+    @Environment(\.folioVisibleControlPaper) private var visiblePaper
+    @State private var bounds: CGRect = .zero
+
+    var body: some View {
+        content
+            .background {
+                GeometryReader { proxy in
+                    let frame = proxy.frame(in: .named(FolioControlPaper.coordinateSpace))
+                    Color.clear
+                        .preference(key: FolioControlBoundsKey.self, value: [frame])
+                        .onAppear { bounds = frame }
+                        .onChange(of: frame) { _, value in bounds = value }
+                }
+            }
+            .accessibilityHidden(visiblePaper.map { bounds != .zero && !bounds.intersects($0) } ?? false)
+    }
+}
+
+/// One fixed slice of the form. Its measured breaks become physical Book
+/// leaves; the folio owns all navigation and the session owns the draft.
+struct FolioFixedControlPages<Content: View>: View {
+    @ViewBuilder var content: Content
+    @State private var contentHeight: CGFloat = 0
+    @State private var units: [CGRect] = []
+    @State private var unbrokenUnits: [CGRect] = []
+    @Environment(\.folioControlPageIndex) private var pageIndex
+    @Environment(\.bookInkSubmissionActive) private var isSubmittingInk
+
+    var body: some View {
+        GeometryReader { geometry in
+            let height = max(1, geometry.size.height)
+            let starts = pageStarts(height: height)
+            let index = min(pageIndex, starts.count - 1)
+            let start = starts[index]
+            content
+                .frame(width: geometry.size.width)
+                .fixedSize(horizontal: false, vertical: true)
+                .coordinateSpace(name: FolioControlPaper.coordinateSpace)
+                .environment(\.folioMeasuresControls, true)
+                .environment(\.folioVisibleControlPaper,
+                             CGRect(x: 0, y: start, width: geometry.size.width, height: height))
+                .scrollDisabled(true)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: FolioControlHeightKey.self, value: proxy.size.height)
+                    }
+                }
+                .offset(y: -start)
+                .frame(width: geometry.size.width, height: height, alignment: .top)
+                .clipped()
+                .opacity(pageIndex < starts.count ? 1 : 0)
+                .allowsHitTesting(pageIndex < starts.count)
+                .accessibilityHidden(pageIndex >= starts.count)
+                .onPreferenceChange(FolioControlHeightKey.self) {
+                    if !isSubmittingInk { contentHeight = $0 }
+                }
+                .onPreferenceChange(FolioControlBoundsKey.self) {
+                    if !isSubmittingInk { units = $0 }
+                }
+                .onPreferenceChange(FolioUnbrokenControlBoundsKey.self) {
+                    if !isSubmittingInk { unbrokenUnits = $0 }
+                }
+                .preference(key: FolioControlPaginationKey.self, value: starts)
+        }
+    }
+
+    private func pageStarts(height: CGFloat) -> [CGFloat] {
+        guard height.isFinite, height > 0, contentHeight.isFinite else { return [0] }
+        // Nested stacks report their containers as well as their rows. Only
+        // the innermost rows constrain a break; a whole form is not one row.
+        let rows = units.filter { rect in
+            rect.minY.isFinite && rect.maxY.isFinite
+                && rect.height > 1 && rect.height <= height && !units.contains { child in
+                child.height > 1 && child.height < rect.height - 2
+                    && rect.insetBy(dx: -1, dy: -1).contains(child)
+            }
+        } + unbrokenUnits.filter { $0.minY.isFinite && $0.maxY.isFinite && $0.height > 1 && $0.height <= height }
+        var starts: [CGFloat] = [0]
+        while let start = starts.last, start + height < contentHeight - 1 {
+            var end = start + height
+            for _ in 0..<rows.count {
+                guard let crossing = rows.filter({ $0.minY < end - 1 && $0.maxY > end + 1 })
+                    .min(by: { $0.minY < $1.minY }), crossing.minY > start + 1 else { break }
+                end = crossing.minY
+            }
+            guard end > start + 1 else { break }
+            starts.append(end)
+        }
+        return starts
+    }
+}
 
 // MARK: - The opened leaf
 //
@@ -395,18 +742,24 @@ private struct OpenedLeafPaper: ViewModifier {
 extension View {
     /// Applies the lifted-leaf material. `headClearance` and `footClearance`
     /// name the fixed margins so the patina keeps them clear of accidents.
+    @ViewBuilder
     func openedLeafPaper(
         style: PageVisualStyle,
         recipe: LeafDecorationRecipe,
         headClearance: CGFloat = 62,
-        footClearance: CGFloat = 96
+        footClearance: CGFloat = 96,
+        isEnabled: Bool = true
     ) -> some View {
-        modifier(OpenedLeafPaper(
-            style: style,
-            recipe: recipe,
-            headClearance: headClearance,
-            footClearance: footClearance
-        ))
+        if isEnabled {
+            modifier(OpenedLeafPaper(
+                style: style,
+                recipe: recipe,
+                headClearance: headClearance,
+                footClearance: footClearance
+            ))
+        } else {
+            self
+        }
     }
 }
 
@@ -997,6 +1350,7 @@ extension BookObjectDivision {
         case .cast: return .castBond
         case .correspondences: return .bookConnections
         case .bestiary: return .illuminatedPhoto
+        case .kitchen: return .recipe
         case .gazetteer: return .wonderCompass
         case .atlas: return .marginsAtlas
         case .labyrinthMap: return .marginsAtlas

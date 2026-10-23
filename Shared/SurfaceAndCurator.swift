@@ -566,6 +566,9 @@ struct SurfacePage: Identifiable, Equatable, Codable {
         case .spell:
             // A Spell asks the reader to go and do a thing and bring it back.
             return .capture
+        case .recipe:
+            // Made it, made it badly, or not yet, and what it smelled like.
+            return .capture
         case .festival:
             return .capture
         case .twoReadings:
@@ -3030,7 +3033,131 @@ enum BookPreparedExperimentDismissalPolicy {
     }
 }
 
+/// A stable division of work between bound paper and the unfolded Page.
+/// This never depends on screen size or on how many controls happen to fit.
+enum LeafPresentation: Equatable {
+    case reading
+    case shortAnswer
+    case activityPreview
+    case readingWithActivity
+}
+
 extension SurfacePage {
+    var leafPresentation: LeafPresentation {
+        if payload.metadata["keptPageID"] != nil || payload.metadata["keptPage"] == "true" {
+            return .reading
+        }
+        if isAuthoredNarrativeOnlyPage || payload.metadata["storyResultLeaf"] == "true" {
+            return .reading
+        }
+        if payload.metadata["opensBookShop"] == "true"
+            || payload.metadata["opensPagewright"] == "true"
+            || payload.metadata["editionOfferPeriod"] != nil
+            || payload.metadata["chapterBinding"] == "true"
+            || payload.metadata["seasonalDispatch"] == "true"
+            || payload.metadata["weeklyIssue"] == "true" {
+            return .activityPreview
+        }
+        if payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+            return .activityPreview
+        }
+        if offersCompassRunStart && payload.metadata["compassBookPreview"] != "true" {
+            return .readingWithActivity
+        }
+        switch type {
+        case .diary, .souvenir, .mood, .body, .fuel, .location, .plainPage:
+            return .shortAnswer
+        case .aboutYou:
+            return renderStyle == .loreLetter ? .readingWithActivity : .shortAnswer
+        case .affirmations:
+            return .shortAnswer
+        case .wonderCompass:
+            return offersCompassRunStart && payload.metadata["compassBookPreview"] != "true"
+                ? .readingWithActivity : .activityPreview
+        case .academyClass:
+            return payload.metadata["worldEventBeatIDs"] == nil ? .activityPreview : .reading
+        case .narrativeOS, .bookFae, .tarot, .elective, .twoReadings,
+             .castBond, .faeBargain, .pactVerdict, .pactErrand, .anchor,
+             .wordNegotiation, .bookJump, .enchantment, .radio, .inventory,
+             .marginsAtlas, .gamePage, .askTheBook, .inkrestOfficeHours, .packPage,
+             .calendar, .bindery, .frontMatter, .bookNotices, .bookRemembered, .bookConnections,
+             .spell, .recipe, .festival, .supportGuild, .patreon, .bookPocket, .wickerDare, .rest:
+            return .activityPreview
+        case .illuminatedPhoto:
+            return payload.metadata["renderedPreviewPath"]?.nonEmpty == nil ? .activityPreview : .reading
+        case .letter, .note, .theBleed, .bookOfYou, .welcome, .helpTips:
+            return .readingWithActivity
+        case .weather, .quip, .quotes, .lore, .illustration, .gossip,
+             .bookAside, .facultyResearch, .pactDispatch, .todaysSky,
+             .glowInvitation, .taleBound:
+            return .reading
+        }
+    }
+
+    var leafRequiresUnfoldingToKeep: Bool { leafPresentation == .activityPreview }
+
+    /// A real excerpt, followed by an honest account of what unfolds.
+    /// Archive and generation paths always retain the complete source text.
+    func leafActivityPreview(from body: String) -> String {
+        let opening = body.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? detail
+        let words = opening.split(whereSeparator: \.isWhitespace)
+        let excerpt = words.prefix(48).joined(separator: " ")
+            + (words.count > 48 ? "…" : "")
+        let invitation: String
+        switch type {
+        case .narrativeOS, .bookFae: invitation = "Unfold to read the story and choose what happens."
+        case .academyClass: invitation = "Unfold to read the lesson and try it yourself."
+        case .wonderCompass: invitation = "Unfold to see the steps and begin when you're ready."
+        case .tarot: invitation = "Unfold to turn the cards and read them."
+        case .twoReadings, .castBond: invitation = "Unfold to read both sides and make your choice."
+        case .recipe: invitation = "Unfold for the ingredients, the steps, and a place to say how it went."
+        case .marginsAtlas: invitation = "Unfold to explore the map."
+        case .radio: invitation = "Unfold to choose a station and listen."
+        case .askTheBook, .inkrestOfficeHours: invitation = "Unfold to start the conversation."
+        case .inventory: invitation = "Unfold to look through what you've kept and use what you've found."
+        case .elective: invitation = "Unfold to see what this asks of you and decide whether to take it."
+        case .anchor: invitation = "Unfold to name this place and choose what to remember."
+        case .bookRemembered: invitation = "Unfold to read what I remember and add what I missed."
+        case .bookNotices: invitation = "Unfold to tell me what I got right, or what I got wrong."
+        case .wordNegotiation: invitation = "Unfold to read the word and decide what it means to you."
+        case .enchantment, .illuminatedPhoto: invitation = "Unfold to choose a photograph and work on it."
+        case .faeBargain: invitation = "Unfold to hear the offer. You can say no."
+        case .pactVerdict: invitation = "Unfold to hear both sides and decide."
+        case .pactErrand: invitation = "Unfold to read the errand and bring back what happened."
+        case .gamePage: invitation = "Unfold to play."
+        case .calendar: invitation = "Unfold to see the calendar and choose what happens next."
+        case .bindery: invitation = "Unfold to choose a book and see how to bind it."
+        case .supportGuild, .patreon: invitation = "Unfold to see what support pays for and choose whether to help."
+        case .frontMatter: invitation = "Unfold to see what I remember about you and put it right."
+        case .bookConnections: invitation = "Unfold to follow the connections between your Pages."
+        case .bookPocket: invitation = "Unfold to look through the pocket."
+        case .spell: invitation = "Unfold to read the steps and try them."
+        case .festival: invitation = "Unfold to see what's happening and choose how to join in."
+        case .bookJump: invitation = "Unfold to read where this goes and choose your next step."
+        case .wickerDare: invitation = "Unfold to read the dare and decide whether to try it."
+        case .rest: invitation = "Unfold to take a short pause. You can stop when you need to."
+        default: invitation = "Unfold to see the details and choose what to do."
+        }
+        return [excerpt, invitation].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    /// Presentation-only marks travel through the existing Page-opening route.
+    func unfoldingFromLeaf(draft: String = "", media: [BookPageMediaAsset] = []) -> SurfacePage {
+        var metadata = payload.metadata
+        metadata["leafReadingComplete"] = leafPresentation == .readingWithActivity ? "true" : "false"
+        if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            metadata["pagesRisingLeafDraft"] = draft
+        }
+        if let encoded = BookPageMediaAsset.encodedForSurfaceMetadata(mediaAssets + media) {
+            metadata[BookPageMediaAsset.surfaceMetadataKey] = encoded
+        }
+        return SurfacePage(id: id, type: type, sourceID: sourceID, intent: intent,
+            renderStyle: renderStyle, score: score, reason: reason, prompt: prompt, detail: detail,
+            payload: BookPagePayload(headline: payload.headline, body: payload.body, metadata: metadata))
+    }
+
     var isLiveOpportunityInterruptTarget: Bool {
         payload.metadata[BookSessionIntention.metadataLiveOpportunityTarget] == "true"
     }
@@ -3063,10 +3190,14 @@ extension SurfacePage {
     /// honest. Do not invent one to fill the table: "Open the page" is a better
     /// offer than a verb the Page cannot honour.
     var leafInvitation: (title: String, symbol: String)? {
+        if offersCompassRunStart { return ("Start a Compass Run", "location.north.circle") }
         switch type {
         case .enchantment:
             return ("Choose a photo and cast", "wand.and.sparkles")
         case .wonderCompass:
+            if let step = payload.metadata["compassStep"] {
+                return (step == "run" ? "Begin the Compass Run" : "Continue the Compass Run", "location.north.circle")
+            }
             if payload.metadata["readingPage"] == "true" { return nil }
             if payload.metadata["compassBookPreview"] == "true" {
                 return ("Open the full page", "book.pages")
@@ -3105,10 +3236,19 @@ extension SurfacePage {
             if isAuthoredNarrativeOnlyPage || payload.metadata["storyResultLeaf"] == "true" {
                 return ("Unfold the Page", "book.pages")
             }
-            if authoredChoiceEnticement != nil {
-                return ("Read on, then choose", "signpost.right.and.left")
-            }
-            return ("Make the choice", "signpost.right.and.left")
+            return ("Read and choose", "signpost.right.and.left")
+        case .bookFae:
+            return ("Read and choose", "signpost.right.and.left")
+        case .marginsAtlas:
+            return ("Explore the map", "map")
+        case .askTheBook, .inkrestOfficeHours:
+            return ("Start the conversation", "text.bubble")
+        case .pactVerdict:
+            return ("Hear both sides", "scalemass")
+        case .pactErrand:
+            return ("Read the errand", "list.bullet")
+        case .bookConnections:
+            return ("Explore the connections", "point.3.connected.trianglepath.dotted")
         case .bookNotices:
             return ("Tell me if I have it right", "quote.bubble")
         case .bookOfYou:
@@ -3126,6 +3266,33 @@ extension SurfacePage {
         // for it again would be a lie.
         default:
             return nil
+        }
+    }
+
+    /// Explanations offer the same Compass door on paper and in the opened Page.
+    /// Use authored identities, not prose matching: a passing mention in a
+    /// letter must not become an invitation to start over during a real run.
+    var offersCompassRunStart: Bool {
+        let metadata = payload.metadata
+        guard metadata["compassStep"] == nil else { return false }
+        switch type {
+        case .helpTips:
+            let introductions = [
+                FirstRunPageSequence.compassIntroductionSourceID,
+                FirstRunPageSequence.compassWhatSourceID,
+                FirstRunPageSequence.compassGiftSourceID,
+                FirstRunPageSequence.compassWhySourceID
+            ]
+            return introductions.contains(sourceID)
+                || introductions.contains(metadata["source"] ?? "")
+                || metadata["tipID"] == "wonder-compass"
+        case .wonderCompass:
+            return metadata["readingPage"] == "true"
+                || metadata["compassBookPreview"] == "true"
+        case .lore:
+            return metadata["snippetID"] == "labyrinth-system-compass-runs"
+        default:
+            return false
         }
     }
 
@@ -8421,39 +8588,6 @@ extension SurfacePage {
     var isAuthoredNarrativeOnlyPage: Bool {
         payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true"
             && payload.metadata[MonthlyIssuePageMetadata.interaction] == MonthlyIssueInteractionKind.none.rawValue
-    }
-
-    /// A long authored scene that ends in a choice reads best on the opened
-    /// Page, where the choices are. Paging all of it across the leaves meant
-    /// reading a whole chapter before learning there was anything to choose,
-    /// then opening the Page and scrolling to find out. So the leaves carry a
-    /// short taste of the opening and say plainly that a choice waits.
-    ///
-    /// nil means the scene is short enough, or has no choice, and reads whole
-    /// on the leaves as before.
-    var authoredChoiceEnticement: String? {
-        guard type == .narrativeOS,
-              payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true",
-              payload.metadata[MonthlyIssuePageMetadata.interaction]
-                == MonthlyIssueInteractionKind.choice.rawValue
-        else { return nil }
-        let paragraphs = payload.body
-            .components(separatedBy: "\n\n")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        func words(_ text: String) -> Int { text.split(whereSeparator: \.isWhitespace).count }
-        guard paragraphs.map(words).reduce(0, +) > 180 else { return nil }
-        var taken: [String] = []
-        var count = 0
-        for paragraph in paragraphs {
-            // Always the first paragraph; then stop once there is enough to
-            // want the rest, at a paragraph boundary and never mid-scene.
-            if !taken.isEmpty, count >= 80 || count + words(paragraph) > 150 { break }
-            taken.append(paragraph)
-            count += words(paragraph)
-        }
-        taken.append("There's more of this, and a choice waits at the end of it. Open the page to read on.")
-        return taken.joined(separator: "\n\n")
     }
 
     var isStoryPlayablePage: Bool {

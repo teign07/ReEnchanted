@@ -2231,25 +2231,27 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertFalse(trencher.tags.contains("faculty"))
     }
 
-    func testCoreNarrativeCharactersAllHaveChapters() throws {
+    func testCoreNarrativeCharactersHaveChaptersExceptTheGuest() throws {
         let corePack = try XCTUnwrap(NarrativePackRegistry.enabledPacks.first { $0.id == NarrativePackRegistry.corePackID })
         let characterEntities = corePack.entities.filter { $0.kind == .character }
         let missingChapters = characterEntities.filter {
             ($0.chapter ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        XCTAssertTrue(missingChapters.isEmpty, "Missing chapters: \(missingChapters.map(\.name).joined(separator: ", "))")
+        // A guest at the hearth hasn't joined a school Chapter. Assigning one
+        // would quietly invent an allegiance before the story reveals it.
+        XCTAssertEqual(Set(missingChapters.map(\.id)), [GuestCast.entityID])
         XCTAssertEqual(corePack.entities.first { $0.id == "dr-inkrest" }?.chapter, "Riddlewind")
         XCTAssertEqual(corePack.entities.first { $0.id == "dr-vellum" }?.chapter, "Mossbloom")
         XCTAssertEqual(corePack.entities.first { $0.id == "wicker-eddies" }?.chapter, "Duskthorn")
     }
 
-    func testCharacterIllustrationsAllHaveChapters() {
+    func testCharacterIllustrationsHaveChaptersExceptTheGuest() {
         let missingChapters = BookReferenceCatalog.characterIllustrations.filter {
             ($0.chapter ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        XCTAssertTrue(missingChapters.isEmpty, "Missing chapters: \(missingChapters.map(\.characterName).joined(separator: ", "))")
+        XCTAssertEqual(Set(missingChapters.map(\.slug)), [GuestCast.entityID])
     }
 
     func testDuskthornHasChapterPreviewProfile() {
@@ -2649,14 +2651,14 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
 
         let firstSlots = Dictionary(uniqueKeysWithValues: first.compositionPlan.textSlots.map { ($0.slotId, $0) })
         let secondSlots = Dictionary(uniqueKeysWithValues: second.compositionPlan.textSlots.map { ($0.slotId, $0) })
-        let movedRequiredSlots = ["field-note", "observation-list", "closing-line", "frame-line", "compass-reminder", "souvenir-line"].filter { slotID in
+        let movedRequiredSlots = ["field-note", "observation-list", "closing-line", "stamp-label"].filter { slotID in
             guard let a = firstSlots[slotID], let b = secondSlots[slotID] else { return false }
             return distance(a.position, b.position) > 140
                 || abs(a.size.width - b.size.width) > 20
                 || abs(a.size.height - b.size.height) > 20
         }
 
-        XCTAssertGreaterThanOrEqual(movedRequiredSlots.count, 4)
+        XCTAssertGreaterThanOrEqual(movedRequiredSlots.count, 1)
     }
 
     func testIlluminatedPhotoComposerKeepsDifferentSeedsSerializable() {
@@ -2672,7 +2674,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
 
         XCTAssertEqual(encoded.count, drafts.count)
         XCTAssertEqual(Set(drafts.map(\.compositionPlan.randomSeed)).count, drafts.count)
-        XCTAssertTrue(drafts.allSatisfy { $0.compositionPlan.textSlots.count >= 9 })
+        XCTAssertTrue(drafts.allSatisfy { (2...3).contains($0.compositionPlan.textSlots.count) })
     }
 
     func testStoryChoiceCreatesNarrativeEventWithChoiceEffect() throws {
@@ -3194,13 +3196,16 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
     }
 
     func testEverySurfacingCharacterPlateUsesBespokeDossier() {
+        let guest = GuestCast.current
+        defer { GuestCast.current = guest }
+        GuestCast.current = GuestCastState()
         // The bespoke catalog is exactly the canonical Cast that can surface as a
         // plate. This count is independent of how the reference library loads, so
         // it locks the set even though the bundled JSON is unavailable under SwiftPM.
         // 22 base Cast + the Dictionary Rebellion pack's two illustrated cast
         // members (Professor Mook and Pippa Pilcrow) + Ambrose Trencher, the
-        // cafeteria cook, whose plate art is still pending.
-        XCTAssertEqual(CastDossier.bios.count, 25, "Expected 25 bespoke Cast dossiers")
+        // cafeteria cook, plus November's story-gated Guest.
+        XCTAssertEqual(CastDossier.bios.count, 26, "Expected 26 bespoke Cast dossiers")
 
         // Every bespoke dossier reads like real, longer narrative prose in the
         // Book's voice and never leaks the dossier production metadata.

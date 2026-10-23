@@ -71,6 +71,9 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     /// and from `.festival`, which is chained to a date and to the feast
     /// calendar's grief rules. See `docs/spells-plan.md`.
     case spell
+    /// A recipe from the Kitchen: somebody's, set down by hand, with the
+    /// reader's Made it / Made it badly / Not yet. See `Kitchen.swift`.
+    case recipe
     /// The unprompted door. It exists only when the reader opens it by hand,
     /// but after Keep it is a full member of the archive and all of the Book's
     /// memory, narrative, Cast, braid, and binding systems may meet it.
@@ -169,6 +172,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "A Talisman's Errand"
         case .spell:
             return "A Spell to Work"
+        case .recipe:
+            return "The Kitchen"
         case .festival:
             return "A Festival of the Wheel"
         case .twoReadings:
@@ -300,6 +305,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Errand"
         case .spell:
             return "Spell"
+        case .recipe:
+            return "Recipe"
         case .festival:
             return "Festival"
         case .twoReadings:
@@ -431,6 +438,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "figure.walk"
         case .spell:
             return "sparkles"
+        case .recipe:
+            return "fork.knife.circle"
         case .festival:
             return "moon.stars.fill"
         case .twoReadings:
@@ -575,6 +584,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("What happened", "Tell me what you did.")
         case .spell:
             return ("What happened", "You did the thing. Tell me what you came back with.")
+        case .recipe:
+            return ("What did it smell like?", "And who ate it. And what you'd do differently.")
         case .festival:
             return ("What you kept", "Write the bit of the feast that reached your real day.")
         case .twoReadings:
@@ -721,6 +732,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("The Pact wants you outside.", "Do it or don't. If you do, bring proof.")
         case .spell:
             return ("I've got a spell for you.", "It's old, and it comes with a rule. Keep the rule.")
+        case .recipe:
+            return ("I've got a recipe for you.", "Somebody wrote this down so it wouldn't get lost. Make it, and it won't.")
         case .festival:
             return ("The world is having a feast.", "I found whose. I found a way in.")
         case .twoReadings:
@@ -1477,6 +1490,18 @@ enum BookPageSourceRegistry {
             note: "Something old to go and do, with its rule still attached."
         ),
         BookPageSource(
+            id: "kitchen",
+            type: .recipe,
+            title: "The Kitchen",
+            shortTitle: "Recipe",
+            symbolName: "fork.knife.circle",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "daily",
+            note: "Somebody's recipe, set down by hand. Make it and it won't get lost."
+        ),
+        BookPageSource(
             id: "two-readings",
             type: .twoReadings,
             title: "The Two Readings",
@@ -1973,6 +1998,8 @@ enum BookPageSourceRegistry {
             return 26
         case .spell:
             return 34
+        case .recipe:
+            return 32
         case .festival:
             return 34
         case .twoReadings:
@@ -2028,6 +2055,8 @@ enum BookPageSourceRegistry {
             return 22
         case .spell:
             return 30
+        case .recipe:
+            return 26
         case .festival:
             return 30
         case .twoReadings:

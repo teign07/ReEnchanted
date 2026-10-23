@@ -1341,8 +1341,16 @@ struct CapturePageSheet: View {
     var onInstallLocalBrain: () -> Void = {}
     var onReplaceIlluminatedSurface: (SurfacePage) -> Void = { _ in }
     var onNavigateToSurface: (SurfacePage) -> Void = { _ in }
+    var onStartCompassRun: () -> Void = {}
+    var onConnectCalendar: () -> Void = {}
+    var onRulePactVerdict: (String, String) -> Void = { _, _ in }
+    var onDeliverPactErrand: (String) -> Void = { _ in }
     /// The paper's assignment coupon opens the dare it printed.
     var onOpenBleedAssignment: ((SurfacePage) -> Void)? = nil
+    var allowsBleedInterestResearch = false
+    var hasBleedReaderInterests = false
+    var onSetPersonalizedWebResearch: (Bool) -> Void = { _ in }
+    var onResearchBleedInterest: ((SurfacePage) -> Void)? = nil
     var onCompleteCompassRun: (SurfacePage) -> Void = { _ in }
     var compassAnchors: [AnchorRecord] = []
     var onStoryMechanicCompleted: (SurfacePage, String) -> Void = { _, _ in }
@@ -1387,10 +1395,10 @@ struct CapturePageSheet: View {
     var onStopRadio: () -> Void = {}
     var inventoryKeptPages: [BookPage] = []
     var authoredAnchorCandidates: [AuthoredReaderAnchor] = []
-    @State private var selectedAuthoredAnchorID = ""
-    @State private var authoredFindingShape = "generic"
-    @State private var revisitedObservationID = ""
-    @State private var observationSearch = ""
+    @FolioPageState("selectedAuthoredAnchorID") private var selectedAuthoredAnchorID = ""
+    @FolioPageState("authoredFindingShape") private var authoredFindingShape = "generic"
+    @FolioPageState("revisitedObservationID") private var revisitedObservationID = ""
+    @FolioPageState("observationSearch") private var observationSearch = ""
     var inventoryStoryObjects: [CustomCastMember] = []
     var inventoryObjectBeliefOffsets: [String: Int] = [:]
     var onUseInventoryGift: (String, String?) -> Void = { _, _ in }
@@ -1451,6 +1459,11 @@ struct CapturePageSheet: View {
     }
     var isShadowWonderActive: Bool = false
     var isEmbedded = false
+    /// Same controls, validation and lifecycle, set into the folio's own paper.
+    /// Reading prose is already on the preceding leaves.
+    var isEndLeaf = false
+    var isEndLeafActive = true
+    var onUnfoldPage: (() -> Void)? = nil
     var onDismissRequest: (() -> Void)? = nil
     /// (surface, input, tags, extraMedia). `extraMedia` carries a pressed
     /// photograph when the reader attached one; empty otherwise.
@@ -1473,216 +1486,223 @@ struct CapturePageSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
-    @State private var selectedWeather = ""
-    @State private var isCommittingKeep = false
-    @State private var keepInkHasSunk = false
-    @State private var isTuckingPage = false
-    @State private var shelfMark: ReaderShelfMark = .unset
-    @State private var centerGearOffset = 0
+    @Environment(\.folioControlSession) private var controlSession
+    @Environment(\.folioControlPageIndex) private var controlPageIndex
+    @FolioPageState("selectedWeather") private var selectedWeather = ""
+    @FolioPageState("isCommittingKeep") private var isCommittingKeep = false
+    @FolioPageState("showsReadLeafProse") private var showsReadLeafProse = false
+    @FolioPageState("keepInkHasSunk") private var keepInkHasSunk = false
+    @FolioPageState("isTuckingPage") private var isTuckingPage = false
+    @FolioPageState("shelfMark", presentation: true) private var shelfMark: ReaderShelfMark = .unset
+    @FolioPageState("centerGearOffset") private var centerGearOffset = 0
     /// The feast-day throw is already decided when the page is built; this only
     /// tracks whether the reader has turned it over yet.
-    @State private var festivalBonesRevealed = false
+    @FolioPageState("festivalBonesRevealed") private var festivalBonesRevealed = false
     /// A tale told again by Gemma, once its lines passed the checks.
-    @State private var taleToldBody: String?
-    @State private var text = ""
-    @State private var didRecordPageOpened = false
-    @State private var playfulMissionOpenBurstTrigger = 0
-    @State private var didPlayPlayfulMissionOpenBurst = false
-    @State private var isJournalDeeperQuestionOpen = false
-    @State private var letterReply = ""
-    @State private var didSealReply = false
-    @State private var sealStamp = false
-    @State private var noteShareURL: URL?
-    @State private var isPressingNoteShareCard = false
-    @State private var manualPhotoImage: UIImage?
-    @State private var manualPhotoDraft: IlluminatedPhotoDraft?
-    @State private var isLoadingManualPhoto = false
-    @State private var isChoosingBookPhoto = false
-    @State private var isSavingIlluminatedArtifact = false
-    @State private var illuminationMessage = "Penny can choose from recent photos, or you can hand her one yourself."
-    @State private var renderedIlluminatedPageURL: URL?
-    @State private var selectedStoryChoice: StoryPageChoiceDraft?
-    @State private var storyTurns: [StoryPageSessionTurn] = []
-    @State private var publishedGeneratedStoryLeafKeys: Set<String> = []
-    @State private var isContinuingStoryPage = false
-    @State private var isGeneratingStoryResult = false
-    @State private var generatingStoryResultChoiceID: String?
-    @State private var storyContinuationMessage = ""
-    @State private var externalSparkContinuation: ExternalSparkContinuation?
-    @State private var externalSparkReturnLine = ""
-    @State private var externalSparkMessage = ""
-    @State private var resolvedStoryMechanics: [String: String] = [:]
-    @State private var activeInkbonesThrow: InkbonesThrow?
-    @State private var academyActivityResponses: [String: String] = [:]
-    @State private var academyBookJumpSelection: String?
-    @State private var glintObject = ""
-    @State private var glintStage = 0
-    @State private var glintInterpretation = ""
-    @State private var academyActivityStages: [String: Int] = [:]
-    @State private var academyActivitySelections: [String: String] = [:]
-    @State private var quietSecondsRemaining = 60
-    @State private var askPrompt = ""
-    @State private var askTurns: [AskTheBookTurn] = []
-    @State private var askEvidenceByTurnID: [String: [AskTheBookEvidence]] = [:]
-    @State private var askSearchCountByTurnID: [String: Int] = [:]
-    @State private var openedAskEvidence: AskTheBookEvidence?
-    @State private var isAskingTheBook = false
-    @State private var askTheBookMessage = ""
+    @FolioPageState("taleToldBody") private var taleToldBody: String?
+    @FolioPageState("text") private var text = ""
+    @FolioPageState("didRecordPageOpened") private var didRecordPageOpened = false
+    @FolioPageState("playfulMissionOpenBurstTrigger") private var playfulMissionOpenBurstTrigger = 0
+    @FolioPageState("didPlayPlayfulMissionOpenBurst") private var didPlayPlayfulMissionOpenBurst = false
+    @FolioPageState("isJournalDeeperQuestionOpen") private var isJournalDeeperQuestionOpen = false
+    @FolioPageState("letterReply") private var letterReply = ""
+    @FolioPageState("didSealReply") private var didSealReply = false
+    @FolioPageState("sealStamp") private var sealStamp = false
+    @FolioPageState("noteShareURL") private var noteShareURL: URL?
+    @FolioPageState("isPressingNoteShareCard") private var isPressingNoteShareCard = false
+    @FolioPageState("manualPhotoImage") private var manualPhotoImage: UIImage?
+    @FolioPageState("manualPhotoDraft") private var manualPhotoDraft: IlluminatedPhotoDraft?
+    @FolioPageState("isLoadingManualPhoto") private var isLoadingManualPhoto = false
+    @FolioPageState("isChoosingBookPhoto") private var isChoosingBookPhoto = false
+    @FolioPageState("isSavingIlluminatedArtifact") private var isSavingIlluminatedArtifact = false
+    @FolioPageState("illuminationMessage") private var illuminationMessage = "Penny can choose from recent photos, or you can hand her one yourself."
+    @FolioPageState("renderedIlluminatedPageURL") private var renderedIlluminatedPageURL: URL?
+    @FolioPageState("selectedStoryChoice") private var selectedStoryChoice: StoryPageChoiceDraft?
+    @FolioPageState("storyTurns") private var storyTurns: [StoryPageSessionTurn] = []
+    @FolioPageState("publishedGeneratedStoryLeafKeys") private var publishedGeneratedStoryLeafKeys: Set<String> = []
+    @FolioPageState("isContinuingStoryPage") private var isContinuingStoryPage = false
+    @FolioPageState("isGeneratingStoryResult") private var isGeneratingStoryResult = false
+    @FolioPageState("generatingStoryResultChoiceID") private var generatingStoryResultChoiceID: String?
+    @FolioPageState("storyContinuationMessage") private var storyContinuationMessage = ""
+    @FolioPageState("externalSparkContinuation") private var externalSparkContinuation: ExternalSparkContinuation?
+    @FolioPageState("externalSparkReturnLine") private var externalSparkReturnLine = ""
+    @FolioPageState("externalSparkMessage") private var externalSparkMessage = ""
+    @FolioPageState("resolvedStoryMechanics") private var resolvedStoryMechanics: [String: String] = [:]
+    @FolioPageState("activeInkbonesThrow", presentation: true) private var activeInkbonesThrow: InkbonesThrow?
+    @FolioPageState("academyActivityResponses") private var academyActivityResponses: [String: String] = [:]
+    @FolioPageState("academyBookJumpSelection") private var academyBookJumpSelection: String?
+    @FolioPageState("glintObject") private var glintObject = ""
+    @FolioPageState("glintStage") private var glintStage = 0
+    @FolioPageState("glintInterpretation") private var glintInterpretation = ""
+    @FolioPageState("academyActivityStages") private var academyActivityStages: [String: Int] = [:]
+    @FolioPageState("academyActivitySelections") private var academyActivitySelections: [String: String] = [:]
+    @FolioPageState("quietSecondsRemaining") private var quietSecondsRemaining = 60
+    @FolioPageState("askPrompt") private var askPrompt = ""
+    @FolioPageState("askTurns") private var askTurns: [AskTheBookTurn] = []
+    @FolioPageState("askEvidenceByTurnID") private var askEvidenceByTurnID: [String: [AskTheBookEvidence]] = [:]
+    @FolioPageState("askSearchCountByTurnID") private var askSearchCountByTurnID: [String: Int] = [:]
+    @FolioPageState("openedAskEvidence") private var openedAskEvidence: AskTheBookEvidence?
+    @FolioPageState("isAskingTheBook") private var isAskingTheBook = false
+    @FolioPageState("askTheBookMessage") private var askTheBookMessage = ""
     /// Streaming reply and the Book's current phase; read only by the live
     /// bubble so a reply arriving word by word does not redraw this sheet.
-    @State private var askLive = LetsChatLiveState()
-    @State private var askScrollHandle = LetsChatScrollHandle()
-    @State private var askOffer: LetsChatOffer?
-    @State private var askLastRoute: LetsChatRoute?
+    @FolioPageState("askLive") private var askLive = LetsChatLiveState()
+    @FolioPageState("askScrollHandle") private var askScrollHandle = LetsChatScrollHandle()
+    @FolioPageState("askOffer") private var askOffer: LetsChatOffer?
+    @FolioPageState("askLastRoute") private var askLastRoute: LetsChatRoute?
     /// The turn count at which something from the Book's own life last got
     /// into a reply, so it rests between appearances.
-    @State private var askOnMindAtTurn: Int?
-    @State private var askAutoSent = false
+    @FolioPageState("askOnMindAtTurn") private var askOnMindAtTurn: Int?
+    @FolioPageState("askAutoSent") private var askAutoSent = false
     @FocusState private var askComposerFocused: Bool
-    @State private var inkrestIntake = InkrestIntake()
-    @State private var inkrestSeeded = false
-    @State private var inkrestStarted = false
-    @State private var inkrestClosed = false
-    @State private var inkrestChatInput = ""
-    @State private var inkrestTurns: [AskTheBookTurn] = []
-    @State private var isInkrestSitting = false
-    @State private var inkrestMessage = ""
-    @State private var faeReport = ""
-    @State private var faeResponseText = ""
-    @State private var isFaeAccepting = false
-    @State private var isFaePaying = false
-    @State private var faeMessage = ""
-    @State private var greyThreatChoice: String?
-    @State private var greyRescueLine = ""
-    @State private var festivalMessage = ""
-    @State private var todaysSkyMessage = ""
-    @State private var academyCalendarMessage = ""
-    @State private var radioDialFrequency = 94.1
-    @State private var selectedRadioStationID: String?
-    @State private var hasTouchedRadioDial = false
-    @State private var radioManager = BookRadioManager.shared
-    @State private var twoReadingsSide: String?
-    @State private var selectedWordRuling: WordRuling?
-    @State private var selectedEnchantmentID: String?
-    @State private var enchantmentResult: EnchantmentCastResult?
+    @FolioPageState("inkrestIntake") private var inkrestIntake = InkrestIntake()
+    @FolioPageState("inkrestSeeded") private var inkrestSeeded = false
+    @FolioPageState("inkrestStarted") private var inkrestStarted = false
+    @FolioPageState("inkrestClosed") private var inkrestClosed = false
+    @FolioPageState("inkrestChatInput") private var inkrestChatInput = ""
+    @FolioPageState("inkrestTurns") private var inkrestTurns: [AskTheBookTurn] = []
+    @FolioPageState("isInkrestSitting") private var isInkrestSitting = false
+    @FolioPageState("inkrestMessage") private var inkrestMessage = ""
+    @FolioPageState("faeReport") private var faeReport = ""
+    @FolioPageState("faeResponseText") private var faeResponseText = ""
+    @FolioPageState("isFaeAccepting") private var isFaeAccepting = false
+    @FolioPageState("isFaePaying") private var isFaePaying = false
+    @FolioPageState("faeMessage") private var faeMessage = ""
+    @FolioPageState("greyThreatChoice") private var greyThreatChoice: String?
+    /// A Recipe Page's chip: Made it, Made it badly, Not yet.
+    @FolioPageState("kitchenOutcome") private var kitchenOutcome: KitchenOutcome?
+    @FolioPageState("kitchenRescueTitle") private var kitchenRescueTitle = ""
+    @FolioPageState("kitchenRescueWhose") private var kitchenRescueWhose = ""
+    @FolioPageState("greyRescueLine") private var greyRescueLine = ""
+    @FolioPageState("festivalMessage") private var festivalMessage = ""
+    @FolioPageState("todaysSkyMessage") private var todaysSkyMessage = ""
+    @FolioPageState("academyCalendarMessage") private var academyCalendarMessage = ""
+    @FolioPageState("radioDialFrequency", presentation: true) private var radioDialFrequency = 94.1
+    @FolioPageState("selectedRadioStationID") private var selectedRadioStationID: String?
+    @FolioPageState("hasTouchedRadioDial") private var hasTouchedRadioDial = false
+    @FolioPageState("radioManager") private var radioManager = BookRadioManager.shared
+    @FolioPageState("twoReadingsSide") private var twoReadingsSide: String?
+    @FolioPageState("selectedWordRuling") private var selectedWordRuling: WordRuling?
+    @FolioPageState("selectedEnchantmentID") private var selectedEnchantmentID: String?
+    @FolioPageState("enchantmentResult") private var enchantmentResult: EnchantmentCastResult?
     /// Bumped each time a cast lands, so the page can carry the reader to it.
-    @State private var enchantmentArrivalTick = 0
-    @State private var enchantmentTurns: [AskTheBookTurn] = []
-    @State private var enchantmentPrompt = ""
-    @State private var enchantmentMessage = ""
-    @State private var isCastingEnchantment = false
-    @State private var isSavingEnchantmentArtifact = false
-    @State private var isAnsweringEnchantedObject = false
-    @State private var currentEnchantmentSurface: SurfacePage?
-    @State private var selectedAtlasNodeID: String?
-    @State private var isAtlasFullScreenPresented = false
-    @State private var proofPhotoImage: UIImage?
-    @State private var proofPhotoURL: URL?
-    @State private var proofPhotoMessage = ""
+    @FolioPageState("enchantmentArrivalTick") private var enchantmentArrivalTick = 0
+    @FolioPageState("enchantmentTurns") private var enchantmentTurns: [AskTheBookTurn] = []
+    @FolioPageState("enchantmentPrompt") private var enchantmentPrompt = ""
+    @FolioPageState("enchantmentMessage") private var enchantmentMessage = ""
+    @FolioPageState("isCastingEnchantment") private var isCastingEnchantment = false
+    @FolioPageState("isSavingEnchantmentArtifact") private var isSavingEnchantmentArtifact = false
+    @FolioPageState("isAnsweringEnchantedObject") private var isAnsweringEnchantedObject = false
+    @FolioPageState("currentEnchantmentSurface") private var currentEnchantmentSurface: SurfacePage?
+    @FolioPageState("selectedAtlasNodeID") private var selectedAtlasNodeID: String?
+    @FolioPageState("isAtlasFullScreenPresented", presentation: true) private var isAtlasFullScreenPresented = false
+    @FolioPageState("proofPhotoImage") private var proofPhotoImage: UIImage?
+    @FolioPageState("proofPhotoURL") private var proofPhotoURL: URL?
+    @FolioPageState("proofPhotoMessage") private var proofPhotoMessage = ""
     /// The surface these controls were seeded from. Keyed on identity rather
     /// than a one-shot flag because the sheet can stay mounted while `surface`
     /// changes: `compassRunReadyView` navigates within it: which left a second
     /// run showing the previous run's answers and resuming mid-questionnaire.
-    @State private var seededCompassSurfaceID: String?
-    @State private var compassConstraintStep: CompassRunConstraintStep = .location
-    @State private var compassPlaceContextID = CompassPlaceContext.current.rawValue
-    @State private var compassLocation = ""
-    @State private var compassTimeLimit = ""
-    @State private var compassEnergy = ""
-    @State private var compassCompanions = ""
-    @State private var compassBudget = ""
-    @State private var compassConsiderationIDs: Set<String> = []
-    @State private var compassCurrentPlaceMessage = ""
-    @State private var compassNearbyPlacesOverride = ""
-    @State private var compassCurrentLatitude: Double?
-    @State private var compassCurrentLongitude: Double?
-    @State private var compassAnchorProximity: AnchorProximity?
-    @State private var isResolvingCompassPlace = false
-    @State private var isWritingManualCompassRun = false
-    @State private var manualCompassSpark = ""
-    @State private var manualCompassDestination = ""
-    @State private var manualCompassDelight = ""
-    @State private var manualCompassDefinition = ""
-    @State private var manualCompassMission = ""
-    @State private var manualCompassSouvenirPrompt = ""
-    @State private var manualCompassRestPrompt = ""
-    @State private var isGeneratingCompassRun = false
-    @State private var compassGenerationMessage = ""
-    @State private var lastVentureMode: CompassVentureMode = .neighborhood
-    @State private var isGeneratingPlayfulMission = false
-    @State private var playfulMissionGenerationMessage = ""
-    @State private var bleedPDFURL: URL?
-    @State private var bleedPDFPreviewURL: URL?
-    @State private var bleedExportMessage = ""
-    @State private var illuminatedQuoteCardURL: URL?
-    @State private var isPreparingQuoteCard = false
-    @State private var quoteCardMessage = ""
-    @State private var bookOfYouShareCardURL: URL?
-    @State private var isPressingBookOfYouShareCard = false
-    @State private var bookOfYouShareMessage = ""
-    @State private var bookOfYouRevealVideoURL: URL?
-    @State private var isPressingBookOfYouRevealVideo = false
-    @State private var inventoryRevision = 0
-    @State private var inventoryMessage = ""
-    @State private var inventoryUnspokenSentence = ""
-    @State private var isWritingUnspokenSentence = false
-    @State private var isGamePagePresented = false
+    @FolioPageState("seededCompassSurfaceID") private var seededCompassSurfaceID: String?
+    @FolioPageState("compassConstraintStep") private var compassConstraintStep: CompassRunConstraintStep = .location
+    @FolioPageState("compassPlaceContextID") private var compassPlaceContextID = CompassPlaceContext.current.rawValue
+    @FolioPageState("compassLocation") private var compassLocation = ""
+    @FolioPageState("compassTimeLimit") private var compassTimeLimit = ""
+    @FolioPageState("compassEnergy") private var compassEnergy = ""
+    @FolioPageState("compassCompanions") private var compassCompanions = ""
+    @FolioPageState("compassBudget") private var compassBudget = ""
+    @FolioPageState("compassConsiderationIDs") private var compassConsiderationIDs: Set<String> = []
+    @FolioPageState("compassCurrentPlaceMessage") private var compassCurrentPlaceMessage = ""
+    @FolioPageState("compassNearbyPlacesOverride") private var compassNearbyPlacesOverride = ""
+    @FolioPageState("compassCurrentLatitude") private var compassCurrentLatitude: Double?
+    @FolioPageState("compassCurrentLongitude") private var compassCurrentLongitude: Double?
+    @FolioPageState("compassAnchorProximity") private var compassAnchorProximity: AnchorProximity?
+    @FolioPageState("isResolvingCompassPlace") private var isResolvingCompassPlace = false
+    @FolioPageState("isWritingManualCompassRun") private var isWritingManualCompassRun = false
+    @FolioPageState("manualCompassSpark") private var manualCompassSpark = ""
+    @FolioPageState("manualCompassDestination") private var manualCompassDestination = ""
+    @FolioPageState("manualCompassDelight") private var manualCompassDelight = ""
+    @FolioPageState("manualCompassDefinition") private var manualCompassDefinition = ""
+    @FolioPageState("manualCompassMission") private var manualCompassMission = ""
+    @FolioPageState("manualCompassSouvenirPrompt") private var manualCompassSouvenirPrompt = ""
+    @FolioPageState("manualCompassRestPrompt") private var manualCompassRestPrompt = ""
+    @FolioPageState("isGeneratingCompassRun") private var isGeneratingCompassRun = false
+    @FolioPageState("compassGenerationMessage") private var compassGenerationMessage = ""
+    @FolioPageState("lastVentureMode") private var lastVentureMode: CompassVentureMode = .neighborhood
+    @FolioPageState("isGeneratingPlayfulMission") private var isGeneratingPlayfulMission = false
+    @FolioPageState("playfulMissionGenerationMessage") private var playfulMissionGenerationMessage = ""
+    @FolioPageState("bleedPDFURL") private var bleedPDFURL: URL?
+    @FolioPageState("bleedPDFPreviewURL") private var bleedPDFPreviewURL: URL?
+    @FolioPageState("bleedExportMessage") private var bleedExportMessage = ""
+    @FolioPageState("illuminatedQuoteCardURL") private var illuminatedQuoteCardURL: URL?
+    @FolioPageState("isPreparingQuoteCard") private var isPreparingQuoteCard = false
+    @FolioPageState("quoteCardMessage") private var quoteCardMessage = ""
+    @FolioPageState("bookOfYouShareCardURL") private var bookOfYouShareCardURL: URL?
+    @FolioPageState("isPressingBookOfYouShareCard") private var isPressingBookOfYouShareCard = false
+    @FolioPageState("bookOfYouShareMessage") private var bookOfYouShareMessage = ""
+    @FolioPageState("bookOfYouRevealVideoURL") private var bookOfYouRevealVideoURL: URL?
+    @FolioPageState("isPressingBookOfYouRevealVideo") private var isPressingBookOfYouRevealVideo = false
+    @FolioPageState("inventoryRevision") private var inventoryRevision = 0
+    @FolioPageState("inventoryMessage") private var inventoryMessage = ""
+    @FolioPageState("inventoryUnspokenSentence") private var inventoryUnspokenSentence = ""
+    @FolioPageState("isWritingUnspokenSentence") private var isWritingUnspokenSentence = false
+    @FolioPageState("isGamePagePresented", presentation: true) private var isGamePagePresented = false
     @AppStorage(PublicMarginsAPI.outgoingOptInKey) private var publicMarginsOutgoingOptIn = false
-    @State private var isPublicMarginsContributionPresented = false
-    @State private var gameResultSurface: SurfacePage?
-    @State private var lastGameResult: SentenceRunnerResult?
-    @State private var isBraidingGameRun = false
-    @State private var gameRunBraided = false
-    @State private var gameBraidMessage = ""
-    @State private var inspectedPhraseSource: SentenceRunnerPhraseSource?
-    @State private var chosenRunnerThread = ""
-    @State private var runnerReturnPhrase = ""
-    @State private var sessionRunnerFolioRuns = 0
-    @State private var braidFeedbackMessage = ""
-    @State private var didSubmitBraidFeedback = false
-    @State private var didAnswerTaleAsk = false
-    @State private var taleAskReply = ""
-    @State private var isImprovingBraid = false
-    @State private var bookNoticeFeedbackMessage = ""
-    @State private var bookInterjectionResponseMessage = ""
-    @State private var didAnswerBookInterjection = false
-    @State private var seasonalDispatchName = ""
-    @State private var seasonalDispatchCoverChoice: BoundVolumeCoverChoice = .bookChooses
-    @State private var seasonalDispatchPlateID = PublicationCoverCatalogue.rotating.first?.id ?? "hedge-door"
-    @State private var seasonalDispatchPhotoData: Data?
-    @State private var seasonalDispatchPhotoFocus: PublicationCoverFocus?
-    @State private var seasonalDispatchDedication = ""
-    @State private var seasonalDispatchMessage = ""
-    @State private var seasonalDispatchIsHeld = false
+    @FolioPageState("isPublicMarginsContributionPresented", presentation: true) private var isPublicMarginsContributionPresented = false
+    @FolioPageState("gameResultSurface") private var gameResultSurface: SurfacePage?
+    @FolioPageState("lastGameResult") private var lastGameResult: SentenceRunnerResult?
+    @FolioPageState("isBraidingGameRun") private var isBraidingGameRun = false
+    @FolioPageState("gameRunBraided") private var gameRunBraided = false
+    @FolioPageState("gameBraidMessage") private var gameBraidMessage = ""
+    @FolioPageState("inspectedPhraseSource", presentation: true) private var inspectedPhraseSource: SentenceRunnerPhraseSource?
+    @FolioPageState("chosenRunnerThread") private var chosenRunnerThread = ""
+    @FolioPageState("runnerReturnPhrase") private var runnerReturnPhrase = ""
+    @FolioPageState("sessionRunnerFolioRuns") private var sessionRunnerFolioRuns = 0
+    @FolioPageState("braidFeedbackMessage") private var braidFeedbackMessage = ""
+    @FolioPageState("didSubmitBraidFeedback") private var didSubmitBraidFeedback = false
+    @FolioPageState("didAnswerTaleAsk") private var didAnswerTaleAsk = false
+    @FolioPageState("taleAskReply") private var taleAskReply = ""
+    @FolioPageState("isImprovingBraid") private var isImprovingBraid = false
+    @FolioPageState("bookNoticeFeedbackMessage") private var bookNoticeFeedbackMessage = ""
+    @FolioPageState("bookInterjectionResponseMessage") private var bookInterjectionResponseMessage = ""
+    @FolioPageState("didAnswerBookInterjection") private var didAnswerBookInterjection = false
+    @FolioPageState("seasonalDispatchName") private var seasonalDispatchName = ""
+    @FolioPageState("seasonalDispatchCoverChoice") private var seasonalDispatchCoverChoice: BoundVolumeCoverChoice = .bookChooses
+    @FolioPageState("seasonalDispatchPlateID") private var seasonalDispatchPlateID = PublicationCoverCatalogue.rotating.first?.id ?? "hedge-door"
+    @FolioPageState("seasonalDispatchPhotoData") private var seasonalDispatchPhotoData: Data?
+    @FolioPageState("seasonalDispatchPhotoFocus") private var seasonalDispatchPhotoFocus: PublicationCoverFocus?
+    @FolioPageState("seasonalDispatchDedication") private var seasonalDispatchDedication = ""
+    @FolioPageState("seasonalDispatchMessage") private var seasonalDispatchMessage = ""
+    @FolioPageState("seasonalDispatchIsHeld") private var seasonalDispatchIsHeld = false
     @AppStorage("includePrivateWeatherInMonthlyBinding") private var includePrivateWeatherInBoundVolumes = false
-    @State private var didCorrectBookNotice = false
-    @State private var bookOpinionArgument = ""
-    @State private var didContestBookOpinion = false
-    @State private var didPlayCeremonyOpen = false
-    @State private var didRevealCeremony = false
+    @FolioPageState("didCorrectBookNotice") private var didCorrectBookNotice = false
+    @FolioPageState("bookOpinionArgument") private var bookOpinionArgument = ""
+    @FolioPageState("didContestBookOpinion") private var didContestBookOpinion = false
+    @FolioPageState("didPlayCeremonyOpen") private var didPlayCeremonyOpen = false
+    @FolioPageState("didRevealCeremony") private var didRevealCeremony = false
     /// The reader opening receipts the Book did not hand over. See
     /// `BookTelling.EvidencePosture`: a cold Book leaves its evidence where it
     /// can be found rather than spreading it on the desk.
-    @State private var didOpenWithheldEvidence = false
-    @State private var didRevealOpenedPage = false
-    @State private var openedPageTurnProgress = 1.0
-    @State private var loosePageTurns: [String: Int] = [:]
-    @State private var tarotReading: TarotReadingArtifact?
+    @FolioPageState("didOpenWithheldEvidence") private var didOpenWithheldEvidence = false
+    @FolioPageState("didRevealOpenedPage") private var didRevealOpenedPage = false
+    @FolioPageState("openedPageTurnProgress") private var openedPageTurnProgress = 1.0
+    @FolioPageState("loosePageTurns") private var loosePageTurns: [String: Int] = [:]
+    @FolioPageState("tarotReading", presentation: true) private var tarotReading: TarotReadingArtifact?
     @AppStorage("tarotReadingDraftV1") private var tarotReadingDraftData = ""
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
-    @State private var selectedPhotoItem: PhotosPickerItem?
-    @State private var pressedPhotoItem: PhotosPickerItem?
-    @State private var seasonalDispatchPhotoItem: PhotosPickerItem?
+    @FolioPageState("selectedPhotoItem", presentation: true) private var selectedPhotoItem: PhotosPickerItem?
+    @FolioPageState("pressedPhotoItem", presentation: true) private var pressedPhotoItem: PhotosPickerItem?
+    @FolioPageState("seasonalDispatchPhotoItem", presentation: true) private var seasonalDispatchPhotoItem: PhotosPickerItem?
     #endif
     /// A photograph pressed between the pages of an ordinary kept page, ready to
     /// travel with it into the archive. Nil until the reader chooses one.
-    @State private var pressedPhotoAsset: BookPageMediaAsset?
-    @State private var pressedPhotoMessage: String?
-    @State private var isLoadingPressedPhoto = false
-    @StateObject private var keptVoiceRecorder = KeptVoiceRecorder()
-    @State private var keptVoiceAsset: BookPageMediaAsset?
-    @State private var keptVoiceMessage: String?
+    @FolioPageState("pressedPhotoAsset") private var pressedPhotoAsset: BookPageMediaAsset?
+    @FolioPageState("pressedPhotoMessage") private var pressedPhotoMessage: String?
+    @FolioPageState("isLoadingPressedPhoto") private var isLoadingPressedPhoto = false
+    @FolioPageState("keptVoiceRecorder") private var keptVoiceRecorder = KeptVoiceRecorder()
+    @FolioPageState("keptVoiceAsset") private var keptVoiceAsset: BookPageMediaAsset?
+    @FolioPageState("keptVoiceMessage") private var keptVoiceMessage: String?
 
     /// Extra media the reader attached to this page: a pressed photograph, a
     /// kept voice recording: to travel into the archive with it.
@@ -1691,14 +1711,14 @@ struct CapturePageSheet: View {
     }
 
     #if canImport(UIKit)
-    @State private var isCameraPresented = false
-    @State private var didAutoOpenCamera = false
-    @State private var pendingCameraPhotoData: Data?
-    @State private var pendingCameraPhotoImage: UIImage?
-    @State private var pendingCameraPhotoURL: URL?
-    @State private var isChoosingCameraEnchantment = false
+    @FolioPageState("isCameraPresented", presentation: true) private var isCameraPresented = false
+    @FolioPageState("didAutoOpenCamera") private var didAutoOpenCamera = false
+    @FolioPageState("pendingCameraPhotoData") private var pendingCameraPhotoData: Data?
+    @FolioPageState("pendingCameraPhotoImage") private var pendingCameraPhotoImage: UIImage?
+    @FolioPageState("pendingCameraPhotoURL") private var pendingCameraPhotoURL: URL?
+    @FolioPageState("isChoosingCameraEnchantment") private var isChoosingCameraEnchantment = false
     /// Set when the captured photograph is a page of a printed volume.
-    @State private var recognisedPrintedPage: FolioReader.Result?
+    @FolioPageState("recognisedPrintedPage") private var recognisedPrintedPage: FolioReader.Result?
     #endif
     private var marginTutorSeenData: String {
         get { MarginTutorLedger.encode(Set(PlayerVault.shared.data.tutorSeen)) }
@@ -1708,7 +1728,7 @@ struct CapturePageSheet: View {
         }
     }
     @AppStorage("didCompleteStoryOnboarding") private var didCompleteStoryOnboarding = false
-    @State private var activeTutorNote: MarginTutorNote?
+    @FolioPageState("activeTutorNote") private var activeTutorNote: MarginTutorNote?
 
     private let weatherOptions = ["Fog", "Rain", "Static", "Heavy", "Bright", "Restless", "Soft", "Numb", "Stormy", "Clearing"]
 
@@ -2243,6 +2263,8 @@ struct CapturePageSheet: View {
             surface.type != .gamePage &&
             surface.type != .inkrestOfficeHours &&
             surface.type != .faeBargain &&
+            surface.type != .pactVerdict &&
+            surface.type != .pactErrand &&
             !isChapterPrimerPage &&
             !isBookJumpPage &&
             surface.type != .note &&
@@ -2628,6 +2650,12 @@ struct CapturePageSheet: View {
         if isAuthoredObservationReturn {
             result = result.withMetadata(["authoredRevisitedObservationID": revisitedObservationID])
         }
+        if KitchenOffering.isRescue(surface) {
+            result = result.withMetadata([
+                KitchenLedger.rescueTitleKey: kitchenRescueTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+                KitchenLedger.rescueWhoseKey: kitchenRescueWhose.trimmingCharacters(in: .whitespacesAndNewlines)
+            ])
+        }
         if offersAuthoredFindingInterpretation {
             result = result.withMetadata([
                 "authoredFindingMayUse": "true",
@@ -2784,6 +2812,18 @@ struct CapturePageSheet: View {
         if let label = localPageOwnedScribeLabel { return label }
         if let label = ambientPageOwnedScribeLabel { return label }
         return nil
+    }
+
+    /// The captured-photo panel has its own work card, whether it fills the
+    /// Page or sits inside the photo controls. Neither fallback should repeat it.
+    private var cameraOwnsScribeWorkCard: Bool {
+        #if canImport(UIKit)
+        return surface.type == .illuminatedPhoto
+            && (shouldShowCameraCapturePage || hasPendingCameraPhoto)
+            && (isLoadingManualPhoto || isCastingEnchantment || isLocalBrainWorking)
+        #else
+        return false
+        #endif
     }
 
     private var localPageOwnedScribeLabel: String? {
@@ -2978,7 +3018,7 @@ struct CapturePageSheet: View {
             }
             .foregroundStyle(LeafInk.gold)
         } else if canShareIlluminatedQuoteCard, let cardURL = quoteCardShareURL {
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 ShareLink(item: cardURL) {
                     LeafInkMark(title: "Share illuminated card", symbolName: "square.and.arrow.up", seed: leafSeed)
                 }
@@ -2996,13 +3036,14 @@ struct CapturePageSheet: View {
                 .foregroundStyle(openPageSecondaryText)
             }
         } else if canShareIlluminatedQuoteCard {
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 Button {
                     Task { await prepareIlluminatedQuoteCard(force: true) }
                 } label: {
                     LeafInkMark(title: isPreparingQuoteCard ? "Illuminating..." : "Prepare share card", symbolName: "wand.and.sparkles", seed: leafSeed)
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .foregroundStyle(LeafInk.gold)
                 .disabled(isPreparingQuoteCard)
 
@@ -3022,7 +3063,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var bookOfYouPressedPageShareControl: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             if let artifact = BookOfYouShareArtifact.make(from: surface) {
                 BookOfYouPressedPageSpotlight(
                     artifact: artifact,
@@ -3058,6 +3099,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .foregroundStyle(LeafInk.gold)
                 .disabled(isPressingBookOfYouRevealVideo || isPressingBookOfYouShareCard)
             }
@@ -3085,6 +3127,7 @@ struct CapturePageSheet: View {
                     LeafInkMark(title: isPressingBookOfYouShareCard ? "Pressing..." : "Press share page", symbolName: "book.pages", seed: leafSeed)
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .foregroundStyle(LeafInk.gold)
                 .disabled(isPressingBookOfYouShareCard)
             } else {
@@ -3115,6 +3158,16 @@ struct CapturePageSheet: View {
         #endif
         pageRoot
             .interactiveDismissDisabled(isCommittingKeep)
+            .preference(key: FolioControlSubmissionKey.self, value: isEndLeaf
+                ? FolioControlSubmission(
+                    identity: surface.id + "|" + String(surface.payload.metadata
+                        .map { "\($0.key)=\($0.value)" }.sorted().joined(separator: "|").stableHash),
+                    canKeep: showsKeepMark && canKeep,
+                    isBusy: isGeneratingCompassRun || isCommittingKeep,
+                    keep: keepCurrentPage,
+                    unfold: onUnfoldPage
+                )
+                : FolioControlSubmission())
     }
 
     /// The Page type's paper: colour, accent, grain weight.
@@ -3156,6 +3209,8 @@ struct CapturePageSheet: View {
             && !isBookJumpActivePage
             && !isPendingNotePage
             && !isBookWorkingInvitationPage
+            && surface.type != .pactVerdict
+            && surface.type != .pactErrand
     }
 
     private var showsShelfMark: Bool {
@@ -3181,7 +3236,7 @@ struct CapturePageSheet: View {
     }
 
     private var leafHeadMargin: some View {
-        VStack(spacing: 6) {
+        FolioControlStack(spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 Image(systemName: pageSheetSymbolName)
                     .font(.system(size: 10, weight: .bold))
@@ -3212,7 +3267,7 @@ struct CapturePageSheet: View {
     }
 
     private var leafFootMargin: some View {
-        VStack(spacing: 10) {
+        FolioControlStack(spacing: 10) {
             LeafRule(seed: leafSeed &+ 17, tint: BookPalette.ink, opacity: 0.18)
 
             HStack(alignment: .center, spacing: 14) {
@@ -3228,6 +3283,7 @@ struct CapturePageSheet: View {
                     )
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .keyboardShortcut(.cancelAction)
                 .accessibilityHint(
                     (isKeptReadbackPage || isReadOnlyPublication || isEmbedded)
@@ -3249,6 +3305,7 @@ struct CapturePageSheet: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .folioControlUnbroken()
                     .keyboardShortcut(.return, modifiers: .command)
                     .disabled(!canKeep || isGeneratingCompassRun || isCommittingKeep)
                     .accessibilityLabel(keepPageButtonTitle)
@@ -3262,63 +3319,84 @@ struct CapturePageSheet: View {
         .frame(height: leafFootClearance, alignment: .top)
     }
 
-    private var pageRoot: some View {
-        ZStack {
-                VStack(spacing: 0) {
-                    leafHeadMargin
+    // Resolving one concrete type for the paper, controls, presentations and
+    // lifecycle chain overflowed the device stack before the Page appeared.
+    // Keep real AnyView boundaries between stages; `some View` helpers alone
+    // still expose their nested generic types to runtime metadata resolution.
+    private var pageInkField: AnyView {
+        if isEndLeaf {
+            return AnyView(FolioFixedControlPages {
+                AnyView(pageSheetContent)
+            })
+        }
 
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        AnyView(pageSheetContent)
-                            .padding(.horizontal, 22)
-                            .padding(.top, 4)
-                            .padding(.bottom, 26)
-                            .frame(maxWidth: isEmbedded ? 740 : nil)
-                            .frame(maxWidth: .infinity)
-                            // All of the page's prose is long-press selectable/copyable.
-                            // (Editable fields keep their own selection behavior.)
-                            .textSelection(.enabled)
-                    }
-                    .onAppear {
-                        // Lets the streaming reply keep its last line in view
-                        // without changing any state this body reads.
-                        let handle = askScrollHandle
-                        handle.scrollToBottom = {
-                            scrollProxy.scrollTo(Self.letsChatBottomID, anchor: .bottom)
-                        }
-                    }
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        if surface.type == .askTheBook, openedAskEvidence == nil {
-                            AnyView(letsChatComposer)
-                        }
-                    }
-                    .onChange(of: isLocalBrainWorking) { _, isWorking in
-                        guard isWorking else { return }
-                        scrollToLocalBrainStatus(scrollProxy)
-                    }
-                    .onChange(of: localPageOwnedScribeLabel) { _, label in
-                        guard label != nil else { return }
-                        scrollToLocalBrainStatus(scrollProxy)
-                    }
-                    .onChange(of: enchantmentArrivalTick) { _, tick in
-                        guard tick > 0 else { return }
-                        scrollToEnchantmentArrival(scrollProxy)
-                    }
-                    .background {
-                        LocalBrainPreviewStartObserver(
-                            progress: localBrainProgress,
-                            isWorking: isLocalBrainWorking
-                        ) {
-                            scrollToLocalBrainStatus(scrollProxy)
-                        }
+        return AnyView(
+            ScrollViewReader { scrollProxy in
+                ScrollView {
+                    AnyView(pageSheetContent)
+                        .padding(.horizontal, 22)
+                        .padding(.top, 4)
+                        .padding(.bottom, 26)
+                        .frame(maxWidth: isEmbedded ? 740 : nil)
+                        .frame(maxWidth: .infinity)
+                        // All of the page's prose is long-press selectable/copyable.
+                        // (Editable fields keep their own selection behavior.)
+                        .textSelection(.enabled)
+                }
+                .onAppear {
+                    // Lets the streaming reply keep its last line in view
+                    // without changing any state this body reads.
+                    let handle = askScrollHandle
+                    handle.scrollToBottom = {
+                        scrollProxy.scrollTo(Self.letsChatBottomID, anchor: .bottom)
                     }
                 }
-                .scrollIndicators(.hidden)
-                // The ink field scrolls; the leaf does not. A book page keeps
-                // its head and foot where the hand expects them.
-                .frame(maxHeight: .infinity)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if surface.type == .askTheBook, openedAskEvidence == nil {
+                        AnyView(letsChatComposer)
+                    }
+                }
+                .onChange(of: isLocalBrainWorking) { _, isWorking in
+                    guard isWorking else { return }
+                    scrollToLocalBrainStatus(scrollProxy)
+                }
+                .onChange(of: localPageOwnedScribeLabel) { _, label in
+                    guard label != nil else { return }
+                    scrollToLocalBrainStatus(scrollProxy)
+                }
+                .onChange(of: enchantmentArrivalTick) { _, tick in
+                    guard tick > 0 else { return }
+                    scrollToEnchantmentArrival(scrollProxy)
+                }
+                .background {
+                    LocalBrainPreviewStartObserver(
+                        progress: localBrainProgress,
+                        isWorking: isLocalBrainWorking
+                    ) {
+                        scrollToLocalBrainStatus(scrollProxy)
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+            // The ink field scrolls; the leaf does not. A book page keeps
+            // its head and foot where the hand expects them.
+            .frame(maxHeight: .infinity)
+        )
+    }
 
-                    leafFootMargin
+    private var pagePaperRoot: AnyView {
+        AnyView(
+            ZStack {
+                FolioControlStack(spacing: 0) {
+                    if !isEndLeaf {
+                        leafHeadMargin
+                    }
+
+                    pageInkField
+
+                    if !isEndLeaf {
+                        leafFootMargin
+                    }
                 }
                 // Everything written on this leaf resolves its colours as
                 // paper. Shared labels and cards that also appear against the
@@ -3330,7 +3408,8 @@ struct CapturePageSheet: View {
                     style: leafVisualStyle,
                     recipe: leafDecorationRecipe,
                     headClearance: Self.leafHeadClearance,
-                    footClearance: leafFootClearance
+                    footClearance: leafFootClearance,
+                    isEnabled: !isEndLeaf
                 )
                 // Just enough clearance for the cut edge to wander into, and no
                 // more. The sheet's background is cleared, so any gap wider
@@ -3354,7 +3433,7 @@ struct CapturePageSheet: View {
                     .zIndex(10)
                 }
 
-                if isCommittingKeep && (reduceMotion || voiceOver || keepInkHasSunk) {
+                if !isEndLeaf, isCommittingKeep && (reduceMotion || voiceOver || keepInkHasSunk) {
                     Label("KEPT", systemImage: "seal.fill")
                         .font(.system(.headline, design: .serif, weight: .black))
                         .tracking(1.4)
@@ -3379,7 +3458,7 @@ struct CapturePageSheet: View {
                         .allowsHitTesting(false)
                 }
 
-                if openedPageTurnProgress > 0.001 {
+                if !isEndLeaf, openedPageTurnProgress > 0.001 {
                     PageTurnWipe(progress: openedPageTurnProgress)
                         .ignoresSafeArea()
                         .allowsHitTesting(false)
@@ -3388,7 +3467,7 @@ struct CapturePageSheet: View {
                 }
 
                 if surface.payload.metadata["bookInterjectionPhysicalAct"] == "dog-ear" {
-                    VStack {
+                    FolioControlStack {
                         HStack {
                             Spacer()
                             BookInterjectionDogEarMark(tint: LeafInk.gold)
@@ -3404,7 +3483,7 @@ struct CapturePageSheet: View {
                 }
 
                 if surface.payload.metadata["bookInterjectionPhysicalAct"] == "smudge" {
-                    VStack {
+                    FolioControlStack {
                         HStack {
                             Spacer()
                             BookInterjectionSmudgeMark(tint: BookPalette.ink)
@@ -3421,7 +3500,7 @@ struct CapturePageSheet: View {
                 }
 
                 if surface.payload.metadata["bookInterjectionPhysicalAct"] == "left-open" {
-                    VStack {
+                    FolioControlStack {
                         Spacer()
                         HStack {
                             Spacer()
@@ -3436,10 +3515,16 @@ struct CapturePageSheet: View {
                     .zIndex(12)
                 }
             }
-            .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.72), value: isCommittingKeep)
+        )
+    }
+
+    private var pageInputRoot: AnyView {
+        AnyView(
+            pagePaperRoot
+            .animation(isEndLeaf || reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.72), value: isCommittingKeep)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isTuckingPage)
             .animation(BookMotion.result(reduceMotion), value: pageOwnedScribeLabel)
-            .sheet(isPresented: $isPublicMarginsContributionPresented) {
+            .sheet(isPresented: pagePresentation($isPublicMarginsContributionPresented)) {
                 PublicMarginsContributionSheet(
                     eventID: "page-souvenir",
                     initialSentence: publicMarginsSuggestedSentence
@@ -3449,7 +3534,7 @@ struct CapturePageSheet: View {
             }
             #if canImport(PhotosUI)
             .onChange(of: selectedPhotoItem) { _, newValue in
-                guard let newValue else { return }
+                guard ownsPagePresentation, let newValue else { return }
                 Task {
                     if allowsCompassPhotoProof {
                         await loadCompassProofPhoto(from: newValue)
@@ -3463,7 +3548,7 @@ struct CapturePageSheet: View {
                 }
             }
             .onChange(of: pressedPhotoItem) { _, newValue in
-                guard let newValue else { return }
+                guard ownsPagePresentation, let newValue else { return }
                 Task { await loadPressedPhoto(from: newValue) }
             }
             #endif
@@ -3471,7 +3556,19 @@ struct CapturePageSheet: View {
                 // Finalize (don't delete) any in-progress take so the mic and
                 // audio session don't stay live after the sheet closes.
                 if keptVoiceRecorder.isRecording {
-                    _ = keptVoiceRecorder.stop()
+                    if isEndLeaf {
+                        if controlSession?.presentationOwner == controlPageIndex { toggleKeptVoice() }
+                    }
+                    else { _ = keptVoiceRecorder.stop() }
+                }
+            }
+            .onChange(of: isEndLeafActive) { _, isActive in
+                guard isEndLeaf else { return }
+                if isActive {
+                    isTuckingPage = false
+                    activatePageIfNeeded()
+                } else if keptVoiceRecorder.isRecording, controlSession?.presentationOwner == controlPageIndex {
+                    toggleKeptVoice()
                 }
             }
             #if canImport(UIKit)
@@ -3489,7 +3586,8 @@ struct CapturePageSheet: View {
             }
             #endif
             #if canImport(UIKit) && canImport(PhotosUI)
-            .task {
+            .task(id: isEndLeafActive) {
+                guard !isEndLeaf || isEndLeafActive else { return }
                 guard isCameraFirstIlluminatedPage, !didAutoOpenCamera else { return }
                 didAutoOpenCamera = true
                 if BookCameraCaptureView.isCameraAvailable {
@@ -3498,7 +3596,7 @@ struct CapturePageSheet: View {
                     illuminationMessage = "This device can't open the camera here. Choose a photo from the library instead."
                 }
             }
-            .fullScreenCover(isPresented: $isCameraPresented) {
+            .fullScreenCover(isPresented: pagePresentation($isCameraPresented)) {
                 BookCameraCaptureView { data in
                     Task {
                         if allowsCompassPhotoProof {
@@ -3515,7 +3613,13 @@ struct CapturePageSheet: View {
                 .ignoresSafeArea()
             }
             #endif
-            .fullScreenCover(isPresented: $isGamePagePresented) {
+        )
+    }
+
+    private var pagePresentationRoot: AnyView {
+        AnyView(
+            pageInputRoot
+            .fullScreenCover(isPresented: pagePresentation($isGamePagePresented)) {
                 SentenceRunnerGameView(
                     phrases: runnerPhrasesForNextRun,
                     nothingPhrases: gameNothingPhrases,
@@ -3540,17 +3644,24 @@ struct CapturePageSheet: View {
                     }
                 )
             }
-            .fullScreenCover(isPresented: $isAtlasFullScreenPresented) {
+            .fullScreenCover(isPresented: pagePresentation($isAtlasFullScreenPresented)) {
                 MarginsAtlasFullScreenView(
                     variant: atlasVariant,
                     graph: atlasGraph,
                     selectedNodeID: $selectedAtlasNodeID
                 )
             }
-            .sheet(item: $inspectedPhraseSource) { source in
+            .sheet(item: pagePresentation($inspectedPhraseSource)) { source in
                 phraseSourceModal(source)
             }
-            .task {
+        )
+    }
+
+    private var pageLifecycleRoot: AnyView {
+        AnyView(
+            pagePresentationRoot
+            .task(id: isEndLeafActive) {
+                guard !isEndLeaf || isEndLeafActive else { return }
                 if surface.type == .illuminatedPhoto && !isCameraFirstIlluminatedPage {
                     await prepareIlluminatedArtifactIfNeeded()
                 }
@@ -3576,30 +3687,20 @@ struct CapturePageSheet: View {
                     }
                 }
             }
-            .onAppear {
-                if !didRecordPageOpened {
-                    didRecordPageOpened = true
-                    onPageOpened(surface, Date())
-                }
-                seedExternalSparkContinuation()
-                seedTarotReadingIfNeeded()
-                if isStandalonePlayfulMissionPage, !didPlayPlayfulMissionOpenBurst {
-                    didPlayPlayfulMissionOpenBurst = true
-                    playfulMissionOpenBurstTrigger += 1
-                }
-                tutorTouchForThisPage()
-                seedInkrestIntakeIfNeeded()
-                seedPagesRisingLeafDraftIfNeeded()
-                playCeremonyOpenCueIfNeeded()
-                revealOpenedPageIfNeeded()
-                seedSeasonalDispatchControls()
-            }
+            .onAppear(perform: activatePageIfNeeded)
             .onChange(of: surface.id) { _, _ in
                 selectedWordRuling = nil
             }
             .onChange(of: tarotReading) { _, reading in
+                guard ownsPagePresentation else { return }
                 persistTarotDraft(reading)
             }
+        )
+    }
+
+    private var pageRoot: AnyView {
+        AnyView(
+            pageLifecycleRoot
             .overlay(alignment: .bottom) {
                 if let activeTutorNote {
                     MarginTutorNoteCard(note: activeTutorNote) {
@@ -3620,7 +3721,7 @@ struct CapturePageSheet: View {
                 }
             }
             .overlay(alignment: .top) {
-                if let activeInkbonesThrow {
+                if ownsPagePresentation, let activeInkbonesThrow {
                     InkbonesThrowOverlay(throwState: activeInkbonesThrow, reduceMotion: reduceMotion)
                         .padding(.horizontal, 16)
                         .padding(.top, 10)
@@ -3628,7 +3729,8 @@ struct CapturePageSheet: View {
                         .zIndex(12)
                 }
             }
-        .keepsFocusedTextInputVisible()
+            .keepsFocusedTextInputVisible()
+        )
     }
 
     private func requestDismiss() {
@@ -3637,6 +3739,22 @@ struct CapturePageSheet: View {
         } else {
             dismiss()
         }
+    }
+
+    private var ownsPagePresentation: Bool {
+        !isEndLeaf || (isEndLeafActive && (controlSession?.presentationOwner ?? controlPageIndex) == controlPageIndex)
+    }
+
+    private func pagePresentation(_ binding: Binding<Bool>) -> Binding<Bool> {
+        Binding(get: { ownsPagePresentation && binding.wrappedValue }, set: { value in
+            if ownsPagePresentation { binding.wrappedValue = value }
+        })
+    }
+
+    private func pagePresentation<Item>(_ binding: Binding<Item?>) -> Binding<Item?> {
+        Binding(get: { ownsPagePresentation ? binding.wrappedValue : nil }, set: { value in
+            if ownsPagePresentation { binding.wrappedValue = value }
+        })
     }
 
     private func seedSeasonalDispatchControls() {
@@ -3660,7 +3778,7 @@ struct CapturePageSheet: View {
     }
 
     private var seasonalDispatchControls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label("The parcel is listening", systemImage: "shippingbox.fill")
                 .font(.subheadline.weight(.black))
                 .foregroundStyle(LeafInk.gold)
@@ -3672,6 +3790,7 @@ struct CapturePageSheet: View {
                 text: $seasonalDispatchName
             )
                 .textFieldStyle(.roundedBorder)
+                .folioControlUnbroken()
                 .textInputAutocapitalization(.sentences)
             Text("\(seasonalDispatchName.count)/\(SeasonalDispatchWindow.coverTitleCharacterLimit) on the coat")
                 .font(.caption2.monospacedDigit())
@@ -3692,6 +3811,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(
                 seasonalDispatchName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3700,7 +3820,7 @@ struct CapturePageSheet: View {
 
             seasonalDispatchCoverControls
 
-            VStack(alignment: .leading, spacing: 5) {
+            FolioControlStack(alignment: .leading, spacing: 5) {
                 Toggle(isOn: $includePrivateWeatherInBoundVolumes) {
                     Label("Let the private charts into this book", systemImage: "heart.text.square")
                         .font(.caption.weight(.bold))
@@ -3716,7 +3836,7 @@ struct CapturePageSheet: View {
             .padding(9)
             .background(BookPalette.violet.opacity(0.08), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 6) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 Text("A dedication, if this one is for somebody")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(openPageSecondaryText)
@@ -3748,6 +3868,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
             }
 
@@ -3765,6 +3886,7 @@ struct CapturePageSheet: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.violet)
 
             Button {
@@ -3776,6 +3898,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
 
             if !seasonalDispatchMessage.isEmpty {
@@ -3794,7 +3917,7 @@ struct CapturePageSheet: View {
     }
 
     private var seasonalDispatchCoverControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text("Choose its coat")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
@@ -3829,7 +3952,7 @@ struct CapturePageSheet: View {
                                 )
                                 BookFeedback.play(.select)
                             } label: {
-                                VStack(alignment: .leading, spacing: 4) {
+                                FolioControlStack(alignment: .leading, spacing: 4) {
                                     #if canImport(UIKit)
                                     if let image = UIImage(named: plate.assetName) {
                                         Image(uiImage: image)
@@ -3852,6 +3975,7 @@ struct CapturePageSheet: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            .folioControlUnbroken()
                         }
                     }
                 }
@@ -3867,16 +3991,17 @@ struct CapturePageSheet: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.violet)
             .onChange(of: seasonalDispatchPhotoItem) { _, item in
-                guard let item else { return }
+                guard ownsPagePresentation, let item else { return }
                 Task { await loadSeasonalDispatchCoverPhoto(from: item) }
             }
             #endif
 
             #if canImport(UIKit)
             if let proof = seasonalDispatchCoverProofImage {
-                VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 6) {
                     Text("The coat, with its real words on")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(openPageSecondaryText)
@@ -3961,6 +4086,7 @@ struct CapturePageSheet: View {
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(.bordered)
+        .folioControlUnbroken()
         .tint(seasonalDispatchCoverChoice == choice ? BookPalette.teal : BookPalette.violet)
     }
 
@@ -3985,7 +4111,34 @@ struct CapturePageSheet: View {
     }
     #endif
 
+    private func activatePageIfNeeded() {
+        guard !isEndLeaf || isEndLeafActive else { return }
+        if !didRecordPageOpened {
+            didRecordPageOpened = true
+            onPageOpened(surface, Date())
+        }
+        seedExternalSparkContinuation()
+        seedTarotReadingIfNeeded()
+        if isStandalonePlayfulMissionPage, !didPlayPlayfulMissionOpenBurst {
+            didPlayPlayfulMissionOpenBurst = true
+            playfulMissionOpenBurstTrigger += 1
+        }
+        tutorTouchForThisPage()
+        seedInkrestIntakeIfNeeded()
+        seedPagesRisingLeafDraftIfNeeded()
+        playCeremonyOpenCueIfNeeded()
+        revealOpenedPageIfNeeded()
+        seedSeasonalDispatchControls()
+    }
+
     private func revealOpenedPageIfNeeded() {
+        // The folio already turned this physical leaf. Its controls are ink
+        // on that paper, not another Page opening over the top of it.
+        guard !isEndLeaf else {
+            didRevealOpenedPage = true
+            openedPageTurnProgress = 0
+            return
+        }
         guard !didRevealOpenedPage else { return }
         didRevealOpenedPage = true
         guard !reduceMotion else {
@@ -4027,8 +4180,8 @@ struct CapturePageSheet: View {
     }
 
     private var externalSparkPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Label("What should this become?", systemImage: "arrow.up.right.circle.fill")
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(LeafInk.gold)
@@ -4069,6 +4222,7 @@ struct CapturePageSheet: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    .folioControlUnbroken()
                 }
             }
 
@@ -4108,6 +4262,7 @@ struct CapturePageSheet: View {
                 )
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
+                .folioControlUnbroken()
                 .inkFeedback(text: externalSparkReturnLine)
 
                 HStack(spacing: 8) {
@@ -4123,6 +4278,7 @@ struct CapturePageSheet: View {
                         BookFeedback.play(.dismissPage)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.violet)
 
                     Button("Keep what happened") {
@@ -4141,6 +4297,7 @@ struct CapturePageSheet: View {
                         BookFeedback.play(.braidComplete)
                     }
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                     .disabled(
                         externalSparkReturnLine
@@ -4202,11 +4359,13 @@ struct CapturePageSheet: View {
                 }
             }
             .pickerStyle(.inline)
+            .folioControlUnbroken()
             Text(shelfMark.detail)
         } label: {
             Label("How should I hold this?", systemImage: shelfMark.symbolName)
         }
         .onChange(of: shelfMark) { _, newValue in
+            guard ownsPagePresentation else { return }
             BookFeedback.play(.select)
             // On an archived page the change lands immediately: the reader is
             // changing their mind about something already written down, and
@@ -4257,7 +4416,12 @@ struct CapturePageSheet: View {
         let proofSurface = effectiveProofSurface
         let tags = preparedTags(for: proofSurface)
         let extraMedia = keptExtraMedia
-        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.66)) {
+        // Prepared input can contain the entire printed Page. Only actual
+        // reader ink gives a bound leaf something to absorb before moving on.
+        let hasReaderInk = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let keepAnimation: Animation? = isEndLeaf ? nil
+            : (reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.66))
+        withAnimation(keepAnimation) {
             isCommittingKeep = true
         }
 
@@ -4272,15 +4436,26 @@ struct CapturePageSheet: View {
             // PlayerVault and the desk several times; doing that on this button's
             // presentation stack can exhaust the main thread's stack.
             requestDismiss()
-            DispatchQueue.main.async {
+            let save = {
                 onSave(proofSurface, input, tags, extraMedia)
                 completeStoryMechanicIfNeeded(surface: proofSurface, outcome: input)
                 completeFaeBargainIfNeeded()
                 completeTwoReadingsIfNeeded()
             }
+            if isEndLeaf {
+                // Let the prepared successor draw before archive publication
+                // rebuilds the Book, as the original direct folio Keep does.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30.0, execute: save)
+            } else {
+                DispatchQueue.main.async(execute: save)
+            }
         }
-        if reduceMotion || voiceOver {
+        if reduceMotion || voiceOver || (isEndLeaf && !hasReaderInk) {
             finish()
+        } else if isEndLeaf {
+            // The paper footer owns disposition. Do not add the modal's
+            // separate KEPT badge and pause after the ink has finished sinking.
+            DispatchQueue.main.asyncAfter(deadline: .now() + BookInkTiming.absorptionDuration, execute: finish)
         } else {
             let absorption = input.isEmpty ? 0 : BookInkTiming.absorptionDuration
             DispatchQueue.main.asyncAfter(deadline: .now() + absorption) {
@@ -4364,7 +4539,7 @@ struct CapturePageSheet: View {
         if !names.isEmpty {
             HStack(spacing: 14) {
                 ForEach(Array(names.enumerated()), id: \.offset) { _, name in
-                    VStack(spacing: 5) {
+                    FolioControlStack(spacing: 5) {
                         CharacterPortraitView(name: name, size: names.count > 2 ? 44 : 56, customAsset: portraitCustomAsset(for: name))
                         Text(name)
                             .font(.caption2.weight(.semibold))
@@ -4392,7 +4567,7 @@ struct CapturePageSheet: View {
         HStack(spacing: 8) {
             Image(systemName: "theatermasks.fill")
                 .font(.caption.weight(.bold))
-            VStack(alignment: .leading, spacing: 1) {
+            FolioControlStack(alignment: .leading, spacing: 1) {
                 Text("THE DUSK THORN TURNED THIS PAGE")
                     .font(.caption2.weight(.black))
                     .tracking(1.2)
@@ -4460,7 +4635,7 @@ struct CapturePageSheet: View {
                 ? "Don't work up a conclusion. One honest scrap of evidence in the box below is plenty — Penny brought a very small folder."
                 : "Write your answer in the box below. One sentence is enough, and I'm not grading it.")
 
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Text(surface.payload.headline)
                 .font(.system(.title, design: .serif, weight: .semibold))
                 .foregroundStyle(openPagePrimaryText)
@@ -4483,7 +4658,7 @@ struct CapturePageSheet: View {
             // The question, set into the page rather than boxed on it: a rule
             // down its inner margin does the separating a border used to.
             LeafAside(tint: BookPalette.teal) {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     LeafSectionHead(
                         title: authorID == "penny-blackletter" ? "Penny's question" : "The question",
                         tint: BookPalette.teal,
@@ -4504,17 +4679,42 @@ struct CapturePageSheet: View {
         }
     }
 
+    private var resumesReadLeaf: Bool {
+        // A short note stays beside the reply it invites. Hiding it leaves
+        // only the sender and the writing box when the reader unfolds it.
+        !isOpenedNotePage
+            && surface.payload.metadata["leafReadingComplete"] == "true"
+            && surface.leafPresentation == .readingWithActivity
+    }
+
+    private var showsLeafReading: Bool { !resumesReadLeaf || showsReadLeafProse }
+
     private var pageSheetContent: some View {
         let braidContributions = braidContributionItems
         // The kind of Page this is now stands in the head margin, where a
         // running head belongs. It used to be printed here as well, so a Page
         // whose title was also its first line said itself twice.
-        return VStack(alignment: .leading, spacing: 18) {
+        return FolioControlStack(alignment: .leading, spacing: 18) {
+            if resumesReadLeaf {
+                Button(showsReadLeafProse ? "Show the other options" : "Read the Page again") {
+                    showsReadLeafProse.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(BookPalette.teal)
+            }
+            if isEndLeaf, showsShelfMark {
+                shelfMarkMenu
+                    .font(.caption)
+                    .tint(BookPalette.ink.opacity(0.55))
+            }
             if isShadowWonderVariant {
                 shadowWonderBadge
             }
 
-            characterPortraitHeader
+            if !isEndLeaf && !isOpenedNotePage {
+                characterPortraitHeader
+            }
 
             if isAuthoredObservationReturn {
                 TextField("Find an older sentence", text: $observationSearch)
@@ -4544,7 +4744,7 @@ struct CapturePageSheet: View {
 
             if surface.type == .diary {
                 journalPageOpening
-            } else {
+            } else if !isEndLeaf && showsLeafReading && !isOpenedNotePage {
                 Text(surface.prompt)
                     .font(.system(
                         surface.payload.metadata["bookCharacterCadence"] == "small-hand" ? .title3 :
@@ -4565,7 +4765,7 @@ struct CapturePageSheet: View {
             }
 
             if let actedMargin = surface.payload.metadata["bookActedMargin"]?.nonEmpty {
-                VStack(alignment: .leading, spacing: 7) {
+                FolioControlStack(alignment: .leading, spacing: 7) {
                     Label(
                         surface.payload.metadata["bookActedMarginTitle"]?.nonEmpty ?? "I interfered",
                         systemImage: bookInterjectionMarginSymbol
@@ -4610,6 +4810,7 @@ struct CapturePageSheet: View {
                                         )
                                     }
                                     .buttonStyle(.plain)
+                                    .folioControlUnbroken()
                                 }
                             }
                             .padding(.top, 3)
@@ -4643,7 +4844,8 @@ struct CapturePageSheet: View {
                 externalSparkPanel
             }
 
-            if isLocalBrainWorking, sheetHasLocalBrainActions, localPageOwnedScribeLabel == nil {
+            if isLocalBrainWorking, sheetHasLocalBrainActions,
+               localPageOwnedScribeLabel == nil, !cameraOwnsScribeWorkCard {
                 scribeWorkCard(pageOwnedScribeLabel ?? localBrainWorkLabel)
             }
 
@@ -4678,6 +4880,23 @@ struct CapturePageSheet: View {
             if surface.type == .academyClass,
                surface.payload.metadata["worldEventBeatIDs"] == nil {
                 AnyView(academyCalendarControl)
+            }
+
+            if surface.payload.metadata["requiresCalendarPermission"] == "true" {
+                Button(action: onConnectCalendar) {
+                    Label("Connect Calendar", systemImage: "calendar.badge.plus")
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bookPress())
+                .folioControlUnbroken()
+            }
+
+            if surface.type == .pactVerdict {
+                PactVerdictOptions(surface: surface, onRule: onRulePactVerdict)
+            }
+
+            if surface.type == .pactErrand {
+                PactErrandReportForm(surface: surface, onDeliver: onDeliverPactErrand)
             }
 
             if isKeptReadbackPage,
@@ -4741,6 +4960,10 @@ struct CapturePageSheet: View {
 
             if surface.type == .spell {
                 AnyView(spellView)
+            }
+
+            if surface.type == .recipe {
+                AnyView(recipeView)
             }
 
             if festivalMechanic != nil {
@@ -4905,7 +5128,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var scrapbookReadbackPlate: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label("Scrapbook Page", systemImage: "photo.artframe")
                 .font(.caption.weight(.black))
                 .foregroundStyle(BookPalette.teal)
@@ -5064,9 +5287,9 @@ struct CapturePageSheet: View {
     }
 
     private var gamePageView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             if let resultSurface = gameResultSurface {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Label("Run Complete", systemImage: "checkmark.seal.fill")
                         .font(.caption.weight(.black))
                         .foregroundStyle(BookPalette.teal)
@@ -5099,6 +5322,7 @@ struct CapturePageSheet: View {
                         .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
 
                     if let note = GoblinMarginalia.note(forID: resultSurface.id, text: resultSurface.payload.body) {
@@ -5120,6 +5344,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(gamePhrases.count < 6)
 
@@ -5136,7 +5361,7 @@ struct CapturePageSheet: View {
     }
 
     private func gameFolioReceipt(_ result: SentenceRunnerResult) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        FolioControlStack(alignment: .leading, spacing: 5) {
             Label(
                 SentenceRunnerFolio.title(completing: result.folioRunCount),
                 systemImage: result.folioRunCount >= SentenceRunnerFolio.runsToBind ? "books.vertical.fill" : "book.pages"
@@ -5166,7 +5391,7 @@ struct CapturePageSheet: View {
     }
 
     private var sentenceRunnerThreadPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             HStack {
                 Label("Choose a thread to carry", systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.caption.weight(.black))
@@ -5199,6 +5424,7 @@ struct CapturePageSheet: View {
                     .background(BookPalette.teal.opacity(activeRunnerThread == phrase ? 0.16 : 0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
             }
         }
         .padding(12)
@@ -5207,13 +5433,13 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var gameRescueSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Label("I restored", systemImage: "wand.and.stars.inverse")
                 .font(.caption2.weight(.black))
                 .foregroundStyle(LeafInk.gold)
 
             ForEach(gameRescueItems) { item in
-                VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 6) {
                     (
                         Text(item.grey).strikethrough().foregroundColor(openPageSecondaryText.opacity(0.65))
                         + Text("  →  ").foregroundColor(openPageSecondaryText.opacity(0.45))
@@ -5234,6 +5460,7 @@ struct CapturePageSheet: View {
                             .font(.caption2.weight(.semibold))
                         }
                         .buttonStyle(.borderless)
+                        .folioControlUnbroken()
                         .tint(BookPalette.teal)
                     }
                 }
@@ -5253,8 +5480,8 @@ struct CapturePageSheet: View {
         let page = inventoryKeptPages.first { $0.id == source.pageID }
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 18) {
+                    FolioControlStack(alignment: .leading, spacing: 6) {
                         Text("THE WORD CAME FROM")
                             .font(.caption2.weight(.black))
                             .foregroundStyle(BookPalette.teal)
@@ -5302,7 +5529,7 @@ struct CapturePageSheet: View {
     }
 
     private func phraseSourceField(_ title: String, _ body: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 4) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.ink.opacity(0.55))
@@ -5317,7 +5544,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var gameRunBraidControl: some View {
         if let result = lastGameResult, !result.caught.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 if gameRunBraided {
                     Label("Braided by the Scribe", systemImage: "sparkles")
                         .font(.caption.weight(.bold))
@@ -5330,6 +5557,7 @@ struct CapturePageSheet: View {
                             .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(LeafInk.gold)
                     .disabled(isBraidingGameRun || isLocalBrainWorking)
                 }
@@ -5385,7 +5613,7 @@ struct CapturePageSheet: View {
     }
 
     private func phrasePreview(title: String, phrases: [String], tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
                 .font(.caption2.weight(.black))
                 .foregroundStyle(tint)
@@ -5472,7 +5700,7 @@ struct CapturePageSheet: View {
     private var chapterPrimerView: some View {
         let metadata = surface.payload.metadata
         let chapter = AcademyChapterRegistry.chapter(id: metadata["chapterID"] ?? "")
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: chapter?.symbolName ?? "book.closed")
                     .font(.title3.weight(.bold))
@@ -5480,7 +5708,7 @@ struct CapturePageSheet: View {
                     .frame(width: 34, height: 34)
                     .background(LeafInk.gold.opacity(0.13), in: Circle())
 
-                VStack(alignment: .leading, spacing: 3) {
+                FolioControlStack(alignment: .leading, spacing: 3) {
                     Text(metadata["privacy"]?.uppercased() ?? "PUBLIC REFERENCE")
                         .font(.caption2.weight(.black))
                         .foregroundStyle(BookPalette.teal)
@@ -5498,7 +5726,7 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let chapter {
-                VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 6) {
                     Label(chapter.name, systemImage: chapter.symbolName)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(LeafInk.gold)
@@ -5535,8 +5763,8 @@ struct CapturePageSheet: View {
         let eventTitle = metadata["eventTitle"] ?? surface.detail
         let eventTime = metadata["eventTime"] ?? ""
 
-        return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 Text(metadata["hourPhaseTitle"] ?? (phase == "after" ? "After the Hour" : "Before the Hour"))
                     .font(.caption.weight(.bold))
                     .foregroundStyle(BookPalette.teal)
@@ -5594,7 +5822,7 @@ struct CapturePageSheet: View {
     }
 
     private func hourPageCallout(title: String, symbol: String, body: String, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: symbol)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(tint)
@@ -5625,7 +5853,7 @@ struct CapturePageSheet: View {
 
     private var marginsAtlasView: some View {
         let graph = atlasGraph
-        return VStack(alignment: .leading, spacing: 12) {
+        return FolioControlStack(alignment: .leading, spacing: 12) {
             MarginsAtlasGraphView(
                 variant: atlasVariant,
                 graph: graph,
@@ -5654,6 +5882,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
                 .padding(10)
                 .accessibilityLabel("Open \(atlasVariant.title) full screen")
             }
@@ -5670,7 +5899,7 @@ struct CapturePageSheet: View {
     }
 
     private func pactFramingCard(_ framing: String, title: String, subtitle: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 6) {
                 Label(title, systemImage: "seal")
                     .font(.caption2.weight(.bold))
@@ -5736,12 +5965,12 @@ struct CapturePageSheet: View {
     private var welcomeIntroductionBody: some View {
         let paragraphs = welcomeIntroductionParagraphs
         if paragraphs.count >= 14 {
-            VStack(alignment: .leading, spacing: 16) {
+            FolioControlStack(alignment: .leading, spacing: 16) {
                 Text(paragraphs[0])
                     .font(.system(.title3, design: .serif).weight(.semibold))
                     .foregroundStyle(BookPalette.ink)
 
-                VStack(alignment: .leading, spacing: 13) {
+                FolioControlStack(alignment: .leading, spacing: 13) {
                     Text(paragraphs[1])
                     Text(paragraphs[2])
                 }
@@ -5753,7 +5982,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.gold)
                     .padding(.vertical, 2)
 
-                VStack(alignment: .leading, spacing: 13) {
+                FolioControlStack(alignment: .leading, spacing: 13) {
                     Text(paragraphs[4])
                     Text(paragraphs[5])
                         .fontWeight(.semibold)
@@ -5762,7 +5991,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink)
                 .lineSpacing(3)
 
-                VStack(alignment: .leading, spacing: 12) {
+                FolioControlStack(alignment: .leading, spacing: 12) {
                     Text(paragraphs[6])
                         .font(.caption.weight(.black))
                         .tracking(1.1)
@@ -5791,7 +6020,7 @@ struct CapturePageSheet: View {
                         .stroke(BookPalette.teal.opacity(0.22), lineWidth: 1)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text(paragraphs[10])
                         .foregroundStyle(BookPalette.ink.opacity(0.70))
                     Text(paragraphs[11])
@@ -5807,7 +6036,7 @@ struct CapturePageSheet: View {
                         .frame(width: 3)
                 }
 
-                VStack(alignment: .leading, spacing: 5) {
+                FolioControlStack(alignment: .leading, spacing: 5) {
                     Text(paragraphs[12])
                         .font(.system(.title3, design: .serif).weight(.semibold))
                     Text(paragraphs[13])
@@ -5836,7 +6065,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var localBrainInstallControl: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Divider()
                 .overlay(BookPalette.ink.opacity(0.14))
 
@@ -5865,6 +6094,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .foregroundStyle(BookPalette.teal)
 
                 if let message = localBrainInstallMessage.nonEmpty {
@@ -5882,82 +6112,130 @@ struct CapturePageSheet: View {
     }
 
     private var bleedEditionView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Image("TheBleedBanner")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: .infinity)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.ink.opacity(0.18), lineWidth: 1)
+        FolioControlStack(alignment: .leading, spacing: 12) {
+            if showsLeafReading {
+                Image("TheBleedBanner")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.18), lineWidth: 1)
+                    }
+                    .accessibilityLabel("The Bleed pocket student newspaper")
+
+                // The front page carries the day's own photograph; the rest of the file is listed here.
+                let filedPlates = surface.mediaAssets.filter { $0.metadata["bleedFrontPlate"] != "true" }
+                if !filedPlates.isEmpty {
+                    FolioControlStack(alignment: .leading, spacing: 9) {
+                        Text("PLATES FROM THE FILE")
+                            .font(.caption2.weight(.black))
+                            .tracking(0.8)
+                            .foregroundStyle(BookPalette.ink.opacity(0.68))
+
+                        ForEach(filedPlates.prefix(2)) { asset in
+                            HStack(alignment: .top, spacing: 10) {
+                                BookOfYouMediaThumbnail(
+                                    asset: asset,
+                                    width: 126,
+                                    height: 96
+                                )
+                                Text(asset.caption.nonEmpty ?? "An image entered into the issue without a caption.")
+                                    .font(.system(.caption, design: .serif).italic())
+                                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                Spacer(minLength: 0)
+                            }
+                        }
+                    }
+                    .padding(10)
+                    .background(
+                        BookPalette.paper.opacity(0.48),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
+                    }
                 }
-                .accessibilityLabel("The Bleed pocket student newspaper")
 
-            // The front page carries the day's own photograph; the rest of the file is listed here.
-            let filedPlates = surface.mediaAssets.filter { $0.metadata["bleedFrontPlate"] != "true" }
-            if !filedPlates.isEmpty {
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("PLATES FROM THE FILE")
-                        .font(.caption2.weight(.black))
-                        .tracking(0.8)
-                        .foregroundStyle(BookPalette.ink.opacity(0.68))
+                if let bleedEditionText {
+                    if let paper = BleedReadingCopy.parse(bleedEditionText) {
+                        BleedNewspaperView(
+                            paper: paper,
+                            plate: surface.mediaAssets.first { $0.metadata["bleedFrontPlate"] == "true" },
+                            onTakeAssignment: onOpenBleedAssignment.flatMap { open in
+                                BleedDayDesk.assignmentIsOpen(in: surface, now: Date()) ? { open(surface) } : nil
+                            }
+                        )
+                    } else {
+                        Text(bleedEditionText)
+                            .font(.system(.body, design: .serif))
+                            .foregroundStyle(BookPalette.ink)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text("The formes are locked, but the ink hasn't reached this copy yet.")
+                        .font(.system(.body, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
-                    ForEach(filedPlates.prefix(2)) { asset in
-                        HStack(alignment: .top, spacing: 10) {
-                            BookOfYouMediaThumbnail(
-                                asset: asset,
-                                width: 126,
-                                height: 96
-                            )
-                            Text(asset.caption.nonEmpty ?? "An image entered into the issue without a caption.")
-                                .font(.system(.caption, design: .serif).italic())
-                                .foregroundStyle(BookPalette.ink.opacity(0.72))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
+                if surface.payload.metadata["bleedNewsroomVersion"] == nil,
+                   let sources = surface.payload.metadata["bleedInterestSources"]?.nonEmpty {
+                    Text("I cut these clippings from: \(sources)")
+                        .font(.caption)
+                        .foregroundStyle(BookPalette.ink.opacity(0.56))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+            }
+
+            if !showsLeafReading, let takeAssignment = onOpenBleedAssignment,
+               BleedDayDesk.assignmentIsOpen(in: surface, now: Date()) {
+                Button("Take today's assignment") { takeAssignment(surface) }
+                    .buttonStyle(.bookPress())
+                    .foregroundStyle(BookPalette.teal)
+            }
+
+            if let research = onResearchBleedInterest {
+                FolioControlStack(alignment: .leading, spacing: 9) {
+                    Text("Penny's interest article")
+                        .font(.system(.subheadline, design: .serif).weight(.bold))
+                    if !hasBleedReaderInterests {
+                        Text("Tell me an interest on an About You Page. Penny can look for an article about it.")
+                            .font(.caption)
+                    } else {
+                        Toggle(isOn: Binding(
+                            get: { allowsBleedInterestResearch },
+                            set: onSetPersonalizedWebResearch
+                        )) {
+                            Text("Let my interests visit the public web")
+                                .font(.caption.weight(.semibold))
+                        }
+                        .tint(BookPalette.teal)
+                        Text("This lets the Book send a saved interest and a broad home-place description to public research sources. Names, Pages, health notes, and precise location stay here. You can switch it off in the Colophon.")
+                            .font(.caption2)
+                            .foregroundStyle(openPageSecondaryText)
+                        if allowsBleedInterestResearch {
+                            if surface.payload.metadata["bleedInterestResearchStatus"] == "no-article" {
+                                Text("Penny couldn't find a recent, readable article this time. You can ask her to look again.")
+                                    .font(.caption)
+                            }
+                            Button { research(surface) } label: {
+                                Label("Find my interest article", systemImage: "newspaper")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .buttonStyle(.bookPress())
+                            .folioControlUnbroken()
+                            .disabled(isLocalBrainWorking)
                         }
                     }
                 }
-                .padding(10)
-                .background(
-                    BookPalette.paper.opacity(0.48),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
-                }
-            }
-
-            if let bleedEditionText {
-                if let paper = BleedReadingCopy.parse(bleedEditionText) {
-                    BleedNewspaperView(
-                        paper: paper,
-                        plate: surface.mediaAssets.first { $0.metadata["bleedFrontPlate"] == "true" },
-                        onTakeAssignment: onOpenBleedAssignment.flatMap { open in
-                            BleedDayDesk.assignmentIsOpen(in: surface, now: Date()) ? { open(surface) } : nil
-                        }
-                    )
-                } else {
-                    Text(bleedEditionText)
-                        .font(.system(.body, design: .serif))
-                        .foregroundStyle(BookPalette.ink)
-                        .lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            } else {
-                Text("The formes are locked, but the ink hasn't reached this copy yet.")
-                    .font(.system(.body, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.72))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if surface.payload.metadata["bleedNewsroomVersion"] == nil,
-               let sources = surface.payload.metadata["bleedInterestSources"]?.nonEmpty {
-                Text("I cut these clippings from: \(sources)")
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.56))
-                    .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .background(BookPalette.paper.opacity(0.48), in: RoundedRectangle(cornerRadius: 8))
             }
 
             Divider()
@@ -5992,6 +6270,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .foregroundStyle(BookPalette.teal)
                 .disabled(bleedEditionText == nil)
             }
@@ -6051,9 +6330,9 @@ struct CapturePageSheet: View {
     /// The transcript. The composer is pinned below the scroll view (see
     /// `pageRoot`), so this is only what has been said.
     private var askTheBookConversationView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if askTurns.isEmpty, let opening = bookInitiativeOpening {
-                VStack(alignment: .leading, spacing: 6) {
+                FolioControlStack(alignment: .leading, spacing: 6) {
                     LetsChatBubble(role: .book, text: opening)
                     if let invitation = surface.payload.metadata["bookInitiativeInvitation"]?.nonEmpty {
                         Text(invitation)
@@ -6184,7 +6463,7 @@ struct CapturePageSheet: View {
         evidence: [AskTheBookEvidence] = [],
         searchedRecordCount: Int = 0
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text(index == 0 ? "BETWEEN US" : "THE THREAD CONTINUED")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -6214,7 +6493,7 @@ struct CapturePageSheet: View {
                 Divider()
                     .overlay(BookPalette.ink.opacity(0.12))
                 DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 8) {
+                    FolioControlStack(alignment: .leading, spacing: 8) {
                         ForEach(evidence) { item in
                             Button {
                                 openedAskEvidence = item
@@ -6222,7 +6501,7 @@ struct CapturePageSheet: View {
                                 HStack(alignment: .top, spacing: 9) {
                                     Image(systemName: item.result.kind.symbolName)
                                         .frame(width: 18)
-                                    VStack(alignment: .leading, spacing: 2) {
+                                    FolioControlStack(alignment: .leading, spacing: 2) {
                                         Text(item.result.title)
                                             .font(.caption.weight(.bold))
                                         Text([
@@ -6244,6 +6523,7 @@ struct CapturePageSheet: View {
                                 .multilineTextAlignment(.leading)
                             }
                             .buttonStyle(.plain)
+                            .folioControlUnbroken()
                         }
                     }
                     .padding(.top, 6)
@@ -6267,7 +6547,7 @@ struct CapturePageSheet: View {
     }
 
     private func askEvidenceDetailView(_ evidence: AskTheBookEvidence) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             Button {
                 openedAskEvidence = nil
             } label: {
@@ -6275,6 +6555,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.bold))
             }
             .buttonStyle(.plain)
+            .folioControlUnbroken()
             .foregroundStyle(BookPalette.teal)
 
             Text(evidence.authority.readerLabel.uppercased())
@@ -6310,7 +6591,7 @@ struct CapturePageSheet: View {
         let metadata = surface.payload.metadata
         let blurb = metadata["blurb"]?.nonEmpty ?? surface.payload.body
         let invitation = metadata["invitation"] ?? surface.detail
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             hourPageCallout(
                 title: metadata["commonName"] ?? "A Festival of the Wheel",
                 symbol: surface.type.symbolName,
@@ -6330,6 +6611,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(BookPalette.teal)
 
             if !festivalMessage.isEmpty {
@@ -6346,7 +6628,7 @@ struct CapturePageSheet: View {
     /// detail line, so it is not said twice.
     private var spellView: some View {
         let metadata = surface.payload.metadata
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             if let blurb = metadata["blurb"]?.nonEmpty {
                 hourPageCallout(
                     title: metadata["spellPractice"]?.nonEmpty ?? "Where this comes from",
@@ -6409,7 +6691,7 @@ struct CapturePageSheet: View {
         let eventBody = m["eventLine"].flatMap { $0.nonEmpty }.map { "Worth looking up for \($0)." }
             ?? "Keep one true sentence about the sky tonight."
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             hourPageCallout(
                 title: moonTitle,
                 symbol: m["moonSymbol"]?.nonEmpty ?? "moon.stars",
@@ -6435,6 +6717,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(BookPalette.teal)
 
             if !todaysSkyMessage.isEmpty {
@@ -6480,13 +6763,13 @@ struct CapturePageSheet: View {
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
 
-        return VStack(alignment: .leading, spacing: 10) {
+        return FolioControlStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 10) {
                 Image(systemName: "calendar.badge.plus")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(BookPalette.teal)
                     .frame(width: 28)
-                VStack(alignment: .leading, spacing: 4) {
+                FolioControlStack(alignment: .leading, spacing: 4) {
                     Text(isClub ? "Add this club to Calendar" : "Add this class to Calendar")
                         .font(.caption.weight(.black))
                         .textCase(.uppercase)
@@ -6505,6 +6788,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(BookPalette.teal)
 
             if !leader.isEmpty && !isClub {
@@ -6588,7 +6872,7 @@ struct CapturePageSheet: View {
         let active = RadioStationRegistry.station(id: activeID, in: available) ?? (liveDialIsBetweenStations ? nil : stations.first)
         let isPowered = radioManager.isPlaying
         let interlude = RadioStationRegistry.currentInterlude(state: currentPlayback, in: available)
-        return VStack(alignment: .leading, spacing: 16) {
+        return FolioControlStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center, spacing: 12) {
                 ZStack {
                     Circle()
@@ -6601,7 +6885,7 @@ struct CapturePageSheet: View {
                 }
                 .frame(width: 54, height: 54)
 
-                VStack(alignment: .leading, spacing: 3) {
+                FolioControlStack(alignment: .leading, spacing: 3) {
                     Text(active.map { "\($0.displayFrequency) FM" } ?? String(format: "%.1f FM", radioDialFrequency))
                         .font(.caption.weight(.heavy))
                         .foregroundStyle(BookPalette.teal)
@@ -6633,6 +6917,7 @@ struct CapturePageSheet: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .accessibilityLabel(isPowered ? "Turn radio off" : "Turn radio on")
             }
 
@@ -6642,7 +6927,7 @@ struct CapturePageSheet: View {
             )
             .frame(height: 42)
 
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text("88")
                     Spacer()
@@ -6671,6 +6956,7 @@ struct CapturePageSheet: View {
                         }
                     }
                     .onChange(of: radioDialFrequency) { _, value in
+                        guard ownsPagePresentation else { return }
                         hasTouchedRadioDial = true
                         let tuned = RadioStationRegistry.tunedStation(to: value, in: available)
                         if selectedRadioStationID != tuned?.id {
@@ -6743,7 +7029,7 @@ struct CapturePageSheet: View {
                 )
             }
 
-            VStack(spacing: 8) {
+            FolioControlStack(spacing: 8) {
                 ForEach(stations) { station in
                     Button {
                         selectedRadioStationID = station.id
@@ -6752,7 +7038,7 @@ struct CapturePageSheet: View {
                         onTuneRadio(station.id)
                     } label: {
                         HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 3) {
+                            FolioControlStack(alignment: .leading, spacing: 3) {
                                 Text("\(station.displayFrequency)  \(station.title)")
                                     .font(.subheadline.weight(.bold))
                                 Text(station.subtitle)
@@ -6773,6 +7059,7 @@ struct CapturePageSheet: View {
                         }
                     }
                     .buttonStyle(.bookPress())
+                    .folioControlUnbroken()
                 }
             }
 
@@ -6788,6 +7075,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
 
                 Button {
@@ -6798,6 +7086,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(BookPalette.ink)
             }
 
@@ -6880,14 +7169,14 @@ struct CapturePageSheet: View {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: "book.closed.fill")
                     .font(.title2.weight(.bold))
                     .foregroundStyle(LeafInk.gold)
                     .frame(width: 38, height: 38)
                     .background(BookPalette.ink.opacity(0.08), in: Circle())
-                VStack(alignment: .leading, spacing: 4) {
+                FolioControlStack(alignment: .leading, spacing: 4) {
                     Text(action.title.uppercased())
                         .font(.caption2.weight(.heavy))
                         .foregroundStyle(BookPalette.teal)
@@ -6902,7 +7191,7 @@ struct CapturePageSheet: View {
                 Spacer(minLength: 0)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Text(bookJumpDepthLine(depth))
                 Text(BookMechanicPresentation.pressure(current: degradation, limit: 4))
             }
@@ -6919,7 +7208,7 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if !rules.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Label("Rules of this book", systemImage: "text.book.closed")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(BookPalette.teal)
@@ -6989,7 +7278,7 @@ struct CapturePageSheet: View {
         let canDeepen = !supervised && depth < BookJumpEngine.maxDepth
         let canReturn = supervised || depth >= 2
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             if supervised {
                 Text("The Spine is here. You can come home now.")
                     .font(.caption.weight(.semibold))
@@ -7058,6 +7347,7 @@ struct CapturePageSheet: View {
                 }
         }
         .buttonStyle(.bookPress())
+        .folioControlUnbroken()
         .foregroundStyle(tint)
     }
 
@@ -7078,7 +7368,7 @@ struct CapturePageSheet: View {
                 Image(systemName: symbol)
                     .font(.caption.weight(.bold))
                     .frame(width: 22)
-                VStack(alignment: .leading, spacing: 2) {
+                FolioControlStack(alignment: .leading, spacing: 2) {
                     Text(role.title)
                         .font(.caption.weight(.bold))
                     Text(subtitle)
@@ -7098,6 +7388,7 @@ struct CapturePageSheet: View {
             }
         }
         .buttonStyle(.bookPress())
+        .folioControlUnbroken()
         .foregroundStyle(tint)
         .disabled(readerBeliefScore < beliefCost)
         .opacity(readerBeliefScore < beliefCost ? 0.55 : 1)
@@ -7119,14 +7410,14 @@ struct CapturePageSheet: View {
         let grievance = metadata["wordNegotiationGrievance"]?.nonEmpty ?? "It refuses to go quietly."
         let isMissing = metadata["wordNegotiationIsMissingSeed"] == "true"
 
-        return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 10) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
+            FolioControlStack(alignment: .leading, spacing: 10) {
                 wordNegotiationFact(title: "ITS OLD JOB", text: originalSense)
                 wordNegotiationFact(title: isMissing ? "THE COLD PLACE" : "ITS COMPLAINT", text: grievance)
             }
 
             if isMissing || wordNegotiationChoices.isEmpty {
-                VStack(alignment: .leading, spacing: 7) {
+                FolioControlStack(alignment: .leading, spacing: 7) {
                     Label("No ruling. The word is gone.", systemImage: "questionmark.square.dashed")
                         .font(.callout.weight(.black))
                     Text("Keep this Page and I’ll mark the exact hole it left. Don't fill it in. The hole has business later.")
@@ -7146,14 +7437,14 @@ struct CapturePageSheet: View {
                     .font(.system(.title3, design: .serif, weight: .bold))
                     .foregroundStyle(BookPalette.ink)
 
-                VStack(spacing: 10) {
+                FolioControlStack(spacing: 10) {
                     ForEach(wordNegotiationChoices) { choice in
                         wordNegotiationChoiceButton(choice)
                     }
                 }
 
                 if let choice = selectedWordNegotiationChoice {
-                    VStack(alignment: .leading, spacing: 6) {
+                    FolioControlStack(alignment: .leading, spacing: 6) {
                         Label("YOUR RULING", systemImage: "seal.fill")
                             .font(.caption.weight(.black))
                             .tracking(0.7)
@@ -7190,7 +7481,7 @@ struct CapturePageSheet: View {
     }
 
     private func wordNegotiationFact(title: String, text: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption2.weight(.black))
                 .tracking(0.8)
@@ -7208,7 +7499,7 @@ struct CapturePageSheet: View {
             selectedWordRuling = choice.ruling
             BookFeedback.play(.select)
         } label: {
-            VStack(alignment: .leading, spacing: 7) {
+            FolioControlStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 8) {
                     Label(choice.title, systemImage: wordNegotiationSymbol(for: choice.ruling))
                         .font(.callout.weight(.black))
@@ -7237,6 +7528,7 @@ struct CapturePageSheet: View {
             }
         }
         .buttonStyle(.plain)
+        .folioControlUnbroken()
         .accessibilityLabel("\(choice.title). \(choice.detail)")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
@@ -7256,7 +7548,7 @@ struct CapturePageSheet: View {
         let aName = metadata["entityAName"] ?? "One reader"
         let bID = metadata["entityBID"] ?? "b"
         let bName = metadata["entityBName"] ?? "Another reader"
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink.opacity(0.92))
@@ -7275,7 +7567,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 10) {
+            FolioControlStack(spacing: 10) {
                 twoReadingsSideButton(name: aName, id: aID)
                 twoReadingsSideButton(name: bName, id: bID)
             }
@@ -7310,6 +7602,7 @@ struct CapturePageSheet: View {
                 }
         }
         .buttonStyle(.bookPress())
+        .folioControlUnbroken()
         .foregroundStyle(selected ? BookPalette.ink : BookPalette.ink.opacity(0.86))
     }
 
@@ -7338,7 +7631,7 @@ struct CapturePageSheet: View {
         let terms = metadata["terms"] ?? surface.detail
         let consequenceLine = metadata["consequenceLine"]
             ?? "When the window passes, the gift goes cold and the old terms close a market door until repaired."
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(openPageSecondaryText)
@@ -7396,6 +7689,7 @@ struct CapturePageSheet: View {
                     .background(LeafInk.gold.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .foregroundStyle(LeafInk.gold)
                 .disabled(isFaeAccepting)
             } else {
@@ -7422,12 +7716,13 @@ struct CapturePageSheet: View {
                         .font(.caption.weight(.semibold))
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .foregroundStyle(BookPalette.teal)
             }
 
             if !isOffer {
                 if faeResponseText.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
+                    FolioControlStack(alignment: .leading, spacing: 8) {
                     Text(hasMovedOn ? "Answer anyway, if you want" : "Your field report")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(openPageSecondaryText)
@@ -7464,6 +7759,7 @@ struct CapturePageSheet: View {
                             }
                     }
                     .buttonStyle(.bookPress())
+                    .folioControlUnbroken()
                     .foregroundStyle(LeafInk.gold)
                     .disabled(isFaePaying || faeReport.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
 
@@ -7472,7 +7768,7 @@ struct CapturePageSheet: View {
                     }
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 10) {
+                    FolioControlStack(alignment: .leading, spacing: 10) {
                     Label(faeName, systemImage: "sparkles")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(LeafInk.gold.opacity(0.9))
@@ -7507,6 +7803,53 @@ struct CapturePageSheet: View {
         }
     }
 
+    /// The Kitchen's Page: three chips for what happened, or, on a rescue,
+    /// what it's called and whose it is. The recipe itself is the Page body.
+    private var recipeView: some View {
+        FolioControlStack(alignment: .leading, spacing: 10) {
+            if KitchenOffering.isRescue(surface) {
+                TextField("What's it called?", text: $kitchenRescueTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
+                TextField("Whose is it?", text: $kitchenRescueWhose)
+                    .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
+                    .textInputAutocapitalization(.words)
+            } else {
+                Text("DID YOU MAKE IT?")
+                    .font(.caption2.weight(.black))
+                    .tracking(0.8)
+                    .foregroundStyle(LeafInk.gold)
+                HStack(spacing: 8) {
+                    ForEach(KitchenOutcome.allCases, id: \.self) { outcome in
+                        let isSelected = kitchenOutcome == outcome
+                        Button {
+                            BookFeedback.play(.select)
+                            kitchenOutcome = isSelected ? nil : outcome
+                        } label: {
+                            Text(outcome.chip)
+                                .font(.subheadline.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(
+                                    isSelected ? BookPalette.teal.opacity(0.18) : BookPalette.paper,
+                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                )
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(isSelected ? BookPalette.teal : BookPalette.ink.opacity(0.12), lineWidth: 1)
+                                }
+                        }
+                        .buttonStyle(.bookPress())
+                        .folioControlUnbroken()
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var greyPageThreatView: some View {
         let metadata = surface.payload.metadata
         let status = GreyPageThreatStatus(
@@ -7516,7 +7859,7 @@ struct CapturePageSheet: View {
         let deadline = metadata["deadline"].flatMap {
             ISO8601DateFormatter().date(from: $0)
         }
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             if status == .fading {
                 hourPageCallout(
                     title: "What is actually at stake",
@@ -7536,7 +7879,7 @@ struct CapturePageSheet: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
+                FolioControlStack(alignment: .leading, spacing: 10) {
                     Button {
                         greyThreatChoice = "rescue"
                     } label: {
@@ -7544,6 +7887,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bookPress())
+                    .folioControlUnbroken()
                     .foregroundStyle(greyThreatChoice == "rescue" ? LeafInk.gold : BookPalette.teal)
 
                     if greyThreatChoice == "rescue" {
@@ -7573,6 +7917,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bookPress())
+                    .folioControlUnbroken()
                     .foregroundStyle(greyThreatChoice == "surrender" ? LeafInk.gold : BookPalette.teal)
                 }
             } else if status == .erased {
@@ -7587,7 +7932,7 @@ struct CapturePageSheet: View {
     }
 
     private var inkrestOfficeHoursView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             hourPageCallout(
                 title: "Tonight, Inkrest is curious about",
                 symbol: "lamp.desk",
@@ -7626,7 +7971,7 @@ struct CapturePageSheet: View {
     }
 
     private var inkrestIntakeForm: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             inkrestFormField(
                 title: "Your answer to tonight's question",
                 placeholder: "However it actually was: small is fine.",
@@ -7660,13 +8005,14 @@ struct CapturePageSheet: View {
                     }
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(LeafInk.gold)
             .disabled(isInkrestSitting || !inkrestIntake.hasSomethingToOpenWith || isLocalBrainWorking)
         }
     }
 
     private var inkrestChatComposer: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text("Say more to Dr. Inkrest")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
@@ -7698,6 +8044,7 @@ struct CapturePageSheet: View {
                     }
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(BookPalette.teal)
             .disabled(isInkrestSitting || inkrestChatInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
 
@@ -7708,13 +8055,14 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
             .foregroundStyle(openPageSecondaryText)
             .disabled(isInkrestSitting || isLocalBrainWorking)
         }
     }
 
     private func inkrestFormField(title: String, placeholder: String, text: Binding<String>, minHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
@@ -7745,7 +8093,7 @@ struct CapturePageSheet: View {
     }
 
     private func inkrestTurnCard(_ turn: AskTheBookTurn, index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text(index == 0 ? "YOU BROUGHT" : "YOU SAID")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -7773,7 +8121,7 @@ struct CapturePageSheet: View {
     }
 
     private var enchantmentPageView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             if isCastEnchantmentLandingPage {
                 enchantmentSpellGrid
             }
@@ -7800,7 +8148,7 @@ struct CapturePageSheet: View {
                     enchantmentMessage = "Choose a photo for \(spell.title)."
                     BookFeedback.play(.openPage)
                 } label: {
-                    VStack(alignment: .leading, spacing: 8) {
+                    FolioControlStack(alignment: .leading, spacing: 8) {
                         Label(spell.title, systemImage: spell.symbolName)
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.ink)
@@ -7819,12 +8167,13 @@ struct CapturePageSheet: View {
                     }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
             }
         }
     }
 
     private func enchantmentCastingCard(_ spell: EnchantmentSpell) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label(spell.title, systemImage: spell.symbolName)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -7846,6 +8195,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(
                 isCastingEnchantment ||
@@ -7868,6 +8218,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
                 .disabled(
                     isCastingEnchantment ||
@@ -7906,7 +8257,7 @@ struct CapturePageSheet: View {
     }
 
     private func enchantmentResultCard(_ result: EnchantmentCastResult) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text(result.openingLine)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -7930,6 +8281,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(isSavingEnchantmentArtifact || enchantmentArtifactURL == nil)
 
@@ -7946,6 +8298,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
             }
         }
@@ -7960,7 +8313,7 @@ struct CapturePageSheet: View {
     }
 
     private var everythingSpeaksConversationView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if !enchantmentTurns.isEmpty {
                 ForEach(Array(enchantmentTurns.enumerated()), id: \.element.id) { index, turn in
                     askTurnCard(turn, index: index)
@@ -7990,6 +8343,7 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(isAnsweringEnchantedObject || enchantmentPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLocalBrainWorking)
 
@@ -8000,7 +8354,7 @@ struct CapturePageSheet: View {
     }
 
     private func storyMechanicActionCard(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label(choice.mechanic.title, systemImage: choice.mechanic.symbolName)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(choice.tint)
@@ -8019,6 +8373,7 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(choice.tint)
             .disabled(activeInkbonesThrow != nil)
         }
@@ -8189,8 +8544,8 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var preparedPageContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let letterPortraitAssetName {
+        FolioControlStack(alignment: .leading, spacing: 10) {
+            if showsLeafReading, !isOpenedNotePage, let letterPortraitAssetName {
                 HStack {
                     Spacer(minLength: 0)
                     Image(letterPortraitAssetName)
@@ -8326,7 +8681,7 @@ struct CapturePageSheet: View {
                 quillChoosingOpeningView
             } else if surface.payload.metadata["weeklyIssue"] == "true" {
                 weeklyIssueOpeningView
-            } else {
+            } else if !isOpenedNotePage {
                 HStack(spacing: 8) {
                     if let weatherSymbolName {
                         Image(systemName: weatherSymbolName)
@@ -8349,7 +8704,7 @@ struct CapturePageSheet: View {
                 )
             }
 
-            if !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
+            if !isEndLeaf && showsLeafReading && !surface.isStoryPlayablePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
                 if isWelcomeIntroductionPage {
                     welcomeIntroductionBody
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
@@ -8377,6 +8732,18 @@ struct CapturePageSheet: View {
                 localBrainInstallControl
             }
 
+            if surface.offersCompassRunStart {
+                Button(action: onStartCompassRun) {
+                    Label("Start a Compass Run", systemImage: "safari")
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                }
+                .buttonStyle(.bookPress())
+                .folioControlUnbroken()
+                .foregroundStyle(BookPalette.teal)
+                .accessibilityHint("Opens the questions that fit the run to your day")
+            }
+
             if surface.type == .rest {
                 centerRestPractice
             }
@@ -8387,6 +8754,7 @@ struct CapturePageSheet: View {
 
             if isOpenedNotePage {
                 noteReplySection
+                noteShareControls
             }
 
             if let practiceText {
@@ -8408,8 +8776,8 @@ struct CapturePageSheet: View {
             || record.lastPage != nil
             || !record.relationships.isEmpty
 
-        VStack(alignment: .leading, spacing: 13) {
-            VStack(alignment: .leading, spacing: 4) {
+        FolioControlStack(alignment: .leading, spacing: 13) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Label("Alive in the margins", systemImage: "sparkles.rectangle.stack")
                     .font(.subheadline.weight(.black))
                     .foregroundStyle(BookPalette.teal)
@@ -8519,7 +8887,7 @@ struct CapturePageSheet: View {
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
                 .frame(width: 20, height: 20)
-            VStack(alignment: .leading, spacing: 3) {
+            FolioControlStack(alignment: .leading, spacing: 3) {
                 Text(eyebrow.uppercased())
                     .font(.caption2.weight(.black))
                     .tracking(0.55)
@@ -8562,7 +8930,7 @@ struct CapturePageSheet: View {
         let metadata = surface.payload.metadata
         let name = metadata["quillName"]?.nonEmpty ?? "The waiting quill"
         let make = metadata["quillMake"]?.nonEmpty ?? "A living instrument from the school overhead"
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             if let asset = metadata["locationAsset"]?.nonEmpty {
                 Image(asset)
                     .resizable()
@@ -8579,7 +8947,7 @@ struct CapturePageSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .overlay(alignment: .bottomLeading) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        FolioControlStack(alignment: .leading, spacing: 2) {
                             Text("THE QUILLQUARIUM")
                                 .font(.caption2.weight(.black))
                                 .tracking(1.2)
@@ -8640,7 +9008,7 @@ struct CapturePageSheet: View {
         }
         let readerContributions = metadata["rememberedReaderContributions"]?.nonEmpty
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: "I pulled this old Page out.",
                 subtitle: provenance ?? "You kept it. I kept it too.",
@@ -8690,7 +9058,7 @@ struct CapturePageSheet: View {
         let reason = metadata["favoriteReason"]?.nonEmpty ?? surface.reason
         let favoritePage = metadata["favoritePageID"].flatMap { keptPage(id: $0) }
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: "I chose a favorite.",
                 subtitle: "This one. The Index objected. Too late.",
@@ -8722,7 +9090,7 @@ struct CapturePageSheet: View {
     }
 
     private var frontMatterOpeningView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: "This is what I know about you.",
                 subtitle: "I learned it from Pages you kept and choices you made. I didn't guess.",
@@ -8774,7 +9142,7 @@ struct CapturePageSheet: View {
         let elsewhere = flyleafLedger.doors.count
         let countLine = "Chosen quests and favors: \(chosen) of \(UnwrittenElective.maxActive).\nOther unfinished things: \(elsewhere)."
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: isEmpty ? "Nothing is unfinished." : "Your unfinished things live here.",
                 subtitle: isEmpty
@@ -8833,7 +9201,7 @@ struct CapturePageSheet: View {
             strength = "I've only seen it once. The line is pencil, not ink."
         }
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: "I tied these two together.",
                 subtitle: "\(connectionTitle). Not the same word twice.",
@@ -8891,8 +9259,8 @@ struct CapturePageSheet: View {
         let countWord = keptCount == "1" ? "page" : "pages"
         let publicSeal = m["publicSeal"] ?? "Made with ReEnchanted \u{00B7} reenchanted.app"
 
-        return VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Text("THE BOOK OF YOU")
                         .font(.caption2.weight(.bold))
@@ -8926,7 +9294,7 @@ struct CapturePageSheet: View {
             }
 
             if !highlights.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text("In this issue")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
@@ -8973,7 +9341,7 @@ struct CapturePageSheet: View {
     private func weeklyIssueBindButton(number: String) -> some View {
         let issueNumber = Int(number) ?? 1
         if isWeeklyIssueBound {
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 Button {
                     BookFeedback.play(.openPage)
                     onOpenBoundWeeklyIssue(issueNumber)
@@ -8982,7 +9350,7 @@ struct CapturePageSheet: View {
                         Image(systemName: "doc.richtext.fill")
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(BookPalette.teal)
-                        VStack(alignment: .leading, spacing: 3) {
+                        FolioControlStack(alignment: .leading, spacing: 3) {
                             Text("Open Issue No. \(number) PDF")
                                 .font(.caption.weight(.bold))
                                 .textCase(.uppercase)
@@ -9005,6 +9373,7 @@ struct CapturePageSheet: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
 
                 HStack(spacing: 8) {
                     if let boundWeeklyIssuePDFURL {
@@ -9014,6 +9383,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .tint(BookPalette.teal)
                     }
                     Button {
@@ -9025,6 +9395,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(LeafInk.gold)
                 }
 
@@ -9044,7 +9415,7 @@ struct CapturePageSheet: View {
                     Image(systemName: "book.closed.fill")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(LeafInk.gold)
-                    VStack(alignment: .leading, spacing: 3) {
+                    FolioControlStack(alignment: .leading, spacing: 3) {
                         Text("Bind Issue No. \(number)")
                             .font(.caption.weight(.bold))
                             .textCase(.uppercase)
@@ -9069,11 +9440,12 @@ struct CapturePageSheet: View {
                 }
             }
             .buttonStyle(.plain)
+            .folioControlUnbroken()
         }
     }
 
     private var firstReadingOpeningView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .font(.caption2.weight(.bold))
@@ -9119,7 +9491,7 @@ struct CapturePageSheet: View {
         let patternCards = bookNoticesPatternCards(metadata)
         let adaptiveActions = bookNoticeAdaptiveActions(metadata)
 
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: title,
                 subtitle: subtitle,
@@ -9135,7 +9507,7 @@ struct CapturePageSheet: View {
             }
 
             if !slips.isEmpty, showsEvidence {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text("Pages I used")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
@@ -9147,7 +9519,7 @@ struct CapturePageSheet: View {
             }
 
             if !patternCards.isEmpty, showsEvidence {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text("What I found")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
@@ -9191,7 +9563,7 @@ struct CapturePageSheet: View {
     }
 
     private var bookWorkingInvitationView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: surface.payload.headline,
                 subtitle: "The world keeps happening outside my covers. I object.",
@@ -9228,6 +9600,7 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
 
             Button("Not yet") {
@@ -9236,6 +9609,7 @@ struct CapturePageSheet: View {
             }
             .font(.subheadline.weight(.semibold))
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.violet)
             .frame(maxWidth: .infinity)
         }
@@ -9254,7 +9628,7 @@ struct CapturePageSheet: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(LeafInk.gold)
                     .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 3) {
+                FolioControlStack(alignment: .leading, spacing: 3) {
                     Text("Open the old page")
                         .font(.caption.weight(.bold))
                         .textCase(.uppercase)
@@ -9279,6 +9653,7 @@ struct CapturePageSheet: View {
             }
         }
         .buttonStyle(.plain)
+        .folioControlUnbroken()
     }
 
     private struct PocketItem: Identifiable {
@@ -9346,7 +9721,7 @@ struct CapturePageSheet: View {
     private var bookPocketOpeningView: some View {
         let items = pocketItems
         let total = Int(surface.payload.metadata["pocketTotal"] ?? "") ?? items.count
-        return VStack(alignment: .leading, spacing: 14) {
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
                 title: BookPocketPageSourceAdapter.openingTitle,
                 subtitle: nil,
@@ -9360,7 +9735,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.8))
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 10) {
+            FolioControlStack(spacing: 10) {
                 ForEach(items) { item in
                     HStack(alignment: .top, spacing: 12) {
                         if let mediaAsset = item.mediaAssets.first {
@@ -9373,7 +9748,7 @@ struct CapturePageSheet: View {
                                 .background(Circle().fill(LeafInk.gold.opacity(0.12)))
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        FolioControlStack(alignment: .leading, spacing: 6) {
                             Text(item.title)
                                 .font(.system(.callout, design: .serif, weight: .semibold))
                                 .foregroundStyle(BookPalette.ink.opacity(0.85))
@@ -9439,7 +9814,7 @@ struct CapturePageSheet: View {
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(tint)
                 .frame(width: 28)
-            VStack(alignment: .leading, spacing: 4) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(BookPalette.ink)
@@ -9481,7 +9856,7 @@ struct CapturePageSheet: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(tint)
                 .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 3) {
+            FolioControlStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.caption.weight(.bold))
                     .textCase(.uppercase)
@@ -9502,7 +9877,7 @@ struct CapturePageSheet: View {
     }
 
     private func ritualCard(_ text: String, title: String = "Tiny ritual") -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        FolioControlStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 8) {
                 Image(systemName: "hand.sparkles")
                     .font(.subheadline.weight(.bold))
@@ -9544,6 +9919,7 @@ struct CapturePageSheet: View {
                 evidenceSlipBody(evidence.text, linked: true)
             }
             .buttonStyle(.plain)
+            .folioControlUnbroken()
         } else {
             evidenceSlipBody(evidence.text, linked: false)
         }
@@ -9667,13 +10043,13 @@ struct CapturePageSheet: View {
     }
 
     private func bookNoticeAdaptiveActionsView(_ actions: [BookNoticeAdaptiveAction]) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        FolioControlStack(alignment: .leading, spacing: 9) {
             Text("Do something with it")
                 .font(.caption.weight(.bold))
                 .textCase(.uppercase)
                 .foregroundStyle(LeafInk.gold)
 
-            VStack(spacing: 8) {
+            FolioControlStack(spacing: 8) {
                 ForEach(actions) { action in
                     Button {
                         let message = onBookNoticeAdaptiveAction(surface, action)
@@ -9700,6 +10076,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(action == .letPatternRest ? BookPalette.ink.opacity(0.58) : LeafInk.gold)
                 }
             }
@@ -9714,7 +10091,7 @@ struct CapturePageSheet: View {
     }
 
     private func bookNoticeFeedbackCard(_ metadata: [String: String]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label("Did I get it?", systemImage: "pencil.and.outline")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -9725,7 +10102,7 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if !didCorrectBookNotice {
-                VStack(spacing: 8) {
+                FolioControlStack(spacing: 8) {
                     bookNoticeFeedbackButton(.trueReading, tint: BookPalette.teal)
                     bookNoticeFeedbackButton(.notQuite, tint: LeafInk.gold)
                     bookNoticeFeedbackButton(.doNotReadThisWay, tint: BookPalette.ink.opacity(0.62))
@@ -9739,6 +10116,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.74))
                 TextField("Your words, not one of my buttons", text: $bookOpinionArgument, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
                     .lineLimit(2...5)
                 Button {
                     let line = bookOpinionArgument.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -9752,6 +10130,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
                 .disabled(bookOpinionArgument.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -9779,6 +10158,7 @@ struct CapturePageSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.bordered)
+        .folioControlUnbroken()
         .tint(tint)
     }
 
@@ -9817,6 +10197,7 @@ struct CapturePageSheet: View {
             .background(BookPalette.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
         .buttonStyle(.plain)
+        .folioControlUnbroken()
         .accessibilityHint("Opens the Pages this reading rests on.")
     }
 
@@ -9959,8 +10340,8 @@ struct CapturePageSheet: View {
     /// one Gear Shifter toward awake or deeper rest. Neither is a task, and the
     /// labels make no claim about a measured brainwave state.
     private var centerRestPractice: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 16) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 Label("The Do-Nothing Minute", systemImage: "circle.dotted")
                     .font(.caption.weight(.black))
                     .textCase(.uppercase)
@@ -9984,12 +10365,12 @@ struct CapturePageSheet: View {
 
     private var centerGearShifterCard: some View {
         let shifter = centerGearShifter
-        return VStack(alignment: .leading, spacing: 8) {
+        return FolioControlStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: shifter.symbol)
                     .font(.subheadline.weight(.bold))
                     .foregroundStyle(BookPalette.gold)
-                VStack(alignment: .leading, spacing: 1) {
+                FolioControlStack(alignment: .leading, spacing: 1) {
                     Text(shifter.title)
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(BookPalette.ink)
@@ -10016,6 +10397,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.bold))
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.gold)
             .padding(.top, 2)
         }
@@ -10039,7 +10421,7 @@ struct CapturePageSheet: View {
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
                 .padding(.top, 2)
-            VStack(alignment: .leading, spacing: 3) {
+            FolioControlStack(alignment: .leading, spacing: 3) {
                 Text("A small dare")
                     .font(.caption.weight(.bold))
                     .textCase(.uppercase)
@@ -10093,7 +10475,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func taleAskCard(_ ask: BraidTaleAsk.Ask) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label("Something I keep noticing", systemImage: "questionmark.circle")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(LeafInk.gold)
@@ -10115,6 +10497,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(LeafInk.gold)
 
                     Button {
@@ -10125,6 +10508,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                 }
             }
@@ -10194,7 +10578,7 @@ struct CapturePageSheet: View {
     }
 
     private var braidFeedbackCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label("Teach the Book", systemImage: "sparkles")
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -10224,6 +10608,7 @@ struct CapturePageSheet: View {
                     // reject it. The Book may ask how it did; it should not
                     // lead with the assumption that it failed.
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .tint(LeafInk.gold)
 
                     Button {
@@ -10248,6 +10633,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                 }
                 .disabled(!braidFeedbackMessage.isEmpty)
@@ -10289,6 +10675,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(isImprovingBraid || isLocalBrainWorking)
         }
@@ -10307,7 +10694,7 @@ struct CapturePageSheet: View {
     }
 
     private var inventoryPageView: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        FolioControlStack(alignment: .leading, spacing: 16) {
             Text(surface.payload.body)
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink)
@@ -10338,7 +10725,7 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
             } else {
                 ForEach(inventoryOwnedListings) { listing in
-                    VStack(alignment: .leading, spacing: 6) {
+                    FolioControlStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Label(listing.title, systemImage: "checkmark.seal.fill")
                                 .font(.subheadline.weight(.bold))
@@ -10367,7 +10754,7 @@ struct CapturePageSheet: View {
             } else {
                 ForEach(inventoryStoryObjects.sorted { $0.updatedAt > $1.updatedAt }) { object in
                     let glow = max(0, min(100, object.baseBelief + (inventoryObjectBeliefOffsets[object.id] ?? 0)))
-                    VStack(alignment: .leading, spacing: 7) {
+                    FolioControlStack(alignment: .leading, spacing: 7) {
                         HStack {
                             Label(object.name, systemImage: "key.horizontal.fill")
                                 .font(.subheadline.weight(.bold))
@@ -10403,7 +10790,7 @@ struct CapturePageSheet: View {
     }
 
     private func inventoryGiftCard(_ gift: FaeGift) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        FolioControlStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .top) {
                 Label(gift.name, systemImage: gift.faeKind.symbolName)
                     .font(.subheadline.weight(.bold))
@@ -10489,6 +10876,7 @@ struct CapturePageSheet: View {
                         Label("Choose a Page to call back", systemImage: "books.vertical")
                     }
                     .buttonStyle(.bordered).tint(BookPalette.teal)
+                    .folioControlUnbroken()
                 }
             case .longMemory:
                 if let target = gift.boundSourceID,
@@ -10507,6 +10895,7 @@ struct CapturePageSheet: View {
                         Label("Choose a Page to remember", systemImage: "bookmark")
                     }
                     .buttonStyle(.bordered).tint(BookPalette.teal)
+                    .folioControlUnbroken()
                 }
         }
     }
@@ -10514,6 +10903,7 @@ struct CapturePageSheet: View {
     private func inventoryActionButton(_ title: String, symbol: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Label(title, systemImage: symbol) }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
     }
 
@@ -10585,7 +10975,7 @@ struct CapturePageSheet: View {
     }
 
     private var pendingLetterPageView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Label("Letter waiting", systemImage: "envelope.open")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -10611,6 +11001,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(readerBeliefScore < BeliefGenerationKind.letter.cost)
 
@@ -10630,7 +11021,7 @@ struct CapturePageSheet: View {
     }
 
     private var pendingNotePageView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Label("Folded note", systemImage: "note.text")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -10662,6 +11053,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(readerBeliefScore < BeliefGenerationKind.note.cost)
 
@@ -10681,12 +11073,12 @@ struct CapturePageSheet: View {
     }
 
     private var studentNoteView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center, spacing: 12) {
                 CharacterPortraitView(name: letterSenderName.capitalized, size: 56, customAsset: noteSenderCustomAsset)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(letterSenderName.capitalized)
-                        .font(.headline.weight(.semibold))
+                FolioControlStack(alignment: .leading, spacing: 3) {
+                    Text("Note from \(letterSenderName.capitalized)")
+                        .font(.system(.title3, design: .serif, weight: .semibold))
                         .foregroundStyle(BookPalette.ink)
                     Text(surface.payload.metadata["deliveryContext"]?.nonEmpty ?? "Folded in passing")
                         .font(.caption.weight(.bold))
@@ -10696,62 +11088,62 @@ struct CapturePageSheet: View {
                 Spacer(minLength: 0)
             }
 
-            Text(noteProseText ?? "")
-                .font(.system(.title3, design: .serif))
-                .foregroundStyle(BookPalette.ink)
-                .lineSpacing(6)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            BookPalette.paper.opacity(0.96),
-                            BookPalette.page.opacity(0.88),
-                            LeafInk.gold.opacity(0.10)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                )
-                .overlay(alignment: .topTrailing) {
-                    Image(systemName: "paperclip")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.ink.opacity(0.38))
-                        .rotationEffect(.degrees(10))
-                        .padding(10)
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
-                }
-
-            HStack(spacing: 10) {
-                Button {
-                    pressNoteShareCard()
-                } label: {
-                    Label(isPressingNoteShareCard ? "Pressing..." : "Press share card", systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isPressingNoteShareCard)
-
-                if let noteShareURL {
-                    ShareLink(item: noteShareURL) {
-                        Label("Share", systemImage: "square.and.arrow.up.fill")
-                            .frame(maxWidth: .infinity)
+            if let noteText = noteProseText {
+                Text(noteText)
+                    .font(.system(.title3, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .lineSpacing(6)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                BookPalette.paper.opacity(0.96),
+                                BookPalette.page.opacity(0.88),
+                                LeafInk.gold.opacity(0.10)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    )
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "paperclip")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink.opacity(0.38))
+                            .rotationEffect(.degrees(10))
+                            .padding(10)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BookPalette.teal)
-                }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                    }
             }
         }
-        .padding(14)
-        .background(BookPalette.paper.opacity(0.68), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(BookPalette.ink.opacity(0.12), lineWidth: 1)
+    }
+
+    private var noteShareControls: some View {
+        HStack(spacing: 10) {
+            Button {
+                pressNoteShareCard()
+            } label: {
+                Label(isPressingNoteShareCard ? "Making..." : "Make share card", systemImage: "square.and.arrow.up")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .folioControlUnbroken()
+            .disabled(isPressingNoteShareCard)
+
+            if let noteShareURL {
+                ShareLink(item: noteShareURL) {
+                    Label("Share card", systemImage: "square.and.arrow.up.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
+                .tint(BookPalette.teal)
+            }
         }
     }
 
@@ -10783,7 +11175,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var letterReplySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Divider().overlay(BookPalette.ink.opacity(0.12))
 
             if didSealReply {
@@ -10794,7 +11186,7 @@ struct CapturePageSheet: View {
                         .frame(width: 42, height: 42)
                         .scaleEffect(sealStamp ? 1 : 1.4)
                         .opacity(sealStamp ? 1 : 0)
-                    VStack(alignment: .leading, spacing: 2) {
+                    FolioControlStack(alignment: .leading, spacing: 2) {
                         Text("Sealed & sent")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.teal)
@@ -10827,6 +11219,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
                 .disabled(letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -10835,7 +11228,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var noteReplySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             Divider().overlay(BookPalette.ink.opacity(0.12))
 
             if didSealReply {
@@ -10846,7 +11239,7 @@ struct CapturePageSheet: View {
                         .frame(width: 42, height: 42)
                         .scaleEffect(sealStamp ? 1 : 1.35)
                         .opacity(sealStamp ? 1 : 0)
-                    VStack(alignment: .leading, spacing: 2) {
+                    FolioControlStack(alignment: .leading, spacing: 2) {
                         Text("Slipped back")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.teal)
@@ -10865,7 +11258,7 @@ struct CapturePageSheet: View {
                     builderPack: SentenceBuilderPackRegistry.composedCore(readerLexicon: readerLexicon, shadowWonderActive: isShadowWonderActive),
                     builderContext: makeSentenceBuilderContext(
                         intent: .letterReply,
-                        sourceText: surface.payload.metadata["noteProse"] ?? surface.payload.body,
+                        sourceText: noteProseText ?? surface.payload.body,
                         recipientName: letterSenderName
                     )
                 )
@@ -10879,6 +11272,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 4)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
                 .disabled(letterReply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -10976,7 +11370,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
 
     private var compassPracticeView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             if isStandalonePlayfulMissionPage {
                 standalonePlayfulMissionCard
             } else {
@@ -11000,7 +11394,7 @@ struct CapturePageSheet: View {
     }
 
     private var standalonePlayfulMissionCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .font(.subheadline.weight(.bold))
@@ -11041,7 +11435,7 @@ struct CapturePageSheet: View {
                 .fill(BookPalette.ink.opacity(0.12))
                 .frame(height: 1)
 
-            VStack(alignment: .leading, spacing: 6) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 Text(standalonePlayfulMissionProofLabel)
                     .font(.caption.weight(.black))
                     .tracking(0.9)
@@ -11079,7 +11473,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var pennySentenceMasteryView: some View {
         if let lesson = activePennySentenceLesson {
-            VStack(alignment: .leading, spacing: 14) {
+            FolioControlStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 12) {
                     Image("LabyrinthCharacterPennyBlackletter")
                         .resizable()
@@ -11091,7 +11485,7 @@ struct CapturePageSheet: View {
                         }
                         .accessibilityHidden(true)
 
-                    VStack(alignment: .leading, spacing: 3) {
+                    FolioControlStack(alignment: .leading, spacing: 3) {
                         Text("Penny Blackletter")
                             .font(.headline.weight(.semibold))
                             .foregroundStyle(BookPalette.ink)
@@ -11159,7 +11553,7 @@ struct CapturePageSheet: View {
             status = "Penny needs one more physical hook."
         }
 
-        return VStack(alignment: .leading, spacing: 10) {
+        return FolioControlStack(alignment: .leading, spacing: 10) {
             Label("Mastery check", systemImage: analysis.isVivid ? "checkmark.seal.fill" : "doc.text.magnifyingglass")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(analysis.isVivid ? BookPalette.teal : LeafInk.gold)
@@ -11193,8 +11587,8 @@ struct CapturePageSheet: View {
     }
 
     private var compassRunConstraintForm: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 7) {
+        FolioControlStack(alignment: .leading, spacing: 16) {
+            FolioControlStack(alignment: .leading, spacing: 7) {
                 Label(
                     compassConstraintStep.title.uppercased(),
                     systemImage: compassConstraintStep.symbol
@@ -11247,6 +11641,7 @@ struct CapturePageSheet: View {
                             .padding(.vertical, 11)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.ink.opacity(0.72))
                 }
 
@@ -11263,6 +11658,7 @@ struct CapturePageSheet: View {
                             .padding(.vertical, 11)
                     }
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                     .disabled(!canAdvanceCompassConstraintStep)
                 } else {
@@ -11276,6 +11672,7 @@ struct CapturePageSheet: View {
                             .padding(.vertical, 11)
                     }
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                     .disabled(!canSubmitCompassRun)
                 }
@@ -11316,7 +11713,7 @@ struct CapturePageSheet: View {
     }
 
     private var compassRunReadyView: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             Label("YOUR ROUTE IS DRAWN", systemImage: "safari.fill")
                 .font(.caption.weight(.black))
                 .tracking(0.9)
@@ -11329,7 +11726,7 @@ struct CapturePageSheet: View {
 
             compassRail("North · Notice", surface.payload.metadata["spark"])
 
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 compassRail("East · Destination", surface.payload.metadata["destination"])
                 compassRail("East · Delight", surface.payload.metadata["delight"])
                 compassRail("East · Definition", surface.payload.metadata["definition"])
@@ -11349,12 +11746,13 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
         }
     }
 
     private var manualCompassRunForm: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             compassManualTextField(
                 "North goal",
                 text: $manualCompassSpark,
@@ -11401,13 +11799,14 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
             .tint(LeafInk.gold)
             .disabled(!canSubmitManualCompassRun)
         }
     }
 
     private var compassStepSummary: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             let step = surface.payload.metadata["compassStep"]
             if step == "notice" {
                 compassRail("Spark", surface.payload.metadata["spark"])
@@ -11443,6 +11842,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(!canKeep)
             }
@@ -11450,7 +11850,7 @@ struct CapturePageSheet: View {
     }
 
     private var playfulMissionGeneratorControl: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Button {
                 BookFeedback.play(.braidStart)
                 isGeneratingPlayfulMission = true
@@ -11463,6 +11863,7 @@ struct CapturePageSheet: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .tint(BookPalette.teal)
             .disabled(isGeneratingPlayfulMission || isLocalBrainWorking)
 
@@ -11484,7 +11885,7 @@ struct CapturePageSheet: View {
     }
 
     private var compassPlaceMenu: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             compassMenuButton(
                 title: "Location",
                 selectionTitle: selectedCompassPlaceContext.title,
@@ -11515,6 +11916,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(isResolvingCompassPlace)
             }
@@ -11542,6 +11944,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 9)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(LeafInk.gold)
             }
         }
@@ -11569,9 +11972,9 @@ struct CapturePageSheet: View {
         title: String,
         selectionTitle: String,
         symbol: String,
-        @ViewBuilder items: () -> Items
+        @ViewBuilder items: @escaping () -> Items
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -11601,7 +12004,7 @@ struct CapturePageSheet: View {
     }
 
     private func compassManualTextField(_ title: String, text: Binding<String>, placeholder: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -11609,6 +12012,7 @@ struct CapturePageSheet: View {
                 .font(.callout.weight(.semibold))
                 .foregroundStyle(BookPalette.ink)
                 .textFieldStyle(.plain)
+                .folioControlUnbroken()
                 .lineLimit(2...5)
                 .inkFeedback(text: text.wrappedValue)
                 .dictationInput(text: text)
@@ -11622,7 +12026,7 @@ struct CapturePageSheet: View {
     }
 
     private var compassConsiderationPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text("CONSIDERATIONS")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -11654,6 +12058,7 @@ struct CapturePageSheet: View {
                             }
                     }
                     .buttonStyle(.plain)
+                    .folioControlUnbroken()
                     .foregroundStyle(BookPalette.ink)
                 }
             }
@@ -11784,7 +12189,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private func compassRail(_ title: String, _ value: String?) -> some View {
         if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Text(title.uppercased())
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(BookPalette.teal.opacity(0.82))
@@ -11820,6 +12225,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
             }
         }
     }
@@ -11848,7 +12254,7 @@ struct CapturePageSheet: View {
     }
 
     private var aboutYouExampleLineOptions: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text(aboutYouChoicePrompt)
                 .font(.caption2.weight(.black))
                 .tracking(0.8)
@@ -11863,7 +12269,7 @@ struct CapturePageSheet: View {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(isSelected ? LeafInk.gold : openPageSecondaryText.opacity(0.55))
-                        VStack(alignment: .leading, spacing: 4) {
+                        FolioControlStack(alignment: .leading, spacing: 4) {
                             Text(line)
                                 .font(.system(.callout, design: .serif).weight(.semibold))
                                 .foregroundStyle(openPageSecondaryText)
@@ -11890,6 +12296,7 @@ struct CapturePageSheet: View {
                     }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
                 .accessibilityLabel("Choose: \(line)")
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
@@ -11928,6 +12335,7 @@ struct CapturePageSheet: View {
                         }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
             }
         }
     }
@@ -11955,7 +12363,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var festivalMechanicCard: some View {
         if let mechanic = festivalMechanic {
-            VStack(alignment: .leading, spacing: 12) {
+            FolioControlStack(alignment: .leading, spacing: 12) {
                 Label(
                     surface.payload.metadata["festivalMechanicTitle"] ?? mechanic.title,
                     systemImage: surface.payload.metadata["festivalMechanicSymbol"] ?? mechanic.symbolName
@@ -11996,7 +12404,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var festivalBonesThrow: some View {
         if festivalBonesRevealed, let line = festivalBonesLine {
-            VStack(alignment: .leading, spacing: 6) {
+            FolioControlStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(surface.payload.metadata["festivalBonesRoll"] ?? "?")
                         .font(.title3.weight(.heavy).monospacedDigit())
@@ -12025,6 +12433,7 @@ struct CapturePageSheet: View {
                     .background(LeafInk.gold.opacity(0.20), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.bookPress())
+            .folioControlUnbroken()
         }
     }
 
@@ -12037,7 +12446,7 @@ struct CapturePageSheet: View {
     /// Deliberately plain and deliberately not a confirmation dialogue: a
     /// reader retiring Mother's Day should not have to argue about it.
     private var festivalRestRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             if let tradition = surface.payload.metadata["festivalTradition"]?.nonEmpty {
                 Text("A \(tradition) day. I keep the whole world's calendar; I've never assumed it's yours.")
                     .font(.caption)
@@ -12062,6 +12471,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(openPageSecondaryText)
             }
             .buttonStyle(.plain)
+            .folioControlUnbroken()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -12096,7 +12506,7 @@ struct CapturePageSheet: View {
             BookFeedback.play(.tap)
             isPublicMarginsContributionPresented = true
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Label("Leave something in the Public Margins", systemImage: "text.bubble.fill")
                     .font(.subheadline.weight(.bold))
                 Text("Offer one sentence or answer today's quiet question. Each gets its own confirmation.")
@@ -12112,11 +12522,12 @@ struct CapturePageSheet: View {
             }
         }
         .buttonStyle(.plain)
+        .folioControlUnbroken()
         .foregroundStyle(BookPalette.teal)
     }
 
     private var articleLinkList: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text("Letters on the public shelf")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
@@ -12128,7 +12539,7 @@ struct CapturePageSheet: View {
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(BookPalette.gold)
                             .frame(width: 22)
-                        VStack(alignment: .leading, spacing: 5) {
+                        FolioControlStack(alignment: .leading, spacing: 5) {
                             Text(article.title)
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(BookPalette.ink)
@@ -12168,7 +12579,7 @@ struct CapturePageSheet: View {
         title: String? = nil,
         placeholder: String? = nil
     ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             LivingTextEditor(
                 title: title ?? pageResponseTitle,
                 placeholder: placeholder ?? pageResponsePlaceholder,
@@ -12190,7 +12601,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var journalDeeperQuestionControl: some View {
         if let deeperQuestion = surface.payload.metadata["journalDeeperQuestion"]?.nonEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            FolioControlStack(alignment: .leading, spacing: 8) {
                 Button {
                     BookFeedback.pressTick()
                     withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
@@ -12209,6 +12620,7 @@ struct CapturePageSheet: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
 
                 if isJournalDeeperQuestionOpen {
                     Text(deeperQuestion)
@@ -12250,7 +12662,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private var pressedPhotoBar: some View {
         #if canImport(PhotosUI)
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 PhotosPicker(
                     selection: $pressedPhotoItem,
@@ -12264,6 +12676,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 .disabled(isLoadingPressedPhoto)
 
@@ -12277,6 +12690,7 @@ struct CapturePageSheet: View {
                             .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.borderless)
+                    .folioControlUnbroken()
                     .tint(BookPalette.ink.opacity(0.5))
                     .accessibilityLabel("Remove the pressed photograph")
                 }
@@ -12357,7 +12771,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var keptVoiceBar: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        FolioControlStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Button {
                     toggleKeptVoice()
@@ -12378,6 +12792,7 @@ struct CapturePageSheet: View {
                     .font(.caption.weight(.bold))
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(keptVoiceRecorder.isRecording ? LeafInk.gold : BookPalette.teal)
 
                 if keptVoiceAsset != nil && !keptVoiceRecorder.isRecording {
@@ -12390,6 +12805,7 @@ struct CapturePageSheet: View {
                             .font(.caption.weight(.bold))
                     }
                     .buttonStyle(.borderless)
+                    .folioControlUnbroken()
                     .tint(BookPalette.ink.opacity(0.5))
                     .accessibilityLabel("Remove the kept voice")
                 }
@@ -12441,6 +12857,7 @@ struct CapturePageSheet: View {
             }
         } else {
             // Replace any earlier take.
+            if isEndLeaf { controlSession?.presentationOwner = controlPageIndex }
             keptVoiceAsset = nil
             BookFeedback.play(.tap)
             if !keptVoiceRecorder.start() {
@@ -12455,7 +12872,7 @@ struct CapturePageSheet: View {
     }
 
     private var storyMarginNoteField: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        FolioControlStack(alignment: .leading, spacing: 8) {
             Text("\(pageResponseTitle) — optional")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(openPageSecondaryText)
@@ -12476,7 +12893,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var compassProofPhotoPicker: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text("Proof can be one sentence, one photo, or both.")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(openPageSecondaryText)
@@ -12504,6 +12921,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
                 #endif
 
@@ -12518,6 +12936,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(LeafInk.gold)
                 }
                 #endif
@@ -12586,7 +13005,7 @@ struct CapturePageSheet: View {
     private func storySceneView(_ turn: StoryPageSessionTurn) -> some View {
         let draft = turn.draft
         let turnNumber = storyTurns.firstIndex(where: { $0.id == turn.id }).map { $0 + 1 } ?? storyTurns.count
-        VStack(alignment: .leading, spacing: 14) {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             if storyTurns.count > 1 {
                 let arcLabel = StoryArcShape(
                     beats: draft.formBeats,
@@ -12598,21 +13017,23 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.gold)
             }
 
-            VStack(alignment: .leading, spacing: 14) {
-                if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
-                    AuthoredStoryPlateView(surface: draft.surface)
-                    AuthoredSceneProseView(text: draft.scene)
-                } else {
-                    Text(draft.scene)
-                        .font(.system(.body, design: .serif))
-                        .foregroundStyle(BookPalette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+            if !isEndLeaf || storyTurns.count > 1 {
+                FolioControlStack(alignment: .leading, spacing: 14) {
+                    if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
+                        AuthoredStoryPlateView(surface: draft.surface)
+                        AuthoredSceneProseView(text: draft.scene)
+                    } else {
+                        Text(draft.scene)
+                            .font(.system(.body, design: .serif))
+                            .foregroundStyle(BookPalette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .bookPageArrival(moment: .vignette, identity: turn.id.uuidString)
             }
-            .bookPageArrival(moment: .vignette, identity: turn.id.uuidString)
 
             if surface.payload.metadata["authoredReaderAnchorOffer"] == "true" {
-                VStack(alignment: .leading, spacing: 8) {
+                FolioControlStack(alignment: .leading, spacing: 8) {
                     Text("Something to come home by").font(.headline)
                     Picker("Hold onto", selection: $selectedAuthoredAnchorID) {
                         Text("The class ribbon").tag("")
@@ -12630,7 +13051,7 @@ struct CapturePageSheet: View {
                 academyActivityCard(academyActivity, draft: draft)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
+            FolioControlStack(alignment: .leading, spacing: 10) {
                 if !draft.choices.isEmpty {
                     Text("Choose how the page turns")
                         .font(.caption.weight(.bold))
@@ -12658,7 +13079,7 @@ struct CapturePageSheet: View {
                                 .font(.headline.weight(.semibold))
                                 .foregroundStyle(choice.tint)
                                 .frame(width: 26)
-                            VStack(alignment: .leading, spacing: 4) {
+                            FolioControlStack(alignment: .leading, spacing: 4) {
                                 Text(choice.kindLabel)
                                     .font(.caption2.weight(.bold))
                                     .textCase(.uppercase)
@@ -12692,6 +13113,7 @@ struct CapturePageSheet: View {
                         }
                     }
                     .buttonStyle(.bookPress())
+                    .folioControlUnbroken()
                     .bookChoiceThread(selected: selectedStoryChoice?.id == choice.id, identity: choice.id)
                     .disabled(activeInkbonesThrow != nil || isGeneratingStoryResult || (isLocalBrainWorking && choice.mechanic.kind == .none))
                 }
@@ -12703,7 +13125,7 @@ struct CapturePageSheet: View {
                 }
 
                 if storyMechanicIsResolved(selectedStoryChoice, in: turn) {
-                    VStack(alignment: .leading, spacing: 8) {
+                    FolioControlStack(alignment: .leading, spacing: 8) {
                         let inkbonesResolution = turn.inkbonesResolution(for: selectedStoryChoice)
                         Label(
                             inkbonesResolution == nil ? "The page answers" : "The bones change the story",
@@ -12744,7 +13166,7 @@ struct CapturePageSheet: View {
                     // leaf ("Keep and turn the page"). One button, not two.
                     EmptyView()
                 } else if currentStoryArc?.isComplete == true {
-                    VStack(spacing: 8) {
+                    FolioControlStack(spacing: 8) {
                         Text("The vignette is ready to keep.")
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.gold)
@@ -12756,6 +13178,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .disabled(!canKeep || isCommittingKeep)
                     }
                     .font(.caption.weight(.bold))
@@ -12769,6 +13192,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .disabled(!canKeep || isCommittingKeep)
 
                         Button {
@@ -12779,6 +13203,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                         .disabled(isContinuingStoryPage || isGeneratingStoryResult || isLocalBrainWorking || !storyNarrativeResultIsReady(selectedStoryChoice, in: turn))
                     }
                     .font(.caption.weight(.bold))
@@ -12811,7 +13236,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private func academyActivityCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Label(activity.title, systemImage: academyActivitySymbol(activity))
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.teal)
@@ -12836,6 +13261,7 @@ struct CapturePageSheet: View {
                         .padding(.vertical, 10)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .tint(BookPalette.teal)
             } else if activity.kind == .evidenceLog {
                 glintPracticeCard(activity, draft: draft)
@@ -12854,7 +13280,7 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private func glintPracticeCard(_ activity: AcademyActivity, draft: StoryPageSceneDraft) -> some View {
         let facts = activity.fields
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text(glintStage == 0 ? "1 of 3 · Choose a witness" : glintStage == 1 ? "2 of 3 · File the evidence" : "3 of 3 · Let it mean something")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(BookPalette.gold)
@@ -12865,17 +13291,19 @@ struct CapturePageSheet: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
                 TextField("The object in the lens", text: $glintObject)
                     .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
                 Button("Set it in the lens") {
                     glintStage = 1
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .disabled(glintObject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             } else if glintStage == 1 {
                 Text("Three facts someone else could check. Save the story of the object for the next step.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
                 ForEach(facts) { field in
-                    VStack(alignment: .leading, spacing: 4) {
+                    FolioControlStack(alignment: .leading, spacing: 4) {
                         Text(field.label)
                             .font(.caption.weight(.bold))
                             .foregroundStyle(BookPalette.ink.opacity(0.64))
@@ -12889,6 +13317,7 @@ struct CapturePageSheet: View {
                         )
                         .lineLimit(2...3)
                         .textFieldStyle(.roundedBorder)
+                        .folioControlUnbroken()
                         if let reading = glintEvidenceReading(for: academyActivityResponses[field.id, default: ""]) {
                             Label(reading.text, systemImage: reading.symbol)
                                 .font(.caption2.weight(.semibold))
@@ -12899,9 +13328,11 @@ struct CapturePageSheet: View {
                 HStack {
                     Button("Choose another object") { glintStage = 0 }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                     Spacer()
                     Button("Turn the lens") { glintStage = 2 }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .tint(BookPalette.teal)
                         .disabled(!academyActivityIsReady(activity))
                 }
@@ -12920,14 +13351,17 @@ struct CapturePageSheet: View {
                 TextField("What did exact attention change or make possible?", text: $glintInterpretation, axis: .vertical)
                     .lineLimit(2...4)
                     .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
                 HStack {
                     Button("Back to facts") { glintStage = 1 }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                     Spacer()
                     Button("Bring the glint back") {
                         completeGlintPractice(activity, draft: draft)
                     }
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                     .disabled(glintInterpretation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
@@ -12972,6 +13406,7 @@ struct CapturePageSheet: View {
                 .font(.headline.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 10)
         }
         .buttonStyle(.borderedProminent)
+        .folioControlUnbroken()
         .tint(BookPalette.teal)
         .disabled(!academyActivityIsReady(activity))
     }
@@ -13034,7 +13469,7 @@ struct CapturePageSheet: View {
     }
 
     private func sensoryInstrument(_ title: String, symbol: String, tint: Color) -> some View {
-        VStack(spacing: 4) {
+        FolioControlStack(spacing: 4) {
             Image(systemName: symbol).foregroundStyle(tint)
             Text(title).font(.caption2.weight(.bold)).foregroundStyle(BookPalette.ink.opacity(0.66))
         }
@@ -13061,6 +13496,7 @@ struct CapturePageSheet: View {
                 .font(.caption).foregroundStyle(BookPalette.ink.opacity(0.66))
             Button("Begin one quiet minute") { beginQuietMinute(activity) }
                 .buttonStyle(.borderedProminent).tint(BookPalette.teal)
+                .folioControlUnbroken()
         } else if stage == 1 {
             ProgressView(value: Double(60 - quietSecondsRemaining), total: 60)
                 .tint(BookPalette.teal)
@@ -13083,7 +13519,7 @@ struct CapturePageSheet: View {
                 Button {
                     onNavigateToSurface(academyEnchantmentSurface(spell: spell, activity: activity, draft: draft))
                 } label: {
-                    VStack(alignment: .leading, spacing: 5) {
+                    FolioControlStack(alignment: .leading, spacing: 5) {
                         Label(spell.title, systemImage: spell.symbolName)
                             .font(.caption.weight(.bold)).foregroundStyle(BookPalette.ink)
                         Text(spell.detail)
@@ -13099,6 +13535,7 @@ struct CapturePageSheet: View {
                     }
                 }
                 .buttonStyle(.bookPress())
+                .folioControlUnbroken()
             }
         }
     }
@@ -13164,7 +13601,7 @@ struct CapturePageSheet: View {
                 Button {
                     academyBookJumpSelection = work.id
                 } label: {
-                    VStack(alignment: .leading, spacing: 4) {
+                    FolioControlStack(alignment: .leading, spacing: 4) {
                         HStack(alignment: .top, spacing: 6) {
                             Image(systemName: academyBookJumpSelection == work.id ? "book.closed.fill" : "book.closed")
                                 .foregroundStyle(academyBookJumpSelection == work.id ? BookPalette.teal : BookPalette.ink.opacity(0.54))
@@ -13198,6 +13635,7 @@ struct CapturePageSheet: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .folioControlUnbroken()
             }
         }
 
@@ -13216,11 +13654,12 @@ struct CapturePageSheet: View {
     @ViewBuilder
     private func activityFields(_ fields: [AcademyActivity.Field]) -> some View {
         ForEach(fields) { field in
-            VStack(alignment: .leading, spacing: 4) {
+            FolioControlStack(alignment: .leading, spacing: 4) {
                 Text(field.label).font(.caption.weight(.bold)).foregroundStyle(BookPalette.ink.opacity(0.64))
                 TextField(field.placeholder, text: activityResponseBinding(for: field.id), axis: .vertical)
                     .lineLimit(2...4)
                     .textFieldStyle(.roundedBorder)
+                    .folioControlUnbroken()
             }
         }
     }
@@ -13250,6 +13689,7 @@ struct CapturePageSheet: View {
                 .background(BookPalette.paper.opacity(0.72), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             .buttonStyle(.plain)
+            .folioControlUnbroken()
         }
     }
 
@@ -13262,6 +13702,7 @@ struct CapturePageSheet: View {
                 .font(.headline.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 10)
         }
         .buttonStyle(.borderedProminent)
+        .folioControlUnbroken()
         .tint(BookPalette.teal)
         .disabled(!academySpecialActivityIsReady(activity))
     }
@@ -13392,7 +13833,7 @@ struct CapturePageSheet: View {
 
     @ViewBuilder
     private var illuminatedPhotoActions: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             Text(illuminationMessage)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
@@ -13409,7 +13850,7 @@ struct CapturePageSheet: View {
 
             illuminatedArtifactActions
 
-            if isLoadingManualPhoto || isChoosingBookPhoto {
+            if !cameraOwnsScribeWorkCard, isLoadingManualPhoto || isChoosingBookPhoto {
                 scribeWorkCard(
                     "photo-illumination",
                     quip: isChoosingBookPhoto
@@ -13422,7 +13863,7 @@ struct CapturePageSheet: View {
     }
 
     private var illuminatedPhotoPickerActions: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        FolioControlStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -13432,6 +13873,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
 
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -13441,6 +13883,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .disabled(isChoosingBookPhoto || isLoadingManualPhoto || isLocalBrainWorking)
             }
             .font(.caption.weight(.bold))
@@ -13452,6 +13895,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .disabled(isLoadingManualPhoto || isChoosingBookPhoto || isLocalBrainWorking)
                 #endif
 
@@ -13465,6 +13909,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
+                    .folioControlUnbroken()
                     .disabled(isLoadingManualPhoto || isChoosingBookPhoto || isLocalBrainWorking)
                 }
                 #endif
@@ -13477,6 +13922,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
             }
             .font(.caption.weight(.bold))
         }
@@ -13492,6 +13938,7 @@ struct CapturePageSheet: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .folioControlUnbroken()
             .disabled(isSavingIlluminatedArtifact || illuminatedDraft == nil)
 
             if let artifactURL = illuminatedArtifactURL {
@@ -13500,6 +13947,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
             } else {
                 Button {
                     BookFeedback.play(.sourceRefresh)
@@ -13509,6 +13957,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .folioControlUnbroken()
                 .disabled(illuminatedDraft == nil || isLocalBrainWorking)
             }
         }
@@ -13518,7 +13967,7 @@ struct CapturePageSheet: View {
     #if canImport(UIKit)
     @ViewBuilder
     private var cameraCapturePage: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        FolioControlStack(alignment: .leading, spacing: 12) {
             let isWorking = isLoadingManualPhoto || isCastingEnchantment || isLocalBrainWorking
 
             Label(
@@ -13575,7 +14024,7 @@ struct CapturePageSheet: View {
                             BookFeedback.play(.openPage)
                             Task { await castPendingCameraPhoto(with: spell) }
                         } label: {
-                            VStack(alignment: .leading, spacing: 8) {
+                            FolioControlStack(alignment: .leading, spacing: 8) {
                                 Label(spell.title, systemImage: spell.symbolName)
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(BookPalette.ink)
@@ -13594,6 +14043,7 @@ struct CapturePageSheet: View {
                             }
                         }
                         .buttonStyle(.bookPress())
+                        .folioControlUnbroken()
                         .disabled(isCastingEnchantment || isLocalBrainWorking)
                         .bookResultArrival(reduceMotion: reduceMotion, delay: Double(index) * 0.045)
                     }
@@ -13609,6 +14059,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .disabled(isWorking)
                 .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
             } else {
@@ -13623,6 +14074,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
+                        .folioControlUnbroken()
                         .disabled(isWorking)
 
                         Button {
@@ -13634,6 +14086,7 @@ struct CapturePageSheet: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+                        .folioControlUnbroken()
                         .disabled(isWorking)
                     }
 
@@ -13645,6 +14098,7 @@ struct CapturePageSheet: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .folioControlUnbroken()
                     .tint(BookPalette.teal)
                     .disabled(isWorking || pendingCameraPhotoURL == nil || isCommittingKeep)
                 }
@@ -13671,6 +14125,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .disabled(isWorking)
 
                 #if canImport(PhotosUI)
@@ -13680,6 +14135,7 @@ struct CapturePageSheet: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
+                .folioControlUnbroken()
                 .disabled(isWorking)
                 #endif
             }
@@ -14077,7 +14533,8 @@ struct CapturePageSheet: View {
                 sourceAssetName: "IlluminatedPhotoSource",
                 seed: data.count ^ spell.id.stableHash ^ Int(Date().timeIntervalSinceReferenceDate * 1000),
                 assetLocalIdentifier: "enchantment:\(spell.id):\(UUID().uuidString)",
-                sourceImageSize: CodableSize(width: image.size.width, height: image.size.height)
+                sourceImageSize: CodableSize(width: image.size.width, height: image.size.height),
+                purpose: .enchantment
             )
             let renderedURL = IlluminatedPageRenderer.renderPreview(draft: draft, sourceImage: image)
             await MainActor.run {
@@ -15464,6 +15921,7 @@ struct CapturePageSheet: View {
             ?? []
 
         var tags = metadataTags + storyCanonTags
+        tags += KitchenOffering.keepTags(for: preparedSurface, outcome: kitchenOutcome)
         if preparedSurface.type == .wonderCompass,
            let rawPlace = preparedSurface.payload.metadata["placeContextID"]?.nonEmpty {
             let place = rawPlace.lowercased()
@@ -16175,7 +16633,7 @@ struct CapturePageSheet: View {
         let castRecalls = LetsChatCastMemory.recalls(
             for: prompt,
             ledger: PlayerVault.shared.data.castStoryMemories ?? .empty,
-            cast: NarrativePackRegistry.entities
+            cast: NarrativePackRegistry.knownEntities
                 .filter { $0.kind == .character }
                 .map { (id: $0.id, name: $0.name) }
         )

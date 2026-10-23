@@ -5131,9 +5131,6 @@ struct PactErrandSheet: View {
     let surface: SurfacePage
     var onDeliver: (_ report: String) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var report = ""
-
-    private var trimmed: String { report.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         let meta = surface.payload.metadata
@@ -5153,30 +5150,10 @@ struct PactErrandSheet: View {
                         .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("YOUR FIELD REPORT")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(BookPalette.ink.opacity(0.5))
-                    TextField("What you actually did, saw, or heard…", text: $report, axis: .vertical)
-                        .lineLimit(3...8)
-                        .font(.system(.body, design: .serif))
-                        .padding(12)
-                        .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10).stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
-                        }
-
-                    Button {
-                        onDeliver(trimmed)
+                    PactErrandReportForm(surface: surface) { report in
+                        onDeliver(report)
                         dismiss()
-                    } label: {
-                        Text("Deliver: \(meta["talismanName"] ?? "the Talisman") gains \(meta["territoryName"] ?? "ground")")
-                            .font(.subheadline.weight(.bold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(BookPalette.teal)
-                    .disabled(trimmed.count < 3)
                 }
                 .padding(20)
             }
@@ -5190,6 +5167,45 @@ struct PactErrandSheet: View {
     }
 }
 
+
+/// The report field, validation and delivery action belong to both surfaces.
+struct PactErrandReportForm: View {
+    let surface: SurfacePage
+    var onDeliver: (String) -> Void
+    @FolioPageState("pactErrandReport") private var report = ""
+
+    private var trimmed: String { report.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    var body: some View {
+        let meta = surface.payload.metadata
+        FolioControlStack(alignment: .leading, spacing: 16) {
+            Text("YOUR FIELD REPORT")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.ink.opacity(0.5))
+            TextField("What you actually did, saw, or heard…", text: $report, axis: .vertical)
+                .lineLimit(3...8)
+                .font(.system(.body, design: .serif))
+                .padding(12)
+                .background(BookPalette.page.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10).stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
+                }
+
+            Button {
+                onDeliver(trimmed)
+            } label: {
+                Text("Deliver: \(meta["talismanName"] ?? "the Talisman") gains \(meta["territoryName"] ?? "ground")")
+                    .font(.subheadline.weight(.bold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+            }
+            .buttonStyle(.borderedProminent)
+            .folioControlUnbroken()
+            .tint(BookPalette.teal)
+            .disabled(trimmed.count < 3)
+        }
+    }
+}
 
 // MARK: - Shelf download
 
@@ -5391,7 +5407,7 @@ struct BookTodayDoorstepCard: View {
         }
         .buttonStyle(.plain)
         .disabled(assignment.filed)
-        .accessibilityHint(assignment.filed ? "" : "Opens Wicker's dare.")
+        .accessibilityHint(assignment.filed ? "" : "Opens this assignment.")
     }
 }
 

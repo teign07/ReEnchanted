@@ -1239,7 +1239,8 @@ enum PhotoAnalysisValidator {
             ),
             souvenirCandidates: souvenirs.map(scrubNames),
             subjectRegion: sanitizedSubjectRegion(analysis.subjectRegion),
-            creatures: sanitizedCreatures(analysis.creatures)
+            creatures: sanitizedCreatures(analysis.creatures),
+            usesFallbackMarginalia: analysis.usesFallbackMarginalia
         )
     }
 

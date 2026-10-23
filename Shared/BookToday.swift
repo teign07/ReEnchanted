@@ -73,12 +73,13 @@ struct BookTodayEdition: Equatable {
         var line: String
     }
 
-    /// The day's one claim on the Reader: the dare the morning paper sent them out on.
+    /// The day's outward invitation, shared with the morning paper.
     struct Assignment: Equatable {
         var dareID: String
         var title: String
         var challenge: String
         var filed: Bool
+        var page: SurfacePage? = nil
     }
 
     var dayID: String
@@ -741,6 +742,13 @@ enum BookTodayCensusProjector {
             guard value > 0 else { return }
             facts.append(.init(id: id, value: value, line: line, symbolName: symbol))
         }
+        // While the Guest eats at the Academy's table, Penny counts what the Cookery lost.
+        if let live = KitchenTally.liveDay(on: now, inputs: inputs, calendar: calendar) {
+            let count = KitchenTally.count(liveDay: live.day, eventStart: live.start, days: inputs.days)
+            let mine = count.fromReader > 0 ? " \(count.fromReader) of them came back from your kitchen." : ""
+            add("away-cookery", count.gone, "book.closed",
+                "The Cookery's lost \(count.gone) \(count.gone == 1 ? "letter" : "letters"). \(count.back == 0 ? "None back yet." : "\(count.back) came back.")\(mine)")
+        }
         if let braid = pages.filter({ $0.type == .bookOfYou && recent($0.createdAt) }).max(by: { $0.createdAt < $1.createdAt }) {
             let title = braid.userInput.components(separatedBy: "\n").first?.trimmingCharacters(in: .whitespaces).nonEmpty
             add("away-braid", 1, "book.pages", title.map { "I braided a whole day into \u{201C}\($0)\u{201D} while you slept." }
@@ -812,6 +820,31 @@ enum BookTodayCensusProjector {
                 symbolName: symbol
             ))
         }
+
+        // The Kitchen: things the reader actually made, in an actual pan.
+        let workings = KitchenLedger.workings(in: [BookDay(id: "census", date: Date.distantPast, pages: pages)])
+        let cooked = Set(workings.filter { $0.outcome.cooked }.map(\.recipeID)).count
+        add(
+            "kitchen-made",
+            family: "kitchen",
+            value: cooked,
+            symbol: "fork.knife",
+            lines: [
+                "\(cooked) of the Kitchen's \(word(cooked, one: "recipe", many: "recipes")) made in your actual kitchen.",
+                "You've made \(cooked) \(word(cooked, one: "thing", many: "things")) from the Kitchen. Ambrose has noticed."
+            ]
+        )
+        let rescued = KitchenLedger.rescued(in: [BookDay(id: "census", date: Date.distantPast, pages: pages)]).count
+        add(
+            "kitchen-rescued",
+            family: "kitchen",
+            value: rescued,
+            symbol: "square.and.pencil",
+            lines: [
+                "\(rescued) \(word(rescued, one: "recipe", many: "recipes")) rescued from somebody's hands.",
+                "\(rescued) \(word(rescued, one: "recipe", many: "recipes")) that would've gone missing, and didn't."
+            ]
+        )
 
         // The grimoire is part of the Book's accumulated life, so it gets a
         // drawer like anything else it has been keeping.
@@ -1776,27 +1809,16 @@ enum BookTodayDoorstep {
         return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title, line: line)
     }
 
-    /// Today's assignment: the dare the morning paper printed, or will print. Shown as filed once
-    /// the Reader brings proof back. Never on a hard day; never after the evening paper's gone to press.
+    /// One outward invitation for the day, retaining the paper's exact Page
+    /// when it has printed. All three families can return real proof.
     static func assignment(day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BookTodayEdition.Assignment? {
         guard !DistressSignals.evaluate(day: day).isActive else { return nil }
-        let filed = day.pages.first { $0.attributableLivedQuestReceipt?.kind == .wickerDare }
-        if let filed, let receipt = filed.attributableLivedQuestReceipt {
+        if let receipt = BleedDayDesk.filedAssignmentPage(day: day, inputs: inputs)?.attributableLivedQuestReceipt {
             return .init(dareID: receipt.questID, title: receipt.title, challenge: receipt.invitation, filed: true)
         }
-        let hour = calendar.component(.hour, from: now)
-        guard (4..<21).contains(hour) else { return nil }
-        let printed = inputs.bleedPrintHistory.flatMap(\.items).first {
-            $0.storyID.hasPrefix("assignment:") && $0.storyID.hasSuffix(":" + day.id)
-        }.flatMap { item -> String? in
-            var parts = item.storyID.dropFirst("assignment:".count).split(separator: ":", omittingEmptySubsequences: false)
-            guard parts.count >= 2 else { return nil }
-            parts.removeLast()
-            return parts.joined(separator: ":")
-        }
-        let dare = printed.flatMap { BleedDayDesk.dare(id: $0, day: day, inputs: inputs, now: now) }
-            ?? (hour < 13 ? WickerDareRegistry.dare(for: day, inputs: inputs, now: now) : nil)
-        guard let dare else { return nil }
-        return .init(dareID: dare.id, title: dare.title, challenge: dare.challenge, filed: false)
+        guard (4..<21).contains(calendar.component(.hour, from: now)) else { return nil }
+        let page = BleedDayDesk.dailyAssignmentPage(day: day, inputs: inputs, now: now, calendar: calendar)
+        let details = BleedDayDesk.assignmentDetails(page)
+        return .init(dareID: details.id, title: details.title, challenge: details.challenge, filed: false, page: page)
     }
 }

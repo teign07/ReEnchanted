@@ -1,0 +1,77 @@
+# Wonder Compass Chapters 1A and 1B: science review
+
+Reviewed 21 October 2026. Final pass starts from the original manuscript, replacing the earlier broad revisions. Changes are in the bundled `Shared/BookReferenceLibrary.json` entries `wonder-compass-chapter1a` and `wonder-compass-chapter1b`, their descriptions/previews, and the Chapter 1 subsection of Notes & References. Other chapters and other reference subsections were preserved. This is a source and literature review; no app build or runtime review was performed.
+
+## Editorial approach
+
+Keep the author's original order, examples, humor, concern for ordinary days, assessment, twelve signals, Compass steps and Quick Wins. Correct particular overclaims about mechanisms, percentages, causation, diagnosis and treatment. Preserve the Efficiency Trap, Rut, three levels and Whirlpool Machine as explanatory models. Respect the whole-book argument: Chapter 1 introduces the DMN through rumination, and Chapter 10 redeems it through rest and creative incubation. Do not front-load that payoff or turn the reader's chapter into an argument about scientific validation. Detailed limitations belong in the notes.
+
+The score bands remain as an informal reading guide. Their medical conclusions needed correction: an unvalidated questionnaire cannot establish whether someone needs therapy or medication or specify a recovery timetable. The original supportive reading routes remain, with flexible pacing and care chosen with a clinician.
+
+## Findings and corrections
+
+| Claim or topic in the original | Evidence checked and resulting treatment |
+| --- | --- |
+| Missing a commute detail means you were absent and never recorded it | Forgetting does not identify its cause. Separate attention during an event from later retrieval; keep the opening exercise as a question, not a diagnostic demonstration. See [Craik et al.](https://pubmed.ncbi.nlm.nih.gov/8683192/). |
+| Thinking hard or worrying burns enormous calories | Retain the approximately 2% body mass / 20% resting energy figures. Explain that most brain energy consumption is ongoing; task-related increases are relatively small. Remove the running/marathon equivalence. See [Raichle](https://pmc.ncbi.nlm.nih.gov/articles/PMC6665302/). |
+| Prediction replaces perception with labels or stored images | Present predictive processing as an influential framework that combines expectations and sensory input. Remove the claim of a prediction-to-perception switch and the unsupported 90% visual-filtering figure. See [Walsh et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC7187369/). |
+| Automaticity, habituation, mind-wandering and prediction are one mechanism | Distinguish practiced control from changes in response to repeated stimuli and from the direction of thought. See [Wood & Rünger](https://doi.org/10.1146/annurev-psych-122414-033417) and [Rankin et al.](https://doi.org/10.1016/j.nlm.2008.09.012). |
+| People miss 46.9% of life; stress doubles this to 70–90% | The original 2010 study analyzed momentary reports from 2,250 volunteers. 46.9% concerned thoughts unrelated to the current activity. It measured neither lost consciousness nor a percentage of life forfeited. Remove the unsupported higher percentages and life-loss arithmetic. See [Killingsworth & Gilbert, original paper and supplement](https://greatergood.berkeley.edu/images/uploads/A_Wandering_Mind_Is_an_Unhappy_Mind.pdf). |
+| The DMN is always on, intrinsically negative, and protects people by excluding reality | Keep the original rumination-focused introduction and the later redemption. Correct the absolute on-switch and self-preservation claims. [Hamilton et al.](https://doi.org/10.1016/j.biopsych.2015.02.020) supports the rumination connection; [Rest Is Not Idleness](https://doi.org/10.1177/1745691612447308), [Baird et al.](https://doi.org/10.1177/0956797612446024) and [van Elk et al.](https://doi.org/10.1002/hbm.24616) support the broader framing. |
+| Boredom stops dopamine and initiates a tribal-isolation panic response | The attention-and-meaning model allows both under-demand and over-demand to produce boredom. It does not establish that endocrine sequence. Remove the proposed receptor failure, universal threat response and diagnostic “High-Vigilance Idling” state; retain restless exhaustion as an image. See [Westgate & Wilson](https://pubmed.ncbi.nlm.nih.gov/29963873/). |
+| A worried thought is physiologically identical to an immediate physical threat | Repetitive thought can prolong physiological stress activity. Responses differ with the event and person. Remove exact equivalence and the claim that sitting leaves stress energy unburned. See [Brosschot et al.](https://pubmed.ncbi.nlm.nih.gov/16439263/). |
+| Mental fatigue is simply glucose exhaustion | Fatigue is real; its explanations remain contested. Separate subjective effort from a literal fuel tank. See [Kurzban et al.](https://pmc.ncbi.nlm.nih.gov/articles/PMC3856320/) for one theoretical account, alongside Raichle's metabolic evidence. |
+| Routine causes IL-6 elevation, organ damage, depression and diabetes on a fixed schedule | Research concerns stress, immune function, vulnerability and disease, not a validated progression from this book's Rut. Remove the week/month/year timetable, vascular “glue,” shut-off neurotransmitters, inevitable metabolic failure and receptor-reawakening promises. See [Segerstrom & Miller](https://pmc.ncbi.nlm.nih.gov/articles/PMC1361287/), [Miller & Raison](https://doi.org/10.1038/nri.2015.5), [Steptoe & Kivimäki](https://doi.org/10.1038/nrcardio.2012.45) and [van der Valk et al.](https://pubmed.ncbi.nlm.nih.gov/29663153/). |
+| Cytokines explain every tired, achy or withdrawn reader | Inflammatory signaling can contribute to sickness behavior. That literature does not identify an individual's cause of fatigue from these descriptions. See [Dantzer et al.](https://doi.org/10.1038/nrn2297). |
+| Not noticing shrinks the hippocampus; noticing regrows it | Keep the health concern grounded in prolonged stress, rather than a lack of novelty: [Lupien et al.](https://doi.org/10.1038/271) and [McEwen et al.](https://doi.org/10.1038/npp.2015.171) support stress-related memory/structural changes. Remove the claim that ordinary routine directly causes atrophy or that a noticing exercise regrows the hippocampus. |
+| The author's questionnaire inherits validation from MAAS, PHQ-9 and MBI | Shared subject matter does not validate new items, scoring or cutoffs. Keep the twelve questions as an explicitly unvalidated reflection check-in. Compare the actual [MAAS research](https://selfdeterminationtheory.org/SDT/documents/2003_BrownRyan.pdf), [PHQ-9 validation](https://pmc.ncbi.nlm.nih.gov/articles/PMC1495268/) and [WHO occupational burnout definition](https://www.who.int/standards/classifications/frequently-asked-questions/burn-out-an-occupational-phenomenon). |
+| A low check-in score rules out danger or the need for therapy | Remove those assurances; retain numerical bands as an explicitly informal reading guide. Persistence, distress and impairment matter independently of this tally. See [NIMH help guidance](https://www.nimh.nih.gov/health/publications/my-mental-health-do-i-need-help). |
+| A high score dictates medication, fixed recovery weeks, and a guaranteed Compass benefit afterward | Remove medication instructions, mandatory reading delays, week-by-week clinical staging and guarantees. Offer flexible reading/activity options alongside individualized care. Verify the existing U.S. support information against [NIMH](https://www.nimh.nih.gov/health/publications/depression) and [988](https://988lifeline.org/get-help/what-to-expect/). |
+| Apathy proves a blocked dopamine ignition; anhedonia equals blunted affect or burnout | Separate motivation, pleasure and outward expression. Avoid inferring receptors or neurotransmitters from a subjective description. See [Salamone & Correa](https://pmc.ncbi.nlm.nih.gov/articles/PMC4450094/), [Der-Avakian & Markou](https://pmc.ncbi.nlm.nih.gov/articles/PMC3253139/) and WHO's occupational definition. |
+| The doorway effect proves mindlessness or a disconnected external-attention network | Context changes can affect access to recent information under some conditions. They are not a diagnosis; replication results depend on task conditions. See [McFadyen et al.](https://doi.org/10.1186/s40359-021-00536-3). |
+| Wanting plans cancelled proves withdrawal rather than introversion | Preserve the example, allow genuine need for quiet/rest, and ask whether readers have the connection they want. Avoid diagnosing personality or illness from one behavior. |
+| Loneliness, pain and the cigarette comparison | Retain the documented comparison, attributing it to the Surgeon General and describing the population-level mortality impact of lacking social connection: [official graphic](https://www.hhs.gov/sites/default/files/sg-social-connection-graphic-comparison.pdf). Retain [Cigna’s dated 61% survey finding](https://www.cigna.com/static/www-cigna-com/docs/cigna-2020-loneliness-factsheet.pdf) and WHO’s estimated global deaths. Remove the identical-pain-mechanism account and individual prognosis. |
+| Boredom proneness means lost dopamine receptors and a 26% personal death risk | Remove the unsupported receptor explanation and prognosis. The [Britton & Shipley study](https://pubmed.ncbi.nlm.nih.gov/20361429/) is observational, not proof that boredom causes mortality. Use attention/meaning research to support practical questions instead. |
+| Decisions empty executive function and willpower is a spent muscle | Explain fatigue without claiming a literal depleted fuel supply. The [2016 preregistered replication](https://doi.org/10.1177/1745691616652873) and [2021 multisite test](https://doi.org/10.1177/0956797621989733) did not find the predicted effect in confirmatory analyses. This challenges the simple account; it does not establish that fatigue never affects decisions. |
+| All feeds follow a slot-machine reinforcement schedule and permanently drain attention span | Remove the universal schedule and damage claim. Add direct experimental evidence on digital switching, with its mixed findings described below. |
+| Leisure guilt necessarily causes a cortisol threat response | Replace with experiments measuring beliefs about leisure and enjoyment. See [Tonietto et al.](https://doi.org/10.1016/j.jesp.2021.104198). |
+| Positive memory requires 10–20 seconds; negative memories save instantly | Retain 10–20 seconds as a practical savoring suggestion, rather than a universal biological deadline. Keep attention and describing a detail as reasons to pause and leave a retrieval cue. See Craik et al. above. |
+| Rumination physically myelinates anxiety pathways | Remove the specific unsupported biological mechanism. Use network and prolonged-activation research for the narrower claim that repetitive distressing thought can be difficult and tiring. |
+| Novel memory density alone determines subjective time | Distinguish remembered duration from duration judged during an activity. See [Avni-Babad & Ritov](https://pubmed.ncbi.nlm.nih.gov/14640847/), including the prospective-condition reversal. Keep landmarks as a practical metaphor. |
+| Twelve symptoms form one validated machine that one intervention stops | Keep the Whirlpool Machine as an author model of possible reinforcing patterns. Remove a universal sequence, single cause, and guarantee that one change stops everything. |
+| Census, Gallup and Cigna establish 48 million Americans with the Rut | Those constructs, samples and measures do not establish joint prevalence of an undefined syndrome. Remove the estimate, stadium arithmetic and all summaries relying on it. Use the WHO's explicitly global estimate of roughly one in six experiencing loneliness in 2014–2023, without treating loneliness as interchangeable with the Rut. |
+| Novelty always feels good, instantly stops autopilot and produces a dopamine surge | Replace with a modest practical invitation: something unexpected can attract attention; a curious question can make a familiar thing worth examining. No guaranteed emotion or neurotransmitter effect. |
+
+## Research added to the argument
+
+### Curiosity and remembering — Gruber, Gelman & Ranganath (2014)
+
+[Original study](https://pmc.ncbi.nlm.nih.gov/articles/PMC4252494/), *Neuron*, DOI 10.1016/j.neuron.2014.08.060.
+
+Two laboratory studies found better memory for high-curiosity trivia answers and some incidentally presented faces. This supports a role for curiosity in learning, with no direct dopamine measurement or test of the Compass. Added near the end of 1A in the author's voice as a reason to begin with “I wonder?”
+
+### Everyday awe — Monroy et al. (2025)
+
+[Original trial](https://www.nature.com/articles/s41598-025-96555-w), *Scientific Reports*, DOI 10.1038/s41598-025-96555-w.
+
+The four-week online trial in long COVID reported psychological benefits relative to a waiting list. The research notes retain the null anxiety comparison and the limitations of sample size, attrition and control design. It supports further investigation of everyday awe, without generalizing to physical recovery or a Compass treatment claim.
+
+### Staying with an experience — Tam & Inzlicht (2024)
+
+[Original paper](https://doi.org/10.1037/xge0001639), *Journal of Experimental Psychology: General*; [author-hosted full text](https://static1.squarespace.com/static/550b09eae4b0147d03eda40d/t/67815f657379b710c3caf7d8/1736531823011/Fast-forward-to-boredom.pdf).
+
+Seven experiments (six preregistered) tested boredom and digital switching. The chapter keeps the practical video finding; the notes describe the less conclusive article/broader-sample findings. The practical invitation is to stay with something long enough to discover whether you enjoy it. The experiments do not establish lasting attention damage.
+
+### Permission to enjoy — Tonietto et al. (2021)
+
+[Original paper](https://doi.org/10.1016/j.jesp.2021.104198), *Journal of Experimental Social Psychology*.
+
+Four studies examined beliefs about leisure and enjoyment. This directly supports the “Should Trap” discussion without inventing an endocrine mechanism. Added in the author’s voice as a reason the coffee does not have to earn its place on the porch.
+
+## Review limits and validation
+
+Original papers, author manuscripts, peer-reviewed reviews and official health guidance were used. Precise study details were checked against accessible primary text or its indexed abstract; full-text access varied. Unsupported extensions were removed rather than treated as disproved by the absence of a search result. The newer awe trial and digital-switching paper were read with their limitations, not only their headline conclusions.
+
+This pass does not validate every scientific statement elsewhere in the book, the general Notes & References outside its Chapter 1 subsection, or the earlier QuickStart neuroscience explanations. It also does not establish treatment efficacy or clinical validation of the Compass or check-in.
+
+Validation: parse the JSON, compare all entries against the pre-edit snapshot, confirm the earlier “Read this first” revision and unrelated work remain intact, compare the unaffected reference sections, check chapter previews and cross-paragraph continuity, and run `git diff --check`. No build or tests that compile the app.

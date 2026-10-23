@@ -384,6 +384,10 @@ struct PageArchetypePack: Codable, Identifiable, Equatable {
     /// serial, the world-pressure fingerprints, doors, and monthly binding
     /// without any parallel path.
     var undertakings: [UndertakingLadder]? = nil
+    /// Recipes for the Kitchen. Authored and tested like the bundled ones
+    /// (docs/kitchen-november-pack.md, house laws); a bundled recipe with the
+    /// same id wins.
+    var recipes: [KitchenRecipe]? = nil
 
     var isLocked: Bool { availability == "locked" }
 }
@@ -1475,6 +1479,18 @@ enum PageArchetypePackRegistry {
     /// before it is bought.
     static func installUndertakingLadders(fileManager: FileManager = .default) {
         CastUndertakingRegistry.install(undertakingLadders(fileManager: fileManager))
+        KitchenRecipeRegistry.delivered = deliveredRecipes(fileManager: fileManager)
+    }
+
+    /// Recipes posted by every enabled pack. One without its credit, its
+    /// ingredients or at least two steps is dropped: the Kitchen never prints
+    /// half a recipe.
+    static func deliveredRecipes(fileManager: FileManager = .default) -> [KitchenRecipe] {
+        var seen = Set<String>()
+        return enabledPacks(fileManager: fileManager)
+            .flatMap { $0.recipes ?? [] }
+            .filter { $0.credit?.nonEmpty != nil && !$0.ingredients.isEmpty && $0.steps.count >= 2 }
+            .filter { seen.insert($0.id).inserted }
     }
 }
 
@@ -1842,8 +1858,8 @@ struct ReEnchantedSaveFile: Codable {
     /// photographs themselves, not just dead absolute paths that break on a
     /// new phone. Absent in version 1 files. See `sealedMedia`/`rehomedDays`.
     var mediaFiles: [String: Data]? = nil
-    /// First-run steps the reader engaged with, so a restored Book never
-    /// replays onboarding the reader already lived past on the old phone.
+    /// First-run interactions and introductions already shown, so a restored
+    /// Book never replays guidance the reader lived past on the old phone.
     var firstRunEngaged: [String]? = nil
     /// The Book's scarce-aside memory travels with a sealed copy so restoring
     /// onto a new device does not make it repeat old confidences.
@@ -2307,11 +2323,10 @@ struct PlayerVaultData: Codable, Equatable {
     /// names the reader gave their own stretches of weather. Nil on every save
     /// written before the braid could remember anything across nights.
     var readerStory: ReaderStory?
-    /// History keys of first-run script steps the reader actually engaged
-    /// with: opened or deliberately swiped away. The script once advanced on
-    /// served-history alone, which let quick desk rebuilds (right after the
-    /// local brain finished downloading, say) burn through steps nobody read.
-    /// Nil means "never seeded": seeded once from surfaceHistory on load.
+    /// Durable first-run progress. The Welcome requires an open or dismissal;
+    /// extended introductions retire after being shown once. Stable keys also
+    /// survive variety-history expiry and travel in sealed copies.
+    /// Nil means the older engagement ledger has never been seeded.
     var firstRunEngaged: [String]?
     /// The Book's irreducible interior life: promises it chose to make,
     /// favorites it chose, favors it asked, running business, and self-secrets.

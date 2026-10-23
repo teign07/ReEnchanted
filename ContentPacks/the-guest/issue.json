@@ -1,0 +1,19 @@
+{
+  "issueID": "the-guest-2026-11",
+  "title": "The Guest Who Came on All Souls",
+  "runID": "the-guest:2026",
+  "files": [
+    {
+      "id": "the-guest.runtime.v2",
+      "kind": "worldEventPack",
+      "source": "november.reenchantedevents.json",
+      "fileName": "the-guest.reenchantedevents.json"
+    },
+    {
+      "id": "the-guest.margins.v1",
+      "kind": "pageArchetypePack",
+      "source": "margins.reenchantedpack.json",
+      "fileName": "the-guest.reenchantedpack.json"
+    }
+  ]
+}
