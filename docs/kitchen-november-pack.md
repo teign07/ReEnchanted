@@ -4,7 +4,7 @@
 
 **The story is in [november-the-guest.md](november-the-guest.md)** (agreed 2026-10-19): the
 Academy's old hob comes back on All Souls in the Unseelie Court's service, eating the memory out of
-the Academy's food. Trencher's dish is its way home. the project owner's mother's recipes ship for everybody as
+the Academy's food. Trencher's dish is its way home. bj's mother's recipes ship for everybody as
 the Kitchen's Inherited shelf.
 
 November is a feeding month. The pack gives the Book a Kitchen, fills it with

@@ -1,13 +1,13 @@
 # The Guest Who Came on All Souls — scene drafts
 
-Draft 1, 2026-10-19, for the project owner's read. Story bible: [november-the-guest.md](november-the-guest.md).
+Draft 1, 2026-10-19, for bj's read. Story bible: [november-the-guest.md](november-the-guest.md).
 
 Prose for the eight scenes, in October's register. Marked up for the pack conversion that comes
-after the project owner's notes: **ids**, **nodes**, **prompts**, **choices** with their **results**, a **braid**
+after bj's notes: **ids**, **nodes**, **prompts**, **choices** with their **results**, a **braid**
 line per choice, and the main **Cast memories** and **gossip** lines. The Book narrates; it has no
 hands; the Reader carries it.
 
-`[OPTIONAL: BOGGLE]` marks the Trencher and Boggle thread, which the project owner hasn't decided. It can be cut
+`[OPTIONAL: BOGGLE]` marks the Trencher and Boggle thread, which bj hasn't decided. It can be cut
 without breaking anything.
 
 ---

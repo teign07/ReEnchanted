@@ -2,7 +2,7 @@
 
 The story for the Kitchen pack ([kitchen-november-pack.md](kitchen-november-pack.md)). That plan
 holds the recipes, the Pantry, the jars and the house laws; this one holds what happens at the
-Academy. Agreed with the project owner 2026-10-19.
+Academy. Agreed with bj 2026-10-19.
 
 **Thesis:** food is memory you can make again. **The month's question:** who gets fed, and what
 does feeding them bind you to?
@@ -59,7 +59,7 @@ the meal the Academy used to leave out for it. His dream dish is its way home. T
 November cooking restores the page, letter by letter, so he can make it.
 
 **Three endings**, all available through the Reader's last choice. The cooking tally restores
-letters and never gates an ending (the project owner, 2026-10-19). None punishes them.
+letters and never gates an ending (bj, 2026-10-19). None punishes them.
 
 | Ending | Gate | What follows |
 |---|---|---|
@@ -106,7 +106,7 @@ The one thing she half-tastes is the evening the Reader chose for her: the tea o
 for herself (her own evening).
 
 **The Offer.** The Hob offers her taste back, for that evening's memory. **The Reader decides
-whether she takes it** (the project owner, 2026-10-19).
+whether she takes it** (bj, 2026-10-19).
 
 - **Taken:** she can taste again, all of it. She no longer remembers that October evening. Wicker
   or Soren still does, and the Cast's memories keep it for her. That's the dark, romantic heart of
@@ -117,7 +117,7 @@ whether she takes it** (the project owner, 2026-10-19).
 The triangle never gets a verdict either way. Serenity chooses; the Book doesn't. No "forgive"
 in the margin (October's rule holds).
 
-### Trencher and Boggle *(optional, the project owner to decide)*
+### Trencher and Boggle *(optional, bj to decide)*
 
 She keeps the rooms; he keeps the table: the Academy's two practitioners of unglamorous magic. She
 has tried for years to finish a sentence of thanks. In November she learns the right words, and on
@@ -129,7 +129,7 @@ the last day she's the one who cooks for him. A slow, grown-up counterweight to 
 
 Thorne never eats in a room the Hob is in. She knows exactly whose it is. She can't act openly
 without revealing what she is (secret canon: Unseelie). **Whether she's protecting the Academy or
-the Court sent it with her knowledge is never settled** (the project owner, 2026-10-19). February's Thorned
+the Court sent it with her knowledge is never settled** (bj, 2026-10-19). February's Thorned
 Bargain tilts it.
 
 - Momort, whose Duskthorn etiquette slips, warns the Reader: never tell it thank you.
@@ -213,9 +213,9 @@ voice; the Book has no hands). Pinned beats need a floor, not a score.
   one-sentence weather menu in the Academy timetable, Penny's "A Guest Remains" coverage.
 - **Outcomes:** like Count Unbound's, recorded so December and February can read them.
 
-## the project owner's mother's recipes
+## bj's mother's recipes
 
-**For everybody** (the project owner, 2026-10-19). They're the Kitchen's Inherited shelf: set out faithfully,
+**For everybody** (bj, 2026-10-19). They're the Kitchen's Inherited shelf: set out faithfully,
 ideally beside a photograph of her handwritten page, arriving on ordinary days with one short
 line from the Book. They are never story machinery and never the magic dish. On All Souls, the
 page "Make something someone used to make for you" sits beside them. Every one passes the house

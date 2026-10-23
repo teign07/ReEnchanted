@@ -13,7 +13,7 @@ Swift syntax checks pass, but native tests, a new app build and Rabbit QA remain
 See [guest-cast-implementation.md](guest-cast-implementation.md).
 
 **Key:** ✅ done · ✏️ drafted · ⬜ to make · 🔧 needs an app change (runtime bump + install) ·
-👤 the project owner makes, approves or runs it
+👤 bj makes, approves or runs it
 
 ---
 
@@ -80,7 +80,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
 
 ## 2. Story scenes (`storyScenes[]`, one manifest atom each)
 
-- ✏️ **The eight main scenes:** written and in the pack; the project owner's notes are next.
+- ✏️ **The eight main scenes:** written and in the pack; bj's notes are next.
 - ✅ **Convert to pack JSON:** ids, nodes, choices, `result`, `consequenceTags`, `braidText` on
   every choice, `report`/`reportAfterLiveDay` for readers who missed it, `roomID`, `castIDs`,
   `entities`, `tags`.
@@ -88,20 +88,20 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   had 164 memories and 36 gossip lines; the audit tests hold the contract.
 - ✅ **Recalls** (runtime 11) on October's `count-unbound:november-*` tags, for scene 5's three
   versions.
-- ✏️ **Real-world crossings** (all four written, waiting on the project owner) (`missionInvitation` / `missionReturnPrompt` /
+- ✏️ **Real-world crossings** (all four written, waiting on bj) (`missionInvitation` / `missionReturnPrompt` /
   `missionKeptResponse`); October had 4:
   - All Souls week: *Make something someone used to make for you.*
   - Week 2: *Rescue a recipe* (ask someone how they make the thing they make; write it down).
   - Week 3: *Feed someone* (a jar or a plate, given away).
   - Week 4: *Set a place* (one meal with a chair or plate for someone absent; no report needed).
-  - 👤 the project owner signs off on every real-world ask.
+  - 👤 bj signs off on every real-world ask.
 - ✅ **Relics**, keepsakes only for readers who lived the route and did its crossing: the soul cake's cross; a scrubbed
   spoon; Soren's first slip; the white bowl's thorn.
 - ✅ **December carry** (*The First of December*, `content_december.py`; the ending tags it leaves
   are listed in the scenes doc): a residue scene in Dec 1–7 that picks up the ending and hands it to the
   Long Watch.
 - 🔧 **Serenity's surrendered memory:** her own row for the October key marked given away.
-- ✅ ~~**Scene 8's gate:**~~ the project owner: the tally never gates the ending. Was: whether the page is restored, from the tally (see §9).
+- ✅ ~~**Scene 8's gate:**~~ bj: the tally never gates the ending. Was: whether the page is restored, from the tally (see §9).
 
 ## 3. The world's daily life (beats)
 
@@ -135,8 +135,8 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   (Thornwave, Faefi, Mothlight). Scripts go first in `RADIO-RECORDING.md`.
   - Ideas: Thornwave on the west door; Faefi on soul cakes; Mothlight at 3 a.m. on the Kitchens'
     light; a "don't thank it" PSA; Stir-up Sunday.
-  - 👤 Recorded in ElevenLabs in the project owner's signed-in session; the caption must match the take.
-  - 👤 the project owner listens on the device.
+  - 👤 Recorded in ElevenLabs in bj's signed-in session; the caption must match the take.
+  - 👤 bj listens on the device.
 - ✅ **`packet.radioInstruction`.**
 - ⬜ **Optional:** a `radioStationPack` with month-gated songs, or a small *Kitchen Wireless*
   station. It must include `"stations": []`.
@@ -163,7 +163,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   editions and the paper.
 - ✏️ **Art prompt files** written (`make_art_prompts.py`); next comes generation, then generation, optimisation under the 2 MiB
   publication cap, and contact sheets.
-  - 👤 the project owner reviews the contact sheets.
+  - 👤 bj reviews the contact sheets.
 
 ## 7. Paper (the printed editions)
 
@@ -175,7 +175,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   - a word ladder (COLD to WARM).
 
   Every leaf needs `eventOutcomeIDs`, even if it's empty.
-  - 👤 the project owner approves.
+  - 👤 bj approves.
 - ✅ **Note prompts**, 15 (October had 15): the lined-space invitations. *What did the kitchen smell
   like tonight? Who did you feed? What does your house smell like on the one day a year it smells
   like that?*
@@ -233,7 +233,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   acidity-safe preserving, no generated recipes. The story's own come first: soul cakes, parkin,
   bonfire toffee, Martinmas bread, stone soup, soda bread, leek and potato soup, Christmas pudding,
   and the Hob's bowl. Then the rest of the Kitchen's 40.
-- ⬜ **the project owner's mother's recipes, for everybody:**
+- ⬜ **bj's mother's recipes, for everybody:**
   - faithful transcriptions;
   - 👤 photos of her handwritten pages (media assets);
   - 👤 how she's credited;
@@ -260,7 +260,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   paper carries the month.
 - ⬜ **App build with the runtime bump** on Rabbit before the pack that needs it.
 
-## 12. the project owner's decisions
+## 12. bj's decisions
 
 - 👤 Notes on the eight scenes.
 - ✅ Trencher and Boggle: yes (written into scenes 2, 7, 8).

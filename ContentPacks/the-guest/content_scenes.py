@@ -1,4 +1,4 @@
-"""Story scenes and real-world crossings. Prose drafts and the project owner's notes live in
+"""Story scenes and real-world crossings. Prose drafts and bj's notes live in
 docs/november-the-guest-scenes.md; this file is what ships."""
 
 from content_common import EVENT_ID, PACK_ID, atom, memory, needs

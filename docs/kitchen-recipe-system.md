@@ -1,6 +1,6 @@
 # The Kitchen: the recipe system (November 2026)
 
-Agreed with the project owner 2026-10-19. The long plan and the house laws are in
+Agreed with bj 2026-10-19. The long plan and the house laws are in
 [kitchen-november-pack.md](kitchen-november-pack.md); the story it serves is
 [november-the-guest.md](november-the-guest.md). This file is what gets built for November.
 
@@ -11,7 +11,7 @@ Agreed with the project owner 2026-10-19. The long plan and the house laws are i
 - **The recipes live in the app,** not the monthly pack, so they never retire with a month. A later
   pack can add more (`PageArchetypePack.recipes`, read the same way).
 - **Gayle O'Brien's recipes ship for everybody,** credited as **"Gayle O'Brien, Mom"**. They're
-  transcribed from her typed binder (the project owner sends photos; no photos ship in the app). They're never
+  transcribed from her typed binder (bj sends photos; no photos ship in the app). They're never
   story machinery and never the magic dish.
 - **The tally never gates an ending.** Made recipes restore *The Middlemost Cookery*'s letters; the
   paper and Book Today print the count. All three endings stay the reader's choice.
