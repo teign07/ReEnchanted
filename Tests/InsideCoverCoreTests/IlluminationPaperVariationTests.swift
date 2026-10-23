@@ -99,7 +99,9 @@ final class IlluminationPaperVariationTests: XCTestCase {
             let result = draft(seed: seed, analysis: analysis, purpose: .enchantment)
             let plan = result.compositionPlan
             XCTAssertEqual(plan.textSlots.count, 2)
-            XCTAssertEqual(plan.textSlots.filter { $0.body == analysis.marginalia.closingLine }.count, 1)
+            // Slots hold trimmed text; the whole result must still be there, once.
+            let spellWords = analysis.marginalia.closingLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(plan.textSlots.filter { $0.body == spellWords }.count, 1)
             XCTAssertFalse(plan.textSlots.contains { $0.slotId == "observation-list" })
             XCTAssertEqual(result.analysis.marginalia, analysis.marginalia)
             assertClearLayout(plan)

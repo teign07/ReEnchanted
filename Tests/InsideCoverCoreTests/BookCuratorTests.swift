@@ -2797,16 +2797,19 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             now: localDate(hour: 10),
             limit: 12
         )
+        // The whole bench, not the first dozen: what's under test is that the
+        // answered question never comes back and a different one does, not
+        // where on the desk the next one ranks.
         let laterSecondPass = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(selfFacts: [answered]),
             now: localDate(hour: 14),
-            limit: 12
+            limit: 24
         )
 
         XCTAssertFalse(immediateSecondPass.contains { $0.type == .aboutYou })
         XCTAssertFalse(laterSecondPass.contains { $0.id == firstQuestion.id })
-        XCTAssertTrue(laterSecondPass.contains { $0.type == .aboutYou })
+        XCTAssertTrue(laterSecondPass.contains { $0.type == .aboutYou && $0.payload.metadata["questionID"] != questionID })
     }
 
     func testBraidPageOnlySurfacesAtNightWithCapturedFragments() {

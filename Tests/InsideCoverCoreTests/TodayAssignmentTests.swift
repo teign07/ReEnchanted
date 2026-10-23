@@ -176,13 +176,29 @@ final class TodayAssignmentTests: XCTestCase {
         XCTAssertEqual(projected.page, assignment)
     }
 
-    func testHardDayStillSuppressesEveryAssignmentFamily() {
+    /// bj, 2026-10-23: a hard day is the day you most need something small that
+    /// makes you feel present, so it isn't gated away. It gets a close-by
+    /// playful mission (the body, a sound, the nearest edge), never a dare
+    /// about being seen and never homework.
+    func testAHardDayGetsASmallAssignmentRightWhereYouAre() throws {
         var today = day(16)
         today.pages = [BookPage(id: "hard", type: .souvenir, createdAt: date(16), promptText: "Today",
-                               userInput: "I can't do this any more. The kitchen is a mess and so am I.")]
+                               userInput: "I can't do this any more. The kitchen is a mess and so am I.",
+                               tags: ["distress"])]
         XCTAssertTrue(DistressSignals.evaluate(day: today).isActive)
-        XCTAssertNil(BookTodayDoorstep.assignment(day: today, inputs: .empty, now: date(16, 12), calendar: calendar))
-        XCTAssertNil(BleedDayDesk.assignment(kind: .morning, day: today, inputs: .empty, now: date(16), calendar: calendar))
+        let doorstep = try XCTUnwrap(BookTodayDoorstep.assignment(day: today, inputs: .empty, now: date(16, 12), calendar: calendar))
+        let page = try XCTUnwrap(doorstep.page)
+        XCTAssertEqual(page.type, .wonderCompass)
+        let missionID = try XCTUnwrap(page.payload.metadata["playfulMissionID"])
+        let mission = try XCTUnwrap(PlayfulMissionRegistry.missions.first { $0.id == missionID })
+        XCTAssertTrue(mission.tags.contains("low-energy"), missionID)
+        XCTAssertFalse(missionID.hasPrefix("shadow-"))
+        let paper = try XCTUnwrap(BleedDayDesk.assignment(kind: .morning, day: today, inputs: .empty, now: date(16), calendar: calendar))
+        XCTAssertTrue(paper.composedBody.contains("it's right where you are"))
+        XCTAssertEqual(paper.assignmentPage?.payload.metadata["playfulMissionID"], missionID, "the paper and Book Today agree")
+        // Every hard day in a month gets one, and they aren't all the same.
+        let missions = Set((1...28).compactMap { PlayfulMissionRegistry.closeByMission(dayID: "2026-11-\($0)")?.id })
+        XCTAssertGreaterThan(missions.count, 10)
     }
 
     func testFullFlyleafReturnsAcceptedWorkInsteadOfAnotherOffer() throws {

@@ -2542,7 +2542,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             let catalogReadingPage = adapter.readingSurface(for: catalogSnippet)
             XCTAssertEqual(catalogReadingPage.payload.metadata["readingPage"], "true", catalogSnippet.id)
             XCTAssertEqual(catalogReadingPage.payload.body, catalogSnippet.body, catalogSnippet.id)
-            XCTAssertNil(catalogReadingPage.leafInvitation, catalogSnippet.id)
+            // Reading about the Compass ends at the door to a run (d663f629).
+            XCTAssertEqual(catalogReadingPage.leafInvitation?.title, "Start a Compass Run", catalogSnippet.id)
         }
 
         let snippet = try XCTUnwrap(
@@ -2574,7 +2575,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         let readingPage = adapter.readingSurface(for: snippet)
         XCTAssertEqual(readingPage.payload.metadata["readingPage"], "true")
         XCTAssertEqual(readingPage.payload.body, snippet.body)
-        XCTAssertNil(readingPage.leafInvitation)
+        XCTAssertEqual(readingPage.leafInvitation?.title, "Start a Compass Run")
     }
 
     func testPennySentenceMasterySurfacesMultipleChapterNinePages() throws {

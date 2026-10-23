@@ -2788,6 +2788,11 @@ enum BleedDayDesk {
                let page = dareSurface(id: id, day: day, inputs: inputs, now: now) { return page }
         }
         let morning = calendar.date(bySettingHour: 10, minute: 0, second: 0, of: day.date) ?? day.date
+        // A hard day still gets its errand: a small one, right where you are.
+        if DistressSignals.evaluate(day: day).isActive, let mission = PlayfulMissionRegistry.closeByMission(dayID: day.id) {
+            return WonderCompassPageSourceAdapter().manualPlayfulMissionSurface(
+                for: day, context: .make(for: day), inputs: inputs, now: morning, mission: mission)
+        }
         let index = GrimoireDay.index(for: day.date, calendar: calendar)
         switch ((index % 3) + 3) % 3 {
         case 1:
@@ -2870,15 +2875,19 @@ enum BleedDayDesk {
     }
 
     /// Every morning the paper sends the Reader out as its correspondent.
-    /// Never on a hard day, and never a debt.
+    /// Never a debt. A hard day gets one too, a small one close by, because
+    /// that's the day a little aliveness is worth most.
     static func assignment(kind: BleedEditionKind, day: BookDay, inputs: BookSourceInputs, now: Date,
                            calendar: Calendar = .current) -> BleedColumnBrief? {
-        guard kind == .morning, !DistressSignals.evaluate(day: day).isActive else { return nil }
+        guard kind == .morning else { return nil }
         let page = dailyAssignmentPage(day: day, inputs: inputs, now: now, calendar: calendar)
         let details = assignmentDetails(page)
         let sender = page.payload.metadata["senderName"] ?? page.payload.metadata["missionHostName"] ?? "Wicker"
+        let opening = DistressSignals.evaluate(day: day).isActive
+            ? "A small one today. You don't have to go anywhere: it's right where you are. This one came from \(sender)."
+            : "The editor is sending you out. This one came from \(sender)."
         let body = """
-        The editor is sending you out. This one came from \(sender).
+        \(opening)
 
         \(details.title.uppercased())
         \(details.challenge)

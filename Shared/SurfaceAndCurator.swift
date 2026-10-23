@@ -3190,7 +3190,11 @@ extension SurfacePage {
     /// honest. Do not invent one to fill the table: "Open the page" is a better
     /// offer than a verb the Page cannot honour.
     var leafInvitation: (title: String, symbol: String)? {
-        if offersCompassRunStart { return ("Start a Compass Run", "location.north.circle") }
+        // A Compass book preview's job is to open the full page; the full page,
+        // once read, is where the run starts.
+        if offersCompassRunStart && payload.metadata["compassBookPreview"] != "true" {
+            return ("Start a Compass Run", "location.north.circle")
+        }
         switch type {
         case .enchantment:
             return ("Choose a photo and cast", "wand.and.sparkles")

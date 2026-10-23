@@ -1810,9 +1810,9 @@ enum BookTodayDoorstep {
     }
 
     /// One outward invitation for the day, retaining the paper's exact Page
-    /// when it has printed. All three families can return real proof.
+    /// when it has printed. All three families can return real proof. A hard
+    /// day gets a small one, close by, rather than none.
     static func assignment(day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BookTodayEdition.Assignment? {
-        guard !DistressSignals.evaluate(day: day).isActive else { return nil }
         if let receipt = BleedDayDesk.filedAssignmentPage(day: day, inputs: inputs)?.attributableLivedQuestReceipt {
             return .init(dareID: receipt.questID, title: receipt.title, challenge: receipt.invitation, filed: true)
         }

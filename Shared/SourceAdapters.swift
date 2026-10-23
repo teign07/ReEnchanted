@@ -10350,6 +10350,20 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         ))
     }
 
+    /// A particular mission as its Page, for a caller that has already chosen it
+    /// (the paper's small assignment on a hard day).
+    func manualPlayfulMissionSurface(
+        for day: BookDay,
+        context: CuratorContext,
+        inputs: BookSourceInputs,
+        now: Date,
+        mission: PlayfulMission
+    ) -> SurfacePage {
+        let progress = CompassRunProgress.progress(for: day)
+        let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
+        return authorCapabilities(on: playfulMissionSurface(mission, seed: seed, context: context, inputs: inputs, now: now))
+    }
+
     /// The Flyleaf returns an already-started run to its next real station,
     /// rather than sending the reader back through the run's intake questions.
     /// With no unfinished run this deliberately falls back to the ordinary

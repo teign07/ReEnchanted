@@ -8059,6 +8059,19 @@ enum PlayfulMissionRegistry {
             .filter { inputs.surfaceHistory[missionHistoryKey(for: $0)] == nil }
     }
 
+    /// Something small that's right where you are: a body, a sound, the
+    /// nearest edge or the oldest smell. What a hard day gets as its errand,
+    /// because that's the day it's most worth having one. Never one of the
+    /// shadow missions; seeded by the day so it holds still.
+    static func closeByMission(dayID: String) -> PlayfulMission? {
+        let pool = missions.filter { $0.tags.contains("low-energy") && !$0.id.hasPrefix("shadow-") && !$0.tags.contains("shadow") }
+        return pool.min {
+            let l = abs("close-by-\(dayID)-\($0.id)".stableHash.stableScramble)
+            let r = abs("close-by-\(dayID)-\($1.id)".stableHash.stableScramble)
+            return l == r ? $0.id < $1.id : l < r
+        }
+    }
+
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
