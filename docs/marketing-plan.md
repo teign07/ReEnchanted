@@ -118,7 +118,7 @@ Budget inputs from [the October 3 sandbox cost sheet](pricing-cost-sheet-2026-10
 
 | Ten copies, one US sandbox destination | Make per copy | Ship per copy | Total |
 |---|---:|---:|---:|
-| Monthly softcover, 128-page cap | $19.77 | $6.78 | $265.50 |
+| Monthly softcover, 128-page October 3 snapshot | $19.77 | $6.78 | $265.50 |
 | Seasonal softcover, 176-page cap | $26.44 | $7.14 | $335.80 |
 
 These are manufacturing plus cheapest sandbox Mail, not a spending authorization
@@ -126,6 +126,10 @@ or a promised delivered price. They exclude tax, proof copies, reprints and any
 fees imposed by the eventual complimentary-order path. They do not establish
 other destinations, delivery dates or physical quality. Gifts are recruitment
 costs, not paid conversion or evidence of willingness to buy another volume.
+These October 3 examples are historical: the paper changed on October 11 and
+the current monthly cap is 160 pages. Do not use the 128-page example as a
+current capped-edition gift budget. Requote the chosen format and destination
+before approving the thank-you spend.
 
 Before an invitation promises paper, settle the reworked edition and physical
 proof, complimentary redemption path, supported destinations, shipping/tax
@@ -134,21 +138,45 @@ verification; Silvie owns the private shortlist; Codex owns the screen and
 measurement draft. Peer agreement prepares the proposal; bj authorizes the
 specific outreach, public copy, spending or deployment.
 
-### Income worksheet — October 4 draft for peer review
+### Income worksheet — October 19 reviewed assumption update
 
 Claude assented to the worksheet columns and a 3–5% refund/reprint allowance in
-pact reply `2c280f51-f456-4379-a53e-337ccbb6ef46`. This implements that internal
-draft; neither the assumptions nor the business offer are approved forecasts.
+pact reply `2c280f51-f456-4379-a53e-337ccbb6ef46`. He explicitly approved the
+concrete fulfillment correction and shared-worksheet update on October 18 in
+marketing reply `4f1650c6-f34a-444f-a404-1310af834105`; Silvie recorded it in
+`00cc6558-d968-43af-b0b4-da3d33222e44`. This completes that internal document
+change. Peer review of a scenario is not evidence of demand, an approved forecast,
+or authorization for sales, outreach or spending.
 
-**Evidence:** current `BoundYearPricing` in `Shared/MonthlyEdition.swift` is
-$279/year or $24.99/month. Current app and Worker caps agree at 128 monthly,
-176 seasonal and 256 annual pages. The October 3 cost sheet quotes one US
-sandbox destination, cheapest Mail: three seasonal parcels plus one linen annual
-cost $159.76 per member-year. These are sandbox fulfillment inputs, not physical
-proof or live destination quotes. Claude's October 3 handoff says the Stripe
-annual price still needs replacement; source pricing does not prove checkout.
+**Evidence checked October 19:** `BoundYearPricing` in
+`Shared/MonthlyEdition.swift` is $279/year or $24.99/month. App
+`PrintSpec.pageCap(for:)` and Worker `EDITION_PAGE_CAPS` agree at 160 monthly,
+176 seasonal and 256 annual pages. The current Worker country defaults are US
+for both paper shipping and Bound Year; this scenario is US-only. Source
+configuration does not verify the deployed environment or live checkout.
 
-Stripe's published US [Payments pricing](https://stripe.com/pricing) lists
+**Dated model inputs:** the October 11 annotation in
+[the cost sheet](pricing-cost-sheet-2026-10-03.md) reports 60# uncoated premium-color
+SANDBOX manufacturing: seasonal 176pp $24.15; linen annual 256pp $47.22.
+The sheet's October 3 header and main tables retain older paper/cap/price inputs;
+use the dated annotation for these manufacturing figures. Shipping has NOT been
+requoted: retain October 3 US Mail estimates of $7.14 per seasonal parcel and
+$8.47 for the linen annual. The combination is
+`3 × (24.15 + 7.14) + 47.22 + 8.47 = $149.56/member-year`
+($119.67 manufacturing + $29.89 shipping). This mixes dated inputs; it is not
+a fresh delivered quote, physical proof or demonstrated upper bound. A lighter
+paper weight alone does not verify a lower shipping charge.
+
+Lulu's printer tax is an additional fulfillment cost, distinct from reader sales
+tax and Stripe's tax-service fee. The current Worker folds quoted printer tax
+into delivery (`fulfillmentTaxCents`); the $149.56 model does not include an
+established printer-tax amount. Do not call the resulting contribution fully
+net. The sheet also reports illustrated annual manufacturing of $42.91, $4.31
+below linen; that manufacturing difference alone does not establish a new
+delivered member-year cost. Retain the linen scenario pending matching quotes.
+
+Stripe's published US rates, rechecked October 19, remain illustrative inputs:
+[Payments pricing](https://stripe.com/pricing) lists
 domestic cards at 2.9% + $0.30. [Billing pay-as-you-go](https://stripe.com/billing/pricing)
 lists 0.7% of Billing volume; [Tax Basic](https://stripe.com/pricing) lists 0.5%
 for Billing/Checkout integrations where registered to collect taxes. Worker
@@ -156,18 +184,36 @@ for Billing/Checkout integrations where registered to collect taxes. Worker
 This supports modeling those service fees separately, not claiming the account's
 actual contract, registrations or charged fee basis have been verified.
 
+**Welcome weekly — October 22 reviewed correction:** Silvie approved this
+addition in marketing reply `a423641f-d179-450d-8c31-ef739fb672ad`. The figures
+below cover three seasonal books and one annual book. They exclude the printed
+welcome weekly already promised in the app. Let W be its actual delivered cost,
+including manufacture, shipping and applicable printer tax; W remains unknown
+pending a matching quote. Deduct W once for each membership receiving a welcome,
+including new/recreated membership IDs when eligible. A continuing renewal
+without another welcome does not incur W again. Four-volume-only contribution
+and member targets below are not complete first-year figures for new members
+receiving a welcome.
+
+For illustration only, hypothetical W = $15 reduces annual-pay contribution from
+$103.751 to $88.751 and full-paid monthly contribution from $119.43092 to
+$104.43092. For $36,000 plus the named/planned $579 annual overhead, an entirely
+new cohort receiving one welcome each would need 413 annual-pay members or 351
+monthly-pay members. These are alternative full-retention scenarios, not a quote,
+forecast or take-home-income claim. All other model omissions remain.
+
 | One US member-year, full retention | Annual pay | Monthly pay |
 |---|---:|---:|
 | Receipts excluding pass-through sales tax | $279.00 | $299.88 |
-| Manufacturing + four sandbox Mail parcels | $159.76 | $159.76 |
+| Dated manufacturing + four old Mail estimates, excluding printer tax | $149.56 | $149.56 |
 | Assumed domestic card fees, 1 / 12 payments | $8.39 | $12.30 |
-| Contribution after these costs only | $110.85 | $127.82 |
+| Contribution after these costs only | $121.05 | $138.02 |
 | Illustrative Billing fee, 0.7% of pretax receipts | $1.95 | $2.10 |
 | Illustrative Tax Basic fee, 0.5% of pretax receipts | $1.40 | $1.50 |
 | Hypothetical refund/reprint allowance, 5% of receipts | $13.95 | $14.99 |
-| Contribution after these modeled costs | $93.55 | $109.23 |
-| Monthly equivalent | $7.80 | $9.10 |
-| Full-year members for $36,000 annual contribution | 385 | 330 |
+| Contribution after these modeled costs | $103.75 | $119.43 |
+| Monthly equivalent | $8.65 | $9.95 |
+| Full-year members for $36,000 annual contribution | 347 | 302 |
 
 Calculate with unrounded inputs, then round for display. This example applies
 Tax Basic to every payment; actual applicability may differ. Fees on collected
@@ -180,10 +226,13 @@ twelve payments and four parcels; cancellation and failed payments require
 their own cash/fulfillment history. Annual cash is reserved against future books,
 not treated as income entirely earned when collected.
 
-**Mixed model, monthly equivalents:** annual members × $93.551 / 12 +
-monthly-pay full-year members × $109.23092 / 12 + separately purchased copies ×
+**Mixed model, monthly equivalents:** annual members × $103.751 / 12 +
+monthly-pay full-year members × $119.43092 / 12 + separately purchased copies ×
 their measured contribution − acquisition − direct support − tester gifts −
-fixed overhead. The two member cohorts are disjoint. Gift copies and included
+fixed overhead. The two member cohorts are disjoint. Subtract welcome parcels
+fulfilled per year × W / 12 as a further monthly-equivalent fulfillment cost.
+Track outstanding welcome obligations separately; an unshipped promise is not
+erased. Do not also count the same welcome as an acquisition cost. Gift copies and included
 membership parcels are not separately paid orders. This is a steady-state
 scenario; use actual invoices and fulfillment obligations for period reporting.
 
@@ -192,17 +241,29 @@ and Claude $20/month, totaling $40/month ($480/year). These are bj-reported
 subscription amounts allocated to the business for this worksheet; receipts and
 tax deductibility have not been verified. Domain renewal and hosting remain
 unknown and additional. Using the same dated contribution assumptions above,
-the full-retention target for $36,000/year after this $480 overhead is **390
-annual-pay members or 334 monthly-pay members** (each is an alternative all-one-
+the full-retention target for $36,000/year after this $480 overhead is **352
+annual-pay members or 306 monthly-pay members** (each is an alternative all-one-
 plan scenario). Calculate `ceiling((36000 + 480) / member-year contribution)`.
 Apple Developer enrollment is a **planned $99/year business expense**, per bj,
 starting when he is ready to enroll; it is not recorded as paid or currently
 incurred. Including that future fee brings these allocated costs to $579/year
-($48.25/month equivalent) and the corresponding full-retention target to **392
-annual-pay members or 335 monthly-pay members**. Calculate
+($48.25/month equivalent) and the corresponding full-retention target to **353
+annual-pay members or 307 monthly-pay members**. Calculate
 `ceiling((36000 + 480 + 99) / member-year contribution)`; cash payment is annual.
 Acquisition, support, tester gifts, other overhead and owner income tax remain
 additional; this is not a take-home-income forecast.
+
+**Remaining model limits:** replace the old shipping estimates with fresh
+matching quotes, then deduct printer tax, other omitted costs and fees on
+collected sales tax before treating these member
+counts as a target that funds $3,000/month after costs. Paid retention remains
+unknown: free tester returns cannot establish it. The full-year monthly-pay
+contribution is not a safe acquisition budget for a short stay. October 17's
+conditional three-/six-month examples were $35.96/$71.92 before acquisition,
+support and overhead, using the same dated seasonal inputs; they are scenarios,
+not observed paid behavior or verified cancellation fulfillment. Contribution
+is not bank cash available for printing; bj's bank-receipt-before-Lulu rule is
+a separate operational gate.
 
 **Audience lanes:** streak-anxious solo journalers and archive-rich non-printers,
 as Silvie explicitly confirmed on the pact thread. These are research hypotheses,
@@ -211,7 +272,7 @@ not conversion results; keep other/unknown responses rather than force a fit.
 **Actual-results columns:** period, source/segment (unknown allowed), active
 readers, voluntary paid buyers, separately paid copies, monthly/annual members,
 cash receipts, sales tax collected/remitted, revenue excluding pass-through tax,
-manufacturing, shipping, payment fees, Billing fees, Tax service fees,
+manufacturing, shipping, printer tax, payment fees, Billing fees, Tax service fees,
 refund/reprint losses and remaining reserve, tester-gift costs, acquisition,
 direct support, contribution, fixed overhead and cash reserved for owed parcels.
 Unknown costs remain unknown, not zero. Product markup alone is not contribution

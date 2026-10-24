@@ -44,7 +44,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   - buildup: *Guest-right* (Nov 8–15);
   - climax: *The Offer* (Nov 16–25);
   - aftermath: *The Bowl* (Nov 26–30).
-
+  
   Each phase needs:
   - ✅ `scene`: what's happening, in the Book's voice. It shows on Book Today and in the widget.
   - ✅ `packetLine`: backstage steering for the model.
@@ -153,7 +153,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   - the month's food: soul cakes, parkin, the treacle tin;
   - the story's objects: frost on glass, an iron latch, a thorn, candle stubs, the pudding in its
     cloth.
-
+  
   They decorate the month's leaves and printed margins and fill Pagewright's This Month shelf.
 - ✅ **Marginalia snippets:** 13 pencilings in `margins.reenchantedpack.json`, live while the Guest is here.
 - ✏️ **Print plates**: 20 prompts (frontispiece, one per scene, five Cast portraits, six
@@ -173,7 +173,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   - *Set the Table* (scrapbook form);
   - a coloring plate of the Kitchens;
   - a word ladder (COLD to WARM).
-
+  
   Every leaf needs `eventOutcomeIDs`, even if it's empty.
   - 👤 bj approves.
 - ✅ **Note prompts**, 15 (October had 15): the lined-space invitations. *What did the kitchen smell
@@ -233,7 +233,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   acidity-safe preserving, no generated recipes. The story's own come first: soul cakes, parkin,
   bonfire toffee, Martinmas bread, stone soup, soda bread, leek and potato soup, Christmas pudding,
   and the Hob's bowl. Then the rest of the Kitchen's 40.
-- ⬜ **bj's mother's recipes, for everybody:**
+- ⬜ **Bj's mother's recipes, for everybody:**
   - faithful transcriptions;
   - 👤 photos of her handwritten pages (media assets);
   - 👤 how she's credited;

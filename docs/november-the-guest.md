@@ -213,7 +213,7 @@ voice; the Book has no hands). Pinned beats need a floor, not a score.
   one-sentence weather menu in the Academy timetable, Penny's "A Guest Remains" coverage.
 - **Outcomes:** like Count Unbound's, recorded so December and February can read them.
 
-## bj's mother's recipes
+## Bj's mother's recipes
 
 **For everybody** (bj, 2026-10-19). They're the Kitchen's Inherited shelf: set out faithfully,
 ideally beside a photograph of her handwritten page, arriving on ordinary days with one short
@@ -235,7 +235,7 @@ laws (allergens named; no ruled-out preserving method).
 ## Open
 
 - Trencher and Boggle: yes or no.
-- How the family contributor is credited; photos of her pages.
+- How bj's mother is credited; photos of her pages.
 - The Hob's name: revealed at the end, or never.
 - December's hand-off: *The First of December* leaves the ending (Ambrose's memory) and one
   of three watch tags (`december-watch-ambrose` / `-light` / `-house`). What the Long Watch does
