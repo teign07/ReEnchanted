@@ -1201,30 +1201,73 @@ enum BleedInterestNewsDesk {
     }
 }
 
+/// What a temperature-0 reviewer said, read the way a person would. A small
+/// model answers "PASS.", "**Pass**" or "`PASS`" as often as "PASS"; each is
+/// an approval. Anything else with words in it is a request for changes,
+/// never an approval. Only silence means the review didn't happen.
+enum EditorVerdict: Equatable {
+    case pass
+    case repair(String)
+    case unavailable
+
+    static func parse(_ raw: String?) -> EditorVerdict {
+        guard let text = raw?.replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return .unavailable }
+        let firstLine = text.components(separatedBy: .newlines).first ?? ""
+        let letters = firstLine.uppercased().unicodeScalars
+            .filter { CharacterSet.letters.contains($0) || $0 == " " }
+        let bare = String(String.UnicodeScalarView(letters)).trimmingCharacters(in: .whitespaces)
+        if bare == "PASS" || bare == "VERDICT PASS" { return .pass }
+        let feedback = text
+            .replacingOccurrences(of: #"(?i)^[\s*_#`>]*(REPAIR|FAIL)[\s*_`]*:?[\s*_`]*"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return .repair(feedback.isEmpty ? text : feedback)
+    }
+}
+
 enum BleedCopyDesk {
+    /// One copy-desk note. A blocking note means the draft can't print as it
+    /// stands; the rest are taste (length, abstraction) and a draft the source
+    /// editor approved may still print with them if its rewrite fails.
+    struct Note: Equatable {
+        var text: String
+        var blocking: Bool
+    }
+
     /// Mechanical checks can reject padding; they do not establish truth.
     /// The app separately reviews generated claims against the source packet.
     static func feedback(prose: String, brief: BleedColumnBrief) -> [String] {
+        notes(prose: prose, brief: brief).map(\.text)
+    }
+
+    /// True when nothing but taste stands between the draft and the paper.
+    static func printable(prose: String, brief: BleedColumnBrief) -> Bool {
+        !notes(prose: prose, brief: brief).contains(where: \.blocking)
+    }
+
+    static func notes(prose: String, brief: BleedColumnBrief) -> [Note] {
         let text = prose.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return ["The column is empty."] }
-        var notes: [String] = []
+        guard !text.isEmpty, text != "OMIT" else { return [Note(text: "The column is empty.", blocking: true)] }
+        var notes: [Note] = []
+        func taste(_ note: String) { notes.append(Note(text: note, blocking: false)) }
+        func refuse(_ note: String) { notes.append(Note(text: note, blocking: true)) }
         let editorialText = brief.readerQuotes == nil ? text : BleedReaderDesk.response(in: text, brief: brief)
         if brief.readerQuotes == nil && text.split(whereSeparator: \.isWhitespace).count > 180 {
-            notes.append("Cut to at most 180 words. Keep the new information.")
+            taste("Cut to at most 180 words. Keep the new information.")
         }
         let badSignals = ProseTaste.signals(in: editorialText).filter { $0.points < 0 }
         if badSignals.count >= 2 {
-            notes.append("Replace abstract commentary with the supplied particulars: " + badSignals.map(\.name).joined(separator: ", "))
+            taste("Replace abstract commentary with the supplied particulars: " + badSignals.map(\.name).joined(separator: ", "))
         }
         let lowered = editorialText.lowercased()
         let padding = ["the clerk notes", "sworn and stamped", "last deposition", "the margins are quiet",
                        "a testament to", "your journey", "a reminder that", "in the tapestry"]
         if padding.contains(where: lowered.contains) {
-            notes.append("Remove ceremonial filing language and generic lessons. Say what happened.")
+            taste("Remove ceremonial filing language and generic lessons. Say what happened.")
         }
         if editorialText.contains("{{CLIPPINGS}}") || editorialText.contains("CURRENT REPORTABLE FACTS:")
             || editorialText.contains("<reader-words>") || editorialText.contains("[page ") {
-            notes.append("Remove source-packet labels and internal identifiers.")
+            refuse("Remove source-packet labels and internal identifiers.")
         }
         if let source = brief.quoteSource,
            let quotes = try? NSRegularExpression(pattern: #"“([^”]+)”|‘([^’]+)’|"([^"]+)""#) {
@@ -1236,45 +1279,45 @@ enum BleedCopyDesk {
                     return quote.split(whereSeparator: \.isWhitespace).count >= 3 && source.contains(quote)
                 }
             }
-            if !exactQuote { notes.append("Quote an exact sentence from the submitted reader words; do not invent or paraphrase the quotation.") }
+            if !exactQuote { refuse("Quote an exact sentence from the submitted reader words; do not invent or paraphrase the quotation.") }
         }
         if let locked = brief.readerQuotes {
             if let block = brief.readerQuoteBlock, !text.hasPrefix(block) {
-                notes.append("Restore the locked quotation block and its exact source-Page dates.")
+                refuse("Restore the locked quotation block and its exact source-Page dates.")
             }
             for quote in locked where !text.contains("“\(quote)”") {
-                notes.append("Restore the exact locked Reader quotation without rewriting, ellipses or changed punctuation.")
+                refuse("Restore the exact locked Reader quotation without rewriting, ellipses or changed punctuation.")
             }
             let response = BleedReaderDesk.response(in: text, brief: brief)
             if locked.contains(where: { response.contains($0) }) {
-                notes.append("Do not repeat the locked quotations in the Book's response; respond to one specific feature of their wording.")
+                refuse("Do not repeat the locked quotations in the Book's response; respond to one specific feature of their wording.")
             }
             if response.split(whereSeparator: \.isWhitespace).count > 75 {
-                notes.append("Keep the Book's reading under 55 words, with one particular observation.")
+                refuse("Keep the Book's reading under 55 words, with one particular observation.")
             }
             let stock = ["this shows you", "this reveals", "you are learning", "you have grown", "your resilience", "your journey", "a powerful reminder", "embrace the", "you must", "you should"]
             if stock.contains(where: response.lowercased().contains) {
-                notes.append("Read the actual language. Remove advice, praise and claims about the Reader's character or progress.")
+                refuse("Read the actual language. Remove advice, praise and claims about the Reader's character or progress.")
             }
         }
         if brief.id == "interest-desk" {
             guard let headline = brief.newsHeadline else {
-                return notes + ["No dated publisher article was selected. Omit this column."]
+                refuse("No dated publisher article was selected. Omit this column."); return notes
             }
             let opening = text.split(whereSeparator: \.isWhitespace).prefix(40).joined(separator: " ").lowercased()
             let subject = (brief.researchQuery ?? "").lowercased()
             let definitions = ["\(subject) is ", "\(subject) refers to", "\(subject) involves", "\(subject) encompasses",
                                "artificial intelligence is ", "ai is the ", "in today's rapidly", "in the ever-evolving", "at its core"]
             if definitions.contains(where: opening.contains) {
-                notes.append("Delete the definition and scene-setting. Lead with the selected story's actor, action and specific result.")
+                refuse("Delete the definition and scene-setting. Lead with the selected story's actor, action and specific result.")
             }
             let anchors = BleedInterestNewsDesk.words(headline).subtracting(BleedInterestNewsDesk.words(subject))
             let hits = anchors.intersection(BleedInterestNewsDesk.words(opening))
             if !anchors.isEmpty && hits.count < min(2, anchors.count) {
-                notes.append("The opening could fit any article about this interest. Name the concrete development in the selected headline.")
+                taste("The opening could fit any article about this interest. Name the concrete development in the selected headline.")
             }
             if text.split(whereSeparator: \.isWhitespace).count > 130 {
-                notes.append("Cut this news column to 75–110 words. Keep the finding and its consequence.")
+                taste("Cut this news column to 75–110 words. Keep the finding and its consequence.")
             }
         }
         return notes
@@ -2499,7 +2542,9 @@ enum BleedDayDesk {
             for article in ["a ", "an "] where thing.lowercased().hasPrefix(article) {
                 thing = String(thing.dropFirst(article.count))
             }
-            clause = thing + " Reported"
+            // The thing itself is the headline. "X Reported" only ever read well
+            // when X was already a strong noun, and printed "You Like Reported".
+            clause = personalised(thing, subject: subject)
         } else {
             clause = personalised(clause, subject: subject)
         }
@@ -2549,9 +2594,44 @@ enum BleedDayDesk {
         return clause.prefix(1).uppercased() + clause.dropFirst()
     }
 
+    /// The Reader's own sentence as the headline, the way papers quote a
+    /// witness: “I like being called the night light,” says Wren. Short, said
+    /// in the first person, and printed exactly as they wrote it.
+    static func quoteHeadline(bound: BoundDay, source: BookDay, subject: String, printedTitles: Set<String>,
+                              alreadyPrinted: (String, String) -> Bool) -> String? {
+        let captioned = Set(source.pages.filter { $0.hasReaderPhotograph || $0.mediaAssets.contains { $0.kind != .audioFile } }.map(\.id))
+        for entry in bound.entries where !captioned.contains(entry.pageID) {
+            for sentence in WonderBraid.sentences(entry.text).prefix(3) {
+                var said = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+                let mark = said.last.map { "?!".contains($0) } == true ? String(said.removeLast()) : ""
+                while let last = said.last, ".,;:".contains(last) { said.removeLast() }
+                let words = said.split(whereSeparator: \.isWhitespace).map { $0.lowercased() }
+                guard (4...11).contains(words.count), said.count <= 64, !said.contains("“"), !said.contains("\""),
+                      let first = words.first, ["i", "i'm", "i've", "i'd", "i'll", "we", "my", "our"].contains(first),
+                      !alreadyPrinted(entry.pageID, said) else { continue }
+                let printed = "“" + said.prefix(1).uppercased() + said.dropFirst() + (mark.isEmpty ? "," : mark) + "” says " + subject
+                guard !printedTitles.contains(printed.lowercased()) else { continue }
+                return printed
+            }
+        }
+        return nil
+    }
+
+    /// The strap over the headline says what kind of day it was, when the day
+    /// says so. Only a day with nothing distinctive gets the house rotation.
+    static func kicker(kind: BleedEditionKind, bound: BoundDay, seed: Int) -> String {
+        if bound.keeps.contains(where: { $0.kind == .letter }) { return "Post received" }
+        if bound.photos.count > 1 { return "Pictures inside" }
+        if bound.photos.count == 1 { return "With photograph" }
+        if bound.scenes.contains(where: { !$0.isReport }) { return "From inside the Labyrinth" }
+        if bound.readerWordCount >= 120 { return "In full" }
+        let kickers = kind == .morning ? morningKickers : eveningKickers
+        return kickers[seed % kickers.count]
+    }
+
     private static let morningKickers = [
         "Exclusive", "From our own correspondent", "Late news", "Special report",
-        "Hold the front page", "Ordinary day, extraordinary scenes", "On the record"
+        "Hold the front page", "On the record"
     ]
     private static let eveningKickers = [
         "Late final", "Today, so far", "Still developing", "As it happened", "Late extra"
@@ -2638,23 +2718,30 @@ enum BleedDayDesk {
         let printedTitles = Set(recent.map { $0.title.lowercased() })
         let heading = WeeklyTaleBuilder.heading(for: bound, kept: kept, telling: telling, tags: braid?.tags ?? [])
         let canonical = Self.headline(fromHeading: heading, subject: subject)
-        // Last night's paper already ran this. Overnight the Book named the day; that's the news.
-        let overnight = printedTitles.contains(canonical.lowercased()) && kind == .morning
+        let canonicalRan = printedTitles.contains(canonical.lowercased())
+        // A headline that names something the day held (the night's colophon, a
+        // detail they wrote) leads. Otherwise the heading is only what was left over.
+        let story = !canonicalRan && WeeklyTaleBuilder.detailHeadings(for: bound, kept: kept).contains(heading)
+        // Overnight the Book named the day; when nothing better happened, that's the news.
+        let overnight = !story && kind == .morning
             ? braid?.title.nonEmpty.map(titleCased).flatMap { printedTitles.contains($0.lowercased()) ? nil : $0 }
             : nil
         let hard = DistressSignals.evaluate(day: source).isActive
-        let kickers = kind == .morning ? morningKickers : eveningKickers
+        // Failing both, the Reader is the paper's source: quote them.
+        let quote = story || overnight != nil || hard ? nil : quoteHeadline(bound: bound, source: source, subject: subject,
+            printedTitles: printedTitles, alreadyPrinted: alreadyPrinted)
         // The correspondent went out and came back with proof: the paper says so.
         let dispatch = filedAssignmentPage(day: source, inputs: inputs)
         let dispatched = dispatch != nil
         // Tonight's lead is the assignment itself, when it came back today.
         let dispatchHeadline = kind == .evening ? dispatch?.attributableLivedQuestReceipt?.title.nonEmpty
             .map { "Assignment Complete: " + titleCased($0) } : nil
-        let headline = hard ? "\(weekday), Kept" : dispatchHeadline ?? overnight ?? canonical
+        let headline = hard ? "\(weekday), Kept" : dispatchHeadline ?? overnight ?? quote ?? canonical
         let kicker = hard ? "On the record" : dispatched ? "Our correspondent returns"
             : overnight != nil ? "Named overnight"
-            : printedTitles.contains(canonical.lowercased()) ? (kind == .morning ? "Confirmed overnight" : "Still developing")
-            : kickers[seed % kickers.count]
+            : quote != nil ? "In their own words"
+            : canonicalRan ? (kind == .morning ? "Confirmed overnight" : "Still developing")
+            : Self.kicker(kind: kind, bound: bound, seed: seed)
 
         var paragraphs: [String] = []
         if hard {
@@ -2712,7 +2799,7 @@ enum BleedDayDesk {
                                            : "Today's assignment was carried out, and the paper has the proof.")
         }
         if kind == .morning, let braid {
-            record.append(overnight != nil
+            record.append(overnight != nil && canonicalRan
                 ? "Last night's paper had the day so far. Overnight the Book braided all of it and called it “\(braid.title)”."
                 : "Overnight the Book braided the day into “\(braid.title)”.")
         }

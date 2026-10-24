@@ -5489,17 +5489,9 @@ struct CharacterFidelityAudit: Equatable {
         else {
             return .unavailable
         }
-        let firstLine = raw
-            .components(separatedBy: .newlines)
-            .first?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .uppercased() ?? ""
-        if firstLine == "PASS" {
-            return .pass
-        }
-        let feedback = raw
-            .replacingOccurrences(of: #"(?i)^\s*(REPAIR|FAIL)\s*:?\s*"#, with: "", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // "PASS." and "**Pass**" are approvals too; a strict string match
+        // sent faithful prose back for a rewrite it didn't need.
+        guard case .repair(let feedback) = EditorVerdict.parse(raw) else { return .pass }
         let issueCount = max(1, feedback.components(separatedBy: "\n-").count)
         return CharacterFidelityAudit(
             verdict: .repair,
@@ -6532,48 +6524,74 @@ struct BleedColumnWriter {
         guard let first = await LocalBrainProse.write(
             prompt: prompt, instructions: instructions(for: brief),
             maxTokens: max(brief.maxTokens, 200), sourceID: "the-bleed", tags: ["bleed", brief.id]
-        ) else { return brief.fallbackBody ?? "" }
+        ) else { return dropped(brief, because: "the writer returned nothing") }
 
+        // Nobody speaks in a news report; a fiction auditor judging one finds
+        // something to rewrite every time. The source editor still reads it.
+        let audited = brief.id != "interest-desk"
+        func fidelity(_ body: String, _ context: String) async -> CharacterFidelityAudit {
+            guard audited else { return .pass }
+            return await CharacterFidelityReviewer.audit(prose: body, canon: canon, context: context, sourceID: "the-bleed")
+        }
         let firstBody = BleedReaderDesk.finishing(first, brief: brief)
-        let firstFidelity = await CharacterFidelityReviewer.audit(
-            prose: firstBody, canon: canon, context: "The Bleed: \(brief.title)", sourceID: "the-bleed"
-        )
+        let firstFidelity = await fidelity(firstBody, "The Bleed: \(brief.title)")
         let firstGrounding = await groundingFeedback(prose: firstBody, packet: packet, kind: brief.id)
         let firstNotes = BleedCopyDesk.feedback(prose: firstBody, brief: brief)
             + (firstFidelity.shouldRepair ? [firstFidelity.feedback] : [])
             + (firstGrounding.map { [$0] } ?? [])
         if firstNotes.isEmpty {
-            await CharacterFidelityReviewer.recordDecision(
+            if audited { await CharacterFidelityReviewer.recordDecision(
                 sourceID: "the-bleed", canon: canon, prompt: prompt,
                 first: firstFidelity, repaired: nil, selected: .first
-            )
+            ) }
             return firstBody
         }
         // No successful grounding review means no unsupported text is printed.
         // A failed/absent local model still leaves the authored paper intact.
-        guard firstGrounding != Self.reviewUnavailable,
-              let second = await LocalBrainProse.write(
+        guard firstGrounding != Self.reviewUnavailable else {
+            return dropped(brief, because: "the source review returned nothing")
+        }
+        // The source editor passed it and only taste stands in the way: if the
+        // rewrite fails, this draft prints rather than nothing at all.
+        let firstStands = firstGrounding == nil && !firstFidelity.shouldRepair
+            && BleedCopyDesk.printable(prose: firstBody, brief: brief)
+        guard let second = await LocalBrainProse.write(
                 prompt: prompt + "\n\nDRAFT TO EDIT:\n" + first + "\n\nCOPY DESK:\n" + firstNotes.joined(separator: "\n")
                     + "\nReturn the complete corrected column, or OMIT if no useful supported item remains.",
                 instructions: instructions(for: brief), maxTokens: max(brief.maxTokens, 200),
                 sourceID: "the-bleed", tags: ["bleed", brief.id, "copy-repair"]
               ), second.trimmingCharacters(in: .whitespacesAndNewlines) != "OMIT" else {
-            return brief.fallbackBody ?? ""
+            return firstStands ? firstBody : dropped(brief, because: "the rewrite was omitted after: " + firstNotes.joined(separator: " | "))
         }
         let secondBody = BleedReaderDesk.finishing(second, brief: brief)
-        let secondFidelity = await CharacterFidelityReviewer.audit(
-            prose: secondBody, canon: canon, context: "The Bleed, edited: \(brief.title)", sourceID: "the-bleed"
-        )
+        let secondFidelity = await fidelity(secondBody, "The Bleed, edited: \(brief.title)")
         let secondGrounding = await groundingFeedback(prose: secondBody, packet: packet, kind: brief.id)
-        let accepts = !secondFidelity.shouldRepair && secondGrounding == nil
-            && BleedCopyDesk.feedback(prose: secondBody, brief: brief).isEmpty
+        let secondNotes = BleedCopyDesk.feedback(prose: secondBody, brief: brief)
+        let accepts = !secondFidelity.shouldRepair && secondGrounding == nil && secondNotes.isEmpty
         if accepts {
-            await CharacterFidelityReviewer.recordDecision(
+            if audited { await CharacterFidelityReviewer.recordDecision(
                 sourceID: "the-bleed", canon: canon, prompt: prompt,
                 first: firstFidelity, repaired: secondFidelity, selected: .repaired
-            )
+            ) }
+            return secondBody
         }
-        return accepts ? secondBody : (brief.fallbackBody ?? "")
+        // Taste alone never empties the paper: the edited draft, if the source
+        // editor approved it, then the first one, under the same condition.
+        if secondGrounding == nil, !secondFidelity.shouldRepair, BleedCopyDesk.printable(prose: secondBody, brief: brief) {
+            return secondBody
+        }
+        if firstStands { return firstBody }
+        let reasons = secondNotes + (secondFidelity.shouldRepair ? ["voice: " + secondFidelity.feedback] : [])
+            + (secondGrounding.map { ["source: " + $0] } ?? [])
+        return dropped(brief, because: "the rewrite failed: " + reasons.joined(separator: " | "))
+    }
+
+    /// Every column that doesn't print says why, so "written but never used"
+    /// can be read in the log instead of guessed at.
+    private func dropped(_ brief: BleedColumnBrief, because reason: String) -> String {
+        let fallback = brief.fallbackBody ?? ""
+        appLog.notice("Bleed column \(brief.id, privacy: .public) dropped (\(fallback.isEmpty ? "nothing printed" : "fallback printed", privacy: .public)): \(reason, privacy: .private)")
+        return fallback
     }
 
     private static let reviewUnavailable = "The source review was unavailable."
@@ -6616,9 +6634,13 @@ struct BleedColumnWriter {
             maxTokens: 160, sourceID: "the-bleed-source-review", tags: ["bleed", "source-review"],
             temperature: 0, topP: 1
         ) else { return Self.reviewUnavailable }
-        let result = review.trimmingCharacters(in: .whitespacesAndNewlines)
-        if result == "PASS" { return nil }
-        return result.hasPrefix("REPAIR:") ? result : Self.reviewUnavailable
+        // "PASS." used to read as "review unavailable" and dropped a good
+        // column without a rewrite. Unlabelled objections are still objections.
+        switch EditorVerdict.parse(review) {
+        case .pass: return nil
+        case .repair(let notes): return "REPAIR: " + notes
+        case .unavailable: return Self.reviewUnavailable
+        }
     }
 
     private func instructions(for brief: BleedColumnBrief) -> String {

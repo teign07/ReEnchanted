@@ -47,14 +47,32 @@ final class BleedDailyEditionTests: XCTestCase {
         XCTAssertEqual(BleedDayDesk.headline(fromHeading: "In which you found a moth asleep inside the lampshade", subject: "Wren"),
                        "Wren Found a Moth Asleep Inside the Lampshade")
         XCTAssertEqual(BleedDayDesk.headline(fromHeading: "In which there was a low grey sky", subject: "Wren"),
-                       "Low Grey Sky Reported")
+                       "Low Grey Sky")
         XCTAssertEqual(BleedDayDesk.headline(fromHeading: "In which the card came home with your name still on it", subject: "Wren"),
                        "The Card Came Home with Wren's Name Still on It")
         XCTAssertEqual(BleedDayDesk.headline(fromHeading: "In which you kept a photograph", subject: "Local Reader"),
                        "Local Reader Kept a Photograph")
     }
 
+    func testAFirstPersonFragmentNeverBecomesAThing() {
+        // Without the tagger's assets this was "In which there was a you like",
+        // and the front page printed "You Like Reported".
+        let heading = WeeklyTaleBuilder.readerThingHeading("I like being called the night light")
+        XCTAssertFalse(heading?.lowercased().contains("you like") ?? false, heading ?? "")
+        XCTAssertNil(WeeklyTaleBuilder.readerThingHeading("I like it"))
+    }
+
     // MARK: The front page
+
+    func testADayWithNoStoryInItQuotesTheReader() throws {
+        let line = "I like being called the night light."
+        let day = bookDay(10, 15, [BookPage(id: "light", type: .souvenir, createdAt: date(10, 15, 9),
+                                            promptText: "One true sentence", userInput: line)])
+        let page = try XCTUnwrap(BleedDayDesk.frontPage(kind: .morning, day: bookDay(10, 16, []),
+            inputs: inputs(days: [day]), now: date(10, 16, 7), calendar: calendar))
+        XCTAssertEqual(page.title, "“I like being called the night light,” says Wren")
+        XCTAssertTrue(page.byline.hasPrefix("In their own words"), page.byline)
+    }
 
     func testTheMorningFrontPageReportsYesterdayInTheReadersOwnWords() throws {
         let today = bookDay(10, 16, [])

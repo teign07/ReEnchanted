@@ -1185,13 +1185,37 @@ enum WeeklyTaleBuilder {
               last.lowercased().hasSuffix("ing") || isPastVerb(String(last)) {
             fragment = fragment.split(separator: " ").dropLast().joined(separator: " ")
         }
-        let words = fragment.split(separator: " ")
-        guard fragment != "A Quiet Night", (2...6).contains(words.count), hasConcreteNoun(fragment),
+        let words = fragment.split(separator: " ").map { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+        // Without the tagger the fragment is just the sentence's first words:
+        // "I like being called…" came back as "you like", and a heading of
+        // "there was a you like". A thing starts with a thing and ends on one.
+        guard let head = words.first, let tail = words.last,
+              !fragmentPronouns.contains(head), !fragmentStopEnds.contains(tail), !isPastVerb(tail),
+              fragment != "A Quiet Night", (2...6).contains(words.count), hasConcreteNoun(fragment),
               BraidSceneWriter.secondPerson(text).lowercased().contains(fragment.lowercased()) else { return nil }
         let thing = lowercasedFirst(fragment)
         let article = ["the ", "a ", "an ", "your ", "some ", "two ", "three "].contains { thing.lowercased().hasPrefix($0) } ? "" : "a "
         let noun = article.isEmpty ? thing : (thing.first.map { "aeiou".contains($0.lowercased()) } == true ? "an " : "a ") + thing
         return "In which there was " + noun
+    }
+
+    private static let fragmentPronouns: Set<String> = [
+        "i", "you", "we", "he", "she", "they", "it", "me", "us", "him", "her", "them", "my", "our", "this", "that", "these", "those"
+    ]
+    private static let fragmentStopEnds: Set<String> = [
+        "like", "likes", "love", "loves", "hate", "want", "wants", "need", "needs", "feel", "feels", "think", "know", "see",
+        "get", "go", "have", "has", "am", "is", "are", "be", "been", "do", "does", "can", "will", "would", "could", "should",
+        "just", "really", "very", "so", "too", "also", "still", "and", "or", "but", "of", "to", "with", "for", "the", "a", "an"
+    ]
+
+    /// The headings that name something the day actually held: the night's own
+    /// colophon and a detail the reader wrote, retold. The rest are what's left.
+    static func detailHeadings(for day: BoundDay, kept: String?) -> [String] {
+        var found: [String] = []
+        if let kept, !isStockColophon(kept),
+           let heading = colophonHeading(kept, readerWords: day.words + day.entries.map(\.text)) { found.append(heading) }
+        found += day.entries.compactMap { readerDetailHeading($0.text) }
+        return found
     }
 
     /// True for the planner's seven stock colophons, which every month repeats.

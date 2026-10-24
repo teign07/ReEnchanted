@@ -254,4 +254,27 @@ final class BleedInterestNewsTests: XCTestCase {
         XCTAssertEqual(Set(plan.prefix(2)), ["botany", "pottery"])
     }
 
+    // MARK: The repair stage
+
+    func testAReviewerApprovalIsAnApprovalHoweverItIsPunctuated() {
+        for raw in ["PASS", "PASS.", "**PASS**", "Pass", "`PASS`", "pass!", "  PASS.\n"] {
+            XCTAssertEqual(EditorVerdict.parse(raw), .pass, raw)
+        }
+        XCTAssertEqual(EditorVerdict.parse("REPAIR: remove the rain claim"), .repair("remove the rain claim"))
+        XCTAssertEqual(EditorVerdict.parse("**Repair:** remove the rain claim"), .repair("remove the rain claim"))
+        // Unlabelled objections, and an approval with a condition, are still objections.
+        XCTAssertEqual(EditorVerdict.parse("The column invents a second site."), .repair("The column invents a second site."))
+        XCTAssertEqual(EditorVerdict.parse("PASS, but remove the date"), .repair("PASS, but remove the date"))
+        XCTAssertEqual(EditorVerdict.parse(nil), .unavailable)
+        XCTAssertEqual(EditorVerdict.parse("  "), .unavailable)
+    }
+
+    func testAnOverlongButCleanDraftCanStillPrint() {
+        let selected = BleedInterestNewsDesk.setting(brief, with: article())
+        let long = "Researchers released a small AI model for bridge inspections. " + Array(repeating: detail, count: 2).joined(separator: " ")
+        XCTAssertFalse(BleedCopyDesk.feedback(prose: long, brief: selected).isEmpty, "Length is still sent back for a rewrite.")
+        XCTAssertTrue(BleedCopyDesk.printable(prose: long, brief: selected), "Length alone never costs the paper its column.")
+        XCTAssertFalse(BleedCopyDesk.printable(prose: long + " {{CLIPPINGS}}", brief: selected))
+        XCTAssertFalse(BleedCopyDesk.printable(prose: "OMIT", brief: selected))
+    }
 }
