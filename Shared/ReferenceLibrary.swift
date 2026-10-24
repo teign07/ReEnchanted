@@ -5964,6 +5964,22 @@ struct GazetteerEntry: Identifiable, Equatable {
     /// The chart of this place, decided here so the view never makes a privacy
     /// call of its own. Nil when the Anchor's coordinates are unusable.
     var plate: MapPlateSpec?
+    /// What the place grew in the Outer Stacks. Nil when nothing was written.
+    var door: GazetteerDoor? = nil
+}
+
+/// The other half of a place: the room beyond its door in the Outer Stacks.
+///
+/// All of it was written when the place was anchored, and it's fiction, so
+/// it's printed apart from what the reader kept there and never mistaken for
+/// a memory of the real place.
+struct GazetteerDoor: Equatable {
+    var room: String?
+    /// Who's in there and what they're doing. Whole sentences, not a name.
+    var keeper: String?
+    /// The small story the room has going, which moves on with each return.
+    var underway: String?
+    var rule: String?
 }
 
 enum Gazetteer {
@@ -6007,7 +6023,8 @@ enum Gazetteer {
                 returnsLine: returnsLine(for: anchor),
                 happenings: pages.prefix(happeningsPerPlace).compactMap(happening),
                 keptCount: pages.count,
-                plate: MapPlate.spec(for: anchor, kept: placed)
+                plate: MapPlate.spec(for: anchor, kept: placed),
+                door: door(for: anchor)
             ))
         }
         return entries.sorted { left, right in
@@ -6067,6 +6084,25 @@ enum Gazetteer {
         return page.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
     }
 
+    /// The room the place grew, as far as it has been written.
+    static func door(for anchor: AnchorRecord) -> GazetteerDoor? {
+        let door = GazetteerDoor(
+            room: sentence(anchor.outerStacksRoom),
+            keeper: sentence(anchor.fae),
+            underway: sentence(anchor.miniStory),
+            rule: sentence(anchor.localRule)
+        )
+        return door == GazetteerDoor() ? nil : door
+    }
+
+    /// Room text comes from the local brain or the offline writer, and the
+    /// offline writer's Fae line has no full stop. Prints either as a sentence.
+    static func sentence(_ text: String) -> String? {
+        guard let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty else { return nil }
+        let opened = trimmed.prefix(1).uppercased() + trimmed.dropFirst()
+        return opened.last.map { ".!?…\"”')".contains($0) } == true ? opened : opened + "."
+    }
+
     /// The Contents line. No count: that line is redrawn on every desk build.
-    static let contentsDetail = "The places you've named, and what happened at them."
+    static let contentsDetail = "The places you've named, what happened at them, and the doors they grew."
 }

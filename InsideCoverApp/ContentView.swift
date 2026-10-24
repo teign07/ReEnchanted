@@ -2761,6 +2761,12 @@ struct ContentView: View {
         let callbacks = ClosureContext(self)
         return AnyView(
             BookRootLayer { callbacks.view.chromeLaunchRoot }
+            // Launched behind the lock screen, the Anchors were read from a
+            // vault that hadn't opened yet. A stale empty ledger saved later
+            // would erase them.
+            .onReceive(NotificationCenter.default.publisher(for: PlayerVault.didReopenNotification)) { _ in
+                callbacks.view.loadAnchorLedger()
+            }
             .onReceive(NotificationCenter.default.publisher(for: .localBrainDidWake)) { _ in
                 callbacks.view.localBrainTelemetry.wake()
                 AppMemoryLedger.record("reading-room-enter")
@@ -21704,9 +21710,11 @@ struct ContentView: View {
                !seeded.isEmpty {
                 anchorLedger = seeded.filter { !AnchorRegistry.retiredAnchorIDs.contains($0.id) }
                 saveAnchorLedger()
+                recoverLostAnchors()
                 return
             }
             anchorLedger = AnchorRegistry.defaultAnchors
+            recoverLostAnchors()
             return
         }
         let active = decoded.filter { !AnchorRegistry.retiredAnchorIDs.contains($0.id) }
@@ -21714,6 +21722,16 @@ struct ContentView: View {
         if active.count != decoded.count {
             saveAnchorLedger()
         }
+        recoverLostAnchors()
+    }
+
+    /// Doors the vault forgot but kept Pages remember. See `AnchorRecovery`.
+    @MainActor
+    func recoverLostAnchors() {
+        let recovered = AnchorRecovery.recovered(from: days, missingFrom: anchorLedger)
+        guard !recovered.isEmpty else { return }
+        anchorLedger.append(contentsOf: recovered)
+        saveAnchorLedger()
     }
 
     @MainActor
@@ -22857,11 +22875,65 @@ private struct GazetteerRow: View {
                 }
                 .padding(.top, 2)
             }
+
+            if let door = entry.door {
+                GazetteerDoorView(door: door)
+                    .padding(.top, 6)
+            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: entry.keptCount > 0)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The half of a Gazetteer place that grew in the Outer Stacks. Set off by a
+/// rule and a heading so the fiction never reads as something the reader kept.
+private struct GazetteerDoorView: View {
+    let door: GazetteerDoor
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Rectangle()
+                .fill(BookPalette.gold.opacity(0.35))
+                .frame(height: 1)
+                .padding(.bottom, 4)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "door.left.hand.open")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BookPalette.gold.opacity(0.8))
+                Text("Its door in the Outer Stacks")
+                    .font(.system(size: 12, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+            }
+            if let room = door.room {
+                Text(room)
+                    .font(.system(size: 13, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("The room hasn't finished writing itself.")
+                    .font(.system(size: 12, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach([door.keeper, door.underway].compactMap { $0 }, id: \.self) { line in
+                Text(line)
+                    .font(.system(size: 12, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.72))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let rule = door.rule {
+                Text(rule)
+                    .font(.system(size: 13, design: .serif))
+                    .italic()
+                    .foregroundStyle(BookPalette.parchmentEdge)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+            }
+        }
     }
 }
 

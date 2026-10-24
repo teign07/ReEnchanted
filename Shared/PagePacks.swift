@@ -2410,6 +2410,90 @@ struct PlayerVaultData: Codable, Equatable {
     var roleTenures: [RoleTenure]?
 }
 
+/// Opens the vault file without ever mistaking "couldn't read it" for "there
+/// isn't one".
+///
+/// The vault used to be decoded with `try?`, and any failure started a blank
+/// Book that was written straight over the real one. Two ordinary things fail
+/// that read: a launch in the background while the phone is locked (the file
+/// is `completeUnlessOpen`, so it can't be read but a fresh one can still be
+/// written), and a build that can't decode something a newer build wrote. Both
+/// wiped the reader's Anchors along with everything else in the vault.
+enum PlayerVaultDisk {
+    enum Opening {
+        /// No file at all: a new Book, or one that predates the vault.
+        case absent
+        case opened(PlayerVaultData)
+        /// Most of it decoded. The named top-level fields were damaged and are
+        /// back at their defaults, or keep only the entries that decoded.
+        case salvaged(PlayerVaultData, damaged: [String])
+        /// Readable, but not a vault this build can make anything of.
+        case undecodable
+        /// The file is there and can't be read yet. Nothing may be written.
+        case unreadable
+    }
+
+    static func open(_ url: URL, fileManager: FileManager = .default) -> Opening {
+        guard fileManager.fileExists(atPath: url.path) else { return .absent }
+        guard let bytes = try? Data(contentsOf: url) else { return .unreadable }
+        if let data = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
+            return .opened(data)
+        }
+        guard let (data, damaged) = salvage(bytes) else { return .undecodable }
+        return .salvaged(data, damaged: damaged)
+    }
+
+    /// Keeps every top-level field that decodes on its own, laid over a blank
+    /// vault so the required keys are always present. A list that fails as a
+    /// whole keeps the entries that decode, so one strange Anchor can't take
+    /// the rest with it.
+    static func salvage(_ bytes: Data) -> (PlayerVaultData, damaged: [String])? {
+        guard let stored = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+              let blank = try? JSONEncoder().encode(PlayerVaultData()),
+              var kept = try? JSONSerialization.jsonObject(with: blank) as? [String: Any] else { return nil }
+
+        func decoded(_ object: [String: Any]) -> PlayerVaultData? {
+            guard let bytes = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+            return try? JSONDecoder().decode(PlayerVaultData.self, from: bytes)
+        }
+        func fits(_ key: String, _ value: Any) -> Bool {
+            var trial = kept
+            trial[key] = value
+            return decoded(trial) != nil
+        }
+
+        var damaged: [String] = []
+        for key in stored.keys.sorted() {
+            guard let value = stored[key] else { continue }
+            if fits(key, value) {
+                kept[key] = value
+                continue
+            }
+            damaged.append(key)
+            if let items = value as? [Any] {
+                let survivors = items.filter { fits(key, [$0]) }
+                if !survivors.isEmpty, fits(key, survivors) {
+                    kept[key] = survivors
+                }
+            }
+        }
+        return decoded(kept).map { ($0, damaged) }
+    }
+
+    /// Puts a copy of a vault this build couldn't fully read beside it, so the
+    /// original survives whatever gets written next. Moves the file instead
+    /// when it can't even be copied.
+    @discardableResult
+    static func setAside(_ url: URL, now: Date = Date(), fileManager: FileManager = .default) -> URL? {
+        let name = url.deletingPathExtension().lastPathComponent
+        let target = url.deletingLastPathComponent()
+            .appendingPathComponent("\(name).set-aside-\(Int(now.timeIntervalSince1970)).\(url.pathExtension)")
+        if (try? fileManager.copyItem(at: url, to: target)) != nil { return target }
+        if (try? fileManager.moveItem(at: url, to: target)) != nil { return target }
+        return nil
+    }
+}
+
 /// A month and a day. Deliberately not a `Date` and deliberately yearless: a
 /// birthday the Book marks, not an age it tracks.
 struct ReaderBirthday: Codable, Equatable {

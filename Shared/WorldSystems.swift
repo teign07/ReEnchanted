@@ -4223,6 +4223,75 @@ enum AnchorRegistry {
     }
 }
 
+/// Anchors the vault lost but the archive still remembers.
+///
+/// A kept Outer Stacks visit carries its Anchor's id, the reader's name for
+/// the place (the Page's prompt), the room, its keeper and rule. Pages kept
+/// near the place carry its coordinates. That's enough to stand the door back
+/// up when the vault forgot it. The reader's anchoring words and the Maps
+/// receipt aren't on any Page, so a rebuilt Anchor goes without them rather
+/// than inventing them.
+enum AnchorRecovery {
+    /// What a visit Page says when the room hadn't been written. Not a room.
+    static let placeholderRoom = "The room hasn't fully written itself yet, but the threshold is present."
+    static let placeholderMiniStory = "This Anchor has a small story already in motion."
+
+    static func recovered(from days: [BookDay], missingFrom ledger: [AnchorRecord]) -> [AnchorRecord] {
+        let known = Set(ledger.map(\.id))
+        var visits: [String: [BookPage]] = [:]
+        var nearby: [String: [BookPage]] = [:]
+        for page in days.flatMap(\.pages) {
+            if let id = page.metadata?["anchorID"]?.nonEmpty, !known.contains(id),
+               !AnchorRegistry.retiredAnchorIDs.contains(id) {
+                visits[id, default: []].append(page)
+            }
+            if let id = page.context?.nearbyAnchorID?.nonEmpty, !known.contains(id) {
+                nearby[id, default: []].append(page)
+            }
+        }
+        return visits.keys.sorted().compactMap { id in
+            let kept = (visits[id] ?? []).sorted { $0.createdAt < $1.createdAt }
+            guard let first = kept.first, let last = kept.last,
+                  let name = first.promptText.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                    ?? first.metadata?["anchorName"]?.nonEmpty,
+                  let fix = (kept + (nearby[id] ?? [])).lazy.compactMap({ page -> (Double, Double)? in
+                      guard let latitude = page.context?.latitude,
+                            let longitude = page.context?.longitude else { return nil }
+                      return (latitude, longitude)
+                  }).first
+            else { return nil }
+            // The newest visit knows the room as it is now: mini-stories move.
+            let latest = last.metadata ?? [:]
+            func fact(_ key: String, skipping placeholder: String? = nil) -> String {
+                let value = latest[key]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return value == placeholder ? "" : value
+            }
+            return AnchorRecord(
+                id: id,
+                name: name,
+                latitude: fix.0,
+                longitude: fix.1,
+                radiusMeters: Double(latest["radiusMeters"] ?? "") ?? AnchorRegistry.proximityRadiusMeters,
+                kind: AnchorKind(rawValue: latest["anchorKind"] ?? "") ?? .notice,
+                belief: 10,
+                created: AnchorRegistry.visitDateFormatter.string(from: first.createdAt),
+                weather: "",
+                moon: "",
+                season: first.metadata?["seasonShift"] ?? "",
+                playerWords: "",
+                academyEcho: fact("anchorAcademyEcho"),
+                outerStacksRoom: fact("room", skipping: placeholderRoom),
+                fae: fact("fae"),
+                miniStory: fact("entityMemories", skipping: placeholderMiniStory),
+                localRule: fact("localRule"),
+                visitCount: kept.count,
+                lastVisited: AnchorRegistry.visitDateFormatter.string(from: last.createdAt),
+                emotionalRegister: fact("anchorEmotionalRegister").nonEmpty
+            )
+        }
+    }
+}
+
 enum AnchorDoorbells {
     struct Bell: Equatable {
         var anchorID: String

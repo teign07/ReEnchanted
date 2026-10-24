@@ -2174,8 +2174,9 @@ private struct AcademyAnchorNote: View {
                 Text("The room beyond the door:").font(.system(size: 12, weight: .semibold, design: .serif))
                 Text(description).font(.system(size: 13, design: .serif))
             }
-            if let keeper = room.anchor.fae.nonEmpty {
-                Text("\(keeper) keeps this room.").font(.system(size: 12, design: .serif)).italic()
+            // The Fae line is whole sentences, never a bare name to slot in.
+            if let keeper = Gazetteer.sentence(room.anchor.fae) {
+                Text(keeper).font(.system(size: 12, design: .serif)).italic()
             }
             if let rule = room.anchor.localRule.nonEmpty {
                 Text(rule).font(.system(size: 13, design: .serif))

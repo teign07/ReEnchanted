@@ -6019,46 +6019,124 @@ final class PlayerVault {
         return base.appendingPathComponent("PlayerVault.json")
     }
 
+    /// Posted on the main queue when a vault that couldn't be read at launch
+    /// has been opened. Anything that copied vault values out while it was
+    /// held has to read them again.
+    static let didReopenNotification = Notification.Name("PlayerVaultDidReopen")
+
+    /// True while the vault file exists but couldn't be read, which is what a
+    /// launch behind the lock screen looks like. Nothing is written until it
+    /// opens: a blank vault saved now would replace the reader's real one.
+    @ObservationIgnored private var isHeld = false
+    @ObservationIgnored private var unlockObservers: [NSObjectProtocol] = []
+
     private init() {
-        if let bytes = try? Data(contentsOf: Self.fileURL),
-           var decoded = try? JSONDecoder().decode(PlayerVaultData.self, from: bytes) {
-            let storedFirstRunProgress = decoded.firstRunEngaged
-            // One-time seed: first-run steps used to advance on served-history
-            // alone. Anyone already served a step under that rule counts as
-            // engaged, so onboarding never replays for existing readers.
-            if decoded.firstRunEngaged == nil {
-                // A launch desk is curated underneath the Inscription. If the app
-                // was interrupted mid-onboarding, its hidden Welcome may already
-                // be in served history even though the reader never saw it. Only
-                // use the legacy served-history migration for Books whose story
-                // onboarding was already complete; an in-progress Inscription
-                // starts an explicit empty engagement ledger instead.
-                if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
-                    decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(
-                        fromServedHistory: decoded.surfaceHistory ?? [:]
-                    )
-                } else {
-                    decoded.firstRunEngaged = []
-                }
-            }
-            // Previously shown introductions stay retired across updates even
-            // if this vault already had the old interaction-only ledger.
-            if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
-                decoded.firstRunEngaged = FirstRunPageSequence.recordingShownGuidance(
-                    in: decoded.firstRunEngaged ?? [],
-                    history: decoded.surfaceHistory ?? [:]
-                )
-            }
+        switch PlayerVaultDisk.open(Self.fileURL) {
+        case .opened(let decoded):
             data = decoded
-            if decoded.firstRunEngaged != storedFirstRunProgress {
-                persistImmediately(decoded)
-            }
-            GuestCast.synchronize(with: decoded)
-            return
+            adopt(decoded, persist: false)
+        case .salvaged(let decoded, _):
+            PlayerVaultDisk.setAside(Self.fileURL)
+            data = decoded
+            adopt(decoded, persist: true)
+        case .absent:
+            data = Self.migrateFromLegacyLedgers()
+            GuestCast.synchronize(with: data)
+            persistImmediately(data)
+        case .undecodable:
+            PlayerVaultDisk.setAside(Self.fileURL)
+            data = Self.migrateFromLegacyLedgers()
+            GuestCast.synchronize(with: data)
+            persistImmediately(data)
+        case .unreadable:
+            data = PlayerVaultData()
+            isHeld = true
+            waitForUnlock()
         }
-        data = Self.migrateFromLegacyLedgers()
-        GuestCast.synchronize(with: data)
-        persistImmediately(data)
+    }
+
+    private func waitForUnlock() {
+        #if canImport(UIKit)
+        let names = [UIApplication.protectedDataDidBecomeAvailableNotification, UIApplication.didBecomeActiveNotification]
+        unlockObservers = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.reopenIfHeld() }
+            }
+        }
+        #endif
+    }
+
+    /// Tries the held vault again once the phone is unlocked. Still unreadable
+    /// with the phone open means it isn't the lock: the file is moved aside,
+    /// never deleted, and the Book starts again.
+    @MainActor
+    private func reopenIfHeld() {
+        guard persistenceLock.withLock({ isHeld }) else { return }
+        switch PlayerVaultDisk.open(Self.fileURL) {
+        case .unreadable:
+            #if canImport(UIKit)
+            guard UIApplication.shared.isProtectedDataAvailable else { return }
+            #endif
+            PlayerVaultDisk.setAside(Self.fileURL)
+            release(Self.migrateFromLegacyLedgers(), persist: true)
+        case .opened(let decoded):
+            release(decoded, persist: false)
+        case .salvaged(let decoded, _):
+            PlayerVaultDisk.setAside(Self.fileURL)
+            release(decoded, persist: true)
+        case .absent:
+            release(Self.migrateFromLegacyLedgers(), persist: true)
+        case .undecodable:
+            PlayerVaultDisk.setAside(Self.fileURL)
+            release(Self.migrateFromLegacyLedgers(), persist: true)
+        }
+        NotificationCenter.default.post(name: Self.didReopenNotification, object: self)
+    }
+
+    @MainActor
+    private func release(_ opened: PlayerVaultData, persist: Bool) {
+        unlockObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        unlockObservers = []
+        persistenceLock.withLock { isHeld = false }
+        data = opened
+        adopt(opened, persist: persist)
+    }
+
+    /// First-run bookkeeping for a vault read from disk, then the Guest Cast.
+    private func adopt(_ opened: PlayerVaultData, persist: Bool) {
+        var decoded = opened
+        let storedFirstRunProgress = decoded.firstRunEngaged
+        // One-time seed: first-run steps used to advance on served-history
+        // alone. Anyone already served a step under that rule counts as
+        // engaged, so onboarding never replays for existing readers.
+        if decoded.firstRunEngaged == nil {
+            // A launch desk is curated underneath the Inscription. If the app
+            // was interrupted mid-onboarding, its hidden Welcome may already
+            // be in served history even though the reader never saw it. Only
+            // use the legacy served-history migration for Books whose story
+            // onboarding was already complete; an in-progress Inscription
+            // starts an explicit empty engagement ledger instead.
+            if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
+                decoded.firstRunEngaged = FirstRunPageSequence.seededEngagementKeys(
+                    fromServedHistory: decoded.surfaceHistory ?? [:]
+                )
+            } else {
+                decoded.firstRunEngaged = []
+            }
+        }
+        // Previously shown introductions stay retired across updates even
+        // if this vault already had the old interaction-only ledger.
+        if UserDefaults.standard.bool(forKey: "didCompleteStoryOnboarding") {
+            decoded.firstRunEngaged = FirstRunPageSequence.recordingShownGuidance(
+                in: decoded.firstRunEngaged ?? [],
+                history: decoded.surfaceHistory ?? [:]
+            )
+        }
+        data = decoded
+        if persist || decoded.firstRunEngaged != storedFirstRunProgress {
+            persistImmediately(decoded)
+        }
+        GuestCast.synchronize(with: decoded)
     }
 
     /// Applies several field changes as a single observable mutation.
@@ -6088,6 +6166,10 @@ final class PlayerVault {
         GuestCast.synchronize(with: snapshot)
         let url = Self.fileURL
         persistenceLock.lock()
+        guard !isHeld else {
+            persistenceLock.unlock()
+            return
+        }
         persistenceRevision &+= 1
         let revision = persistenceRevision
         persistenceLock.unlock()
@@ -6110,7 +6192,12 @@ final class PlayerVault {
         let snapshot = data
         GuestCast.synchronize(with: snapshot)
         let url = Self.fileURL
-        persistenceLock.withLock { persistenceRevision &+= 1 }
+        let held = persistenceLock.withLock {
+            persistenceRevision &+= 1
+            return isHeld
+        }
+        // The caller keeps its retry marker; the write happens after unlock.
+        guard !held else { throw CocoaError(.fileReadNoPermission) }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             persistenceQueue.async {
                 do {
@@ -6125,7 +6212,8 @@ final class PlayerVault {
     }
 
     private func persistImmediately(_ snapshot: PlayerVaultData) {
-        guard let bytes = try? JSONEncoder().encode(snapshot) else { return }
+        guard !persistenceLock.withLock({ isHeld }),
+              let bytes = try? JSONEncoder().encode(snapshot) else { return }
         try? SensitiveFileProtection.write(bytes, to: Self.fileURL)
     }
 
