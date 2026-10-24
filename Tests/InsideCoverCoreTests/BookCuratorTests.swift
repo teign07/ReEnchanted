@@ -1278,9 +1278,12 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
                 .joined(separator: " ")
             XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("The Book remembered"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("This old Page came back because:"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("It came back because:"), readerCopy)
-            XCTAssertTrue(readerCopy.contains("Try this now:"), readerCopy)
+            // Why it came back and what to do with it, said in one voice
+            // rather than as a form's labels.
+            XCTAssertTrue(page.payload.body.contains("Today has fog too."), page.payload.body)
+            XCTAssertTrue(page.payload.body.contains("Go to the nearest door."), page.payload.body)
+            XCTAssertFalse(readerCopy.contains("came back because:"), readerCopy)
+            XCTAssertFalse(readerCopy.contains("Try this now:"), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("old rhyme"), readerCopy)
             XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("tugged"), readerCopy)
         }

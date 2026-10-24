@@ -775,7 +775,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookRemembered:
             return ("I brought an old page back.", "See what you think of it now.")
         case .bookNotices:
-            return ("Look. This keeps happening.", "Did I get it right?")
+            return ("Nothing's jumped out at me yet.", "When something keeps coming back in your Pages, I'll show you here.")
         case .glowInvitation:
             return ("Your Glow wants somewhere to go.", "Warm what you want more of. Cool what's gone too loud. Cooling never deletes a thing, it just lets it rest.")
         case .theBleed:
@@ -978,11 +978,25 @@ struct BookPageSource: Codable, Identifiable, Equatable {
         case "bookshop-preview":
             return ("A goblin shop squeezed between the Pages.", "The stalls wriggle about. The folio shelf stays put.")
         case "grey-page-threat":
-            return ("The Grey eats what you stop seeing.", "It can pull a Page from my living memory. It can't touch the raw Page in Stacks.")
+            return ("The Grey eats what you stop seeing.", "It can make me forget a Page. It can't eat the Page itself. That's still down in the Stacks.")
         case "world-event-door":
             return ("Sometimes the whole Book changes its rules.", "When it does, the door appears here. Today it's shut.")
         case "quillquarium-choosing":
             return ("Pens choose back in the Quillquarium.", "Mine is watching your hand. It'll jump when it knows how to disagree with you.")
+        // Opened by hand with nothing in them yet. Each says honestly what
+        // will be here, instead of asking "Did I get it right?" about nothing.
+        case "the-book-notices":
+            return ("Nothing's jumped out at me yet.", "When something keeps coming back in your Pages, I'll show you here, with the Pages, so you can tell me if I'm wrong.")
+        case "the-book-remembered":
+            return ("Nothing's old enough yet.", "When you've kept Pages for a while, I'll bring an old one back on a day that's like it.")
+        case "the-grimoire":
+            return ("You haven't taught me a rule yet.", "When the same two things keep turning up together in your days, like rain and long walks, I write it down here as one of your rules.")
+        case "the-bestiary":
+            return ("I haven't found anything alive in your photos yet.", "Give me a photo with a bird or a dog or a weed in it. I'll find out what people have always said about it.")
+        case "the-wear":
+            return ("You haven't worn me in anywhere yet.", "Some of my Pages get opened more than others. When I can feel where you keep going, I'll show you.")
+        case "the-map-gaps":
+            return ("My map hasn't got any holes yet.", "When there's a kind of place you never write from, I'll tell you. Then you can go and see what's there.")
         default:
             return type.handOpened
         }

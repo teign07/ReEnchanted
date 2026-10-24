@@ -7272,7 +7272,7 @@ extension PlayfulMission {
                 slug: "dusk-thorn",
                 name: "The Dusk Thorn",
                 assetName: "LabyrinthTalismanDuskThorn",
-                invitationLine: "The Dusk Thorn likes old things and the dark. It wants proof, not stories."
+                invitationLine: "The Dusk Thorn likes old things and the dark. It wants proof."
             )
         }
         if !lowered.isDisjoint(with: ["people", "connection", "shared-wonder", "kindness"]) {
@@ -7280,7 +7280,7 @@ extension PlayfulMission {
                 slug: "serenity-brown",
                 name: "Serenity Brown",
                 assetName: "LabyrinthCharacterSerenityBrown",
-                invitationLine: "Serenity wants you to catch something small and good about somebody else's day."
+                invitationLine: "Serenity collects the small good things that happen between people."
             )
         }
         if !lowered.isDisjoint(with: ["movement", "outside", "route", "commute", "place", "nature"]) {
@@ -7288,7 +7288,7 @@ extension PlayfulMission {
                 slug: "zara-finch",
                 name: "Zara Finch",
                 assetName: "LabyrinthCharacterZaraFinch",
-                invitationLine: "Zara tried this route first. It's short. Go on."
+                invitationLine: "Zara's already been out there. She says it's your turn."
             )
         }
         if !lowered.isDisjoint(with: ["history", "evidence", "memory", "object", "visual"]) {
@@ -7296,7 +7296,7 @@ extension PlayfulMission {
                 slug: "penny-blackletter",
                 name: "Penny Blackletter",
                 assetName: "LabyrinthCharacterPennyBlackletter",
-                invitationLine: "Penny thinks one small thing nobody looks at is holding the whole place up. Find it."
+                invitationLine: "Penny thinks the small things nobody looks at are holding the whole place up."
             )
         }
         if !lowered.isDisjoint(with: ["ridiculous", "imagination", "words", "sound"]) {
@@ -7304,7 +7304,7 @@ extension PlayfulMission {
                 slug: "pippa-pilcrow",
                 name: "Pippa Pilcrow",
                 assetName: "LabyrinthCharacterPilcrow",
-                invitationLine: "Pippa wants to see if an ordinary minute can be made ridiculous. She thinks you can do it."
+                invitationLine: "Pippa wants to know if an ordinary minute can be made ridiculous."
             )
         }
         if !lowered.isDisjoint(with: ["inside", "food", "taste", "scent", "making"]) {
@@ -7312,7 +7312,7 @@ extension PlayfulMission {
                 slug: "lydia-boggle",
                 name: "Professor Boggle",
                 assetName: "LabyrinthCharacterLydiaBoggle",
-                invitationLine: "Professor Boggle is sure your house is doing magic behind your back. Catch it at it."
+                invitationLine: "Professor Boggle's sure your house does magic behind your back."
             )
         }
         return PlayfulMissionHost(
@@ -7689,7 +7689,7 @@ enum WickerDareRegistry {
         WickerDare(
             id: "friend-dares-back",
             title: "Let a Friend Dare You",
-            challenge: "Ask a friend to dare you to do one small thing today. Set the rules first: nothing dangerous, nothing mean, no money, no trespassing. You can say no. Then do it if you can.",
+            challenge: "Ask a friend to dare you to do one small thing today. Nothing dangerous and nothing mean. Then do it.",
             proofPrompt: "Bring me their dare and whether you did it.",
             tags: ["wicker-dare", "social", "consent", "choice", "comfort-edge"]
         ),
@@ -8564,7 +8564,7 @@ enum PlayfulMissionRegistry {
     /// Tiny outward-facing acts of enchantment: optional, free, and designed to
     /// brighten someone else's ordinary day without asking them to perform back.
     static let sharedWonderMissions: [PlayfulMission] = [
-        mission("shared-no-reply-glint", "No-Reply Glint", "Send someone a photo, a song or one line that made you think of them. Add: ‘Saw this and thought of you. No need to reply.’", "What you sent, and who it was for.", ["shared-wonder", "connection", "kindness", "low-stakes"]),
+        mission("shared-no-reply-glint", "No-Reply Glint", "Send someone a photo, a song or one line that made you think of them. Just that. It doesn't need a reason, and they don't have to answer.", "What you sent, and who it was for.", ["shared-wonder", "connection", "kindness", "low-stakes"]),
         mission("shared-specific-thanks", "Specific Thanks", "Thank someone for one exact thing they did: held a door, gave good directions, asked a good question. Say exactly what it was. Exact is the magic part.", "What you thanked them for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
         mission("shared-point-it-out", "Pass The Glint", "When you're with someone, point out one small wonderful thing they'd have missed: a funny cloud, a dog with a job, a perfect colour.", "The thing you pointed out.", ["shared-wonder", "connection", "visual", "public"]),
         mission("shared-better-exit", "Leave It Kinder", "When you leave a place other people use, do one small thing to make it nicer for the next person. Push a chair in. Put a basket back.", "What you left nicer.", ["shared-wonder", "kindness", "public", "errand"]),
@@ -8581,7 +8581,7 @@ enum PlayfulMissionRegistry {
         mission("coldest-touch", "The Coldest Touch", "Find the coldest thing you're allowed to touch and hold it for five seconds. Where is the cold coming from?", "Where the cold seemed to come from.", ["touch", "temperature", "inside", "low-energy"]),
         mission("quietest-sound", "The Quietest Sound", "Stand still and hunt for the quietest sound in the room. Not the loudest. The shyest one.", "Under everything else, I heard...", ["sound", "inside", "low-energy"]),
         mission("three-rough", "Texture Thief", "Find three rough things near you. Rank them from friendly to suspicious.", "The most suspicious texture.", ["touch", "inside", "public"]),
-        mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet.", "The blue thing that surprised you most.", ["visual", "color", "inside", "public"]),
+        mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet. One of them isn't really blue. It's only pretending.", "The one that's only pretending.", ["visual", "color", "inside", "public"]),
         mission("tiny-door", "Tiny Door", "Find the smallest opening near you: a crack, a keyhole, the gap in a drawer, the shadow under a door. Something could live through there.", "What lives on the other side.", ["visual", "imagination", "inside"]),
         mission("weather-scent", "Weather Has A Smell", "Open a door or a window. Smell the air inside, then the air outside. Which side has more weather in it?", "What the weather smelled like.", ["weather", "scent", "inside"]),
         mission("object-portrait", "Object Portrait", "Pick one ordinary thing and photograph it like it's the main character in a film.", "Its first line in the film.", ["photo", "visual", "character", "inside"]),
@@ -8589,7 +8589,7 @@ enum PlayfulMissionRegistry {
         mission("softest-edge", "The Softest Edge", "Find the softest edge near you. A sleeve, a bread crust, a blanket, a patch of light. Soft edges hide everywhere.", "The softest edge, and what made it soft.", ["touch", "visual", "low-energy"]),
         mission("smell-map", "Smell Map", "Walk through three spots nearby and smell each one. Find the exact border where one smell turns into another.", "Where the smell changed, and into what.", ["scent", "movement", "inside"]),
         mission("tiny-kindness", "The Lost Property Office", "Find something lost near you: one glove, a button, a lid with no pot. Give it a sign, or just a name, so it knows someone's noticed it's waiting.", "What was lost, and what you called it.", ["visual", "public", "errand"]),
-        mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker or sign near you. Read the whole thing.", "The strangest line on it.", ["visual", "public", "errand"]),
+        mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker or sign near you. Read the whole thing out loud, like it was written for you.", "The line that was meant for you.", ["visual", "public", "errand"]),
         mission("sound-layer", "Sound Layer", "Listen for three kinds of sound: one a machine is making, one a body is making, and one the world outside is making.", "The three sounds, and which one felt most alive.", ["sound", "inside", "public"]),
         mission("weight-guess", "Weight Oracle", "Pick up something small. Guess exactly how heavy it is. Then decide whether your hand agrees with your guess.", "Heavier or lighter than it looked?", ["touch", "weight", "inside"]),
         mission("one-inch-kingdom", "One-Inch Kingdom", "Look very closely at one tiny square of something: a jumper, bark, carpet, a table, a pavement. It's a whole kingdom.", "Who lives in the tiny kingdom?", ["visual", "touch", "photo", "low-energy"]),
@@ -8707,7 +8707,7 @@ enum PlayfulMissionRegistry {
         mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something's over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
         mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"]),
         mission("strange-outlive-you", "Outliving Object", "Touch something that'll still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
-        mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago.", "The new thing.", ["visual", "history", "inside", "public"]),
+        mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago. It's a baby next to everything else in the room. How's it fitting in?", "The new thing, and how it's fitting in.", ["visual", "history", "inside", "public"]),
         mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then find out if you can.", "Your guess, and the truth, or the mystery.", ["visual", "history", "object"]),
         mission("strange-stranger-decision", "A Stranger Chose That", "Pick up the nearest made thing and find one decision a stranger made about it: a curve, a colour, a button. Do you agree with them?", "The decision, and your verdict.", ["object", "touch", "design", "inside"], allowsPhoto: false),
         mission("strange-technical-miracle", "Furniture Miracle", "Find one thing within reach that's actually a miracle and gets treated like furniture: a light switch, a zip, a tap with clean water. Give it its proper title for one minute.", "The miracle, and its proper title.", ["object", "wonder", "inside", "low-energy"])

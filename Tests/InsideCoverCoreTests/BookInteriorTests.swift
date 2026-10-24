@@ -2429,7 +2429,7 @@ final class BookInteriorTests: XCTestCase {
         ).first(where: { $0.payload.metadata["bookDisputeID"] == dispute.id }))
         XCTAssertTrue(surface.payload.body.contains(opinion.statement))
         XCTAssertTrue(surface.payload.body.contains("summaries can be honest too"))
-        XCTAssertTrue(surface.payload.body.contains("They don't get a vote"))
+        XCTAssertTrue(surface.payload.body.contains("They don't get to decide"))
         XCTAssertTrue(surface.payload.body.contains("The pencil's out"))
 
         let opened = BookInteriorEngine.recordingSurfaceOpened(

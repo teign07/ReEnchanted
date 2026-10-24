@@ -4632,8 +4632,8 @@ struct CapturePageSheet: View {
         let authorLead = journalAuthorLead
         let invitation = surface.payload.metadata["journalResponseInvitation"]?.nonEmpty
             ?? (authorID == "penny-blackletter"
-                ? "Don't work up a conclusion. One honest scrap of evidence in the box below is plenty — Penny brought a very small folder."
-                : "Write your answer in the box below. One sentence is enough, and I'm not grading it.")
+                ? "Penny doesn't want a conclusion. She wants one scrap of evidence. She brought a very small folder."
+                : "One sentence is enough. I just want to know.")
 
         FolioControlStack(alignment: .leading, spacing: 12) {
             Text(surface.payload.headline)

@@ -5848,16 +5848,16 @@ enum ElectiveOfferFallback {
            !placeName.isEmpty {
             return ElectiveOfferDraft(
                 title: "A Visit to \(placeName)",
-                ask: "\(sender) asks: go to \(placeName) this week. \(study.act) Bring back a photograph or one sentence saying exactly what you found.",
-                whyItMatters: "It feeds what \(sender) has been privately studying: \(interest).",
-                practiceShape: "One photo or one specific sentence from \(placeName). No purchase needed."
+                ask: "\(sender) wants you to go to \(placeName) this week. \(study.act)",
+                whyItMatters: "\(sender)'s been secretly studying \(interest). This is for that.",
+                practiceShape: "One photo or one exact sentence from \(placeName). You don't have to buy anything."
             )
         }
         return ElectiveOfferDraft(
             title: "A Field Note for \(sender)",
-            ask: "\(sender) asks: somewhere in your town today, find one small thing that connects to \(interest). Bring back a single sentence about exactly what you found and where it was.",
-            whyItMatters: "It feeds what \(sender) has been privately studying.",
-            practiceShape: "One specific sentence of proof, with a real detail in it."
+            ask: "\(sender) wants you to find one small thing in your town today that has to do with \(interest).",
+            whyItMatters: "\(sender)'s been secretly studying it. This is for that.",
+            practiceShape: "One sentence about what you found and where. Put a real detail in it."
         )
     }
 
@@ -5867,33 +5867,33 @@ enum ElectiveOfferFallback {
         func has(_ terms: [String]) -> Bool { terms.contains { focus.contains($0) } }
         if has(["flavour", "flavor", "breakfast", "comfort", "fuel", "homes", "recipe"]) {
             return (["bakery", "diner", "coffee", "market", "restaurant", "pizza"],
-                    "Find one smell you can notice from a public spot. What food or place does it remind you of? No need to buy anything.")
+                    "Find one smell you can catch from outside. What does it make you think of?")
         }
         if has(["sound", "song", "karaoke"]) {
             return (["coffee", "diner", "park", "music"],
-                    "Stand still for a minute and listen. Pick out one repeating sound, then try to describe it without naming what makes it.")
+                    "Stand still for a minute and listen. Pick out one sound that keeps coming back, and describe it without saying what makes it.")
         }
         if has(["moss", "plant"]) {
             return (["park", "trail", "garden", "farm"],
-                    "Look for one plant growing somewhere nobody seems to have invited it. Show me where it found room.")
+                    "Look for one plant growing somewhere nobody invited it. Show me where it found room.")
         }
         if has(["architecture", "threshold", "spare key", "enchantment"]) {
             return (["library", "hardware", "antiques", "bookstore"],
-                    "Look at the entrance from a public spot. Find one worn edge, repair, or odd little feature, and tell me what people have done to it.")
+                    "Look at the way in. Find one worn edge, a mend or an odd little bit, and tell me what people have done to it.")
         }
         if has(["zine", "spelling", "typo", "last word", "reread"]) {
             return (["bookstore", "library", "thrift", "hardware"],
-                    "Find a sign, label, or notice someone made by hand. Bring me its exact words and one detail about the lettering.")
+                    "Find a sign or a label somebody made by hand. Bring me its exact words and one thing about the lettering.")
         }
         if has(["map", "street", "cold water", "cryptid"]) {
             return (["park", "trail", "waterfront", "harbor", "marina"],
-                    "From a public path, find one small track or route people or animals have made for themselves. Tell me where it leads. You don't have to follow it.")
+                    "From a path, find a little track people or animals have made for themselves. Where does it go? You don't have to follow it.")
         }
         if has(["doing nothing", "cozy", "shadow"]) {
             return (["park", "library", "coffee"],
-                    "Find a public place to pause for two minutes. Watch one ordinary thing and tell me the smallest change you saw.")
+                    "Find somewhere to sit for two minutes. Watch one ordinary thing and tell me the smallest change you saw.")
         }
-        return ([], "Find one ordinary detail that makes you curious about \(focus). Describe the detail first, then the question it gave you.")
+        return ([], "Find one ordinary thing that makes you curious about \(focus). Tell me the thing first, then the question it gave you.")
     }
 }
 

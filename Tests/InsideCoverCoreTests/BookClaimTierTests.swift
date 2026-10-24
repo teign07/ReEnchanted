@@ -52,7 +52,9 @@ final class BookClaimTierTests: XCTestCase {
             XCTAssertFalse(line.contains("The Book"))
             XCTAssertFalse(line.localizedCaseInsensitiveContains("held lightly"))
             XCTAssertFalse(line.localizedCaseInsensitiveContains("revisable"))
-            XCTAssertTrue(line.localizedCaseInsensitiveContains("repeat") || line.localizedCaseInsensitiveContains("Page"))
+            // The Book says what it saw, in the first person, without a tally.
+            XCTAssertTrue(line.contains("I ") || line.contains("I'"), line)
+            XCTAssertFalse(line.contains(where: \.isNumber), line)
         }
     }
 

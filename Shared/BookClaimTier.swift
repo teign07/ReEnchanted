@@ -79,17 +79,17 @@ enum BookClaimTier: String, Codable, CaseIterable, Comparable, Equatable {
     /// so a reader who meets both never hears two different Books.
     var opening: String {
         switch self {
-        case .glimmer: return "I found a small repeat:"
-        case .gathering: return "I found the same repeat several times:"
-        case .established: return "I found a strong repeat:"
+        case .glimmer: return "I might have noticed something."
+        case .gathering: return "I keep seeing this."
+        case .established: return "This keeps happening."
         }
     }
 
     var closing: String {
         switch self {
-        case .glimmer: return "This is early. One more Page could undo it."
-        case .gathering: return "The repeat is holding, but it can still change."
-        case .established: return "The repeat is strong. It still does not prove what caused it."
+        case .glimmer: return "It's early. One more Page could change my mind."
+        case .gathering: return "It could still change."
+        case .established: return "I don't know why. I just know it keeps happening."
         }
     }
 

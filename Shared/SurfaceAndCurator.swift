@@ -3080,12 +3080,16 @@ extension SurfacePage {
              .castBond, .faeBargain, .pactVerdict, .pactErrand, .anchor,
              .wordNegotiation, .bookJump, .enchantment, .radio, .inventory,
              .marginsAtlas, .gamePage, .askTheBook, .inkrestOfficeHours, .packPage,
-             .calendar, .bindery, .frontMatter, .bookNotices, .bookRemembered, .bookConnections,
+             .calendar, .bindery, .frontMatter,
              .spell, .recipe, .festival, .supportGuild, .patreon, .bookPocket, .wickerDare, .rest:
             return .activityPreview
         case .illuminatedPhoto:
             return payload.metadata["renderedPreviewPath"]?.nonEmpty == nil ? .activityPreview : .reading
-        case .letter, .note, .theBleed, .bookOfYou, .welcome, .helpTips:
+        // What the Book noticed, remembered or joined is something to read.
+        // Its reactions ("you're wrong", "keep this") wait on the last leaf,
+        // the same as a letter's reply; a teaser would hide the noticing.
+        case .letter, .note, .theBleed, .bookOfYou, .welcome, .helpTips,
+             .bookNotices, .bookRemembered, .bookConnections:
             return .readingWithActivity
         case .weather, .quip, .quotes, .lore, .illustration, .gossip,
              .bookAside, .facultyResearch, .pactDispatch, .todaysSky,
@@ -3098,49 +3102,108 @@ extension SurfacePage {
 
     /// A real excerpt, followed by an honest account of what unfolds.
     /// Archive and generation paths always retain the complete source text.
+    ///
+    /// An errand's ask belongs on the paper: a dare or a mission you have to
+    /// unfold to find out about is a sealed envelope, not a dare. So the
+    /// excerpt takes whole paragraphs while they fit, and a dare's challenge
+    /// (which lives in `detail`, not in Wicker's letter) is printed under the
+    /// opener.
     func leafActivityPreview(from body: String) -> String {
-        let opening = body.components(separatedBy: "\n\n")
+        var paragraphs = body.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? detail
-        let words = opening.split(whereSeparator: \.isWhitespace)
-        let excerpt = words.prefix(48).joined(separator: " ")
-            + (words.count > 48 ? "…" : "")
-        let invitation: String
-        switch type {
-        case .narrativeOS, .bookFae: invitation = "Unfold to read the story and choose what happens."
-        case .academyClass: invitation = "Unfold to read the lesson and try it yourself."
-        case .wonderCompass: invitation = "Unfold to see the steps and begin when you're ready."
-        case .tarot: invitation = "Unfold to turn the cards and read them."
-        case .twoReadings, .castBond: invitation = "Unfold to read both sides and make your choice."
-        case .recipe: invitation = "Unfold for the ingredients, the steps, and a place to say how it went."
-        case .marginsAtlas: invitation = "Unfold to explore the map."
-        case .radio: invitation = "Unfold to choose a station and listen."
-        case .askTheBook, .inkrestOfficeHours: invitation = "Unfold to start the conversation."
-        case .inventory: invitation = "Unfold to look through what you've kept and use what you've found."
-        case .elective: invitation = "Unfold to see what this asks of you and decide whether to take it."
-        case .anchor: invitation = "Unfold to name this place and choose what to remember."
-        case .bookRemembered: invitation = "Unfold to read what I remember and add what I missed."
-        case .bookNotices: invitation = "Unfold to tell me what I got right, or what I got wrong."
-        case .wordNegotiation: invitation = "Unfold to read the word and decide what it means to you."
-        case .enchantment, .illuminatedPhoto: invitation = "Unfold to choose a photograph and work on it."
-        case .faeBargain: invitation = "Unfold to hear the offer. You can say no."
-        case .pactVerdict: invitation = "Unfold to hear both sides and decide."
-        case .pactErrand: invitation = "Unfold to read the errand and bring back what happened."
-        case .gamePage: invitation = "Unfold to play."
-        case .calendar: invitation = "Unfold to see the calendar and choose what happens next."
-        case .bindery: invitation = "Unfold to choose a book and see how to bind it."
-        case .supportGuild, .patreon: invitation = "Unfold to see what support pays for and choose whether to help."
-        case .frontMatter: invitation = "Unfold to see what I remember about you and put it right."
-        case .bookConnections: invitation = "Unfold to follow the connections between your Pages."
-        case .bookPocket: invitation = "Unfold to look through the pocket."
-        case .spell: invitation = "Unfold to read the steps and try them."
-        case .festival: invitation = "Unfold to see what's happening and choose how to join in."
-        case .bookJump: invitation = "Unfold to read where this goes and choose your next step."
-        case .wickerDare: invitation = "Unfold to read the dare and decide whether to try it."
-        case .rest: invitation = "Unfold to take a short pause. You can stop when you need to."
-        default: invitation = "Unfold to see the details and choose what to do."
+            .filter { !$0.isEmpty }
+        if paragraphs.isEmpty, let detail = detail.nonEmpty { paragraphs = [detail] }
+        let excerpt: String
+        if let ask = leafErrandAsk {
+            if !paragraphs.contains(ask) { paragraphs.insert(ask, at: min(1, paragraphs.count)) }
+            // Whoever's asking gets a line or two; the ask always prints whole.
+            let lead = paragraphs.prefix { $0 != ask }.map { Self.leafExcerpt([$0], wordBudget: 32) }
+            excerpt = (lead + [ask]).filter { !$0.isEmpty }.joined(separator: "\n\n")
+        } else {
+            excerpt = Self.leafExcerpt(paragraphs, wordBudget: 56)
         }
-        return [excerpt, invitation].filter { !$0.isEmpty }.joined(separator: "\n\n")
+        return [excerpt, leafUnfoldLine].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    /// The thing a dare or a Playful Mission actually asks you to do.
+    private var leafErrandAsk: String? {
+        if type == .wickerDare { return detail.nonEmpty }
+        if payload.metadata["playfulMissionID"] != nil { return payload.metadata["mission"]?.nonEmpty }
+        return nil
+    }
+
+    /// Whole paragraphs while they fit; an opening that's already too long is
+    /// cut after its last sentence that fits, never in the middle of one.
+    private static func leafExcerpt(_ paragraphs: [String], wordBudget: Int) -> String {
+        func wordCount(_ text: String) -> Int { text.split(whereSeparator: \.isWhitespace).count }
+        var kept: [String] = []
+        var used = 0
+        for paragraph in paragraphs {
+            let count = wordCount(paragraph)
+            if used + count <= wordBudget {
+                kept.append(paragraph)
+                used += count
+            } else {
+                break
+            }
+        }
+        if !kept.isEmpty { return kept.joined(separator: "\n\n") }
+        guard let opening = paragraphs.first else { return "" }
+        var sentences: [String] = []
+        opening.enumerateSubstrings(in: opening.startIndex..., options: .bySentences) { sentence, _, _, stop in
+            guard let sentence = sentence?.trimmingCharacters(in: .whitespaces), !sentence.isEmpty else { return }
+            if wordCount((sentences + [sentence]).joined(separator: " ")) > wordBudget {
+                stop = true
+            } else {
+                sentences.append(sentence)
+            }
+        }
+        if !sentences.isEmpty { return sentences.joined(separator: " ") }
+        let words = opening.split(whereSeparator: \.isWhitespace)
+        return words.prefix(wordBudget).joined(separator: " ") + "…"
+    }
+
+    /// The last line of a preview leaf: what's folded inside, said by the
+    /// Book. Not instructions. The Unfold button already says how.
+    var leafUnfoldLine: String {
+        switch type {
+        case .narrativeOS, .bookFae: return "The rest of the story's folded inside. What happens next is up to you."
+        case .academyClass: return "The rest of the lesson's folded inside. Then it's your turn."
+        case .wonderCompass:
+            return payload.metadata["playfulMissionID"] != nil
+                ? "Go and do it. Then unfold this and tell me what you found."
+                : "The steps are folded inside. Start when you want."
+        case .tarot: return "The cards are face down inside. Somebody has to turn them over."
+        case .twoReadings, .castBond: return "Both sides are folded in here. You'll have to pick one."
+        case .recipe: return "The ingredients and the steps are folded inside, and a space for how it turned out."
+        case .marginsAtlas: return "The map's folded up in here. It's bigger than this page."
+        case .radio: return "There's a radio folded in here. It's already on."
+        case .askTheBook: return "Unfold me and say something. I'm listening."
+        case .inkrestOfficeHours: return "Office hours are open. Unfold it and knock."
+        case .inventory: return "Everything you've picked up is folded in here. Some of it does things."
+        case .elective:
+            if payload.metadata["electiveFlyleaf"] == "true" { return "Unfold it to pick one back up." }
+            if payload.metadata["bookFavorOffer"] == "true" { return "Keeping this Page means yes." }
+            return "Unfold it and read what they want. Keeping it means yes."
+        case .anchor: return "Unfold it and give this place a name. I'll remember it."
+        case .wordNegotiation: return "There's a word folded in here. It wants to know what it means to you."
+        case .enchantment, .illuminatedPhoto: return "Unfold it and pick a photograph. We'll do something to it."
+        case .faeBargain: return "There's an offer folded in here. You're allowed to say no. Fae hate that."
+        case .pactVerdict: return "Both sides are folded in here. You're the judge."
+        case .pactErrand: return "The errand's folded inside. Bring back what happened."
+        case .gamePage: return "Unfold it. Let's play."
+        case .calendar: return "The calendar's folded inside. Pick what happens next."
+        case .bindery: return "Pick a book in here and I'll show you how it gets bound."
+        case .supportGuild, .patreon: return "This one's about money. Unfold it to see what it pays for. You don't have to."
+        case .frontMatter: return "I wrote down what I know about you. Unfold it and fix what's wrong."
+        case .bookPocket: return "Everything in my pocket's folded in here."
+        case .spell: return "The steps are folded inside. Do them in order. Spells notice."
+        case .festival: return "Something's happening. Unfold it to see what, and how to get in on it."
+        case .bookJump: return "This goes somewhere. Unfold it and pick the way."
+        case .wickerDare: return "Unfold it when you've done it."
+        case .rest: return "Unfold it and stop for a bit."
+        default: return "There's more folded inside."
+        }
     }
 
     /// Presentation-only marks travel through the existing Page-opening route.

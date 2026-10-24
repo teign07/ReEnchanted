@@ -1,5 +1,8 @@
 # The Book Is a Character (umbrella doctrine)
 
+> Start with [`childlike-honesty.md`](childlike-honesty.md): the one idea
+> these laws and programs guard.
+
 Goal: the reader develops a relationship with **a character**, not a set of
 mechanics. Every surface in the app is the same Book — dynamic, coherent,
 excitable, sometimes despondent, never a servant and never a report.

@@ -5398,7 +5398,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(surface.payload.body.hasPrefix(
             "This is where I keep the things you chose but haven't finished."
         ))
-        XCTAssertTrue(surface.detail.contains("paper can breathe"))
+        XCTAssertEqual(surface.detail, "Nothing's waiting for you.")
         XCTAssertFalse(surface.payload.body.contains("Chosen notes"))
     }
 
@@ -5563,11 +5563,11 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         )
         XCTAssertEqual(
             surface.detail,
-            "A return-place for accepted quests, favors, and unfinished doors."
+            "Everything you said yes to and haven't finished."
         )
-        XCTAssertTrue(surface.payload.body.contains("Five fit."))
-        XCTAssertTrue(surface.payload.body.contains("sentence, photograph, or place proof"))
-        XCTAssertTrue(surface.payload.body.contains("They don't take one of the five note places."))
+        XCTAssertTrue(surface.payload.body.contains("Only five fit."))
+        XCTAssertTrue(surface.payload.body.contains("a sentence, a photo or proof you were there"))
+        XCTAssertTrue(surface.payload.body.contains("They don't use up any of the five."))
         XCTAssertTrue(surface.payload.body.contains("Notes you chose:"))
         XCTAssertTrue(surface.payload.body.contains("Open elsewhere:"))
         for elective in ledger.electives {

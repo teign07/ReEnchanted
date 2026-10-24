@@ -487,7 +487,7 @@ final class GrimoireRememberedReachTests: XCTestCase {
         let (ledger, _) = worked()
         let table = BookRememberedEngine.grimoireReturns(from: ledger, calendar: calendar)
         let reason = try XCTUnwrap(table.values.first?.reason)
-        XCTAssertTrue(reason.hasPrefix("I counted this Page"), reason)
+        XCTAssertTrue(reason.hasPrefix("This Page helped me work something out"), reason)
         XCTAssertTrue(reason.contains("days that taught me"), reason)
         XCTAssertFalse(reason.contains("  "), "double space: \(reason)")
         // The claim itself is in there, so the reader can check the Book's work.

@@ -415,9 +415,9 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertEqual(found.inHits, 5)
         XCTAssertEqual(found.outHits, 0)
         XCTAssertTrue(found.line.contains("you chose Slice Of Life"), found.line)
-        XCTAssertTrue(found.line.contains("It still does not prove what caused it"), found.line)
-        XCTAssertTrue(found.line.contains("five of five times"), found.line)
-        XCTAssertTrue(found.line.contains("With other hours, only zero of eight"), found.line)
+        XCTAssertTrue(found.line.contains("I don't know why"), found.line)
+        XCTAssertTrue(found.line.contains("five times out of five"), found.line)
+        XCTAssertTrue(found.line.contains("The rest of the time, never"), found.line)
     }
 
     func testRelationalLoomLetsATwoDayCleanLeanSpeakAsAGlimmer() throws {
@@ -435,8 +435,8 @@ final class ContextWeaveTests: XCTestCase {
             $0.condition.id == "day-part:night" && $0.outcome.id == "choice:slice-of-life"
         })
         XCTAssertEqual(glimmer.evidenceTier, .glimmer)
-        XCTAssertTrue(glimmer.line.contains("I found a small repeat"), glimmer.line)
-        XCTAssertTrue(glimmer.line.contains("One more Page could undo it"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("I might have noticed something"), glimmer.line)
+        XCTAssertTrue(glimmer.line.contains("One more Page could change my mind"), glimmer.line)
     }
 
     func testRelationalLoomBuildsAThreeSignalCrossMediaConstellationWithoutABespokeRule() throws {
@@ -467,8 +467,8 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(outcomeFamilies.contains(.voiceCadence))
         XCTAssertTrue(constellation.line.contains("photographic palette leaned slate dark"), constellation.line)
         XCTAssertTrue(constellation.line.contains("voice cadence leaned rapid paused"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("Without that condition, each one happened less"), constellation.line)
-        XCTAssertTrue(constellation.line.contains("I still do not know who pushed them"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("The rest of the time, all of them happened less"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("I don't know which one's pulling the others"), constellation.line)
         XCTAssertEqual(constellation.evidenceTier, .established)
     }
 
@@ -560,8 +560,8 @@ final class ContextWeaveTests: XCTestCase {
             $0.condition.id == "inner-weather:sad" && $0.outcome.id == "visualPalette:muted"
         })
         XCTAssertEqual(found.headline, "The Weather Behind the Lens")
-        XCTAssertTrue(found.line.contains("You named this condition, or a plain record caught it"), found.line)
-        XCTAssertTrue(found.line.contains("I did not guess"), found.line)
+        XCTAssertTrue(found.line.contains("You told me this part, or it was written down"), found.line)
+        XCTAssertTrue(found.line.contains("I didn't guess"), found.line)
     }
 
     func testRelationalLoomNeverInventsFeelingFromPhotographs() {
@@ -700,7 +700,7 @@ final class ContextWeaveTests: XCTestCase {
         // to change, and did (see 5682ec2). What must hold is that the receipt
         // names today's condition, what it went with, and how sure it is.
         XCTAssertTrue(visitation.reason.contains("night"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("slice of life"), visitation.reason)
+        XCTAssertTrue(visitation.reason.lowercased().contains("slice of life"), visitation.reason)
         XCTAssertTrue(
             visitation.reason.contains("only seen this a little"),
             "A thin repeat must say it is thin: \(visitation.reason)"
@@ -736,8 +736,8 @@ final class ContextWeaveTests: XCTestCase {
         ))
         XCTAssertEqual(visitation.page.id, night[0].id)
         XCTAssertTrue(visitation.reason.contains("night"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("photographic palette slate dark"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("voice cadence rapid paused"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("photographic palette leaned slate dark"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("voice cadence leaned rapid paused"), visitation.reason)
         XCTAssertTrue(
             visitation.reason.contains("It keeps happening"),
             "A constellation this dense must say so: \(visitation.reason)"

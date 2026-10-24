@@ -208,7 +208,10 @@ final class JournalPromptVoiceTests: XCTestCase {
         // The shapes that made questions hard to answer: therapy words,
         // essayist words, and asides that comment on themselves.
         let tells = ["avoidance", "interrupted the default", "supplied the explanation", "supposedly",
-                     "honestly take", "indignity", "brought it to you", "abstractions", "survives the indignity"]
+                     "honestly take", "indignity", "brought it to you", "abstractions", "survives the indignity",
+                     // Childlike honesty (docs/childlike-honesty.md): no soothing
+                     // the reader, no therapy "look like", no hedging the premise.
+                     "that's allowed", "look like?", "if it could", "kind and completely true"]
         for entry in entries {
             for text in [entry.question, entry.deeperQuestion, entry.title] {
                 for tell in tells {

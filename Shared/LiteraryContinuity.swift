@@ -505,13 +505,10 @@ enum RelationalLoom {
             let stable = "relational-constellation:\(condition.id)->\(outcomeIDs.joined(separator: "+"))"
             let evidenceBucket = min(9, evidence.count / 4)
             let clauses = joinedClauses(chosen.map { $0.outcome.outcomeClause })
-            let counts = chosen.map {
-                "\($0.outcome.label.lowercased()) on \(spelled($0.inHits)) of \(spelled($0.inCount))"
-            }
             let qualifier = condition.carriesReaderSuppliedMeaning || condition.family.isSensitiveInterpretation
-                ? "You named this condition, or a plain record caught it. I did not guess. "
+                ? "You told me this part, or it was written down. I didn't guess. "
                 : ""
-            let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(clauses). I saw \(joinedClauses(counts)). \(qualifier)Without that condition, each one happened less. That is why these branches touch. I still do not know who pushed them."
+            let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(clauses). \(qualifier)The rest of the time, all of them happened less. I don't know which one's pulling the others."
             return RelationalLoomConstellation(
                 id: "\(stable)-\(evidenceTier.rawValue)-e\(evidenceBucket)",
                 observationKey: stable,
@@ -645,9 +642,12 @@ enum RelationalLoom {
             .sorted { $0.occurredAt < $1.occurredAt }
             .map(\.evidence)
         let qualifier = condition.carriesReaderSuppliedMeaning || condition.family.isSensitiveInterpretation
-            ? "You named this condition, or a plain record caught it. I did not guess. "
+            ? "You told me this part, or it was written down. I didn't guess. "
             : ""
-        let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(outcome.outcomeClause). It happened \(spelled(hits.count)) of \(spelled(inside.count)) times. With other \(familyLabel(condition.family)), only \(spelled(outsideHitsCount)) of \(spelled(outsideCount)). \(qualifier)\(evidenceTier.closing)"
+        // Small, honest counts a child could check on its fingers. The
+        // comparison is said, not tabulated: "16 of 76" is a spreadsheet.
+        let elsewhere = outsideHitsCount == 0 ? "never" : (outRate < 0.25 ? "hardly ever" : "less often")
+        let line = "\(evidenceTier.opening) When \(condition.conditionClause), \(outcome.outcomeClause). That's \(spelled(hits.count)) times out of \(spelled(inside.count)). The rest of the time, \(elsewhere). \(qualifier)\(evidenceTier.closing)"
         return RelationalLoomConnection(
             id: "\(stable)-\(evidenceTier.rawValue)-e\(evidenceBucket)",
             observationKey: stable,
@@ -1003,20 +1003,6 @@ enum RelationalLoom {
             return "The Choices That Prefer This Hour"
         }
         return "Everything Has Neighbors"
-    }
-
-    private static func familyLabel(_ family: RelationalLoomFeature.Family) -> String {
-        switch family {
-        case .dayPart: return "hours"
-        case .weekPart: return "parts of the week"
-        case .weather: return "weather"
-        case .innerWeather: return "reader-named inner weather"
-        case .contextBlend: return "surrounding conditions"
-        case .place: return "places"
-        case .body: return "recorded body signals"
-        case .tempo: return "calendar shapes"
-        default: return "occasions"
-        }
     }
 
     private static func feature(
@@ -2386,9 +2372,11 @@ enum BookPreoccupationIndex {
             add(
                 "fault:\(fault.id)", heat: fault.presentedAt == nil ? 100 : 72,
                 registers: [.admission, .callback], title: "I Rubbed This Out",
+                // Both lines say what was wrong: the margin can land on any
+                // Page, and a repair alone ("I've put it back") names nothing.
                 lines: [
                     .admission: ["\(fault.admission) \(fault.repair)"],
-                    .callback: ["\(fault.repair)"]
+                    .callback: ["I keep thinking about this. \(fault.admission)"]
                 ], evidence: fault.evidencePageIDs, preferredType: .bookNotices,
                 firstAiring: fault.presentedAt == nil,
                 metadata: ["bookFaultID": fault.id, "bookActKind": "fault-repair"]
@@ -2817,9 +2805,12 @@ enum BookInterjectionEditor {
             $0.response == .wrong && now.timeIntervalSince($0.respondedAt ?? $0.servedAt) < 7 * 86_400
         }
         let stance: BookStance = recentlyCorrected ? .contrite : relationship.stance
+        // The month's story is somebody else's telling. An aside about the
+        // Book's own business pinned to it reads as part of the story.
         let pageIndices = pages.indices.filter {
             pages[$0].type != .supportGuild && pages[$0].type != .body && pages[$0].type != .rest
                 && pages[$0].payload.metadata["bookActedMargin"] == nil
+                && pages[$0].payload.metadata["worldEventIDs"] == nil
         }
         guard !pageIndices.isEmpty else { return pages }
 
@@ -3099,8 +3090,13 @@ enum BookInterjectionEditor {
     }
 
     static func responses(for surface: SurfacePage) -> [BookInterjectionResponse] {
-        surface.payload.metadata["bookInterjectionGoOnLine"]?.nonEmpty == nil
+        var responses = surface.payload.metadata["bookInterjectionGoOnLine"]?.nonEmpty == nil
             ? [.wrong, .notNow] : BookInterjectionResponse.allCases
+        // "You're wrong" is no answer to the Book saying it was wrong.
+        if surface.payload.metadata["bookInterjectionRegister"] == BookInterjectionRegister.admission.rawValue {
+            responses.removeAll { $0 == .wrong }
+        }
+        return responses
     }
 
     static func responseLine(for surface: SurfacePage, response: BookInterjectionResponse) -> String {
@@ -4178,6 +4174,18 @@ enum BookOpinionStrength: String, Codable, Equatable, CaseIterable {
         case .held: return "an opinion I currently hold"
         case .reconsidering: return "under active revision"
         case .withdrawn: return "withdrawn"
+        }
+    }
+
+    /// The same thing said to the Reader as a sentence, for the line under
+    /// an opinion's title.
+    var confidenceSentence: String {
+        switch self {
+        case .wondering: return "I'm only wondering."
+        case .leaning: return "I'm leaning this way."
+        case .held: return "I think this."
+        case .reconsidering: return "I'm changing my mind."
+        case .withdrawn: return "I take it back."
         }
     }
 }
@@ -11278,7 +11286,7 @@ enum BookInteriorEngine {
             state.opinion = BookOpinion(
                 id: "opinion-wager-\(wrong.id)",
                 subject: wrong.subjectName,
-                statement: "I was too certain about \(wrong.subjectName). \(wrong.resolutionLine ?? "The opened margin disagreed with me.")",
+                statement: "I bet on \(wrong.subjectName) and I was wrong. \(wrong.resolutionLine ?? "What really happened disagreed with me.")",
                 strength: .reconsidering,
                 evidencePageIDs: [],
                 formedAt: wrong.sealedAt,
@@ -12379,8 +12387,8 @@ enum BookInteriorEngine {
             state.currentFault = BookFaultEpisode(
                 id: id,
                 kind: .wrongWager,
-                admission: "I was too certain about \(wrong.subjectName).",
-                repair: wrong.resolutionLine ?? "The opened margin disagreed, so the prediction now travels with its correction.",
+                admission: "I bet on \(wrong.subjectName) and I was wrong.",
+                repair: wrong.resolutionLine ?? "I kept my bet and what really happened side by side.",
                 evidencePageIDs: [],
                 recognizedAt: wrong.resolvedAt ?? now,
                 presentedAt: nil
@@ -12394,11 +12402,19 @@ enum BookInteriorEngine {
             .first {
             let id = "book-fault-reading-\(correction.id)-\(Int(correction.updatedAt.timeIntervalSinceReferenceDate))"
             guard !state.faultHistory.contains(where: { $0.id == id }) else { return }
+            let evidence = Set(correction.evidencePageIDs)
+            let excerpt = inputs.days.lazy.flatMap(\.pages)
+                .first { evidence.contains($0.id) && !$0.userInput.isEmpty }
+                .map { page -> String in
+                    let words = page.userInput.split(whereSeparator: \.isWhitespace)
+                    return words.prefix(8).joined(separator: " ") + (words.count > 8 ? "…" : "")
+                }
             state.currentFault = BookFaultEpisode(
                 id: id,
                 kind: .prematurePattern,
-                admission: "I made a reading arrive with its shoes already polished. You loosened it.",
-                repair: "I've put the uncertainty back and kept your correction beside the Pages I was reading.",
+                admission: excerpt.map { "I said something too sure about your Page “\($0)”, and you told me I was wrong." }
+                    ?? "I said something too sure about your Pages, and you told me I was wrong.",
+                repair: "I've kept what you said right next to what I said. Now I'm not so sure. That's better.",
                 evidencePageIDs: correction.evidencePageIDs,
                 recognizedAt: correction.updatedAt,
                 presentedAt: nil
@@ -14541,7 +14557,7 @@ enum BookInteriorSurfaces {
             detail: "I kept your sentence. Mine too. Neither gets to eat the other.",
             payload: BookPagePayload(
                 headline: "It Bit the Margin Again",
-                body: "I said: ‘\(dispute.bookClaim)’\n\nYou said: ‘\(dispute.readerLine)’\n\nNow these have come nosing around:\n\(evidenceLine)\n\nThey don't get a vote. Neither does the Index. I haven't swallowed your sentence, and mine hasn't won by sitting here longer. The pencil's out.",
+                body: "I said: ‘\(dispute.bookClaim)’\n\nYou said: ‘\(dispute.readerLine)’\n\nNow some new Pages have come sniffing round it:\n\(evidenceLine)\n\nThey don't get to decide. You still said what you said, and so did I. The pencil's out.",
                 metadata: [
                     "source": "book-shared-dispute",
                     "bookDisputeID": dispute.id,
@@ -14663,7 +14679,7 @@ enum BookInteriorSurfaces {
             detail: "The old secret wouldn't stay finished.",
             payload: BookPagePayload(
                 headline: "The Secret Grew Another Leg",
-                body: "\(legacy.line)\n\nIt got out years ago and kept going. Good. A secret that lies down after one reveal was only showing off.",
+                body: "\(legacy.line)\n\nIt got out years ago and it's still going. Good. I like a secret that won't sit down.",
                 metadata: [
                     "source": "book-secret-legacy",
                     "bookSecretLegacyID": legacy.id,
@@ -14690,7 +14706,7 @@ enum BookInteriorSurfaces {
             detail: fault.admission,
             payload: BookPagePayload(
                 headline: "I Was Wrong. Here.",
-                body: "\(fault.admission)\n\n\(fault.repair)\n\nThe eraser's kicking its heels under the table. Let it. I kept the old mark beside the new one so neither can lie about what happened.",
+                body: "\(fault.admission)\n\n\(fault.repair)\n\nThe eraser wanted the old mark. It can't have it. I want to remember being wrong.",
                 metadata: [
                     "source": "book-interior-fault",
                     "bookFaultID": fault.id,
@@ -14707,10 +14723,10 @@ enum BookInteriorSurfaces {
         let findings = project.entries.suffix(4).map { "• \($0.line)" }.joined(separator: "\n")
         let statusLine: String
         switch project.status {
-        case .investigating: statusLine = "I'm still sniffing around. The evidence keeps moving when I look away."
-        case .resting: statusLine = "The trail went quiet. I've left it sleeping. Poking isn't research."
-        case .completed: statusLine = "I've shut this case. The latch is loose. Conclusions need air."
-        case .abandoned: statusLine = "I dropped this case. Some curiosities are only wearing important hats."
+        case .investigating: statusLine = "I'm still sniffing around. The clues keep moving when I look away."
+        case .resting: statusLine = "The trail went quiet, so I've left it asleep."
+        case .completed: statusLine = "I've shut this case. Not too tight, in case something new turns up."
+        case .abandoned: statusLine = "I dropped this one. It looked important, and it wasn't."
         }
         return SurfacePage(
             id: "book-interior-project-\(project.id)-\(project.status.rawValue)-\(project.progress)",
@@ -14724,7 +14740,7 @@ enum BookInteriorSurfaces {
             detail: project.question,
             payload: BookPagePayload(
                 headline: "I've Been Up to Something",
-                body: "\(project.whyItCares)\n\nMy question: \(project.question)\n\n\(findings)\n\n\(statusLine)",
+                body: "\(project.whyItCares)\n\nHere's what I want to know: \(project.question)\n\n\(findings)\n\n\(statusLine)",
                 metadata: [
                     "source": "book-interior-project",
                     "bookProjectID": project.id,
@@ -14850,9 +14866,9 @@ enum BookInteriorSurfaces {
                 ? "I've got an opinion, and I brought the Pages that started it."
                 : "I made a sharp guess, kept its rival beside it, and marked what would prove me wrong.",
             prompt: opinion.strength == .reconsidering ? "I Changed My Mind" : "I Have an Opinion",
-            detail: opinion.strength.confidenceLabel,
+            detail: opinion.strength.confidenceSentence,
             payload: BookPagePayload(
-                headline: opinion.interpretation?.headline ?? "My Present Opinion",
+                headline: opinion.interpretation?.headline ?? "What I Think",
                 body: impactBody,
                 metadata: [
                     "source": "book-interior-opinion",
@@ -14871,15 +14887,46 @@ enum BookInteriorSurfaces {
         )
     }
 
+    /// The director's strategy, hypotheses and evidence are notes to itself
+    /// (and to Gemma), written about "the reader". The Page says what the
+    /// Book has been trying in its own words, and lets the kept Pages it
+    /// counted be the evidence.
     private static func longGameSurface(_ game: BookLongGame, day: BookDay) -> SurfacePage {
         let milestone = game.milestones.last
-        let evidenceLines = game.evidence.suffix(3).map { "• \($0.line)" }.joined(separator: "\n")
-        let evidenceSection = evidenceLines.isEmpty
-            ? "I don't know if this has changed anything yet. Starting isn't succeeding."
-            : "Here are the tracks:\n\(evidenceLines)"
-        let hypothesisSection = game.hypotheses.first.map {
-            "My current guess: \($0.statement)\n\nWhat I try next: \($0.nextHonestTest)"
-        } ?? "I don't have another honest guess yet."
+        let tracks = game.evidence.count
+        let trying: String
+        let sofar: String
+        switch game.phase {
+        case .wakeTheSenses:
+            trying = "I've been trying to get you to notice one ordinary thing so hard you can't stop seeing it."
+            sofar = "One ordinary thing got hard to ignore. That was the first part."
+        case .estrangeTheFamiliar:
+            trying = "I've been moving things round: a different way home, a new name for something, the wrong time of day. To see if old things start looking strange again."
+            sofar = "Familiar things have started acting like they've got their own lives again."
+        case .courtTheWorld:
+            trying = "I've been sending you out to meet things, little ones, to see what they do back."
+            sofar = "Now I can set something up and leave room for the world to answer."
+        case .authorTheMagic:
+            trying = "I've been trying to get you to make up your own magic: your own words for things, your own rules."
+            sofar = "You've got enough Pages now to start a magic nobody else has."
+        case .buildTheInheritance:
+            trying = "I've been bringing old Pages back at the right moment, so your days pile up instead of disappearing."
+            sofar = "Your Pages are starting to add up."
+        case .holyShitWhatATrip:
+            trying = "I've been keeping the surprises coming. Even now. Especially now."
+            sofar = "There's one thing left to do: keep meeting the life that's still here."
+        }
+        let tracksLine = tracks == 0
+            ? "I don't know if it's working yet. Starting isn't the same as working."
+            : "You've brought back \(tracks == 1 ? "one thing" : "\(tracks) things") that count. The Pages are tucked in here."
+        let body = [
+            "I've been up to something behind the binding.",
+            "I want your real life to feel more alive. Not because I say so. Because something gets out of these covers and bites the day.",
+            trying,
+            milestone == nil ? nil : sofar,
+            tracksLine,
+            "I'm still trying."
+        ].compactMap { $0 }.joined(separator: "\n\n")
         return SurfacePage(
             id: "book-interior-long-game-\(game.phase.rawValue)-\(game.milestones.count)",
             type: .bookNotices,
@@ -14892,11 +14939,14 @@ enum BookInteriorSurfaces {
             detail: "A note from behind the binding",
             payload: BookPagePayload(
                 headline: "What I've Been Trying",
-                body: "I've been doing something behind the binding.\n\nI want your actual life to feel more alive. Not because I say so. Because something gets out of these covers and bites the day.\n\nSo I tried this: \(game.strategy)\n\n\(milestone?.line ?? "I'm still trying.")\n\n\(evidenceSection)\n\n\(hypothesisSection)\n\nOne finished favor proves very little. I need more tracks. I'm still trying.",
+                body: body,
                 metadata: [
                     "source": "book-interior-long-game",
                     "bookLongGamePhase": game.phase.rawValue,
-                    "evidencePageIDs": milestone?.evidencePageIDs.joined(separator: ",") ?? "",
+                    // The body promises the counted Pages are tucked in.
+                    "evidencePageIDs": (milestone?.evidencePageIDs
+                        ?? Array(Set(game.evidence.flatMap(\.evidencePageIDs))).sorted().suffix(8).map { $0 })
+                        .joined(separator: ","),
                     "bookInteriorSurface": "true",
                     "tags": "book,long-game,re-enchantment,milestone,strategy"
                 ]
@@ -26469,7 +26519,7 @@ enum ContextWeave {
               inRate >= outRate * minimumLift else { return nil }
 
         let line = """
-        \(measure.hook(inPhrase: facet.inPhrase)) That happened in \(spelled(inHitPages.count)) of \(spelled(inPages.count)) Pages. \(facet.outPhrase.sentenceCapitalized), it happened in \(spelled(outHits)) of \(spelled(outPages.count)).
+        \(measure.hook(inPhrase: facet.inPhrase)) That's \(spelled(inHitPages.count)) Pages out of \(spelled(inPages.count)). \(facet.outPhrase.sentenceCapitalized), \(outHits == 0 ? "never" : (outRate < 0.25 ? "hardly ever" : "less often")).
         """
         let evidence = inHitPages
             .sorted { $0.createdAt > $1.createdAt }

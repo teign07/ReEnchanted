@@ -161,12 +161,56 @@ final class LeafPresentationContractTests: XCTestCase {
         let story = page(.narrativeOS, body: body, metadata: ["storyChoiceSliceOfLifeTitle": "Stay and listen"])
         let preview = story.leafActivityPreview(from: story.payload.body)
         XCTAssertLessThan(preview.split(whereSeparator: \.isWhitespace).count, 75)
-        XCTAssertTrue(preview.contains("Unfold to read the story and choose what happens."))
+        XCTAssertTrue(preview.hasSuffix(story.leafUnfoldLine))
         XCTAssertEqual(story.payload.body, body)
         let opened = story.unfoldingFromLeaf()
         XCTAssertEqual(opened.payload.body, body)
         XCTAssertEqual(opened.payload.metadata["storyChoiceSliceOfLifeTitle"], "Stay and listen")
         XCTAssertEqual(opened.payload.metadata["leafReadingComplete"], "false")
+    }
+
+    /// A dare you have to unfold to find out about is a sealed envelope.
+    /// The ask itself is printed on the leaf; only the answering is folded.
+    func testAnErrandsAskIsOnThePaper() {
+        let dare = SurfacePage(id: "dare", type: .wickerDare, sourceID: "probe", score: 10,
+            prompt: "I Dare You: Overdress for Toothpaste",
+            detail: "Put on one fancy thing just to brush your teeth.",
+            payload: BookPagePayload(headline: "Overdress for Toothpaste",
+                body: "Go on. I dare you.\n\nWhen it's done, tell me what you wore.\n\n—Wicker"))
+        let darePreview = dare.leafActivityPreview(from: dare.payload.body)
+        XCTAssertTrue(darePreview.hasPrefix("Go on. I dare you.\n\nPut on one fancy thing"), darePreview)
+
+        let mission = page(.wonderCompass,
+            body: "Pippa has one for you.\n\nSit in a chair and decide what it thinks of you.\n\nBring back what the chair thinks.",
+            metadata: ["playfulMissionID": "chair-held",
+                       "mission": "Sit in a chair and decide what it thinks of you."])
+        let missionPreview = mission.leafActivityPreview(from: mission.payload.body)
+        XCTAssertTrue(missionPreview.contains("decide what it thinks of you"), missionPreview)
+        XCTAssertFalse(missionPreview.contains("…"))
+
+        // Wicker's first-dare opener runs long. The dare still prints whole.
+        let longOpener = String(repeating: "Wicker here, and I've been waiting. ", count: 8)
+        let first = SurfacePage(id: "dare", type: .wickerDare, sourceID: "probe", score: 10,
+            prompt: "I Dare You", detail: dare.detail,
+            payload: BookPagePayload(headline: "A Dare", body: longOpener + "\n\nWhen it's done, tell me."))
+        XCTAssertTrue(first.leafActivityPreview(from: first.payload.body).contains(dare.detail))
+    }
+
+    func testALongOpeningIsCutBetweenSentences() {
+        let sentence = "The lamp is on and the kettle's ticking as it cools down slowly. "
+        let story = page(.narrativeOS, body: String(repeating: sentence, count: 12))
+        let excerpt = story.leafActivityPreview(from: story.payload.body)
+            .components(separatedBy: "\n\n")[0]
+        XCTAssertTrue(excerpt.hasSuffix("slowly."), excerpt)
+        XCTAssertFalse(excerpt.contains("…"))
+    }
+
+    func testWhatTheBookNoticedIsReadOnPaper() {
+        for type in [BookPageType.bookNotices, .bookRemembered, .bookConnections] {
+            let noticing = page(type, body: String(repeating: "I saw the heron again. ", count: 40))
+            XCTAssertEqual(noticing.leafPresentation, .readingWithActivity, "\(type)")
+            XCTAssertFalse(noticing.leafRequiresUnfoldingToKeep, "\(type)")
+        }
     }
 
     func testReadPagesResumeAtOptionsAndShortAnswersCarryTheirDraft() {
