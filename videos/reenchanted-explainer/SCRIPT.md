@@ -39,7 +39,7 @@ Rules baked in: the Book's voice spec (simple, direct, childlike, independent, o
 
 **2b — it hides things in plain sight**
 **VISUAL** A basketball game, black-and-white players passing. The Reader counts on their fingers, lips moving. A gorilla strolls through the middle, stops, waves at the camera, strolls off. The Reader never turns their head. The gorilla looks personally offended.
-> Two. It hides things right in front of you. People were asked to count basketball passes, and a person in a gorilla suit walked straight through the game. More than half never saw it. They weren't blind. They were counting.
+> Two. It hides things right in front of you. People were asked to count basketball passes, and a person in a gorilla suit walked straight through the game. About half never saw it. They weren't blind. They were counting.
 
 **2c — it squashes your days**
 **VISUAL** Seven identical Tuesdays on a clothes line, all the same breakfast, the same bus, the same sofa. The fog-hand stamps SAME on each, then squashes the line flat into one sheet. A birthday cake appears. The Reader stares at it. "ALREADY?" in a thought bubble.

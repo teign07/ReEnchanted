@@ -16824,7 +16824,7 @@ struct OnboardingFlowView: View {
             onboardingBenefitCard(
                 symbol: "eye",
                 title: "It hides things right in front of you.",
-                body: "People counted basketball passes in a video. A person in a gorilla suit walked right through the game and stayed a bit. More than half of them didn't report seeing it. A whole gorilla. They were busy counting."
+                body: "People counted basketball passes in a video. A person in a gorilla suit walked right through the game and stayed a bit. About half of them didn't report seeing it. A whole gorilla. They were busy counting."
             )
             Link("Simons & Chabris · Perception (1999)", destination: URL(string: "https://www.chabris.com/Simons1999.pdf")!)
             onboardingBenefitCard(
