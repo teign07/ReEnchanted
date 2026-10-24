@@ -10587,7 +10587,7 @@ struct ContentView: View {
             case "pages-rising", "book-today": rooms[index].section = "Opening Leaves"
             case "book-of-you", "margins", "returned": rooms[index].section = "The Living Pages"
             case "cast": rooms[index].section = "The Cast"
-            case "correspondences", "bestiary", "gazetteer", "atlas", "labyrinth-map":
+            case "correspondences", "bestiary", "kitchen", "gazetteer", "atlas", "labyrinth-map":
                 rooms[index].section = "Maps and Field Guides"
             case "bookshop": rooms[index].section = "The Bookshop"
             case "pagewright": rooms[index].section = "Binding and Copies"
@@ -10596,6 +10596,8 @@ struct ContentView: View {
             default: break
             }
         }
+        // The Kitchen opens with November's story, not before.
+        if !KitchenRecipePageSourceAdapter.isOpen(on: Date()) { rooms.removeAll { $0.id == "kitchen" } }
         let entries = rooms + pagesRisingContentsTools + pagesRisingContentsGlowDestinations
         // The shop earns an early opening. Main text follows the front matter;
         // reference matter, copies, the index and colophon sit farther back.
