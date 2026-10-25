@@ -42,6 +42,27 @@ Nobody comes to the door. Nobody's going to. It's her evening and it's her choic
 Serenity's very still. She doesn't ask how it knows. I don't think she wants to hear the answer.""",
 }
 
+# She asks the Reader because of October, if they were there for it. A reader
+# who started in November wasn't, and isn't told they were.
+_EVENING_LINE = ("She doesn't ask anybody else. She asks you, because in October you're the one "
+                 "who told her what to do with an evening in November, and she did it.")
+_MENU_LINE = ("She doesn't ask anybody else. She asks you, because you were there in October, "
+              "carrying me, when she made the plan on the back of a menu.")
+WHY_YOU = "{why-you}"
+WHY_YOU_RECALL = {
+    "marker": WHY_YOU,
+    "entityID": "serenity-brown",
+    "options": [{"key": k, "line": _EVENING_LINE} for k in (
+        "count-unbound.november.knocking", "count-unbound.november.answer", "count-unbound.november.greenhouse",
+        "count-unbound.burrow.reader-roof", "count-unbound.burrow.reader-conversation",
+        "count-unbound.burrow.reader-own-evening")]
+    + [{"key": k, "line": _MENU_LINE} for k in (
+        "count-unbound.supper.reader-name-act", "count-unbound.supper.held-look", "count-unbound.gambit.window")],
+    "fallback": ("She doesn't ask anybody else. She asks you. Maybe it's because you're the only other "
+                 "person awake. Maybe it's because of me. People tell a book things they don't tell anybody."),
+}
+
+
 OFFER = scene(
     O, "The Offer",
     [
@@ -52,13 +73,15 @@ She does that now. Since October, she hears things at night. Pages turning in th
 
 Ambrose has left something out for her. He always does now. Tonight it's a bowl of leek and potato soup under a plate, on the warm corner of the range, and a spoon laid next to it, and a folded napkin. He doesn't say anything about it in the mornings. She doesn't either.
 
+Penny's card's on the Kitchen door behind her, *Missing* and *Restored*. In this light I can't read the numbers. I don't need to. The first one's bigger.
+
 You're there because you couldn't sleep either. You're sitting on the bench by the dresser with me on your knees. I've got my leaves shut. I keep them shut after dark now.
 
 The Guest is awake.
 
 It's at the sink, in its long green coat, scrubbing a pot. The pot's already clean. It scrubs it anyway, slowly, round and round, the way you'd stroke a dog. In the low light from the range, I can see that the sleeves of the coat are far too long for it. It's rolled them up four times.
 
-Serenity sits down with her soup. She can't taste it. She eats it anyway.
+Serenity sits down with her soup. She can't taste it. She hasn't tasted anything since October, since the Count. She eats it anyway.
 
 The Guest stops scrubbing.
 
@@ -84,7 +107,7 @@ Serenity looks down at her soup. She stirs it. She can't taste it. She hasn't ta
 
 Then she looks at you.
 
-She doesn't ask anybody else. She asks you, because you were there in October, carrying me, when she made the plan on the back of a menu.
+{WHY_YOU}
 
 “What would you do?”""",
              "What do you tell her?",
@@ -152,7 +175,7 @@ When she comes down, she's smiling. I don't understand it. I've decided I don't 
     prompt="Read on, then choose.", room="location-kitchens", cast=["serenity-brown"],
     report="At three in the morning the Guest made Serenity Brown an offer: the taste of things, for one evening's memory. What she answered is hers to tell.",
     report_after=21, tags=("the-offer",))
-OFFER["nodes"][0]["recalls"] = [OFFER_RECALL]
+OFFER["nodes"][0]["recalls"] = [OFFER_RECALL, WHY_YOU_RECALL]
 
 
 # MARK: 6. Stir-up Sunday — live day 21
@@ -166,13 +189,13 @@ STIR_UP = scene(
 
 That's the custom. Ambrose makes the Christmas pudding today, in the biggest bowl in the building, a great brown earthenware one he can barely lift. And everybody in the house has to take a turn at the stirring. You stir from east to west, the way the three kings travelled in the old story. You shut your eyes. And you make a wish, and you don't say it out loud, or it won't come.
 
-The pudding page is nearly whole again. The spices have come back to the recipe, letter by letter, as the Academy's cooked. Penny's been counting. Over a hundred letters restored. Some of them came from out there, from people's own kitchens, and Ambrose says that's the strangest and best part.
+Ever since the Guest came, letters have been going out of Ambrose's old cookbook, *The Middlemost Cookery*. A recipe only keeps its letters while somebody's making it, so the whole Academy's been cooking. The pudding page has got its spices back, letter by letter. Penny's count is on the Kitchen door, *Missing* and *Restored*, and the second column keeps going up. Some of the letters came from out there, from people's own kitchens, and Ambrose says that's the strangest and best part.
 
 The queue moves. Pippa stirs and wishes with her whole face screwed up. Dr. Vellum stirs exactly three times and makes a note. Serenity stirs, and laughs at something, and won't say what.
 
 You stir. I can't stir. But you hold me over the bowl while you do it, and I make a wish too. I'm not telling you what it is either. Those are the rules.
 
-Then the Guest steps up.
+Then the Guest steps up, in its green coat, off the stool by the fire where it's slept every night since All Souls.
 
 Nobody's sure it's allowed. Everybody looks at Ambrose. Ambrose holds out the wooden spoon.
 
@@ -284,7 +307,7 @@ Ambrose stands up at the end, with his apron still on.
 
 Everyone eats their soup.
 
-It tastes of soup. It tastes of leeks and pepper and good stock. The Academy's been cooking for two weeks, all of it, and the Guest hasn't leaned over a single plate tonight. It's sitting halfway down the table on a bench between Penny and a second-year, eating ham. It's eating it the ordinary way. It's tasting it, as far as I can tell.
+It tastes of soup. It tastes of leeks and pepper and good stock. All month the Guest's leaned over people's plates and breathed in, and afterwards there was nothing left in them to taste. The Academy's been cooking against it for two weeks. Tonight the Guest hasn't leaned over a single plate. It's sitting halfway down the table on a bench between Penny and a second-year, eating ham. It's eating it the ordinary way. It's tasting it, as far as I can tell.
 
 I've been watching it all evening. I've never seen it look so much like it belongs somewhere.""",
              "The talk goes low at the far end.",
@@ -302,7 +325,7 @@ Penny says she'd set the chair for her grandmother, who taught her to file thing
 
 Serenity's sitting between Wicker and Soren. That's an accident, I think. Or it isn't. The table's very long, and she's got a lot of room on either side, and she's chosen the middle.
 
-Professor Boggle's been trying to thank Ambrose for twenty years. For the soup when she was ill. For the cake on her fiftieth. For a thousand cups of tea put down by her elbow without a word. Every time, he's walked off before she got to the end of the sentence.
+Professor Boggle keeps the Academy's rooms. She's been trying to thank Ambrose for twenty years. For the soup when she was ill. For the cake on her fiftieth. For a thousand cups of tea put down by her elbow without a word. Every time, he's walked off before she got to the end of the sentence.
 
 Tonight she gets up and goes round to the range, where he's ladling seconds.
 
@@ -310,7 +333,7 @@ Tonight she gets up and goes round to the range, where he's ladling seconds.
 
 He stops ladling.
 
-They're the right words. They're the old words. They don't pay him, and they don't send him away. They just sit there between the two of them, in the steam, like a warm plate.
+They're the right words. They're the old words, the ones Professor Momort's been telling everybody to use all month. They don't pay him, and they don't send him away. They just sit there between the two of them, in the steam, like a warm plate.
 
 He doesn't walk off. He doesn't say anything either. But he stands there and lets her have said it.
 
@@ -385,7 +408,7 @@ BOWL = scene(
 
 All month the Kitchens have been loud. Today they're quiet. He's sent everybody out. There's just him at the range, and the Guest asleep on its stool by the fire, and Serenity on the end of the long table, swinging her boots, and you, with me open on your knees. I've opened my leaves for this. I want to see.
 
-*The Middlemost Cookery*'s propped against the bread crock, open at the back. Ambrose has read the page so many times he doesn't need to. He reads it anyway.
+*The Middlemost Cookery*'s propped against the bread crock, open at the back, at the page he looked for for thirty years. It came clear on Stir-up Sunday: *A Bowl for the One Who Keeps the Pots.* Ambrose has read the page so many times he doesn't need to. He reads it anyway.
 
 It isn't a feast. That's the first surprise. After thirty years I thought it'd be a feast. It's oats. It's a small pan of oats, cooked slowly in milk, stirred the whole time with the handle of a wooden spoon. A pinch of salt. Pippa isn't here to object. When it's thick, a spoonful of honey on top, and a knob of butter melting into a little gold pool, and a splash of cream poured round the edge, cold, so it doesn't mix.
 
@@ -433,7 +456,9 @@ Then it looks at you.
 
 “I could go,” it says. “I know the way now. I can taste it.” It touches the brown bowl. “Or I could stay. Keep the pots. Like before. If the house would have me.”
 
-Behind it, very faintly, I can smell frost again. Far off. Out past the west door. Something out there's waiting to see what it chooses.""",
+*Like before.* So it's been here before. It kept the pots in these Kitchens a long time ago, before anybody now was born. I think I've known since the first morning.
+
+Behind it, very faintly, I can smell frost again. Far off. Out past the west door. Something out there's waiting to see what it chooses. Something that's had everybody's suppers, all month.""",
              "What do you tell it?",
              [
                  choice("send-home", "Go home. You've been away long enough.",

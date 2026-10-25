@@ -230,6 +230,29 @@ final class TheGuestPackTests: XCTestCase {
         }
     }
 
+    // MARK: Radio
+
+    /// Five DJ breaks bj recorded (2026-10-25). Every one has its file in the issue, its caption is
+    /// exactly what was said (no pause tags), and the one after the month gives no ending away.
+    func testTheRadioBreaksHaveTheirRecordings() throws {
+        let banters = try XCTUnwrap(try pack().radioBanters)
+        XCTAssertEqual(banters.count, 5)
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("ContentPacks/the-guest")
+        let issue = try JSONSerialization.jsonObject(with: Data(contentsOf: root.appendingPathComponent("issue.json"))) as? [String: Any]
+        let audio = try XCTUnwrap((issue?["audio"] as? [String: Any])?["files"] as? [String: String])
+        for item in banters {
+            let mediaID = (item.banter.assetName ?? "").replacingOccurrences(of: "{{asset-path:", with: "").replacingOccurrences(of: "}}", with: "")
+            let file = try XCTUnwrap(audio[mediaID], item.id)
+            XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("audio/\(file)").path), file)
+            XCTAssertFalse(item.banter.caption.contains("<"), "\(item.id) caption kept a pause tag")
+            XCTAssertTrue(["thornwave", "fae-fi", "mothlight-beats"].contains(item.stationID), item.stationID)
+        }
+        let after = try XCTUnwrap(banters.first { $0.id.hasSuffix("the-bowl-is-washed") }).banter.caption.lowercased()
+        for giveaway in ["went home", "stayed", "court", "aiken"] { XCTAssertFalse(after.contains(giveaway), giveaway) }
+    }
+
     // MARK: The margins pack
 
     private func margins() throws -> PageArchetypePack {

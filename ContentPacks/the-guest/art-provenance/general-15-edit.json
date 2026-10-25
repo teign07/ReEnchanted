@@ -1,0 +1,7 @@
+{
+  "prompt": "Edit this existing November soul-cakes illustration with a precise food correction. Keep exactly the kitchen, angle, trays, steam, warm lamp, cloth, cream vignette and dense hand-drawn brown ink/watercolour style. Change ONLY the cakes: these are FLAT ROUND SOUL CAKES, like thick round tea biscuits, not domed bread rolls. Each and every visible cake must have a distinct simple CROSS CUT INTO ITS TOP, one straight incision intersecting another straight incision at right angles, a + shape. The scored cross must be clearly visible through the currants/nutmeg on all foreground cakes. Flat broad tops, low biscuit-like thickness, slightly cracked golden crust. No crosses standing up, icing, hot-cross-bun white ribbons or text. Keep the existing count/arrangement approximately forty cakes across the trays. Landscape3:2.",
+  "tool": "Built-in image_gen.imagegen",
+  "generatedSource": "~/.codex/generated_images/01a16f75-214f-75e3-8927-9a2735638822/exec-4e296a73-b04f-43d8-a163-82e283363c0d.png",
+  "output": "ContentPacks/the-guest/plates/soul-cakes-cooling.png",
+  "attempt": 2
+}

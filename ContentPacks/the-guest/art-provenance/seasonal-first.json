@@ -1,0 +1,251 @@
+[
+  {
+    "file": "seasonal-marginalia/soul-cake.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A single flat round soul cake with a cross cut into the top, currants and a dusting of nutmeg, slightly cracked edge.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-775116c3-95b5-4d74-a015-c0011e0319e0.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/soul-cake.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 618563,
+    "visualQA": "Fine brown contours, granular warm wash, intact soul cake with scored cross and currants; no baked background or extra subjects.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/parkin.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A sticky dark square of parkin, black treacle and oatmeal, a crumb broken off one corner.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-cc3c294a-6a9b-4924-94d2-19da77811733.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/parkin.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 697612,
+    "visualQA": "Detailed pen and warm wash square of treacle parkin, oatmeal and broken crumb corner; intact silhouette, actual transparency without baked ground.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/toffee-hammer.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A shard of amber bonfire toffee with a tiny brass toffee hammer resting against it.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.\nKeep the toffee hammer a plain small utilitarian brass hammer with a simple wooden handle. Only one main amber toffee shard and the hammer: no ribbon, no bow, no bell, no charms, no decorative hanging additions; only minute broken toffee crumbs.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-a6e8f6e5-245b-4887-a73f-b30575f30d58.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/toffee-hammer.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 790882,
+    "visualQA": "Fine brown ink and amber wash toffee shard with plain small brass hammer; no added charms. Second attempt removed decorative ribbon and bell from first attempt.",
+    "attempts": 2,
+    "discardedSourcePaths": [
+      "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-7a970f69-8752-4892-9b21-12f017ee31f4.png"
+    ]
+  },
+  {
+    "file": "seasonal-marginalia/wooden-spoon.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A well-used wooden spoon, scorched on one edge, the bowl stained dark from years of soup.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-97c62105-49b2-4e13-89d9-413eb6c1bace.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/wooden-spoon.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 1125397,
+    "visualQA": "Well-used spoon with dark stained and scorched bowl, fine irregular brown contours and observed wood grain; intact isolated silhouette; alpha confirmed.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/copper-pot.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A small dented copper pot with a long iron handle, polished bright in places.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-030bde75-b657-406a-a81a-9bce83eff6d3.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/copper-pot.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 1032801,
+    "visualQA": "Small dented copper pot, long iron handle, warm polished worn metal and fine pen marks; complete silhouette; real transparency.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/onion.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A golden onion with papery skin peeling back, one root tuft, one tear of moisture on it.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-ae394a0d-cfeb-471b-8e3e-59286f09672c.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/onion.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 661631,
+    "visualQA": "Golden onion with peeling papery skin, tuft of roots and one moisture tear; hand-drawn ink material detail, intact edges; actual alpha.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/garlic.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A plump bulb of garlic in its papery coat, two cloves loose beside it.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-af02ee98-81b2-4f08-a0cf-a6c477b8a221.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/garlic.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 675039,
+    "visualQA": "Plump garlic bulb and exactly two loose cloves; papery coat, fine brown ink, warm cream and muted lilac washes. Actual transparency; silhouette intact but native padding is tight and should be normalized by optimization.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/half-loaf.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: Half a round country loaf, cut clean across, crust cracked and floury, the crumb soft.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-8e43f65a-b62c-424a-9623-b979b8c183df.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/half-loaf.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 659382,
+    "visualQA": "Half round loaf with clean cut face, airy crumb and floury cracked crust, irregular fine ink and golden warm wash; intact isolated subject, true alpha.",
+    "attempts": 1
+  },
+  {
+    "file": "seasonal-marginalia/honey-jar.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A small jar of honey with a wooden dipper, a slow gold drip running down the side.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.\nThe jar is plain undecorated glass with an open mouth: no flowers, no leaves, no berries, no sprigs, no ribbons, no wrapping, no cloth cover, no label. Only a simple small glass jar of honey, wooden dipper and the slow honey drip. Clear transparent padding around every edge.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-1ed51e9c-94cb-43df-820d-2f85c97db090.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/honey-jar.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 775123,
+    "visualQA": "Plain glass honey jar, wooden dipper and gold drip only; fine crosshatch with warm amber wash, intact silhouette, true alpha. Second attempt removed unrequested floral sprig.",
+    "attempts": 2,
+    "discardedSourcePaths": [
+      "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-43cac93b-7a2d-4f39-994d-91391827e08f.png"
+    ]
+  },
+  {
+    "file": "seasonal-marginalia/apple-star.png",
+    "size": "1024x1024",
+    "styleReferences": [
+      "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+      "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+    ],
+    "transparentBackground": true,
+    "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: An apple cut across the middle showing the five-pointed star of seeds inside, both halves.\nSize: square 1024 by 1024. Preserve the densely observed fine ink texture seen in the references.\nBotanical geometry matters: the apple is cut transversely across its equator, horizontally perpendicular to the stem-to-calyx axis. Show the two round cut faces with five-point seed stars. Only the two halves of this one apple, no leaves, no leaf pile, no decorative vegetation, no loose seeds. A stem can belong only to the top half, never both halves. Keep clear transparent padding.",
+    "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-73b4aebf-81c9-4241-9046-5e79c72ee7f1.png",
+    "finalOutput": "ContentPacks/the-guest/seasonal-marginalia/apple-star.png",
+    "pixelDimensions": [
+      1254,
+      1254
+    ],
+    "tool": "built-in image_gen.imagegen",
+    "alphaExtrema": [
+      0,
+      255
+    ],
+    "fullyTransparentPixels": 632809,
+    "visualQA": "Exactly two apple halves with five-point seed stars and only one stem; fine ink/cream-red wash, no extra leaves after second attempt; actual transparency. Botanical geometry is stylized rather than diagrammatic.",
+    "attempts": 2,
+    "discardedSourcePaths": [
+      "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-512ceeb9-9718-4f0e-bf1b-bf46a05a7de9.png"
+    ]
+  }
+]

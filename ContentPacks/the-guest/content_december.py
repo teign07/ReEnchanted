@@ -32,7 +32,7 @@ Wicker does the washing up. He's terrible at it. Something in the dark beside th
 
 His name's Aiken Drum. He told us, at the end. I'm calling him he now, because a thing with a name is a somebody.
 
-There's an old song from Galloway, in Scotland, about a brownie called Aiken Drum, who worked a farm all night for a bowl of brose and went away when somebody gave him a pair of trousers. That part's folklore. It's real folklore; you can look it up. I don't know if it's the same Aiken Drum. I haven't asked. You don't ask."""},
+There's an old song from Galloway, in Scotland, about a brownie called Aiken Drum, who worked a farm all night for a bowl of brose and went away when somebody gave him a pair of trousers. That part's folklore. It's real folklore. You can look it up. I don't know if it's the same Aiken Drum. I haven't asked. You don't ask."""},
         {"key": "the-guest.bowl.sent-home",
          "line": """The stool's gone from beside the fire.
 
@@ -114,7 +114,7 @@ I think it's so it can't get out.""",
         node(f"{D}.long-nights", "The long nights",
              f"""{SERENITY}
 
-The nights are getting long now. Every evening the dark comes in a bit earlier and stays a bit later, like a guest who's found out where the good chair is. Yesterday Ambrose looked at the window at four o'clock and it was already black. He said, to nobody, “Somebody'll have to sit up with that.”
+The nights are getting long now. Every evening the dark comes in a bit earlier and stays a bit later, like it's decided to move in. Yesterday Ambrose looked at the window at four o'clock and it was already black. He said, to nobody, “Somebody'll have to sit up with that.”
 
 He meant the dark. I think. He doesn't say what he means. He makes porridge about it.
 

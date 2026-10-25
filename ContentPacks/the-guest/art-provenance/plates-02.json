@@ -1,0 +1,27 @@
+{
+  "index": 2,
+  "file": "plates/scene.the-guest.scene.three-nights.png",
+  "prompt": "Use case: illustration-story. Asset type: a full printed plate for the ReEnchanted Book's November 2026 issue, The Guest Who Came on All Souls, printed in a 6 by 9 inch book on uncoated book paper inside a white mat and a thin gold rule. Input images are STYLE AND CHARACTER REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material detail, warm muted washes on cream paper. November's palette: lamplight amber, copper, oatmeal and flour white, bread-crust browns, holly green, and a cold frost blue that only appears near the west door and after dark. An old illustrated faerie book, physical and a little feral, warm but with something wrong at the edge of it, never childish. A full painted scene with its own background whose edges soften into cream paper in a gentle vignette. No border, no frame, no lettering, no legible words, no labels, no captions, no watermark, no speech bubbles; any writing in the scene is illegible pen scribble. Print-safe colour for uncoated paper: no pure black, no neon, no large flat dark areas; keep shadows open and textured. Characters must match their reference portraits exactly in face, hair and clothing, drawn as real people with weight and warmth, never caricatures. The reader of the Book is never shown; at most an anonymous hand at the edge of the picture holding an old leather-bound book. Avoid flat vector art, clipart, glossy 3D, photorealism, anime, gore and modern objects.\nComposition: landscape, 3:2.\nSubject: Bonfire Night in the Academy courtyard: a towering bonfire throwing sparks into the black sky, students in scarves with their breath showing, trestle tables of dark sticky parkin and amber toffee with a little hammer. At the very edge of the firelight, where the dark starts, the small hooded figure stands alone holding a square of parkin. Penny holds an old string-bound cookbook open under a lantern.\nPresent: Penny Blackletter (young woman, dark curls pinned up, round spectacles, dark waistcoat over a white blouse with a cravat, ink on her fingers; match her reference portrait exactly); Ambrose Trencher (big older cook, grey beard, cap, stained canvas apron, sleeves rolled); The Guest: a small figure, about elbow-height to a grown man, in a long green coat far too big for it with tarnished brass buttons and a ragged hem, sleeves rolled up four times, the hood always up so no face shows, only two very clean small hands; it should feel old, polite and faintly uncanny, never cute and never a monster.\nProduction request: native 2400x1600 pixels if supported. ONE continuous scene; no collage, notes, annotation, border, inset or copied lettering. Input images 1\u20132 are painting style only; no goblin or cat. Remaining portraits define exact named character identities.",
+  "originalStyleReferences": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterPennyBlackletter.imageset/LabyrinthCharacterPennyBlackletter.jpg",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterAmbroseTrencher.imageset/LabyrinthCharacterAmbroseTrencher.heic",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "referencePaths": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterPennyBlackletter.imageset/LabyrinthCharacterPennyBlackletter.jpg",
+    "ContentPacks/the-guest/art-references/plate-LabyrinthCharacterAmbroseTrencher.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "originalGeneratedPath": "~/.codex/generated_images/01a16f77-2f54-7882-93c6-2d051bd7b3e8/exec-22f58f84-aded-4955-b71b-e74b828e1650.png",
+  "finalPath": "ContentPacks/the-guest/plates/scene.the-guest.scene.three-nights.png",
+  "requestedSize": "2400x1600",
+  "review": "Visually inspected: recognizable Penny, Ambrose and faceless Guest; parkin/toffee, hammer, courtyard bonfire, cold air; textured ink/watercolour. Single scene with no text or collage.",
+  "attempt": 1,
+  "tool": "built-in image_gen",
+  "actualWidth": 1536,
+  "actualHeight": 1024
+}

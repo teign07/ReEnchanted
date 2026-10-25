@@ -81,6 +81,13 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
 ## 2. Story scenes (`storyScenes[]`, one manifest atom each)
 
 - ✏️ **The eight main scenes:** written and in the pack; bj's notes are next.
+- ✏️ **Six interludes** (2026-10-24, `content_interludes.py`), short optional scenes in the quiet
+  days: *The Pot Watch* (7–8), *Salt* (9), *Nine Spoons* (15–16), *The Tray* (17), *Letters
+  Coming Home* (22–23), *The Day-Book* (27–28). Each depends on the scene before it, so it never
+  takes that scene's place on the desk, and each shows a reader who's been away who the Guest is.
+  No plates. The eight got an orienting pass the same day (each re-shows the Guest, the Cookery
+  card and the thanks rule), and the Offer no longer tells a November-first reader they were
+  there in October (`{why-you}` recall). Waiting on bj's read.
 - ✅ **Convert to pack JSON:** ids, nodes, choices, `result`, `consequenceTags`, `braidText` on
   every choice, `report`/`reportAfterLiveDay` for readers who missed it, `roomID`, `castIDs`,
   `entities`, `tags`.
@@ -131,7 +138,7 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
 
 ## 5. Radio
 
-- ✏️ **DJ breaks**: five scripts in `ContentPacks/the-guest/RADIO-RECORDING.md`, not recorded (`radioBanters`), about 5 clips of 20–40 seconds on the existing stations
+- ✅ **DJ breaks**: five recorded (2026-10-25) and wired in; `ContentPacks/the-guest/RADIO-RECORDING.md` (`radioBanters`), about 5 clips of 20–40 seconds on the existing stations
   (Thornwave, Faefi, Mothlight). Scripts go first in `RADIO-RECORDING.md`.
   - Ideas: Thornwave on the west door; Faefi on soul cakes; Mothlight at 3 a.m. on the Kitchens'
     light; a "don't thank it" PSA; Stir-up Sunday.
@@ -143,10 +150,10 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
 
 ## 6. Marginalia and art
 
-- ✏️ **Directed notes**, 8 prompts in `ContentPacks/the-guest/art-prompts.json` (October had 8): handwritten marks at story beats. The soul cake; the west
+- ✅ **Directed notes**, 8 generated transparent pen marks from `ContentPacks/the-guest/art-prompts.json` (October had 8), connected to witnessed story beats. The soul cake; the west
   door; the scrubbed pots; the green coat's brass button; a missing letter; Soren's spoons; the
   brown bowl; the thorn.
-- ✏️ **The month's drawing set**, 20 prompts in `art-prompts.json` (October had 20). Kitchen-stained:
+- ✅ **The month's drawing set**, 20 generated and optimized transparent cutouts from `art-prompts.json` (October had 20), connected to the shared cabinet. Kitchen-stained:
   - stains and smudges: flour fingerprints, tea rings, grease spots, scorch marks;
   - kitchen things: wooden spoons, copper pots, onions, a halved loaf, a honey jar, an apple cut
     across to show its star;
@@ -156,13 +163,17 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   
   They decorate the month's leaves and printed margins and fill Pagewright's This Month shelf.
 - ✅ **Marginalia snippets:** 13 pencilings in `margins.reenchantedpack.json`, live while the Guest is here.
-- ✏️ **Print plates**: 20 prompts (frontispiece, one per scene, five Cast portraits, six
-  general) in `art-prompts.json`. October had 24.
-- ⬜ **The issue's cover plates** (in `issue.json`).
-- ✏️ **The Cookery leaf** (prompt `the-middlemost-cookery`): a page of *The Middlemost Cookery* with letters missing, for the
+- ✅ **Plate art**: 20 generated plates (frontispiece, one per main scene, five Cast portraits, six
+  general) from `art-prompts.json`, with publication exports and eight exact-node story attachments.
+  Native masters are below the requested print dimensions; print quality remains unapproved.
+- ✅ **The issue's cover plates:** both existing covers registered in the bundled November schedule;
+  *A Place at the Table* is the chosen default, with *The Other Supper* available.
+- ✅ **The Cookery leaf** (prompt `the-middlemost-cookery`): a page of *The Middlemost Cookery* with letters missing, for the
   editions and the paper.
-- ✏️ **Art prompt files** written (`make_art_prompts.py`); next comes generation, then generation, optimisation under the 2 MiB
-  publication cap, and contact sheets.
+- ✅ **Art production and source integration:** all 48 commissioned images saved; current app-style and character
+  references repaired; transparent cutouts and JPEG delivery exports optimized; contact sheets and exact
+  generation provenance saved. Offline staging resolves 58 assets, each below the 2 MiB cap.
+  See [november-art.md](november-art.md) for paths, checks and print-resolution limits.
   - 👤 bj reviews the contact sheets.
 
 ## 7. Paper (the printed editions)

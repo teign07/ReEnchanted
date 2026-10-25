@@ -1,0 +1,26 @@
+{
+  "file": "plates/cast.serenity-brown.png",
+  "size": "1500x2250",
+  "styleReferences": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterSerenityBrown.imageset/LabyrinthCharacterSerenityBrown.jpg"
+  ],
+  "prompt": "Use case: illustration-story. Asset type: a full printed plate for the ReEnchanted Book's November 2026 issue, The Guest Who Came on All Souls, printed in a 6 by 9 inch book on uncoated book paper inside a white mat and a thin gold rule. Input images are STYLE AND CHARACTER REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material detail, warm muted washes on cream paper. November's palette: lamplight amber, copper, oatmeal and flour white, bread-crust browns, holly green, and a cold frost blue that only appears near the west door and after dark. An old illustrated faerie book, physical and a little feral, warm but with something wrong at the edge of it, never childish. A full painted scene with its own background whose edges soften into cream paper in a gentle vignette. No border, no frame, no lettering, no legible words, no labels, no captions, no watermark, no speech bubbles; any writing in the scene is illegible pen scribble. Print-safe colour for uncoated paper: no pure black, no neon, no large flat dark areas; keep shadows open and textured. Characters must match their reference portraits exactly in face, hair and clothing, drawn as real people with weight and warmth, never caricatures. The reader of the Book is never shown; at most an anonymous hand at the edge of the picture holding an old leather-bound book. Avoid flat vector art, clipart, glossy 3D, photorealism, anime, gore and modern objects.\nComposition: portrait, 2:3.\nSubject: Serenity Brown in November: on the Academy roof in the rain at night, face turned up, tongue just out, laughing, her map case strapped across her with a paper bird tucked under the strap.\nPresent: Serenity Brown (young woman, long wild dark curls, sea-green coat, a brass compass on a chain; moves slightly sideways, always half-seeing something beyond).\nOutput is one continuous portrait scene, 2:3 aspect ratio, highest native resolution available toward 1500x2250. Use the physical ink, graphite crosshatch and muted watercolour material of the existing app illustrations. The reference images contain dossier collages: do NOT copy their panels, lettering, captions, diagrams, scrapbook layout, borders, badges or surrounding notes. Extract only the character's face, hair and clothes into the requested single scene, its edges softly vignetted onto cream. No text or readable handwriting anywhere.",
+  "actualReferencePaths": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterSerenityBrown.imageset/LabyrinthCharacterSerenityBrown.jpg"
+  ],
+  "generatedSourcePath": "~/.codex/generated_images/01a16f77-533e-7731-a6d3-e93d3476864e/exec-645df0c5-20ad-4814-99e8-eba08e652901.png",
+  "finalOutput": "ContentPacks/the-guest/plates/cast.serenity-brown.png",
+  "pixelDimensions": [
+    1024,
+    1536
+  ],
+  "tool": "built-in image_gen.imagegen",
+  "transparentBackground": false,
+  "visualQA": "Serenity reference face, wild curls, sea-green coat, shell ornaments and layered clothes matched; rain at night on roof, face up tongue just out laughing, map case strap with paper bird and brass compass; single vignetted scene, no lettering or collage.",
+  "attempts": 1,
+  "printResolutionNote": "Native generation; no upscaling. Authored target 1500x2250 is a requested target, not achieved pixel resolution."
+}

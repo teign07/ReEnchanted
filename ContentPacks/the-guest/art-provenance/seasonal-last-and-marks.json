@@ -1,0 +1,451 @@
+{
+  "tool": "built-in image_gen.imagegen",
+  "records": [
+    {
+      "file": "seasonal-marginalia/brass-button.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tarnished brass coat button with a loop of green thread still through it.\nAdditional supplied image 3 is an EXISTING OCTOBER SEASONAL CUTOUT STYLE REFERENCE ONLY; match its intricate material drawing and true transparent silhouette, without copying its key subject. Generate only the button and thread. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-9c40f4da-08b1-4f30-8221-69b0a7c3c3c3.png",
+      "width": 1254,
+      "height": 1254,
+      "attempt": 1,
+      "review": "Intact button and green thread; transparent outer area; intricate ink and ochre wash matching existing October key."
+    },
+    {
+      "file": "seasonal-marginalia/iron-latch.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: An old black iron door latch with frost on it, painted over many times.\nAdditional supplied image 3 is an EXISTING OCTOBER SEASONAL CUTOUT STYLE REFERENCE ONLY; match its intricate ink material drawing and true transparent silhouette without copying the key. Preserve the entire latch and frost within generous clear padding. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-01e65788-f8a1-4f50-a33e-42bc18bbd664.png",
+      "attempt": 1,
+      "review": "Intact frosted antique latch; transparent; material detail and irregular pen texture match existing art.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        9,
+        1238,
+        1254
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/black-thorn.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A single long black thorn, very sharp, laid on nothing, faintly glossy.\nAdditional image 3 is an existing October style reference only. Match tactile pen and restrained watercolor materials, not the key subject or its ornaments. Keep this thorn plain and natural, with no leaves, flowers, twigs, ornaments or other objects. Entire pointed thorn inside clear padding. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-7c24731d-fa37-4dca-a151-e021cb775b01.png",
+      "attempt": 1,
+      "review": "Single sharp natural thorn; no extra objects; intact subject, fine ink material texture.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        81,
+        27,
+        1236,
+        1238
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/pudding-cloth.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A round Christmas pudding tied up in a knotted cloth, steam rising.\nAdditional image 3 is an existing October style reference only. Match detailed brown pen and restrained watercolor texture, without copying key ornaments. Only the round pudding wrapped in its tied plain oatmeal cloth and steam; no platter, holly or other objects. Entire bundle within clear padding. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-e1d59f8f-95e3-4f4e-a029-b8b8f65d2fd7.png",
+      "attempt": 1,
+      "review": "Round pudding in knotted cloth with steam; no added subjects; tactile woven crosshatching.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        1240,
+        1254
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/numbered-spoon.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A teaspoon holding a single blackcurrant, with a tiny folded paper slip beside it marked with an illegible number.\nAdditional image 3 is an existing October style reference only: match hand-rendered detailed pen and muted washes. Only the complete plain teaspoon, one blackcurrant and tiny folded paper slip. The slip's number is an illegible scribble, not readable text. No ornate key motifs, no other berries. Generous transparent padding around every extremity. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-c86b6d58-1f85-4cef-84ba-50be954d4016.png",
+      "attempt": 1,
+      "review": "Single blackcurrant in complete teaspoon with illegible folded paper slip as authored. Slip rests within spoon bowl, beside currant.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        25,
+        25,
+        1240,
+        1240
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/candle-saucer.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A short candle stub stuck in a chipped saucer, a small steady flame.\nAdditional image 3 is an existing October style reference only. Match hand-rendered irregular pen and muted washes, without copying key ornamentation. Plain chipped ceramic saucer and short melted stub with one small flame; no other objects. Entire silhouette including flame within clear transparent padding. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-d4690e02-b050-4055-a345-7f16f3fddfca.png",
+      "attempt": 1,
+      "review": "Candle stub in chipped ceramic saucer with one steady flame; irregular pen and warm wash; no paper backdrop.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        10,
+        1254,
+        1254
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/napkin-hat.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A white linen napkin folded into a little hat, standing on its own.\nAdditional image 3 is existing October material drawing style only. Only one plain white linen napkin folded into a small standing paper-hat shape; linen weave and fold weight in fine brown pen, faint cream and cool grey washes. No faces, ornaments, plate, or additional items. Transparent padding around the complete subject. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-3c9b2e39-1ca7-4417-81b3-d9c6a40f988b.png",
+      "attempt": 1,
+      "review": "Single white linen napkin hat, intact folded form and detailed linen texture.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        31,
+        1238,
+        1230
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/brown-bowl.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A plain chipped brown earthenware bowl of oats with a pool of melted butter and cream round the edge, no spoon.\nAdditional image 3 is existing October material-drawing style only. A rustic plain bowl, oatmeal grains, golden butter and pale cream edge, fine brown pen and restrained warm washes. No spoon, table, patterned ornament or additional objects. Whole bowl within clear transparent padding. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-4d2ca4d0-30cb-437f-a23b-221c910c56e4.png",
+      "attempt": 1,
+      "review": "Chipped plain brown earthenware bowl, oats with butter and cream, no spoon; intact subject and transparent field.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        0,
+        1240,
+        1254
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/flour-handprint.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A small scatter of spilled flour with a thumbprint pressed in it, soft and powdery.\nAdditional image 3 is an existing October drawing style reference ONLY, not its subject. Show only the uneven small flour scatter and one clearly pressed thumbprint; no hand or surface rectangle, no bowl or utensil. A whisper of brown pen around powder clumps, delicate oatmeal-white washes; real transparent gaps between scattered grains. Transparent padding on every side. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-807c3bb1-3dc0-4e48-aa66-e365d824f525.png",
+      "attempt": 1,
+      "review": "Powdery flour scatter with single clear thumbprint; transparent gaps and perimeter; no hand or surface rectangle.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        9,
+        1242,
+        1254
+      ]
+    },
+    {
+      "file": "seasonal-marginalia/tea-ring.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A pale brown tea ring stain, slightly uneven, the shape a mug leaves on paper.\nAdditional image 3 is existing October tactile watercolor STYLE ONLY, not a shape or subject reference. The subject is only the flat imperfect pale tea stain itself, no mug, no paper rectangle, no shadow, no raised rim. Thin uneven translucent brown watercolor ring with broken lighter portions; center and outside genuinely transparent. No ornate details or embellishments. Square 1024\u00d71024.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/seasonal-marginalia/old-key.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-3dc3a8dc-6ceb-4fbe-8254-1ff02b5b15dd.png",
+      "attempt": 1,
+      "review": "Uneven watercolor tea stain; transparent center and exterior; no cup or paper rectangle.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        20,
+        1236,
+        1232
+      ]
+    },
+    {
+      "file": "marginalia/soul-cake-cross.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink note drawing: a soul cake with its cross, and a little arrow pointing at it as if to say look.\nFINAL SUBJECT-SPECIFIC DIRECTION: This is a TINY INK NOTE DRAWING. For this directed mark, use the third reference's sparse pen doodle treatment. Brown pen outlines and a few irregular hatching ticks ONLY, no filled watercolor areas, no dense painted texture, no rendering of realistic food. Leave cake's interior genuinely transparent except the drawn cross and two or three raisin dots. One imperfect round cake in a simple three-quarter outline and one tiny casual arrow pointing at it. Drawn in a few seconds by a faerie marginal note writer. No letters or words. Thin delicate brown pen silhouette; square transparent canvas.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-54e0847a-c74b-41d4-8628-38f0b5818137.png",
+      "attempt": 2,
+      "priorAttempts": [
+        {
+          "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink note drawing: a soul cake with its cross, and a little arrow pointing at it as if to say look.\nImage 3 is an EXISTING DIRECTED MARGIN NOTE STYLE REFERENCE. Follow its tiny spontaneously drawn pen-sketch quality and fine irregular brown-ink line weight. Do NOT copy any text or writing from it. These directed marks are reader-margin pen doodles, sparse small gestures, NOT a polished watercolor object illustration or icon. Keep brown ink and very restrained translucent wash, real transparent negative spaces inside and outside, no paper rectangle or checkerboard. Square 1024\u00d71024, generous clear padding.\nOnly one small flat round cake, its simple incised cross, and one hand-drawn arrow. No words.",
+          "references": [
+            "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+            "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+            "ContentPacks/count-unbound/marginalia/listening-door.png"
+          ],
+          "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-600b6270-c97a-4b26-964e-c9f2f0bb7297.png",
+          "rejection": "Too densely painted for directed pen marginalia."
+        }
+      ],
+      "review": "Sparse brown pen cake outline, incised cross and arrow; transparent interior gaps; appropriate directed marginal sketch.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        57,
+        63,
+        1232,
+        1228
+      ]
+    },
+    {
+      "file": "marginalia/west-door.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of a low studded door, slightly open, three small knock marks drawn beside it.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nOnly simple door and arch outlines, few stud dots and exactly three tiny strokes beside it. The wood planks are suggested by a few thin lines; between lines is fully transparent. Brown ink only, no orange or cream washes.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-cc8551ec-45c1-46fa-a3c7-19ce5a675673.png",
+      "attempt": 2,
+      "priorAttempts": [
+        {
+          "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of a low studded door, slightly open, three small knock marks drawn beside it.\nFINAL SUBJECT-SPECIFIC DIRECTION: This is a TINY INK MARGIN NOTE DRAWING, matching image 3's sparse spontaneously drawn pen quality. Fine irregular brown pen contours and a few hatching ticks; use genuinely transparent negative space inside and outside the drawing, no dense filled watercolor areas or polished object illustration. Drawn in a few seconds by a faerie margin writer, a little feral but not childish. No words or letters, no paper rectangle, no checkerboard, no other objects. Clear padding around every extremity. Square 1024\u00d71024.\nOnly the simple squat door outline with a few stud dots and narrow opening, plus exactly three tiny pen knock strokes beside it. No building, person or scenery.",
+          "references": [
+            "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+            "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+            "ContentPacks/count-unbound/marginalia/listening-door.png"
+          ],
+          "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-d677cb7e-cc52-4e2d-a21d-ea9399f9f83d.png",
+          "rejection": "Too densely painted for directed pen marginalia."
+        }
+      ],
+      "review": "Brown line-only door, transparent interior; three knock strokes; handwritten irregular pen drawing.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        97,
+        39,
+        1103,
+        1231
+      ]
+    },
+    {
+      "file": "marginalia/scrubbed-pots.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of three pots hung biggest to smallest, with small shine lines.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nExactly THREE simple hanging cooking-pot outlines, one large, one medium, one small in that order. Their interiors fully transparent. A few small shine marks, no color washes, no kitchen scenery or extra objects.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-d4487471-38c0-48cf-bd08-8ee501024154.png",
+      "attempt": 1,
+      "review": "Exactly three descending hanging pots with shine ticks, brown pen line art and transparent interiors.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        63,
+        23,
+        1228,
+        1254
+      ]
+    },
+    {
+      "file": "marginalia/green-button.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink and green-wash sketch of a brass button hanging by a thread.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nException required by authored subject: add only one very faint translucent holly-green brush touch where thread meets button; otherwise sparse brown-ink outline, transparent button interior with a few pen hatches suggesting brass. One simple plain button dangling from a fine curved thread. No ornaments or other objects.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-f77d4a61-f721-41d6-9156-8bbe4c4fac5e.png",
+      "attempt": 1,
+      "review": "Dangling plain button in brown ink, sparse green touch at thread knot; transparent surrounding field and interior gaps.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        61,
+        33,
+        1238,
+        1182
+      ]
+    },
+    {
+      "file": "marginalia/missing-letter.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of a line of handwriting with one letter-shaped gap, circled.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nAuthored exception to no lettering: one very short line of illegible cursive handwriting, with a single conspicuous letter-width blank gap circled in thin brown pen. Scribble-like strokes, not readable language, no invented caption or extra words. Circle surrounds empty transparent gap, no letter inside it. One tiny reader-margin annotation only.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-d40146a1-8aba-4007-a713-782f7d957904.png",
+      "attempt": 1,
+      "review": "Illegible cursive pen line with circled empty letter gap; no added readable caption; transparent field.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        41,
+        182,
+        1234,
+        1107
+      ]
+    },
+    {
+      "file": "marginalia/nine-spoons.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of nine teaspoons in a row, the seventh one underlined.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nCount is essential: exactly NINE separate simple teaspoons in ONE horizontal row, evenly spaced. Each has small oval bowl above a slender vertical handle. Count positions from left to right 1,2,3,4,5,6,7,8,9. Under only spoon SEVEN place one small horizontal brown pen underline. Two spoons remain to its right. No numbers or labels, no extra spoon, no food, no paper slips. Keep handles and bowls complete.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-d7eeee98-254e-4ee6-ac2b-4e5f55281a76.png",
+      "attempt": 1,
+      "review": "Visually counted exactly nine teaspoons in one row; seventh from left underlined, exactly two to its right. Sparse brown ink with transparent interiors.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        15,
+        63,
+        1240,
+        1150
+      ]
+    },
+    {
+      "file": "marginalia/hearth-bowl.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of a bowl set on hearth stones, with three small curls of steam.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nOne plain bowl outline rests on two or three low rough hearth-stone outlines. Exactly three small steam curls above it. No hearth building, fire, spoon, people, scene or other objects. Brown ink only; bowl and stone interiors remain transparent with just few hatch strokes.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-6fd0a2d6-5bb3-439e-b350-b4b99b096168.png",
+      "attempt": 1,
+      "review": "Plain bowl on rough hearth stones with exactly three steam curls; sparse brown ink and transparent interiors.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        23,
+        1254,
+        1254
+      ]
+    },
+    {
+      "file": "marginalia/the-thorn.png",
+      "prompt": "Use case: illustration-story. Asset type: a single transparent November marginalia cutout for the ReEnchanted living Book. Input images 1 and 2 are STYLE REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material details, warm muted washes: lamplight amber, copper, bread-crust brown, holly green, a little frost blue. These are tiny kitchen objects that live beside the existing pixie and goblin; do not include those characters. Render with the same tactile old illustrated faerie-book quality, physical and a little feral, lively but never childish. One isolated subject, square composition, subject fills approximately 80 percent of frame, all extremities intact with clear transparent padding. Real alpha transparency outside the painted object, no background, no parchment rectangle, no border, no lettering, no labels, no watermark. Avoid flat vector icon art, clipart, glossy 3D, photorealism and cartoon autumn decorations. Preserve detailed texture while keeping a strong small-scale silhouette.\nSubject: A tiny ink sketch of a single thorn beside a delicate white bowl.\nFINAL DIRECTED-MARK OVERRIDE: Render the subject ONLY as a sparse brown INK LINE DRAWING. NO COLOR FILL, NO SOLID PAINTED SURFACES, NO OPAQUE WATERCOLOR. Interiors of all drawn objects must remain genuinely transparent, with only outlines and a few quick irregular hatch strokes visible. Very thin pen, tiny casual marginal doodle in the style of image 3, not rendered product art. No typography. Leave transparent padding on every side. Square.\nExactly one detached sharp thorn lying beside one small delicate plain bowl. Sparse brown pen outline and a few very fine hatches. Authored white bowl is suggested by unpainted transparent interior with only a whisper of pale white along rim; no dense fill. No flowers, leaves, steam, food, utensils, surface or other objects. Both complete subjects within generous transparent padding.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+        "InsideCoverApp/Assets.xcassets/PunctuationPixieFront.imageset/PunctuationPixieFront.png",
+        "ContentPacks/count-unbound/marginalia/listening-door.png"
+      ],
+      "generatedSource": "~/.codex/generated_images/01a16f77-70b9-76a0-bb77-afcc89121d40/exec-466cf98a-1631-47f6-87be-00cfc3224fd8.png",
+      "attempt": 1,
+      "review": "Single detached sharp thorn beside delicate pale-rimmed bowl; sparse brown pen and translucent hatching, transparent gaps; no extra objects.",
+      "width": 1254,
+      "height": 1254,
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaBounds": [
+        0,
+        37,
+        1230,
+        1214
+      ]
+    }
+  ]
+}

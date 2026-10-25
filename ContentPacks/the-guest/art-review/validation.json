@@ -1,0 +1,28 @@
+{
+  "errors": [],
+  "printResolutionWarnings": [
+    "plates/frontispiece.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/scene.the-guest.scene.the-knock.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.three-nights.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.flat.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.the-rescue.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.the-offer.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.stir-up-sunday.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.a-place-at-the-table.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/scene.the-guest.scene.the-bowl.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/cast.ambrose-trencher.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/cast.serenity-brown.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/cast.lydia-boggle.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/cast.dr-vellum.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/cast.min-seo-kim.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/the-middlemost-cookery.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/soul-cakes-cooling.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/the-west-door.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/kitchen-law.png: native 1024\u00d71536; brief asks 1500x2250",
+    "plates/pots-biggest-to-smallest.png: native 1536\u00d71024; brief asks 2400x1600",
+    "plates/the-cold-kitchen.png: native 1536\u00d71024; brief asks 2400x1600"
+  ],
+  "runtimeReferences": 36,
+  "expectedArtAssets": 48,
+  "scope": "Offline source and image integrity; no app build or device rendering"
+}

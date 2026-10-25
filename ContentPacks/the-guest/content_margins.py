@@ -3,6 +3,7 @@ Guest is in the house, kitchen spells for the desk, and the month's pencilings. 
 (seasonal drawings and directed marks) joins this file once it's generated."""
 
 from content_common import EVENT_ID
+from content_art import marginalia_cabinet
 
 MARGINS_ID = "the-guest-margins-pagepack"
 
@@ -135,7 +136,7 @@ Then he washes the bowl and puts it away, and ties on his apron, and says, “Sa
 “There was enough.”
 
 Wicker doesn't say anything for a long time. Then he gets up and washes the pan, and hangs it back on the wrong hook, and Ambrose, who notices everything, doesn't move it.""",
-              deniability="He said there was enough salt. That's not praise. That's a measurement.",
+              deniability="He said there was enough salt. From Trencher, that's a parade.",
               cast=["ambrose-trencher"]),
     ])
 
@@ -162,7 +163,7 @@ Requested by: Dr. Vellum.
 Approved by: ____________
 
 Across the approval line there's a ring of tea, perfectly round, still a little damp. Nothing's written inside it. Nothing needs to be.""",
-              surface="note", deniability="The form was returned. It wasn't refused. Those are different things.",
+              surface="note", deniability="The form came back with tea on it. I'm counting that as a maybe.",
               cast=["ambrose-trencher"]),
         stage("weighing", "guest-right",
               "Dr. Vellum weighs a bowl of soup before and after the Guest leans over it, and the scale says nothing changed.",
@@ -211,7 +212,7 @@ It's the most useful column I've got.
 —Dr. Vellum
 
 *P.S. Ambrose has read this letter. I'm to tell you he said nothing about it.*""",
-              surface="letter", deniability="A column isn't a conclusion. It's somewhere to put things until there is one.",
+              surface="letter", deniability="I've ruled a new column. I'll keep putting things in it till I know what it's for.",
               door=door("vellum-who-made-it", "Who Made It",
                         "Something you eat this week was made by somebody, even if it came out of a packet. "
                         "Dr. Vellum has a new column and would like one more entry in it.",
@@ -258,7 +259,7 @@ In the Record room she lights two lamps and rules a fresh page. Two columns. She
 Penny turns the first page of the Cookery under the lamp, very slowly, and writes *treacle, T* in the first column.
 
 “Then the other column will stay empty,” she says, “and that'll be a record too.”""",
-              deniability="A ledger with an empty column isn't hope. It's procedure.",
+              deniability="The BACK column's empty. It's allowed to be. For now.",
               cast=["ambrose-trencher"]),
         stage("the-count", "guest-right",
               "Penny's count of the Cookery's missing letters reaches two hundred and fourteen, and she notices which pages are holding.",
@@ -420,10 +421,11 @@ def margins_pack():
     return {
         "id": MARGINS_ID,
         "displayName": "The Guest Margins",
-        "version": 1,
+        "version": 2,
         "author": "ReEnchanted",
         "availability": "userImported",
         "archetypes": SPELLS,
         "marginaliaSnippets": SNIPPETS,
+        "marginaliaPack": marginalia_cabinet(),
         "undertakings": UNDERTAKINGS,
     }

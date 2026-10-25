@@ -1,7 +1,7 @@
 {
  "id": "the-guest-margins-pagepack",
  "displayName": "The Guest Margins",
- "version": 1,
+ "version": 2,
  "author": "ReEnchanted",
  "availability": "userImported",
  "archetypes": [
@@ -340,6 +340,1425 @@
    }
   }
  ],
+ "marginaliaPack": {
+  "id": "the-guest-margins",
+  "displayName": "November 2026 · The Guest",
+  "version": "1.0",
+  "author": "The Book",
+  "availability": "userImported",
+  "supportedTemplates": [
+   "harbor_field_note",
+   "creature_comfort",
+   "home_vessel",
+   "good_company",
+   "academy_field_study",
+   "rest_and_quiet"
+  ],
+  "backgrounds": [],
+  "paperScraps": [],
+  "stamps": [],
+  "tape": [],
+  "overlays": [],
+  "fallbackPhrases": [],
+  "doodles": [
+   {
+    "id": "the-guest.seasonal.soul-cake",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.soul-cake}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "soul-cake",
+     "food",
+     "soul-cake",
+     "remembrance"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "soul-cake",
+      "food",
+      "soul-cake",
+      "remembrance"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.parkin",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.parkin}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "parkin",
+     "food",
+     "parkin",
+     "bonfire"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "parkin",
+      "food",
+      "parkin",
+      "bonfire"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.toffee-hammer",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.toffee-hammer}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "toffee-hammer",
+     "toffee",
+     "bonfire",
+     "sweet"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "toffee-hammer",
+      "toffee",
+      "bonfire",
+      "sweet"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.wooden-spoon",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.wooden-spoon}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "wooden-spoon",
+     "spoon",
+     "cooking",
+     "recipe"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "scribble",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "wooden-spoon",
+      "spoon",
+      "cooking",
+      "recipe"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.copper-pot",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.copper-pot}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "copper-pot",
+     "pot",
+     "copper",
+     "cooking"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "copper-pot",
+      "pot",
+      "copper",
+      "cooking"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.onion",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.onion}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "onion",
+     "onion",
+     "food",
+     "cooking"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "botanical",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "onion",
+      "onion",
+      "food",
+      "cooking"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.garlic",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.garlic}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "garlic",
+     "garlic",
+     "food",
+     "cooking"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "botanical",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "garlic",
+      "garlic",
+      "food",
+      "cooking"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.half-loaf",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.half-loaf}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "half-loaf",
+     "bread",
+     "sharing",
+     "martinmas"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "half-loaf",
+      "bread",
+      "sharing",
+      "martinmas"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.honey-jar",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.honey-jar}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "honey-jar",
+     "honey",
+     "jar",
+     "sweet"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "honey-jar",
+      "honey",
+      "jar",
+      "sweet"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.apple-star",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.apple-star}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "apple-star",
+     "apple",
+     "seed",
+     "star"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "botanical",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "apple-star",
+      "apple",
+      "seed",
+      "star"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.brass-button",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.brass-button}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "brass-button",
+     "button",
+     "brass",
+     "green-coat"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "scribble",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "brass-button",
+      "button",
+      "brass",
+      "green-coat"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.iron-latch",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.iron-latch}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "iron-latch",
+     "latch",
+     "door",
+     "frost"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "scribble",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "iron-latch",
+      "latch",
+      "door",
+      "frost"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.black-thorn",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.black-thorn}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "black-thorn",
+     "thorn",
+     "blackthorn",
+     "cold"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "botanical",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "black-thorn",
+      "thorn",
+      "blackthorn",
+      "cold"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.pudding-cloth",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.pudding-cloth}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "pudding-cloth",
+     "pudding",
+     "wish",
+     "stir-up-sunday"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "pudding-cloth",
+      "pudding",
+      "wish",
+      "stir-up-sunday"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.numbered-spoon",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.numbered-spoon}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "numbered-spoon",
+     "spoon",
+     "taste",
+     "soren-ng"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "numbered-spoon",
+      "spoon",
+      "taste",
+      "soren-ng"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.candle-saucer",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.candle-saucer}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "candle-saucer",
+     "candle",
+     "light",
+     "table"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "candle-saucer",
+      "candle",
+      "light",
+      "table"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.napkin-hat",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.napkin-hat}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "napkin-hat",
+     "napkin",
+     "table",
+     "absence"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "scribble",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "napkin-hat",
+      "napkin",
+      "table",
+      "absence"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.brown-bowl",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.brown-bowl}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "brown-bowl",
+     "bowl",
+     "oats",
+     "hearth"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "watercolor",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "brown-bowl",
+      "bowl",
+      "oats",
+      "hearth"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.flour-handprint",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.flour-handprint}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "flour-handprint",
+     "flour",
+     "thumbprint",
+     "stain"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "texture",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "flour-handprint",
+      "flour",
+      "thumbprint",
+      "stain"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.seasonal.tea-ring",
+    "assetName": "{{asset-path:the-guest.seasonal.v1.tea-ring}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "tea-ring",
+     "tea",
+     "ring",
+     "stain"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": false,
+    "placementTrigger": {
+     "months": [
+      11
+     ],
+     "issueYear": 2026
+    },
+    "leafTraits": {
+     "semanticRole": "texture",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "middleLeading",
+      "lowerLeading",
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "tea-ring",
+      "tea",
+      "ring",
+      "stain"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.soul-cake-cross",
+    "assetName": "{{asset-path:the-guest.mark.v1.soul-cake-cross}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "soul-cake-cross",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "soul-cake-cross"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.west-door",
+    "assetName": "{{asset-path:the-guest.mark.v1.west-door}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "west-door",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "west-door"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.scrubbed-pots",
+    "assetName": "{{asset-path:the-guest.mark.v1.scrubbed-pots}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "scrubbed-pots",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "scrubbed-pots"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.green-button",
+    "assetName": "{{asset-path:the-guest.mark.v1.green-button}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "green-button",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "green-button"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.missing-letter",
+    "assetName": "{{asset-path:the-guest.mark.v1.missing-letter}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "missing-letter",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "missing-letter"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.nine-spoons",
+    "assetName": "{{asset-path:the-guest.mark.v1.nine-spoons}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "nine-spoons",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "nine-spoons"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.hearth-bowl",
+    "assetName": "{{asset-path:the-guest.mark.v1.hearth-bowl}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "hearth-bowl",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "hearth-bowl"
+     ]
+    }
+   },
+   {
+    "id": "the-guest.margin.the-thorn",
+    "assetName": "{{asset-path:the-guest.mark.v1.the-thorn}}",
+    "kind": "doodle",
+    "tags": [
+     "monthly-content",
+     "november-2026",
+     "event:the-guest",
+     "kitchen",
+     "the-thorn",
+     "monthly-margin",
+     "ink"
+    ],
+    "supportedTemplates": [
+     "harbor_field_note",
+     "creature_comfort",
+     "home_vessel",
+     "good_company",
+     "academy_field_study",
+     "rest_and_quiet"
+    ],
+    "defaultOpacity": 1.0,
+    "canTint": false,
+    "directedOnly": true,
+    "placementTrigger": null,
+    "leafTraits": {
+     "semanticRole": "fieldNote",
+     "aspectRatio": 1.0,
+     "preferredAnchors": [
+      "lowerField"
+     ],
+     "crop": "contain",
+     "blend": "normal",
+     "visualWeight": 0.93,
+     "allowsTextOverlap": false,
+     "tintStrength": 0.0,
+     "subjectTags": [
+      "kitchen",
+      "the-thorn"
+     ]
+    }
+   }
+  ]
+ },
  "undertakings": [
   {
    "id": "pack-the-guest-wicker-cooks",
@@ -441,7 +1860,7 @@
      "castIDs": [
       "ambrose-trencher"
      ],
-     "deniability": "He said there was enough salt. That's not praise. That's a measurement."
+     "deniability": "He said there was enough salt. From Trencher, that's a parade."
     }
    ],
    "castIDs": [
@@ -473,7 +1892,7 @@
      "castIDs": [
       "ambrose-trencher"
      ],
-     "deniability": "The form was returned. It wasn't refused. Those are different things."
+     "deniability": "The form came back with tea on it. I'm counting that as a maybe."
     },
     {
      "id": "weighing",
@@ -519,7 +1938,7 @@
      "surface": "letter",
      "phaseID": "the-offer",
      "castIDs": [],
-     "deniability": "A column isn't a conclusion. It's somewhere to put things until there is one.",
+     "deniability": "I've ruled a new column. I'll keep putting things in it till I know what it's for.",
      "door": {
       "id": "vellum-who-made-it",
       "title": "Who Made It",
@@ -579,7 +1998,7 @@
      "castIDs": [
       "ambrose-trencher"
      ],
-     "deniability": "A ledger with an empty column isn't hope. It's procedure."
+     "deniability": "The BACK column's empty. It's allowed to be. For now."
     },
     {
      "id": "the-count",

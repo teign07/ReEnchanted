@@ -2,18 +2,49 @@
   "issueID": "the-guest-2026-11",
   "title": "The Guest Who Came on All Souls",
   "runID": "the-guest:2026",
+  "plates": {
+    "prefix": "the-guest.v1.plate.",
+    "directory": "publication-plates"
+  },
   "files": [
     {
-      "id": "the-guest.runtime.v2",
+      "id": "the-guest.runtime.v3",
       "kind": "worldEventPack",
       "source": "november.reenchantedevents.json",
       "fileName": "the-guest.reenchantedevents.json"
     },
     {
-      "id": "the-guest.margins.v1",
+      "id": "the-guest.margins.v2",
       "kind": "pageArchetypePack",
       "source": "margins.reenchantedpack.json",
       "fileName": "the-guest.reenchantedpack.json"
     }
-  ]
+  ],
+  "media": [
+    {
+      "prefix": "the-guest.mark.v1.",
+      "directory": "marginalia",
+      "suffix": ".png"
+    },
+    {
+      "prefix": "the-guest.seasonal.v1.",
+      "directory": "seasonal-marginalia",
+      "suffix": ".png"
+    },
+    {
+      "prefix": "the-guest.story-art.v1.",
+      "directory": "story-art",
+      "suffix": ".jpg"
+    }
+  ],
+  "audio": {
+    "directory": "audio",
+    "files": {
+      "the-guest.audio.forty-cakes": "DJ_thornwave_the_guest_forty_cakes_01.mp3",
+      "the-guest.audio.kitchen-notice": "DJ_faefi_the_guest_kitchen_notice_01.mp3",
+      "the-guest.audio.three-in-the-morning": "DJ_mothlight_the_guest_three_am_01.mp3",
+      "the-guest.audio.wish": "DJ_thornwave_the_guest_wish_01.mp3",
+      "the-guest.audio.the-bowl-is-washed": "DJ_faefi_the_guest_bowl_washed_01.mp3"
+    }
+  }
 }

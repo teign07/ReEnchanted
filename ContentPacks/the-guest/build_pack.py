@@ -19,18 +19,23 @@ MARGINS_OUT = os.path.join(HERE, "margins.reenchantedpack.json")
 from content_event import EVENT, BEATS  # noqa: E402
 from content_scenes import SCENES as SCENES_EARLY, SCENE_ATOMS as ATOMS_EARLY  # noqa: E402
 from content_scenes2 import SCENES_LATE, ATOMS_LATE  # noqa: E402
+from content_interludes import INTERLUDES, ATOMS_INTERLUDES  # noqa: E402
 
 from content_december import SCENES_DECEMBER, ATOMS_DECEMBER  # noqa: E402
 from content_relics import SCENES_RELICS, ATOMS_RELICS  # noqa: E402
 from content_guest_cast import give_the_guest_its_memories  # noqa: E402
 
-SCENES = SCENES_EARLY[:4] + SCENES_LATE + SCENES_DECEMBER + SCENES_EARLY[4:] + SCENES_RELICS
-SCENE_ATOMS = ATOMS_EARLY[:4] + ATOMS_LATE + ATOMS_DECEMBER + ATOMS_EARLY[4:] + ATOMS_RELICS
+SCENES = SCENES_EARLY[:4] + SCENES_LATE + INTERLUDES + SCENES_DECEMBER + SCENES_EARLY[4:] + SCENES_RELICS
+SCENE_ATOMS = ATOMS_EARLY[:4] + ATOMS_LATE + ATOMS_INTERLUDES + ATOMS_DECEMBER + ATOMS_EARLY[4:] + ATOMS_RELICS
 give_the_guest_its_memories(SCENES, EVENT)
 from content_bleed import BLEED_ARTICLES, BLEED_ATOMS, DESK_PIECES  # noqa: E402
 from content_pages import BEAT_ATOMS  # noqa: E402
 from content_extras import WONDER_LINES, NOTE_PROMPTS  # noqa: E402
 from content_margins import margins_pack, UNDERTAKINGS, SPELLS, SNIPPETS  # noqa: E402
+from content_art import attach_story_plates, directed_marks, marginalia_atoms  # noqa: E402
+from content_radio import RADIO_BANTERS, RADIO_ATOMS, AUDIO_FILES  # noqa: E402
+
+attach_story_plates(SCENES)
 
 
 def manifest():
@@ -52,7 +57,7 @@ def manifest():
             {"phaseID": "the-bowl", "role": "aftermath", "openingContentID": "the-guest.scene.a-place-at-the-table",
              "directionPacketID": "the-guest.direction.the-bowl", "directionStatus": "ready"},
         ],
-        "content": SCENE_ATOMS + BEAT_ATOMS + BLEED_ATOMS,
+        "content": SCENE_ATOMS + BEAT_ATOMS + BLEED_ATOMS + marginalia_atoms() + RADIO_ATOMS,
         "coverageRequirements": coverage(),
         "externalContentIDs": ["count-unbound.relationship.november-occasion"],
     }
@@ -92,7 +97,9 @@ def build():
         "events": [dict(EVENT, beats=BEATS)],
         "authoringManifests": [manifest()],
         "storyScenes": SCENES,
+        "marginalia": directed_marks(),
         "bleedArticles": BLEED_ARTICLES + DESK_PIECES,
+        "radioBanters": RADIO_BANTERS,
         "wonderLines": WONDER_LINES,
         "notePrompts": NOTE_PROMPTS,
     }

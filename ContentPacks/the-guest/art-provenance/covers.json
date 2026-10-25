@@ -1,0 +1,21 @@
+{
+  "operation": "Deterministic JPEG export of existing cover artwork; no new cover generation",
+  "default": "A Place at the Table",
+  "exportSettings": {"quality": 94, "subsampling": 0, "optimize": true, "upsampling": false},
+  "covers": [
+    {
+      "source": "cover/a-place-at-the-table-v2.png",
+      "promptSource": "cover/a-place-at-the-table-v2-prompt.md",
+      "assetName": "OfficialCoverPlaceAtTheTableNovember2026",
+      "artworkIncludesCoverMatter": true,
+      "dimensions": [1024, 1536]
+    },
+    {
+      "source": "cover/the-other-supper-v1.png",
+      "promptSource": "cover/the-other-supper-prompt.md",
+      "assetName": "OfficialCoverTheGuestNovember2026",
+      "artworkIncludesCoverMatter": true,
+      "dimensions": [1024, 1536]
+    }
+  ]
+}

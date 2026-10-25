@@ -357,7 +357,7 @@ RECORD = {
               4, 5,
               [memory("professor-kyle-momort", "the-guest.bonfire.warning",
                       "At the bonfire Professor Momort warned students never to thank the Guest, only to say they were grateful.",
-                      aside="The other thing is a door. I've said so. I'll say it again at breakfast.",
+                      aside="Never the other thing. I've said so. I'll say it again at breakfast.",
                       gossip="{teller} says you're not allowed to thank the Guest. Momort said so, plainly, which he never does.")]),
         entry("flat", "Martinmas",
               "At the Martinmas supper the food in the Great Hall tasted of nothing. Serenity Brown laughed, and "

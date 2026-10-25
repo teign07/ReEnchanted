@@ -1,0 +1,13 @@
+{
+  "assets": 58,
+  "missing": [],
+  "largestFileBytes": 1616603,
+  "totalBytes": 57395156,
+  "stageDirectory": "/var/folders/d4/3gn8vlsx07z5779_6_nqh8ww0000gn/T/reenchanted-november-art-e14xrz43/staged",
+  "scopeCounts": {
+    "runtime": 38,
+    "publication": 20
+  },
+  "published": false,
+  "appBuilt": false
+}

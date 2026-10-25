@@ -33,9 +33,29 @@ SCENE_MEMORIES = {
     "the-bowl": ("the-guest.bowl.offered",
         "Ambrose set the brown bowl on the hearth for the Guest, without asking for thanks or payment.",
         None),
+    # The six short scenes between the eight.
+    "pot-watch": ("the-guest.pot-watch.scrubbed",
+        "The Guest scrubbed every pot in the Kitchens at three in the morning while three students slept under the long table.",
+        "They brought toffee. They slept. The pots were done."),
+    "salt": ("the-guest.salt.seconds",
+        "The Guest ate two bowls of Ambrose's stock by the fire while Dr. Vellum measured everybody else's.",
+        "It was warm. I had more. Nobody measured mine."),
+    "nine-spoons": ("the-guest.spoons.seventh",
+        "The Guest woke by the Kitchens fire at the seventh spoon, the empty one, and watched Serenity hold it.",
+        "Nothing on a spoon. I know that taste."),
+    "the-tray": ("the-guest.tray.bowed",
+        "The Guest followed the Headmistress's tray up the tower stairs and bowed to her, and she sent it down again.",
+        "Her stairs. She keeps her own house."),
+    "letters-home": ("the-guest.letters.slept",
+        "The Guest slept by the fire while Penny and Pippa read the letters coming home to The Middlemost Cookery.",
+        "They were counting what came back. I heard the pages."),
+    "the-day-book": ("the-guest.day-book.slept",
+        "The Guest slept by the fire while Professor Boggle read the old house day-book aloud in the Kitchens.",
+        None),
 }
 
-MEMORY_NODES = {"flat": "kitchens", "the-rescue": "min-seo"}
+MEMORY_NODES = {"flat": "kitchens", "the-rescue": "min-seo",
+                "nine-spoons": "spoons", "the-tray": "stairs", "the-day-book": "accounts"}
 
 CHOICE_MEMORIES = {
     ("the-knock", "give-name"): ("the-guest.knock.reader-name",
@@ -53,6 +73,12 @@ CHOICE_MEMORIES = {
     ("the-offer", "keep-night"): ("the-guest.offer.kept",
         "Serenity refused the Guest's offer and kept the memory of her October evening.",
         "She said no. I heard that too."),
+    ("pot-watch", "look"): ("the-guest.pot-watch.seen",
+        "The Reader watched from under the long table while the Guest scrubbed the copper jam pan.",
+        "You looked. Pots don't mind being watched."),
+    ("pot-watch", "thank-it"): ("the-guest.pot-watch.thanked",
+        "The Reader thanked the Guest out loud in the dark while it scrubbed the pots, and its humming stopped.",
+        None),
     ("the-bowl", "send-home"): ("the-guest.bowl.sent-home",
         "The Reader told the Guest to go home. It said it was grateful and left through the west door.",
         None),

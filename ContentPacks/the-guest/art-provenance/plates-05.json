@@ -1,0 +1,25 @@
+{
+  "index": 5,
+  "file": "plates/scene.the-guest.scene.the-offer.png",
+  "prompt": "Use case: illustration-story. Asset type: a full printed plate for the ReEnchanted Book's November 2026 issue, The Guest Who Came on All Souls, printed in a 6 by 9 inch book on uncoated book paper inside a white mat and a thin gold rule. Input images are STYLE AND CHARACTER REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material detail, warm muted washes on cream paper. November's palette: lamplight amber, copper, oatmeal and flour white, bread-crust browns, holly green, and a cold frost blue that only appears near the west door and after dark. An old illustrated faerie book, physical and a little feral, warm but with something wrong at the edge of it, never childish. A full painted scene with its own background whose edges soften into cream paper in a gentle vignette. No border, no frame, no lettering, no legible words, no labels, no captions, no watermark, no speech bubbles; any writing in the scene is illegible pen scribble. Print-safe colour for uncoated paper: no pure black, no neon, no large flat dark areas; keep shadows open and textured. Characters must match their reference portraits exactly in face, hair and clothing, drawn as real people with weight and warmth, never caricatures. The reader of the Book is never shown; at most an anonymous hand at the edge of the picture holding an old leather-bound book. Avoid flat vector art, clipart, glossy 3D, photorealism, anime, gore and modern objects.\nComposition: landscape, 3:2.\nSubject: Three in the morning in the Kitchens: one low lamp, frost feathering the inside of the west window, a bowl of soup on the warm corner of the range. A young woman with wild dark curls sits with her spoon stopped halfway. At the sink the small hooded figure in the green coat, sleeves rolled four times, has turned from scrubbing a clean pot to face her. The air near it is faintly blue with cold.\nPresent: Serenity Brown (young woman, long wild dark curls, sea-green coat, a brass compass on a chain; moves slightly sideways, always half-seeing something beyond); The Guest: a small figure, about elbow-height to a grown man, in a long green coat far too big for it with tarnished brass buttons and a ragged hem, sleeves rolled up four times, the hood always up so no face shows, only two very clean small hands; it should feel old, polite and faintly uncanny, never cute and never a monster.\nProduction request: native 2400x1600 pixels if supported. ONE continuous scene; no collage, notes, annotation, border, inset or copied lettering. First two references are painting style only; no goblin or cat. Final two references define exact Serenity and Guest identities. Emphasize her stopped spoon and Guest turning at sink; restrained tension.",
+  "originalStyleReferences": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterSerenityBrown.imageset/LabyrinthCharacterSerenityBrown.jpg",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "referencePaths": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterSerenityBrown.imageset/LabyrinthCharacterSerenityBrown.jpg",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "originalGeneratedPath": "~/.codex/generated_images/01a16f77-2f54-7882-93c6-2d051bd7b3e8/exec-06f98734-1c8d-4abc-aee4-29bdda940df5.png",
+  "finalPath": "ContentPacks/the-guest/plates/scene.the-guest.scene.the-offer.png",
+  "requestedSize": "2400x1600",
+  "review": "Visually inspected: recognizable Serenity, stopped spoon, hooded faceless Guest turning at copper sink, frost window and warm soup; ink/watercolour match, no lettering or collage.",
+  "attempt": 1,
+  "tool": "built-in image_gen",
+  "actualWidth": 1536,
+  "actualHeight": 1024
+}

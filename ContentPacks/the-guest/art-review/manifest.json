@@ -1,0 +1,799 @@
+{
+  "tool": "Built-in image_gen.imagegen",
+  "assets": [
+    {
+      "file": "plates/frontispiece.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/frontispiece.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1091613,
+      "bytes": 3763782,
+      "sha256": "f33c8b3a6e1f609c10925eedeec98239b77fad80187b58317546027b9209ff90"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.the-knock.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.the-knock.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1081228,
+      "runtimeExport": "story-art/scene.the-guest.scene.the-knock.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1081228,
+      "bytes": 3643027,
+      "sha256": "8d0c08010245b92c0bc40dbfa786bcd5ea2be0cfcb97b13d69d7ba833973dde7"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.three-nights.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.three-nights.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1152412,
+      "runtimeExport": "story-art/scene.the-guest.scene.three-nights.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1152412,
+      "bytes": 3718066,
+      "sha256": "9be6bd949447f205dfd228514343d2130ba41c700c1682973bea929c16918e54"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.flat.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.flat.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1075545,
+      "runtimeExport": "story-art/scene.the-guest.scene.flat.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1075545,
+      "bytes": 3617357,
+      "sha256": "eb07ba880f40a3d3a3bd872a9e1671b8b87273c1aace003f14a47e45da583628"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.the-rescue.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.the-rescue.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1168500,
+      "runtimeExport": "story-art/scene.the-guest.scene.the-rescue.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1168500,
+      "bytes": 3865063,
+      "sha256": "2812223b20511671a89ce2fd3b0b23dbdf8650638fda5bc68a22cdde5ddc3e03"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.the-offer.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.the-offer.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1055113,
+      "runtimeExport": "story-art/scene.the-guest.scene.the-offer.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1055113,
+      "bytes": 3568873,
+      "sha256": "8a116b03616101186b636827f17381f205ce7dc4f95c7e68008e8fac78c28c50"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.stir-up-sunday.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.stir-up-sunday.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 949060,
+      "runtimeExport": "story-art/scene.the-guest.scene.stir-up-sunday.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 949060,
+      "bytes": 3201111,
+      "sha256": "bf39a02b7c6f93005834cae204139a3a1beba09472a2db333232abae284ffc4e"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.a-place-at-the-table.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.a-place-at-the-table.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 950062,
+      "runtimeExport": "story-art/scene.the-guest.scene.a-place-at-the-table.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 950062,
+      "bytes": 3181015,
+      "sha256": "17847ed60708bb99fd6575208368178874000191c4a939c3d2c1697350b175d6"
+    },
+    {
+      "file": "plates/scene.the-guest.scene.the-bowl.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/scene.the-guest.scene.the-bowl.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1122386,
+      "runtimeExport": "story-art/scene.the-guest.scene.the-bowl.jpg",
+      "runtimeSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "runtimeBytes": 1122386,
+      "bytes": 3746972,
+      "sha256": "7e031efef5ff5b9edd66fbfdea9c7d0c45ed1beac47ed0a5b935812dc2592715"
+    },
+    {
+      "file": "plates/cast.ambrose-trencher.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/cast.ambrose-trencher.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 963557,
+      "bytes": 3499196,
+      "sha256": "b0dfff4dd2e5666486b9c26ca58456131a771812daef488d0381e249c59949cb"
+    },
+    {
+      "file": "plates/cast.serenity-brown.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/cast.serenity-brown.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1129639,
+      "bytes": 3885487,
+      "sha256": "4dd81f24c8f138db213904708e498368b71015f0753aae726618011bd72b3c0e"
+    },
+    {
+      "file": "plates/cast.lydia-boggle.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/cast.lydia-boggle.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1054485,
+      "bytes": 3589833,
+      "sha256": "3ea4842d11ccc634c69c9c968db28302bdedcc6a7d6f191d8579918ef9a94b94"
+    },
+    {
+      "file": "plates/cast.dr-vellum.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/cast.dr-vellum.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 959765,
+      "bytes": 3464115,
+      "sha256": "b056382357a9fcf8bbd013da5e7f5151aa911f7550878974f762b38b07d4603f"
+    },
+    {
+      "file": "plates/cast.min-seo-kim.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/cast.min-seo-kim.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1106457,
+      "bytes": 3745741,
+      "sha256": "a33855449d455f7599059658410146856ff1cdf6c43583d2fa42d042217f9dfe"
+    },
+    {
+      "file": "plates/the-middlemost-cookery.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/the-middlemost-cookery.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1026593,
+      "bytes": 3378325,
+      "sha256": "21534df40611696c990055fd427b88d48f1f9d5219341aebf287fd421578bd84"
+    },
+    {
+      "file": "plates/soul-cakes-cooling.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/soul-cakes-cooling.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1156407,
+      "bytes": 3774315,
+      "sha256": "71a98e5327f8b5e70c6ee56d0d0c2f2904fa940380607b2afa7ce1454e97c21e"
+    },
+    {
+      "file": "plates/the-west-door.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/the-west-door.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1145581,
+      "bytes": 3699437,
+      "sha256": "551d88bf961e43f3396a2cc893468c625c4929732056856774e70b2ee2c7b2c0"
+    },
+    {
+      "file": "plates/kitchen-law.png",
+      "group": "plates",
+      "dimensions": [
+        1024,
+        1536
+      ],
+      "publicationExport": "publication-plates/kitchen-law.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1024,
+          1536
+        ]
+      },
+      "publicationBytes": 1239132,
+      "bytes": 3976038,
+      "sha256": "838bdb7ddefd057083cc1f8c878b03b85c36df5dc425270abb03bd100bdfa3f6"
+    },
+    {
+      "file": "plates/pots-biggest-to-smallest.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/pots-biggest-to-smallest.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1270420,
+      "bytes": 4082713,
+      "sha256": "b5f76368c1120d8e16d8cff9e573e1764d5c52958a16f561e54da25a310474b3"
+    },
+    {
+      "file": "plates/the-cold-kitchen.png",
+      "group": "plates",
+      "dimensions": [
+        1536,
+        1024
+      ],
+      "publicationExport": "publication-plates/the-cold-kitchen.jpg",
+      "publicationSettings": {
+        "quality": 94,
+        "dimensions": [
+          1536,
+          1024
+        ]
+      },
+      "publicationBytes": 1294577,
+      "bytes": 4007300,
+      "sha256": "9cab6cb42fac11b55c6427f0008c7ab0c0b2cac2b390ab1a96d61ffc4d9105e7"
+    },
+    {
+      "file": "seasonal-marginalia/soul-cake.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/soul-cake.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1616603,
+      "sha256": "091deb028211debb4d87ae4aed263675c84cdf9cacc48227e512af8557067da0"
+    },
+    {
+      "file": "seasonal-marginalia/parkin.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/parkin.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1469847,
+      "sha256": "37f2b7d7b6ae2aaf350a8c356f653cd7d3ede0ee64ad550c8ad9905f7a8d5439"
+    },
+    {
+      "file": "seasonal-marginalia/toffee-hammer.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/toffee-hammer.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1244882,
+      "sha256": "c3bcf1654d6c5d9709979f5ff52aedb8d63280322abcd300063ad3d26a5d2e30"
+    },
+    {
+      "file": "seasonal-marginalia/wooden-spoon.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/wooden-spoon.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 774680,
+      "sha256": "00ea51c30961c31fdc645fb56eec350f23f4a67dd1d262f5291d6f56bbbaba06"
+    },
+    {
+      "file": "seasonal-marginalia/copper-pot.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/copper-pot.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 881212,
+      "sha256": "93e569bb9e3aac227fce98022cf822f49038a6e1f3338980b8a4375e49b22f63"
+    },
+    {
+      "file": "seasonal-marginalia/onion.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/onion.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1509270,
+      "sha256": "522ca8e697f93f442b3292cc8bec54af903a8f0ee2c5110fa432cfdf6572388a"
+    },
+    {
+      "file": "seasonal-marginalia/garlic.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/garlic.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1483016,
+      "sha256": "1940ad010a536591710d96d20ee955848a46ecd0534b49bb15ebe7cfe2041a6d"
+    },
+    {
+      "file": "seasonal-marginalia/half-loaf.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/half-loaf.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1485766,
+      "sha256": "a9b039b155417e07e75340eacbad3806adfc112273f567f86226c88e792988aa"
+    },
+    {
+      "file": "seasonal-marginalia/honey-jar.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/honey-jar.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1313672,
+      "sha256": "801f2a0f6731472d033d9cb842a306baf3588c230a46f51d884f86892d65c41b"
+    },
+    {
+      "file": "seasonal-marginalia/apple-star.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/apple-star.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1445422,
+      "sha256": "c9e3ec5fdcf4b85257f8d2caf93415b1ee7ecc8fa6dd0bff78b79e12003d6697"
+    },
+    {
+      "file": "seasonal-marginalia/brass-button.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/brass-button.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1277598,
+      "sha256": "7f7a331c6186481f51ac1210ba11eab0657332a3762f01c4b9ed74c633a94b54"
+    },
+    {
+      "file": "seasonal-marginalia/iron-latch.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/iron-latch.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1264560,
+      "sha256": "1c4afa4cf1e3dae3fcf44fe73d014a2fda6b1cc03da34a2f09423f10d0f7f17b"
+    },
+    {
+      "file": "seasonal-marginalia/black-thorn.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/black-thorn.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 369417,
+      "sha256": "b77749a16e99a38b26a2fa6b7254bfa29c1fab256f88af1ecd227439aa8204c7"
+    },
+    {
+      "file": "seasonal-marginalia/pudding-cloth.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/pudding-cloth.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1340389,
+      "sha256": "0d201ff5631f11d2c1f4f51752d063f63d4abc42120e706928c364608abf08d7"
+    },
+    {
+      "file": "seasonal-marginalia/numbered-spoon.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/numbered-spoon.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 607185,
+      "sha256": "c44a8f2396752cc4d95795991a6437680a427fd6eeb605613b8c30c1c0a18e98"
+    },
+    {
+      "file": "seasonal-marginalia/candle-saucer.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/candle-saucer.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1112949,
+      "sha256": "089cdd5a2fd2a92691e77787530d28cb6687d46a4cb065d2a06abb2624e2c69c"
+    },
+    {
+      "file": "seasonal-marginalia/napkin-hat.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/napkin-hat.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1297040,
+      "sha256": "9976663615baccd2cdbf2c4ca0a3eb6b8cdfff94121a6a0c820a60bf127666b3"
+    },
+    {
+      "file": "seasonal-marginalia/brown-bowl.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/brown-bowl.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1307662,
+      "sha256": "7d95568a38578783c57a8019f5dc1b0aab6d9b6a0b677a5adbe50d85cefef9a0"
+    },
+    {
+      "file": "seasonal-marginalia/flour-handprint.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/flour-handprint.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 1364754,
+      "sha256": "be91fa8eb1ec6c71a8b1473bb1b851ff83762474d9ca2bd353304beec78f77b7"
+    },
+    {
+      "file": "seasonal-marginalia/tea-ring.png",
+      "group": "seasonal",
+      "master": "art-masters/seasonal-marginalia/tea-ring.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 516965,
+      "sha256": "d0ce330e8daf1736ab89f6c2a6fa594128bb33a40cfe90f6bf0c0e68671c0efb"
+    },
+    {
+      "file": "marginalia/soul-cake-cross.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/soul-cake-cross.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 469811,
+      "sha256": "04f47d12dffc49b7f31ae4c8896b7a9b99f94e51e2621e5f71bdccd431ac4eb4"
+    },
+    {
+      "file": "marginalia/west-door.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/west-door.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 430572,
+      "sha256": "0c72c5029a6179ee29adbd860f7972fbda7f4ed9b6f994c4be0d887c5ffde623"
+    },
+    {
+      "file": "marginalia/scrubbed-pots.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/scrubbed-pots.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 420040,
+      "sha256": "752568a27f9c9430b1c29e0b29e2a30b6f07d1dbe896419f9553bb8f88f9f5ce"
+    },
+    {
+      "file": "marginalia/green-button.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/green-button.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 283743,
+      "sha256": "9f314630463410fab621f785de10ea8cfccbc10cb5f431b0a4bee87effdf4e8b"
+    },
+    {
+      "file": "marginalia/missing-letter.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/missing-letter.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 91798,
+      "sha256": "4f2648a5cc0078a8ca8502cfedf92ec253883308052df20391aba41590853e9d"
+    },
+    {
+      "file": "marginalia/nine-spoons.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/nine-spoons.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 261034,
+      "sha256": "196cbff15bf8a0606243a1b4171084e9736dba336b775adcf06d509f23eaa05e"
+    },
+    {
+      "file": "marginalia/hearth-bowl.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/hearth-bowl.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 460238,
+      "sha256": "bc83a3aef13c8d1cdae8a587127e0e2410b1e9bd618375520a8ca47f0aecbf02"
+    },
+    {
+      "file": "marginalia/the-thorn.png",
+      "group": "marks",
+      "master": "art-masters/marginalia/the-thorn.png",
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "paddingAtNativeSize": 50,
+      "bytes": 327621,
+      "sha256": "5eef39b0ff7b212129cc009dfcdbd0f93f45102f625272b6f13b7a1f96e495a3"
+    }
+  ],
+  "missing": [],
+  "reviewSheets": [
+    "art-review/plates-contact-sheet.jpg",
+    "art-review/seasonal-contact-sheet.jpg",
+    "art-review/marks-contact-sheet.jpg"
+  ]
+}

@@ -44,7 +44,7 @@ KNOCK = scene(
         node(f"{K}.entry", "The Knock",
              """The soul cakes are cooling on the long table.
 
-There are forty of them, flat and round and the colour of a good brown paper bag, and every one has a cross cut into the top before it went in the oven. Ambrose makes them every All Souls. Nobody asked him to. The old Academy did it, so he does it. He says a custom's like a pot: if nobody uses it, it rusts.
+There are forty of them, flat and round and the colour of a good brown paper bag, and every one has a cross cut into the top before it went in the oven. Ambrose Trencher's the Academy's cook, and the Kitchens are his. He makes them every All Souls. Nobody asked him to. The old Academy did it, so he does it. He says a custom's like a pot: if nobody uses it, it rusts.
 
 The Kitchens are warm and nearly dark. The big fire's been banked down to a red heap. The pots hang in their rows over the range, and the long pine table runs away into the shadows like a road. It smells of nutmeg and hot currants and the end of a long day.
 
@@ -176,11 +176,11 @@ THREE_NIGHTS = scene(
     T, "Three Nights",
     [
         node(f"{T}.entry", "Three Nights",
-             """The stranger's been at the Academy for three nights now.
+             """The stranger who knocked at the Kitchens' west door on All Souls' Eve has been at the Academy for three nights now. The small one, in the long green coat that's far too big for them.
 
 Nobody's learned their name. The students have started calling them the Guest, with a capital G, the way you'd say the Headmistress or the Weather. The Guest sleeps on the stool by the fire. The Guest eats whatever Ambrose puts in front of them: porridge, stew, toast, the burnt ends of things, a whole apple, core and all. The Guest never says thank you, and never refuses a second helping.
 
-And every morning, the pots are scrubbed.
+And every morning, every pot in the Kitchens is scrubbed and hung back biggest to smallest, and nobody did it.
 
 Dr. Vellum comes down to the Kitchens on the third evening with a notebook, a thermometer and a look.
 
@@ -231,7 +231,7 @@ They won't come closer. Everybody else is crowding in to the warmth, holding the
 
 Penny finds Ambrose at the toffee table. She's carrying his book.
 
-It's *The Middlemost Cookery*. He bought it at an estate sale thirty years ago and he carries it everywhere, in his apron pocket, wrapped in a tea towel. The spine's held together with string. He won't say what he keeps looking for in it. Penny's holding it open at the page for parkin.
+It's *The Middlemost Cookery*. He bought it at an estate sale thirty years ago and he carries it everywhere, in his apron pocket, wrapped in a tea towel. The spine's held together with string. He won't say what he keeps looking for in it. There's a page at the very back, stuck down under the endpaper, that he's never been able to read. Penny's holding it open at the page for parkin.
 
 “Ambrose. Read the second line.”
 
@@ -253,7 +253,7 @@ Somebody touches your elbow. It's Professor Momort. He's wrapped in a coat with 
 
 He looks at the Guest for a long moment.
 
-“Because the other thing is a door,” he says. “And you don't know what's on its side.”
+“Because thanks are payment,” he says. “And you don't know what you'd be paying for.”
 
 Then a rocket goes up with a scream and bursts green over the stables, and when I look back, he's gone.""",
              "The Guest's standing alone at the edge of the dark.",
@@ -333,6 +333,10 @@ Pippa stands up on her bench.
 
 Nobody laughs. That's how I know it's bad.
 
+It's been ten days since the Guest came. I've been counting. The Guest's the stranger in the green coat who knocked at the Kitchens' west door on All Souls' Eve, and Ambrose fed it, and it never left. It sleeps on the stool by the Kitchens fire. Every night every pot in the house gets scrubbed, and nobody owns up. At first everybody said *them*. Now everybody says *it*. I don't know when that changed.
+
+And nobody thanks it. Not for anything. Professor Momort says thanks are a kind of payment, and you don't know what you'd be paying for. So when it fills your glass, you say nothing. Or you say *I'm grateful*. Never the other thing.
+
 At the end of the Hall, by the door to the Kitchens, the Guest is going round the tables with a big jug of water, filling up glasses. Nobody asked it to. At every place, it stops for just a moment, and leans a little over the plate, the way you'd lean over a flower.
 
 Then it moves on. And the next plate goes flat.
@@ -370,6 +374,8 @@ He cuts one more than usual. He takes the extra half over to the stool by the fi
 
 The Guest eats it. Ambrose watches.
 
+*The Middlemost Cookery*'s on the dresser, wrapped in its tea towel. That's Ambrose's old cookbook. Since Bonfire Night, letters have been going out of it, one at a time. They don't fall out. They leave. Ambrose doesn't open it in front of people any more.
+
 Serenity's come down too. She's sitting on the end of the long table with her boots swinging, the way she sits on everything, and she's watching the Guest as well. You've set me down beside her.
 
 “It does it to every plate,” she says, quietly. “Have you seen? It leans over. Like it's smelling them. And then they're gone.”
@@ -382,7 +388,7 @@ Then it moved on. There was nothing on her plate for it to take.
 
 Serenity turns her mug of tea round and round in her hands.
 
-“It looked at me,” she says. “Like I was a locked door.”""",
+“It looked at me,” she says. “Like I was a jar it couldn't get the lid off.”""",
              "She's waiting to see what you'll say.",
              [
                  choice("tell-her", "Tell her you saw it too.",
@@ -447,9 +453,11 @@ RESCUE = scene(
         node(f"{R}.entry", "Two hundred and fourteen",
              """Penny's been up all night with *The Middlemost Cookery*.
 
+That's Ambrose's cookbook. He bought it at an estate sale thirty years ago, and he's carried it in his apron pocket ever since, wrapped in a tea towel. On Bonfire Night Penny found the first letter gone out of it: the T in *treacle*. It wasn't smudged. It wasn't torn. It was just gone.
+
 She's got it open on the long table, with a lamp on each side and a magnifying glass and a stack of index cards a hand high. She's gone through it page by page and written down every missing letter. Her eyes are red. Her pencil's worn to a stub.
 
-“Two hundred and fourteen,” she says. “Since Bonfire Night. The S's are going fastest. Then the E's. The Christmas pudding's lost all its spices. The gingerbread's lost its *bread.*”
+“Two hundred and fourteen,” she says. “Since Bonfire Night. The S's are going fastest. Then the E's. The Christmas pudding's lost all its spices. The gingerbread's lost its *bread.*” She doesn't look at the stool by the fire when she says the next bit. “The first one went four days after the Guest came.”
 
 Ambrose stands at her shoulder. He's gone grey under his kitchen colour.
 
@@ -465,7 +473,7 @@ She sits back. She looks at Ambrose the way she looks at a piece of evidence tha
 
 “The only recipes keeping their letters,” she says, “are the ones somebody's making.”
 
-The Kitchens go very quiet. By the fire, the Guest is scrubbing a pan that's already clean.
+The Kitchens go very quiet. By the fire, the Guest's scrubbing a pan that's already clean, in its green coat, with its sleeves rolled up four times.
 
 Ambrose ties his apron tighter.
 
@@ -481,7 +489,7 @@ Ambrose ties his apron tighter.
         node(f"{R}.cooking", "Everybody cooks",
              """It's chaos.
 
-There are second-years making scones that could stop a door. There's a boy from the Glint Hall crying over an onion, and he isn't sad, it's just the onion. Professor Boggle's making soda bread with her sleeves pushed up to the elbow and flour in her eyebrows. Pippa's going round correcting the recipe cards. “A *pinch*,” she's telling a first-year, “is not a measurement. It's a threat.”
+There are second-years making scones you could build a wall with. There's a boy from the Glint Hall crying over an onion, and he isn't sad, it's just the onion. Professor Boggle's making soda bread with her sleeves pushed up to the elbow and flour in her eyebrows. Pippa's going round correcting the recipe cards. “A *pinch*,” she's telling a first-year, “is not a measurement. It's a threat.”
 
 Ambrose stands in the middle of it all with a wooden spoon, saying “Lower the heat. Lower. Lower. Good,” to everyone at once.
 
@@ -585,7 +593,7 @@ The soda bread's whole. The leek and potato's whole. And on the scones page, thr
 
 Penny writes a new number on a fresh index card, under the old one. *Restored: 3.*
 
-She pins it to the Kitchen door.""",
+She pins it to the Kitchen door, where everybody'll see it. Two columns: *Missing*, and *Restored*.""",
              "Keep this leaf.",
              braid="The whole Academy started cooking, because a recipe only stays alive while somebody's making it. Three letters came back.",
              memories=[memory("min-seo-kim", "the-guest.rescue.asked-scene",

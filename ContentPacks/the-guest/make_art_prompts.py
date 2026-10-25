@@ -8,25 +8,31 @@ listed reference images. Run: python3 ContentPacks/the-guest/make_art_prompts.py
 """
 import json
 import os
+from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = "InsideCoverApp/Assets.xcassets"
 GOBLIN = f"{ASSETS}/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png"
 PIXIE = f"{ASSETS}/PunctuationPixieFront.imageset/PunctuationPixieFront.png"
+KITCHEN = f"{ASSETS}/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg"
 
 
 def portrait(name):
-    return f"{ASSETS}/LabyrinthCharacter{name}.imageset/LabyrinthCharacter{name}.heic"
+    directory = f"{ASSETS}/LabyrinthCharacter{name}.imageset"
+    root = Path(HERE).parents[1]
+    catalog = json.loads((root / directory / "Contents.json").read_text())
+    filename = next(image["filename"] for image in catalog["images"] if image.get("filename"))
+    return f"{directory}/{filename}"
 
 
 CAST = {
     "ambrose": ("Ambrose Trencher (big older cook, grey beard, cap, stained canvas apron, sleeves rolled)", portrait("AmbroseTrencher")),
     "serenity": ("Serenity Brown (young woman, long wild dark curls, sea-green coat, a brass compass on a chain; "
                  "moves slightly sideways, always half-seeing something beyond)", portrait("SerenityBrown")),
-    "wicker": ("Wicker Eddies (young man, black wavy hair, pale narrow watchful face, dark high-collared coat)", None),
-    "soren": ("Soren Ng (young man, messy black hair, round glasses, grey jacket)", None),
+    "wicker": ("Wicker Eddies (match his reference portrait exactly)", portrait("WickerEddies")),
+    "soren": ("Soren Ng (match his reference portrait exactly)", portrait("SorenNg")),
     "penny": ("Penny Blackletter (young woman, dark curls pinned up, round spectacles, dark waistcoat over a white "
-              "blouse with a cravat, ink on her fingers)", None),
+              "blouse with a cravat, ink on her fingers; match her reference portrait exactly)", portrait("PennyBlackletter")),
     "boggle": ("Professor Lydia Boggle (match her reference portrait exactly)", portrait("LydiaBoggle")),
     "vellum": ("Dr. Vellum (match the reference portrait exactly)", portrait("DrElowenVellum")),
     "minseo": ("Min-seo Kim (match her reference portrait exactly)", portrait("MinSeoKim")),
@@ -69,7 +75,11 @@ CUTOUT_STYLE = (
 
 
 def plate(file, size, subject, cast=(), guest=False, composition="landscape, 3:2"):
-    refs = [GOBLIN] + [CAST[c][1] for c in cast if CAST[c][1]]
+    refs = [KITCHEN, GOBLIN] + [CAST[c][1] for c in cast if CAST[c][1]]
+    if guest:
+        refs.append(portrait("TheGuest"))
+    if len(refs) > 5:
+        refs.remove(GOBLIN)  # Keep the scene-style reference and every character.
     present = [CAST[c][0] for c in cast] + ([GUEST] if guest else [])
     prompt = f"{PLATE_STYLE}\nComposition: {composition}.\nSubject: {subject}"
     if present:

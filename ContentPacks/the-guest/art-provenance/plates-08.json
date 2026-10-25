@@ -1,0 +1,25 @@
+{
+  "index": 8,
+  "file": "plates/scene.the-guest.scene.the-bowl.png",
+  "prompt": "Use case: illustration-story. Asset type: a full printed plate for the ReEnchanted Book's November 2026 issue, The Guest Who Came on All Souls, printed in a 6 by 9 inch book on uncoated book paper inside a white mat and a thin gold rule. Input images are STYLE AND CHARACTER REFERENCES ONLY: match their exquisite hand-drawn ink-and-watercolour storybook rendering, irregular fine brown pen contours, fine crosshatching, dense lovingly observed material detail, warm muted washes on cream paper. November's palette: lamplight amber, copper, oatmeal and flour white, bread-crust browns, holly green, and a cold frost blue that only appears near the west door and after dark. An old illustrated faerie book, physical and a little feral, warm but with something wrong at the edge of it, never childish. A full painted scene with its own background whose edges soften into cream paper in a gentle vignette. No border, no frame, no lettering, no legible words, no labels, no captions, no watermark, no speech bubbles; any writing in the scene is illegible pen scribble. Print-safe colour for uncoated paper: no pure black, no neon, no large flat dark areas; keep shadows open and textured. Characters must match their reference portraits exactly in face, hair and clothing, drawn as real people with weight and warmth, never caricatures. The reader of the Book is never shown; at most an anonymous hand at the edge of the picture holding an old leather-bound book. Avoid flat vector art, clipart, glossy 3D, photorealism, anime, gore and modern objects.\nComposition: landscape, 3:2.\nSubject: The last day of November: a quiet empty kitchen, morning light. On the warm hearth stones by a low stool sits a plain chipped brown bowl of oats with a gold pool of butter and cold cream round the edge, no spoon. The small hooded figure kneels before it, hood still up. At the range a big man in an apron stands with his back turned, washing a pan.\nPresent: Ambrose Trencher (big older cook, grey beard, cap, stained canvas apron, sleeves rolled); The Guest: a small figure, about elbow-height to a grown man, in a long green coat far too big for it with tarnished brass buttons and a ragged hem, sleeves rolled up four times, the hood always up so no face shows, only two very clean small hands; it should feel old, polite and faintly uncanny, never cute and never a monster.\nProduction request: native 2400x1600 pixels if supported. ONE continuous scene; no collage, notes, annotation, border, inset or copied lettering. First two references are painting style only; no goblin or cat. Final two define exact Ambrose and Guest identities. Plain bowl on hearth floor contains visibly oatmeal with melted butter and cream, absolutely no spoon. Guest kneels on floor before bowl, hood face entirely hidden. Ambrose is at range with back turned. Quiet morning.",
+  "originalStyleReferences": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterAmbroseTrencher.imageset/LabyrinthCharacterAmbroseTrencher.heic",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "referencePaths": [
+    "InsideCoverApp/Assets.xcassets/InterleafUnderTheKitchenTable.imageset/InterleafUnderTheKitchenTable.jpg",
+    "InsideCoverApp/Assets.xcassets/MarginaliaGoblinWritingCrouched.imageset/MarginaliaGoblinWritingCrouched.png",
+    "ContentPacks/the-guest/art-references/plate-LabyrinthCharacterAmbroseTrencher.png",
+    "InsideCoverApp/Assets.xcassets/LabyrinthCharacterTheGuest.imageset/LabyrinthCharacterTheGuest.jpg"
+  ],
+  "originalGeneratedPath": "~/.codex/generated_images/01a16f77-2f54-7882-93c6-2d051bd7b3e8/exec-65f1f1a5-047f-45f1-b699-f7522b6c092f.png",
+  "finalPath": "ContentPacks/the-guest/plates/scene.the-guest.scene.the-bowl.png",
+  "requestedSize": "2400x1600",
+  "review": "Visually inspected: faceless Guest kneeling on hearth floor by low stool and plain chipped brown oatmeal bowl, visible butter, no spoon. Ambrose back turned washing pan; warm morning light. Single textured ink/watercolour scene with no text or collage.",
+  "attempt": 1,
+  "tool": "built-in image_gen",
+  "actualWidth": 1536,
+  "actualHeight": 1024
+}

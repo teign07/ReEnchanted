@@ -1,11 +1,24 @@
 # The Guest recording sheet
 
-Status: scripts written 2026-10-19, nothing recorded yet. The clips aren't in the pack: each goes
-into `radioBanters` (with a `media` rule in `issue.json`) only once its take exists, and the
-caption must match what was actually said.
+Status: all five recorded by bj in ElevenLabs on 2026-10-25 (originals on his Desktop), converted
+to 64 kbps mono MP3 leveled to about -18 LUFS in `audio/`, and wired in through
+`content_radio.py`: `radioBanters`, one manifest atom each, and the `audio` rule in `issue.json`.
+Captions are the scripts exactly, without the pause tags. Still owed: a listening check on Rabbit.
 
-Use the existing character voices. Record speech separately from effects; stage directions are
-not spoken. Deliver each take as `the-guest.audio.<name>.m4a` into `ContentPacks/the-guest/audio/`.
+Use the existing character voices (the same ones as October). Record speech separately from
+effects; stage directions are not spoken. Drop each take into `ContentPacks/the-guest/audio/` under
+the filename below, in any format ElevenLabs exports; the pack copies are converted to 64 kbps mono
+MP3 at 44.1 kHz, leveled to about -18 LUFS, like October's.
+
+| Clip | Voice | Filename | Direction |
+| --- | --- | --- | --- |
+| forty-cakes | Wicker | `DJ_thornwave_the_guest_forty_cakes_01.mp3` | Amused, a little uneasy under it; the last line is a joke he half means. |
+| kitchen-notice | Penny | `DJ_faefi_the_guest_kitchen_notice_01.mp3` | A filed notice, read fast and exact; the bees line deadpan. |
+| three-in-the-morning | Euphony | `DJ_mothlight_the_guest_three_am_01.mp3` | Quiet, late, warm; the last line slower, nearly a lullaby, still a warning. |
+| wish | Wicker | `DJ_thornwave_the_guest_wish_01.mp3` | Pleased with himself, hiding it; "So do the rest of us" lands soft. |
+| the-bowl-is-washed | Penny | `DJ_faefi_the_guest_bowl_washed_01.mp3` | Relief in the particulars; brisk on Trencher's line. |
+
+The foreshadow clip (forty-cakes) plays Oct 28–31, so it has to be in the pack published by Oct 27.
 The stable content ID (`the-guest.radio.<name>`) stays in the JSON; the `the-guest.audio.*` ID
 identifies the replaceable recording.
 
