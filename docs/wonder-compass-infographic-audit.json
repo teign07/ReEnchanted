@@ -1,0 +1,1457 @@
+{
+  "date": "2026-10-25",
+  "scope": "All 53 NotebookLM infographics plus 6 adjacent authored menus and worksheets. Targeted legibility, obvious error and existing chapter-correction pass; not a new full scientific review.",
+  "images": [
+    {
+      "fileName": "North___Notice.png",
+      "sectionID": "wonder-compass-read-this-first",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "c964bbcaa3e0aa7b5d6877a001a7261e90a7fce8e94f0ce297d76cb4778eb017",
+      "sourceSHA256": "20868eac2cac149e0dd6a9aebe8e15527dc5078d45b31e819d7cfda2c8cad696",
+      "sha256": "c964bbcaa3e0aa7b5d6877a001a7261e90a7fce8e94f0ce297d76cb4778eb017"
+    },
+    {
+      "fileName": "Your_Brain_on_Autopilot_Explained_Large.jpeg",
+      "sectionID": "wonder-compass-chapter1a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "f9a54731bf9beb7787b04afd36d658aeaff0a6d1b7f3e6c9034d59473a5b95cc",
+      "sourceSHA256": "78e9a853b6a4ebf7d7c39353cc2c9f1e06409470fe7568351351bc0ccd415828",
+      "sha256": "4bcb08e23ec241a3e988be579f2cf5e78080249e3895436a89902e81a7b1e897",
+      "corrections": "R7: Change ONLY the subtitle \"Why Life Can Feel “Gray”\" to exactly \"Why Life Feels “Gray”\". Match the original large lightweight black subtitle type, keep it on one line and centered under the unchanged main title \"Your Brain on Autopilot:\". Keep all other text and artwork unchanged.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Change ONLY the subtitle \"Why Life Can Feel “Gray”\" to exactly \"Why Life Feels “Gray”\". Match the original large lightweight black subtitle type, keep it on one line and centered under the unchanged main title \"Your Brain on Autopilot:\". Keep all other text and artwork unchanged.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "6475c8ecbe42a5113c21810abcf4e541aec44ea2930b9ed59afe36bc59531940",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct only the central circle's mislabeled statistic. It should read \"~47%\" then \"MIND-WANDERING\" then \"In one study, thoughts were unrelated to the current activity in 46.9% of reports.\" Remove the old claim \"OF OUR WAKING LIVES ON AUTOPILOT\" and the unsupported \"70-90%\" burnout extrapolation from this circle. Keep the circle and all other panels, text and illustrations unchanged. The chapter distinguishes mind-wandering reports from time spent absent or on autopilot.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct only the central circle's mislabeled statistic. It should read \"~47%\" then \"MIND-WANDERING\" then \"In one study, thoughts were unrelated to the current activity in 46.9% of reports.\" Remove the old claim \"OF OUR WAKING LIVES ON AUTOPILOT\" and the unsupported \"70-90%\" burnout extrapolation from this circle. Keep the circle and all other panels, text and illustrations unchanged. The chapter distinguishes mind-wandering reports from time spent absent or on autopilot.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "Your_Brain_on_Autopilot_Explained_Large.jpeg",
+          "sectionID": "wonder-compass-chapter1a",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "f9a54731bf9beb7787b04afd36d658aeaff0a6d1b7f3e6c9034d59473a5b95cc",
+          "sourceSHA256": "78e9a853b6a4ebf7d7c39353cc2c9f1e06409470fe7568351351bc0ccd415828",
+          "sha256": "3c3b40fc3052968440640cacd3b4841cf1cf31dba92395d014dd96a5f2e8c367",
+          "corrections": "\nChange `You see the concept* of a thing` to `You see the concept of a thing` (no asterisk).",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `You see the concept* of a thing` to `You see the concept of a thing` (no asterisk).\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1679,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 25,
+            "date": "2026-10-25",
+            "baselineSHA256": "6475c8ecbe42a5113c21810abcf4e541aec44ea2930b9ed59afe36bc59531940",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R7"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "3c3b40fc3052968440640cacd3b4841cf1cf31dba92395d014dd96a5f2e8c367",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Biological_Cost_of_Boredom_Large.jpeg",
+      "sectionID": "wonder-compass-chapter1a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "c1ecb959910b2963775a6f4607d5fd04b694db4ba6a97880b9fdcdf5aa030f0e",
+      "sourceSHA256": "490a0e905f5b58511c5fd39bc9672626d31e67d4608206a3439d0a24b31031cb",
+      "sha256": "a0a507b850bda108e8220df60023e88f90fc7ace296e47b8cd71b785015f05f9",
+      "corrections": "Restore the original title. Every callout below replaces a hedged one.\n\n- Title.\n  - **Now:** `When Boredom and Stress Wear You Down`\n  - **Make it:** `The Biological Cost of Boredom`\n- Subtitle.\n  - **Now:** `Why Restless Days Can Feel Tiring`\n  - **Make it:** `Why You're So Tired (When You Haven't Done Anything)`\n- Top callout.\n  - **Now:** `BOREDOM CAN FEEL RESTLESS / A task may offer too little challenge or meaning. That can leave you tense or disengaged.`\n  - **Make it:** `BOREDOM IS STRESS / When researchers bored people on purpose, their heart rate and cortisol went up.`\n- Second callout.\n  - **Now:** `WORRY CAN PROLONG STRESS / Stressful thoughts can keep a stress response going, though responses vary.`\n  - **Make it:** `WORRY KEEPS THE ALARM ON / Your body is terrible at telling a stressful thought from a tiger. The alarm keeps ringing long after the moment's over.`\n- Stress icons heading.\n  - **Now:** `PROLONGED STRESS CAN AFFECT HEALTH`\n  - **Make it:** `PROLONGED STRESS WEARS YOU DOWN` (keep the three icon labels)\n- Fatigue callout.\n  - **Now:** `FATIGUE HAS MANY POSSIBLE CAUSES / Feeling tired or achy does not tell you what is happening in your immune system.`\n  - **Make it:** `IT INFLAMES YOU / Loneliness and chronic stress switch on the genes for inflammation. That's the ache, the fog, the heavy limbs.`\n- Long-term callout.\n  - **Now:** `LONG-TERM HEALTH LINKS / Chronic stress is associated with health risks. This is not an inevitable progression from boredom.`\n  - **Make it:** `THE INTEREST COMPOUNDS / Leave it for years, and chronic stress is tied to heart disease, diabetes and depression.`\n- Icon label under the pancreas.\n  - **Now:** `Health`\n  - **Make it:** `Diabetes`\n- Bottom banner, second line.\n  - **Now:** `Your fatigue is real. These feelings do not identify a single cause.`\n  - **Make it:** `Your fatigue is real. It's biology.`",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nRestore the original title. Every callout below replaces a hedged one.\n\n- Title.\n  - **Now:** `When Boredom and Stress Wear You Down`\n  - **Make it:** `The Biological Cost of Boredom`\n- Subtitle.\n  - **Now:** `Why Restless Days Can Feel Tiring`\n  - **Make it:** `Why You're So Tired (When You Haven't Done Anything)`\n- Top callout.\n  - **Now:** `BOREDOM CAN FEEL RESTLESS / A task may offer too little challenge or meaning. That can leave you tense or disengaged.`\n  - **Make it:** `BOREDOM IS STRESS / When researchers bored people on purpose, their heart rate and cortisol went up.`\n- Second callout.\n  - **Now:** `WORRY CAN PROLONG STRESS / Stressful thoughts can keep a stress response going, though responses vary.`\n  - **Make it:** `WORRY KEEPS THE ALARM ON / Your body is terrible at telling a stressful thought from a tiger. The alarm keeps ringing long after the moment's over.`\n- Stress icons heading.\n  - **Now:** `PROLONGED STRESS CAN AFFECT HEALTH`\n  - **Make it:** `PROLONGED STRESS WEARS YOU DOWN` (keep the three icon labels)\n- Fatigue callout.\n  - **Now:** `FATIGUE HAS MANY POSSIBLE CAUSES / Feeling tired or achy does not tell you what is happening in your immune system.`\n  - **Make it:** `IT INFLAMES YOU / Loneliness and chronic stress switch on the genes for inflammation. That's the ache, the fog, the heavy limbs.`\n- Long-term callout.\n  - **Now:** `LONG-TERM HEALTH LINKS / Chronic stress is associated with health risks. This is not an inevitable progression from boredom.`\n  - **Make it:** `THE INTEREST COMPOUNDS / Leave it for years, and chronic stress is tied to heart disease, diabetes and depression.`\n- Icon label under the pancreas.\n  - **Now:** `Health`\n  - **Make it:** `Diabetes`\n- Bottom banner, second line.\n  - **Now:** `Your fatigue is real. These feelings do not identify a single cause.`\n  - **Make it:** `Your fatigue is real. It's biology.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "b7bf617aa450d75775687d4656eb0d013cf580dec31be80fba7333a613f96b3c",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve the existing body/brain illustration and layout, but correct the false fixed progression from boredom to disease using the book's already-revised Chapter 1. Title \"When Boredom and Stress Wear You Down\"; subtitle \"Why Restless Days Can Feel Tiring\". Top-right heading \"Boredom Can Feel Restless\"; body \"A task may offer too little challenge or meaning. That can leave you tense or disengaged.\" Next heading \"Worry Can Prolong Stress\"; body \"Stressful thoughts can keep a stress response going, though responses vary.\" Left torso heading \"Fatigue Has Many Possible Causes\"; body \"Feeling tired or achy does not tell you what is happening in your immune system.\" Middle-right heading \"Prolonged Stress Can Affect Health\"; retain the weight/sleep/shield illustrations but labels \"Appetite and weight\", \"Sleep\", \"Immune function\". Lower-right heading \"Long-Term Health Links\"; body \"Chronic stress is associated with health risks. This is not an inevitable progression from boredom.\" Retain disease-related pictograms as illustrations of health, but remove the unsupported causal diabetes/depression labels; use \"Health\" and \"Mood\" instead. Bottom orange panel keep \"YOU ARE NOT LAZY. YOU ARE NOT CRAZY.\" and replace its final sentence with \"Your fatigue is real. These feelings do not identify a single cause.\" Preserve all other artwork and attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve the existing body/brain illustration and layout, but correct the false fixed progression from boredom to disease using the book's already-revised Chapter 1. Title \"When Boredom and Stress Wear You Down\"; subtitle \"Why Restless Days Can Feel Tiring\". Top-right heading \"Boredom Can Feel Restless\"; body \"A task may offer too little challenge or meaning. That can leave you tense or disengaged.\" Next heading \"Worry Can Prolong Stress\"; body \"Stressful thoughts can keep a stress response going, though responses vary.\" Left torso heading \"Fatigue Has Many Possible Causes\"; body \"Feeling tired or achy does not tell you what is happening in your immune system.\" Middle-right heading \"Prolonged Stress Can Affect Health\"; retain the weight/sleep/shield illustrations but labels \"Appetite and weight\", \"Sleep\", \"Immune function\". Lower-right heading \"Long-Term Health Links\"; body \"Chronic stress is associated with health risks. This is not an inevitable progression from boredom.\" Retain disease-related pictograms as illustrations of health, but remove the unsupported causal diabetes/depression labels; use \"Health\" and \"Mood\" instead. Bottom orange panel keep \"YOU ARE NOT LAZY. YOU ARE NOT CRAZY.\" and replace its final sentence with \"Your fatigue is real. These feelings do not identify a single cause.\" Preserve all other artwork and attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 7,
+        "date": "2026-10-25",
+        "baselineSHA256": "b7bf617aa450d75775687d4656eb0d013cf580dec31be80fba7333a613f96b3c",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Vicious_Cycle_of_Efficiency_Trap_Large.jpeg",
+      "sectionID": "wonder-compass-chapter1b",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "48098d381852db551a2231d3a7bf72e7dc3709f595ecf19ce3d4f21bc95da2b1",
+      "sourceSHA256": "4662f65a2a2ae913f60a3dd8d076b26abcfbeb560205ffa8f5640213d437c0c4",
+      "sha256": "781014de063702086beeff2f323fe034974ece2ce0a15ff71f287f12dea4fbbb",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the tiny corrupted calendar lettering beside the seated woman to \"PLANS\" and \"CANCELED\". In the Anhedonia panel replace only \"Chronic stress desensitizes your brain's reward receptors, chemically blocking joy.\" with \"Things that once felt rewarding may stop feeling enjoyable.\" This agrees with the already-corrected chapter and avoids claiming a reader's receptor mechanism. Preserve the melting clock as intentional art and all other panels and copy.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the tiny corrupted calendar lettering beside the seated woman to \"PLANS\" and \"CANCELED\". In the Anhedonia panel replace only \"Chronic stress desensitizes your brain's reward receptors, chemically blocking joy.\" with \"Things that once felt rewarding may stop feeling enjoyable.\" This agrees with the already-corrected chapter and avoids claiming a reader's receptor mechanism. Preserve the melting clock as intentional art and all other panels and copy.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "Active_Adventure_Creates_Lasting_Memories__Large.jpeg",
+      "sectionID": "wonder-compass-chapter2",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "fd0647f9ddad74c64a517078475589b654f6c20750e11e25111021c5bc3ca206",
+      "sourceSHA256": "b714a80aea785edd44957e7c396ca67e57a20fca477aca06f2b8d31732a1be27",
+      "sha256": "fd0647f9ddad74c64a517078475589b654f6c20750e11e25111021c5bc3ca206"
+    },
+    {
+      "fileName": "Are_You_Caught_in_The_Drift__Large.jpeg",
+      "sectionID": "wonder-compass-chapter2",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "9bd4539af3b9892e862502567f72fe155201fd8e9a917b42abb75543c76d9b03",
+      "sourceSHA256": "1a36b6b397ac3f6f340b3d44911d5d38fba3ee5a5d4526d37ab83488e0833b00",
+      "sha256": "724aa777a6141cc23871cbfbf9faa49095a854321bef5185d154fc3bbb250e97",
+      "corrections": "R3: In the paragraph replace the period after efficiency with a comma. Re-set the phrase \"pulls you toward efficiency, numbness, and anxiety.\" in ONE uniform regular upright caption font, no italics anywhere in that phrase. The entire paragraph must read exactly: Modern life creates a powerful current called \"The Drift,\" which pulls you toward efficiency, numbness, and anxiety. This external pressure creates an internal state of being stuck in \"The Rut,\" where life is lived on autopilot. Preserve the narrow paragraph column and all wording other than that single punctuation correction.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. In the paragraph replace the period after efficiency with a comma. Re-set the phrase \"pulls you toward efficiency, numbness, and anxiety.\" in ONE uniform regular upright caption font, no italics anywhere in that phrase. The entire paragraph must read exactly: Modern life creates a powerful current called \"The Drift,\" which pulls you toward efficiency, numbness, and anxiety. This external pressure creates an internal state of being stuck in \"The Rut,\" where life is lived on autopilot. Preserve the narrow paragraph column and all wording other than that single punctuation correction.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "78404a2159dee3d003913f4c26c60b00f87f65ddd381653f05106b99194fe0ca",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing Wonder Compass infographic. Make ONE surgical spelling correction: in the bottom-right counter-action table, the middle-left cell currently says \"The Industrisl Adventure Complex\". It must read exactly \"The Industrial Adventure Complex\". Preserve every other word, all art, all colors, the full composition and aspect ratio, and the existing NotebookLM attribution. Do not redesign or rewrite anything. Return the full corrected infographic at the original 714 x 1280 size if possible.",
+          "corrections": "Use case: text-localization. Edit target: the supplied existing Wonder Compass infographic. Make ONE surgical spelling correction: in the bottom-right counter-action table, the middle-left cell currently says \"The Industrisl Adventure Complex\". It must read exactly \"The Industrial Adventure Complex\". Preserve every other word, all art, all colors, the full composition and aspect ratio, and the existing NotebookLM attribution. Do not redesign or rewrite anything. Return the full corrected infographic at the original 714 x 1280 size if possible.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "Are_You_Caught_in_The_Drift__Large.jpeg",
+          "sectionID": "wonder-compass-chapter2",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "9bd4539af3b9892e862502567f72fe155201fd8e9a917b42abb75543c76d9b03",
+          "sourceSHA256": "1a36b6b397ac3f6f340b3d44911d5d38fba3ee5a5d4526d37ab83488e0833b00",
+          "sha256": "da17b4b12be469e21ecf20b002d20a9b63fd0dbb7b2a153ec42f53f8e9087c74",
+          "corrections": "\nChange `pulls you roward efficiency` to `pulls you toward efficiency`.\nChange `risk-averes` to `risk-averse`.",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `pulls you roward efficiency` to `pulls you toward efficiency`.\nChange `risk-averes` to `risk-averse`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1679,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 14,
+            "date": "2026-10-25",
+            "baselineSHA256": "78404a2159dee3d003913f4c26c60b00f87f65ddd381653f05106b99194fe0ca",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R3"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "da17b4b12be469e21ecf20b002d20a9b63fd0dbb7b2a153ec42f53f8e9087c74",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Three_Types_of_Hidden_Loneliness__Large_2.jpeg",
+      "sectionID": "wonder-compass-chapter3",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "69b4f90c0823ddd54dc584e7d775daaaf5066b9ea80a3bc9a1c4524be89ba7a4",
+      "sourceSHA256": "a91a29803dd43452c0f2a03f453a5fead476519b32ec7d7abf78ab1fe773cac9",
+      "sha256": "69b4f90c0823ddd54dc584e7d775daaaf5066b9ea80a3bc9a1c4524be89ba7a4"
+    },
+    {
+      "fileName": "phonto_Large.jpeg",
+      "sectionID": "wonder-compass-chapter4a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "e525739cf24a77296bda4831b162bd4bb732ef15ba44f7417ebf3447b8ed02fb",
+      "sourceSHA256": "1d8d2975f231ad00d58a71d8a99e366d2ddf05cce44474fa31ae4b5b105eae25",
+      "sha256": "c82708327d887e4f1376220770737723a94d8452543befdb1c91b90a7466a776",
+      "corrections": "R11: Under the unchanged heading \"Don’t Fight Him, Educate Him\", shorten the body to exactly \"Speak his language.\" Remove the rest of this body: \"Show your primal brain the world is safe enough to enjoy.\" Leave its former area blank in the same pale blue background. Keep the closing speech bubble and every other word unchanged.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Under the unchanged heading \"Don’t Fight Him, Educate Him\", shorten the body to exactly \"Speak his language.\" Remove the rest of this body: \"Show your primal brain the world is safe enough to enjoy.\" Leave its former area blank in the same pale blue background. Keep the closing speech bubble and every other word unchanged.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "8ef2cdcf7825364b3b6f9d56f54fb10675cb85d9c68857d469831fab24d4a399",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Repair only clearly broken text and one literal misreading of the chapter's metaphor. Replace laptop-screen gibberish with \"NEW EMAIL\". Fix \"50,000-year-oldSurvival\" to \"50,000-year-old survival\". Fix \"Safe in the Cgse or Dead Outside\" to \"Safe in the Cave or Dead Outside\". Fix the overlapping text about being kicked out of the tribe so it reads clearly \"He believes acting weird will get you kicked out of the tribe to die alone.\" Replace the left heading \"A Panicked Ancestor Lives in Your Brain\" with \"Meet Your Protective Caveman\". Replace its explanatory sentence with \"The caveman is a metaphor for protective habits, not a literal ancestor in your brain.\" Keep the characters, email/tiger metaphor, all other copy and layout.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Repair only clearly broken text and one literal misreading of the chapter's metaphor. Replace laptop-screen gibberish with \"NEW EMAIL\". Fix \"50,000-year-oldSurvival\" to \"50,000-year-old survival\". Fix \"Safe in the Cgse or Dead Outside\" to \"Safe in the Cave or Dead Outside\". Fix the overlapping text about being kicked out of the tribe so it reads clearly \"He believes acting weird will get you kicked out of the tribe to die alone.\" Replace the left heading \"A Panicked Ancestor Lives in Your Brain\" with \"Meet Your Protective Caveman\". Replace its explanatory sentence with \"The caveman is a metaphor for protective habits, not a literal ancestor in your brain.\" Keep the characters, email/tiger metaphor, all other copy and layout.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "phonto_Large.jpeg",
+          "sectionID": "wonder-compass-chapter4a",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "e525739cf24a77296bda4831b162bd4bb732ef15ba44f7417ebf3447b8ed02fb",
+          "sourceSHA256": "1d8d2975f231ad00d58a71d8a99e366d2ddf05cce44474fa31ae4b5b105eae25",
+          "sha256": "0636efa86fee18fd2615692600d59463f361dcb9a44f750c3f0f67cc4fadc512",
+          "corrections": "- First timeline item.\n  - **Now:** `Meet Your Protective Caveman / The caveman is a metaphor for protective habits, not a literal ancestor in your brain.`\n  - **Make it:** `Meet Your Protective Caveman / He's the oldest, fastest part of your brain, and he thinks it's still 50,000 years ago.`\n- \"Don't Fight Him\" text.\n  - **Now:** `You must gently reassure your primal brain that you are actually safe.`\n  - **Make it:** `Speak his language. Show your primal brain the world is safe enough to enjoy.`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n- First timeline item.\n  - **Now:** `Meet Your Protective Caveman / The caveman is a metaphor for protective habits, not a literal ancestor in your brain.`\n  - **Make it:** `Meet Your Protective Caveman / He's the oldest, fastest part of your brain, and he thinks it's still 50,000 years ago.`\n- \"Don't Fight Him\" text.\n  - **Now:** `You must gently reassure your primal brain that you are actually safe.`\n  - **Make it:** `Speak his language. Show your primal brain the world is safe enough to enjoy.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1679,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 11,
+            "date": "2026-10-25",
+            "baselineSHA256": "8ef2cdcf7825364b3b6f9d56f54fb10675cb85d9c68857d469831fab24d4a399",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R11"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "0636efa86fee18fd2615692600d59463f361dcb9a44f750c3f0f67cc4fadc512",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Awe__Your_Body_s_Reset_Button_Large.jpeg",
+      "sectionID": "wonder-compass-chapter4a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "84fd24143033bb7f456cb075ad8cba29e6263b13a713d26e2fd2090e526f8a1a",
+      "sourceSHA256": "73d5fb668681ccc76e9ce2c22a064f57f5d6e92ab22acb0ce1a3f6515909ae91",
+      "sha256": "0746dbbff19810d1282de5016301337514b197aacd1d4db468b9e711a4105a93",
+      "corrections": "The chapter says it plainly now: \"The people who felt the most wonder had the\nleast inflammation.\"\n\n- Inflammation panel.\n  - **Now:** `More reported awe was associated with lower IL-6 in one observational study. This does not establish a treatment effect.`\n  - **Make it:** `The people who felt the most wonder had the least inflammation (IL-6).`\n- Calm panel heading.\n  - **Now:** `Positive Awe Can Feel Calming`\n  - **Make it:** `Awe Hits the Brakes`\n- Calm panel text.\n  - **Now:** `Physiological responses vary with the person and the kind of awe.`\n  - **Make it:** `Of five positive emotions tested, awe was the only one that eased off fight-or-flight.`\n- Perspective panel. The plate edge currently cuts it off; fit the new text inside the bubble.\n  - **Now:** `It Can Broaden Perspective / Some experiments link awe with a smaller sense of self and more helpful behavior`\n  - **Make it:** `It Makes You Nicer / One minute staring up at tall trees made people more helpful.`\n- Attention panel.\n  - **Now:** `Awe Can Shift Attention / Awe can draw attention beyond with usual running commentary.`\n  - **Make it:** `Awe Quiets the Worrier / Awe turns down the Default Mode Network, the part of your brain that chews on yourself.`\n- AWE WALKS card.\n  - **Now:** `Weekly 15-minute awe walks increased positive social emotions in one older-adult trial.`\n  - **Make it:** `Fifteen minutes a week: more compassion, less distress, bigger smiles.`\n- DAILY AWE card.\n  - **Now:** `A small long-COVID trial found improved stress and well-being after a four-week program.`\n  - **Make it:** `Four weeks of finding awe in ordinary days: less stress, less depression.`\n- WRITING card.\n  - **Now:** `A specific detail gives you a cue for remembering a moment.`\n  - **Make it:** `Three good things a night for one week. Happier six months later.`",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe chapter says it plainly now: \"The people who felt the most wonder had the\nleast inflammation.\"\n\n- Inflammation panel.\n  - **Now:** `More reported awe was associated with lower IL-6 in one observational study. This does not establish a treatment effect.`\n  - **Make it:** `The people who felt the most wonder had the least inflammation (IL-6).`\n- Calm panel heading.\n  - **Now:** `Positive Awe Can Feel Calming`\n  - **Make it:** `Awe Hits the Brakes`\n- Calm panel text.\n  - **Now:** `Physiological responses vary with the person and the kind of awe.`\n  - **Make it:** `Of five positive emotions tested, awe was the only one that eased off fight-or-flight.`\n- Perspective panel. The plate edge currently cuts it off; fit the new text inside the bubble.\n  - **Now:** `It Can Broaden Perspective / Some experiments link awe with a smaller sense of self and more helpful behavior`\n  - **Make it:** `It Makes You Nicer / One minute staring up at tall trees made people more helpful.`\n- Attention panel.\n  - **Now:** `Awe Can Shift Attention / Awe can draw attention beyond with usual running commentary.`\n  - **Make it:** `Awe Quiets the Worrier / Awe turns down the Default Mode Network, the part of your brain that chews on yourself.`\n- AWE WALKS card.\n  - **Now:** `Weekly 15-minute awe walks increased positive social emotions in one older-adult trial.`\n  - **Make it:** `Fifteen minutes a week: more compassion, less distress, bigger smiles.`\n- DAILY AWE card.\n  - **Now:** `A small long-COVID trial found improved stress and well-being after a four-week program.`\n  - **Make it:** `Four weeks of finding awe in ordinary days: less stress, less depression.`\n- WRITING card.\n  - **Now:** `A specific detail gives you a cue for remembering a moment.`\n  - **Make it:** `Three good things a night for one week. Happier six months later.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "85fbf64cdd9336af2e2a3a3b4de827e10aa14e6f94b6294040ba420341b2d7e0",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve the striking existing artwork, all panels, palette, heading and composition. Correct only science claims that were already corrected in the chapter. Intro: \"Awe is the feeling of encountering something vast that stretches your usual way of making sense of the world.\" Left shield heading \"Awe and Inflammation\"; body \"More reported awe was associated with lower IL-6 in one observational study. This does not establish a treatment effect.\" Nervous-system heading \"Positive Awe Can Feel Calming\"; replace \"AWE OVERRIDES\" with \"POSITIVE AWE\"; body \"Physiological responses vary with the person and the kind of awe.\" Lower brain heading \"Awe Can Shift Attention\"; body \"Awe can draw attention beyond the usual running commentary.\" Empathy panel heading \"It Can Broaden Perspective\"; body \"Some experiments link awe with a smaller sense of self and more helpful behavior.\" Keep the sense-of-time panel. Replace the three percentage bars in the lower-right with THREE NONNUMERIC evidence cards, no fabricated data, under heading \"RESEARCH ON EVERYDAY PRACTICES\": \"AWE WALKS — Weekly 15-minute awe walks increased positive social emotions in one older-adult trial.\"; \"DAILY AWE — A small long-COVID trial found improved stress and well-being after a four-week program.\"; \"WRITING — A specific detail gives you a cue for remembering a moment.\" Remove every 28%, 35%, 31% from those bars. Keep the book illustration style and existing attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve the striking existing artwork, all panels, palette, heading and composition. Correct only science claims that were already corrected in the chapter. Intro: \"Awe is the feeling of encountering something vast that stretches your usual way of making sense of the world.\" Left shield heading \"Awe and Inflammation\"; body \"More reported awe was associated with lower IL-6 in one observational study. This does not establish a treatment effect.\" Nervous-system heading \"Positive Awe Can Feel Calming\"; replace \"AWE OVERRIDES\" with \"POSITIVE AWE\"; body \"Physiological responses vary with the person and the kind of awe.\" Lower brain heading \"Awe Can Shift Attention\"; body \"Awe can draw attention beyond the usual running commentary.\" Empathy panel heading \"It Can Broaden Perspective\"; body \"Some experiments link awe with a smaller sense of self and more helpful behavior.\" Keep the sense-of-time panel. Replace the three percentage bars in the lower-right with THREE NONNUMERIC evidence cards, no fabricated data, under heading \"RESEARCH ON EVERYDAY PRACTICES\": \"AWE WALKS — Weekly 15-minute awe walks increased positive social emotions in one older-adult trial.\"; \"DAILY AWE — A small long-COVID trial found improved stress and well-being after a four-week program.\"; \"WRITING — A specific detail gives you a cue for remembering a moment.\" Remove every 28%, 35%, 31% from those bars. Keep the book illustration style and existing attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 8,
+        "date": "2026-10-25",
+        "baselineSHA256": "85fbf64cdd9336af2e2a3a3b4de827e10aa14e6f94b6294040ba420341b2d7e0",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Wonder_Antidote_Compass_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter4a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "01224009c3fb047c8cb0339866ad17c573a68e2712c10a87dabf3bf6ab777073",
+      "sourceSHA256": "bb08cd414eabf439a6122ee881708da427d1c5bf538b8ed03f30f7da20933dfc",
+      "sha256": "6c147a08a27af782fbb30b4f96b919d760ab2e8e7638bd8d7592304cd50eb89d",
+      "corrections": "R5: Correct the Anhedonia body caption so Sense has a matched pair of double quotation marks. Full body must read exactly: A playful \"Sense\" mission gives your attention something small and interesting. No stray apostrophe. Preserve the Anhedonia heading, nearby icon and surrounding ribbons. Fit the caption in the existing right-column area.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Correct the Anhedonia body caption so Sense has a matched pair of double quotation marks. Full body must read exactly: A playful \"Sense\" mission gives your attention something small and interesting. No stray apostrophe. Preserve the Anhedonia heading, nearby icon and surrounding ribbons. Fit the caption in the existing right-column area.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "0ad9933e77afd2ae36706b68937600586b3f0d68734cd23a7cf41df64c50fa87",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct both occurrences of the misspelled label to \"Mindlessness\". Correct \"Soutsen\" to \"Souvenir\". Correct \"zerg\" to \"zero\" in \"with zero productivity guilt.\" In the anhedonia panel replace the dopamine-receptor promise with \"A playful Sense mission gives your attention something small and interesting.\" In Decision Fatigue replace the unsupported 99% claim with \"Specific constraints narrow the choices and make planning easier.\" In the Mindlessness panel write \"The N-E-S-W cycle gives your attention a simple path to follow.\" The small compass icon must have N at top, E right, S bottom, W left. Keep every other label and the existing illustration.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct both occurrences of the misspelled label to \"Mindlessness\". Correct \"Soutsen\" to \"Souvenir\". Correct \"zerg\" to \"zero\" in \"with zero productivity guilt.\" In the anhedonia panel replace the dopamine-receptor promise with \"A playful Sense mission gives your attention something small and interesting.\" In Decision Fatigue replace the unsupported 99% claim with \"Specific constraints narrow the choices and make planning easier.\" In the Mindlessness panel write \"The N-E-S-W cycle gives your attention a simple path to follow.\" The small compass icon must have N at top, E right, S bottom, W left. Keep every other label and the existing illustration.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "The_Wonder_Antidote_Compass_Guide_Large.jpeg",
+          "sectionID": "wonder-compass-chapter4a",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "01224009c3fb047c8cb0339866ad17c573a68e2712c10a87dabf3bf6ab777073",
+          "sourceSHA256": "bb08cd414eabf439a6122ee881708da427d1c5bf538b8ed03f30f7da20933dfc",
+          "sha256": "bfe5820282dc21f94f78183c0f028e985ee36b297f2e6c9838a4dfb44dcaba7f",
+          "corrections": "The book has twelve signals; the plate has eleven. Emotional Amnesia is missing,\nand the Rumination antidote has no label.\n\n- Subtitle.\n  - **Now:** `A precision tool to counter eleven common negative states`\n  - **Make it:** `A precision tool for all twelve signals of the Rut`\n- Left header.\n  - **Now:** `THE RUT: 11 COMMON SIGNALS`\n  - **Make it:** `THE RUT: 12 SIGNALS`\n- Left column: add a twelfth node in the same style, after Time Starvation.\n  - **Make it:** `Emotional Amnesia`\n- Right column: add a matching antidote.\n  - **Make it:** `Emotional Amnesia: You build a physical library of written Souvenirs.`\n- Right column, the unlabeled awe item.\n  - **Now:** `Experiencing awe creates a \"Small Self,\" which quiets the worrying brain.`\n  - **Make it:** `Rumination: Awe creates the \"Small Self,\" quieting the part of the brain that worries.`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe book has twelve signals; the plate has eleven. Emotional Amnesia is missing,\nand the Rumination antidote has no label.\n\n- Subtitle.\n  - **Now:** `A precision tool to counter eleven common negative states`\n  - **Make it:** `A precision tool for all twelve signals of the Rut`\n- Left header.\n  - **Now:** `THE RUT: 11 COMMON SIGNALS`\n  - **Make it:** `THE RUT: 12 SIGNALS`\n- Left column: add a twelfth node in the same style, after Time Starvation.\n  - **Make it:** `Emotional Amnesia`\n- Right column: add a matching antidote.\n  - **Make it:** `Emotional Amnesia: You build a physical library of written Souvenirs.`\n- Right column, the unlabeled awe item.\n  - **Now:** `Experiencing awe creates a \"Small Self,\" which quiets the worrying brain.`\n  - **Make it:** `Rumination: Awe creates the \"Small Self,\" quieting the part of the brain that worries.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\n\nFollow-up edit:\n\nUse case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe book has twelve signals; the plate has eleven. Emotional Amnesia is missing,\nand the Rumination antidote has no label.\n\n- Subtitle.\n  - **Now:** `A precision tool to counter eleven common negative states`\n  - **Make it:** `A precision tool for all twelve signals of the Rut`\n- Left header.\n  - **Now:** `THE RUT: 11 COMMON SIGNALS`\n  - **Make it:** `THE RUT: 12 SIGNALS`\n- Left column: add a twelfth node in the same style, after Time Starvation.\n  - **Make it:** `Emotional Amnesia`\n- Right column: add a matching antidote.\n  - **Make it:** `Emotional Amnesia: You build a physical library of written Souvenirs.`\n- Right column, the unlabeled awe item.\n  - **Now:** `Experiencing awe creates a \"Small Self,\" which quiets the worrying brain.`\n  - **Make it:** `Rumination: Awe creates the \"Small Self,\" quieting the part of the brain that worries.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\nCRITICAL: ADD a new row; NEVER replace or remove Time Starvation. Both columns must have twelve distinct items. The left column must retain Time Starvation with its hourglass and ADD Emotional Amnesia immediately below. The right column must retain Time Starvation and ALL its original words, and ADD a separate new Emotional Amnesia icon/caption below it. Use the bottom space for these new nodes, or tighten lower-row spacing minimally. There must be TWELVE left nodes and TWELVE right antidotes, including both Time Starvation AND Emotional Amnesia. New right text should have heading \"Emotional Amnesia\" and body \"You build a physical library of written Souvenirs.\" Do not duplicate the heading in the body. Keep NotebookLM bottom right.\n\nFollow-up edit:\n\nEdit target: this exact lower-right crop of the Wonder Antidote infographic. It must contain FOUR antidotes, all four, with no omitted or duplicate item. Tighten these items vertically within the same crop, keeping the current palette, flowing ribbons and icons, and add only the missing book-stack icon. Exact four items in order, each heading bold followed by body: 1. The \"Should\" Trap — You get explicit permission to play with zero productivity guilt. 2. Rumination — Awe creates the \"Small Self,\" quieting the part of the brain that worries. 3. Time Starvation — Wonder places you in an \"Extended Present,\" making life feel fuller. 4. Emotional Amnesia — You build a physical library of written Souvenirs. Use existing unlocked padlock for Should Trap, existing starry person for Rumination, existing running figure for Time Starvation, new stack of books for Emotional Amnesia. Four compact readable rows, no numerical labels. Keep all exact words. Same full 437:365 crop aspect ratio. Do not remove any item. No other text.\n\nFollow-up edit:\n\nEdit target: this narrow crop from an infographic after adding a missing row. Repair ONLY the visible hard horizontal splice across the middle of the crop. Make the teal, turquoise, green and yellow flowing ribbons join continuously across that splice with smooth curves and matching colors; remove the straight cut and abrupt broken ribbon edges. Preserve the existing icons, crop bounds, white background, top caption text and bottom heading fragments exactly. Do not add or change any lettering. Keep the same full 437:115 landscape crop aspect ratio. This is solely a tiny seam repair where a new node was added, no redesign.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1679,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 3,
+            "date": "2026-10-25",
+            "baselineSHA256": "0ad9933e77afd2ae36706b68937600586b3f0d68734cd23a7cf41df64c50fa87",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R5"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "bfe5820282dc21f94f78183c0f028e985ee36b297f2e6c9838a4dfb44dcaba7f",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Anatomy_and_Creation_of_Wonder_Large.jpeg",
+      "sectionID": "wonder-compass-chapter4b",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "a4f97635895962d8d9c0ac3e2016d27891f3058e1c6a455157900324a3019c4c",
+      "sourceSHA256": "242b0a4734c01c9f45dcb757a47651b8eee1288f78d6b4efe9b20e2bfc28aaf6",
+      "sha256": "a4f97635895962d8d9c0ac3e2016d27891f3058e1c6a455157900324a3019c4c"
+    },
+    {
+      "fileName": "The_Power_of_Small_Adventure_Large.jpeg",
+      "sectionID": "wonder-compass-chapter5",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "85d1b248c470a7ff92228ef222e60740653a37c0a12644afceb8e657e7b503b6",
+      "sourceSHA256": "f9df2d863e9762d90785fb2fa9a1c864381ddcc6d7218462ba24703fc1d2164a",
+      "sha256": "85d1b248c470a7ff92228ef222e60740653a37c0a12644afceb8e657e7b503b6"
+    },
+    {
+      "fileName": "Everyday_Adventure__The_Wonder_Compass__Large.jpeg",
+      "sectionID": "wonder-compass-chapter5",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "f5fefbc304c930bd6fb68d9a005c889c074a3efdf4c6877b742eab6eb45c91d9",
+      "sourceSHA256": "ca49d85ed36cb819e8e4a639ba14d68670df3259120069171b94b06639013aa4",
+      "sha256": "06352f191bade4c96f45be6a3960d10b53fbfd773396ceb74a7b0c4379b05787",
+      "corrections": "\nChange `North = Notice (The Spark)` appears twice to delete the small centered label above the N; keep the left text block.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `North = Notice (The Spark)` appears twice to delete the small centered label above the N; keep the left text block.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "152699f2c1689ca4fdb96419e94696229f54fb54604aa2d1b53687ae900dfed8",
+          "status": "corrected",
+          "prompt": "In the small 3 D's table, correct \"Spare\" to \"Spark\". Replace the garbled Definition explanation with exactly \"When does it end? A clear endpoint, like 30 minutes.\" Keep the label Definition and all remaining content.",
+          "corrections": "In the small 3 D's table, correct \"Spare\" to \"Spark\". Replace the garbled Definition explanation with exactly \"When does it end? A clear endpoint, like 30 minutes.\" Keep the label Definition and all remaining content.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 936,
+      "pixelHeight": 1680,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 26,
+        "date": "2026-10-25",
+        "baselineSHA256": "152699f2c1689ca4fdb96419e94696229f54fb54604aa2d1b53687ae900dfed8",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Invisible_Gorilla_Brain_Filter_Large.jpeg",
+      "sectionID": "wonder-compass-chapter6a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "d50d0efe4e17ea456f2a80520d3a3e2bb46ad4d840c02f3b22780aefb1850bc3",
+      "sourceSHA256": "f3fc500edc8979dd2fbfc4d02852a95ccc1b4fe34c62215f7d53472d069c21e8",
+      "sha256": "256730811184e9f6ba1c9b74c82fdc08442916a04c35dedbd8889277aa9b18e5",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the inaccurate RAS deletion mechanism to match the chapter, keeping all artwork. In the gorilla explanation replace \"People Never Saw the Gorilla\" with \"Half Missed the Gorilla\" and describe \"In one nine-second condition, half the observers did not notice it.\" Keep the original count-the-passes example. Replace the brain label \"RETICULAR ACTIVATING SYSTEM (RAS)\" with \"ATTENTION NETWORKS\". Replace the explanation paragraph with \"Attention depends on several brain networks. The RAS helps regulate wakefulness and arousal.\" Replace the \"~50 bits/sec\" callout with \"ATTENTION IS SELECTIVE\". Replace the \"It Deletes 99.999% of the World\" panel with heading \"Focus Can Miss the Unexpected\" and text \"Concentrating on one task can make other visible things easy to miss.\" Replace the \"~11,000,000 bits/sec\" callout under the left sensory-input cloud with \"MORE INPUT THAN WE CAN ATTEND TO AT ONCE\". Replace the footer RAS sentence with \"Your goals help guide what you notice.\" Preserve other copy, art and NotebookLM mark. Do not invent replacement numerical throughput claims.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the inaccurate RAS deletion mechanism to match the chapter, keeping all artwork. In the gorilla explanation replace \"People Never Saw the Gorilla\" with \"Half Missed the Gorilla\" and describe \"In one nine-second condition, half the observers did not notice it.\" Keep the original count-the-passes example. Replace the brain label \"RETICULAR ACTIVATING SYSTEM (RAS)\" with \"ATTENTION NETWORKS\". Replace the explanation paragraph with \"Attention depends on several brain networks. The RAS helps regulate wakefulness and arousal.\" Replace the \"~50 bits/sec\" callout with \"ATTENTION IS SELECTIVE\". Replace the \"It Deletes 99.999% of the World\" panel with heading \"Focus Can Miss the Unexpected\" and text \"Concentrating on one task can make other visible things easy to miss.\" Replace the \"~11,000,000 bits/sec\" callout under the left sensory-input cloud with \"MORE INPUT THAN WE CAN ATTEND TO AT ONCE\". Replace the footer RAS sentence with \"Your goals help guide what you notice.\" Preserve other copy, art and NotebookLM mark. Do not invent replacement numerical throughput claims.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "followupPrompt": "Use case: text-localization. Make ONE correction to this already-edited infographic. The small callout with a line pointing at the circled brainstem is mislabeled \"ATTENTION NETWORKS\". Replace only that callout label with exactly \"RAS: WAKEFULNESS & AROUSAL\", arranged in short readable lines. This pointer identifies the RAS, which regulates wakefulness and arousal; the explanatory paragraph elsewhere already describes distributed attention networks. Preserve all other words, all images, the half-missed-gorilla result, the no-numeric-bandwidth callouts, layout, full aspect ratio, colors, and NotebookLM attribution. Do not redesign anything.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "Science-Backed_Benefits_of_Noticing_Large.jpeg",
+      "sectionID": "wonder-compass-chapter6a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "de545ebf6a7f68bd07829093bfd9980a8f39c6ff17944e1ba4002e8d7c901f00",
+      "sourceSHA256": "b6cb190421ee8a52d7903790454d56e67ec2da91eef8594692f97ec0d5f474de",
+      "sha256": "641032ed67d79a98bd8a5cfeff044a6d04b604e1a37619ea0078727e610f65b6",
+      "corrections": "R8: Replace ONLY the body beneath the unchanged heading Write 3 Good Things. New exact body: \"Write down three things that went well and why. One week of it, and people were still happier six months later.\" Keep the original caption font, alignment and body area. Do not add any caveat.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Replace ONLY the body beneath the unchanged heading Write 3 Good Things. New exact body: \"Write down three things that went well and why. One week of it, and people were still happier six months later.\" Keep the original caption font, alignment and body area. Do not add any caveat.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "4b866781717a0be6d3949dab7f1d1c07323bb17ac35038eca3aa0d529d9b1062",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Remove the already-corrected chapter's unsupported 28% and anxiety-cancellation claims, preserving layout and illustrations. In the left circular 28% graphic replace the numeric value with \"CURIOSITY\". Under it write \"Curiosity is linked with well-being.\" and \"Ask one question about something around you. Curiosity and anxiety can coexist.\" On upper right replace the dopamine sentence with \"Novelty engages brain regions involved in learning and motivation.\" and the next sentence with \"Notice something new and see where your interest goes.\" Bottom-left practice: heading \"Write 3 Good Things\" and copy \"Note three things that went well and why they happened. In one study, benefits lasted six months; continued practice mattered.\" Keep the awe-walk panel, social-attraction panel, all art and other wording.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Remove the already-corrected chapter's unsupported 28% and anxiety-cancellation claims, preserving layout and illustrations. In the left circular 28% graphic replace the numeric value with \"CURIOSITY\". Under it write \"Curiosity is linked with well-being.\" and \"Ask one question about something around you. Curiosity and anxiety can coexist.\" On upper right replace the dopamine sentence with \"Novelty engages brain regions involved in learning and motivation.\" and the next sentence with \"Notice something new and see where your interest goes.\" Bottom-left practice: heading \"Write 3 Good Things\" and copy \"Note three things that went well and why they happened. In one study, benefits lasted six months; continued practice mattered.\" Keep the awe-walk panel, social-attraction panel, all art and other wording.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "Science-Backed_Benefits_of_Noticing_Large.jpeg",
+          "sectionID": "wonder-compass-chapter6a",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "de545ebf6a7f68bd07829093bfd9980a8f39c6ff17944e1ba4002e8d7c901f00",
+          "sourceSHA256": "b6cb190421ee8a52d7903790454d56e67ec2da91eef8594692f97ec0d5f474de",
+          "sha256": "b21ec10b730d650ff093dd19731adbb550c9b82679ecaf317c689169180c04a6",
+          "corrections": "The chapter says \"it's hard to chew on a worry and chase a question at the same\ntime.\" The plate says the opposite.\n\n- Curiosity panel.\n  - **Now:** `Curiosity is linked with well-being. / Ask one question about something around you. Curiosity and anxiety can coexist.`\n  - **Make it:** `Curiosity makes you happier. / On their most curious days, people found more meaning in their lives. And it's hard to chew on a worry and chase a question at the same time.`\n- Novelty panel.\n  - **Now:** `Novelty engages brain regions involved in learning and motivation. / Notice something new and see where your interest goes.`\n  - **Make it:** `Novelty is dopamine. / Something new lights up your brain's motivation center. Noticing is a micro-dose of get-off-the-couch.`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe chapter says \"it's hard to chew on a worry and chase a question at the same\ntime.\" The plate says the opposite.\n\n- Curiosity panel.\n  - **Now:** `Curiosity is linked with well-being. / Ask one question about something around you. Curiosity and anxiety can coexist.`\n  - **Make it:** `Curiosity makes you happier. / On their most curious days, people found more meaning in their lives. And it's hard to chew on a worry and chase a question at the same time.`\n- Novelty panel.\n  - **Now:** `Novelty engages brain regions involved in learning and motivation. / Notice something new and see where your interest goes.`\n  - **Make it:** `Novelty is dopamine. / Something new lights up your brain's motivation center. Noticing is a micro-dose of get-off-the-couch.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1678,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 12,
+            "date": "2026-10-25",
+            "baselineSHA256": "4b866781717a0be6d3949dab7f1d1c07323bb17ac35038eca3aa0d529d9b1062",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1678,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R8"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "b21ec10b730d650ff093dd19731adbb550c9b82679ecaf317c689169180c04a6",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Art_of_Shadow_Wonder_Large.jpeg",
+      "sectionID": "wonder-compass-chapter6a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "f5c904ac2b04bf25f3ab9b27eba96eaaea52ed7e91d0efaeef35381ab42638d0",
+      "sourceSHA256": "3cf62b3d019fd95921c93c4a81ea2e5fcec7c6a2e3edc4798e55c71f0a54e9d0",
+      "sha256": "5e9a253bd02f8efafc9fac6d56fcab9542de52cea42508c06c611a0d4060bf04",
+      "corrections": "\nChange `harmouize` to `harmonize`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `harmouize` to `harmonize`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "followupPrompt": "Use case: precise-object-edit / text cleanup. Image 1 is the FULL Shadow Wonder infographic to edit and return. Images 2 and 3 are magnified locating details, not separate output targets. The newspaper masthead in image 2 and the antique shop sign in image 3 still have tiny corrupted pseudo-lettering. REMOVE that tiny lettering completely from those TWO decorative illustrations in the full image. Newspaper: make its masthead a clean solid dark horizontal rule, with the article columns remaining simple nonverbal line texture and the portrait preserved; no tiny letters or words at all on the paper. Antique shop: make the small wooden sign above the awning a clean BLANK inset wooden panel, no letters or symbols. All the LARGE educational labels outside those two tiny art details must remain exactly as they are, including Destination, Delight, Definition, the full plan copy and every mission. Preserve all other art, composition, palette, dimensions, main title and NotebookLM attribution. Return only the corrected FULL portrait infographic, never a collage or cropped image.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "9dd1b6b0be49d5ac464ad5bb20690dbd818a76f6df4eac438bda26f427a15c90",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the central illustration of a person looking at an old newspaper at the library, the newspaper masthead is corrupted pseudo-text. Replace just its masthead with exactly \"THE DAILY NEWS\". Keep the small article marks as nonverbal line texture, not extra generated text. Keep every other piece of real text and all artwork.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the central illustration of a person looking at an old newspaper at the library, the newspaper masthead is corrupted pseudo-text. Replace just its masthead with exactly \"THE DAILY NEWS\". Keep the small article marks as nonverbal line texture, not extra generated text. Keep every other piece of real text and all artwork.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 15,
+        "date": "2026-10-25",
+        "baselineSHA256": "9dd1b6b0be49d5ac464ad5bb20690dbd818a76f6df4eac438bda26f427a15c90",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Turn_Your_Smartphone_Into_A_Field_Kit_Large.jpeg",
+      "sectionID": "wonder-compass-chapter6b",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "aa3c4f45158b2ddbaa5b20a075f77360b7d40ea4bfa498da245667a647c9cb93",
+      "sourceSHA256": "e0c6d9bb51578e7b6355c328e065428515f115af8428858f8c98d1114def29ee",
+      "sha256": "24ba025c06c23da18f48b7669ab73ed0fbbcb4cd416ebb4efe0569b81511bc86",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "aa3c4f45158b2ddbaa5b20a075f77360b7d40ea4bfa498da245667a647c9cb93",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange `DIGITAL AIGNALL` (vertical label) to `DIGITAL AIRWALL`.\nChange `ial Media` (blocked app) to `Social Media`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `DIGITAL AIGNALL` (vertical label) to `DIGITAL AIRWALL`.\nChange `ial Media` (blocked app) to `Social Media`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 23,
+        "date": "2026-10-25",
+        "baselineSHA256": "aa3c4f45158b2ddbaa5b20a075f77360b7d40ea4bfa498da245667a647c9cb93",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Find_Local_Adventure_With_Your_Phone_Large.jpeg",
+      "sectionID": "wonder-compass-chapter6b",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "c4441ec09865aaf960c73d9ceee01bd7521801fa58c37f8896ce29af368b2051",
+      "sourceSHA256": "e7be9ae3d8b4814938e58578efceb3b720f8da0d03fcef10ec343ce6f6195ab3",
+      "sha256": "c4441ec09865aaf960c73d9ceee01bd7521801fa58c37f8896ce29af368b2051"
+    },
+    {
+      "fileName": "Action_Creates_Motivation__Not_Vice-Versa_Large.jpeg",
+      "sectionID": "wonder-compass-chapter7",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "e1f678a904cb51217fa38517d6d8ec56f74b8d5a1bf2314a69262b4c442aa765",
+      "sourceSHA256": "54440e739d2a0e346cfdab2190e5d4b39e770d6c7d1be767aa60e9e8d91bfd4d",
+      "sha256": "f2dc73a400bf1053cb770fbd2184385a8d278c30d5cdaf56ea8375a416569778",
+      "corrections": "Keep \"where 90% of adventures die\"; that line is in the chapter. Keep the\n38/35/91 chart.\n\n- Subtitle.\n  - **Now:** `How Action Can Help You Begin`\n  - **Make it:** `Why Motivation Is a Myth`\n- Hack #1 text.\n  - **Now:** `A meaningIall first action can help motivation grow.`\n  - **Make it:** `You don't wait to feel good to move. You move to feel good.`\n- Map label.\n  - **Now:** `30 MIN JOG JOG`\n  - **Make it:** `30 MIN JOG`\n- Hack #2 text: remove the stray mark between \"how\" and \"you\".\n  - **Now:** `Specify when, where, and how. you will begin.`\n  - **Make it:** `Specify when, where, and how you will begin.`\n\n---",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nKeep \"where 90% of adventures die\"; that line is in the chapter. Keep the\n38/35/91 chart.\n\n- Subtitle.\n  - **Now:** `How Action Can Help You Begin`\n  - **Make it:** `Why Motivation Is a Myth`\n- Hack #1 text.\n  - **Now:** `A meaningIall first action can help motivation grow.`\n  - **Make it:** `You don't wait to feel good to move. You move to feel good.`\n- Map label.\n  - **Now:** `30 MIN JOG JOG`\n  - **Make it:** `30 MIN JOG`\n- Hack #2 text: remove the stray mark between \"how\" and \"you\".\n  - **Now:** `Specify when, where, and how. you will begin.`\n  - **Make it:** `Specify when, where, and how you will begin.`\n\n---\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "followupPrompt": "Use case: text-localization. Edit the supplied already-corrected Science of Getting Started infographic. Change ONLY the explanatory paragraph directly under \"HACK #2: MAKE A SPECIFIC PLAN (Implementation Intention)\". Replace the entire paragraph, including all old fragments, with exactly this single sentence: \"Specify when, where, and how you will begin.\" There must be no leftover \"Vague goals fail\" or \"Specifically defining the When, Where\" fragment. Preserve all other wording, all illustrations, all colors, layout, aspect ratio, the corrected bar values 38%, 35%, 91%, and the NotebookLM attribution. Do not redesign anything.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "2b43967226eafa30c1bb1c405256acf6be88c774fe16e297a0f4acde4e4a2998",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the chart to match the original exercise study and the corrected chapter. Left bar: \"Tracked Exercise\", \"38%\", \"EXERCISED AT LEAST ONCE\". Middle bar: \"Motivational Pamphlet\", \"35%\", \"EXERCISED AT LEAST ONCE\". Right bar: \"Pamphlet + Specific Plan\", \"91%\", \"EXERCISED AT LEAST ONCE\". Keep all three bars, adjusting left/middle heights only enough for 38 versus 35. Add small chart context \"One exercise study; follow-up week\" within the chart. Replace headline subtitle \"Why Motivation is a Myth\" with \"How Action Can Help You Begin\". Under HACK #1 replace \"Act first, and motivation will follow.\" with \"A meaningful first action can help motivation grow.\" Under HACK #2 replace the universal 3x claim with \"Specify when, where, and how you will begin.\" Preserve the rest of the composition and art.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the chart to match the original exercise study and the corrected chapter. Left bar: \"Tracked Exercise\", \"38%\", \"EXERCISED AT LEAST ONCE\". Middle bar: \"Motivational Pamphlet\", \"35%\", \"EXERCISED AT LEAST ONCE\". Right bar: \"Pamphlet + Specific Plan\", \"91%\", \"EXERCISED AT LEAST ONCE\". Keep all three bars, adjusting left/middle heights only enough for 38 versus 35. Add small chart context \"One exercise study; follow-up week\" within the chart. Replace headline subtitle \"Why Motivation is a Myth\" with \"How Action Can Help You Begin\". Under HACK #1 replace \"Act first, and motivation will follow.\" with \"A meaningful first action can help motivation grow.\" Under HACK #2 replace the universal 3x claim with \"Specify when, where, and how you will begin.\" Preserve the rest of the composition and art.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 13,
+        "date": "2026-10-25",
+        "baselineSHA256": "2b43967226eafa30c1bb1c405256acf6be88c774fe16e297a0f4acde4e4a2998",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "3-D_Recipe_to_Beat_Inertia_Large.jpeg",
+      "sectionID": "wonder-compass-chapter7",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "39c69924890be136d76e80def884469a46fa6251c21ee9106587ea47de0fc575",
+      "sourceSHA256": "c5d3a4c18d22523427ba62d8ad6d883e7bd1793fc8a2694c67a325d8633771a4",
+      "sha256": "14313ae712f7d50e24edf47965480abad2f67f58a25de6a919c7569948d14204",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "39c69924890be136d76e80def884469a46fa6251c21ee9106587ea47de0fc575",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange `dally rut` to `daily rut`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `dally rut` to `daily rut`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\n\nFollow-up edit:\n\nEdit target is this small crop of an infographic. Correct ONLY \"dally\" to \"daily\" (d-a-i-l-y, with an i as the third letter and its clearly visible dot). Exact sentence: \"Use this recipe for short breaks to quickly snap out of a daily rut.\" Keep the bold heading \"Micro-Adventures\" and \"Combat Mental Inertia\", all other letters, line arrangement, pale blue background, full crop aspect ratio, and everything else unchanged.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 18,
+        "date": "2026-10-25",
+        "baselineSHA256": "39c69924890be136d76e80def884469a46fa6251c21ee9106587ea47de0fc575",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Pre-Packed_Kit_for_Spontaneous_Joy_Large.jpeg",
+      "sectionID": "wonder-compass-chapter7",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "781ac57a1a49d77d4bc8974d947ae41c6cd0cef3e470de0b80ce027b219400c7",
+      "sourceSHA256": "62d7d38fcad6ced4b0ece636210d17c6632eaf7e0ce7408b2a3e6f0c6072e018",
+      "sha256": "33281c2adb733f06d70723bc1005a090840f9da68486c746779ead19ba0c4df6",
+      "corrections": "\nChange `Fancy Shacks` (bag label) to `Fancy Snacks`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `Fancy Shacks` (bag label) to `Fancy Snacks`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\n\nFollow-up edit:\n\nEdit target is this small crop of a snack bag illustration. Change ONLY the two-word black bag label from \"Fancy Shacks\" to exactly \"Fancy Snacks\". The second word must be S-n-a-c-k-s, with an n after S, not h. Preserve the identical bag, colors, folded top, chips, neighboring objects, exact composition, and crop aspect ratio. Return same crop with corrected label.",
+      "followupPrompt": "Use case: text-localization. Edit only ONE misspelled word in this otherwise-corrected full infographic. In the bottom-center caption under The \"Oh No\" Kit, change \"band-aide\" to exactly \"bandages\". The complete caption must read \"A small pouch with ibuprofen, bandages, and antacids for minor issues.\" Preserve all other words including the corrected \"Sketch\" on the small notebook, all artwork, composition, palette, full portrait aspect ratio, dimensions, and NotebookLM attribution. No redesign.",
+      "finalRepairPrompt": "Use case: text-localization. Image 1 is the full infographic to edit and return. Image 2 magnifies the ONLY caption to repair in Image 1. Replace the ENTIRE small caption under The \"Oh No\" Kit at the bottom center with exactly \"Pack a few first-aid basics.\" Use two clear readable lines of ordinary black type in the existing caption area. Completely remove the old caption, including the garbled band-aies word; do not retain any of it or add other words. Keep the heading The \"Oh No\" Kit unchanged. Keep every other word and illustration in the full infographic unchanged, including Sketch, the kit icon, bag layers, two neighboring bottom captions, colors, composition, full portrait aspect ratio and NotebookLM attribution. Return only the full infographic, not a crop or collage.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "4e00963ac420e370dd39167bfa8e91d5a6f7faffb2478b5531c359cd4aec8c3e",
+          "status": "corrected",
+          "prompt": "The tiny notebook cover in the green top layer has gibberish. Replace only that handwritten cover word with exactly \"Sketch\".",
+          "corrections": "The tiny notebook cover in the green top layer has gibberish. Replace only that handwritten cover word with exactly \"Sketch\".",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 936,
+      "pixelHeight": 1680,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 16,
+        "date": "2026-10-25",
+        "baselineSHA256": "4e00963ac420e370dd39167bfa8e91d5a6f7faffb2478b5531c359cd4aec8c3e",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Why_Your_Brain_Craves_Touch_Large.jpeg",
+      "sectionID": "wonder-compass-chapter8a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "23bbc084241ef3704b52ad5e473641b76dc6a789628c47f22a9f362f12785bcb",
+      "sourceSHA256": "8350243ebc2337f90565816e077e9e9057d800af533ea3c6d42c3a64c7bd3896",
+      "sha256": "2c1e19c9fb96e49b2d37fd064a88c766c32f1090803bab9496df9d0cb7ce3112",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the garbled lower-left tree label \"DAK TREE\" to \"OAK TREE\" so both tree signs match. Correct \"The Homunculus\" spelling wherever needed. In the bottom-right replace the unsupported \"Use it or lose it: Neglecting touch can literally blur your brain.\" with \"Your Brain's Sensory Maps Reflect Use\". Replace the last explanation with \"Research links sensory experience and practice with changes in how the brain represents touch.\" Keep the familiar homunculus illustration, hand emphasis, museum metaphor, layout, colors and every other word.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the garbled lower-left tree label \"DAK TREE\" to \"OAK TREE\" so both tree signs match. Correct \"The Homunculus\" spelling wherever needed. In the bottom-right replace the unsupported \"Use it or lose it: Neglecting touch can literally blur your brain.\" with \"Your Brain's Sensory Maps Reflect Use\". Replace the last explanation with \"Research links sensory experience and practice with changes in how the brain represents touch.\" Keep the familiar homunculus illustration, hand emphasis, museum metaphor, layout, colors and every other word.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "followupPrompt": "Use case: text-localization. Edit only the example sentence inside the LARGE upper-left white thought bubble in this otherwise-corrected full infographic. It contains a garbled spelling of river. Replace that whole example sentence with exactly: \"When you name something—oak tree, river—your brain files it away and stops truly seeing it.\" Keep the bubble heading \"You've fallen into the Labeling Trap.\" and all other copy exactly, including both OAK TREE signs and the corrected bottom-right sensory-map paragraph. Preserve all art, composition, colors, dimensions, full portrait aspect ratio and NotebookLM attribution. Do not redesign or add anything.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "Flow_State_Silences_Inner_Critic_Large.jpeg",
+      "sectionID": "wonder-compass-chapter8a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "137f5a27af04c1e1d47ec8ffeeff48bb2e86cda4db7bc09c41654195b627b6d8",
+      "sourceSHA256": "260e732e8dee4937f973f4daaf7f5c783ad14051310f596e6d51c0be1dfae5b2",
+      "sha256": "896043120e0004fdad5b478628e733f7f20a3d95df7e53a98105b843011e1cf0",
+      "corrections": "The chapter says flow quiets the critic and brain scans show it.\n\n- Intro line.\n  - **Now:** `Flow is deep absorption in an activity. A clear goal, feedback, and a manageable challenge can help you get involved in what you are doing.`\n  - **Make it:** `Flow is complete absorption. The self vanishes, time bends, and the critic shuts up. Three triggers get you there.`\n- Left panel.\n  - **Now:** `The Caveman is a Metaphor / Your inner critic is a pattern of self-talk, not a creature in one brain region.`\n  - **Make it:** `Meet the Caveman / He runs your inner critic: grim, efficient, and allergic to fun.`\n- Middle panel.\n  - **Now:** `Give Attention a Small Job / Try a clear sensory mission. You may become absorbed without forcing a result.`\n  - **Make it:** `Give Him a Coloring Book / A Playful Mission gives your analytical brain a job, so the rest of you can enjoy the moment.`\n- Right panel.\n  - **Now:** `Flow Invites Absorption / Researchers are still studying flow's brain mechanisms. It is not a proven shutdown switch.`\n  - **Make it:** `Flow Turns Him Down / In brain scans of people in flow, a self-critical hub of the prefrontal cortex goes quiet.`",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe chapter says flow quiets the critic and brain scans show it.\n\n- Intro line.\n  - **Now:** `Flow is deep absorption in an activity. A clear goal, feedback, and a manageable challenge can help you get involved in what you are doing.`\n  - **Make it:** `Flow is complete absorption. The self vanishes, time bends, and the critic shuts up. Three triggers get you there.`\n- Left panel.\n  - **Now:** `The Caveman is a Metaphor / Your inner critic is a pattern of self-talk, not a creature in one brain region.`\n  - **Make it:** `Meet the Caveman / He runs your inner critic: grim, efficient, and allergic to fun.`\n- Middle panel.\n  - **Now:** `Give Attention a Small Job / Try a clear sensory mission. You may become absorbed without forcing a result.`\n  - **Make it:** `Give Him a Coloring Book / A Playful Mission gives your analytical brain a job, so the rest of you can enjoy the moment.`\n- Right panel.\n  - **Now:** `Flow Invites Absorption / Researchers are still studying flow's brain mechanisms. It is not a proven shutdown switch.`\n  - **Make it:** `Flow Turns Him Down / In brain scans of people in flow, a self-critical hub of the prefrontal cortex goes quiet.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "3fc44ca585bbc977bc633c50cd1e0e84a679bc69bbdb68ae5ea6126171861d37",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Align the erroneous brain claims and untraceable percentages with the corrected chapter, keeping the entire existing beautiful flowing layout and artwork. Replace introductory paragraph with \"Flow is deep absorption in an activity. A clear goal, feedback, and a manageable challenge can help you get involved in what you are doing.\" Replace the left statement about prefrontal cortex being home of the caveman with heading \"The Caveman is a Metaphor\" and body \"Your inner critic is a pattern of self-talk, not a creature in one brain region.\" Replace the right transient-hypofrontality shutdown panel with heading \"Flow Invites Absorption\" and body \"Researchers are still studying flow's brain mechanisms. It is not a proven shutdown switch.\" Replace the central playful-missions guarantee with heading \"Give Attention a Small Job\" and body \"Try a clear sensory mission. You may become absorbed without forcing a result.\" Replace the three unsupported percentage graphics, including all instances of 82%, 40%, 31%, with three nonnumeric callouts in the same places: \"CLEAR GOAL — Choose one thing to notice.\", \"FEEDBACK — See what you find.\", \"MANAGEABLE CHALLENGE — Keep the task interesting and possible.\" Preserve all other artwork, title, colors, left rumination example and attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Align the erroneous brain claims and untraceable percentages with the corrected chapter, keeping the entire existing beautiful flowing layout and artwork. Replace introductory paragraph with \"Flow is deep absorption in an activity. A clear goal, feedback, and a manageable challenge can help you get involved in what you are doing.\" Replace the left statement about prefrontal cortex being home of the caveman with heading \"The Caveman is a Metaphor\" and body \"Your inner critic is a pattern of self-talk, not a creature in one brain region.\" Replace the right transient-hypofrontality shutdown panel with heading \"Flow Invites Absorption\" and body \"Researchers are still studying flow's brain mechanisms. It is not a proven shutdown switch.\" Replace the central playful-missions guarantee with heading \"Give Attention a Small Job\" and body \"Try a clear sensory mission. You may become absorbed without forcing a result.\" Replace the three unsupported percentage graphics, including all instances of 82%, 40%, 31%, with three nonnumeric callouts in the same places: \"CLEAR GOAL — Choose one thing to notice.\", \"FEEDBACK — See what you find.\", \"MANAGEABLE CHALLENGE — Keep the task interesting and possible.\" Preserve all other artwork, title, colors, left rumination example and attribution.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 9,
+        "date": "2026-10-25",
+        "baselineSHA256": "3fc44ca585bbc977bc633c50cd1e0e84a679bc69bbdb68ae5ea6126171861d37",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Create_a_Playful_Mission_Anywhere_Large.jpeg",
+      "sectionID": "wonder-compass-chapter8a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "d5c863b1fa2dc3ba6c9792ada92cde92021ce30daaab0f7d04960e902f5fd363",
+      "sourceSHA256": "d985b9ebb817b552e0e38ce1e26a1bfb40ea47ce58d0c0cfb631a0bc3cdc1fa4",
+      "sha256": "5afa8f99320dd8a878fe765f5f4a5bdc0c5a730eaf54b5d526ecf02324880f8c",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the traffic scene, replace the gibberish text on the yellow bumper sticker with exactly \"BUMPER STICKER\", using two short lines if needed. Replace the example instruction above this scene with \"As a passenger, find the ugliest bumper sticker in traffic.\" This preserves the game while making it clear it is for a passenger. Preserve all other text, artwork, panels and their arrangement.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the traffic scene, replace the gibberish text on the yellow bumper sticker with exactly \"BUMPER STICKER\", using two short lines if needed. Replace the example instruction above this scene with \"As a passenger, find the ugliest bumper sticker in traffic.\" This preserves the game while making it clear it is for a passenger. Preserve all other text, artwork, panels and their arrangement.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "Being_Uncool__Embrace_the_Wonder_Large.jpeg",
+      "sectionID": "wonder-compass-chapter8a",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "61b0f1e9eeccd60fff4809a030c26069d2a789246b802a4f3bbf8af49d75dd1d",
+      "sourceSHA256": "a19cf082eec275784ab9ceb435e168629d75b3ab0af53aa89c4b3776599318af",
+      "sha256": "61b0f1e9eeccd60fff4809a030c26069d2a789246b802a4f3bbf8af49d75dd1d"
+    },
+    {
+      "fileName": "The_Science_of_Anthropomorphism_Large.jpeg",
+      "sectionID": "wonder-compass-chapter8b",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "e693c39aab93608c79207f81ebb4175ee3bb17bbb1ad219bffb5275141ef2bfa",
+      "sourceSHA256": "2528760d657934bc2225d36d319e5e452fdb2d3fc1aa89ba5965e8e2f4d4a4b9",
+      "sha256": "2cf5eb2a0156db039e56878c20f043732c2ca78f27b4a775a8e6a960e636b68c",
+      "corrections": "R9: Make precisely TWO text edits. Top block must read \"THE SURPRISING SCIENCE: YOUR BRAIN SEES CHARACTERS EVERYWHERE\" in the same bold uppercase style, fitted into the existing top heading space. The lower bold heading must read \"Familiar Things Become Characters\" (remove only Can). Preserve the smiling toaster, speaker bubble, all other art and every other word exactly.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Make precisely TWO text edits. Top block must read \"THE SURPRISING SCIENCE: YOUR BRAIN SEES CHARACTERS EVERYWHERE\" in the same bold uppercase style, fitted into the existing top heading space. The lower bold heading must read \"Familiar Things Become Characters\" (remove only Can). Preserve the smiling toaster, speaker bubble, all other art and every other word exactly.",
+      "followupPrompt": "Use case: text-localization. Make exactly TWO remaining corrections to this already-edited three-column infographic. (1) In the LEFT column directly below the toaster, completely remove the false sentence \"Your brain doesn't know your coat isn't a person.\" Replace that whole sentence with exactly \"Familiar Things Can Become Characters\". (2) In the MIDDLE column directly above the bicycle, replace the heading \"Reduces Decision Fatigue\" with exactly \"Weigh the Invitation\". Keep the current bike text \"Imagine your bike wanting an outing, then decide whether you want one too.\" and all other corrected copy unchanged. Preserve every illustration, the three-column composition, all other words, palette, portrait aspect ratio and NotebookLM attribution. Do not redesign or add anything.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "2733cf6f0cd959a9f5836fe3e7394f6515b8d711dbafd3619a81ee1ac81009d4",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve this infographic's three-column layout, every illustration, palette, title and practical three-step mug exercise. Correct the false scientific claims to match the book's revised chapter. Top-left main claim: \"You Can Imagine an Object as a Character\". Brain label: \"Social Cognition\". Below brain: \"Anthropomorphism can engage brain regions used in thinking about people.\" Below ancestor/bush: \"One hypothesis links this habit to detecting agents in uncertain situations.\" Bottom-left heading: \"Character Can Change How You Relate to Things\"; text \"Some studies find greater perceived understanding or trust. Check how the object actually works.\" Middle-top heading: \"Try a Different Starting Cue\"; body next to bike \"Imagine your bike wanting an outing, then decide whether you want one too.\" Keep the bike thought bubble. Middle-bottom heading: \"Make Familiar Things Feel Companionable\"; body \"Imaginative company can be pleasant. It does not replace human connection.\" Keep the collaborative chores panel and three-step right column otherwise as written. Do not introduce new biological claims or replace the artwork.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Preserve this infographic's three-column layout, every illustration, palette, title and practical three-step mug exercise. Correct the false scientific claims to match the book's revised chapter. Top-left main claim: \"You Can Imagine an Object as a Character\". Brain label: \"Social Cognition\". Below brain: \"Anthropomorphism can engage brain regions used in thinking about people.\" Below ancestor/bush: \"One hypothesis links this habit to detecting agents in uncertain situations.\" Bottom-left heading: \"Character Can Change How You Relate to Things\"; text \"Some studies find greater perceived understanding or trust. Check how the object actually works.\" Middle-top heading: \"Try a Different Starting Cue\"; body next to bike \"Imagine your bike wanting an outing, then decide whether you want one too.\" Keep the bike thought bubble. Middle-bottom heading: \"Make Familiar Things Feel Companionable\"; body \"Imaginative company can be pleasant. It does not replace human connection.\" Keep the collaborative chores panel and three-step right column otherwise as written. Do not introduce new biological claims or replace the artwork.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "The_Science_of_Anthropomorphism_Large.jpeg",
+          "sectionID": "wonder-compass-chapter8b",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "e693c39aab93608c79207f81ebb4175ee3bb17bbb1ad219bffb5275141ef2bfa",
+          "sourceSHA256": "2528760d657934bc2225d36d319e5e452fdb2d3fc1aa89ba5965e8e2f4d4a4b9",
+          "sha256": "03918fb81b128c6406ee9d3f5dab05fb1f906bbc346f79f41c9ec39b018dcb06",
+          "corrections": "Fix the hedges, the typos (\"actuallly\", \"Iit\"), and the step badges: the plate\nshows 1, 1, 2, 2, 3. Show one 1, one 2 and one 3.\n\n- Social cognition caption.\n  - **Now:** `Anthropomorphism can engage brain regions used in thinking about people.`\n  - **Make it:** `Call your lamp loyal, and the same brain region lights up that does the work when you think about your best friend.`\n- Caveman caption.\n  - **Now:** `One hypothesis links this habit to detecting agents in uncertain situations.`\n  - **Make it:** `Your ancestors survived by assuming the rustling bush was someone. Your brain still sees characters everywhere.`\n- Middle heading.\n  - **Now:** `Weigh the Invitation`\n  - **Make it:** `Use the Invitation`\n- Bike caption.\n  - **Now:** `Imagine your bike wanting an outing, then decide whether you want one too.`\n  - **Make it:** `Your bike wants to go out. It's easier to help a friend than to motivate yourself.`\n- Car panel.\n  - **Now:** `Character Can Change How You Relate to Things / Some studies find greater perceived understanding or trust. Check how the object actualIly works.`\n  - **Make it:** `Characters Get Cared For / People trusted a self-driving car named Iris more, and people who thought of their car as alive were less willing to trade it in.`\n- Armchair panel.\n  - **Now:** `Make Familiar Things Feel Companionable / Imaginative company can be pleasant. Iit does not replace human connection.`\n  - **Make it:** `Your House Is Full of Friends / Treat your things as companions, and home stops feeling lonely.`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nFix the hedges, the typos (\"actuallly\", \"Iit\"), and the step badges: the plate\nshows 1, 1, 2, 2, 3. Show one 1, one 2 and one 3.\n\n- Social cognition caption.\n  - **Now:** `Anthropomorphism can engage brain regions used in thinking about people.`\n  - **Make it:** `Call your lamp loyal, and the same brain region lights up that does the work when you think about your best friend.`\n- Caveman caption.\n  - **Now:** `One hypothesis links this habit to detecting agents in uncertain situations.`\n  - **Make it:** `Your ancestors survived by assuming the rustling bush was someone. Your brain still sees characters everywhere.`\n- Middle heading.\n  - **Now:** `Weigh the Invitation`\n  - **Make it:** `Use the Invitation`\n- Bike caption.\n  - **Now:** `Imagine your bike wanting an outing, then decide whether you want one too.`\n  - **Make it:** `Your bike wants to go out. It's easier to help a friend than to motivate yourself.`\n- Car panel.\n  - **Now:** `Character Can Change How You Relate to Things / Some studies find greater perceived understanding or trust. Check how the object actualIly works.`\n  - **Make it:** `Characters Get Cared For / People trusted a self-driving car named Iris more, and people who thought of their car as alive were less willing to trade it in.`\n- Armchair panel.\n  - **Now:** `Make Familiar Things Feel Companionable / Imaginative company can be pleasant. Iit does not replace human connection.`\n  - **Make it:** `Your House Is Full of Friends / Treat your things as companions, and home stops feeling lonely.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\n\nFollow-up edit:\n\nEdit target: supplied infographic. Remove ONLY the extra turquoise circular badge with the white numeral 2 immediately to the LEFT of the words \"Ask the magic question\" (near 58% down the page). Fill that tiny badge area with its matching pale blue background. KEEP the other 2 badge higher up beside the steaming mug illustration. Keep the 1 and 3 badges. There must be exactly three turquoise numbered step circles total: 1, 2, 3, each once. No text changes, no art changes, no layout changes. Return entire identical full portrait image.",
+          "followupPrompt": "Use case: text-localization. Make exactly TWO remaining corrections to this already-edited three-column infographic. (1) In the LEFT column directly below the toaster, completely remove the false sentence \"Your brain doesn't know your coat isn't a person.\" Replace that whole sentence with exactly \"Familiar Things Can Become Characters\". (2) In the MIDDLE column directly above the bicycle, replace the heading \"Reduces Decision Fatigue\" with exactly \"Weigh the Invitation\". Keep the current bike text \"Imagine your bike wanting an outing, then decide whether you want one too.\" and all other corrected copy unchanged. Preserve every illustration, the three-column composition, all other words, palette, portrait aspect ratio and NotebookLM attribution. Do not redesign or add anything.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1678,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 10,
+            "date": "2026-10-25",
+            "baselineSHA256": "2733cf6f0cd959a9f5836fe3e7394f6515b8d711dbafd3619a81ee1ac81009d4",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1678,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R9"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "03918fb81b128c6406ee9d3f5dab05fb1f906bbc346f79f41c9ec39b018dcb06",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Hack_Your_Brain__Remember_Joy__Large.jpeg",
+      "sectionID": "wonder-compass-chapter9",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "78223ee8573848e6707a1cee058f96e78b0375b11e1d66b42618451ad938d074",
+      "sourceSHA256": "bf9059eead34e0197a9c28377f9f0f222e2153daf152d9446b3d7ddb18bf46d2",
+      "sha256": "78223ee8573848e6707a1cee058f96e78b0375b11e1d66b42618451ad938d074"
+    },
+    {
+      "fileName": "Protect_Your_Memories__24-Hour_Rule_Large.jpeg",
+      "sectionID": "wonder-compass-chapter9",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "89febb0a38df9490a0cd79d88466c2e770431386eedf35f598258b7f589da641",
+      "sourceSHA256": "a14424a70e0030e2160a591f7cde7f30820bab88fb23de84454b7fccfbf93515",
+      "sha256": "a8de6174786e348e0c78ce7d74caac98c8cd99755ea861673c8cacf30799bd45",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "89febb0a38df9490a0cd79d88466c2e770431386eedf35f598258b7f589da641",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange heading `Instant Sharing Creates 'Messy' Memories.` appears twice to keep only the one directly above `Comments from others can overwrite your own feelings about the experience.`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange heading `Instant Sharing Creates 'Messy' Memories.` appears twice to keep only the one directly above `Comments from others can overwrite your own feelings about the experience.`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 24,
+        "date": "2026-10-25",
+        "baselineSHA256": "89febb0a38df9490a0cd79d88466c2e770431386eedf35f598258b7f589da641",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Souvenir_Method_for_Big_Changes_Large.jpeg",
+      "sectionID": "wonder-compass-chapter9",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "a95e6f844bfab85b598009738060822d17db3e518e9c35c2190806ac0bb0de18",
+      "sourceSHA256": "157d15567dfbb22f853781982126888c745eb969c98cde7955f854bb18d2f2d2",
+      "sha256": "a95e6f844bfab85b598009738060822d17db3e518e9c35c2190806ac0bb0de18"
+    },
+    {
+      "fileName": "Resting_vs__Numbing_Brain_Recharge_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter10",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "8d4a74e0c765b4d41983d79b81c129a44841a5fb5b3738176b70fc33b9515a69",
+      "sourceSHA256": "e8737d3efd282d85d9580a3aecf26008bccb80f2e7dc2d83d84fcae81ea2af0e",
+      "sha256": "dde0680bb3c847e206b896fed7470009931e6b668edf8e5c50c12a3d9d116a5d",
+      "corrections": "R6: Re-set the TWO lines under NUMBING together in the same crisp caption font, same size and weight: line 1 \"Masks exhaustion\"; line 2 \"with constant input\". Do not change the wording. Both lines must match perfectly in style and sharpness. Keep the NUMBING heading and background unchanged.\n\nR10: Replace ONLY the body below AUDITORY ENTRAINMENT with exactly \"Put on brown noise. Your brain falls into step with a steady rhythm.\" Keep the heading and pale background unchanged. Use the existing crisp caption font and fit all words in the caption area.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Re-set the TWO lines under NUMBING together in the same crisp caption font, same size and weight: line 1 \"Masks exhaustion\"; line 2 \"with constant input\". Do not change the wording. Both lines must match perfectly in style and sharpness. Keep the NUMBING heading and background unchanged.\n\nUse case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Replace ONLY the body below AUDITORY ENTRAINMENT with exactly \"Put on brown noise. Your brain falls into step with a steady rhythm.\" Keep the heading and pale background unchanged. Use the existing crisp caption font and fit all words in the caption area.",
+      "followupPrompt": "Use case: text-localization. Edit the supplied already-corrected Resting vs. Numbing infographic. Only two tiny background labels still contain gibberish. In the small purple VIDEO tile immediately right of the man's head, replace \"NOOE\" with exactly \"VIDEO\". In the small outlined speech bubble next to the lower-left gray brain, replace \"MOINS\" with exactly \"NEWS\". Preserve EVERYTHING else exactly, especially the corrected subtitle \"How to Truly Recharge Your Brain\" and the lower-right sentence \"Try a steady background sound if you find it restful.\" Do not change the composition, characters, art, other text, colors, dimensions or NotebookLM mark.",
+      "finalRepairPrompt": "Use case: text-localization. Image 1 is the FULL infographic to edit and return. Images 2 and 3 are magnified detail references locating TWO garbled labels in Image 1; do not output the crops or a collage. ERASE the garbled \"NOOE\" label from the little purple video tile beside the man's head (approximately x400–440, y680–700 in the 937×1678 full image). Leave that blue-purple title strip completely BLANK, preserving the white play icon underneath. ERASE the garbled \"NOMS\" text from the little speech bubble beside the lower-left gray brain (approximately x187–223, y1410–1432). Leave that bubble BLANK with its existing light-blue fill and dark outline. No replacement words in either spot. Keep every other pixel/content as close as possible to Image 1, including all legible copy, title, art, colors, composition, attribution and full portrait aspect ratio. Return only the corrected FULL infographic.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "d6b732ebb3576f7367d02f1665cc60754182bdbdd6b117ae676a41a7da31683c",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the subtitle from \"How to True Recharge Your Brain\" to exactly \"How to Truly Recharge Your Brain\". Correct the tiny garbled screen label on the left to exactly \"NOISE\". In the lower-right AUDITORY ENTRAINMENT panel, replace the sentence about tuning your brain with exactly \"Try a steady background sound if you find it restful.\" The current chapter no longer claims that binaural beats tune the brain to a slower frequency. Keep all remaining content.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Correct the subtitle from \"How to True Recharge Your Brain\" to exactly \"How to Truly Recharge Your Brain\". Correct the tiny garbled screen label on the left to exactly \"NOISE\". In the lower-right AUDITORY ENTRAINMENT panel, replace the sentence about tuning your brain with exactly \"Try a steady background sound if you find it restful.\" The current chapter no longer claims that binaural beats tune the brain to a slower frequency. Keep all remaining content.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        },
+        {
+          "fileName": "Resting_vs__Numbing_Brain_Recharge_Guide_Large.jpeg",
+          "sectionID": "wonder-compass-chapter10",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "8d4a74e0c765b4d41983d79b81c129a44841a5fb5b3738176b70fc33b9515a69",
+          "sourceSHA256": "e8737d3efd282d85d9580a3aecf26008bccb80f2e7dc2d83d84fcae81ea2af0e",
+          "sha256": "289cd92b4686580272856fd6a714ef38c0f3f603990165313a937b2e1d5bc872",
+          "corrections": "\nChange `Maaks exhaustion` to `Masks exhaustion`.",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `Maaks exhaustion` to `Masks exhaustion`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "followupPrompt": "Use case: text-localization. Edit the supplied already-corrected Resting vs. Numbing infographic. Only two tiny background labels still contain gibberish. In the small purple VIDEO tile immediately right of the man's head, replace \"NOOE\" with exactly \"VIDEO\". In the small outlined speech bubble next to the lower-left gray brain, replace \"MOINS\" with exactly \"NEWS\". Preserve EVERYTHING else exactly, especially the corrected subtitle \"How to Truly Recharge Your Brain\" and the lower-right sentence \"Try a steady background sound if you find it restful.\" Do not change the composition, characters, art, other text, colors, dimensions or NotebookLM mark.",
+          "finalRepairPrompt": "Use case: text-localization. Image 1 is the FULL infographic to edit and return. Images 2 and 3 are magnified detail references locating TWO garbled labels in Image 1; do not output the crops or a collage. ERASE the garbled \"NOOE\" label from the little purple video tile beside the man's head (approximately x400–440, y680–700 in the 937×1678 full image). Leave that blue-purple title strip completely BLANK, preserving the white play icon underneath. ERASE the garbled \"NOMS\" text from the little speech bubble beside the lower-left gray brain (approximately x187–223, y1410–1432). Leave that bubble BLANK with its existing light-blue fill and dark outline. No replacement words in either spot. Keep every other pixel/content as close as possible to Image 1, including all legible copy, title, art, colors, composition, attribution and full portrait aspect ratio. Return only the corrected FULL infographic.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "pixelWidth": 937,
+          "pixelHeight": 1678,
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 17,
+            "date": "2026-10-25",
+            "baselineSHA256": "d6b732ebb3576f7367d02f1665cc60754182bdbdd6b117ae676a41a7da31683c",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1678,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R6",
+          "R10"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "289cd92b4686580272856fd6a714ef38c0f3f603990165313a937b2e1d5bc872",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_60-Second_Reset_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter10",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "31464fc03697d23b52cc63b530973cb972169faaad247ffb6b27982cfbc31435",
+      "sourceSHA256": "72ac18bdbe262340f0b2f991392e03d0d4d22261ee8957516570efa1d27ed198",
+      "sha256": "ebee4dec20889d2e04d94315d1a11bbf2ac812b234a0f55ff22bcf07457821d9",
+      "corrections": "\nChange Step 3 shows a figure in lotus pose above `Do not meditate` to redraw the figure slumped comfortably in the armchair from Step 1, eyes closed.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange Step 3 shows a figure in lotus pose above `Do not meditate` to redraw the figure slumped comfortably in the armchair from Step 1, eyes closed.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "a6531fa5f4b8d6891e30427932a4caca2fa39a420cd4dc123048a50acab52d60",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: The bottom-right sentence \"When the timer ends, you'll feel cleared static and a sense of calm.\" is ungrammatical. Replace only that sentence with exactly \"When the timer ends, notice how you feel.\" Preserve all other content.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: The bottom-right sentence \"When the timer ends, you'll feel cleared static and a sense of calm.\" is ungrammatical. Replace only that sentence with exactly \"When the timer ends, notice how you feel.\" Preserve all other content.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 28,
+        "date": "2026-10-25",
+        "baselineSHA256": "a6531fa5f4b8d6891e30427932a4caca2fa39a420cd4dc123048a50acab52d60",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Cure_for_the_Blur__Large.jpeg",
+      "sectionID": "wonder-compass-chapter10",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "09786a03974187955b27958c9e4d80a1f09d35b3fff8caa647c49325b2ff0611",
+      "sourceSHA256": "de119a749c324656b6b9633c7cfff85e91a96ff6eb2c9f290c337e5912c57d02",
+      "sha256": "09786a03974187955b27958c9e4d80a1f09d35b3fff8caa647c49325b2ff0611"
+    },
+    {
+      "fileName": "You_Are_The_Compass_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter10",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "d72099f382589bd913c54fd4efe45906dfdc9e79e6ba4984ed433c17098d1957",
+      "sourceSHA256": "cae576c9e7efbbf14d3ef6cdfe84a77bc26a74c6492164a2ce475acd7159e3e4",
+      "sha256": "d72099f382589bd913c54fd4efe45906dfdc9e79e6ba4984ed433c17098d1957"
+    },
+    {
+      "fileName": "The__0_Compass_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter11a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "7296b059ccbf5eb4aaa6c54318a2988eeea939fde1aac0167f26df6baab845ee",
+      "sourceSHA256": "b4c496fbe431ad6046175dbf841e505e4f6ca9228d8fd6fd4b709083504c2e0b",
+      "sha256": "be5fc88ef384d95d7928bea45c76a9dd8552931ad47f114b2537f926bb157bbe",
+      "corrections": "\nChange penny reads `IN GOD WE THO` to `IN GOD WE TRUST`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange penny reads `IN GOD WE THO` to `IN GOD WE TRUST`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.\n\nFollow-up edit:\n\nEdit target: supplied close-up crop of an infographic penny behind a magnifying glass. Correct ONLY the penny rim inscription to the FULL visible exact phrase \"IN GOD WE TRUST\". Currently the final letter T is missing or covered. Make inscription slightly smaller along the same curved top rim so all thirteen letters of IN GOD WE TRUST, including final T, are visible to the LEFT of the magnifying glass edge. Preserve the coin, portrait, LIBERTY label, glass, heading, captions and every other pixel as closely as possible. Keep the exact crop composition and aspect ratio. Do not change any other lettering.\n\nFollow-up edit:\n\nEdit target is this small close-up of curved lettering on a copper penny. The lettering MUST read exactly \"IN GOD WE TRUST\", with the full final T visible. Set the whole curved inscription in a smaller size and tighter tracking, starting at the same IN and ending BEFORE the magnifying glass covers it. Do not add or remove the glass, do not move the coin, and do not change the portrait, coin rim or background. Keep the identical 200:90 crop aspect ratio and same black capitals on copper. Only replace the curved inscription. Spell it I N (space) G O D (space) W E (space) T R U S T.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "3eceaea99c8099d3b284cad0554608a1c3b323ff2c82b5ede32119a0429d5b42",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: On the paper receipt at bottom left, change the gibberish heading \"BEESIPT\" to exactly \"RECEIPT\". Preserve the illustrated tiny dashed receipt lines and all other labels.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: On the paper receipt at bottom left, change the gibberish heading \"BEESIPT\" to exactly \"RECEIPT\". Preserve the illustrated tiny dashed receipt lines and all other labels.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 30,
+        "date": "2026-10-25",
+        "baselineSHA256": "3eceaea99c8099d3b284cad0554608a1c3b323ff2c82b5ede32119a0429d5b42",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Accessible_Compass_Large.jpeg",
+      "sectionID": "wonder-compass-chapter11b",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "ce43804e3d36e3912a38e2b08ef4868a8aa157bfcf97a392ecd33db53b894871",
+      "sourceSHA256": "aedd8a6910a26ae6baf9b13f92ce672879610a50c5ae8cdfb3bc841c8f03c500",
+      "sha256": "ce43804e3d36e3912a38e2b08ef4868a8aa157bfcf97a392ecd33db53b894871"
+    },
+    {
+      "fileName": "The_Safe_Compass_Infographic_Large.jpeg",
+      "sectionID": "wonder-compass-chapter11c",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "3481f2455c17f2264576dc72bf9d034eaaf0615a5174af5e4ab0e3a53e925e07",
+      "sourceSHA256": "45278ecd19b36be8b2690d8a41055fb17f5f566c78a58fa5f683d114aa292308",
+      "sha256": "b65d79c07f4f01e58ff160847e6bc29c8cd1f78225b799280ee2dd33de1ea312",
+      "corrections": "In the bottom row of the STANDARD ADVICE table, replace the misspelled phrase \"Wander simlessly\" with exactly \"Wander aimlessly\".",
+      "prompt": "In the bottom row of the STANDARD ADVICE table, replace the misspelled phrase \"Wander simlessly\" with exactly \"Wander aimlessly\".",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "The_Neurodivergent_Compass_Infographic_Large.jpeg",
+      "sectionID": "wonder-compass-chapter11d",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "037393d75d39e4161aa92120a819af18ad3cd837b03fe8e7bd7fa8b02b56a31c",
+      "sourceSHA256": "8556b885e990b59c64130c40181283a9e1472e4b4a4fec4bbccca73882c0e27c",
+      "sha256": "7ac13c12ad052ad10104066dd95b89ae1455a14f0b12f454c61e412cd1de03ab",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "037393d75d39e4161aa92120a819af18ad3cd837b03fe8e7bd7fa8b02b56a31c",
+          "status": "unchanged"
+        },
+        {
+          "fileName": "The_Neurodivergent_Compass_Infographic_Large.jpeg",
+          "sectionID": "wonder-compass-chapter11d",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "037393d75d39e4161aa92120a819af18ad3cd837b03fe8e7bd7fa8b02b56a31c",
+          "sourceSHA256": "8556b885e990b59c64130c40181283a9e1472e4b4a4fec4bbccca73882c0e27c",
+          "sha256": "255a41dcbb5ff48bb077483db2efadef2aef4b8fe2c45e08d6f6910c8fe0d4fd",
+          "pixelWidth": 714,
+          "pixelHeight": 1280,
+          "corrections": "\nChange `shieids` to `shields`.",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `shieids` to `shields`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 22,
+            "date": "2026-10-25",
+            "baselineSHA256": "037393d75d39e4161aa92120a819af18ad3cd837b03fe8e7bd7fa8b02b56a31c",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "R4: Remove ONLY the two literal asterisks surrounding with in the third intro line. That line must read \"adaptations redesign the 'Compass' loop to work with\". Leave every other line unchanged. There must be no asterisks before or after with; plain regular with is fine. Keep the same line breaks and original font.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Remove ONLY the two literal asterisks surrounding with in the third intro line. That line must read \"adaptations redesign the 'Compass' loop to work with\". Leave every other line unchanged. There must be no asterisks before or after with; plain regular with is fine. Keep the same line breaks and original font.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R4"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "255a41dcbb5ff48bb077483db2efadef2aef4b8fe2c45e08d6f6910c8fe0d4fd",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Strengthen_Your_Bonds_With_Low_Pressure_Large.jpeg",
+      "sectionID": "wonder-compass-chapter12a",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "b2a01122d501ee5de4b774712a72037f688e8e44a35e473ae78b2dd66e2cd970",
+      "sourceSHA256": "e25fa921b4f932eb3a6670e11d8853924aa9e0998b9e1d38a263655e9ef56caf",
+      "sha256": "b8800fa25ff7accc27ad7fa84fe1bf9ad7cac41af5af3cb142a9a997f798309a",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "b2a01122d501ee5de4b774712a72037f688e8e44a35e473ae78b2dd66e2cd970",
+          "status": "unchanged"
+        },
+        {
+          "fileName": "Strengthen_Your_Bonds_With_Low_Pressure_Large.jpeg",
+          "sectionID": "wonder-compass-chapter12a",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "b2a01122d501ee5de4b774712a72037f688e8e44a35e473ae78b2dd66e2cd970",
+          "sourceSHA256": "e25fa921b4f932eb3a6670e11d8853924aa9e0998b9e1d38a263655e9ef56caf",
+          "sha256": "9e6bf3fe47763368c2eeb2b013fae8968f7c309fdc9dc365291a27722e0b57b9",
+          "pixelWidth": 714,
+          "pixelHeight": 1280,
+          "corrections": "The 90% figure isn't in the chapter. It says \"a lot of the time, they'll eventually wander over and join you.\"\n\n- Gauge badge.\n  - **Now:** `90%`\n  - **Make it:** replace the gauge with a small open door, matching the plate's door art. No number.\n- Text under the badge.\n  - **Now:** `90% of the time, they will join you. Removing the pressure to participate allows genuine interest to grow.`\n  - **Make it:** `A lot of the time, they'll wander over and join you. Take the pressure off, and curiosity does the inviting.`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe 90% figure isn't in the chapter. It says \"a lot of the time, they'll eventually wander over and join you.\"\n\n- Gauge badge.\n  - **Now:** `90%`\n  - **Make it:** replace the gauge with a small open door, matching the plate's door art. No number.\n- Text under the badge.\n  - **Now:** `90% of the time, they will join you. Removing the pressure to participate allows genuine interest to grow.`\n  - **Make it:** `A lot of the time, they'll wander over and join you. Take the pressure off, and curiosity does the inviting.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 5,
+            "date": "2026-10-25",
+            "baselineSHA256": "b2a01122d501ee5de4b774712a72037f688e8e44a35e473ae78b2dd66e2cd970",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "R2: Correct \"Their persoective reveals tiny wonders\" to \"Their perspective reveals tiny wonders\". Full caption must remain exactly \"Their perspective reveals tiny wonders you normally overlook, like ants or sidewalk cracks.\" Keep the original three-line caption layout and its font.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Correct \"Their persoective reveals tiny wonders\" to \"Their perspective reveals tiny wonders\". Full caption must remain exactly \"Their perspective reveals tiny wonders you normally overlook, like ants or sidewalk cracks.\" Keep the original three-line caption layout and its font.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R2"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "9e6bf3fe47763368c2eeb2b013fae8968f7c309fdc9dc365291a27722e0b57b9",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Reclaiming_Intimacy_Relationship_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter12b",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "2bfcae89a8c014cd2de019297f765ae46beefa8b5fad83e51b53f896cce14262",
+      "sourceSHA256": "e9c132158057be27033b5b1a2d2fbfded3b30446911e16f9b82220c215ebf766",
+      "sha256": "e34fa9d7a8d8f829215c255cfeef815192b1bd1d48637926d7f0ecb7c65a4e31",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "2bfcae89a8c014cd2de019297f765ae46beefa8b5fad83e51b53f896cce14262",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "The chapter now gives Gottman's recommendation and Grewen's real finding.\n\n- 6-Second Kiss.\n  - **Now:** `Kisses over six seconds shift the brain from \"greeting\" to \"intimate connection.\"`\n  - **Make it:** `Six seconds is too long to be a reflex. It's a kiss with potential.`\n- 20-Second Hug.\n  - **Now:** `Extended hugs drop cortisol levels and synchronize the nervous systems of both partners.`\n  - **Make it:** `A long hug keeps your blood pressure down under stress. More hugs, fewer colds.`\n\n---\n\n## Part 2: Codex's cautious voice, painted into the plates\n\nThese plates now argue with the chapters beside them. Put bj's voice back.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe chapter now gives Gottman's recommendation and Grewen's real finding.\n\n- 6-Second Kiss.\n  - **Now:** `Kisses over six seconds shift the brain from \"greeting\" to \"intimate connection.\"`\n  - **Make it:** `Six seconds is too long to be a reflex. It's a kiss with potential.`\n- 20-Second Hug.\n  - **Now:** `Extended hugs drop cortisol levels and synchronize the nervous systems of both partners.`\n  - **Make it:** `A long hug keeps your blood pressure down under stress. More hugs, fewer colds.`\n\n---\n\n## Part 2: Codex's cautious voice, painted into the plates\n\nThese plates now argue with the chapters beside them. Put bj's voice back.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 6,
+        "date": "2026-10-25",
+        "baselineSHA256": "2bfcae89a8c014cd2de019297f765ae46beefa8b5fad83e51b53f896cce14262",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Four_Recipes_to_Beat_Creative_Block_Large.jpeg",
+      "sectionID": "wonder-compass-chapter13",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "77046cea9f3e8c53b7e5490233ad614b5454a58ca2628898da1575ecee793321",
+      "sourceSHA256": "ad432fc640c90a7bd4e1fd03b6c260240866fc43f6fb55a3054aac0f852c3ab5",
+      "sha256": "449374f9ed9d25c07fe397c52ee57d9b030e4ecfc630af853ec5d1ddb022c783",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "77046cea9f3e8c53b7e5490233ad614b5454a58ca2628898da1575ecee793321",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange `You can't fall when you're using trash` to `You can't fail when you're using trash`.\nChange `make 56 versions` to `make 50 versions`.\nChange `drled-up paints` to `dried-up paints`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `You can't fall when you're using trash` to `You can't fail when you're using trash`.\nChange `make 56 versions` to `make 50 versions`.\nChange `drled-up paints` to `dried-up paints`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 19,
+        "date": "2026-10-25",
+        "baselineSHA256": "77046cea9f3e8c53b7e5490233ad614b5454a58ca2628898da1575ecee793321",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Guide_to_Digital_Screen_Time_Types_Large.jpeg",
+      "sectionID": "wonder-compass-chapter14",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "a2344f265e8e479e6850650463b23cd01a58637cc241e7e5801fcfbce8a2dd32",
+      "sourceSHA256": "57b0a4e86f66c3de4ef3ea2ee48de38b62ecf75e8d4b8e50f0089380d5c6d28b",
+      "sha256": "52c50d69b6c53ab92696863e9048c7f84bc61324c0f2d56323c6b6e7151458bd",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Keep the exact three-column layout, title, illustrations, categories, diagnostic questions, and all practical examples. Correct only the rows that falsely infer biomarkers from kinds of screen use. In all three columns change the row label \"Biological Signature:\" to \"What to Notice:\". Drift row content: \"Was I choosing, or scrolling automatically?\" Tool row content: \"Did I finish what I came to do?\" Flow row content: \"Was I engaged in making or learning?\" Remove the claims \"High Cortisol\", \"Task-network engaged briefly\", and \"High Dopamine\" from these three rows. Preserve every other part of the image.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Keep the exact three-column layout, title, illustrations, categories, diagnostic questions, and all practical examples. Correct only the rows that falsely infer biomarkers from kinds of screen use. In all three columns change the row label \"Biological Signature:\" to \"What to Notice:\". Drift row content: \"Was I choosing, or scrolling automatically?\" Tool row content: \"Did I finish what I came to do?\" Flow row content: \"Was I engaged in making or learning?\" Remove the claims \"High Cortisol\", \"Task-network engaged briefly\", and \"High Dopamine\" from these three rows. Preserve every other part of the image.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "A_Guide_to_Failing_Better_Large.jpeg",
+      "sectionID": "wonder-compass-chapter15",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "3ccebdfc2bc0752d2f8ccef56184a7427d82b0ea96f8efec5741d1d1dd2bf402",
+      "sourceSHA256": "01d1b8325bbfa0fa9b2f2a2174932fdd9ae058d966a6009044c6735c984fa862",
+      "sha256": "902b6f601ba29dc8fba9401b0d7f362a9bba3bb003af724ad2bbb75c511a9e46",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "3ccebdfc2bc0752d2f8ccef56184a7427d82b0ea96f8efec5741d1d1dd2bf402",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "The insula/\"same pathway\" claim was removed from the chapter.\n\n- North-fails solution.\n  - **Now:** `Instead of seeking heauty, find something that irritates you. Disgust uses the same neural pathways as curiosity.`\n  - **Make it:** `Instead of seeking beauty, find something that irritates you. When your interest goes offline, your eye for flaws keeps running. Use it.`",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe insula/\"same pathway\" claim was removed from the chapter.\n\n- North-fails solution.\n  - **Now:** `Instead of seeking heauty, find something that irritates you. Disgust uses the same neural pathways as curiosity.`\n  - **Make it:** `Instead of seeking beauty, find something that irritates you. When your interest goes offline, your eye for flaws keeps running. Use it.`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 2,
+        "date": "2026-10-25",
+        "baselineSHA256": "3ccebdfc2bc0752d2f8ccef56184a7427d82b0ea96f8efec5741d1d1dd2bf402",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Survival_Compass_for_Darkest_Days_Large.jpeg",
+      "sectionID": "wonder-compass-chapter16",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "1d43b5971140cbf8db2a59b9bfd81798f6c1db171a4617106278bf515bcbe1ab",
+      "sourceSHA256": "1179b08ac2e16dc078d0ec7a4feeb1ff7c820613bfdee79ca726922830b38d04",
+      "sha256": "be8b645f22f96799e1153769208425d807b580a8ea0c9f3e74582a5a3222f45f",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "1d43b5971140cbf8db2a59b9bfd81798f6c1db171a4617106278bf515bcbe1ab",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "The chapter now credits Janoff-Bulman's term.\n\n- Right heading in \"The Problem\".\n  - **Now:** `Meaning Violation`\n  - **Make it:** `Shattered Assumptions`",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe chapter now credits Janoff-Bulman's term.\n\n- Right heading in \"The Problem\".\n  - **Now:** `Meaning Violation`\n  - **Make it:** `Shattered Assumptions`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 4,
+        "date": "2026-10-25",
+        "baselineSHA256": "1d43b5971140cbf8db2a59b9bfd81798f6c1db171a4617106278bf515bcbe1ab",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "How_to_Find_Wonder_After_Work_Large.jpeg",
+      "sectionID": "wonder-compass-chapter17",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "e38564218b71163cecf29b2d7f81230dfc18deda10984e7aac10edc684ab824c",
+      "sourceSHA256": "dc5ffa597f3a0ec134544e84c4ee1623e833ffbaaff71bf0d94918980100441f",
+      "sha256": "e38564218b71163cecf29b2d7f81230dfc18deda10984e7aac10edc684ab824c"
+    },
+    {
+      "fileName": "Break_the_Trance_of_the_Familiar_Large.jpeg",
+      "sectionID": "wonder-compass-chapter18",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "97b8595880b244801eee2d509df9977ffe631941c9fb6b16c06368a049602ec7",
+      "sourceSHA256": "d57b0da7d8a717158ba867cf7680240abb5d4b818f265cb96b83576b605e6bbb",
+      "sha256": "ddb26f5304e9906ed67936de00705254d36873a4c647f77610c5970fc30cb58f",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "97b8595880b244801eee2d509df9977ffe631941c9fb6b16c06368a049602ec7",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange `a detall you usually ignore` to `a detail you usually ignore`.\nChange `Tum observation` to `Turn observation`.\nChange `product packeging` to `product packaging`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `a detall you usually ignore` to `a detail you usually ignore`.\nChange `Tum observation` to `Turn observation`.\nChange `product packeging` to `product packaging`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 20,
+        "date": "2026-10-25",
+        "baselineSHA256": "97b8595880b244801eee2d509df9977ffe631941c9fb6b16c06368a049602ec7",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Cure_Your_Green_Blindness_Now__Large.jpeg",
+      "sectionID": "wonder-compass-chapter19",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "3b823f2dc0978dec814f5f746d33cd3949e1daca1abfa1d5ccda36edad861b02",
+      "sourceSHA256": "33adb6e5bf4e2755c603a7636fad9b467f7cd69790eee1404274f93aedc785a1",
+      "sha256": "3b823f2dc0978dec814f5f746d33cd3949e1daca1abfa1d5ccda36edad861b02"
+    },
+    {
+      "fileName": "Curing_Concrete_Blindness__Urban_Guide_Large.jpeg",
+      "sectionID": "wonder-compass-chapter20",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "986c79222c77dfd2417d5a066da5d4c7a7ca58d6e17e992cb05f2a4e0f7a4d71",
+      "sourceSHA256": "0fbf512d861acc92d27b24416225efba4d4abb7b56a30d243486221603169efa",
+      "sha256": "d38c776c8d30ac2a03a48ab698f65ec21bd15df1121ae1dbe4c2305a9a1ac374",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "986c79222c77dfd2417d5a066da5d4c7a7ca58d6e17e992cb05f2a4e0f7a4d71",
+          "status": "unchanged"
+        },
+        {
+          "fileName": "Curing_Concrete_Blindness__Urban_Guide_Large.jpeg",
+          "sectionID": "wonder-compass-chapter20",
+          "family": "notebooklm",
+          "status": "corrected",
+          "originalBundledSHA256": "986c79222c77dfd2417d5a066da5d4c7a7ca58d6e17e992cb05f2a4e0f7a4d71",
+          "sourceSHA256": "0fbf512d861acc92d27b24416225efba4d4abb7b56a30d243486221603169efa",
+          "sha256": "ac0a9759a8b6cb7c98668db55afb4f4ce323b92db9cce1843d55a9d5429d2a55",
+          "pixelWidth": 714,
+          "pixelHeight": 1280,
+          "corrections": "The \"1.3 seconds\" figure came from a journal that doesn't exist. It was removed\nfrom the chapter, and the plate contradicts itself (1.3 in the badge, 1.5 in the\ntext).\n\n- Yellow badge.\n  - **Now:** `1.3 seconds`\n  - **Make it:** `42%`\n- Text beside the badge.\n  - **Now:** `The reality: Strangers look at you for an average of 1.5 seconds. You have more freedom to explore and be curious than you think.`\n  - **Make it:** `The reality: City people glance and look away. And when one man stood on a New York sidewalk staring up at a building, 42% of passersby looked up too. Looking up isn't weird. It's contagious.`\n- Intro paragraph.\n  - **Now:** `city dwellere`\n  - **Make it:** `city dwellers`",
+          "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\nThe \"1.3 seconds\" figure came from a journal that doesn't exist. It was removed\nfrom the chapter, and the plate contradicts itself (1.3 in the badge, 1.5 in the\ntext).\n\n- Yellow badge.\n  - **Now:** `1.3 seconds`\n  - **Make it:** `42%`\n- Text beside the badge.\n  - **Now:** `The reality: Strangers look at you for an average of 1.5 seconds. You have more freedom to explore and be curious than you think.`\n  - **Make it:** `The reality: City people glance and look away. And when one man stood on a New York sidewalk staring up at a building, 42% of passersby looked up too. Looking up isn't weird. It's contagious.`\n- Intro paragraph.\n  - **Now:** `city dwellere`\n  - **Make it:** `city dwellers`\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+          "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+          "fixList": {
+            "document": "docs/wonder-compass-plate-fixes.md",
+            "entry": 1,
+            "date": "2026-10-25",
+            "baselineSHA256": "986c79222c77dfd2417d5a066da5d4c7a7ca58d6e17e992cb05f2a4e0f7a4d71",
+            "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+          }
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "R1: Correct ONLY the tiny handwriting inside the open journal to \"Document moments of contrast, like a flower growing through a subway grate.\" Keep the same tilted handwritten style and perspective on the page. Set short readable lines that all fit on the paper, away from the hand and pen. Preserve the page edges, hand, pen and drawings exactly.",
+      "prompt": "Use case: text-localization. EDIT TARGET is this close-up crop from an existing Wonder Compass infographic. Change only the specified lettering. Keep every unlisted word, all artwork, palette, background, spacing and composition unchanged. Match the existing caption typography and original crop aspect ratio exactly. Do not add or remove padding. Return the whole corrected crop. Use the exact replacement text, with correct spelling and punctuation. Correct ONLY the tiny handwriting inside the open journal to \"Document moments of contrast, like a flower growing through a subway grate.\" Keep the same tilted handwritten style and perspective on the page. Set short readable lines that all fit on the paper, away from the hand and pen. Preserve the page edges, hand, pen and drawings exactly.",
+      "method": "built-in imagegen close-up edits; original-pixel region compositing with blended edges; progressive JPEG quality 95 and 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "round": 2,
+        "entries": [
+          "R1"
+        ],
+        "date": "2026-10-25",
+        "baselineSHA256": "ac0a9759a8b6cb7c98668db55afb4f4ce323b92db9cce1843d55a9d5429d2a55",
+        "verification": "Final JPEG repair crops visually inspected; local OCR checks and enlarged handwriting review; original pixels outside repair regions retained before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Office_Compass__Re-engage_at_Work_Large.jpeg",
+      "sectionID": "wonder-compass-chapter21",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "c40f2db96e229628fd76c185137401f2e26cda92fd4254cdc8ca1c6ed6719f1c",
+      "sourceSHA256": "99aea78c8dd3379557c73b88e577c13411ad12983a1022f93fb94a97985102e2",
+      "sha256": "c40f2db96e229628fd76c185137401f2e26cda92fd4254cdc8ca1c6ed6719f1c"
+    },
+    {
+      "fileName": "The_4-Hour_Vacation_Blueprint_Large.jpeg",
+      "sectionID": "wonder-compass-chapter22",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "99b8c0e1e9bac8eb38d85f710780ee08933da5d3015bb26ddaa51144f05912eb",
+      "sourceSHA256": "fefb6082dfa067cdb0fc02786e1cf6c48cf52df3d43b2928fbdb0c42caed3050",
+      "sha256": "9b64e7d4861b3555d2a3f270f643fe643ce5d8eb6c301a2fd0412424a5b025d4",
+      "corrections": "\nChange `THE RETURN` has no text to add under it: `Capture your Souvenir before you drive. Then a treat for the road.`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `THE RETURN` has no text to add under it: `Capture your Souvenir before you drive. Then a treat for the road.`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "61cdc0e5805f8c7a781a6b3c2aa3bf0f6d39d94b42cd8648eee31323807ee92a",
+          "status": "corrected",
+          "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the small map icon next to BREAK THE \"20-MILE LEASH\", change the numeric map label from \"31\" to \"21\". It must agree with \"Driving just 21 miles\" in the adjacent original copy. Change nothing else.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: In the small map icon next to BREAK THE \"20-MILE LEASH\", change the numeric map label from \"31\" to \"21\". It must agree with \"Driving just 21 miles\" in the adjacent original copy. Change nothing else.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+          "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+        }
+      ],
+      "pixelWidth": 937,
+      "pixelHeight": 1679,
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 27,
+        "date": "2026-10-25",
+        "baselineSHA256": "61cdc0e5805f8c7a781a6b3c2aa3bf0f6d39d94b42cd8648eee31323807ee92a",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Solve_the_Vacation_Burnout_Paradox_Large.jpeg",
+      "sectionID": "wonder-compass-chapter23",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "49160b0c6ec3db196d37105c64fc5f85d3e5790877a3910e43b7b072ec72b571",
+      "sourceSHA256": "5701e3b3af8031ff6d86eb4fbe0a98934257702dd4e49b5e7c4657c289425af8",
+      "sha256": "815ca36aee640231a71d034aa2f11b5c4f062d952f284550f88b365329f4f675",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "49160b0c6ec3db196d37105c64fc5f85d3e5790877a3910e43b7b072ec72b571",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange `Zeigamik` to `Zeigarnik`.\nChange `one lest activity` to `one last activity`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange `Zeigamik` to `Zeigarnik`.\nChange `one lest activity` to `one last activity`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 21,
+        "date": "2026-10-25",
+        "baselineSHA256": "49160b0c6ec3db196d37105c64fc5f85d3e5790877a3910e43b7b072ec72b571",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "Survive_Any_Waiting_Room_Strategy__Large.jpeg",
+      "sectionID": "wonder-compass-chapter24",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "5d759fe9c4119b6f164fda112f77effb2ee350902d7fea67935efcfdc8d6907d",
+      "sourceSHA256": "9f040e604afecbbdf970b785c92899f2f690d64c32a965532f6278088bc50b8d",
+      "sha256": "5d759fe9c4119b6f164fda112f77effb2ee350902d7fea67935efcfdc8d6907d"
+    },
+    {
+      "fileName": "Softening_the_Landing_After_Adventure_Large.jpeg",
+      "sectionID": "wonder-compass-chapter25",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "bb7e25542b45a29b4e424696596d14f178f6e053d506e389f7641a9b33d2e52e",
+      "sourceSHA256": "9c4c6b7259050c15e0d6c67452788609d88961bbcb1a27a362d796cfbd9dfdd6",
+      "sha256": "c644ba7f5802c426ca5c4146997611ac6b05f06acf935a9fcf0941c3eb293713",
+      "corrections": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Keep all original illustrations, bridge, headings, practical advice and layout. Correct just two numerical evidence panels that no longer match the book's corrected chapter. Replace the left \"40%\" panel and \"40% Higher Satisfaction\" heading with \"LEAVE SOME SPACE\" and \"Give the Return Room\"; text \"Build in time to unpack and settle, rather than rushing straight to the next obligation.\" Replace the right \"23%\" and \"23% Lower Cortisol Levels\" heading with \"RECALL A GOOD MOMENT\" and \"Carry One Memory Forward\"; text \"Positive-memory recall has reduced stress responses in experiments. A souvenir gives you something specific to remember.\" Keep the small smile and heart/wave illustrations in those cards, but no invented replacement percentages.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "prompt": "Use case: text-localization. Asset type: existing in-app Wonder Compass infographic. EDIT TARGET is the supplied image. Make only these corrections: Keep all original illustrations, bridge, headings, practical advice and layout. Correct just two numerical evidence panels that no longer match the book's corrected chapter. Replace the left \"40%\" panel and \"40% Higher Satisfaction\" heading with \"LEAVE SOME SPACE\" and \"Give the Return Room\"; text \"Build in time to unpack and settle, rather than rushing straight to the next obligation.\" Replace the right \"23%\" and \"23% Lower Cortisol Levels\" heading with \"RECALL A GOOD MOMENT\" and \"Carry One Memory Forward\"; text \"Positive-memory recall has reduced stress responses in experiments. A souvenir gives you something specific to remember.\" Keep the small smile and heart/wave illustrations in those cards, but no invented replacement percentages.\nInvariants: preserve all other wording verbatim, all illustrations, the visual style, panel arrangement, colors, original full portrait aspect ratio (714 x 1280), and existing NotebookLM attribution. Do not redesign the infographic or add decoration. Keep exact corrected lettering readable at zoom.",
+      "method": "built-in imagegen edit; JPEG format conversion at full output resolution"
+    },
+    {
+      "fileName": "Wonder_Compass__Noticing_to_Navigating_Large.jpeg",
+      "sectionID": "wonder-compass-chapter26",
+      "family": "notebooklm",
+      "status": "corrected",
+      "originalBundledSHA256": "961784620f56f359b1bf87ba8c5b61dad3cade3dafa7fc47229f96467dedcf9d",
+      "sourceSHA256": "7b3308436978cf21e63cd64fd4056d89c9559c6af65c26792142fb1e4e4f52db",
+      "sha256": "3694380c6f2e22edfcfc00a76262176256ebce009a4b9a0cc64aaef3ea5bfc47",
+      "repairHistory": [
+        {
+          "date": "2026-10-25",
+          "sha256": "961784620f56f359b1bf87ba8c5b61dad3cade3dafa7fc47229f96467dedcf9d",
+          "status": "unchanged"
+        }
+      ],
+      "pixelWidth": 714,
+      "pixelHeight": 1280,
+      "corrections": "\nChange bottom badge `1 Your Moments Become Your Data` to `3 Your Moments Become Your Data`.",
+      "prompt": "Use case: text-localization. Edit target: the supplied existing in-app Wonder Compass infographic. Make ONLY the following changes, using every replacement verbatim:\n\nChange bottom badge `1 Your Moments Become Your Data` to `3 Your Moments Become Your Data`.\nInvariants: preserve every other word verbatim and preserve all composition, illustrations, palette, typography style, layout, borders, and the NotebookLM mark. Only redraw an element explicitly requested above. Do not add scientific caveats or rewrite any unlisted copy. Fit new copy inside its existing panel with legible lettering. Return the entire infographic, same full portrait aspect ratio, at full resolution; do not crop. Spell-check all output lettering against the input and these exact replacements.",
+      "method": "built-in imagegen edits; composited only specified repair regions onto original pixels; JPEG quality 95 with 4:4:4 chroma",
+      "fixList": {
+        "document": "docs/wonder-compass-plate-fixes.md",
+        "entry": 29,
+        "date": "2026-10-25",
+        "baselineSHA256": "961784620f56f359b1bf87ba8c5b61dad3cade3dafa7fc47229f96467dedcf9d",
+        "verification": "Changed-region JPEG crops visually inspected at native resolution; full JPEG text checked with local OCR; original pixels outside repair rectangles preserved before JPEG encoding."
+      }
+    },
+    {
+      "fileName": "The_Clubhouse_Community_and_Features_Large.jpeg",
+      "sectionID": "wonder-compass-appendix-a",
+      "family": "notebooklm",
+      "status": "unchanged",
+      "originalBundledSHA256": "76046817f8cb5cecf675f917b3c9335ac7393f671c8a88de008328c6ad415cfd",
+      "sourceSHA256": "c2beba57e805ee932e1dc3eb5c8ec528d6da3331c84fb1fd0df3fbd8c75f6b00",
+      "sha256": "76046817f8cb5cecf675f917b3c9335ac7393f671c8a88de008328c6ad415cfd"
+    },
+    {
+      "fileName": "The_Spark_Menu_-_1_Large.jpeg",
+      "sectionID": "wonder-compass-appendix-d",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "773e76d3d5e0e987303dedad4320ef4f9f6facfb983024775fa12714574df11a",
+      "sourceSHA256": "d5242b6a5594f1a8466e6032d76d7e8bc3d2a45512dd135411c004704e031d52",
+      "sha256": "773e76d3d5e0e987303dedad4320ef4f9f6facfb983024775fa12714574df11a"
+    },
+    {
+      "fileName": "The_Spark_Menu_-_2.png",
+      "sectionID": "wonder-compass-appendix-d",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "c3c7429249a47b1dec0e8d356add1b368d80eb7a10c73de8b8781cb4cef3094a",
+      "sourceSHA256": "cbeeba56fd8fca47307b9d701b63dca26c354fc1fc3eb19369be66d8eafd5220",
+      "sha256": "c3c7429249a47b1dec0e8d356add1b368d80eb7a10c73de8b8781cb4cef3094a"
+    },
+    {
+      "fileName": "The_Playful_Mission_Menu_-_1_Large.jpeg",
+      "sectionID": "wonder-compass-appendix-e",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "a94ca8ac488302b70d864c1e77abe4e88ab5617ef4e830a3611a2695d769d745",
+      "sourceSHA256": "2939b749e70916f3f9508c3227d1e86cc206d771fbbbd72399dca8414b254ddf",
+      "sha256": "a94ca8ac488302b70d864c1e77abe4e88ab5617ef4e830a3611a2695d769d745"
+    },
+    {
+      "fileName": "The_Playful_Mission_Menu_-_2.png",
+      "sectionID": "wonder-compass-appendix-e",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "e94079ecb529c47dbf81d620514b8454aec6c885f1092b63e8c1dec4ffeb36ab",
+      "sourceSHA256": "e94079ecb529c47dbf81d620514b8454aec6c885f1092b63e8c1dec4ffeb36ab",
+      "sha256": "e94079ecb529c47dbf81d620514b8454aec6c885f1092b63e8c1dec4ffeb36ab"
+    },
+    {
+      "fileName": "North___Notice_Large.jpeg",
+      "sectionID": "wonder-compass-appendix-f",
+      "family": "authored-menu-or-worksheet",
+      "status": "unchanged",
+      "originalBundledSHA256": "e07274b5993b183d2a537157c5086e2be3bcc227df4c467dff05f5b2f206a63d",
+      "sourceSHA256": "a395da7e2181a1b6a1f4e90a3c64e48248750bf21fdc5134ff915b12de5d0927",
+      "sha256": "e07274b5993b183d2a537157c5086e2be3bcc227df4c467dff05f5b2f206a63d"
+    }
+  ],
+  "followUp": {
+    "date": "2026-10-25",
+    "source": "docs/wonder-compass-plate-fixes.md",
+    "plates": 30,
+    "scope": "Only the 30 listed plates; chapter prose and unlisted images unchanged."
+  },
+  "roundTwo": {
+    "date": "2026-10-25",
+    "source": "docs/wonder-compass-plate-fixes.md",
+    "entries": [
+      "R1",
+      "R2",
+      "R3",
+      "R4",
+      "R5",
+      "R6",
+      "R7",
+      "R8",
+      "R9",
+      "R10",
+      "R11"
+    ],
+    "plates": 10,
+    "scope": "Only the appended R1-R11 corrections; no chapter prose edits or unlisted image changes."
+  }
+}

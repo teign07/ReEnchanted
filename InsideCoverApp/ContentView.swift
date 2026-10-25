@@ -20811,6 +20811,37 @@ struct ContentView: View {
             )))
             appLog.info("Smoke: spell surface requested: \(spell.id, privacy: .public)")
         }
+        // `--smoke-open-wonder-compass=<section id>` opens one Wonder Compass
+        // reading page, so its formatting can be checked without tapping through.
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--smoke-open-wonder-compass=") }) {
+            // Let the launch desk settle first; it replaces an earlier surface.
+            try? await Task.sleep(for: .seconds(3))
+            handleGlowMenuAction(.openBookSection(String(argument.dropFirst("--smoke-open-wonder-compass=".count))))
+            appLog.info("Smoke: Wonder Compass section requested: \(argument, privacy: .public)")
+        }
+        // `--smoke-render-wonder-compass=<id>,<id>…` draws whole sections, unpaginated,
+        // into PNGs in the app's tmp directory for a layout read-through.
+        if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--smoke-render-wonder-compass=") }) {
+            for id in argument.dropFirst("--smoke-render-wonder-compass=".count).split(separator: ",").map(String.init) {
+                guard let snippet = BookReferenceCatalog.wonderCompass.first(where: { $0.id == id }) else { continue }
+                let count = snippet.wonderCompassBlocks(for: snippet.body).count
+                for start in stride(from: 0, to: count, by: 25) {
+                    let renderer = ImageRenderer(content: WonderCompassReadingView(
+                        snippet: snippet, text: snippet.body, blockRange: start..<(start + 25)) { _ in }
+                        .padding(.horizontal, 26)
+                        .padding(.vertical, 30)
+                        .frame(width: 380)
+                        .background(BookPalette.page))
+                    renderer.scale = 1.5
+                    let url = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(String(format: "%@-%03d.png", id, start))
+                    if let data = renderer.uiImage?.pngData() {
+                        try? data.write(to: url)
+                        appLog.info("Smoke: rendered \(url.path, privacy: .public)")
+                    }
+                }
+            }
+        }
         #endif
 
         #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)

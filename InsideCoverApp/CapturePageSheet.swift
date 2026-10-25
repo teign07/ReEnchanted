@@ -8710,6 +8710,19 @@ struct CapturePageSheet: View {
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
                     AuthoredStoryPlateView(surface: surface)
                     AuthoredSceneProseView(text: surface.payload.body)
+                } else if surface.type == .wonderCompass,
+                          surface.payload.metadata["readingPage"] == "true",
+                          let snippetID = surface.payload.metadata["snippetID"],
+                          let snippet = BookReferenceCatalog.wonderCompass.first(where: { $0.id == snippetID }) {
+                    let navigate = onNavigateToSurface
+                    WonderCompassReadingView(snippet: snippet, text: surface.payload.body) { sectionID in
+                        guard let chapter = BookReferenceCatalog.wonderCompass.first(where: { $0.id == sectionID }) else { return }
+                        let nextPage = WonderCompassPageSourceAdapter().readingSurface(for: chapter)
+                        BookFeedback.play(.openPage)
+                        DispatchQueue.main.async {
+                            navigate(nextPage)
+                        }
+                    }
                 } else {
                     Text(taleToldBody ?? surface.payload.metadata["taleFallbackBody"] ?? surface.payload.body)
                         .font(.system(.body, design: .serif))

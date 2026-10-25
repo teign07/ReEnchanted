@@ -78,6 +78,7 @@ let package = Package(
                 "HandbookPuzzles.swift",
                 "HandbookKeepsakes.swift",
                 "ReferenceLibrary.swift",
+                "WonderCompassFormatting.swift",
                 "Illumination.swift",
                 "EditionMarginalia.swift",
                 "WorldSystems.swift",

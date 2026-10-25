@@ -325,3 +325,36 @@ Still open: Chapter 25 cites a "Coffee Ritual (Chapter 12)" and a "Candle Ritual
   - Rewrote Baumeister (with the replication caveat), beta/alpha, the spotlight effect, Goffman, Foulsham, Eagleman, Nawijn, Kühnel & Sonnentag, state/trait curiosity, Maguire, RAS, mentalizing, and the oddball effect.
   - Stripped all revision-history sentences ("Replaces…", "The chapter retains…", the "Added in" headers). The notes now cite sources and give caveats only.
 - **8B:** the companion-robot line now matches Imamura et al. 2023 (LOVOT).
+
+## 1A voice pass, 25 October 2026
+
+- **1A, "Stop for a second" through "the real fun begins":** 799 words became 221. bj: it was too long, put words in the Reader's mouth, and made the feeling bigger than it really is. Cut: the grief ("no funeral," "condolence cards," "grieving time you were alive but not awake"), the anger ("you're allowed to be mad," "Where the hell was I?"), the frosted glass, and the lines telling the Reader what they feel. Kept: the tree, the breakfast joke and the coffee as questions; memory needs attention, so ordinary days slip; you can't see the old tree, but you can see it tomorrow. No science changed.
+
+## 1B Rut Assessment voice pass, 25 October 2026
+
+- **11–12 band:** 1,219 words became 192 (the other bands are about 100). The 24 October restart had brought back what the 21 October review removed: medication and antidepressant timelines, "Week 1-2: just survive, don't read anything yet," a week-by-week plan written twice, a six-month retake and a promise. It now says plainly that a homemade list can't tell you what's going on; persistence and getting in the way of life can (NIMH), so tell a doctor or therapist. Kept: bj's "I've been there" and "Believe me, I tried," 988 (call or text), Chapter 16 for heavy seasons, and stopping a loop that makes things heavier. The "encapsulate the final score in lines" note and its dividers are gone.
+- **8–10 band:** "every attempt to move makes you sink deeper" contradicted the book. Now: "A loop like that can be broken at any point."
+- **Assessment intro:** 128 words became 23. Cut the lines that told the Reader what they'd feel ("I already know roughly what you're about to find out," the jolt of recognition, looking up from the page, "half-suspecting what your score is going to be," "the one you'd only admit at 2 AM," "not the answer you'd give your doctor"). Kept: bj's hundred self-assessments, "answer honestly… the true one," and "I've lived the number. All of them."
+
+## Words in the Reader's mouth, book-wide, 25 October 2026
+
+bj: keep the idea, lose the technique. 55 lines in 25 sections (Read This First, Introduction, 1A–26; two `preview` copies changed with their bodies). Kept: generic "you" explaining how brains work, the Caveman's own lines, dated scenes ("It's 8:47 PM on Sunday"), the symptom epigraphs, quiz statements and "If you're…" menus.
+
+- **"I know what you're thinking: '…'"** (3, 5, 6A, 6B, 8A, 9, 12B, 14, 18, 24, 25): the objection is now asked as a question or offered as a maybe.
+- **Feelings stated as fact or promised** (Read This First's "You felt it," 1A's "I bet I know how you feel" and "the shift you just felt," 4A, 6B, 7, 8B, 10's timer and 30 days, 19, 25's crash): now "if," "might," "check," or a question. 10's 30 days now names the real mechanism: memory measures time by what was new in it.
+- **Scripted reactions** (4B's permission slip, 9's jar and six months, 11D, 12A, 15, 22, 25's Week 1): "Say…" scenes or "it's easy to…".
+- **"You're saying: '…'"** (2, 11A, 20, 21): the Recipe, the Souvenir, or the act says it.
+- **Readers' identities voiced** (11C): women, people of color and queer readers no longer get scripted thoughts; the advice is shown failing to ask about their risks.
+- **Beliefs assigned** (16, shattered assumptions): "Most of us carry beliefs like these."
+- **26:** the 2 AM P.S. ("I know you're tired. I know you're scared…"), "some part of you called out for help," the clipboard worry and "you're tired, your battery is dead."
+- **6B:** the made-up "47 times a day" and "2 hours and 23 minutes," and "you're lying," are gone.
+- **10, "Why do we scroll?":** 140 words became 73; the next paragraph now opens "How uncomfortable?". Gone: "silence is terrifying," the gag (said twice), the heartbeat, "so tired you could cry," and the drug that makes you forget you're bleeding. Kept: the phone fills the quiet so you don't have to hear yourself; "distraction dressed up as downtime"; Real Rest lets the quiet in.
+
+## Overdrama pass, 25 October 2026
+
+bj asked for these four; 1B's death statistics (Surgeon General, WHO, Whitehall boredom) stay as they are.
+
+- **1A, long-term health:** 606 words became 174. The credit-card-debt timeline, "The 'Why Am I Falling Apart?' Phase," "The Silent Tax," organ damage, "you're rusting" and "The Brain Shrink" are gone. Kept in plain sentences: stress wrecks sleep, the deliberate cold-virus study (Cohen 2012), ties to diabetes and heart disease, the hippocampus as a place stress hits hardest (Lupien, McEwen), and bj's personal fear about depression with the inflammation account stated as "for some people" (Miller & Raison). "Your hippocampus can grow back" became "can recover." The summary bullet now matches.
+- **25, the post-trip crash:** "the more dead you might feel" became "the flatter things can feel." The Resentment Trap no longer credits Maslach for vacation fade-out; it uses Kühnel & Sonnentag (2011), already in the Notes: benefits faded within about a month, faster with demanding jobs. Gone: "You feel betrayed," "not to be drowning," and the scripted "hellscape… This is torture."
+- **10:** eyes "like they've been assaulted" became "dry and scratchy"; "Here's the cruel part" is gone.
+- **15:** "You're not bored. You're not numb. You're drowning." became "It's something deeper. I call it the Abyss."

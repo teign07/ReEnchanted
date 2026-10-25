@@ -14,6 +14,13 @@ struct ReferenceSnippet: Codable, Identifiable, Equatable {
     var url: String? = nil
     var publishedAt: String? = nil
     var preview: String? = nil
+    /// Original book plates, anchored to complete paragraphs in the edited
+    /// manuscript. Older and reader-imported libraries remain text-only.
+    var illustrations: [ReferenceIllustration]? = nil
+    /// Authored contents labels point at the existing reading section IDs.
+    var contentsLinks: [ReferenceContentsLink]? = nil
+    /// Wonder Compass reading notes; see `WonderCompassFormatter`.
+    var layout: ReferenceLayoutNotes? = nil
 
     /// The living Book offers a small piece first. The complete source page is
     /// still present in `body`, but it belongs behind a deliberate reading
@@ -22,6 +29,117 @@ struct ReferenceSnippet: Codable, Identifiable, Equatable {
     var leafExcerpt: String {
         let source = preview?.nonEmpty ?? body.nonEmpty ?? prompt
         return source.bookPreviewSentenceLimit(2)
+    }
+}
+
+struct ReferenceIllustration: Codable, Identifiable, Equatable {
+    enum Placement: String, Codable { case before, after }
+
+    var id: String
+    var fileName: String
+    var title: String
+    var kind: String
+    var pixelWidth: Int
+    var pixelHeight: Int
+    var anchor: String
+    var placement: Placement
+    var sourceChapter: String
+    var sha256: String
+    /// The EPUB master remains independently verifiable after compression.
+    var sourceSHA256: String? = nil
+}
+
+enum ReferenceReadingBlock: Equatable {
+    case text(String)
+    case illustration(ReferenceIllustration)
+    case contents([ReferenceContentsLink])
+}
+
+struct ReferenceContentsLink: Codable, Identifiable, Equatable {
+    var label: String
+    var sectionID: String
+    var id: String { label }
+}
+
+extension ReferenceSnippet {
+    /// Long chapters and the collected references must not become one enormous
+    /// SwiftUI Text. Keep each displayed run small, retaining every character
+    /// so selection, references, and the authored manuscript stay intact.
+    static let readingTextChunkLimit = 2_000
+
+    static func readingTextChunks(for text: String) -> [String] {
+        var chunks: [String] = []
+        var start = text.startIndex
+        while start < text.endIndex {
+            let limit = text.index(start, offsetBy: readingTextChunkLimit, limitedBy: text.endIndex)
+                ?? text.endIndex
+            var end = limit
+            if limit < text.endIndex {
+                // Prefer a paragraph boundary; a long paragraph can still be
+                // divided at whitespace. Even an unbroken token stays bounded.
+                if let paragraph = text.range(of: "\n\n", options: .backwards, range: start..<limit) {
+                    end = paragraph.upperBound
+                } else if let space = text[start..<limit].lastIndex(where: { $0.isWhitespace }) {
+                    end = text.index(after: space)
+                }
+            }
+            chunks.append(String(text[start..<end]))
+            start = end
+        }
+        return chunks
+    }
+
+    /// Resolve paragraph boundaries once per reading view, preserving the
+    /// original text and the EPUB's order for adjacent plates. A changed or
+    /// missing anchor leaves the prose intact instead of guessing a position.
+    func readingBlocks(for text: String) -> [ReferenceReadingBlock] {
+        let paragraphs = text.components(separatedBy: "\n\n")
+        var boundaries: [Int: [ReferenceIllustration]] = [:]
+        for illustration in illustrations ?? [] {
+            guard let index = paragraphs.firstIndex(of: illustration.anchor),
+                  paragraphs.lastIndex(of: illustration.anchor) == index else { continue }
+            let boundary = index + (illustration.placement == .after ? 1 : 0)
+            boundaries[boundary, default: []].append(illustration)
+        }
+        guard !boundaries.isEmpty else { return contentsReadingBlocks(for: text) }
+
+        var blocks: [ReferenceReadingBlock] = []
+        var start = 0
+        for boundary in boundaries.keys.sorted() {
+            if boundary > start {
+                blocks.append(.text(paragraphs[start..<boundary].joined(separator: "\n\n")))
+            }
+            blocks.append(contentsOf: (boundaries[boundary] ?? []).map(ReferenceReadingBlock.illustration))
+            start = boundary
+        }
+        if start < paragraphs.count {
+            blocks.append(.text(paragraphs[start...].joined(separator: "\n\n")))
+        }
+        return blocks.flatMap { block -> [ReferenceReadingBlock] in
+            if case .text(let prose) = block { return contentsReadingBlocks(for: prose) }
+            return [block]
+        }
+    }
+
+    private func contentsReadingBlocks(for text: String) -> [ReferenceReadingBlock] {
+        guard let links = contentsLinks, !links.isEmpty else { return [.text(text)] }
+        let paragraphs = text.components(separatedBy: "\n\n")
+        let labels = links.map(\.label)
+        // Only the complete authored contents paragraph becomes navigation.
+        // Chapter mentions elsewhere in the manuscript remain ordinary prose.
+        guard let index = paragraphs.firstIndex(where: { paragraph in
+            paragraph.components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } == labels
+        }) else { return [.text(text)] }
+        var blocks: [ReferenceReadingBlock] = []
+        if index > 0 {
+            blocks.append(.text(paragraphs[..<index].joined(separator: "\n\n")))
+        }
+        blocks.append(.contents(links))
+        if index + 1 < paragraphs.count {
+            blocks.append(.text(paragraphs[(index + 1)...].joined(separator: "\n\n")))
+        }
+        return blocks
     }
 }
 

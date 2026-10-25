@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A1C024000000000000000001 /* WonderCompassReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000101 /* WonderCompassReadingView.swift */; };
+		A1C024000000000000000002 /* WonderCompassImages in Resources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000102 /* WonderCompassImages */; };
 		B1FFA0000000000000000001 /* PippaScraps.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000101 /* PippaScraps.swift */; };
 		B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000102 /* PippaWordFinds.swift */; };
 		0A1012000000000000000002 /* BookPigment.metal in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000102 /* BookPigment.metal */; };
@@ -45,6 +47,7 @@
 		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
 		020000000000000000000203 /* StoryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000103 /* StoryEngine.swift */; };
 		020000000000000000000204 /* ReferenceLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000104 /* ReferenceLibrary.swift */; };
+		A1C025000000000000000001 /* WonderCompassFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C025000000000000000101 /* WonderCompassFormatting.swift */; };
 		020000000000000000000205 /* Illumination.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000105 /* Illumination.swift */; };
 		020000000000000000000206 /* WorldSystems.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000106 /* WorldSystems.swift */; };
 		020000000000000000000207 /* PagePacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000107 /* PagePacks.swift */; };
@@ -208,6 +211,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A1C024000000000000000101 /* WonderCompassReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderCompassReadingView.swift; sourceTree = "<group>"; };
+		A1C024000000000000000102 /* WonderCompassImages */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WonderCompassImages; sourceTree = "<group>"; };
 		B1FFA0000000000000000101 /* PippaScraps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaScraps.swift; sourceTree = "<group>"; };
 		B1FFA0000000000000000102 /* PippaWordFinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaWordFinds.swift; sourceTree = "<group>"; };
 		0A1012000000000000000102 /* BookPigment.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = BookPigment.metal; sourceTree = "<group>"; };
@@ -249,6 +254,7 @@
 		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
 		020000000000000000000103 /* StoryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryEngine.swift; sourceTree = "<group>"; };
 		020000000000000000000104 /* ReferenceLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferenceLibrary.swift; sourceTree = "<group>"; };
+		A1C025000000000000000101 /* WonderCompassFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderCompassFormatting.swift; sourceTree = "<group>"; };
 		020000000000000000000105 /* Illumination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Illumination.swift; sourceTree = "<group>"; };
 		020000000000000000000106 /* WorldSystems.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorldSystems.swift; sourceTree = "<group>"; };
 		020000000000000000000107 /* PagePacks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagePacks.swift; sourceTree = "<group>"; };
@@ -429,6 +435,7 @@
 				010000000000000000000110 /* LocalBrainServices.swift */,
 				010000000000000000000111 /* BookStatusCards.swift */,
 				010000000000000000000112 /* CapturePageSheet.swift */,
+				A1C024000000000000000101 /* WonderCompassReadingView.swift */,
 				01000000000000000000011A /* TarotPageView.swift */,
 				01000000000000000000011B /* SkyOnTheLeafLayer.swift */,
 				01000000000000000000011C /* OpenedLeaf.swift */,
@@ -467,6 +474,7 @@
 				01000000000000000000010B /* BookDatabase.swift */,
 				010000000000000000000109 /* InsideCoverApp.entitlements */,
 				01000000000000000000010D /* Assets.xcassets */,
+				A1C024000000000000000102 /* WonderCompassImages */,
 				0100000000000000000002F2 /* PrivacyInfo.xcprivacy */,
 			);
 			path = InsideCoverApp;
@@ -510,6 +518,7 @@
 				020000000000000000000102 /* NarrativeCore.swift */,
 				020000000000000000000103 /* StoryEngine.swift */,
 				020000000000000000000104 /* ReferenceLibrary.swift */,
+				A1C025000000000000000101 /* WonderCompassFormatting.swift */,
 				020000000000000000000105 /* Illumination.swift */,
 				0200000000000000000001F9 /* EditionMarginalia.swift */,
 				020000000000000000000106 /* WorldSystems.swift */,
@@ -749,6 +758,7 @@
 				010000000000000000000005 /* widget-state.json in Resources */,
 				010000000000000000000012 /* BookReferenceLibrary.json in Resources */,
 				010000000000000000000014 /* Assets.xcassets in Resources */,
+				A1C024000000000000000002 /* WonderCompassImages in Resources */,
 				01000000000000000000001E /* BookSounds in Resources */,
 				0100000000000000000002A1 /* RadioAudio in Resources */,
 				0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */,
@@ -785,6 +795,7 @@
 				010000000000000000000018 /* LocalBrainServices.swift in Sources */,
 				010000000000000000000019 /* BookStatusCards.swift in Sources */,
 				01000000000000000000001A /* CapturePageSheet.swift in Sources */,
+				A1C024000000000000000001 /* WonderCompassReadingView.swift in Sources */,
 				010000000000000000000022 /* TarotPageView.swift in Sources */,
 				010000000000000000000023 /* SkyOnTheLeafLayer.swift in Sources */,
 				010000000000000000000024 /* OpenedLeaf.swift in Sources */,
@@ -855,6 +866,7 @@
 				020000000000000000000202 /* NarrativeCore.swift in Sources */,
 				020000000000000000000203 /* StoryEngine.swift in Sources */,
 				020000000000000000000204 /* ReferenceLibrary.swift in Sources */,
+				A1C025000000000000000001 /* WonderCompassFormatting.swift in Sources */,
 				020000000000000000000205 /* Illumination.swift in Sources */,
 				0200000000000000000002F9 /* EditionMarginalia.swift in Sources */,
 				020000000000000000000206 /* WorldSystems.swift in Sources */,
