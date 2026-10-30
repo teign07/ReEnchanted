@@ -1,0 +1,1206 @@
+{
+  "revision": "unwritten-v2",
+  "status": "art-production",
+  "lettering": "Authored native handwriting, separate from painting",
+  "cards": [
+    {
+      "id": "major-00",
+      "bookishScene": "A curious new reader steps toward the brink of an impossible library landing with a slim blank book tied in the shoulder bundle; the dog notices the drop while one blank leaf escapes.",
+      "requiredSymbols": [
+        "One new reader with lifted curious gaze",
+        "Library cliff landing",
+        "One small white dog tugging coat",
+        "One white rose in hand",
+        "One bright sun",
+        "Small shoulder bundle visibly holding a slim blank book",
+        "One blank leaf escaping",
+        "Tiny white rose study upper left",
+        "Quiet lower twelve percent pale rag paper"
+      ],
+      "marginalLabel": "white rose",
+      "readingNote": "The dog noticed.",
+      "newSubjects": [
+        "blank-book",
+        "escaping-leaf",
+        "library-landing",
+        "white-rose"
+      ],
+      "annotationLayout": {
+        "labelX": 0.015,
+        "labelWidth": 0.2
+      }
+    },
+    {
+      "id": "major-01",
+      "bookishScene": "A standing writer at a worn library worktable directs a raised dip pen toward the sky and the other hand toward earth; one pen, one cup, one paper knife and one stamped brass pentacle clasp on the table; infinity loop, roses and lilies. Skill lives in hands and ordinary tools.",
+      "marginalLabel": "white lily",
+      "readingNote": "The tools are here. Which one first?",
+      "newSubjects": [
+        "worktable",
+        "dip-pen",
+        "lily"
+      ],
+      "requiredSymbols": [
+        "A standing writer at a worn library worktable directs a raised dip pen toward the sky and the other hand toward earth; one pen, one cup, one paper knife and one stamped brass pentacle clasp on the table; infinity loop, roses and lilies. Skill lives in hands and ordinary tools."
+      ]
+    },
+    {
+      "id": "major-02",
+      "bookishScene": "A seated keeper between black-ink and cream-paper library pillars, partly concealed scroll, crescent at feet, pomegranate-and-palm veil; a closed living book visibly breathes the veil outward slightly. Mystery remains unread.",
+      "marginalLabel": "pomegranate leaf",
+      "readingNote": "Some pages open slowly.",
+      "newSubjects": [
+        "scroll",
+        "pomegranate",
+        "closed-book"
+      ],
+      "requiredSymbols": [
+        "A seated keeper between black-ink and cream-paper library pillars, partly concealed scroll, crescent at feet, pomegranate-and-palm veil; a closed living book visibly breathes the veil outward slightly. Mystery remains unread."
+      ]
+    },
+    {
+      "id": "major-03",
+      "bookishScene": "A crowned gardener tends a living book whose open leaves grow into wheat and garden flowers beside a waterfall; keep central nurturing figure, Venus heart shield and star crown. Books and plants share tending, not a glowing spell.",
+      "marginalLabel": "wheat ear",
+      "readingNote": "What needs feeding before it can grow?",
+      "newSubjects": [
+        "wheat",
+        "garden-book",
+        "watering"
+      ],
+      "requiredSymbols": [
+        "A crowned gardener tends a living book whose open leaves grow into wheat and garden flowers beside a waterfall; keep central nurturing figure, Venus heart shield and star crown. Books and plants share tending, not a glowing spell."
+      ]
+    },
+    {
+      "id": "major-04",
+      "bookishScene": "A red-robed steward on a ram-carved stone chair in the old library's doorway, ordinary scepter and orb, mountains beyond; a plain ruler holds a loose page square beneath the hand. Clear structure with enough room to enter.",
+      "marginalLabel": "linen hinge",
+      "readingNote": "What does this boundary hold safe?",
+      "newSubjects": [
+        "ruler",
+        "doorway",
+        "ram"
+      ],
+      "requiredSymbols": [
+        "A red-robed steward on a ram-carved stone chair in the old library's doorway, ordinary scepter and orb, mountains beyond; a plain ruler holds a loose page square beneath the hand. Clear structure with enough room to enter."
+      ]
+    },
+    {
+      "id": "major-05",
+      "bookishScene": "A library teacher between two pillars passes an old book toward two learners, raised teaching hand, crossed keys and a three-tier bookplate crown. A small loose correction slip is tucked into the inherited volume.",
+      "marginalLabel": "bookplate",
+      "readingNote": "Who taught the teacher?",
+      "newSubjects": [
+        "bookplate",
+        "correction-slip",
+        "teacher"
+      ],
+      "requiredSymbols": [
+        "A library teacher between two pillars passes an old book toward two learners, raised teaching hand, crossed keys and a three-tier bookplate crown. A small loose correction slip is tucked into the inherited volume."
+      ]
+    },
+    {
+      "id": "major-06",
+      "bookishScene": "Two simply clothed figures stand apart on either side of one open book on a low garden lectern; neither possesses it. Winged witness and sun above, serpent tree and flame tree behind. A shared page requires two willing readers.",
+      "marginalLabel": "apple leaf",
+      "readingNote": "Two hands. Neither holds the other shut.",
+      "newSubjects": [
+        "lectern",
+        "shared-book",
+        "apple"
+      ],
+      "requiredSymbols": [
+        "Two simply clothed figures stand apart on either side of one open book on a low garden lectern; neither possesses it. Winged witness and sun above, serpent tree and flame tree behind. A shared page requires two willing readers."
+      ]
+    },
+    {
+      "id": "major-07",
+      "bookishScene": "An armored traveler stands in a wheeled library book cart beneath a star canopy; black and white folded-paper sphinx beasts pull in opposing directions, no reins; returned volumes make the cart's weight tangible.",
+      "marginalLabel": "cart wheel",
+      "readingNote": "Which way are you taking all this?",
+      "newSubjects": [
+        "book-cart",
+        "returned-books",
+        "wheel"
+      ],
+      "requiredSymbols": [
+        "An armored traveler stands in a wheeled library book cart beneath a star canopy; black and white folded-paper sphinx beasts pull in opposing directions, no reins; returned volumes make the cart's weight tangible."
+      ]
+    },
+    {
+      "id": "major-08",
+      "bookishScene": "A calm library keeper gently tends the mouth of a lion formed from flowing ink and a few paper edges, infinity above, flower garland and mountain; a dropped open volume rests nearby, no domination or violence.",
+      "marginalLabel": "rose leaf",
+      "readingNote": "Soft hands. A very large mouth.",
+      "newSubjects": [
+        "ink-lion",
+        "rose",
+        "open-book"
+      ],
+      "requiredSymbols": [
+        "A calm library keeper gently tends the mouth of a lion formed from flowing ink and a few paper edges, infinity above, flower garland and mountain; a dropped open volume rests nearby, no domination or violence."
+      ]
+    },
+    {
+      "id": "major-09",
+      "bookishScene": "An elder climbs a high narrow Stacks landing with a six-point star lantern and walking staff; a slim book strapped at the waist, worn steps and mist beyond. The light reaches only the next step.",
+      "marginalLabel": "wax drip",
+      "readingNote": "Enough light for this step.",
+      "newSubjects": [
+        "lantern",
+        "stairs",
+        "wax"
+      ],
+      "requiredSymbols": [
+        "An elder climbs a high narrow Stacks landing with a six-point star lantern and walking staff; a slim book strapped at the waist, worn steps and mist beyond. The light reaches only the next step."
+      ]
+    },
+    {
+      "id": "major-10",
+      "bookishScene": "A great rotating circular library card-catalog wheel, Compass geometry, descending serpent, rising jackal figure, sphinx above, four winged readers in the corners. Small catalog drawers turn with the wheel; no legible letters.",
+      "marginalLabel": "drawer pull",
+      "readingNote": "It has come round again.",
+      "newSubjects": [
+        "card-catalog",
+        "drawer",
+        "compass"
+      ],
+      "requiredSymbols": [
+        "A great rotating circular library card-catalog wheel, Compass geometry, descending serpent, rising jackal figure, sphinx above, four winged readers in the corners. Small catalog drawers turn with the wheel; no legible letters."
+      ]
+    },
+    {
+      "id": "major-11",
+      "bookishScene": "A direct-gazing keeper between library pillars balances scales and holds one upright long brass paper knife; red robe, square clasp, violet veil, an open accession ledger across the knees with two differently worn pages.",
+      "marginalLabel": "balance hinge",
+      "readingNote": "Read both pages.",
+      "newSubjects": [
+        "ledger",
+        "paper-knife",
+        "scales"
+      ],
+      "requiredSymbols": [
+        "A direct-gazing keeper between library pillars balances scales and holds one upright long brass paper knife; red robe, square clasp, violet veil, an open accession ledger across the knees with two differently worn pages."
+      ]
+    },
+    {
+      "id": "major-12",
+      "bookishScene": "A calm clothed figure rests safely inverted by a broad padded ankle support on a T-shaped living story-door; free knee bent, halo, hands behind back, no distress; a small book has slipped open upside down beneath the door.",
+      "marginalLabel": "paper hinge",
+      "readingNote": "Turn the page around.",
+      "newSubjects": [
+        "upside-down-book",
+        "story-door",
+        "pause"
+      ],
+      "requiredSymbols": [
+        "A calm clothed figure rests safely inverted by a broad padded ankle support on a T-shaped living story-door; free knee bent, halo, hands behind back, no distress; a small book has slipped open upside down beneath the door."
+      ]
+    },
+    {
+      "id": "major-13",
+      "bookishScene": "A white skeletal rider on a white horse carries black banner with white rose; fallen crown, figures of several ages, exactly two distant towers and rising sun. Old library leaves fall and break down into shoots; death remains visible.",
+      "marginalLabel": "fallen leaf",
+      "readingNote": "The last page is still a page.",
+      "newSubjects": [
+        "fallen-leaf",
+        "old-pages",
+        "white-rose"
+      ],
+      "requiredSymbols": [
+        "A white skeletal rider on a white horse carries black banner with white rose; fallen crown, figures of several ages, exactly two distant towers and rising sun. Old library leaves fall and break down into shoots; death remains visible."
+      ]
+    },
+    {
+      "id": "major-14",
+      "bookishScene": "A winged figure mixes blue and clear ink-water between exactly two cups beside a library dyeing trough; one foot clearly on dry land and the other visibly in water. Irises and a winding path; an open color-swatch book dries on a nearby stone.",
+      "marginalLabel": "iris petal",
+      "readingNote": "Watch what passes between them.",
+      "newSubjects": [
+        "swatch-book",
+        "ink-water",
+        "iris"
+      ],
+      "requiredSymbols": [
+        "A winged figure mixes blue and clear ink-water between exactly two cups beside a library dyeing trough; one foot clearly on dry land and the other visibly in water. Irises and a winding path; an open color-swatch book dries on a nearby stone."
+      ]
+    },
+    {
+      "id": "major-15",
+      "bookishScene": "Horned figure presides over two clothed people loosely chained at a dark library lectern. Heavy book clasps lie open but the people keep holding their chains; inverted torch, complicated expressions, violet and tarnished brass, no gore.",
+      "marginalLabel": "open clasp",
+      "readingNote": "Look. There is room in the chain.",
+      "newSubjects": [
+        "open-clasp",
+        "lectern",
+        "chain"
+      ],
+      "requiredSymbols": [
+        "Horned figure presides over two clothed people loosely chained at a dark library lectern. Heavy book clasps lie open but the people keep holding their chains; inverted torch, complicated expressions, violet and tarnished brass, no gore."
+      ]
+    },
+    {
+      "id": "major-16",
+      "bookishScene": "A library tower splits under lightning; crown knocked free, exactly two clothed figures falling, visible foundation, black storm and scattered flames. Exposed shelves and torn paper signatures burst into the storm, not a generic castle.",
+      "marginalLabel": "broken hinge",
+      "readingNote": "Now you can see inside.",
+      "newSubjects": [
+        "broken-hinge",
+        "library-tower",
+        "torn-pages"
+      ],
+      "requiredSymbols": [
+        "A library tower splits under lightning; crown knocked free, exactly two clothed figures falling, visible foundation, black storm and scattered flames. Exposed shelves and torn paper signatures burst into the storm, not a generic castle."
+      ]
+    },
+    {
+      "id": "major-17",
+      "bookishScene": "A simply draped restorer kneels with one foot in a pool and one on earth, pouring water from two jugs onto both; one large eight-point star and seven smaller stars, bird on tree. Water-warped pages dry gently on a linen cloth at the pool edge.",
+      "marginalLabel": "water stain",
+      "readingNote": "Let it dry before you mend it.",
+      "newSubjects": [
+        "drying-pages",
+        "linen-cloth",
+        "water-stain"
+      ],
+      "requiredSymbols": [
+        "A simply draped restorer kneels with one foot in a pool and one on earth, pouring water from two jugs onto both; one large eight-point star and seven smaller stars, bird on tree. Water-warped pages dry gently on a linen cloth at the pool edge."
+      ]
+    },
+    {
+      "id": "major-18",
+      "bookishScene": "A moonlit uncertain path between two library towers, with shelves faintly visible through arched windows; a tide-stained folded map shows part of the route and then stops.",
+      "requiredSymbols": [
+        "exactly one moon disk with profile above",
+        "exactly two library towers",
+        "one domestic dog and one wolf",
+        "one crustacean emerging from foreground water",
+        "path between animals and towers toward distant hills",
+        "faint moonlit shelves inside arched tower windows",
+        "tide-stained folded map with route that stops"
+      ],
+      "marginalLabel": "tide mark",
+      "readingNote": "The map stops here.",
+      "newSubjects": [
+        "library-shelves",
+        "arched-windows",
+        "folded-map"
+      ],
+      "annotationLayout": {
+        "labelX": 0.03
+      }
+    },
+    {
+      "id": "major-19",
+      "bookishScene": "A clothed childlike rider on a white horse carries a bright banner before a library garden wall; exactly four sunflowers and large sun. A tiny picture book rides open in a saddle pocket, its blank pictures catching the same light.",
+      "marginalLabel": "sunflower petal",
+      "readingNote": "Look how much you can see.",
+      "newSubjects": [
+        "picture-book",
+        "sunflower",
+        "saddle-pocket"
+      ],
+      "requiredSymbols": [
+        "A clothed childlike rider on a white horse carries a bright banner before a library garden wall; exactly four sunflowers and large sun. A tiny picture book rides open in a saddle pocket, its blank pictures catching the same light."
+      ]
+    },
+    {
+      "id": "major-20",
+      "bookishScene": "A winged herald sounds a trumpet over figures rising from open book-shaped coffers in tidal water; mountains behind. The books show distinct worn bindings and loose ribbon markers, the call meeting each figure differently.",
+      "marginalLabel": "ribbon marker",
+      "readingNote": "You heard it. What will you answer?",
+      "newSubjects": [
+        "ribbon-marker",
+        "book-coffer",
+        "trumpet"
+      ],
+      "requiredSymbols": [
+        "A winged herald sounds a trumpet over figures rising from open book-shaped coffers in tidal water; mountains behind. The books show distinct worn bindings and loose ribbon markers, the call meeting each figure differently."
+      ]
+    },
+    {
+      "id": "major-21",
+      "bookishScene": "An androgynous clothed dancer within one living laurel wreath holds two small writing instruments; four winged witnesses in corners. The wreath is loosely stitched through the outer leaves of a completed handmade book; five restrained Chapter colors.",
+      "marginalLabel": "laurel leaf",
+      "readingNote": "Finished. There is still room at the edge.",
+      "newSubjects": [
+        "stitched-book",
+        "laurel",
+        "dance"
+      ],
+      "requiredSymbols": [
+        "An androgynous clothed dancer within one living laurel wreath holds two small writing instruments; four winged witnesses in corners. The wreath is loosely stitched through the outer leaves of a completed handmade book; five restrained Chapter colors."
+      ]
+    },
+    {
+      "id": "wands-ace",
+      "bookishScene": "One hand from clouded paper offers exactly one long wooden dip pen with brass split nib and a small leaf bud; distant library keep, river, hills, tiny ink drop becomes the beginning of a line.",
+      "marginalLabel": "oak bud",
+      "readingNote": "Start with one mark.",
+      "newSubjects": [
+        "dip-pen",
+        "ink-drop",
+        "oak-bud"
+      ],
+      "requiredSymbols": [
+        "One hand from clouded paper offers exactly one long wooden dip pen with brass split nib and a small leaf bud; distant library keep, river, hills, tiny ink drop becomes the beginning of a line."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "wands-two",
+      "bookishScene": "A planner on a library battlement holds one of exactly two long dip pens and a small globe; second pen fixed to parapet; folded blank atlas open on stone, sea and settlement beyond.",
+      "marginalLabel": "map fold",
+      "readingNote": "Which shore would you write toward?",
+      "newSubjects": [
+        "atlas",
+        "globe",
+        "map-fold"
+      ],
+      "requiredSymbols": [
+        "A planner on a library battlement holds one of exactly two long dip pens and a small globe; second pen fixed to parapet; folded blank atlas open on stone, sea and settlement beyond."
+      ],
+      "expectedSuitCount": 2
+    },
+    {
+      "id": "wands-three",
+      "bookishScene": "A cloaked reader with back turned looks from the Stacks terrace toward three distant ships; exactly three long dip pens, one held; a tied packet of correspondence waits by the wall, gold-red sky.",
+      "marginalLabel": "packet string",
+      "readingNote": "Something has gone out. What comes back?",
+      "newSubjects": [
+        "correspondence",
+        "packet",
+        "ship"
+      ],
+      "requiredSymbols": [
+        "A cloaked reader with back turned looks from the Stacks terrace toward three distant ships; exactly three long dip pens, one held; a tied packet of correspondence waits by the wall, gold-red sky."
+      ],
+      "expectedSuitCount": 3
+    },
+    {
+      "id": "wands-four",
+      "bookishScene": "Exactly four tall dip pens support a flower-and-ribbon garland at the library entrance; two celebrating people lift empty hands, others gather beyond, shared reading table visible through the door.",
+      "marginalLabel": "ribbon knot",
+      "readingNote": "Come in. There is room.",
+      "newSubjects": [
+        "library-entrance",
+        "ribbon",
+        "reading-table"
+      ],
+      "requiredSymbols": [
+        "Exactly four tall dip pens support a flower-and-ribbon garland at the library entrance; two celebrating people lift empty hands, others gather beyond, shared reading table visible through the door."
+      ],
+      "expectedSuitCount": 4
+    },
+    {
+      "id": "wands-five",
+      "bookishScene": "Five distinct young writers cross exactly five oversized dip pens in an energetic outdoor rehearsal, ink splashes meet on one large blank sheet underfoot; confusion and competing aims, not violence.",
+      "marginalLabel": "ink blot",
+      "readingNote": "Five beginnings. One sheet.",
+      "newSubjects": [
+        "ink-blot",
+        "blank-sheet",
+        "rehearsal"
+      ],
+      "requiredSymbols": [
+        "Five distinct young writers cross exactly five oversized dip pens in an energetic outdoor rehearsal, ink splashes meet on one large blank sheet underfoot; confusion and competing aims, not violence."
+      ],
+      "expectedSuitCount": 5
+    },
+    {
+      "id": "wands-six",
+      "bookishScene": "A rider returns past library steps through a crowd; exactly six long dip pens, held separately, one the rider's laurel-crowned pen. A finished manuscript tied with red ribbon rides behind the saddle, praise and effort both visible.",
+      "marginalLabel": "laurel sprig",
+      "readingNote": "Who helped carry it this far?",
+      "newSubjects": [
+        "manuscript",
+        "red-ribbon",
+        "library-steps"
+      ],
+      "requiredSymbols": [
+        "A rider returns past library steps through a crowd; exactly six long dip pens, held separately, one the rider's laurel-crowned pen. A finished manuscript tied with red ribbon rides behind the saddle, praise and effort both visible."
+      ],
+      "expectedSuitCount": 6
+    },
+    {
+      "id": "wands-seven",
+      "bookishScene": "A determined figure in mismatched shoes braces one large dip pen from uneven high library steps against exactly six rising below; a loose manuscript is held behind the body, protecting a position without depicting violence.",
+      "marginalLabel": "torn hem",
+      "readingNote": "Which page are you standing up for?",
+      "newSubjects": [
+        "manuscript",
+        "mismatched-shoes",
+        "steps"
+      ],
+      "requiredSymbols": [
+        "A determined figure in mismatched shoes braces one large dip pen from uneven high library steps against exactly six rising below; a loose manuscript is held behind the body, protecting a position without depicting violence."
+      ],
+      "expectedSuitCount": 7
+    },
+    {
+      "id": "wands-eight",
+      "bookishScene": "Exactly eight long dip pens travel diagonally across clear sky over river and green country; tiny ink trails imply swiftly sent messages, folded correspondence caught far below without extra pens. No people.",
+      "marginalLabel": "paper fold",
+      "readingNote": "Already on its way.",
+      "newSubjects": [
+        "correspondence",
+        "ink-trail",
+        "paper-fold"
+      ],
+      "requiredSymbols": [
+        "Exactly eight long dip pens travel diagonally across clear sky over river and green country; tiny ink trails imply swiftly sent messages, folded correspondence caught far below without extra pens. No people."
+      ],
+      "expectedSuitCount": 8
+    },
+    {
+      "id": "wands-nine",
+      "bookishScene": "A tired bandaged library watchkeeper holds one long dip pen before a fence of exactly eight more, dawn at the worn Stacks wall; a repaired folio tucked under an arm, readiness and fatigue visible.",
+      "marginalLabel": "repair patch",
+      "readingNote": "Still here. What would help you stay?",
+      "newSubjects": [
+        "repaired-folio",
+        "patch",
+        "watchkeeper"
+      ],
+      "requiredSymbols": [
+        "A tired bandaged library watchkeeper holds one long dip pen before a fence of exactly eight more, dawn at the worn Stacks wall; a repaired folio tucked under an arm, readiness and fatigue visible."
+      ],
+      "expectedSuitCount": 9
+    },
+    {
+      "id": "wands-ten",
+      "bookishScene": "An ink-stained bookbinder struggles under ten oversized wooden dip pens toward an open library and bookbinding home, face and view blocked by the armful; one pen slipping.",
+      "requiredSymbols": [
+        "Exactly ten long wooden dip pens, each with brass split nib",
+        "One struggling fully clothed figure",
+        "Ink on sleeves",
+        "One pen slipping",
+        "Library and bookbinding home ahead",
+        "Tiny linen binding-thread knot study upper left",
+        "Quiet lower twelve percent pale rag paper"
+      ],
+      "marginalLabel": "binding thread",
+      "readingNote": "You could put some down.",
+      "newSubjects": [
+        "dip-pen",
+        "binding-thread",
+        "bookbinding-press",
+        "library-door"
+      ]
+    },
+    {
+      "id": "wands-page",
+      "bookishScene": "A youthful messenger examines one leaf-budding dip pen in dry country, salamander coat pattern and feathered cap; a slim notebook opens on a low rock, curiosity attends the nib before any words exist.",
+      "marginalLabel": "oak leaf",
+      "readingNote": "What happens if you try it?",
+      "newSubjects": [
+        "notebook",
+        "dip-pen",
+        "oak-leaf"
+      ],
+      "requiredSymbols": [
+        "A youthful messenger examines one leaf-budding dip pen in dry country, salamander coat pattern and feathered cap; a slim notebook opens on a low rock, curiosity attends the nib before any words exist."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "wands-knight",
+      "bookishScene": "A knight on rearing horse carries one long dip pen into dry wind; salamander tunic, warm hills; a half-finished manuscript trails from an unsecured saddle bag, eagerness risks losing its own work.",
+      "marginalLabel": "saddle stitch",
+      "readingNote": "Wait. Your pages are escaping.",
+      "newSubjects": [
+        "saddle-bag",
+        "loose-pages",
+        "salamander"
+      ],
+      "requiredSymbols": [
+        "A knight on rearing horse carries one long dip pen into dry wind; salamander tunic, warm hills; a half-finished manuscript trails from an unsecured saddle bag, eagerness risks losing its own work."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "wands-queen",
+      "bookishScene": "A welcoming seated sovereign holds one long dip pen and a sunflower; black cat at feet, lion-carved throne. An open writing book rests on one knee, ink-stained hand at ease; authority has warmth and its own unfinished work.",
+      "marginalLabel": "sunflower leaf",
+      "readingNote": "The cat has chosen this chair.",
+      "newSubjects": [
+        "writing-book",
+        "black-cat",
+        "sunflower"
+      ],
+      "requiredSymbols": [
+        "A welcoming seated sovereign holds one long dip pen and a sunflower; black cat at feet, lion-carved throne. An open writing book rests on one knee, ink-stained hand at ease; authority has warmth and its own unfinished work."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "wands-king",
+      "bookishScene": "A sovereign ready to rise holds one leaf-budding dip pen, lion and salamander chair motifs, small salamander at feet; a planned book's folded signatures sit on a side table, imagination sustained into work.",
+      "marginalLabel": "binding cord",
+      "readingNote": "Who will keep the ink coming?",
+      "newSubjects": [
+        "folded-signatures",
+        "binding-cord",
+        "salamander"
+      ],
+      "requiredSymbols": [
+        "A sovereign ready to rise holds one leaf-budding dip pen, lion and salamander chair motifs, small salamander at feet; a planned book's folded signatures sit on a side table, imagination sustained into work."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "cups-ace",
+      "bookishScene": "One hand offers exactly one overflowing sea-glass cup above a library garden pool; dove lowers white petal, five streams, water lilies; an open blank book rests on dry moss as the cup waters the world around it.",
+      "marginalLabel": "water lily",
+      "readingNote": "There is more than the cup can hold.",
+      "newSubjects": [
+        "water-lily",
+        "garden-pool",
+        "blank-book"
+      ],
+      "requiredSymbols": [
+        "One hand offers exactly one overflowing sea-glass cup above a library garden pool; dove lowers white petal, five streams, water lilies; an open blank book rests on dry moss as the cup waters the world around it."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "cups-two",
+      "bookishScene": "Two figures on equal footing exchange exactly two sea-glass reading-room cups across a small shared book; caduceus and winged lion head above. Both hands are free to receive, each bookmark a different color.",
+      "marginalLabel": "bookmark knot",
+      "readingNote": "Who is reaching back?",
+      "newSubjects": [
+        "shared-book",
+        "bookmark",
+        "reading-room"
+      ],
+      "requiredSymbols": [
+        "Two figures on equal footing exchange exactly two sea-glass reading-room cups across a small shared book; caduceus and winged lion head above. Both hands are free to receive, each bookmark a different color."
+      ],
+      "expectedSuitCount": 2
+    },
+    {
+      "id": "cups-three",
+      "bookishScene": "Three varied friends raise exactly three cups in a library orchard after a shared reading; fruit and flowers underfoot, a book open on a low stool and a few folded reader slips, shared joy without luxury styling.",
+      "marginalLabel": "grape leaf",
+      "readingNote": "Read that bit again.",
+      "newSubjects": [
+        "orchard",
+        "reading-stool",
+        "grape-leaf"
+      ],
+      "requiredSymbols": [
+        "Three varied friends raise exactly three cups in a library orchard after a shared reading; fruit and flowers underfoot, a book open on a low stool and a few folded reader slips, shared joy without luxury styling."
+      ],
+      "expectedSuitCount": 3
+    },
+    {
+      "id": "cups-four",
+      "bookishScene": "A seated reader beneath a tree has closed their book for now; exactly three cups before them and a cloud hand offers the fourth. An unchosen reading slip rests between closed pages; refusal may be discernment.",
+      "marginalLabel": "beech leaf",
+      "readingNote": "You may leave this one unopened.",
+      "newSubjects": [
+        "closed-book",
+        "reading-slip",
+        "beech"
+      ],
+      "requiredSymbols": [
+        "A seated reader beneath a tree has closed their book for now; exactly three cups before them and a cloud hand offers the fourth. An unchosen reading slip rests between closed pages; refusal may be discernment."
+      ],
+      "expectedSuitCount": 4
+    },
+    {
+      "id": "cups-five",
+      "bookishScene": "A cloaked reader looks at exactly three overturned cups spilling across loose book leaves; exactly two cups stand behind. River, bridge and distant lit library remain visible; loss is real and not repaired by pointing behind.",
+      "marginalLabel": "water-warped paper",
+      "readingNote": "What spilled? What remains?",
+      "newSubjects": [
+        "water-warped-paper",
+        "bridge",
+        "loose-leaf"
+      ],
+      "requiredSymbols": [
+        "A cloaked reader looks at exactly three overturned cups spilling across loose book leaves; exactly two cups stand behind. River, bridge and distant lit library remain visible; loss is real and not repaired by pointing behind."
+      ],
+      "expectedSuitCount": 5
+    },
+    {
+      "id": "cups-six",
+      "bookishScene": "Two figures of different ages exchange a flower-filled cup in the old library courtyard; exactly six cups, gentle sentry; a familiar picture book lies open on a low stone bench, memory shared between the figures.",
+      "marginalLabel": "pressed violet",
+      "readingNote": "Which part do you remember?",
+      "newSubjects": [
+        "picture-book",
+        "pressed-violet",
+        "courtyard"
+      ],
+      "requiredSymbols": [
+        "Two figures of different ages exchange a flower-filled cup in the old library courtyard; exactly six cups, gentle sentry; a familiar picture book lies open on a low stone bench, memory shared between the figures."
+      ],
+      "expectedSuitCount": 6
+    },
+    {
+      "id": "cups-seven",
+      "bookishScene": "A silhouetted reader before an open blank book faces exactly seven floating cups with distinct visions: face, shrouded figure, snake, tower, jewels, laurel and dragon. Possibility spills from the imagined book, no choice made.",
+      "marginalLabel": "page curl",
+      "readingNote": "Which one survives being opened?",
+      "newSubjects": [
+        "page-curl",
+        "imagined-book",
+        "visions"
+      ],
+      "requiredSymbols": [
+        "A silhouetted reader before an open blank book faces exactly seven floating cups with distinct visions: face, shrouded figure, snake, tower, jewels, laurel and dragon. Possibility spills from the imagined book, no choice made."
+      ],
+      "expectedSuitCount": 7
+    },
+    {
+      "id": "cups-eight",
+      "bookishScene": "A reader walks away from exactly eight stacked cups beneath an eclipsed moon across tidal ground toward mountains; a library book is left closed on the dry shelf beside the cups, one loose ribbon trails after the walker.",
+      "marginalLabel": "tide line",
+      "readingNote": "You can leave before it is empty.",
+      "newSubjects": [
+        "closed-book",
+        "tide-line",
+        "ribbon"
+      ],
+      "requiredSymbols": [
+        "A reader walks away from exactly eight stacked cups beneath an eclipsed moon across tidal ground toward mountains; a library book is left closed on the dry shelf beside the cups, one loose ribbon trails after the walker."
+      ],
+      "expectedSuitCount": 8
+    },
+    {
+      "id": "cups-nine",
+      "bookishScene": "A content reader sits with folded arms before exactly nine cups in an arc on a library shelf; a small private reading nook with a well-used book on the knee, enoughness with slight guardedness.",
+      "marginalLabel": "chair mending",
+      "readingNote": "What does enough look like here?",
+      "newSubjects": [
+        "reading-nook",
+        "well-used-book",
+        "chair"
+      ],
+      "requiredSymbols": [
+        "A content reader sits with folded arms before exactly nine cups in an arc on a library shelf; a small private reading nook with a well-used book on the knee, enoughness with slight guardedness."
+      ],
+      "expectedSuitCount": 9
+    },
+    {
+      "id": "cups-ten",
+      "bookishScene": "Two adults or elders lift arms while children play beneath an arc of exactly ten cups; home, river and green land. Their library kitchen has an open doorway and a shared storybook spread on a blanket, belonging made ordinary.",
+      "marginalLabel": "blanket stitch",
+      "readingNote": "Leave a place beside you.",
+      "newSubjects": [
+        "storybook",
+        "blanket",
+        "kitchen-door"
+      ],
+      "requiredSymbols": [
+        "Two adults or elders lift arms while children play beneath an arc of exactly ten cups; home, river and green land. Their library kitchen has an open doorway and a shared storybook spread on a blanket, belonging made ordinary."
+      ],
+      "expectedSuitCount": 10
+    },
+    {
+      "id": "cups-page",
+      "bookishScene": "A youthful shoreline messenger holds exactly one cup with a fish peering out; a tiny blank folded letter held in the other hand, library windows distant, amusement and an unexpected answer.",
+      "marginalLabel": "folded letter",
+      "readingNote": "That was not the answer expected.",
+      "newSubjects": [
+        "folded-letter",
+        "fish",
+        "library-window"
+      ],
+      "requiredSymbols": [
+        "A youthful shoreline messenger holds exactly one cup with a fish peering out; a tiny blank folded letter held in the other hand, library windows distant, amusement and an unexpected answer."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "cups-knight",
+      "bookishScene": "A calm knight on a white horse offers exactly one cup, river and mountains behind; a ribbon-tied invitation book in an open saddle pocket, gentle wing motifs and measured approach, invitation rather than a demand.",
+      "marginalLabel": "ribbon tie",
+      "readingNote": "An offer. See how it is held.",
+      "newSubjects": [
+        "invitation-book",
+        "ribbon-tie",
+        "saddle-pocket"
+      ],
+      "requiredSymbols": [
+        "A calm knight on a white horse offers exactly one cup, river and mountains behind; a ribbon-tied invitation book in an open saddle pocket, gentle wing motifs and measured approach, invitation rather than a demand."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "cups-queen",
+      "bookishScene": "A tide-edge reader and keeper in a shoreline reading alcove, studying an ornate closed cup; a small watermarked closed volume rests on a dry ledge with a silk ribbon bookmark trailing toward the tide.",
+      "requiredSymbols": [
+        "exactly one ornate closed cup",
+        "one seated keeper on shell-carved throne",
+        "feet above the tide, not submerged",
+        "shoreline water",
+        "small watermarked closed volume on dry ledge",
+        "ribbon bookmark trailing toward water"
+      ],
+      "marginalLabel": "silk bookmark",
+      "readingNote": "What is she keeping?",
+      "newSubjects": [
+        "closed-book",
+        "silk-bookmark",
+        "reading-alcove"
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "cups-king",
+      "bookishScene": "A calm sovereign sits amid rough water with exactly one cup and scepter, ship and sea creature behind; a wet library ledger is held open by a plain stone on a dry armrest, steady care despite moving water.",
+      "marginalLabel": "sea-worn bookmark",
+      "readingNote": "The water moves. The hand stays steady.",
+      "newSubjects": [
+        "wet-ledger",
+        "bookmark",
+        "rough-water"
+      ],
+      "requiredSymbols": [
+        "A calm sovereign sits amid rough water with exactly one cup and scepter, ship and sea creature behind; a wet library ledger is held open by a plain stone on a dry armrest, steady care despite moving water."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "swords-ace",
+      "bookishScene": "A hand offers exactly one upright brass paper knife above mountains; crown with laurel and palm and six falling ink marks; the blade opens a single folded blank page, one decisive clean separation.",
+      "marginalLabel": "cut paper edge",
+      "readingNote": "One clean opening.",
+      "newSubjects": [
+        "paper-knife",
+        "folded-page",
+        "cut-edge"
+      ],
+      "requiredSymbols": [
+        "A hand offers exactly one upright brass paper knife above mountains; crown with laurel and palm and six falling ink marks; the blade opens a single folded blank page, one decisive clean separation."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "swords-two",
+      "bookishScene": "A blindfolded seated reader crosses exactly two long paper knives before a rocky tidal sea and crescent moon; a closed book rests behind them, two uncut leaves protrude, protected decision held temporarily.",
+      "marginalLabel": "uncut fold",
+      "readingNote": "What are you keeping closed?",
+      "newSubjects": [
+        "uncut-leaf",
+        "closed-book",
+        "blindfold"
+      ],
+      "requiredSymbols": [
+        "A blindfolded seated reader crosses exactly two long paper knives before a rocky tidal sea and crescent moon; a closed book rests behind them, two uncut leaves protrude, protected decision held temporarily."
+      ],
+      "expectedSuitCount": 2
+    },
+    {
+      "id": "swords-three",
+      "bookishScene": "Three long brass paper knives pierce a red-violet heart folded and torn from old book leaves beneath rain; book paper is the heart's substance, not a decorative accessory.",
+      "requiredSymbols": [
+        "Exactly three long brass paper knives in traditional crossed Three of Swords arrangement",
+        "One red-violet heart made from old book leaves with torn edges and faint abstract print texture",
+        "Rain and grief retained without gore",
+        "Tiny repair stitch and linen-thread observational study upper-left",
+        "Lower 10–12 percent pale paper quiet for authored note"
+      ],
+      "marginalLabel": "repair stitch",
+      "readingNote": "Where would you begin the mending?",
+      "newSubjects": [
+        "paper-knife",
+        "repair-stitch",
+        "book-leaf"
+      ],
+      "expectedSuitCount": 3,
+      "annotationLayout": {
+        "labelY": 0.13
+      }
+    },
+    {
+      "id": "swords-four",
+      "bookishScene": "A recumbent figure rests in a chapel-library beside a closed book; exactly one paper knife laid beneath and three mounted above, stained-paper window of a blessing. Quiet work can wait; no extra pointed tools.",
+      "marginalLabel": "closed clasp",
+      "readingNote": "The page can wait.",
+      "newSubjects": [
+        "chapel-library",
+        "closed-clasp",
+        "rest"
+      ],
+      "requiredSymbols": [
+        "A recumbent figure rests in a chapel-library beside a closed book; exactly one paper knife laid beneath and three mounted above, stained-paper window of a blessing. Quiet work can wait; no extra pointed tools."
+      ],
+      "expectedSuitCount": 4
+    },
+    {
+      "id": "swords-five",
+      "bookishScene": "One foreground figure gathers exactly three paper knives while two people leave a library courtyard; exactly two more knives lie on ground, a torn shared folio between them and wind-torn water behind. Hollow victory and cost remain ambiguous.",
+      "marginalLabel": "torn folio",
+      "readingNote": "Who will read with you now?",
+      "newSubjects": [
+        "torn-folio",
+        "library-courtyard",
+        "departure"
+      ],
+      "requiredSymbols": [
+        "One foreground figure gathers exactly three paper knives while two people leave a library courtyard; exactly two more knives lie on ground, a torn shared folio between them and wind-torn water behind. Hollow victory and cost remain ambiguous."
+      ],
+      "expectedSuitCount": 5
+    },
+    {
+      "id": "swords-six",
+      "bookishScene": "A ferryperson poles a boat carrying cloaked adult and child across water with exactly six paper knives upright in the boat; a tied bundle of salvaged books is carried too, rough water behind and calmer water ahead.",
+      "marginalLabel": "parcel knot",
+      "readingNote": "Some things come with you.",
+      "newSubjects": [
+        "salvaged-books",
+        "parcel-knot",
+        "ferry"
+      ],
+      "requiredSymbols": [
+        "A ferryperson poles a boat carrying cloaked adult and child across water with exactly six paper knives upright in the boat; a tied bundle of salvaged books is carried too, rough water behind and calmer water ahead."
+      ],
+      "expectedSuitCount": 6
+    },
+    {
+      "id": "swords-seven",
+      "bookishScene": "A figure carries exactly five brass paper knives away from a camp of library field tents while exactly two remain upright; backward glance, a folio concealed under coat, strategy and partial truth, not comic villainy.",
+      "marginalLabel": "hidden pocket",
+      "readingNote": "What has been left out?",
+      "newSubjects": [
+        "field-tent",
+        "hidden-pocket",
+        "folio"
+      ],
+      "requiredSymbols": [
+        "A figure carries exactly five brass paper knives away from a camp of library field tents while exactly two remain upright; backward glance, a folio concealed under coat, strategy and partial truth, not comic villainy."
+      ],
+      "expectedSuitCount": 7
+    },
+    {
+      "id": "swords-eight",
+      "bookishScene": "A loosely bound blindfolded figure stands among exactly eight paper knives on wet ground outside a library keep; linen binding tape, a clear open path visible to viewer, a torn blank map at feet. Restriction remains real but incomplete.",
+      "marginalLabel": "binding tape",
+      "readingNote": "Look for the gap.",
+      "newSubjects": [
+        "binding-tape",
+        "torn-map",
+        "open-path"
+      ],
+      "requiredSymbols": [
+        "A loosely bound blindfolded figure stands among exactly eight paper knives on wet ground outside a library keep; linen binding tape, a clear open path visible to viewer, a torn blank map at feet. Restriction remains real but incomplete."
+      ],
+      "expectedSuitCount": 8
+    },
+    {
+      "id": "swords-nine",
+      "bookishScene": "A figure sits upright in bed with face in hands beneath exactly nine horizontally mounted paper knives; a book has fallen open beside the bed, rose-patterned quilt and dark room. Anxiety is not an external monster.",
+      "marginalLabel": "quilt rose",
+      "readingNote": "Which thought keeps waking you?",
+      "newSubjects": [
+        "fallen-book",
+        "quilt",
+        "bedside"
+      ],
+      "requiredSymbols": [
+        "A figure sits upright in bed with face in hands beneath exactly nine horizontally mounted paper knives; a book has fallen open beside the bed, rose-patterned quilt and dark room. Anxiety is not an external monster."
+      ],
+      "expectedSuitCount": 9
+    },
+    {
+      "id": "swords-ten",
+      "bookishScene": "A prone cloaked figure lies under a ruined manuscript pierced by exactly ten paper knives in the symbolic RWS arrangement; no visible injury or gore, the exhausted body and ending remain unmistakable; dark sky breaks into gold dawn over still water.",
+      "marginalLabel": "split binding",
+      "readingNote": "Nothing more can be cut from this page.",
+      "newSubjects": [
+        "ruined-manuscript",
+        "split-binding",
+        "dawn"
+      ],
+      "requiredSymbols": [
+        "A prone cloaked figure lies under a ruined manuscript pierced by exactly ten paper knives in the symbolic RWS arrangement; no visible injury or gore, the exhausted body and ending remain unmistakable; dark sky breaks into gold dawn over still water."
+      ],
+      "expectedSuitCount": 10
+    },
+    {
+      "id": "swords-page",
+      "bookishScene": "A youthful inquirer on windy ground holds exactly one raised brass paper knife in both hands; birds and racing clouds, a notebook strapped shut at waist, eyes alert to changing winds before opening anything.",
+      "marginalLabel": "wind-folded leaf",
+      "readingNote": "Ask before you cut.",
+      "newSubjects": [
+        "notebook",
+        "paper-knife",
+        "wind"
+      ],
+      "requiredSymbols": [
+        "A youthful inquirer on windy ground holds exactly one raised brass paper knife in both hands; birds and racing clouds, a notebook strapped shut at waist, eyes alert to changing winds before opening anything."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "swords-knight",
+      "bookishScene": "An armored rider charges into a storm carrying exactly one raised paper knife, bent trees and torn clouds; a saddle folio's pages blow backward, conviction outruns close reading.",
+      "marginalLabel": "torn bookmark",
+      "readingNote": "Have you read to the end?",
+      "newSubjects": [
+        "saddle-folio",
+        "torn-bookmark",
+        "storm"
+      ],
+      "requiredSymbols": [
+        "An armored rider charges into a storm carrying exactly one raised paper knife, bent trees and torn clouds; a saddle folio's pages blow backward, conviction outruns close reading."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "swords-queen",
+      "bookishScene": "A sovereign in profile holds exactly one upright paper knife and extends an open hand; butterflies, crescent marks and clear sky, an annotated but unlettered book rests open beside the chair, precise discernment with sorrow and warmth.",
+      "marginalLabel": "butterfly wing",
+      "readingNote": "What needs saying plainly?",
+      "newSubjects": [
+        "open-book",
+        "butterfly",
+        "paper-knife"
+      ],
+      "requiredSymbols": [
+        "A sovereign in profile holds exactly one upright paper knife and extends an open hand; butterflies, crescent marks and clear sky, an annotated but unlettered book rests open beside the chair, precise discernment with sorrow and warmth."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "swords-king",
+      "bookishScene": "A front-facing sovereign holds exactly one slightly angled paper knife, butterfly and moon motifs, wind-tossed trees; an open library rulebook and a loose correction leaf on the chair, authority made answerable.",
+      "marginalLabel": "correction leaf",
+      "readingNote": "Who may write in this margin?",
+      "newSubjects": [
+        "rulebook",
+        "correction-leaf",
+        "margin"
+      ],
+      "requiredSymbols": [
+        "A front-facing sovereign holds exactly one slightly angled paper knife, butterfly and moon motifs, wind-tossed trees; an open library rulebook and a loose correction leaf on the chair, authority made answerable."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "pentacles-ace",
+      "bookishScene": "A hand offers exactly one round brass pentacle book clasp above a flowering garden path and arch toward mountains; a small unbound book waits on moss below, material possibility has a practical fastening.",
+      "marginalLabel": "moss tuft",
+      "readingNote": "Something you can put your hands on.",
+      "newSubjects": [
+        "unbound-book",
+        "brass-clasp",
+        "moss"
+      ],
+      "requiredSymbols": [
+        "A hand offers exactly one round brass pentacle book clasp above a flowering garden path and arch toward mountains; a small unbound book waits on moss below, material possibility has a practical fastening."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "pentacles-two",
+      "bookishScene": "A figure juggles exactly two round brass pentacle clasps inside an infinity ribbon while two ships rise and fall behind; two differently sized books tucked in satchel, flexible balance with effort visible.",
+      "marginalLabel": "flexible hinge",
+      "readingNote": "What must move to keep this moving?",
+      "newSubjects": [
+        "book-satchel",
+        "flexible-hinge",
+        "ribbon"
+      ],
+      "requiredSymbols": [
+        "A figure juggles exactly two round brass pentacle clasps inside an infinity ribbon while two ships rise and fall behind; two differently sized books tucked in satchel, flexible balance with effort visible."
+      ],
+      "expectedSuitCount": 2
+    },
+    {
+      "id": "pentacles-three",
+      "bookishScene": "A bookbinder works on a library arch commission while two collaborators consult an unfolded binding plan; exactly three pentacle-stamped round brass clasps fitted above, expertise distinct and shared.",
+      "marginalLabel": "sewing plan",
+      "readingNote": "Three people. What does each know?",
+      "newSubjects": [
+        "binding-plan",
+        "sewing-frame",
+        "bookbinder"
+      ],
+      "requiredSymbols": [
+        "A bookbinder works on a library arch commission while two collaborators consult an unfolded binding plan; exactly three pentacle-stamped round brass clasps fitted above, expertise distinct and shared."
+      ],
+      "expectedSuitCount": 3
+    },
+    {
+      "id": "pentacles-four",
+      "bookishScene": "A seated keeper clutches exactly one pentacle clasp to chest, one beneath each foot and one above the crown; the four clasps bind a closed volume against the body, library city behind, holding and restriction both visible.",
+      "marginalLabel": "tight strap",
+      "readingNote": "What cannot open while you hold it?",
+      "newSubjects": [
+        "tight-strap",
+        "closed-volume",
+        "keeping"
+      ],
+      "requiredSymbols": [
+        "A seated keeper clutches exactly one pentacle clasp to chest, one beneath each foot and one above the crown; the four clasps bind a closed volume against the body, library city behind, holding and restriction both visible."
+      ],
+      "expectedSuitCount": 4
+    },
+    {
+      "id": "pentacles-five",
+      "bookishScene": "Two weathered travelers pass a lit library window containing exactly five brass pentacle panels; snow and a mobility aid, warm bookshelves within, closed door nearby, hardship and available shelter remain unsolved.",
+      "marginalLabel": "frayed scarf",
+      "readingNote": "Where is the door?",
+      "newSubjects": [
+        "library-window",
+        "frayed-scarf",
+        "snow"
+      ],
+      "requiredSymbols": [
+        "Two weathered travelers pass a lit library window containing exactly five brass pentacle panels; snow and a mobility aid, warm bookshelves within, closed door nearby, hardship and available shelter remain unsolved."
+      ],
+      "expectedSuitCount": 5
+    },
+    {
+      "id": "pentacles-six",
+      "bookishScene": "A standing keeper holds scales and gives small plain fasteners to two seated people; exactly six pentacle-stamped round clasps arranged above. A library repair fund ledger on a stool hints at exchange and unequal power, no extra stars.",
+      "marginalLabel": "ledger stitch",
+      "readingNote": "Who decides what is enough?",
+      "newSubjects": [
+        "repair-ledger",
+        "plain-fastener",
+        "scales"
+      ],
+      "requiredSymbols": [
+        "A standing keeper holds scales and gives small plain fasteners to two seated people; exactly six pentacle-stamped round clasps arranged above. A library repair fund ledger on a stool hints at exchange and unequal power, no extra stars."
+      ],
+      "expectedSuitCount": 6
+    },
+    {
+      "id": "pentacles-seven",
+      "bookishScene": "A gardener rests on a tool beside a living book-vine bearing exactly seven round pentacle clasps, one at feet; a planted book's loosened pages feed the moss, cultivation paused for assessment rather than magical money.",
+      "marginalLabel": "new root",
+      "readingNote": "What is growing? What needs changing?",
+      "newSubjects": [
+        "book-vine",
+        "new-root",
+        "gardener"
+      ],
+      "requiredSymbols": [
+        "A gardener rests on a tool beside a living book-vine bearing exactly seven round pentacle clasps, one at feet; a planted book's loosened pages feed the moss, cultivation paused for assessment rather than magical money."
+      ],
+      "expectedSuitCount": 7
+    },
+    {
+      "id": "pentacles-eight",
+      "bookishScene": "A bookbinder repeatedly stamps round brass pentacle book-cover clasps at a working bench, with folded signatures, linen thread and a discreet sewing frame; six completed clasps on the beam, one worked under hands, one on ground.",
+      "requiredSymbols": [
+        "Exactly eight round brass book-cover clasps or plaques each bearing recognizable pentacle motif",
+        "Six finished clasps vertically on beam, one beneath working hands, one on ground",
+        "Believable bookbinder and bench with folded signatures and sewing frame or press",
+        "Tiny linen-thread observational study upper-left",
+        "Lower10–12percent quiet pale paper for authored note"
+      ],
+      "marginalLabel": "linen thread",
+      "readingNote": "Practice. Look at what changes.",
+      "newSubjects": [
+        "bookbinder",
+        "folded-signatures",
+        "sewing-frame",
+        "brass-book-clasps"
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.11,
+        "labelWidth": 0.26,
+        "labelOnPaper": true,
+        "noteY": 0.94
+      }
+    },
+    {
+      "id": "pentacles-nine",
+      "bookishScene": "An independent reader in a walled library garden, falcon on gloved hand, grapevines and exactly nine round pentacle clasps fixed among the trellis; a well-made reading chair and personal volume show tended pleasure.",
+      "marginalLabel": "grape tendril",
+      "readingNote": "What has your care made possible?",
+      "newSubjects": [
+        "reading-chair",
+        "grape-tendril",
+        "falcon"
+      ],
+      "requiredSymbols": [
+        "An independent reader in a walled library garden, falcon on gloved hand, grapevines and exactly nine round pentacle clasps fixed among the trellis; a well-made reading chair and personal volume show tended pleasure."
+      ],
+      "expectedSuitCount": 9
+    },
+    {
+      "id": "pentacles-ten",
+      "bookishScene": "Several generations and two dogs gather at a library-home archway; exactly ten round brass pentacle book-clasps arranged as the RWS ten, not extra shelf ornaments; a worn family storybook passes from elder to child under the arch.",
+      "marginalLabel": "inherited stitch",
+      "readingNote": "Whose hands held this before yours?",
+      "newSubjects": [
+        "family-storybook",
+        "inherited-stitch",
+        "generations"
+      ],
+      "requiredSymbols": [
+        "Several generations and two dogs gather at a library-home archway; exactly ten round brass pentacle book-clasps arranged as the RWS ten, not extra shelf ornaments; a worn family storybook passes from elder to child under the arch."
+      ],
+      "expectedSuitCount": 10
+    },
+    {
+      "id": "pentacles-page",
+      "bookishScene": "A youthful learner studies exactly one round brass pentacle clasp in both hands in a green field, distant mountains; a blank bookbinding practice booklet rests open on the grass, concentration before mastery.",
+      "marginalLabel": "practice fold",
+      "readingNote": "Turn it over. Look closely.",
+      "newSubjects": [
+        "practice-booklet",
+        "paper-fold",
+        "study"
+      ],
+      "requiredSymbols": [
+        "A youthful learner studies exactly one round brass pentacle clasp in both hands in a green field, distant mountains; a blank bookbinding practice booklet rests open on the grass, concentration before mastery."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "pentacles-knight",
+      "bookishScene": "A steady knight sits on a still dark horse holding exactly one round brass pentacle clasp over plowed land; a securely packed library book parcel strapped behind the saddle, careful delivery and work sustained.",
+      "marginalLabel": "parcel stitching",
+      "readingNote": "One careful delivery at a time.",
+      "newSubjects": [
+        "book-parcel",
+        "parcel-stitching",
+        "plowed-field"
+      ],
+      "requiredSymbols": [
+        "A steady knight sits on a still dark horse holding exactly one round brass pentacle clasp over plowed land; a securely packed library book parcel strapped behind the saddle, careful delivery and work sustained."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "pentacles-queen",
+      "bookishScene": "A caring sovereign studies exactly one brass pentacle clasp in a garden chair, rabbit at feet, flowers and vines; an open household repair book and linen scraps on a low table, practical resourcefulness without decorative excess.",
+      "marginalLabel": "linen patch",
+      "readingNote": "What could you mend with what is here?",
+      "newSubjects": [
+        "repair-book",
+        "linen-patch",
+        "rabbit"
+      ],
+      "requiredSymbols": [
+        "A caring sovereign studies exactly one brass pentacle clasp in a garden chair, rabbit at feet, flowers and vines; an open household repair book and linen scraps on a low table, practical resourcefulness without decorative excess."
+      ],
+      "expectedSuitCount": 1
+    },
+    {
+      "id": "pentacles-king",
+      "bookishScene": "A sovereign holds exactly one round brass pentacle clasp amid grapes and bull motifs, library keep behind; an old repaired book and binding tools lie within reach, prosperity as ongoing tending and accountable stewardship.",
+      "marginalLabel": "worn leather",
+      "readingNote": "Who keeps all this in good repair?",
+      "newSubjects": [
+        "repaired-book",
+        "worn-leather",
+        "binding-tools"
+      ],
+      "requiredSymbols": [
+        "A sovereign holds exactly one round brass pentacle clasp amid grapes and bull motifs, library keep behind; an old repaired book and binding tools lie within reach, prosperity as ongoing tending and accountable stewardship."
+      ],
+      "expectedSuitCount": 1
+    }
+  ]
+}

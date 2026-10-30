@@ -1465,7 +1465,7 @@ struct EnchantmentSpell: Identifiable, Equatable {
         case "mirror-mirror":
             return "Speak as the mirror-self: gentle, wry, on the reader's side. One true reflection about what the photo actually shows, one insight the reader might be too close to see, and one playful prophecy for the next three days, specific enough to check."
         case "everything-is-puzzling":
-            return "Pose the subject as a riddle with teeth: sensory clues, misdirection, real solvability. Then one hint for the stuck. Then whisper the answer on the last line, marked 'whispered:'."
+            return "Pose the subject as a proper riddle: sensory clues, misdirection, real solvability. Then one hint for the stuck. Then whisper the answer on the last line, marked 'whispered:'."
         case "everything-is-connected":
             return "Trace three genuinely surprising threads from the subject outward: one to history, one to somewhere far away on Earth, one to something in the reader's own probable week. Each thread concrete, named, and true-shaped. End by noting where two threads secretly cross."
         case "everything-is-astral":
@@ -1578,8 +1578,8 @@ enum FacultyLogCadence {
     static let windows: [FacultyLogWindow] = [
         FacultyLogWindow(id: "morning", name: "Morning Bell", startMinute: 5 * 60, endMinute: 11 * 60),
         FacultyLogWindow(id: "midday", name: "Midday Bell", startMinute: 11 * 60, endMinute: 16 * 60),
-        FacultyLogWindow(id: "evening", name: "Evening Bell", startMinute: 16 * 60, endMinute: 21 * 60),
-        FacultyLogWindow(id: "night", name: "Night Bell", startMinute: 21 * 60, endMinute: 29 * 60)
+        // Three bells a day. Late-night check-ins belong to the evening bell.
+        FacultyLogWindow(id: "evening", name: "Evening Bell", startMinute: 16 * 60, endMinute: 29 * 60)
     ]
 
     static func currentWindow(for date: Date = Date(), calendar: Calendar = .current) -> FacultyLogWindow {
@@ -1593,14 +1593,24 @@ enum FacultyLogCadence {
 
     static func didLog(kind: FacultyEntryKind, day: BookDay, entries: [FacultyEntry], now: Date = Date()) -> Bool {
         let window = currentWindow(for: now)
-        if entries.contains(where: { $0.kind == kind && $0.dayID == day.id && $0.windowID == window.id }) {
+        let bellDay = dayID(for: now)
+        if entries.contains(where: { $0.kind == kind && $0.dayID == bellDay && $0.windowID == window.id }) {
             return true
         }
         let kindTag = "faculty-kind:\(kind.rawValue)"
         let windowTag = "faculty-window:\(window.id)"
         return day.pages.contains { page in
-            page.tags.contains(kindTag) && page.tags.contains(windowTag)
+            dayID(for: page.createdAt) == bellDay
+                && page.tags.contains(kindTag) && page.tags.contains(windowTag)
         }
+    }
+
+    /// The evening bell crosses midnight without becoming a fourth check-in.
+    static func dayID(for date: Date, calendar: Calendar = .current) -> String {
+        let bellDate = calendar.component(.hour, from: date) < 5
+            ? calendar.date(byAdding: .day, value: -1, to: date) ?? date
+            : date
+        return BookDay.id(for: bellDate, calendar: calendar)
     }
 }
 

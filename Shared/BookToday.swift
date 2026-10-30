@@ -325,7 +325,7 @@ enum BookTodayProjector {
         hour: Int
     ) -> String {
         if intention.liveOpportunity != nil {
-            return "It won't last. I've put the doors for it in the Pages above."
+            return "It won't last. I've put what goes with it in the Pages above."
         }
         if hour >= 18 {
             return "I want to see what follows you home."
@@ -399,7 +399,7 @@ enum BookTodayProjector {
         var lines = [
             "“\(subject)” is loose in the margins again. Nobody has won the pencil.",
             "The footnotes have taken sides over “\(subject)” I'm counting who's shouting loudest.",
-            "“\(subject)” has \(question.positions.count) different answers scratching at its door."
+            "“\(subject)” has \(question.positions.count) different answers arguing over it."
         ]
 
         for position in question.positions {
@@ -963,7 +963,7 @@ enum BookTodayCensusProjector {
             symbol: "doc.plaintext",
             lines: [
                 "\(unpromptedPages) \(word(unpromptedPages, one: "Page came", many: "Pages came")) in without being asked.",
-                "You opened the plain door \(unpromptedPages) \(word(unpromptedPages, one: "time", many: "times")) and brought your own reason."
+                "You opened a plain Page \(unpromptedPages) \(word(unpromptedPages, one: "time", many: "times")) and brought your own reason."
             ]
         )
 
@@ -1645,7 +1645,7 @@ enum BookTodayCensusProjector {
         }
         return variant([
             "None of this was here when we began.",
-            "Look what your days dragged in. The numbers have teeth now.",
+            "Look what your days dragged in. The numbers are getting interesting.",
             "I was smaller before you. I have records.",
             "The binding is getting ideas.",
             "Ordinary days did all this while you were busy inside them."

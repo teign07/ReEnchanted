@@ -17,7 +17,7 @@ arc-deepened                  glimpse  119    100-180   -     95     8      1   
 relational-lens               glimpse  117    100-180   -     85     8      0    clean
 full-braid                    full     299    280-450   -     109    16     1    clericalCadence
 supporting-logs-only          glimpse  121    100-180   -     90     8      0    clean
-empty-day                     glimpse  49     100-180   -     79     1      0    tooShort
+empty-day                     glimpse  50     100-180   -     79     1      0    tooShort
 reader-answer                 glimpse  120    100-180   -     106    16     0    clean
 long-rambling-receipt         glimpse  117    100-180   -     93     8      0    clean
 terse-fragments               glimpse  119    100-180   -     72     8      0    clean
@@ -276,15 +276,15 @@ I kept the page: nothing about what happened went unwatched, and the day is why.
 ==============================================================================
 ## empty-day
 Nothing kept at all. The blank has to stay honest.
-scale glimpse · words 49 (band 100-180) · taste 79 · candidates 1
-paragraphs [3, 2, 1] · sentences [8, 4, 3, 7, 11, 16]
+scale glimpse · words 50 (band 100-180) · taste 79 · candidates 1
+paragraphs [3, 2, 1] · sentences [9, 4, 3, 7, 11, 16]
 prosody repeated-openings 0 · flat-run 2 · spread 13
 provenance authored:5 colophon:1
 audit tooShort
 
 The Page That Bit Back
 
-The day left no scrap under my door. I sniffed the paper. It sniffed back.
+The day didn't push a scrap under my cover. I sniffed the paper. It sniffed back.
 
 We argued over whose turn it was. The blank won and sat on the good ink until midnight.
 
@@ -692,11 +692,11 @@ The day kept watch and would not look away. I stayed quiet. The shifted step wen
 I kept the page: nothing about what happened went unwatched, and the day is why.
 
 ------------------------------------------------------------------------------
-## empty-day · 49w
+## empty-day · 50w
 
 The Page That Bit Back
 
-The day left no scrap under my door. I sniffed the paper. It sniffed back.
+The day didn't push a scrap under my cover. I sniffed the paper. It sniffed back.
 
 We argued over whose turn it was. The blank won and sat on the good ink until midnight.
 

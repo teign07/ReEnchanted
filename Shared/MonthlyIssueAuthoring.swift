@@ -1350,6 +1350,15 @@ enum MonthlyIssuePageMetadata {
     static func dailyClaimHistoryKey(issueID: String, dayID: String) -> String {
         "authored-issue-claim:\(issueID):\(dayID)"
     }
+
+    static func storyClaimHistoryKey(
+        issueID: String, runID: String, dayID: String,
+        contentID: String, nodeID: String?, now: Date
+    ) -> String {
+        dailyClaimHistoryKey(issueID: issueID, dayID: dayID)
+            + ":beat:\(runID):\(contentID):\(nodeID ?? "leaf"):"
+            + SurfaceCadence.slotID(for: now, hours: storyBeatSlotHours)
+    }
 }
 
 /// Resolves issue authoring data onto ordinary Page candidates before ranking.
@@ -1419,7 +1428,8 @@ enum MonthlyIssuePageCuration {
             let page = pages[next]
             var metadata = page.payload.metadata
             metadata["authoredFairOffer"] = "true"
-            if let claimKey = indices.compactMap({ pages[$0].payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey] }).first {
+            if let claimKey = page.payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey]
+                ?? indices.compactMap({ pages[$0].payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey] }).first {
                 metadata[MonthlyIssuePageMetadata.mayReserve] = "true"
                 metadata[MonthlyIssuePageMetadata.claimHistoryKey] = claimKey
             }
@@ -1623,8 +1633,10 @@ enum MonthlyIssuePageCuration {
         if mayReserve {
             metadata[MonthlyIssuePageMetadata.mayReserve] = "true"
             metadata[MonthlyIssuePageMetadata.claimHistoryKey] = atom.isStoryBeat
-                ? MonthlyIssuePageMetadata.dailyClaimHistoryKey(issueID: manifest.id, dayID: day.id)
-                    + ":beat:" + SurfaceCadence.slotID(for: now, hours: MonthlyIssuePageMetadata.storyBeatSlotHours)
+                ? MonthlyIssuePageMetadata.storyClaimHistoryKey(
+                    issueID: manifest.id, runID: snapshot.runID, dayID: day.id,
+                    contentID: atom.id, nodeID: metadata["authoredStoryNodeID"], now: now
+                  )
                 : MonthlyIssuePageMetadata.dailyClaimHistoryKey(
                     issueID: manifest.id,
                     dayID: day.id

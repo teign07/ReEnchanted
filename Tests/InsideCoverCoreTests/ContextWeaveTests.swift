@@ -370,7 +370,7 @@ final class ContextWeaveTests: XCTestCase {
         weather: String,
         anchorID: String,
         anchorName: String,
-        palette: String,
+        subject: String,
         cadence: String
     ) -> BookPage {
         BookPage(
@@ -390,7 +390,10 @@ final class ContextWeaveTests: XCTestCase {
             ),
             sensoryFolio: SensoryFolio(observations: [
                 SensoryObservation(dimension: .modality, value: "photo-and-voice", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .palette, value: palette, confidence: 1, extractorID: "test"),
+                // What the picture showed, not its palette: a dark palette on
+                // rainy nights is the night and the rain, and the loom no
+                // longer pairs one fact with itself.
+                SensoryObservation(dimension: .subject, value: subject, confidence: 1, extractorID: "test"),
                 SensoryObservation(dimension: .voiceCadence, value: cadence, confidence: 1, extractorID: "test")
             ])
         )
@@ -420,8 +423,11 @@ final class ContextWeaveTests: XCTestCase {
         XCTAssertTrue(found.line.contains("The rest of the time, never"), found.line)
     }
 
-    func testRelationalLoomLetsATwoDayCleanLeanSpeakAsAGlimmer() throws {
-        let night = (0..<2).map { index in
+    /// A glimmer is the thinnest thing the Book will say, and it still needs
+    /// three nights on three days: two was how "revelations" got made of
+    /// almost nothing.
+    func testRelationalLoomLetsAThreeDayCleanLeanSpeakAsAGlimmer() throws {
+        let night = (0..<3).map { index in
             storyChoicePage(id: "young-night-slice-\(index)", at: daysAgo(1 + index * 2, hour: 23), choice: "slice-of-life")
         }
         let daylight = (0..<3).map { index in
@@ -444,14 +450,14 @@ final class ContextWeaveTests: XCTestCase {
             crossMediaPage(
                 id: "storm-harbor-\(index)", at: daysAgo(1 + index * 2, hour: 23),
                 weather: "rain", anchorID: "harbor", anchorName: "Harbor",
-                palette: "slate-dark", cadence: "rapid-paused"
+                subject: "gulls", cadence: "rapid-paused"
             )
         }
         let brightLibraryDays = (0..<8).map { index in
             crossMediaPage(
                 id: "bright-library-\(index)", at: daysAgo(2 + index * 2, hour: 11),
                 weather: "bright", anchorID: "library", anchorName: "Library",
-                palette: "amber-light", cadence: "fluid-slow"
+                subject: "teacups", cadence: "fluid-slow"
             )
         }
         let connections = RelationalLoom.connections(
@@ -463,54 +469,13 @@ final class ContextWeaveTests: XCTestCase {
         let constellation = try XCTUnwrap(constellations.first { $0.condition.id == conditionID })
 
         let outcomeFamilies = Set(constellation.branches.map { $0.outcome.family })
-        XCTAssertTrue(outcomeFamilies.contains(.visualPalette))
+        XCTAssertTrue(outcomeFamilies.contains(.subject))
         XCTAssertTrue(outcomeFamilies.contains(.voiceCadence))
-        XCTAssertTrue(constellation.line.contains("photographic palette leaned slate dark"), constellation.line)
+        XCTAssertTrue(constellation.line.contains("subject leaned gulls"), constellation.line)
         XCTAssertTrue(constellation.line.contains("voice cadence leaned rapid paused"), constellation.line)
         XCTAssertTrue(constellation.line.contains("The rest of the time, all of them happened less"), constellation.line)
         XCTAssertTrue(constellation.line.contains("I don't know which one's pulling the others"), constellation.line)
         XCTAssertEqual(constellation.evidenceTier, .established)
-    }
-
-    func testBookNoticesSurfacesTheCrossMediaConstellationWithInspectableBranches() throws {
-        let stormHarborNights = (0..<5).map { index in
-            crossMediaPage(
-                id: "notice-storm-\(index)", at: daysAgo(1 + index * 2, hour: 23),
-                weather: "rain", anchorID: "harbor", anchorName: "Harbor",
-                palette: "slate-dark", cadence: "rapid-paused"
-            )
-        }
-        let brightLibraryDays = (0..<8).map { index in
-            crossMediaPage(
-                id: "notice-bright-\(index)", at: daysAgo(2 + index * 2, hour: 11),
-                weather: "bright", anchorID: "library", anchorName: "Library",
-                palette: "amber-light", cadence: "fluid-slow"
-            )
-        }
-        let today = BookDay(id: BookDay.id(for: now), date: Calendar.current.startOfDay(for: now), pages: [])
-        let surfaces = BookNoticesPageSourceAdapter().candidates(
-            for: today,
-            context: CuratorContext.make(for: today),
-            inputs: noticeInputs(days: days(from: stormHarborNights + brightLibraryDays)),
-            now: now
-        )
-        let surface = try XCTUnwrap(surfaces.first {
-            $0.payload.metadata["connectionKind"] == "relational-constellation"
-        })
-
-        let branchCount = try XCTUnwrap(Int(surface.payload.metadata["relationalBranchCount"] ?? ""))
-        let outcomes = surface.payload.metadata["relationalOutcomes"] ?? ""
-        XCTAssertGreaterThanOrEqual(branchCount, 2)
-        XCTAssertTrue(outcomes.contains("Photographic palette"), outcomes)
-        XCTAssertTrue(outcomes.contains("Voice cadence"), outcomes)
-        XCTAssertFalse((surface.payload.metadata["tinyPatternCards"] ?? "").isEmpty)
-        XCTAssertNil(surface.payload.metadata["feedbackPrompt"])
-        let readerCopy = [surface.reason, surface.prompt, surface.detail, surface.payload.headline, surface.payload.body]
-            .joined(separator: " ")
-        XCTAssertFalse(BookVoice.containsDrainedRegister(readerCopy), readerCopy)
-        XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("statistical"), readerCopy)
-        XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("analytics"), readerCopy)
-        XCTAssertFalse(readerCopy.localizedCaseInsensitiveContains("confidence score"), readerCopy)
     }
 
     func testRelationalLoomStillKeepsOneCoincidenceQuiet() {
@@ -674,10 +639,10 @@ final class ContextWeaveTests: XCTestCase {
 
     func testBookRememberedReturnsAReceiptWhenTodayMatchesEvenAGlimmer() throws {
         let rememberedNow = Calendar.current.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 23))!
-        let night = [1, 3].enumerated().map { index, back in
+        let night = [1, 3, 5].enumerated().map { index, back in
             storyChoicePage(id: "remember-night-\(index)", at: daysAgo(back, hour: 23), choice: "slice-of-life")
         }
-        let daylight = [2, 4, 5].enumerated().map { index, back in
+        let daylight = [2, 4, 6].enumerated().map { index, back in
             storyChoicePage(id: "remember-day-\(index)", at: daysAgo(back, hour: 11), choice: "progress-arc")
         }
         var inputs = BookSourceInputs.empty
@@ -713,14 +678,14 @@ final class ContextWeaveTests: XCTestCase {
             crossMediaPage(
                 id: "remember-constellation-night-\(index)", at: daysAgo(1 + index * 2, hour: 23),
                 weather: "rain", anchorID: "harbor", anchorName: "Harbor",
-                palette: "slate-dark", cadence: "rapid-paused"
+                subject: "gulls", cadence: "rapid-paused"
             )
         }
         let dayPages = (0..<8).map { index in
             crossMediaPage(
                 id: "remember-constellation-day-\(index)", at: daysAgo(2 + index * 2, hour: 11),
                 weather: "bright", anchorID: "library", anchorName: "Library",
-                palette: "amber-light", cadence: "fluid-slow"
+                subject: "teacups", cadence: "fluid-slow"
             )
         }
         var inputs = BookSourceInputs.empty
@@ -736,7 +701,7 @@ final class ContextWeaveTests: XCTestCase {
         ))
         XCTAssertEqual(visitation.page.id, night[0].id)
         XCTAssertTrue(visitation.reason.contains("night"), visitation.reason)
-        XCTAssertTrue(visitation.reason.contains("photographic palette leaned slate dark"), visitation.reason)
+        XCTAssertTrue(visitation.reason.contains("subject leaned gulls"), visitation.reason)
         XCTAssertTrue(visitation.reason.contains("voice cadence leaned rapid paused"), visitation.reason)
         XCTAssertTrue(
             visitation.reason.contains("It keeps happening"),

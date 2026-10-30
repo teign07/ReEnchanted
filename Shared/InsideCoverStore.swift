@@ -970,7 +970,7 @@ enum LocalModelManager {
             """
             : """
 
-            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that leads to the next small step. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
             """
 
         return """
@@ -1005,7 +1005,7 @@ enum LocalModelManager {
         \(history.isEmpty ? "This is the opening of the sitting." : history)
 
         THE READER JUST SAID:
-        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; open the door for them gently)" : userMessage)
+        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; make room for them gently)" : userMessage)
         \(closingDirective)
         """
     }
@@ -1831,7 +1831,7 @@ struct ResilientBraider: Braider {
             return try await local.braid(day: day, context: context)
         } catch LocalModelError.missingModel {
             var page = try await fallback.braid(day: day, context: context)
-            page.promptText = "I braided today with my own teeth."
+            page.promptText = "I braided today myself."
             page.tags.append("local-model-missing")
             return page
         }

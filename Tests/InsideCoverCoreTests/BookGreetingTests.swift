@@ -107,9 +107,8 @@ final class BookGreetingTests: XCTestCase {
         )
         XCTAssertFalse(line.isEmpty)
         XCTAssertTrue(
-            line.contains("next room")
-                || line.contains("next Page")
-                || line.contains("outside the covers")
+            ["out there", "outside", "somebody", "Look"].contains { line.contains($0) },
+            line
         )
     }
 

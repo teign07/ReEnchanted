@@ -1,0 +1,363 @@
+[
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "extension String {\n    /// FNV",
+    "sha256": "69056f3580a50c71e0709d28c4984a4451b64895e804cd5ddce9463b3b2c9a84"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "extension Int {\n    /// SplitMix",
+    "sha256": "04891bb85dfc0f96bcba4f7a5c0071ab4c2bf80cc959063c96f8ae5f06d8a044"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct CodablePoint:",
+    "sha256": "9b3dfb885deb2cc4948215508b63aa9c7cd6c927b29c568c8698edb1f22bad5d"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct CodableSize:",
+    "sha256": "45c83d7aa89fb4bb13438ce4ddc48ced2a5662e5762fde6ee5ff5f44f898614b"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct CodableRect:",
+    "sha256": "ba813beecd8f9f0354ea9d710174179017601a151c2b12c27a7f39b12dfd762f"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct ClosedDoubleRange:",
+    "sha256": "6164bde3345b0ce21862bbdaabf14d7fd8a427545a1b47ca9bda474a180dae4b"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct PhotoCandidate:",
+    "sha256": "726d30f53e64e96a8e0218b76268c3bbf7b40726d1ff81f560548a807269e7be"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct PhotoMarginalia:",
+    "sha256": "1762452d9b7a38c1a9051cf07ae02a903b329affaed44ed3e371e0aab9b50d1c"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct TemplateFallbackPhrases:",
+    "sha256": "0f437e0947335cee24c78667ce07d0630fbb5c824e1daa98d2f921c54f0467f3"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct TemplateTextSlotSpec:",
+    "sha256": "ec47bde737fa431a3d355f4c078b88c51347cd4b40f0f16ef6669ea65672fd44"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct TemplateDecorationSlotSpec:",
+    "sha256": "5dede7688031f577e1ddc4e9e4254b283d8363bda85382f1b8b372c34565a43b"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct PhotoFrameSpec:",
+    "sha256": "1a9fc413f0eb4652266da74bd5f44b956e23568dc84a85bb3acedf6d3c9a05ad"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "struct DecorationPlacement:",
+    "sha256": "5c9e16fdf97442495514b24a12bc9bd867b3b3121e2639aaab02e7244e3a092b"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "enum PackAvailability:",
+    "sha256": "da3db422d9ee0fd89859313c02a4fed4c8892e6cfdb5cc09d580f7e45e53125e"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "enum CanvasPreference:",
+    "sha256": "97a36f01e1fb288cbba0e981933a9a6b36bf580dde3512e0e376aff2cf3587eb"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "enum PhotoOrientation:",
+    "sha256": "b03fb606c61427291959f94c7752e2bd48929a262faed3fdff0647d1092993b4"
+  },
+  {
+    "path": "Shared/InsideCoverState.swift",
+    "declaration": "enum PhotoTreatment:",
+    "sha256": "886b4703e1edf193d202b03775fa5784eefac344f794170aa3521db91ab32d60"
+  },
+  {
+    "path": "Shared/PagePacks.swift",
+    "declaration": "enum LeafVisualDialectID:",
+    "sha256": "dbf35fee435ba2ef1400d07940afeb19cf5ea11c1a5ee57911d18d960e33ad49"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedTemplateID",
+    "sha256": "2e8fcb9924da28f54f3df35e7169dc724ade26c80be0f1d159fe52cfbb03ad29"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedPageStatus",
+    "sha256": "baa641e943d4987ca9db67c47ebf07bc2e3403aafe3668d9c5566bce768f4cbf"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminationAssetKind",
+    "sha256": "9000f4ae0dc2231ad45c745dc70873642d8ab9cfbc3fe9d1b05ac68a8aaac565"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafAssetSemanticRole",
+    "sha256": "b6a72b7eff6753ffa7a1f93d1aea56e199a3ea7aed582d59ce31d576917c17c5"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafAssetAnchor",
+    "sha256": "5b417cf29111aceb0a566fa87a8c4ae3db20f08630800f13d4d218110ee3ecdd"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafAssetBlend",
+    "sha256": "34a0f224e672dd476d74da8b6e62470543a37bc92fef7d4aa1a8dfe8adbaac5b"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafAssetCrop",
+    "sha256": "5d03c92f9a6b12298d9be8e416fdc8d0300ee4bf71bbe8cdd95771393f80ec16"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum MarkShelf",
+    "sha256": "3020c11400af83e8d62aed6eaf5fa18bc4561066d2e18ad908f5ac2fd6e9396c"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum MarginaliaContentKey",
+    "sha256": "2e64c281ebbe39712f47a9f2cfd7087fd5085758bf126907227b5c87a286444d"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedFontStyle",
+    "sha256": "9e80d05261e05f17ffe333445ed3d0a08ff7b4b6f811afb8db76f6d0537ce068"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedAnnotationStyle",
+    "sha256": "0f5fe46e5f871267f7aa72549130a893897175ad30844de3e1150a600d9e6956"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedPhotoPurpose",
+    "sha256": "2b47813be007dcc097fa9f9866bb91b98db1a995123dc30c1912d29a319849f0"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct PhotoAnalysis:",
+    "sha256": "d781e5a817a1b3fdcf9a3972d111342dae42862ff585e62cd04575fc4b59e691"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct LeafAssetTraits:",
+    "sha256": "9c6540909e71459eee7b28712174113d2b90888da2988f0f5242b1b587760bcc"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationAsset:",
+    "sha256": "2c3d7028e64617c31beeb258eca092dd66ffa369304bc98b0e062ddcc4f4824e"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationPlacementContext:",
+    "sha256": "eac90875e173aa44ad8af5552d352dc7062c56f609b5ef7c35c914e92f682f12"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationPlacementTrigger:",
+    "sha256": "5c53e2b527d9ef9dc5c37e679858dd5944e8e1fec3d3e31ccd9bd0ab310c0830"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationAssetPack:",
+    "sha256": "7023c25d5f7f945a13f6d896ed88f84c99b5348261076173614f14462167e627"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationTemplate:",
+    "sha256": "ed4267fff2a4fd3deac2c72eafdccfe8c0c505347878300e4ab01bab8239cb11"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminatedTextSlot:",
+    "sha256": "79830b5c5e3815aa329e2b5ccc2592ea699e064f61302ce1f26743f1430383d4"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminatedCompositionPlan:",
+    "sha256": "1e4d704a7994964633401ca512040cdf782dfb71cee01fa00c621b42723da8b7"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminatedPhotoDraft:",
+    "sha256": "4cf37aee6af152e1072207b2ebab2d4c2cd0a67c3af21520352c22493b9bb3db"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationMarginaliaSnippet:",
+    "sha256": "776569a0374c2ec83169ecef312889e17bcf5e4d4cb872a892f95fd38f21f991"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct LeafDecorationRecipe:",
+    "sha256": "cce63bdeb2051be8cf7e82cdc54d1bae3196bc3ec5883b44ffbd656a658abcb6"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "extension LeafAssetTraits {",
+    "sha256": "ce6d00ab489646528e4ce33a2d6a93be93d86b20d59354cd743e6b4e14ad2c7b"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "extension IlluminationAsset {",
+    "sha256": "222b5a4b02917019c8cf465d729a0a89de13bb7d7b7d2d5870493063202fa36f"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "private extension Set where Element == String {",
+    "sha256": "046c21ba9c6efe906f70505d199747dea27a72e64711421ec71a0bff8ad67025"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "extension MarkShelf {",
+    "sha256": "32459b3772059de2bed096a40e427a710f1732f02ed432ef953a226c6e71d66c"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "extension IlluminationAsset {\n    /// The permanent shelf",
+    "sha256": "0e239af23c3c6eefe373b1caad2149443372b55badb3b45c65af5b8d99ba97b0"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum CoreMarginsPack",
+    "sha256": "10eed155b56b8a7601bbabe803cdfd049b92a86044f798ea4ab7ccb31b386f61"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafMarginaliaPlacement",
+    "sha256": "4430b440b7a52bb63329992826afc6f60db2ad699a67921e8f5b6333d894bf30"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafPaperStock",
+    "sha256": "c9d12d23679ba526afdde092ba6e155448df07550bdc29338ccd0c70d5ce1053"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafMarginaliaDensity",
+    "sha256": "890347a74e88b571e62006e715d721e0616009a3e51215119feea9ab5c9b04fb"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum LeafDecorationLibrary",
+    "sha256": "d4147d71cb403f27958c24f3a3fad39d65cc0892462441b11c02a2d99bd00c93"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminationTemplateLibrary",
+    "sha256": "32bafb6b8b75a6b0a43a407c9addff6b51a3f6c103f068196df176918f98d896"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminationMarginaliaLibrary",
+    "sha256": "659736913409b8cdf47ddac09e4b9f3f9798c2e7c824e85df8ebb63e97535e38"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedPhotoFallbackWords",
+    "sha256": "7e7034db095dfb13b960a759f4dbba8174eec75630dea3f3648b4a818cc060ba"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedPhotoLayout",
+    "sha256": "bd6dd9b44dca1b68f57d1285a2f7058916b1c91e7d4816b9a86c5f6e949aea5d"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminatedPageComposer",
+    "sha256": "caa07ebc2ee0b3151e8459ed3bff26104af161b78e934809644de490ab45cf27"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum InterleafCuration",
+    "sha256": "2eff123a61897f60a1aa5cd85b2ec117506fba9271f173e08e4df8514fb9b19b"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum InterleafPhotoCuration",
+    "sha256": "a67f29d23bfd69ab6115bb7fd9e7ab987eaeaea97e1c84bb5373a04618a74b18"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "struct IlluminationAssetResolver {",
+    "sha256": "bc71e9dce8d60dba9ca05c1ae70116a410fa05e6b0e3c03ba2f3eb8a2151e635"
+  },
+  {
+    "path": "Shared/NoticingCrossings.swift",
+    "declaration": "enum NoticingSource:",
+    "sha256": "1237032be18e52393399a7df83066cc6be1b8a853682bf9e6fc383b71dfe2159"
+  },
+  {
+    "path": "Shared/NoticingCrossings.swift",
+    "declaration": "struct Noticing:",
+    "sha256": "44be40ec85036a716280e78c6d0cd01117bb4212501d5a51f03aae22035119e6"
+  },
+  {
+    "path": "Shared/ReferenceLibrary.swift",
+    "declaration": "struct LabyrinthIllustrationPlate:",
+    "sha256": "5cb1d5c759ecb29160e451db8266b80b79d0a43e98c376513ba4c4c55dcdfe67"
+  },
+  {
+    "path": "Shared/ReferenceLibrary.swift",
+    "declaration": "struct InterleafIllustration:",
+    "sha256": "fb26e117243923239a8c9239063a747562e57d053d040558fbcd9fb46c122d0d"
+  },
+  {
+    "path": "Shared/ReferenceLibrary.swift",
+    "declaration": "enum InterleafIllustrationLibrary {",
+    "sha256": "7a9489b6e6cfbc70d5cb03dc416c9ee9d15525a631437e451410fa1ceeacd7d3"
+  },
+  {
+    "path": "Shared/ReferenceLibrary.swift",
+    "declaration": "struct CharacterIllustrationProfile:",
+    "sha256": "99cd79f45632151de18eb3b296e455324f9ed7e626acc3b9c32f941312ba9aec"
+  },
+  {
+    "path": "InsideCoverApp/PagesRisingFolio.swift",
+    "declaration": "FolioInterleafEncounterStore",
+    "adaptation": "ObservableObject removed; Date() injected fixture clock; UserDefaults replaced with isolated in-memory byte store",
+    "sha256": "66cadc8ab42334b6042637168b8dd64c21dbec2ed4ee49e02588bb29ad56c841"
+  },
+  {
+    "path": "Shared/Atlas.swift",
+    "declaration": "struct MapPlateMark:",
+    "sha256": "7fc57e7c38fb83706b096a183e4629e06c63e25fa79e29e4a149f96dd7ac122e"
+  },
+  {
+    "path": "Shared/Atlas.swift",
+    "declaration": "struct MapPlateSpec:",
+    "sha256": "517571c99244e57170488b622171d421575cf37e4492d77babb6ef742d4fd3fb"
+  },
+  {
+    "path": "Shared/Atlas.swift",
+    "declaration": "struct GazetteerLeaf:",
+    "sha256": "3c9c82619fc4573742e887bd86828c1146ec21065fa9ee887887742b694efeb7"
+  },
+  {
+    "path": "Shared/Illumination.swift",
+    "declaration": "enum IlluminationPackRegistry {",
+    "sha256": "3603bfa2c6f8c872f1e233ad2a593e8994a97814f72e836c4880765e40681e46"
+  },
+  {
+    "path": "InsideCoverApp/PagesRisingFolio.swift",
+    "declaration": "interleafMarginaliaScale + unit",
+    "adaptation": "explicit seed and Double for standalone interpreter"
+  }
+]

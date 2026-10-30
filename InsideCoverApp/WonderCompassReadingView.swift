@@ -13,11 +13,20 @@ struct WonderCompassReadingView: View {
     private let blocks: [WonderCompassBlock]
     private let direction: WonderCompassDirection?
     private let onOpenSection: (String) -> Void
+    /// What the reader has written on the chapter's Souvenir lines and slips.
+    @Binding private var answers: [String: String]
+    /// Called with the composed writing whenever it changes; it becomes the
+    /// Page's ink, so Keep saves it.
+    private let onInk: (String) -> Void
     @State private var previewURL: URL?
 
     /// `blockRange` draws part of a section; the debug layout render uses it.
     init(snippet: ReferenceSnippet, text: String, blockRange: Range<Int>? = nil,
+         answers: Binding<[String: String]> = .constant([:]),
+         onInk: @escaping (String) -> Void = { _ in },
          onOpenSection: @escaping (String) -> Void) {
+        _answers = answers
+        self.onInk = onInk
         let blocks = snippet.wonderCompassBlocks(for: text)
         self.blocks = blockRange.map { Array(blocks[$0.clamped(to: blocks.indices)]) } ?? blocks
         direction = blocks.lazy.compactMap { block -> WonderCompassDirection? in
@@ -29,20 +38,30 @@ struct WonderCompassReadingView: View {
 
     var body: some View {
         FolioControlStack(alignment: .leading, spacing: 14) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                view(for: block)
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
+                view(for: block, index: index)
             }
+        }
+        .onChange(of: answers) { _, answers in
+            onInk(WonderCompassWriting.compose(blocks: blocks, answers: answers,
+                                               date: Date().formatted(date: .long, time: .omitted)))
         }
         #if canImport(QuickLook)
         .quickLookPreview($previewURL)
         #endif
     }
 
+    private func answer(_ key: String) -> Binding<String> {
+        Binding(get: { answers[key] ?? "" }, set: { answers[key] = $0 })
+    }
+
     /// The chapter's own quarter of the Compass tints its marks.
     private var accent: Color { direction?.ink ?? BookPalette.teal }
 
+    /// `index` is the block's place in the chapter; writable blocks key their
+    /// answers by it. Blocks inside cards pass -1.
     @ViewBuilder
-    private func view(for block: WonderCompassBlock) -> some View {
+    private func view(for block: WonderCompassBlock, index: Int = -1) -> some View {
         switch block {
         case .part(let label, let title, let subtitle):
             WonderCompassPartTitle(label: label, title: title, subtitle: subtitle)
@@ -71,9 +90,10 @@ struct WonderCompassReadingView: View {
         case .quickWin(let title, let items):
             card(title: title, symbol: "sparkles", tint: accent, items: items)
         case .certificate(let title, let items):
-            WonderCompassCertificate(title: title, items: items)
+            WonderCompassCertificate(title: title, items: items, block: index, answer: answer)
         case .souvenir(let title, let lines):
-            WonderCompassSouvenirLines(title: title, lines: lines, tint: accent)
+            WonderCompassSouvenirLines(title: title, lines: lines, tint: accent,
+                                       sentence: answer(WonderCompassWriting.souvenirKey(block: index)))
         case .credit(let text):
             Text(text)
                 .font(.system(.caption2, design: .serif).italic())
@@ -530,6 +550,16 @@ private struct WonderCompassStep: View {
     }
 
     private func medallion(size: CGFloat) -> some View {
+        WonderCompassMedallion(direction: direction, size: size)
+    }
+}
+
+/// A lettered disc in a Compass quarter's ink: N, E, S, W.
+struct WonderCompassMedallion: View {
+    let direction: WonderCompassDirection
+    var size: CGFloat = 22
+
+    var body: some View {
         Text(direction.letter)
             .font(.custom("Baskerville-SemiBold", size: size * 0.55, relativeTo: .body))
             .foregroundStyle(BookPalette.page)
@@ -543,10 +573,14 @@ private struct WonderCompassStep: View {
 // MARK: - Certificate
 
 /// A permission slip the reader is meant to sign, set like one: a bordered
-/// certificate whose blanks are lines to write on.
+/// certificate whose blanks take the reader's words, and a line to sign.
 private struct WonderCompassCertificate: View {
     let title: String
     let items: [WonderCompassBlock]
+    let block: Int
+    let answer: (String) -> Binding<String>
+
+    private var lines: [String] { WonderCompassWriting.certificateLines(items) }
 
     var body: some View {
         FolioControlStack(spacing: 14) {
@@ -558,9 +592,15 @@ private struct WonderCompassCertificate: View {
                 .multilineTextAlignment(.center)
                 .foregroundStyle(BookPalette.ink)
             WonderCompassRule(tint: BookPalette.gold, short: true)
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                line(for: item)
+            ForEach(Array(lines.enumerated()), id: \.offset) { item, line in
+                if WonderCompassWriting.isSignatureLine(line) {
+                    signature("Signed,", text: answer(WonderCompassWriting.signatureKey(block: block)),
+                              placeholder: "Your name")
+                } else {
+                    clause(line, item: item)
+                }
             }
+            signature("Date", value: Date().formatted(date: .long, time: .omitted))
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 24)
@@ -570,76 +610,76 @@ private struct WonderCompassCertificate: View {
         .overlay(Rectangle().strokeBorder(BookPalette.gold.opacity(0.5), lineWidth: 0.6).padding(9))
         .shadow(color: BookPalette.parchmentEdge.opacity(0.25), radius: 4, y: 2)
         .padding(.vertical, 10)
-        .accessibilityElement(children: .combine)
     }
 
+    /// A line of the slip. Its blanks read back what the reader wrote, and
+    /// each one has a place to write underneath.
     @ViewBuilder
-    private func line(for item: WonderCompassBlock) -> some View {
-        switch item {
-        case .kicker(let label):
-            signature(label)
-        case .prose(let text) where text.trimmingCharacters(in: .punctuationCharacters) == "Signed":
-            signature(text)
-        case .prose(let text), .lede(let text):
-            Text(Self.blanked(text))
+    private func clause(_ line: String, item: Int) -> some View {
+        let blanks = WonderCompassWriting.blankCount(line)
+        let keys = (0..<blanks).map { WonderCompassWriting.blankKey(block: block, item: item, blank: $0) }
+        FolioControlStack(spacing: 6) {
+            Text(WonderCompassWriting.filled(line, answers: keys.map { answer($0).wrappedValue }))
                 .font(.custom("Baskerville-Italic", size: 18, relativeTo: .body))
                 .foregroundStyle(BookPalette.ink)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-        case .list(let items):
-            VStack(spacing: 8) {
-                ForEach(Array(items.enumerated()), id: \.offset) { _, text in
-                    Text(Self.blanked(text))
-                        .font(.custom("Baskerville-Italic", size: 18, relativeTo: .body))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
+                TextField(placeholder(for: line, blank: index), text: answer(key))
+                    .font(.custom("BradleyHandITCTT-Bold", size: 18, relativeTo: .body))
+                    .foregroundStyle(BookPalette.teal)
+                    .multilineTextAlignment(.center)
+                    .padding(.vertical, 4)
+                    .overlay(alignment: .bottom) {
+                        Rectangle().fill(BookPalette.ink.opacity(0.35)).frame(height: 0.8)
+                    }
+                    .padding(.horizontal, 24)
+                    .folioControlUnbroken()
             }
-            .foregroundStyle(BookPalette.ink)
-        default:
-            Text(Self.blanked(WonderCompassCertificate.plainText(item)))
-                .font(.custom("Baskerville-Italic", size: 18, relativeTo: .body))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private func signature(_ label: String) -> some View {
+    private func placeholder(for line: String, blank: Int) -> String {
+        if blank == 0, line.hasPrefix("I,") { return "Your name" }
+        return "Write it here"
+    }
+
+    @ViewBuilder
+    private func signature(_ label: String, text: Binding<String>? = nil, value: String? = nil,
+                           placeholder: String = "") -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 8) {
             Text(label)
                 .font(.custom("Baskerville-SemiBold", size: 16, relativeTo: .callout))
                 .foregroundStyle(BookPalette.ink.opacity(0.8))
-            Rectangle()
-                .fill(BookPalette.ink.opacity(0.45))
-                .frame(height: 0.8)
-                .offset(y: -3)
+            Group {
+                if let text {
+                    TextField(placeholder, text: text)
+                } else {
+                    Text(value ?? "")
+                }
+            }
+            .font(.custom("BradleyHandITCTT-Bold", size: 19, relativeTo: .body))
+            .foregroundStyle(BookPalette.teal)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(BookPalette.ink.opacity(0.45)).frame(height: 0.8)
+            }
         }
         .padding(.top, 8)
-    }
-
-    /// The print book's blanks ("----", or a run of spaces) become a line
-    /// long enough to write on.
-    static func blanked(_ text: String) -> String {
-        text.replacingOccurrences(of: #"-{3,}"#, with: "_________", options: .regularExpression)
-            .replacingOccurrences(of: #" {4,}"#, with: " _________", options: .regularExpression)
-    }
-
-    static func plainText(_ block: WonderCompassBlock) -> String {
-        switch block {
-        case .labeled(let label, let text): return label + ": " + text
-        case .heading(let text, _), .keyLine(let text): return text
-        default: return ""
-        }
+        .folioControlUnbroken()
     }
 }
 
 // MARK: - Souvenir
 
-/// The print book's ruled lines for a One Sentence Souvenir.
+/// The print book's ruled lines for a One Sentence Souvenir, now a place to
+/// write it. What's written here is kept with the chapter's other writing.
 private struct WonderCompassSouvenirLines: View {
     let title: String
     let lines: Int
     let tint: Color
+    @Binding var sentence: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -651,13 +691,28 @@ private struct WonderCompassSouvenirLines: View {
                     .font(.custom("BradleyHandITCTT-Bold", size: 20, relativeTo: .title3))
             }
             .foregroundStyle(tint)
-            .padding(.bottom, 6)
-            ForEach(0..<lines, id: \.self) { _ in
-                Rectangle()
-                    .fill(BookPalette.ink.opacity(0.22))
-                    .frame(height: 0.8)
-                    .padding(.top, 30)
-            }
+            .padding(.bottom, 10)
+            TextField("One true sentence from today.", text: $sentence, axis: .vertical)
+                .font(.custom("BradleyHandITCTT-Bold", size: 20, relativeTo: .body))
+                .foregroundStyle(BookPalette.ink)
+                .lineLimit(lines...max(lines, 5))
+                .lineSpacing(10)
+                .background(alignment: .top) {
+                    // Ruled lines under the handwriting.
+                    VStack(spacing: 0) {
+                        ForEach(0..<max(lines, 2), id: \.self) { _ in
+                            Rectangle()
+                                .fill(BookPalette.ink.opacity(0.22))
+                                .frame(height: 0.8)
+                                .padding(.top, 33)
+                        }
+                    }
+                    .accessibilityHidden(true)
+                }
+            Text("Keep the page to keep your sentence.")
+                .font(.system(.caption2, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.5))
+                .padding(.top, 12)
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -668,6 +723,6 @@ private struct WonderCompassSouvenirLines: View {
         )
         .rotationEffect(.degrees(-0.6))
         .padding(.top, 10)
-        .accessibilityElement(children: .combine)
+        .folioControlUnbroken()
     }
 }

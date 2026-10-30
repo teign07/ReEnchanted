@@ -521,3 +521,141 @@ struct WonderCompassFormatter {
         }
     }
 }
+
+// MARK: - Writing in the book
+
+/// The Souvenir lines and permission slips a reader can write on while
+/// reading. Answers are keyed by the block they belong to; on Keep they become
+/// one plain record of what the reader wrote in that chapter.
+enum WonderCompassWriting {
+    /// The print book's blanks: "I, ----, hereby" or a long run of spaces.
+    static let blankPattern = #"-{3,}| {4,}"#
+
+    static func blankCount(_ text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: blankPattern) else { return 0 }
+        return regex.numberOfMatches(in: text, range: NSRange(text.startIndex..., in: text))
+    }
+
+    /// The line with each blank replaced by its answer, or a rule when empty.
+    static func filled(_ text: String, answers: [String]) -> String {
+        guard let regex = try? NSRegularExpression(pattern: blankPattern) else { return text }
+        var result = text
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        for (index, match) in matches.enumerated().reversed() {
+            guard let range = Range(match.range, in: result) else { continue }
+            let answer = answers.indices.contains(index) ? answers[index].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let leading = result[range].first == " " ? " " : ""
+            result.replaceSubrange(range, with: leading + (answer.isEmpty ? "_________" : answer))
+        }
+        return result
+    }
+
+    static func souvenirKey(block: Int) -> String { "souvenir-\(block)" }
+    static func blankKey(block: Int, item: Int, blank: Int) -> String { "slip-\(block)-\(item)-\(blank)" }
+    static func signatureKey(block: Int) -> String { "slip-\(block)-signed" }
+
+    /// What the reader wrote, in reading order. Empty when nothing was written.
+    static func compose(blocks: [WonderCompassBlock], answers: [String: String], date: String) -> String {
+        func answer(_ key: String) -> String {
+            (answers[key] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        var sections: [String] = []
+        for (index, block) in blocks.enumerated() {
+            switch block {
+            case .certificate(let title, let items):
+                let lines = certificateLines(items)
+                let blanks = lines.enumerated().flatMap { item, line in
+                    (0..<blankCount(line)).map { answer(blankKey(block: index, item: item, blank: $0)) }
+                }
+                let signature = answer(signatureKey(block: index))
+                guard !signature.isEmpty || blanks.contains(where: { !$0.isEmpty }) else { continue }
+                var slip = [title]
+                for (item, line) in lines.enumerated() where !isSignatureLine(line) {
+                    let filledAnswers = (0..<blankCount(line)).map { answer(blankKey(block: index, item: item, blank: $0)) }
+                    slip.append(filled(line, answers: filledAnswers))
+                }
+                if !signature.isEmpty { slip.append("Signed, \(signature)") }
+                slip.append("Date: \(date)")
+                sections.append(slip.joined(separator: "\n"))
+            case .souvenir(let title, _):
+                let sentence = answer(souvenirKey(block: index))
+                if !sentence.isEmpty { sections.append("\(title): \(sentence)") }
+            default:
+                continue
+            }
+        }
+        return sections.joined(separator: "\n\n")
+    }
+
+    /// A certificate's writable lines, in order; list items count one each.
+    static func certificateLines(_ items: [WonderCompassBlock]) -> [String] {
+        items.flatMap { item -> [String] in
+            switch item {
+            case .prose(let text), .lede(let text), .keyLine(let text): return [text]
+            case .list(let lines): return lines
+            case .labeled(let label, let text): return [label + ": " + text]
+            default: return []
+            }
+        }
+    }
+
+    static func isSignatureLine(_ line: String) -> Bool {
+        line.trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)) == "Signed"
+    }
+}
+
+// MARK: - Dares and the book
+
+/// The quarter of the Compass an invitation practises, and the chapter that
+/// explains why it works. `direction` is nil for chapters outside the four
+/// steps, such as the Permission Slip.
+struct WonderCompassPractice: Equatable {
+    var direction: WonderCompassDirection?
+    var chapterID: String
+}
+
+enum WickerDareCompass {
+    /// Keyed by dare id; place dares by the stem before their place suffix.
+    static let practices: [String: WonderCompassPractice] = {
+        func entry(_ direction: WonderCompassDirection?, _ chapter: String) -> WonderCompassPractice {
+            WonderCompassPractice(direction: direction, chapterID: "wonder-compass-\(chapter)")
+        }
+        let notice = entry(.north, "chapter6a")
+        let embark = entry(.east, "chapter7")
+        let sense = entry(.south, "chapter8a")
+        let characters = entry(.south, "chapter8b")
+        let write = entry(.west, "chapter9")
+        let permission = entry(nil, "chapter4b")
+        return [
+            // North: noticing what everyone walks past, and asking about it.
+            "machine-salute": notice, "local-honor": notice, "odd-question": notice,
+            "local-secret-favorite": notice, "local-curiosity": notice, "local-bookstore-question": notice,
+            "object-compliment": entry(.north, "chapter3"),
+            // East: crossing a line, with a coat, a soundtrack or a treat.
+            "route-mutiny": embark, "chapter-the-commute": embark, "micro-adventure-invite": embark,
+            "ceremonial-snack": embark, "wrong-way-round": embark, "stranger-color": embark,
+            "strange-accessory": embark, "temporary-crown": embark, "beautifully-overdressed-task": embark,
+            "one-song-entrance": embark, "visible-mending": embark,
+            "friend-dares-back": entry(.east, "chapter12a"),
+            // South: a playful mission for the body and the senses.
+            "tongue-out": sense, "ten-second-dance": sense, "spy-block": sense, "nature-documentary": sense,
+            "wrong-chair": sense, "municipal-drama": sense, "formal-portrait": sense, "unnecessary-flourish": sense,
+            "weather-broadcast": sense, "pigeon-stare": sense, "pocket-museum": sense, "invent-a-holiday": sense,
+            "villainous-chore": entry(.south, "chapter15"),
+            // South, the Characters way: talking to things as if they listen.
+            "tell-the-plant": characters, "room-renaming": characters,
+            "local-water-verdict": characters, "local-wild-voice": characters,
+            // West: words, and the specific ones.
+            "tiny-manifesto": write, "read-to-the-air": write, "kind-note": write, "absurdly-specific-toast": write,
+            "one-minute-character": write, "creative-drop": write, "local-library-poem": write,
+            "tiny-gift": entry(.west, "chapter3"),
+            // The Permission Slip: wanting things out loud.
+            "first-sentence-sky": permission, "honest-opinion": permission, "tiny-boundary": permission,
+        ]
+    }()
+
+    static func practice(forDareID id: String) -> WonderCompassPractice? {
+        if let exact = practices[id] { return exact }
+        return practices.first { id.hasPrefix($0.key + "-") }?.value
+    }
+}

@@ -67,6 +67,9 @@ final class PerfProbeSwitches {
     /// `--perf-pixie-async`: her canvas drawn off the main thread. Tried on
     /// 2026-10-18: no main-thread stalls, but her flight visibly skipped.
     let pixieDrawsOffMain = ProcessInfo.processInfo.arguments.contains("--perf-pixie-async")
+    /// `--pippa-demo`: a shake delivery a few seconds after launch, then three
+    /// pokes in a row, so her card and spill can be watched without a hand.
+    let pippaDemo = ProcessInfo.processInfo.arguments.contains("--pippa-demo")
     /// `--perf-still-lamp`: the Glow bookmark's lamp holds its out-breath.
     let stillLamp = ProcessInfo.processInfo.arguments.contains("--perf-still-lamp")
     /// `--perf-sky rain|storm|snow[:intensity]`: weather on the leaf for this

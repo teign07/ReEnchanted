@@ -675,8 +675,8 @@ final class SpellDeskTests: XCTestCase {
         return inputs
     }
 
-    /// The whole promise: across a fortnight of ordinary days, spells reach the
-    /// visible desk on their own.
+    /// Across a fortnight of ordinary days, spells still reach the desk on
+    /// their own, through ordinary ranking rather than a reserved chair.
     func testSpellsReachTheDesk() {
         var days = 0
         for offset in 0..<14 {
@@ -685,21 +685,23 @@ final class SpellDeskTests: XCTestCase {
             let desk = BookCurator.surfacedPages(for: day, context: .make(for: day), inputs: establishedInputs(before: when), now: when, limit: 9)
             if desk.contains(where: { $0.type == .spell }) { days += 1 }
         }
-        XCTAssertGreaterThanOrEqual(days, 4, "spells reached the desk on only \(days) of 14 days")
+        // No chair is reserved for a spell any more (see
+        // `testSpellsHaveNoReservationOrConditionalChairProtection`), so this
+        // measures what ordinary ranking and the desk's breadth deliver.
+        XCTAssertGreaterThanOrEqual(days, 2, "spells reached the desk on only \(days) of 14 days")
     }
 
-    /// When the world lays a spell out, it is on the desk the reader sees,
-    /// not three leaves in.
-    func testAFoggyDayPutsTheFogSpellOnTheVisibleDesk() {
-        var seen = 0
+    /// The world can supply a relevant spell without reserving it a chair.
+    func testAFoggyDayOffersTheFogSpellToOrdinaryCuration() {
         for offset in 0..<7 {
             let when = date(hour: 10, dayOffset: offset)
             let day = BookDay(id: BookDay.id(for: when), date: when, pages: [])
             var inputs = establishedInputs(before: when)
             inputs.weather = WeatherSourceSignal(phrase: "Current: Fog, 48F", source: "test")
-            let desk = BookCurator.surfacedPages(for: day, context: .make(for: day), inputs: inputs, now: when, limit: 9)
-            if desk.prefix(3).contains(where: { $0.payload.metadata["spellID"] == "fog-walking" }) { seen += 1 }
+            let candidates = BookCurator.candidatePool(for: day, context: .make(for: day), inputs: inputs, now: when)
+            let fog = candidates.first { $0.payload.metadata["spellID"] == "fog-walking" }
+            XCTAssertNotNil(fog)
+            if let fog { XCTAssertFalse(BookCurator.holdsItsChair(fog)) }
         }
-        XCTAssertGreaterThanOrEqual(seen, 6, "the fog spell reached the visible desk on only \(seen) of 7 foggy days")
     }
 }

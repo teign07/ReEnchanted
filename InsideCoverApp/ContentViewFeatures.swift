@@ -474,16 +474,16 @@ extension ContentView {
                 .appendingPathComponent("ReEnchanted-\(stem)-\(formatter.string(from: Date())).pdf")
             try PagewrightPDFWriter.write(draft: draft, to: url)
             preparedPagewrightPDFURL = url
-            statusMessage = "\(draft.format.shareName) PDF is bound. The Apple share sheet can carry it now."
+            statusMessage = "\(draft.format.shareName) PDF is bound. Send it wherever you like."
             BookFeedback.play(.braidComplete, fill: true)
             return url
         } catch {
-            statusMessage = "The Pagewright couldn't bind that page: \(error.localizedDescription)"
+            statusMessage = slipLine("The Pagewright couldn't bind that page.", logging: error)
             BookFeedback.play(.error)
             return nil
         }
         #else
-        statusMessage = "This build can't bind Pagewright PDFs yet."
+        statusMessage = "This version of me can't bind Pagewright PDFs yet."
         BookFeedback.play(.error)
         return nil
         #endif
@@ -510,12 +510,12 @@ extension ContentView {
             BookFeedback.play(.braidComplete)
             return url
         } catch {
-            statusMessage = "The Pagewright couldn't make that PNG: \(error.localizedDescription)"
+            statusMessage = slipLine("The Pagewright couldn't make that PNG.", logging: error)
             BookFeedback.play(.error)
             return nil
         }
         #else
-        statusMessage = "This build can't make Pagewright PNGs yet."
+        statusMessage = "This version of me can't make Pagewright PNGs yet."
         BookFeedback.play(.error)
         return nil
         #endif
@@ -534,7 +534,7 @@ extension ContentView {
                     export: "png"
                 ))
             } catch {
-                statusMessage = "The Pagewright couldn't keep that PNG: \(error.localizedDescription)"
+                statusMessage = slipLine("The Pagewright couldn't keep that PNG.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -547,7 +547,7 @@ extension ContentView {
                     export: "pdf"
                 ))
             } catch {
-                statusMessage = "The Pagewright couldn't keep that PDF: \(error.localizedDescription)"
+                statusMessage = slipLine("The Pagewright couldn't keep that PDF.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -825,6 +825,9 @@ extension ContentView {
         var body = base.payload.body
         var metadata = base.payload.metadata
         let memory = anchorVisitMemory(for: proximity.anchor)
+        if !memory.isEmpty {
+            metadata["anchorVisitMemory"] = memory
+        }
         if let scene = try? await makeOuterStacksRoomWriter().visitScene(
             anchor: proximity.anchor,
             visitCount: proximity.nextVisitCount,
@@ -834,9 +837,6 @@ extension ContentView {
             body = "\(scene)\n\nKeeping this page checks in at the Anchor and offers it a little Belief from your Glow."
             metadata["visitScene"] = scene
             metadata["storyScene"] = scene
-            if !memory.isEmpty {
-                metadata["anchorVisitMemory"] = memory
-            }
         }
         statusMessage = ""
         selectedSurface = SurfacePage(
@@ -1424,7 +1424,7 @@ extension ContentView {
         let trimmedPath = pdfPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPath.isEmpty,
               FileManager.default.fileExists(atPath: trimmedPath) else {
-            statusMessage = "The first edition was bound, but its shelf copy couldn't be found."
+            statusMessage = "The first edition was bound, but I can't find it on the shelf."
             return
         }
 
@@ -1713,8 +1713,8 @@ extension ContentView {
 
         saveElectives(list)
         statusMessage = elective.bookFavorID == nil
-            ? "\(elective.characterName)'s note is back in the drawer. Nobody's keeping score."
-            : "Favor's shelved. A no is just a no here."
+            ? "\(elective.characterName)'s note is back in the drawer."
+            : "Favor's back on the shelf."
     }
 
     func refreshBookWhispers(cadence: BookWhisperCadence? = nil) {
@@ -1947,7 +1947,7 @@ extension ContentView {
         saveElectives(list)
         statusMessage = elective.bookFavorID == nil
             ? "\(elective.characterName)'s quest is tucked into the flyleaf."
-            : "The favor is tucked into the flyleaf. I'll keep my promise without keeping score."
+            : "The favor's tucked into the flyleaf. I'll keep my side."
     }
 
     func recordBookWorkingReturnIfNeeded(surface: SurfacePage, at date: Date) {
@@ -2081,7 +2081,7 @@ extension ContentView {
             narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
             entityMemories = NarrativeEntityMemoryConsolidator.consolidate(try BookDatabase.entityMemories(limit: 240))
         } catch {
-            statusMessage = "The quest is complete, but a hidden margin note slipped: \(error.localizedDescription)"
+            statusMessage = slipLine("Quest done. One of my notes about it fell out, that's all.", logging: error)
             return
         }
         statusMessage = elective.bookFavorID == nil
@@ -2298,7 +2298,7 @@ extension ContentView {
                 statusMessage = "I'm sealed: the whole Book, every page, photograph and ledger."
                 BookFeedback.play(.braidComplete)
             } catch {
-                statusMessage = "The copy wouldn't seal: \(error.localizedDescription)"
+                statusMessage = slipLine("The copy wouldn't seal.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -2327,7 +2327,7 @@ extension ContentView {
                 : "I'm sealed: a complete copy, pages and photographs alike."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The save file wouldn't bind: \(error.localizedDescription)"
+            statusMessage = slipLine("The save file wouldn't bind.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -2347,7 +2347,7 @@ extension ContentView {
             statusMessage = "Your pages are copied out in plain ink, ready to share."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The plain-ink copy wouldn't write: \(error.localizedDescription)"
+            statusMessage = slipLine("The plain-ink copy wouldn't write.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -2386,7 +2386,7 @@ extension ContentView {
             statusMessage = "My continuity is bound and ready to share."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "The continuity file wouldn't bind: \(error.localizedDescription)"
+            statusMessage = slipLine("The continuity file wouldn't bind.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -2709,7 +2709,7 @@ extension ContentView {
             statusMessage = "The Bleed · \(candidate.label) is ready as a PDF."
             BookFeedback.play(.braidComplete, fill: true)
         } catch {
-            statusMessage = "The edition wouldn't bind: \(error.localizedDescription)"
+            statusMessage = slipLine("The edition wouldn't bind.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -3518,7 +3518,7 @@ extension ContentView {
                 await LocalBrainPublicationStageBoundary.persisted("seasonal-dispatch-aborted")
                 // A prepaid parcel is a debt, so failure remains retryable and
                 // visible in the Bindery rather than being marked as posted.
-                colophonBindingNote = "\(dispatch.coverLine) is still by the door. The print desk balked: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("\(dispatch.coverLine) is still by the door. The print desk balked.", logging: error)
             }
         }
     }
@@ -4342,7 +4342,7 @@ extension ContentView {
                 clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: pending))
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("monthly-aborted")
-                colophonBindingNote = "The thread snapped mid-stitch: the month wouldn't bind. (\(error.localizedDescription))"
+                colophonBindingNote = slipLine("The thread snapped mid-stitch: the month wouldn't bind.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -4401,7 +4401,7 @@ extension ContentView {
                     monthlyEditionReader = reader
                 }
             } catch {
-                colophonBindingNote = "The thread snapped mid-stitch: \(edition.title) wouldn't bind. (\(error.localizedDescription))"
+                colophonBindingNote = slipLine("The thread snapped mid-stitch: \(edition.title) wouldn't bind.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -4470,7 +4470,7 @@ extension ContentView {
                 clearPublicationBindingCheckpoint(slot: weeklyBindingSlot(for: issue))
                 presentWeeklyIssueReader(kept, afterShopDismiss: wasShopOpen)
             } catch {
-                colophonBindingNote = "The issue opened, but it wouldn't stay on the shelf: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("The issue opened, but it wouldn't stay on the shelf.", logging: error)
                 presentWeeklyIssueReader(cached, afterShopDismiss: wasShopOpen)
             }
             return
@@ -4480,7 +4480,7 @@ extension ContentView {
             do {
                 try PublicationBindingCheckpointStore.remove(slot: weeklyBindingSlot(for: issue))
             } catch {
-                colophonBindingNote = "The old issue draft wouldn't come off the binding table: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("The old issue draft wouldn't come off the binding table.", logging: error)
                 BookFeedback.play(.error)
                 return
             }
@@ -4569,7 +4569,7 @@ extension ContentView {
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("weekly-aborted")
                 weeklyIssueBindingNote = nil
-                colophonBindingNote = "The weekly issue wouldn't bind: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("The weekly issue wouldn't bind.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -4698,7 +4698,7 @@ extension ContentView {
             weeklyIssueReader = reader
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "Issue No. \(artifact.issue.number) wouldn't open: \(error.localizedDescription)"
+            statusMessage = slipLine("Issue No. \(artifact.issue.number) wouldn't open.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -4788,7 +4788,7 @@ extension ContentView {
                 }
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
-                colophonBindingNote = "The press wouldn't take it: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("The press wouldn't take it.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -4821,7 +4821,7 @@ extension ContentView {
                 }
             } catch {
                 await LocalBrainPublicationStageBoundary.persisted("print-edition-aborted")
-                colophonBindingNote = "The press wouldn't take it: \(error.localizedDescription)"
+                colophonBindingNote = slipLine("The press wouldn't take it.", logging: error)
                 BookFeedback.play(.error)
             }
         }
@@ -5179,7 +5179,7 @@ extension ContentView {
             )
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "\(artifact.edition.monthName) wouldn't open: \(error.localizedDescription)"
+            statusMessage = slipLine("\(artifact.edition.monthName) wouldn't open.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -5288,7 +5288,7 @@ extension ContentView {
             )
             BookFeedback.play(.openPage, fill: true)
         } catch {
-            statusMessage = "The \(artifact.edition.year) annual wouldn't open: \(error.localizedDescription)"
+            statusMessage = slipLine("The \(artifact.edition.year) annual wouldn't open.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -5306,7 +5306,7 @@ extension ContentView {
     @MainActor
     func openBoundWeeklyIssue(periodID: PublicationPeriodID) {
         guard let page = keptWeeklyIssuePage(for: periodID) else {
-            statusMessage = "That issue is marked bound, but its shelf Page is missing."
+            statusMessage = "That issue says it's bound, but I can't find its Page on the shelf."
             BookFeedback.play(.error)
             return
         }
@@ -5316,7 +5316,7 @@ extension ContentView {
     @MainActor
     func openBoundMonthlyEdition(periodID: PublicationPeriodID) {
         guard let page = keptMonthlyEditionPage(for: periodID) else {
-            statusMessage = "That edition is marked bound, but its shelf Page is missing."
+            statusMessage = "That edition says it's bound, but I can't find its Page on the shelf."
             BookFeedback.play(.error)
             return
         }
@@ -5326,7 +5326,7 @@ extension ContentView {
     @MainActor
     func openBoundAnnualEdition(periodID: PublicationPeriodID) {
         guard let page = keptAnnualEditionPage(for: periodID) else {
-            statusMessage = "That annual is marked bound, but its shelf Page is missing."
+            statusMessage = "That annual says it's bound, but I can't find its Page on the shelf."
             BookFeedback.play(.error)
             return
         }
@@ -5779,6 +5779,63 @@ extension ContentView {
             lines: lines,
             evidenceIDs: evidence.prefix(10).map(\.id)
         )
+    }
+
+    /// "I want to write, please?": the most recent finished, unbound month
+    /// whose cover leaves could be written ahead.
+    @MainActor
+    func editionLeavesDuePeriod(now: Date = Date()) -> PublicationPeriodID? {
+        monthlyPublicationCandidates
+            .filter { $0.isBindable && $0.boundRevisionCount == 0 && $0.period.endDate < now
+                && now.timeIntervalSince($0.period.endDate) < 14 * 86_400 }
+            .max { $0.period.startDate < $1.period.startDate }?
+            .id
+    }
+
+    /// Writes a finished month's cover leaves into the same checkpoint the
+    /// Bind button reads, so binding later is instant. Unlike a bind, a stage
+    /// is only marked done when the model actually wrote it: a session the
+    /// reader closes partway must not leave empty stages that a later bind
+    /// would skip. Returns true once every stage is written.
+    @MainActor
+    func writeEditionLeavesAhead(periodID: PublicationPeriodID) async -> Bool {
+        guard var edition = resolveEditionForBinding(periodID: periodID) else { return false }
+        // The same dedication the Bind button passes, or the fingerprints won't meet.
+        edition.dedication = BoundDedication(text: monthlyBindingDedicationText)
+        let slot = monthlyBindingSlot(for: edition)
+        guard let fingerprint = try? monthlyBindingSourceFingerprint(for: edition) else { return false }
+        var checkpoint = (try? PublicationBindingCheckpointStore.load(
+            MonthlyEdition.self, slot: slot, sourceFingerprint: fingerprint
+        )) ?? PublicationBindingCheckpoint(sourceFingerprint: fingerprint, payload: edition)
+        let character = currentBookCharacterPrompt()
+        func done(_ stage: MonthlyEditionBindingStage) -> Bool { checkpoint.hasCompleted(stage.rawValue) }
+        func finish(_ stage: MonthlyEditionBindingStage) {
+            checkpoint.markCompleted(stage.rawValue)
+            try? PublicationBindingCheckpointStore.save(checkpoint, slot: slot)
+        }
+
+        if !done(.foreword) {
+            guard let foreword = await gemmaMonthlyForeword(for: edition, character: character) else { return false }
+            checkpoint.payload.foreword = foreword
+            finish(.foreword)
+        }
+        if !done(.bindingStory) {
+            guard let story = await gemmaMonthlyBindingStory(for: edition, character: character) else { return false }
+            checkpoint.payload.bindingStory = story
+            checkpoint.payload.sections.removeAll { $0.id == "monthly-binding-story" }
+            finish(.bindingStory)
+        }
+        if !done(.closing) {
+            guard let closing = await gemmaMonthlyClosing(for: edition, character: character) else { return false }
+            checkpoint.payload.closing = closing
+            finish(.closing)
+        }
+        if !done(.castConversation) {
+            guard let conversation = await gemmaMonthlyCastConversation(for: checkpoint.payload) else { return false }
+            checkpoint.payload.castConversation = conversation
+            finish(.castConversation)
+        }
+        return true
     }
 
     @MainActor
@@ -6347,7 +6404,7 @@ extension ContentView {
             }
             let wasShopOpen = isBookShopPresented
             isBookShopPresented = false
-            statusMessage = "Asking Gemma to write the year’s cover leaves…"
+            statusMessage = "I'm writing the year's cover leaves…"
             publicationBindingTitle = "\(targetYear)"
             publicationBindingMoment = .annual
             Task { @MainActor in
@@ -6393,12 +6450,12 @@ extension ContentView {
                     }
                 } catch {
                     await LocalBrainPublicationStageBoundary.persisted("annual-aborted")
-                    statusMessage = "The annual wouldn't bind: \(error.localizedDescription)"
+                    statusMessage = slipLine("The annual wouldn't bind.", logging: error)
                     BookFeedback.play(.error)
                 }
             }
         } catch {
-            statusMessage = "The annual wouldn't bind: \(error.localizedDescription)"
+            statusMessage = slipLine("The annual wouldn't bind.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -6709,7 +6766,7 @@ extension ContentView {
             statusMessage = "The save file has been read back into me: \(save.days.count) days, \(save.selfFacts.count) facts, \(save.anchors.count) anchors."
             BookFeedback.play(.braidComplete)
         } catch {
-            statusMessage = "That save file wouldn't open: \(error.localizedDescription)"
+            statusMessage = slipLine("That save file wouldn't open.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -7096,7 +7153,7 @@ extension ContentView {
             selectedSurface = keptSurface(for: retold)
         } catch {
             localBrainTelemetry.recordError("braid retell: \(error.localizedDescription)")
-            statusMessage = "The retelling snagged. I left the Page exactly as it was. \(error.localizedDescription)"
+            statusMessage = slipLine("The retelling snagged. I left the Page exactly as it was.", logging: error)
             BookFeedback.play(.error)
         }
     }
@@ -7342,7 +7399,7 @@ extension ContentView {
             return "the pattern matters; one page is a moment, but repeated ink is beginning to behave like a map"
         }
         if lower.contains("wonder") || lower.contains("play") || lower.contains("curiosity") || lower.contains("adventure") {
-            return "the important thing may be the little door that opened, not the reason it opened"
+            return "the important thing may be what happened, more than why"
         }
         if lower.contains("protect") || lower.contains("boundary") || lower.contains("truth") || lower.contains("honest") {
             return "the honest edge of the page shouldn't be softened until it disappears"
@@ -7766,13 +7823,13 @@ extension ContentView {
 
             Then the cover falls open onto Home.
 
-            It looks like the life you already had, with one more door in it.
+            It looks like the life you already had, with more going on in it.
             """
         } else {
             body = """
             Creator's Note
 
-            Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little doors, and real bindings you can keep.
+            Thank you for helping keep ReEnchanted alive. This Book is built out of small strange things: pages that notice back, sounds from the margins, odd little surprises, and real bindings you can keep.
 
             Your support buys the quiet practical magic too: time to write, draw, tune, test, and keep the Book kind. No hovering receipt should have to sit above your feed forever; this note is just a warm slip of paper, here long enough to be read, then ready to be swiped away.\(newPagesLine)
             """
@@ -7820,7 +7877,7 @@ extension ContentView {
         refreshMonthlyIssueDelivery()
         if packID == PackEntitlements.standingOrderPackID {
             StandingOrderTrialReminder.cancel()
-            statusMessage = "The Standing Order snapped shut. It took nothing with it: your Pages are still yours, the plain binding holds, and the lamp refuses to go out. Pry the Order open again if you ever want it."
+            statusMessage = "The Standing Order's closed. Your Pages are all still here. Open it again whenever you like."
         }
     }
 
@@ -9121,8 +9178,8 @@ struct BookwideMarginaliaAchievement {
             track: .bookcraftApprenticeship
         ),
         achievement(
-            "shelf-begun", "Three Different Doors",
-            "Try three kinds of Page. I want to see where their doors go.",
+            "shelf-begun", "Three Different Kinds",
+            "Try three kinds of Page. I want to see where they take you.",
             "Keep three different kinds of Page.",
             .distinctKeptPageTypes(3),
             ["illumination_blank_summary", "tape_01"],
@@ -9140,8 +9197,8 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "hundred-leaves", "The Whole House Answered",
-            "All seven doors have opened: attention, otherness, freedom, invention, language, company, and return.",
-            "Across seven days, bring back twelve real things touching all seven doors: attention, otherness, freedom, invention, language, company, and return.",
+            "All seven have woken up: attention, otherness, freedom, invention, language, company, and return.",
+            "Across seven days, bring back twelve real things touching all seven: attention, otherness, freedom, invention, language, company, and return.",
             .all([
                 .distinctLongGameCapacities(7, unpromptedOnly: false),
                 .longGameEvidence(
@@ -9176,7 +9233,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "twelve-souvenirs", "Three Ways In",
-            "Words found one door. Two other senses found doors the words missed.",
+            "Words found one thing. Two other senses found things the words missed.",
             "Keep your own evidence in three different ways, such as words, photograph, voice, place, or weather.",
             .sensoryModalities(3),
             ["illumination_passage_ticket", "illumination_unannounced", "illumination_thyme_stamp"]
@@ -9394,7 +9451,7 @@ struct BookwideMarginaliaAchievement {
         ),
         achievement(
             "remembered-three", "You Came Back",
-            "You came back because the earlier thing still had teeth. No counter pulled you here.",
+            "You came back because the earlier thing still had a hold on you. No counter pulled you here.",
             "Bring back one true return from life outside my covers.",
             .longGameEvidence(
                 capacity: .deliberateReturn,

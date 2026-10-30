@@ -170,7 +170,8 @@ Bargain tilts it.
 
 ## The month, scene by scene (2026 dates)
 
-Eight scenes. Long and immersive, October's register (Gaiman-ish modern faerie tale, the Book's
+Eight scenes, plus six short optional interludes between them (`ContentPacks/the-guest/content_interludes.py`)
+for readers who drop in and out. Long and immersive, October's register (Gaiman-ish modern faerie tale, the Book's
 voice; the Book has no hands). Pinned beats need a floor, not a score.
 
 1. **The Knock** — All Souls' Eve, Sun Nov 1, night. Souling at the west door. A soul cake, a seat

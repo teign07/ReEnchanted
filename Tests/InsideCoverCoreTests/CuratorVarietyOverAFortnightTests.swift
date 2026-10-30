@@ -33,6 +33,7 @@ final class CuratorVarietyOverAFortnightTests: XCTestCase {
         var daysWithoutAWayOut: [Int] = []
         var byPage: [String: Int] = [:]
         var byType: [BookPageType: Int] = [:]
+        var eligibleSessionsByType: [BookPageType: Int] = [:]
         var answerGaps: [Int] = []
         /// Pages whose whole design is to arrive on a schedule — the nightly
         /// braid, the morning edition. The repetition test is about the Book
@@ -118,6 +119,16 @@ final class CuratorVarietyOverAFortnightTests: XCTestCase {
                 inputs.days = history + [today]
                 inputs.resurfacingCandidates = (history + [today]).flatMap(\.pages)
                 inputs.surfaceHistory = surfaceHistory
+
+                let context = CuratorContext.make(for: today)
+                let mood = CuratorMood.make(inputs: inputs, distressActive: context.distress.isActive, now: now)
+                let candidates = BookCurator.candidatePool(for: today, context: context, inputs: inputs, now: now)
+                let eligibleIDs = Set(BookCurator.candidateTrace(from: candidates, mood: mood, now: now)
+                    .filter { $0.rejection == nil }.map(\.surfaceID))
+                let eligibleTypes = Set(candidates.filter {
+                    eligibleIDs.contains($0.id) && mood.allowsTypeRefresh(for: $0, now: now)
+                }.map(\.type))
+                for type in eligibleTypes { run.eligibleSessionsByType[type, default: 0] += 1 }
 
                 // The folio publishes a block of nine turnable leaves, so the
                 // block — not the opening trio — is what the reader actually
@@ -251,5 +262,18 @@ final class CuratorVarietyOverAFortnightTests: XCTestCase {
                 "\(reader): \(worst?.key.rawValue ?? "") took \(worst?.value ?? 0) of \(run.slots) leaves"
             )
         }
+    }
+
+    /// Count types the real adapters repeatedly supplied, not a synthetic
+    /// rotation and not hundreds of individual Quotes mistaken for breadth.
+    func testRegularlyEligibleTypesActuallyReachTheReader() {
+        let run = fortnight(as: .steady)
+        let regularlyEligible = Set(run.eligibleSessionsByType.filter { $0.value >= 6 }.keys)
+        let encountered = Set(run.byType.keys)
+        XCTAssertGreaterThan(regularlyEligible.count, 12)
+        XCTAssertTrue(
+            regularlyEligible.isSubset(of: encountered),
+            "Repeatedly eligible but never served: \(regularlyEligible.subtracting(encountered).map(\.rawValue).sorted())"
+        )
     }
 }

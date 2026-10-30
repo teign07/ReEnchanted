@@ -1,0 +1,2132 @@
+{
+  "status": "authored-production-briefs-not-generated-art",
+  "sourceOfAuthority": "Reader-approved world and RWS grounding; unattended continuation authorized",
+  "installedAtStart": [
+    "major-01",
+    "major-06",
+    "major-09",
+    "pentacles-three",
+    "swords-four",
+    "wands-four",
+    "wands-ten"
+  ],
+  "remainingAtStart": 71,
+  "cards": [
+    {
+      "id": "major-00",
+      "name": "0 — The Fool",
+      "assetName": "TarotMajor00Fool",
+      "authoredID": "major-00-fool",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Outer Stacks threshold",
+      "roomKind": "threshold",
+      "booksInUse": "A new reader’s bundle, escaping leaf and library doorway.",
+      "castingIntent": "unnamed adult literary-fae new reader",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "A new reader at an Academy cliff-threshold, small white dog tugging at their hem, white rose, bright sun, tiny bundle, eyes lifted rather than watching the drop. A blank Page escapes the bundle."
+      ],
+      "marginalLabel": "white rose",
+      "readingNote": "Look up. Mind the edge.",
+      "secondaryStudy": "bundle knot",
+      "aside": "The dog noticed first.",
+      "faeAction": "tiny margin fae catches the escaping blank page",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-00.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Clear spring morning; pale green, cream and one white rose; broad open sky for breathing space.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-02",
+      "name": "II — The High Priestess",
+      "assetName": "TarotMajor02HighPriestess",
+      "authoredID": "major-02-high-priestess",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Restricted reading room",
+      "roomKind": "reading-room",
+      "booksInUse": "Closed volumes, veiled shelves and one guarded reading book.",
+      "castingIntent": "unnamed adult Unseelie literary-elf keeper",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Seated keeper between ink-black and parchment pillars, moon at feet, scroll partly hidden, veil patterned with pomegranates and palms; a closed living Book behind the veil."
+      ],
+      "marginalLabel": "pomegranate rind",
+      "readingNote": "Some things open when you stop pulling.",
+      "secondaryStudy": "veil hem",
+      "aside": "Not every door is yours.",
+      "faeAction": "punctuation pixie hides a physical question mark under the veil edge",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-02.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool blue/silver indirect light with paper ivory and pomegranate accents; hush, no gold lamp canyon.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-03",
+      "name": "III — The Empress",
+      "assetName": "TarotMajor03Empress",
+      "authoredID": "major-03-empress",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Mossbloom common-room conservatory",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "Plant books, pressed specimens and well-used shared reading volumes.",
+      "castingIntent": "unnamed adult Seelie literary-elf nurturer",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Crowned figure in a living Mossbloom garden, wheat, waterfall, heart shield with Venus mark, twelve-star crown; fabric and vines actively growing into the page margin."
+      ],
+      "marginalLabel": "wheat ear",
+      "readingNote": "Feed what is growing.",
+      "secondaryStudy": "plant tie",
+      "aside": "Leave room for roots.",
+      "faeAction": "tiny paper sprite loosens a too-tight plant tie",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-03.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Twelve crown stars must be individually countable; no vague starry band. Venus heart shield and wheat/water remain visible.",
+      "lightAndPalette": "Soft conservatory daylight; living greens, wheat gold and dusty rose, generous pale paper.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-04",
+      "name": "IV — The Emperor",
+      "assetName": "TarotMajor04Emperor",
+      "authoredID": "major-04-emperor",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Great Hall head table",
+      "roomKind": "great-hall",
+      "booksInUse": "House records, boundary plans and a worn volume under a steady hand.",
+      "castingIntent": "Headmistress Seraphina Thorne as an authority allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure on a stone throne carved with ram heads, red robe, mountains, orb and ordinary scepter; an Ember Seal presses a clean boundary into one corner."
+      ],
+      "marginalLabel": "oak grain",
+      "readingNote": "A boundary can hold a door open.",
+      "secondaryStudy": "wax impression",
+      "aside": "This side of the line.",
+      "faeAction": "margin goblin measures the edge of a blank rule sheet",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-04.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Late afternoon across one head table; oxblood, dark timber and cool stone with restrained brass.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-05",
+      "name": "V — The Hierophant",
+      "assetName": "TarotMajor05Hierophant",
+      "authoredID": "major-05-hierophant",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Lexical Diversity classroom",
+      "roomKind": "classroom",
+      "booksInUse": "Teacher’s chained dictionary, learners’ folios and passed-on books.",
+      "castingIntent": "Professor Thaddeus Mook teaching two adult learners",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Academy teacher between two pillars with two learners below, crossed keys, raised teaching hand, three-tier crown translated into layered bookplates; solemn but not authoritarian."
+      ],
+      "marginalLabel": "binding leather",
+      "readingNote": "Which old rule still helps?",
+      "secondaryStudy": "key ribbon",
+      "aside": "Ask him why.",
+      "faeAction": "a punctuation pixie quietly turns a full stop into a physical question mark",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-05.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Ordinary classroom daylight; oxblood, ink black and tarnished brass from canonical Mook palette.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-07",
+      "name": "VII — The Chariot",
+      "assetName": "TarotMajor07Chariot",
+      "authoredID": "major-07-chariot",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book-delivery courtyard",
+      "roomKind": "courtyard",
+      "booksInUse": "A loaded book cart under a canopy, with packages and return slips.",
+      "castingIntent": "Professor Permancer travelling with books",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Armored traveler in a wheeled Academy book cart beneath a star canopy, black and white sphinx-like paper beasts, city behind; no reins, movement governed by attention."
+      ],
+      "marginalLabel": "cart lashings",
+      "readingNote": "Choose where this is going.",
+      "secondaryStudy": "wheel spoke",
+      "aside": "Both beasts heard you.",
+      "faeAction": "small catalogue sprite tests a book-parcel knot",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-07.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Blue-white outdoor light, brass cart fittings and earth; no golden shelves behind every surface.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-08",
+      "name": "VIII — Strength",
+      "assetName": "TarotMajor08Strength",
+      "authoredID": "major-08-strength",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Basic Enchantments classroom",
+      "roomKind": "classroom",
+      "booksInUse": "A calm keeper tends an ink-and-paper lion beside a dropped book.",
+      "castingIntent": "Professor Luna Wispwood with a paper lion",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Calm figure gently closing or opening the mouth of a lion-like ink creature, infinity sign, flowers, mountain; no domination or violence."
+      ],
+      "marginalLabel": "lion mane study",
+      "readingNote": "Gentle hands can still be brave.",
+      "secondaryStudy": "flower cord",
+      "aside": "Ask the lion first.",
+      "faeAction": "tiny literary fae gently untangles a flower cord",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-08.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Quiet classroom morning, sage and cream with a restrained warm mane; tenderness with strength.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-10",
+      "name": "X — Wheel of Fortune",
+      "assetName": "TarotMajor10WheelOfFortune",
+      "authoredID": "major-10-wheel",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Catalogue hall",
+      "roomKind": "catalogue-room",
+      "booksInUse": "A rotating wheel of catalog drawers and four corner readers.",
+      "castingIntent": "unnamed adult catalogue fae and four winged book witnesses",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "A great Compass-and-card-catalog wheel with RWS letter and elemental echoes, serpent descending, Anubis-like figure rising, sphinx above, four winged book witnesses in the corners."
+      ],
+      "marginalLabel": "catalogue spindle",
+      "readingNote": "The wheel moves. You still choose.",
+      "secondaryStudy": "axle pin",
+      "aside": "Round again.",
+      "faeAction": "margin goblin hangs on to a loose catalogue tab",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-10.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Four winged corner witnesses (human/angel, eagle, lion, bull) with books; sphinx, descending serpent and rising jackal figure. Keep wheel letter spaces clear for authored exact TARO glyphs if needed.",
+      "lightAndPalette": "Oxidized blue, old copper and warm paper; clear readable silhouettes around the moving catalogue wheel.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-11",
+      "name": "XI — Justice",
+      "assetName": "TarotMajor11Justice",
+      "authoredID": "major-11-justice",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Department of Attestation room",
+      "roomKind": "faculty-room",
+      "booksInUse": "Open ledger, correction leaves and the material weight of a decision.",
+      "castingIntent": "Penny Blackletter as an Attestation allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Direct-gazing figure between pillars holding upright sword and balanced scales, red robe, square clasp, violet veil; both tools ordinary and exact."
+      ],
+      "marginalLabel": "square clasp",
+      "readingNote": "Let the facts keep their weight.",
+      "secondaryStudy": "paper edge",
+      "aside": "Weigh that too.",
+      "faeAction": "small paper sprite returns a missing corner to a blank sheet",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-11.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Clear side light, ink blue, red and violet; keep the scales and paper knife crisp.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-12",
+      "name": "XII — The Hanged Man",
+      "assetName": "TarotMajor12HangedMan",
+      "authoredID": "major-12-hanged-man",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book Jumping classroom",
+      "roomKind": "classroom",
+      "booksInUse": "A safe inverted reader, a floor book and a beam with paper hinges.",
+      "castingIntent": "Professor Permancer in voluntary suspension",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Serene figure suspended by one foot from a living story-door shaped like a T, free leg bent, halo, hands behind back; voluntary stillness, no distress."
+      ],
+      "marginalLabel": "ankle loop",
+      "readingNote": "Try the view from here.",
+      "secondaryStudy": "door hinge",
+      "aside": "No rush from this side.",
+      "faeAction": "tiny margin fae hangs upside down from an unrelated paper curl",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-12.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Soft green reflected classroom light, wood and linen; quiet breathing space around the suspended figure.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-13",
+      "name": "XIII — Death",
+      "assetName": "TarotMajor13Death",
+      "authoredID": "major-13-death",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Old-paper garden",
+      "roomKind": "garden",
+      "booksInUse": "Fallen library leaves return to shoots beneath the traditional rider.",
+      "castingIntent": "skeletal literary-fae rider and varied Academy witnesses",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "White skeletal rider on white horse with black banner and white rose, fallen crown, figures of several ages, two towers and rising sun; autumn pages becoming spring shoots. Do not omit death."
+      ],
+      "marginalLabel": "white rose petal",
+      "readingNote": "Let the ending be an ending.",
+      "secondaryStudy": "fallen leaf",
+      "aside": "Keep the seed.",
+      "faeAction": "a small book moth rests on a spring shoot among old leaves",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-13.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Pale autumn morning, black/white and leaf ochre; grave and truthful without horror gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-14",
+      "name": "XIV — Temperance",
+      "assetName": "TarotMajor14Temperance",
+      "authoredID": "major-14-temperance",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Inkworks dye room",
+      "roomKind": "workroom",
+      "booksInUse": "Dye vessels, swatch books and paper-drying cloths; exact two vessels.",
+      "castingIntent": "Professor Eleanor Euphony as a winged mixing allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Winged figure with one foot on land and one in water, pouring luminous ink-water between two cups, path to a crown-like light, irises; fluids visibly travel against gravity."
+      ],
+      "marginalLabel": "iris petal",
+      "readingNote": "Make room for a third way.",
+      "secondaryStudy": "dye swatches",
+      "aside": "A little at a time.",
+      "faeAction": "tiny colour sprite tests two nonvessel pigment marks on scrap paper",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-14.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Clean daylight in Inkworks, blue and amber dye with paper cream; gentle visible mixing.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-15",
+      "name": "XV — The Devil",
+      "assetName": "TarotMajor15Devil",
+      "authoredID": "major-15-devil",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Locked lending alcove",
+      "roomKind": "reading-room",
+      "booksInUse": "Open book clasps, held chains and a lectern whose bargain can be questioned.",
+      "castingIntent": "unnamed horned book-bargain fae and two adult readers",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Horned archetypal figure above two loosely chained people, inverted torch, dark pedestal; chains visibly removable, expressions complicated rather than terrified. Duskthorn palette, no gore."
+      ],
+      "marginalLabel": "loose chain link",
+      "readingNote": "Look for where the chain opens.",
+      "secondaryStudy": "broken seal",
+      "aside": "It is loose there.",
+      "faeAction": "margin goblin points to an unfastened paper band",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-15.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Low ink-violet alcove light with dark red and unsealed brass; allow unease without gore.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-16",
+      "name": "XVI — The Tower",
+      "assetName": "TarotMajor16Tower",
+      "authoredID": "major-16-tower",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Storm-struck archive tower",
+      "roomKind": "wild-stacks",
+      "booksInUse": "Exposed shelves and signatures burst from a broken library tower.",
+      "castingIntent": "two unnamed adult scholars and a storm archive",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Academy tower struck by lightning, crown blown free, two figures falling, twenty-two flame marks, storm-black sky; torn pages fly outward, but the foundation is visible."
+      ],
+      "marginalLabel": "torn paper fibres",
+      "readingNote": "What was it holding shut?",
+      "secondaryStudy": "split timber",
+      "aside": "Mind the landing.",
+      "faeAction": "tiny ink fae shelters under a loose unlettered roof tile",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-16.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Exactly two falling people, crown displaced, lightning strike and 22 flame marks; all flames fit rather than being cropped or replaced by loose pages.",
+      "lightAndPalette": "Storm blue/black split by pale lightning and small red flames; urgent composition, no cozy haze.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-17",
+      "name": "XVII — The Star",
+      "assetName": "TarotMajor17Star",
+      "authoredID": "major-17-star",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Moonlit reading garden",
+      "roomKind": "garden",
+      "booksInUse": "Water-damaged pages dry beside a pool under exactly eight stars.",
+      "castingIntent": "unnamed adult literary elf tending a night garden",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Unclothed or simply draped figure kneeling with one foot in a pool and one on earth, pouring water onto both, one great eight-point star and seven smaller stars, bird in tree; quiet night."
+      ],
+      "marginalLabel": "waterline study",
+      "readingNote": "Give tomorrow one small drink.",
+      "secondaryStudy": "feather trace",
+      "aside": "Enough for tonight.",
+      "faeAction": "tiny book moth follows reflected starlight without adding extra stars",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-17.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "One large eight-pointed star plus seven small stars; two pouring vessels, water and land both receive water. No additional decorative stars in margins.",
+      "lightAndPalette": "Cool night blue, pale green and silver reflections; quiet hope rather than broad golden light.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-18",
+      "name": "XVIII — The Moon",
+      "assetName": "TarotMajor18Moon",
+      "authoredID": "major-18-moon",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidal library approach",
+      "roomKind": "wild-stacks",
+      "booksInUse": "Two towers, uncertain path and a map that ends short of the water.",
+      "castingIntent": "unnamed dogs wolf and pool creature at the tidal library",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Full moon with profile between two Academy towers, dog and wolf, crustacean rising from water, gold path into hills; Tidecrest mist, sharp shadow, no horror styling."
+      ],
+      "marginalLabel": "reeds",
+      "readingNote": "Go slowly through what you cannot see.",
+      "secondaryStudy": "tide mark",
+      "aside": "That shadow moved.",
+      "faeAction": "small margin fae checks a puddle with an ordinary pebble",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-18.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Wet blue-green and grey, moonlit paper, genuinely ambiguous shadow but no monster styling.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-19",
+      "name": "XIX — The Sun",
+      "assetName": "TarotMajor19Sun",
+      "authoredID": "major-19-sun",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Sunlit Academy courtyard",
+      "roomKind": "courtyard",
+      "booksInUse": "A carried storybook, sunflower lesson leaves and an open reading window.",
+      "castingIntent": "unnamed childlike literary-fae rider on a white horse",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Childlike rider on a white horse beneath a banner, four sunflowers, walled garden, large radiant sun; warm paper and unapologetic marigold."
+      ],
+      "marginalLabel": "sunflower petal",
+      "readingNote": "Let the good thing be good.",
+      "secondaryStudy": "banner seam",
+      "aside": "More room for yellow.",
+      "faeAction": "punctuation pixie hangs from a loose banner stitch",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-19.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Exactly four main sunflowers; no extra sunflower specimen in margin that looks like a fifth whole flower. Label a petal instead.",
+      "lightAndPalette": "Broad warm daylight, marigold and clean cream, lively blue shadows; keep the scene open.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-20",
+      "name": "XX — Judgement",
+      "assetName": "TarotMajor20Judgement",
+      "authoredID": "major-20-judgement",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Vault of Doors",
+      "roomKind": "classroom",
+      "booksInUse": "Open book-shaped coffers, loose ribbon markers and a call to answer.",
+      "castingIntent": "unnamed winged literary herald and awakening Academy readers",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Winged herald sounding a trumpet above figures rising from open book-shaped coffers, mountains and tidal water; the call is heard differently by every figure."
+      ],
+      "marginalLabel": "trumpet ribbon",
+      "readingNote": "What is asking you to rise?",
+      "secondaryStudy": "coffer hinge",
+      "aside": "You heard it too.",
+      "faeAction": "small paper sprite shakes dust from an open blank folio",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-20.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Pearl-grey dawn, distant rose and brass; a clear call across tidal water, not a crowded banquet.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "major-21",
+      "name": "XXI — The World",
+      "assetName": "TarotMajor21World",
+      "authoredID": "major-21-world",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Completion gallery",
+      "roomKind": "great-hall",
+      "booksInUse": "A handmade book, stitched wreath and four witnesses to a completed work.",
+      "castingIntent": "unnamed androgynous literary-fae dancer",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Androgynous dancing figure within a living laurel wreath, two small writing instruments in hand, four winged witnesses in corners; all five Chapter colors reconciled without becoming a rainbow wash."
+      ],
+      "marginalLabel": "laurel leaf",
+      "readingNote": "Notice what has come together.",
+      "secondaryStudy": "wreath tie",
+      "aside": "The door is still there.",
+      "faeAction": "tiny margin fae finishes a loose wreath knot",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/major-21.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "semanticReviewChecklist": "Central figure within wreath, two small implements and four distinct winged corner witnesses; no missing corner.",
+      "lightAndPalette": "Balanced soft light with restrained five Chapter colours distributed as real cloth/book details, not rainbow wash.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-ace",
+      "name": "Ace of Wands",
+      "assetName": "TarotWandsAce",
+      "authoredID": "wands-ace",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "New-writer desk",
+      "roomKind": "reading-room",
+      "booksInUse": "One offered pen, an open book, first-mark paper and a library window.",
+      "castingIntent": "unnamed fae hand from clouded paper",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "A hand from clouded paper offers one budding staff; distant keep, river, and hills; a faint Ember Seal glow in the wood grain."
+      ],
+      "marginalLabel": "wood bud",
+      "readingNote": "Give the spark somewhere to go.",
+      "secondaryStudy": "paper curl",
+      "aside": "Start here.",
+      "faeAction": "small paper sprite clears an empty writing space without holding any pen",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-ace.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-two",
+      "name": "Two of Wands",
+      "assetName": "TarotWands02",
+      "authoredID": "wands-02",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Map classroom window",
+      "roomKind": "classroom",
+      "booksInUse": "A planning globe, annotated map shapes and two pens at the window.",
+      "castingIntent": "Soren Ng planning from a classroom window",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure on a battlement holds a small world and one staff while another is fixed to the wall; sea and settlement beyond."
+      ],
+      "marginalLabel": "map fold",
+      "readingNote": "What lies beyond the plan?",
+      "secondaryStudy": "window latch",
+      "aside": "Leave a way back.",
+      "faeAction": "small map fae peeks through a blank folded chart",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-two.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 2,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-three",
+      "name": "Three of Wands",
+      "assetName": "TarotWands03",
+      "authoredID": "wands-03",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library shipping balcony",
+      "roomKind": "threshold",
+      "booksInUse": "Borrowing parcels, bound travel records and ships beyond the rail.",
+      "castingIntent": "unnamed adult literary-elf shipping clerk",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Cloaked figure with back turned watches three ships from a height; three staffs, one held; gold-red sky."
+      ],
+      "marginalLabel": "sailcloth",
+      "readingNote": "Send it. Then watch the horizon.",
+      "secondaryStudy": "parcel cord",
+      "aside": "They are moving.",
+      "faeAction": "margin goblin tends a parcel without any writing tools",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-three.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 3,
+      "semanticReviewChecklist": "Three dip pens and three ships, individually separated. One pen held and two planted; no background pen pot.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-five",
+      "name": "Five of Wands",
+      "assetName": "TarotWands05",
+      "authoredID": "wands-05",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Collaborative writing classroom",
+      "roomKind": "classroom",
+      "booksInUse": "Five pens contest one sheet; practice books and ink live on the desks.",
+      "castingIntent": "five varied young adult Academy writers",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Five distinct young people cross exactly five staffs in energetic confusion; read as contest or rehearsal, not battle."
+      ],
+      "marginalLabel": "practice chalk",
+      "readingNote": "What are you trying together?",
+      "secondaryStudy": "sleeve patch",
+      "aside": "One at a time.",
+      "faeAction": "tiny paper sprite sorts five non-tool paper scraps into a calmer pile",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-five.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 5,
+      "semanticReviewChecklist": "Five people and five pens total; one pen per person, no broken duplicated nibs or detached shafts.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3",
+      "generationAttempts": 2
+    },
+    {
+      "id": "wands-six",
+      "name": "Six of Wands",
+      "assetName": "TarotWands06",
+      "authoredID": "wands-06",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Academy entrance hall",
+      "roomKind": "threshold",
+      "booksInUse": "A carried volume, book-return procession and recognition made public.",
+      "castingIntent": "Finn Bridges returning through an entrance hall",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Rider returns through a crowd carrying a laurel-crowned staff; exactly six staffs visible; public praise with a hint of performance."
+      ],
+      "marginalLabel": "laurel leaf",
+      "readingNote": "Let the work be seen.",
+      "secondaryStudy": "saddle stitch",
+      "aside": "Let them help carry it.",
+      "faeAction": "tiny fae straightens a loose ribbon on a closed book parcel",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-six.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 6,
+      "semanticReviewChecklist": "Six pens total, including one held with laurel. Crowd carries the other five; no uncounted background nibs.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-seven",
+      "name": "Seven of Wands",
+      "assetName": "TarotWands07",
+      "authoredID": "wands-07",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library lending threshold",
+      "roomKind": "threshold",
+      "booksInUse": "A defended book trolley and open manuscript; one held pen plus six below.",
+      "castingIntent": "Zara Finch guarding a lending threshold",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure on uneven high ground braces one staff against six rising below; mismatched shoes preserved as a subtle RWS echo."
+      ],
+      "marginalLabel": "worn boot sole",
+      "readingNote": "What deserves your ground?",
+      "secondaryStudy": "threshold grain",
+      "aside": "Check the other shoe.",
+      "faeAction": "margin goblin retrieves an untied shoelace away from the pens",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-seven.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 7,
+      "semanticReviewChecklist": "One held defensive pen plus six rising from below, total seven; mismatched shoes visible.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-eight",
+      "name": "Eight of Wands",
+      "assetName": "TarotWands08",
+      "authoredID": "wands-08",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Courier-room open window",
+      "roomKind": "workroom",
+      "booksInUse": "Correspondence and book parcels below eight pens crossing sky and river.",
+      "castingIntent": "no human figures; eight flying dip pens",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Exactly eight staffs fly diagonally across a clear sky over river and green country; no people, strong directional motion."
+      ],
+      "marginalLabel": "flight marks",
+      "readingNote": "The message is already moving.",
+      "secondaryStudy": "cloud wash",
+      "aside": "Make a clear way.",
+      "faeAction": "tiny margin moth clings to paper edge without becoming a main figure",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-eight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 8,
+      "semanticReviewChecklist": "Eight flying pens, eight nibs, eight blunt ends; no people in main scene, no extra pen study.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3",
+      "generationAttempts": 2
+    },
+    {
+      "id": "wands-nine",
+      "name": "Nine of Wands",
+      "assetName": "TarotWands09",
+      "authoredID": "wands-09",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Late-shift return desk",
+      "roomKind": "reading-room",
+      "booksInUse": "A repaired folio beside the tired keeper; one pen plus eight in a rack.",
+      "castingIntent": "unnamed adult literary-elf late-shift watcher",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Bandaged watcher holds one staff before a fence of eight; alert eyes, worn academy wall, dawn beginning."
+      ],
+      "marginalLabel": "mended sleeve",
+      "readingNote": "Rest does not erase what you learned.",
+      "secondaryStudy": "bandage fold",
+      "aside": "You can sit and watch.",
+      "faeAction": "small margin goblin props an ordinary stool beside a closed book",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-nine.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 9,
+      "semanticReviewChecklist": "One held pen plus eight in a fence, total nine.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-page",
+      "name": "Page of Wands",
+      "assetName": "TarotWandsPage",
+      "authoredID": "wands-page",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "First-year study room",
+      "roomKind": "classroom",
+      "booksInUse": "A notebook and one budding pen examined before anything is written.",
+      "castingIntent": "unnamed youthful literary-elf messenger",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Young or youthful messenger studies a sprouting staff in a dry landscape; salamander pattern, feathered cap, delighted attention."
+      ],
+      "marginalLabel": "salamander motif",
+      "readingNote": "What caught your attention?",
+      "secondaryStudy": "feather trace",
+      "aside": "Go and look.",
+      "faeAction": "tiny punctuation pixie peers into a physical question mark",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-page.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-knight",
+      "name": "Knight of Wands",
+      "assetName": "TarotWandsKnight",
+      "authoredID": "wands-knight",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library delivery lane",
+      "roomKind": "courtyard",
+      "booksInUse": "An unsecured saddle folio loses blank leaves into the wind.",
+      "castingIntent": "Professor Kyle Momort as a mounted momentum allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Knight on rearing horse drives forward holding a staff; desert pyramids/hills, salamander tunic, movement barely contained."
+      ],
+      "marginalLabel": "saddle cord",
+      "readingNote": "Is this movement taking you there?",
+      "secondaryStudy": "wind trace",
+      "aside": "Find the way home too.",
+      "faeAction": "small margin fae holds down an escaping blank route sheet",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-knight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-queen",
+      "name": "Queen of Wands",
+      "assetName": "TarotWandsQueen",
+      "authoredID": "wands-queen",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Emberheart common room",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A host’s unfinished book, sunflower, cat and warm shared shelf corners.",
+      "castingIntent": "unnamed adult Emberheart literary-elf sovereign",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Seated sovereign with sunflower and staff, black cat at feet, lions and sunflowers on throne; direct, welcoming gaze."
+      ],
+      "marginalLabel": "sunflower seed",
+      "readingNote": "Let your warmth take up room.",
+      "secondaryStudy": "cat paw print",
+      "aside": "The cat stays.",
+      "faeAction": "tiny margin goblin makes space for the cat on a book cushion",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-queen.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "wands-king",
+      "name": "King of Wands",
+      "assetName": "TarotWandsKing",
+      "authoredID": "wands-king",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Quillquarium faculty workroom",
+      "roomKind": "faculty-room",
+      "booksInUse": "Folded signatures, binding cord and supplies sustaining the one held pen.",
+      "castingIntent": "unnamed adult Deep Lore Dwarf faculty steward",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Seated sovereign holds living staff, salamander and lion motifs, small salamander at feet; posture ready to rise rather than fixed."
+      ],
+      "marginalLabel": "salamander scale study",
+      "readingNote": "What will your vision make possible?",
+      "secondaryStudy": "chair joint",
+      "aside": "Stand up when it is time.",
+      "faeAction": "small book fae oils an ordinary chair joint with no extra pen",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/wands-king.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Warm red/ochre or clear daylight, practical timber and ink, varied open room depth.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-ace",
+      "name": "Ace of Cups",
+      "assetName": "TarotCupsAce",
+      "authoredID": "cups-ace",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library garden pool",
+      "roomKind": "garden",
+      "booksInUse": "A dry open volume, water lilies and five streams from one cup.",
+      "castingIntent": "unnamed fae hand offering one overflowing vessel",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Hand offers one overflowing sea-glass cup, dove lowers a wafer or white petal, five streams descend into a pool with water lilies."
+      ],
+      "marginalLabel": "water lily",
+      "readingNote": "Let something reach you.",
+      "secondaryStudy": "ripple rings",
+      "aside": "A little can overflow.",
+      "faeAction": "tiny margin moth rests on the paper edge beside droplets",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-ace.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "One cup, five visibly separate streams, one dove and white wafer/petal, lily pool; no spare teacup.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-two",
+      "name": "Two of Cups",
+      "assetName": "TarotCups02",
+      "authoredID": "cups-02",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidecrest common-room reading table",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A shared book between two equal readers and two exchanged cups.",
+      "castingIntent": "two unnamed adult Seelie and Unseelie literary elves",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Two figures exchange exactly two cups beneath caduceus and winged lion head; equal footing and eye line."
+      ],
+      "marginalLabel": "shared ribbon",
+      "readingNote": "Meet where both can stand.",
+      "secondaryStudy": "table grain",
+      "aside": "Leave both hands free.",
+      "faeAction": "tiny paper fae joins two blank paper scraps with one thread",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-two.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 2,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-three",
+      "name": "Three of Cups",
+      "assetName": "TarotCups03",
+      "authoredID": "cups-03",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Kitchen story table",
+      "roomKind": "kitchens",
+      "booksInUse": "Flour-dusted cookbooks and shared stories beneath three raised cups.",
+      "castingIntent": "Ambrose Trencher and two adult literary-fae kitchen companions",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Three varied figures raise exactly three cups in a circle, fruit and flowers underfoot; celebration without luxury-ad gloss."
+      ],
+      "marginalLabel": "kitchen herb",
+      "readingNote": "Make room at the table.",
+      "secondaryStudy": "apron patch",
+      "aside": "There is another chair.",
+      "faeAction": "tiny pantry goblin carries a recipe leaf with no additional cup",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-three.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 3,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-four",
+      "name": "Four of Cups",
+      "assetName": "TarotCups04",
+      "authoredID": "cups-04",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book Burrow window seat",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A neglected reading book beside three cups and one offered cup.",
+      "castingIntent": "unnamed adult literary-elf reader at window seat",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Seated figure beneath a tree faces three cups while a cloud-hand offers the fourth; refusal may be discernment, not ingratitude."
+      ],
+      "marginalLabel": "window-seat bark",
+      "readingNote": "Is this a pause or an answer?",
+      "secondaryStudy": "leaf shadow",
+      "aside": "It can wait outside.",
+      "faeAction": "small margin fae knocks gently on a closed unlettered book",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-four.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 4,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-five",
+      "name": "Five of Cups",
+      "assetName": "TarotCups05",
+      "authoredID": "cups-05",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Kitchen cookbook alcove",
+      "roomKind": "kitchens",
+      "booksInUse": "Warped recipe leaves beside three spilled and two standing cups.",
+      "castingIntent": "unnamed adult literary-elf kitchen reader in grief",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Cloaked figure looks at three spilled cups; two remain standing behind; bridge, river, and house in distance."
+      ],
+      "marginalLabel": "recipe-paper stain",
+      "readingNote": "What remains behind you?",
+      "secondaryStudy": "bridge sketch",
+      "aside": "Turn when you can.",
+      "faeAction": "small pantry goblin protects two dry recipe leaves from a spill",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-five.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 5,
+      "semanticReviewChecklist": "Three spilled cups foreground and two standing behind; show all five without hiding a standing cup in shadow.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-six",
+      "name": "Six of Cups",
+      "assetName": "TarotCups06",
+      "authoredID": "cups-06",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Small Academy courtyard",
+      "roomKind": "courtyard",
+      "booksInUse": "An old picture book and six flower cups among remembered places.",
+      "castingIntent": "two unnamed young literary-fae readers of different ages",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Two children or figures of different ages exchange a flower-filled cup; exactly six cups, old courtyard, gentle sentry."
+      ],
+      "marginalLabel": "garden flower",
+      "readingNote": "What is worth carrying forward?",
+      "secondaryStudy": "courtyard paving",
+      "aside": "Keep the kind part.",
+      "faeAction": "tiny margin fae presses a petal between two blank leaves",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-six.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 6,
+      "semanticReviewChecklist": "One exchanged flower-filled cup plus five other visible cups in courtyard; total six.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-seven",
+      "name": "Seven of Cups",
+      "assetName": "TarotCups07",
+      "authoredID": "cups-07",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Illustrated-book classroom",
+      "roomKind": "classroom",
+      "booksInUse": "Seven cup visions rise from a reader’s open book, not a generic dream palace.",
+      "castingIntent": "unnamed adult Academy learner in illustrated-book class",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Silhouetted viewer faces exactly seven floating cups containing distinct visions: face, shrouded figure, snake, tower, jewels, laurel, dragon."
+      ],
+      "marginalLabel": "cloud ink",
+      "readingNote": "Which wish can live outside the picture?",
+      "secondaryStudy": "paper tab",
+      "aside": "Choose one to touch.",
+      "faeAction": "tiny margin goblin finds a real plain pebble beside fanciful diagrams",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-seven.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 7,
+      "semanticReviewChecklist": "Exactly seven floating cups, each distinct vision once: face, shrouded figure, snake, tower, jewels, laurel, dragon.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-eight",
+      "name": "Eight of Cups",
+      "assetName": "TarotCups08",
+      "authoredID": "cups-08",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidal reading-room departure",
+      "roomKind": "threshold",
+      "booksInUse": "A closed shelf book and trailing bookmark beside eight abandoned cups.",
+      "castingIntent": "unnamed adult literary-elf reader leaving tidal room",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure walks away from exactly eight stacked cups beneath eclipsed moon, crossing tidal ground toward mountains."
+      ],
+      "marginalLabel": "tide-worn paper",
+      "readingNote": "What are you ready to leave?",
+      "secondaryStudy": "walking boot print",
+      "aside": "You may go.",
+      "faeAction": "small margin moth lifts from a closed abandoned book",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-eight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 8,
+      "semanticReviewChecklist": "Exactly eight abandoned cups, five lower and three upper with one meaningful gap; eclipsed moon and departing figure.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-nine",
+      "name": "Nine of Cups",
+      "assetName": "TarotCups09",
+      "authoredID": "cups-09",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Private library nook",
+      "roomKind": "reading-room",
+      "booksInUse": "A well-used knee book, mended chair and exactly nine shelf cups.",
+      "castingIntent": "unnamed adult Deep Lore Dwarf reader in private nook",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Content figure sits before an arcing display of exactly nine cups; abundance with a slight guardedness in the folded arms."
+      ],
+      "marginalLabel": "cushion seam",
+      "readingNote": "Can you let enough be enough?",
+      "secondaryStudy": "shelf peg",
+      "aside": "Unfold your arms a little.",
+      "faeAction": "tiny margin goblin naps beside a closed comfort book",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-nine.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 9,
+      "semanticReviewChecklist": "Nine cups on arc behind seated content reader; no cup held or extra kitchen crockery in scene.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-ten",
+      "name": "Ten of Cups",
+      "assetName": "TarotCups10",
+      "authoredID": "cups-10",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library kitchen and hearth",
+      "roomKind": "kitchens",
+      "booksInUse": "A shared storybook on a blanket, recipe books on stove-side shelves; ten cups.",
+      "castingIntent": "two unnamed adult Academy carers and two children",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Two adults or elders lift their arms while children play beneath an arc of exactly ten cups; home, river, green land; family form inclusive."
+      ],
+      "marginalLabel": "hearth herb",
+      "readingNote": "Who makes room for you here?",
+      "secondaryStudy": "quilt seam",
+      "aside": "Leave a place for one more.",
+      "faeAction": "small pantry fae mends a shared recipe book beside the hearth",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-ten.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 10,
+      "semanticReviewChecklist": "Ten cups in clear overhead arc, two adults and playing children, home/hearth and visible water/green landscape; no extra kitchen cup.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-page",
+      "name": "Page of Cups",
+      "assetName": "TarotCupsPage",
+      "authoredID": "cups-page",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidecrest message room",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A blank folded letter, one cup and an unexpected fish answer.",
+      "castingIntent": "unnamed youthful Tidecrest literary-elf messenger",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Youthful messenger holds one cup from which a fish peers; shore, waves, sea-glass blue clothing, amused rather than shocked."
+      ],
+      "marginalLabel": "fish scale study",
+      "readingNote": "What odd thing wants your attention?",
+      "secondaryStudy": "wave line",
+      "aside": "The fish has a point.",
+      "faeAction": "tiny punctuation pixie fishes a physical question mark from a paper curl",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-page.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-knight",
+      "name": "Knight of Cups",
+      "assetName": "TarotCupsKnight",
+      "authoredID": "cups-knight",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Bridge to the lending library",
+      "roomKind": "courtyard",
+      "booksInUse": "A ribbon-tied invitation book in a measured rider’s saddle pocket.",
+      "castingIntent": "unnamed adult literary-elf mounted messenger",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Calm knight on white horse offers one cup, river and mountains behind; measured approach, wing motifs."
+      ],
+      "marginalLabel": "bridle ribbon",
+      "readingNote": "How would you carry the invitation?",
+      "secondaryStudy": "bridge stone",
+      "aside": "Slow enough to hear.",
+      "faeAction": "small book moth rests on the margin beside a parcel cord",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-knight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-queen",
+      "name": "Queen of Cups",
+      "assetName": "TarotCupsQueen",
+      "authoredID": "cups-queen",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidecrest common-room bay window",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A tide-marked volume, silk bookmark and closed cup above moving water.",
+      "castingIntent": "Dr Selene Inkrest as a listening allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Sovereign at water's edge studies an ornate closed cup, shell and water-nymph throne carvings, feet near tide but not submerged."
+      ],
+      "marginalLabel": "shell ridge",
+      "readingNote": "Listen without losing your own shore.",
+      "secondaryStudy": "curtain hem",
+      "aside": "Keep one foot here.",
+      "faeAction": "tiny book fae repairs a frayed bookmark on closed paper",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-queen.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "cups-king",
+      "name": "King of Cups",
+      "assetName": "TarotCupsKing",
+      "authoredID": "cups-king",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Tidal faculty reading room",
+      "roomKind": "faculty-room",
+      "booksInUse": "A wet ledger held by a plain stone; steady hands amid rough water.",
+      "castingIntent": "unnamed older literary-elf faculty reader",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Sovereign on a stone seat amid rough water holds cup and scepter, ship and sea creature behind; calm without emotional absence."
+      ],
+      "marginalLabel": "sea-worn stone",
+      "readingNote": "Stay present while the water moves.",
+      "secondaryStudy": "chair binding",
+      "aside": "The wave can pass.",
+      "faeAction": "small margin goblin secures a loose chair cushion",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/cups-king.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Sea-glass blue/green, domestic daylight or quiet reflected water light; warm kitchens remain readable.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-ace",
+      "name": "Ace of Swords",
+      "assetName": "TarotSwordsAce",
+      "authoredID": "swords-ace",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Attestation copying desk",
+      "roomKind": "faculty-room",
+      "booksInUse": "One paper knife opens a folded leaf; proof paper and closed volumes nearby.",
+      "castingIntent": "unnamed fae hand offering one paper knife",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Hand offers one upright sword crowned with laurel and palm, six falling marks, mountains below; blade reflects a line of ink."
+      ],
+      "marginalLabel": "laurel fibre",
+      "readingNote": "Name the clear thing.",
+      "secondaryStudy": "paper grain",
+      "aside": "Cut carefully.",
+      "faeAction": "tiny paper sprite holds two torn blank edges apart without a blade",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-ace.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-two",
+      "name": "Two of Swords",
+      "assetName": "TarotSwords02",
+      "authoredID": "swords-02",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Shore-library quiet room",
+      "roomKind": "reading-room",
+      "booksInUse": "A closed sewn volume, a folded leaf and two crossed paper knives.",
+      "castingIntent": "unnamed adult literary-elf shore reader",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Blindfolded seated figure crosses exactly two swords before a rocky tidal sea, crescent moon; stillness as temporary protection."
+      ],
+      "marginalLabel": "blindfold cloth",
+      "readingNote": "What is the pause protecting?",
+      "secondaryStudy": "tide line",
+      "aside": "There is a shore behind you.",
+      "faeAction": "small margin fae peeks around a folded paper screen",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-two.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 2,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-three",
+      "name": "Three of Swords",
+      "assetName": "TarotSwords03",
+      "authoredID": "swords-03",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book conservation bench",
+      "roomKind": "workroom",
+      "booksInUse": "Three paper knives pierce a book-leaf heart; a repair sample asks where to begin.",
+      "castingIntent": "no human; pierced paper heart at conservation bench",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "One anatomical-paper heart pierced by exactly three swords beneath rain clouds; restrained red-violet wash, no gore."
+      ],
+      "marginalLabel": "paper heart fibres",
+      "readingNote": "Let the hurt have its true shape.",
+      "secondaryStudy": "rain wash",
+      "aside": "Do not tidy it yet.",
+      "faeAction": "small book moth shelters under a torn blank page corner",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-three.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 3,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-five",
+      "name": "Five of Swords",
+      "assetName": "TarotSwords05",
+      "authoredID": "swords-05",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Disputed reading-room table",
+      "roomKind": "reading-room",
+      "booksInUse": "A torn shared folio; three knives gathered and two left behind.",
+      "castingIntent": "three unnamed adult Academy debaters",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Foreground figure gathers three swords while two figures depart; two more swords on ground, wind-torn water behind; ambiguous triumph."
+      ],
+      "marginalLabel": "wind-torn paper",
+      "readingNote": "What did winning leave behind?",
+      "secondaryStudy": "table scratch",
+      "aside": "Look at who left.",
+      "faeAction": "small margin goblin gathers unlettered scraps after an argument",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-five.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 5,
+      "semanticReviewChecklist": "Three blades gathered by foreground figure plus two left on ground; two departing people; exactly five blades.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty. Use dawn/night/storm appropriate to the original; do not sweeten the card into generic coziness.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-six",
+      "name": "Six of Swords",
+      "assetName": "TarotSwords06",
+      "authoredID": "swords-06",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library ferry landing",
+      "roomKind": "threshold",
+      "booksInUse": "Salvaged books tied against water, six paper knives and rough-to-calm crossing.",
+      "castingIntent": "unnamed adult ferryperson and adult/child readers",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Boat carries cloaked adult and child across water; ferryperson poles; exactly six swords stand in boat without sinking it."
+      ],
+      "marginalLabel": "ferry rope",
+      "readingNote": "You can carry this somewhere quieter.",
+      "secondaryStudy": "wake lines",
+      "aside": "One bank at a time.",
+      "faeAction": "small margin moth rests on a dry unlettered book parcel",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-six.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 6,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-seven",
+      "name": "Seven of Swords",
+      "assetName": "TarotSwords07",
+      "authoredID": "swords-07",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Field-library camp",
+      "roomKind": "field-library",
+      "booksInUse": "Five carried knives, two left upright and a concealed folio among tents.",
+      "castingIntent": "unnamed adult literary-fae field librarian",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure carries five swords away from tents while two remain planted; backward glance; strategy rather than cartoon villainy."
+      ],
+      "marginalLabel": "tent seam",
+      "readingNote": "What is this cleverness protecting?",
+      "secondaryStudy": "heel print",
+      "aside": "Look back once more.",
+      "faeAction": "tiny margin goblin hides behind an ordinary folded blank inventory sheet",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-seven.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 7,
+      "semanticReviewChecklist": "Five carried blades plus two left planted; exactly seven.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-eight",
+      "name": "Eight of Swords",
+      "assetName": "TarotSwords08",
+      "authoredID": "swords-08",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library keep approach",
+      "roomKind": "threshold",
+      "booksInUse": "Binding tape, a torn map and a visible gap among eight paper knives.",
+      "castingIntent": "unnamed adult literary-elf reader near library keep",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Loosely bound blindfolded figure among exactly eight swords on wet ground, distant keep; clear open path visible to viewer."
+      ],
+      "marginalLabel": "loose cloth knot",
+      "readingNote": "Where is the open way?",
+      "secondaryStudy": "mud print",
+      "aside": "The knot has room.",
+      "faeAction": "tiny paper fae slips through an open paper loop",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-eight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 8,
+      "semanticReviewChecklist": "Eight planted blades, loosely tied blindfolded figure and visible escape gap; do not seal ring or suggest no exit.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty. Use dawn/night/storm appropriate to the original; do not sweeten the card into generic coziness.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-nine",
+      "name": "Nine of Swords",
+      "assetName": "TarotSwords09",
+      "authoredID": "swords-09",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Reader’s dorm",
+      "roomKind": "dorm",
+      "booksInUse": "A fallen open book, rose quilt and exactly nine mounted knives above a wakeful reader.",
+      "castingIntent": "unnamed adult Academy reader awake in dorm",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure sits upright in bed, face in hands; exactly nine swords on dark wall, quilt patterned with roses and signs; no monster."
+      ],
+      "marginalLabel": "rose quilt patch",
+      "readingNote": "What is here besides the fear?",
+      "secondaryStudy": "pillow seam",
+      "aside": "The bed is still here.",
+      "faeAction": "small margin book moth rests by a lamp halo without becoming a monster",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-nine.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 9,
+      "semanticReviewChecklist": "Nine separate wall blades; one awake reader on bed; no blade in hand or additional blade study.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty. Use dawn/night/storm appropriate to the original; do not sweeten the card into generic coziness.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-ten",
+      "name": "Ten of Swords",
+      "assetName": "TarotSwords10",
+      "authoredID": "swords-10",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Dawn after-hours reading room",
+      "roomKind": "reading-room",
+      "booksInUse": "A ruined manuscript and ten knives above an exhausted cloaked figure; window dawn.",
+      "castingIntent": "unnamed prone literary-fae reader after exhaustion",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Prone cloaked figure with exactly ten swords, dark sky breaking into gold dawn, still water; symbolic and non-gory."
+      ],
+      "marginalLabel": "dawn wash",
+      "readingNote": "Let this be the end of carrying it.",
+      "secondaryStudy": "cloak seam",
+      "aside": "The light came anyway.",
+      "faeAction": "small margin moth climbs from a closed book toward the pale edge",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-ten.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 10,
+      "semanticReviewChecklist": "Ten blades in the symbolic prone figure/cloak tableau. Non-gory; preserve dawn and finality rather than substituting a comfortable nap.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty. Use dawn/night/storm appropriate to the original; do not sweeten the card into generic coziness.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-page",
+      "name": "Page of Swords",
+      "assetName": "TarotSwordsPage",
+      "authoredID": "swords-page",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Weather-window study room",
+      "roomKind": "classroom",
+      "booksInUse": "A strapped-shut notebook and one raised knife; thinking before opening.",
+      "castingIntent": "unnamed youthful literary-elf weather observer",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Youthful figure holds raised sword in both hands on windy ground, birds and racing clouds, hair and garments pulled by crosswinds."
+      ],
+      "marginalLabel": "wind-tugged cloth",
+      "readingNote": "What needs a better question?",
+      "secondaryStudy": "cloud edge",
+      "aside": "Hold the thought gently.",
+      "faeAction": "tiny punctuation pixie braces a physical question mark against the breeze",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-page.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-knight",
+      "name": "Knight of Swords",
+      "assetName": "TarotSwordsKnight",
+      "authoredID": "swords-knight",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Stormy library delivery road",
+      "roomKind": "courtyard",
+      "booksInUse": "Blank saddle-folio leaves blow backward while the rider rushes ahead.",
+      "castingIntent": "unnamed adult literary-elf rider in storm",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Armored rider drives into storm with raised sword, bent trees and torn clouds; purposeful but unable to see much beyond the charge."
+      ],
+      "marginalLabel": "storm-bent leaf",
+      "readingNote": "What is the charge leaving unseen?",
+      "secondaryStudy": "rein knot",
+      "aside": "Look beyond the point.",
+      "faeAction": "tiny paper sprite shelters a blank map from wind",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-knight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-queen",
+      "name": "Queen of Swords",
+      "assetName": "TarotSwordsQueen",
+      "authoredID": "swords-queen",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Faculty editorial room",
+      "roomKind": "faculty-room",
+      "booksInUse": "An open book and correction tip-in beside one upright paper knife.",
+      "castingIntent": "Professor Vivian Villanelle as editorial discernment allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Sovereign in profile holds upright sword and extends open hand, cloud-cleared sky, butterflies and crescent marks; sorrow has sharpened, not frozen, her."
+      ],
+      "marginalLabel": "butterfly wing study",
+      "readingNote": "Be clear without closing your hand.",
+      "secondaryStudy": "window frost",
+      "aside": "Leave room for an answer.",
+      "faeAction": "small book fae restores a torn plain paper corner",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-queen.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "swords-king",
+      "name": "King of Swords",
+      "assetName": "TarotSwordsKing",
+      "authoredID": "swords-king",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Library rules committee room",
+      "roomKind": "faculty-room",
+      "booksInUse": "A rulebook and loose correction leaf keep authority answerable.",
+      "castingIntent": "Professor Thaddeus Mook as examined intellectual authority",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Front-facing sovereign holds sword slightly angled, butterfly and moon motifs, wind-tossed trees; intellectual authority under scrutiny."
+      ],
+      "marginalLabel": "chair carving",
+      "readingNote": "Who does the rule make room for?",
+      "secondaryStudy": "boundary fold",
+      "aside": "Ask for a reason.",
+      "faeAction": "tiny margin goblin measures an empty place at the table",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/swords-king.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Cool silver/blue/violet with exact crisp brass blades; preserve the card-specific difficulty.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-ace",
+      "name": "Ace of Pentacles",
+      "assetName": "TarotPentaclesAce",
+      "authoredID": "pentacles-ace",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Bookbinding garden desk",
+      "roomKind": "garden",
+      "booksInUse": "An uncased sewn book waits below one offered hinged brass clasp.",
+      "castingIntent": "unnamed fae hand offering one hinged book clasp",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Hand offers one pressed pentacle above a flowering garden path and arch, mountain beyond; moss grows at the coin's edge."
+      ],
+      "marginalLabel": "garden moss",
+      "readingNote": "Give the chance a place to grow.",
+      "secondaryStudy": "path stone",
+      "aside": "Put a hand to it.",
+      "faeAction": "tiny paper fae plants a plain seed beside a blank binding leaf",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-ace.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-two",
+      "name": "Two of Pentacles",
+      "assetName": "TarotPentacles02",
+      "authoredID": "pentacles-02",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book-parcel dispatch room",
+      "roomKind": "workroom",
+      "booksInUse": "Two books in a satchel, two juggled clasps and ships beyond a low window.",
+      "castingIntent": "unnamed adult literary-elf parcel dispatcher",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure loops exactly two pentacles in an infinity ribbon while two ships rise and fall behind; motion playful but effort visible."
+      ],
+      "marginalLabel": "parcel ribbon",
+      "readingNote": "What can move without coming loose?",
+      "secondaryStudy": "wave trace",
+      "aside": "Breathe between the turns.",
+      "faeAction": "small margin goblin shifts an ordinary unmarked parcel",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-two.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 2,
+      "semanticReviewChecklist": "Two clasp-disks in one infinity ribbon and two ships behind; no extra clasp in parcels.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-four",
+      "name": "Four of Pentacles",
+      "assetName": "TarotPentacles04",
+      "authoredID": "pentacles-04",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Closed lending desk",
+      "roomKind": "reading-room",
+      "booksInUse": "One held closed book; four clasps express security that prevents opening.",
+      "castingIntent": "unnamed adult Deep Lore Dwarf lending clerk",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Seated figure holds one pentacle to chest, one under each foot, one above crown; city behind; grip both secure and constricting."
+      ],
+      "marginalLabel": "worn binding leather",
+      "readingNote": "What is your grip keeping out?",
+      "secondaryStudy": "boot sole",
+      "aside": "It is very tight.",
+      "faeAction": "tiny margin fae loosens a plain string knot without touching counted clasps",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-four.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 4,
+      "semanticReviewChecklist": "One clasp at chest, one under each foot, one above crown; exactly four.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-five",
+      "name": "Five of Pentacles",
+      "assetName": "TarotPentacles05",
+      "authoredID": "pentacles-05",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Winter library porch",
+      "roomKind": "threshold",
+      "booksInUse": "Books glow behind a window with five clasp panels; two travelers pass a nearby door.",
+      "castingIntent": "two unnamed adult literary-fae travellers",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Two weathered travelers pass an illuminated window containing exactly five pentacles; snow, injury or mobility aid, warmth visible but not magically solved."
+      ],
+      "marginalLabel": "snow on wool",
+      "readingNote": "Who can help name the door?",
+      "secondaryStudy": "crutch grip",
+      "aside": "The light is real.",
+      "faeAction": "small margin goblin leaves a dry unlettered route scrap near the porch",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-five.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 5,
+      "semanticReviewChecklist": "Five star clasp-disks in lit window, two travelers and mobility aid; do not invent miraculous resolution of hardship.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-six",
+      "name": "Six of Pentacles",
+      "assetName": "TarotPentacles06",
+      "authoredID": "pentacles-06",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Kitchen lending counter",
+      "roomKind": "kitchens",
+      "booksInUse": "A blank repair ledger and wrapped cookbooks; six clasps distributed with unequal power.",
+      "castingIntent": "Ambrose Trencher giving at kitchen lending counter",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Standing figure holds scales and gives coins to two people; exactly six pentacles arranged above; generosity and imbalance both legible."
+      ],
+      "marginalLabel": "apron mending",
+      "readingNote": "Can help leave both people standing?",
+      "secondaryStudy": "scales cord",
+      "aside": "Ask what they need.",
+      "faeAction": "small pantry fae returns a borrowed recipe leaf",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-six.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 6,
+      "semanticReviewChecklist": "Six star clasp-disks total arranged overhead; scales and two recipients. Giving uses plain paper tokens so it does not add counted disks.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-seven",
+      "name": "Seven of Pentacles",
+      "assetName": "TarotPentacles07",
+      "authoredID": "pentacles-07",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Mossbloom reading garden",
+      "roomKind": "garden",
+      "booksInUse": "A planted book feeds moss; six vine clasps plus one at the gardener’s feet.",
+      "castingIntent": "Lysander Mosswood gardening beside reading bench",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Gardener leans on tool studying a vine bearing exactly seven pentacles; one at feet or harvest basket, work paused for evaluation."
+      ],
+      "marginalLabel": "vine tendril",
+      "readingNote": "Is this still what you mean to grow?",
+      "secondaryStudy": "tool-handle grain",
+      "aside": "Look before the next row.",
+      "faeAction": "tiny margin goblin checks a plain seed label without writing",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-seven.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 7,
+      "semanticReviewChecklist": "Seven clasp-disks total; six attached to vine and one at feet. No eighth clasp on gardening book.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3",
+      "generationAttempts": 2
+    },
+    {
+      "id": "pentacles-eight",
+      "name": "Eight of Pentacles",
+      "assetName": "TarotPentacles08",
+      "authoredID": "pentacles-08",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Bindery practice classroom",
+      "roomKind": "classroom",
+      "booksInUse": "A maker’s bench, trial bindings and exactly eight worked brass clasps.",
+      "castingIntent": "unnamed adult Deep Lore Dwarf bookbinding apprentice",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Craftsperson engraves a pentacle at bench; exactly eight visible in work sequence; town distant, attention on skill."
+      ],
+      "marginalLabel": "linen gathering",
+      "readingNote": "Let the next one teach your hands.",
+      "secondaryStudy": "bench wear",
+      "aside": "A little roughness stays.",
+      "faeAction": "small paper fae gathers plain binding offcuts without extra clasp",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-eight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 8,
+      "semanticReviewChecklist": "Seven completed clasp-disks displayed plus one in work at bench; total eight.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-nine",
+      "name": "Nine of Pentacles",
+      "assetName": "TarotPentacles09",
+      "authoredID": "pentacles-09",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Conservatory reading garden",
+      "roomKind": "garden",
+      "booksInUse": "Cultivated books, grape leaves, a falcon and nine carefully tended clasps.",
+      "castingIntent": "Gwendolyn Mythwright as a cultivated-independence allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Figure in lush garden with hooded falcon or bird, grapes, exactly nine pentacles, distant home; solitary abundance without loneliness claim."
+      ],
+      "marginalLabel": "grape leaf",
+      "readingNote": "Can you enjoy what you have tended?",
+      "secondaryStudy": "falcon feather",
+      "aside": "Leave a little wild.",
+      "faeAction": "tiny book moth rests on an unlettered plant folio",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-nine.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 9,
+      "semanticReviewChecklist": "Nine clasp-disks among grapes, one hooded bird; no star jewelry or book clasp adding a tenth.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-ten",
+      "name": "Ten of Pentacles",
+      "assetName": "TarotPentacles10",
+      "authoredID": "pentacles-10",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book Burrow family table",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "A worn storybook passes between generations; two dogs and ten clasps.",
+      "castingIntent": "unnamed varied-age literary-fae household with two dogs",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Elder, adults, child, and dogs beneath an arch/home; exactly ten pentacles in Tree-of-Life arrangement; lineage may be chosen family."
+      ],
+      "marginalLabel": "family binding cloth",
+      "readingNote": "What will outlast your own hands?",
+      "secondaryStudy": "door joint",
+      "aside": "Keep a place in the story.",
+      "faeAction": "small margin goblin mends a shared blank family album",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-ten.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 10,
+      "semanticReviewChecklist": "Ten separate clasp-disks in Tree-of-Life-like arrangement, varied-age household and dogs; no extra star clasps on books.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-page",
+      "name": "Page of Pentacles",
+      "assetName": "TarotPentaclesPage",
+      "authoredID": "pentacles-page",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Bookbinding study room",
+      "roomKind": "classroom",
+      "booksInUse": "A first practice fold, uncased book and one clasp studied closely.",
+      "castingIntent": "unnamed youthful literary-elf binding learner",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Youthful figure lifts and studies one pentacle over a green field, furrowed earth and distant trees; complete concentration."
+      ],
+      "marginalLabel": "furrowed earth",
+      "readingNote": "Give it your full attention.",
+      "secondaryStudy": "book cloth",
+      "aside": "This is worth learning.",
+      "faeAction": "tiny punctuation pixie sits quietly on a paper tab",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-page.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-knight",
+      "name": "Knight of Pentacles",
+      "assetName": "TarotPentaclesKnight",
+      "authoredID": "pentacles-knight",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book-parcel delivery yard",
+      "roomKind": "courtyard",
+      "booksInUse": "Sewn book parcels on a patient rider’s horse; one offered clasp.",
+      "castingIntent": "unnamed adult Deep Lore Dwarf mounted parcel steward",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Still dark horse and armored rider hold one pentacle over plowed land; no charge, weight and readiness in the posture."
+      ],
+      "marginalLabel": "horsehair tie",
+      "readingNote": "What can you carry steadily?",
+      "secondaryStudy": "field furrow",
+      "aside": "Ready is a kind of work.",
+      "faeAction": "small margin fae checks a book-parcel cord without extra clasp",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-knight.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-queen",
+      "name": "Queen of Pentacles",
+      "assetName": "TarotPentaclesQueen",
+      "authoredID": "pentacles-queen",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Mossbloom common-room repair table",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "An unfinished book, linen scraps, thread, one clasp and a rabbit beneath the chair.",
+      "castingIntent": "Professor Lydia Boggle as practical care allegory",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Sovereign in a green garden cradles one pentacle, rabbit nearby, goat and fruit motifs; care grounded in material reality."
+      ],
+      "marginalLabel": "rabbit track",
+      "readingNote": "Care lives in the ordinary things.",
+      "secondaryStudy": "apron hem",
+      "aside": "Mind the washing-up.",
+      "faeAction": "tiny pantry goblin repairs a practical recipe leaf",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-queen.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    },
+    {
+      "id": "pentacles-king",
+      "name": "King of Pentacles",
+      "assetName": "TarotPentaclesKing",
+      "authoredID": "pentacles-king",
+      "status": "authored-awaiting-reference-inspection-and-generation",
+      "room": "Book Burrow steward’s desk",
+      "roomKind": "chapter-common-room",
+      "booksInUse": "Worn leather, maintained volumes and one clasp: care for what has been inherited.",
+      "castingIntent": "unnamed adult literary-elf Book Burrow steward",
+      "castingAuthority": "Tarot allegory only; inspect canonical portrait and authored lore before named casting. No new powers, relationships or membership.",
+      "requiredSymbols": [
+        "Sovereign on bull-and-vine throne holds pentacle and scepter, grapes, flowers, city behind; prosperity shown as tending, not conquest."
+      ],
+      "marginalLabel": "grape tendril",
+      "readingNote": "What does having enough let you tend?",
+      "secondaryStudy": "desk joint",
+      "aside": "Keep it growing.",
+      "faeAction": "small book fae tends a living vine beside a closed account book",
+      "reference": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v1/rws-reference/pentacles-king.jpg",
+      "notes": [
+        "Do not depict extra suit objects in margins or background.",
+        "Labels describe actual rendered studies, not merely intended ones.",
+        "Keep lower 12 percent pale and uncluttered for native lettering."
+      ],
+      "expectedSuitCount": 1,
+      "semanticReviewChecklist": "Inspect original RWS reference before generation; verify every defining object and gesture and all suit counts. Do not rely on declared metadata.",
+      "lightAndPalette": "Moss green, cloth, earth and warm brass; practical daylight and tactile bookcraft, not luxury gloss.",
+      "productionState": "installed-v3"
+    }
+  ],
+  "currentRevised": 78,
+  "currentRemaining": 0
+}

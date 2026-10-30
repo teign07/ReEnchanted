@@ -135,7 +135,7 @@ struct IlluminatedArtifactPreview: View {
                 }
             }
             .shadow(color: renderLayer == .clock ? .clear : .black.opacity(0.28), radius: 18 * scale, x: 0, y: 10 * scale)
-            .bookInkEmergence(seed: "photo-\(plan.randomSeed)")
+            .bookInkEmergence(seed: "photo-\(plan.randomSeed)", style: .picture)
             .rotationEffect(.degrees(frame.rotationDegrees + variation.rotationDegrees))
             .position(
                 x: xOffset + (frame.position.x + frame.size.width / 2 + variation.xOffset) * scale,
@@ -360,7 +360,7 @@ struct IlluminatedArtifactPreview: View {
         .opacity(renderLayer == .clock ? 1 : opacity)
         .blendMode(!hasUnifiedLayout && renderLayer != .clock && decoration.kind == .stamp ? .multiply : .normal)
         .frame(width: adaptiveFrame.width * scale, height: adaptiveFrame.height * scale)
-        .bookInkEmergence(seed: "decoration-\(decoration.assetName)")
+        .bookInkEmergence(seed: "decoration-\(decoration.assetName)", style: .picture)
         .rotationEffect(.degrees(decoration.rotationDegrees + (hasUnifiedLayout ? 0 : variation.rotationDegrees)))
         .position(
             x: xOffset + adaptiveFrame.midX * scale,
@@ -4629,7 +4629,7 @@ struct SourceSettingsSheet: View {
                 .foregroundStyle(BookPalette.ink)
 
             if PublicMarginsAPI.isAvailable {
-                Text("Two separate doors. Both begin closed. Opening either one never opens the other.")
+                Text("Two separate switches. Both start off. Turning one on never turns on the other.")
                     .font(.caption)
                     .foregroundStyle(BookPalette.ink.opacity(0.66))
 
@@ -5497,10 +5497,10 @@ struct ArchiveCard: View {
             Text(details.body)
                 .font(.footnote)
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
-                .lineLimit(5)
+                .lineLimit(3)
         }
         .padding(14)
-        .frame(width: 240, height: 170, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .parchmentSurface(accent: BookPalette.gold, isActive: false)
         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .onTapGesture {
@@ -5514,6 +5514,71 @@ struct ArchiveCard: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Opens this Book of You page.")
         .bookCardHover()
+    }
+}
+
+/// One kind on the Book of You shelf — nightly pages, issues, editions,
+/// annuals — folded under its own head and stacked down the leaf. Each fold
+/// remembers itself, so a reader who only reads the nightly pages never has
+/// to close the weeklies again.
+struct BookOfYouShelfSection<Content: View>: View {
+    let title: String
+    let count: Int
+    let content: Content
+
+    @AppStorage private var isOpen: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        id: String,
+        title: String,
+        count: Int,
+        opensByDefault: Bool = false,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.count = count
+        self.content = content()
+        _isOpen = AppStorage(wrappedValue: opensByDefault, "bookOfYouShelf.\(id).isOpen")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                BookFeedback.play(.select)
+                withAnimation(BookMotion.reveal(reduceMotion)) {
+                    isOpen.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Text(title)
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
+                    Spacer(minLength: 8)
+                    Text("\(count)")
+                        .font(.caption.monospacedDigit().weight(.bold))
+                        .opacity(0.62)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .rotationEffect(.degrees(isOpen ? 0 : -90))
+                }
+                .foregroundStyle(MaterialInk.text)
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(title), \(count)")
+            .accessibilityValue(isOpen ? "Expanded" : "Collapsed")
+            .accessibilityHint(isOpen ? "Hides these pages." : "Shows these pages.")
+
+            if isOpen {
+                // Lazy: the nightly section is the whole long-lived archive,
+                // and opening Contents should not render every card of it.
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    content
+                }
+                .transition(BookMotion.foldTransition(reduceMotion: reduceMotion))
+            }
+        }
     }
 }
 
@@ -5618,7 +5683,7 @@ struct WeeklyIssueArchiveCard: View {
                     .foregroundStyle(BookPalette.teal)
             }
             .padding(14)
-            .frame(width: 240, height: 170, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .parchmentSurface(accent: BookPalette.teal, isActive: false)
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -5701,7 +5766,7 @@ struct MonthlyEditionArchiveCard: View {
                     .foregroundStyle(LeafInk.gold)
             }
             .padding(14)
-            .frame(width: 240, height: 170, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .parchmentSurface(accent: BookPalette.lampGold, isActive: false)
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -5758,7 +5823,7 @@ struct AnnualEditionArchiveCard: View {
                     .foregroundStyle(LeafInk.gold)
             }
             .padding(14)
-            .frame(width: 240, height: 170, alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .parchmentSurface(accent: BookPalette.lampGold, isActive: false)
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -6239,7 +6304,7 @@ struct BookWorkingAuthoritySheet: View {
                 } header: {
                     Text("A standing pact")
                 } footer: {
-                    Text("You mark the doors and the appetite. I choose the moment, or let one of the cast choose badly. Snatch the keys back whenever you want; I know what a locked door means.")
+                    Text("You mark the times and how much I'm allowed. I choose the moment, or let one of the cast choose badly. Snatch the keys back whenever you want. I know what no means.")
                 }
 
                 if draft.isEnabled {
@@ -9312,8 +9377,13 @@ struct BookPixiePerch: Identifiable, Equatable {
 ///    her own business and mostly attends to it.
 /// 2. **She respects writing.** Editors and presentations still her; a queued
 ///    exclamation gets its answer after the reader finishes.
-/// 3. **Her gifts are physical.** A deliberate shake or touch makes her bring
-///    one readable scrap. She drops it and returns to her own business.
+/// 3. **Her gifts are physical.** A deliberate shake makes her bring one
+///    readable scrap. She drops it and returns to her own business.
+///
+/// Poking her is something else: she squeaks, bolts for the far side of the
+/// room and spills her pockets — punctuation, and sometimes one of the
+/// reader's words. Poke her again before she's calmed down and she gets louder
+/// about it. It all starts on the touch itself.
 struct BookPixieLayer: View {
     /// Places the Book has offered her.
     var perches: [BookPixiePerch] = []
@@ -9331,6 +9401,12 @@ struct BookPixieLayer: View {
     @State private var scrap: PippaScrap?
     @State private var deliveryTask: Task<Void, Never>?
     @State private var lastInteractionAt = Date.distantPast
+    @State private var pokedAt: TimeInterval?
+    @State private var fleeCorner = CGPoint(x: 0.9, y: 0.12)
+    @State private var spill: PippaSpill?
+    @State private var spillTask: Task<Void, Never>?
+    @State private var pokeFury = 0
+    @State private var lastPokeAt = Date.distantPast
 
     private var isUnavailable: Bool {
         isPaused || scenePhase != .active || textInputActive
@@ -9346,8 +9422,8 @@ struct BookPixieLayer: View {
             let flight = PixieFlight(
                 perches: perches,
                 bookRect: bookRect,
-                fleeCorner: CGPoint(x: 0.9, y: 0.12),
-                startledAt: activeFlight?.startedAt,
+                fleeCorner: fleeCorner,
+                startledAt: activeFlight?.startedAt ?? pokedAt,
                 delivery: activeFlight
             )
             ZStack {
@@ -9394,21 +9470,29 @@ struct BookPixieLayer: View {
                         // Catching her while she is sitting still is both the
                         // safe rule and the better one: a fae in flight should
                         // not be grabbable.
+                        //
+                        // She reacts on touch-down, not on lift: a poke is a poke.
                         TimelineView(.animation(minimumInterval: 1 / 30)) { timeline in
                             let now = PixieFlight.clock(timeline.date)
-                            if activeFlight == nil, flight.perchSettle(time: now) > 0.3 {
+                            if activeFlight == nil, flight.startleStrength(now: now) == 0,
+                               flight.perchSettle(time: now) > 0.3 {
                                 Circle()
                                     .fill(Color.clear)
                                     .contentShape(Circle())
                                     .frame(width: 48, height: 48)
-                                    .position(flight.position(size: size, time: now, startle: flight.startleStrength(now: now)))
-                                    .onTapGesture { deliver(kind: .touch, size: size, flight: flight) }
+                                    .position(flight.position(size: size, time: now, startle: 0))
+                                    .gesture(DragGesture(minimumDistance: 0).onChanged { _ in
+                                        poke(size: size, flight: flight)
+                                    })
                                     .accessibilityLabel("Pippa Pilcrow")
                                     .accessibilityAddTraits(.isButton)
-                                    .accessibilityAction { deliver(kind: .touch, size: size, flight: flight) }
+                                    .accessibilityAction { deliver(kind: .asked, size: size, flight: flight) }
                             }
                         }
                     }
+                }
+                if let spill, !isUnavailable {
+                    PippaSpillView(spill: spill).id(spill.id)
                 }
                 if let scrap, let cardFlight, !isUnavailable {
                     PippaMessageCard(scrap: scrap, flight: cardFlight,
@@ -9419,7 +9503,7 @@ struct BookPixieLayer: View {
                 }
                 if (reduceMotion || voiceOver), !isUnavailable {
                     Button {
-                        deliver(kind: .touch, size: size, flight: flight)
+                        deliver(kind: .asked, size: size, flight: flight)
                     } label: {
                         Color.clear.frame(width: 48, height: 48).contentShape(Circle())
                     }
@@ -9441,6 +9525,9 @@ struct BookPixieLayer: View {
             }
             .onAppear {
                 DispatchQueue.main.async { answerExclamation(size: size, flight: flight) }
+                #if DEBUG
+                playDemo()
+                #endif
             }
             .onChange(of: BookPixieSummons.shared.exclaimedAt) { _, _ in
                 answerExclamation(size: size, flight: flight)
@@ -9475,8 +9562,17 @@ struct BookPixieLayer: View {
                 }
             }
             .onDisappear { putScrapAway() }
+            #if DEBUG
+            .onReceive(NotificationCenter.default.publisher(for: .pippaDemoBeat)) { note in
+                if note.object as? Bool == true {
+                    poke(size: size, flight: flight)
+                } else {
+                    deliver(kind: .shake, size: size, flight: flight)
+                }
+            }
+            #endif
             .accessibilityAction(named: Text("Ask Pippa for a scrap")) {
-                deliver(kind: .touch, size: size, flight: flight)
+                deliver(kind: .asked, size: size, flight: flight)
             }
         }
     }
@@ -9494,16 +9590,21 @@ struct BookPixieLayer: View {
         guard kind == .exclamation || Date().timeIntervalSince(lastInteractionAt) >= 8 else { return }
         deliveryTask?.cancel()
         let now = PixieFlight.clock(Date())
+        let cardWidth = min(310, size.width - 48)
         let delivery = PippaDeliveryFlight(
             kind: kind, startedAt: now,
             origin: flight.position(size: size, time: now, startle: 0),
             landing: CGPoint(x: min(size.width - 25, bookRect.maxX - 18),
                              y: max(40, bookRect.minY + 50)),
-            cardCentre: CGPoint(x: size.width / 2,
-                                y: max(150, min(size.height - 180, bookRect.midY))),
-            room: size, cardWidth: min(310, size.width - 48)
+            // The hole sits near the card's top right; the card hangs below it.
+            cardHole: CGPoint(x: size.width / 2 + cardWidth / 2 + PippaDeliveryFlight.holeInset.width,
+                              y: max(90, min(size.height - 260, bookRect.midY - 80))),
+            room: size, cardWidth: cardWidth,
+            restTilt: Double.random(in: -0.055...0.055)
         )
-        let message = kind == .exclamation ? PippaScrap.exclamation : PippaReadingDesk.shared.nextScrap()
+        let message = kind == .exclamation
+            ? PippaScrap.exclamations.randomElement() ?? PippaScrap.cheek[0]
+            : PippaReadingDesk.shared.nextScrap()
         scrap = message
         cardFlight = delivery
         activeFlight = reduceMotion || voiceOver ? nil : delivery
@@ -9520,6 +9621,54 @@ struct BookPixieLayer: View {
             answerExclamation(size: size, flight: flight)
         }
     }
+
+    /// Squeak, bolt, spill. Everything she does here is decided from values
+    /// already in hand, so the reaction lands in the same frame as the touch.
+    private func poke(size: CGSize, flight: PixieFlight) {
+        let now = PixieFlight.clock(Date())
+        guard !isUnavailable, activeFlight == nil else { return }
+        if let pokedAt, now - pokedAt < PippaDeliveryFlight.duration { return }
+        let her = flight.position(size: size, time: now, startle: 0)
+        let wall = Date()
+        pokeFury = wall.timeIntervalSince(lastPokeAt) < 9 ? min(2, pokeFury + 1) : 0
+        lastPokeAt = wall
+        // Away across the room, whichever side is farther.
+        fleeCorner = CGPoint(x: her.x < size.width / 2 ? 0.88 : 0.12, y: 0.1)
+        pokedAt = now
+        BookFeedback.play(.tap, sound: false)
+        BookSoundBank.play(.pixie, variant: pokeFury == 2 ? 2 : nil)
+        let words = PippaReadingDesk.shared.reading.words.prefix(16)
+        spill = PippaSpill.make(
+            id: now, origin: her, fury: pokeFury,
+            word: pokeFury > 0 || Bool.random() ? words.randomElement() : nil,
+            protest: PippaSpill.protests[pokeFury].randomElement(),
+            room: size
+        )
+        spillTask?.cancel()
+        spillTask = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(PippaSpill.duration)) } catch { return }
+            spill = nil
+        }
+    }
+
+    #if DEBUG
+    /// `--pippa-demo`: `xcrun simctl spawn <device> notifyutil -p pippa.shake`
+    /// (or `pippa.poke`) acts on her live size and position, on cue.
+    private static var demoStarted = false
+    private func playDemo() {
+        guard PerfProbeSwitches.shared.pippaDemo, !Self.demoStarted else { return }
+        Self.demoStarted = true
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for name in ["pippa.shake", "pippa.poke"] {
+            CFNotificationCenterAddObserver(center, nil, { _, _, name, _, _ in
+                let isPoke = (name?.rawValue as String?) == "pippa.poke"
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(name: .pippaDemoBeat, object: isPoke)
+                }
+            }, name as CFString, nil, .deliverImmediately)
+        }
+    }
+    #endif
 
     private func putScrapAway() {
         deliveryTask?.cancel()
@@ -9539,6 +9688,12 @@ struct BookPixieLayer: View {
         #endif
     }
 }
+
+#if DEBUG
+extension Notification.Name {
+    static let pippaDemoBeat = Notification.Name("pippaDemoBeat")
+}
+#endif
 
 /// The Pixie's motion and drawing, as a plain value.
 ///
@@ -9724,7 +9879,7 @@ struct PixieFlight {
                 let card = delivery.card(at: progress)
                 var thread = Path()
                 thread.move(to: her)
-                thread.addLine(to: CGPoint(x: card.x + delivery.cardWidth * 0.38, y: card.y - 65))
+                thread.addLine(to: card)
                 context.stroke(thread, with: .color(Self.contour.opacity(0.55)), lineWidth: 0.8)
             }
         }
@@ -13970,7 +14125,7 @@ struct OnboardingFlowView: View {
         let specialClosing = """
         \(readerName), this copy keeps the things you told me, the choices you made, and what happened when you met Wicker.
 
-        You came through as \(role?.markedName ?? "a reader still being named"). Bring me another small thing. Let's see if it grows teeth.
+        You came through as \(role?.markedName ?? "a reader still being named"). Bring me another small thing. Let's see what it grows into.
 
         - me
         """

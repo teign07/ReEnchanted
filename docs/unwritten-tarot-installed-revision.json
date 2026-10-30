@@ -1,0 +1,717 @@
+{
+  "deckVersion": "unwritten-v3.2",
+  "installedCardIDs": [
+    "major-00",
+    "major-01",
+    "major-02",
+    "major-03",
+    "major-04",
+    "major-05",
+    "major-06",
+    "major-07",
+    "major-08",
+    "major-09",
+    "major-10",
+    "major-11",
+    "major-12",
+    "major-13",
+    "major-14",
+    "major-15",
+    "major-16",
+    "major-17",
+    "major-18",
+    "major-19",
+    "major-20",
+    "major-21",
+    "wands-ace",
+    "wands-two",
+    "wands-three",
+    "wands-four",
+    "wands-five",
+    "wands-six",
+    "wands-seven",
+    "wands-eight",
+    "wands-nine",
+    "wands-ten",
+    "wands-page",
+    "wands-knight",
+    "wands-queen",
+    "wands-king",
+    "cups-ace",
+    "cups-two",
+    "cups-three",
+    "cups-four",
+    "cups-five",
+    "cups-six",
+    "cups-seven",
+    "cups-eight",
+    "cups-nine",
+    "cups-ten",
+    "cups-page",
+    "cups-knight",
+    "cups-queen",
+    "cups-king",
+    "swords-ace",
+    "swords-two",
+    "swords-three",
+    "swords-four",
+    "swords-five",
+    "swords-six",
+    "swords-seven",
+    "swords-eight",
+    "swords-nine",
+    "swords-ten",
+    "swords-page",
+    "swords-knight",
+    "swords-queen",
+    "swords-king",
+    "pentacles-ace",
+    "pentacles-two",
+    "pentacles-three",
+    "pentacles-four",
+    "pentacles-five",
+    "pentacles-six",
+    "pentacles-seven",
+    "pentacles-eight",
+    "pentacles-nine",
+    "pentacles-ten",
+    "pentacles-page",
+    "pentacles-knight",
+    "pentacles-queen",
+    "pentacles-king"
+  ],
+  "revisedFaces": 78,
+  "heldFaces": 0,
+  "heldBack": true,
+  "manifestSHA256": "19402d42dfeae6b58341ad0496e205899c9008b181d1cb95b2a3a5c28728651e",
+  "sourceSHA256": "38647429ea4ab7232e93932c298b7f503827ea373bf805953d3097da3cf92054",
+  "nativeQA": false,
+  "appBuilt": true,
+  "scope": "Current app source/assets built in Debug, signed, installed and launched on Rabbit; native Tarot visual QA pending",
+  "traditionalSystem": "Rider\u2013Waite\u2013Smith: unchanged 78 identities and save IDs",
+  "nativeFeatures": [
+    "Extra authored labels and asides",
+    "Fine leader lines",
+    "Complete accessible scene and marginalia transcript",
+    "Serenity receives actual scene and all authored marginalia",
+    "Existing fullscreen inspection in readings, kept readings and interleaves",
+    "Literal interleaf tags describe installed scenes"
+  ],
+  "acceptedAdaptations": [
+    "Three of Pentacles has a winged seam fae and pointed sewing needle; labels match the visible art.",
+    "Four of Wands helper reads as a literary elf.",
+    "Ten of Wands has ten separate nibs; lower shafts overlap naturally.",
+    "Death, Four of Cups and King of Pentacles retain separately hash-approved uncropped aspect variations.",
+    "Ten of Pentacles uses authored native paper-backed lettering over a small raster tag; composed document proof reviewed, native fullscreen QA remains open."
+  ],
+  "exports": [
+    {
+      "id": "major-00",
+      "assetName": "TarotMajor00Fool",
+      "masterSHA256": "61c08ec834d2e50ce567fde017899c601cdc4f1ce2dcc5b466cffb806a524f47",
+      "exportSHA256": "a5aeeb08f7a85bc8656740fe8c76e1cce040e7f5accc966de157029891920a45"
+    },
+    {
+      "id": "major-01",
+      "assetName": "TarotMajor01Magician",
+      "masterSHA256": "2c24b17a126ab79c0710e83334151200c620ba4e0768c0fdfc07949bf2cce372",
+      "exportSHA256": "05b8392144b8e0598013aa6a16ff6a5424161beea812f2944cfefb8b3b9f2b2e"
+    },
+    {
+      "id": "major-02",
+      "assetName": "TarotMajor02HighPriestess",
+      "masterSHA256": "018d5a723bc0fffb25fd3ccba1c2d61884ef5b02f123f25c971f99b6c61b6065",
+      "exportSHA256": "363bee50ad7946ce8f57c9ff4f8107bc26fed22d4a4d09378c69bfb913ea3f07"
+    },
+    {
+      "id": "major-03",
+      "assetName": "TarotMajor03Empress",
+      "masterSHA256": "d33e484ce74c2c2af257806020c134e1cb78e319a5647394fff8864098a34d19",
+      "exportSHA256": "f2309454acd1e1753dec654efb1f2ba06794762e41ea939f1b82f72caec1276b"
+    },
+    {
+      "id": "major-04",
+      "assetName": "TarotMajor04Emperor",
+      "masterSHA256": "b8587622bba7a7ee57a6ecc7ea7951ab778418d0b9958a579d034a39d69199b8",
+      "exportSHA256": "df89e9593c8cdd7b9b798aeb241de8007c6886730d8ca891c29580871c42efae"
+    },
+    {
+      "id": "major-05",
+      "assetName": "TarotMajor05Hierophant",
+      "masterSHA256": "f0a416aefeea1b4f8896f493b5d0aad9154ca97d4261b3174022dd3b6e992e5a",
+      "exportSHA256": "e7fcf0cc750e0ca90b8ef34459ec1e5b285cfac650ecb22430c08f5526c611f7"
+    },
+    {
+      "id": "major-06",
+      "assetName": "TarotMajor06Lovers",
+      "masterSHA256": "e20a2bfe83e9b9cdc2f11d4e128bc546d48c3a2dacbfe73751f699a57afdafde",
+      "exportSHA256": "c82bc47593d46ed2cd4fcbe5820710574f29b66b8b396cb90519a9f227fa7697"
+    },
+    {
+      "id": "major-07",
+      "assetName": "TarotMajor07Chariot",
+      "masterSHA256": "3534ede4ce9585560512513a5384d3b938d0881aa360ee237bd78a57a07af4f4",
+      "exportSHA256": "a694dae6692065aff2a47d2afe55df3a2c742116dde89829414d336b860b38c1"
+    },
+    {
+      "id": "major-08",
+      "assetName": "TarotMajor08Strength",
+      "masterSHA256": "993cb68dc04bcf2d2b3c3ea33e81d8221c60be5ebb012c99454b0487aff61107",
+      "exportSHA256": "0d1350dcb6173c3b43d3d2ea7968ddfe97eb9645685c0fa3a5fbe70e9566aebb"
+    },
+    {
+      "id": "major-09",
+      "assetName": "TarotMajor09Hermit",
+      "masterSHA256": "69573e3b4b7f504b145351cf45100cf03c5e4b368ec0b9ec49d853e14b67aa57",
+      "exportSHA256": "ee8666a1ddcf8837236b29d03826cb6acdbde7b5bf9465a49043b5cf5c3ce7df"
+    },
+    {
+      "id": "major-10",
+      "assetName": "TarotMajor10WheelOfFortune",
+      "masterSHA256": "58461147319c5690ae43553cac61c815ac623cee152f62fef2651213ca05f0a1",
+      "exportSHA256": "b22920102dcf89a5f90a806e6bd1f4471c2d16fedd568b5510aa8a1e5c4ec1f2"
+    },
+    {
+      "id": "major-11",
+      "assetName": "TarotMajor11Justice",
+      "masterSHA256": "58688a81d5b1f55993ff3907de76170fa20de7aa28b16ba05aed2ec6230d0528",
+      "exportSHA256": "a276fc28d9a2d30e55f6dac08c866b815a38cf6ff22bfb3915aaf304db8e90e4"
+    },
+    {
+      "id": "major-12",
+      "assetName": "TarotMajor12HangedMan",
+      "masterSHA256": "23f6261b62a68ca328b4c6b9867272b0b2548febd3dfde45bdb913de478ec5ba",
+      "exportSHA256": "dcfda6ace3cb2c2a999c709852963ff861769d01c8939727a1881e154e86ee4f"
+    },
+    {
+      "id": "major-13",
+      "assetName": "TarotMajor13Death",
+      "masterSHA256": "0ba6e433790a24eea1ca55cf59497b8c7892e6f81e6635bc987f2b61e16cbdc7",
+      "exportSHA256": "317850f5dd8095f20dfaeeb3f852eaefc0a8795566ec3f29b57a2a55e776cf1a"
+    },
+    {
+      "id": "major-14",
+      "assetName": "TarotMajor14Temperance",
+      "masterSHA256": "bc0d4bd38f11af336ed58e69bbbd504fe0d07906f9f0a47629c5bb4fd62f1e69",
+      "exportSHA256": "3b864b90562197f1799c57421ff45b0cfab58a3fcf13a5b9b6b29fb89558d946"
+    },
+    {
+      "id": "major-15",
+      "assetName": "TarotMajor15Devil",
+      "masterSHA256": "264bb6d8fea87e5c72752b88ee101fd17dcf455f23d28141e5fdd74da931f3f0",
+      "exportSHA256": "fd627a9aeb212c3d106f338455d38f5b80a7359ed4151ceaedc76187f5f6698c"
+    },
+    {
+      "id": "major-16",
+      "assetName": "TarotMajor16Tower",
+      "masterSHA256": "2b214c2b336016842dcf0c5f61f3b96170817d32f0ed98b3136b5edaf44db134",
+      "exportSHA256": "6e67ecd51e948f3f588407d4eebc7d9cbd9afac4b1efa9541772c556c8a3b28e"
+    },
+    {
+      "id": "major-17",
+      "assetName": "TarotMajor17Star",
+      "masterSHA256": "3080ce18ebdeac9eac0abd19de91c1dfdccf3fbfdae7ef2c4da7154fed78eeb8",
+      "exportSHA256": "6ff15f146240ec8773a51fb48b50e27a5d1d80d1fea7b74d9fa81dae76e56e33"
+    },
+    {
+      "id": "major-18",
+      "assetName": "TarotMajor18Moon",
+      "masterSHA256": "aab71839d35821c952e212b622f86b6440043751aedf508940d015b7b959887e",
+      "exportSHA256": "35452b150d7c1b5d977ef95ed7115e65f73dcd6f057d3f1ca3b1a177bf61cee0"
+    },
+    {
+      "id": "major-19",
+      "assetName": "TarotMajor19Sun",
+      "masterSHA256": "4c8e3a9f44be6db8282bce8dc70f372a9d2694b243c299a14867831afdc756f2",
+      "exportSHA256": "f3cada0669a7d3b1d13203e4c9054054e48efd847084186e760cb99bc671f6b4"
+    },
+    {
+      "id": "major-20",
+      "assetName": "TarotMajor20Judgement",
+      "masterSHA256": "fb95f77ab9bed6da0b96b623aed40d3b3602712cb3a6b04fd66c200633fb0a26",
+      "exportSHA256": "a3417c1e9d4ebc2a31724ef5a468b4016887b74342df8779ed9bc9f21849424c"
+    },
+    {
+      "id": "major-21",
+      "assetName": "TarotMajor21World",
+      "masterSHA256": "26e318524c1421b6ec9510086dcd2fe6e2cb6dd4b46b73fdf2808a67d75ce8b0",
+      "exportSHA256": "b3a3e3116b16404f9a79477f5c4c89aa2a6f38446e64b8da83523f5718c66424"
+    },
+    {
+      "id": "wands-ace",
+      "assetName": "TarotWandsAce",
+      "masterSHA256": "c8d402958d798f330da19947ab5bc51b00ea77a3b4c5224b258faa046c8d518f",
+      "exportSHA256": "a22f873dc12e32e7ab6e703af445ceb2504dfa0feeb0a7e1364b6f3bd81fdcd1"
+    },
+    {
+      "id": "wands-two",
+      "assetName": "TarotWands02",
+      "masterSHA256": "456878554f2151b73b6379ec28259f065e49899c76843eca5d370d1d90eb1b17",
+      "exportSHA256": "35ddf28474546ee53472332e5c36e591689ba1d22d8d1c9c8dac17715fea7aea"
+    },
+    {
+      "id": "wands-three",
+      "assetName": "TarotWands03",
+      "masterSHA256": "1400de83683bb6646d270ebe8b697e5994f7a434481a6e23c7938e8665a09860",
+      "exportSHA256": "d7c09a6f4954365f292d57e06a5f46cfd402a8754e99254a1431783e6396f438"
+    },
+    {
+      "id": "wands-four",
+      "assetName": "TarotWands04",
+      "masterSHA256": "54e156c10a3b88bcebc437909cdbef82a794a5241300e808b586528d95e6d99c",
+      "exportSHA256": "2449071ce460fdc53ed8249158dcf54ea32cce0913964dd2a4fbde7ec66e3a63"
+    },
+    {
+      "id": "wands-five",
+      "assetName": "TarotWands05",
+      "masterSHA256": "e4af8c563e51842749e46181f675b540d1174f7b21fb1101375c605188f0b837",
+      "exportSHA256": "ce44e2a4703fa6689c68b542c0abe37efe927bb8d9e4ff766aba6255ada0a2c0"
+    },
+    {
+      "id": "wands-six",
+      "assetName": "TarotWands06",
+      "masterSHA256": "ae8e549db4bda82dc9988decfb3ffa714d39e28b07f8118f438d42f5d52af47f",
+      "exportSHA256": "0b05ab7fdb62e57e9d00c0cf2f1eb0ef6ff64f83217ef03b721c99150907f07a"
+    },
+    {
+      "id": "wands-seven",
+      "assetName": "TarotWands07",
+      "masterSHA256": "20a2db1aca89befd891ffd137682cd3caf153fffc8b0c416e6c7e56d30bdb752",
+      "exportSHA256": "bfdbb8de89e588e8bd34d005a60cada8b6426c3a2d770dfd6535af10a06734dd"
+    },
+    {
+      "id": "wands-eight",
+      "assetName": "TarotWands08",
+      "masterSHA256": "a19040b58fa02942805ce152d263c865b835a909b7df8a1cb04c16b6075ae803",
+      "exportSHA256": "295e6703bfe9cd4dfd01a9cd80282c9083be80ca6974610ecaacc2d6f53ba6d2"
+    },
+    {
+      "id": "wands-nine",
+      "assetName": "TarotWands09",
+      "masterSHA256": "b1004cff74e69b0ba96371fc0c699b11ebbcd9b2a1877613c2c82a12d804a29e",
+      "exportSHA256": "b936db872d80eb46d0d9c4430887748cb3a8469c8f82de789fef47e83509520a"
+    },
+    {
+      "id": "wands-ten",
+      "assetName": "TarotWands10",
+      "masterSHA256": "53443e7ebb60f6456a1c81efff1fe335e919aa1f91b2b5a4cfaaa0f950b3b7a3",
+      "exportSHA256": "d2b8b8d8d06a6a1143a57d4622fe44956dcf752d58da605f0790331dff38f8b0"
+    },
+    {
+      "id": "wands-page",
+      "assetName": "TarotWandsPage",
+      "masterSHA256": "f284f9ddcf019ee735758e8b6ff68944529e737fa933fcfdddc9c2dbc7e22631",
+      "exportSHA256": "a3b708201911c9090ba0246bd0c6eef9dcc00e98b94d929590121f9f988d0641"
+    },
+    {
+      "id": "wands-knight",
+      "assetName": "TarotWandsKnight",
+      "masterSHA256": "c621aeafd4497505c970bbd34bee97653d85cfca978e304d80da88d0bfe8c4b1",
+      "exportSHA256": "27b240c09a1095bb03b114d3d674a2f2e8fbea47a3f78bf2c62ee88affd13917"
+    },
+    {
+      "id": "wands-queen",
+      "assetName": "TarotWandsQueen",
+      "masterSHA256": "7937fecb55b0d9442f56a031cf9460c9ec1cda6312df00fa576bfb23714a847a",
+      "exportSHA256": "b9250d41069e67b9bd63f3260873a0068e83d6362f91f682f794361a71e42893"
+    },
+    {
+      "id": "wands-king",
+      "assetName": "TarotWandsKing",
+      "masterSHA256": "f950745889c8b44e7584c2233ecc174bbe5f16c3e3223d9c8d82a1e08d586fc0",
+      "exportSHA256": "bc06af8a09a3b61df5f605e4df764abcef614928528535d4aac1e3a924d10fa0"
+    },
+    {
+      "id": "cups-ace",
+      "assetName": "TarotCupsAce",
+      "masterSHA256": "236c83d04806ccd8eca3e444c0410d7cc3085e5ca1fcf43b06f1d9a1919ae055",
+      "exportSHA256": "21ca3e12812c746df7427799d9b6221f3440239eda8fb5b7911f313e472ffc30"
+    },
+    {
+      "id": "cups-two",
+      "assetName": "TarotCups02",
+      "masterSHA256": "3077943f46047b00864c5a286758965ce0b5a9d13bc0dfc5ea606faa43d90f06",
+      "exportSHA256": "bdd78aca3ce16bf196c5d47b5171c3790a607b662741cec93680354a756b315c"
+    },
+    {
+      "id": "cups-three",
+      "assetName": "TarotCups03",
+      "masterSHA256": "48dbb2b3ac7d3ced37444ceda9e313bf44e416e0feb9bcd96d3cbb855b83ff2e",
+      "exportSHA256": "4c956048d88fabcacb7704cb14bf23d845784ae45a7dc98b5595750e63d71fb8"
+    },
+    {
+      "id": "cups-four",
+      "assetName": "TarotCups04",
+      "masterSHA256": "623ff9536c1e5ef5d7d6ca864ff9babf74e28a1f3961d0560ede951b73562a73",
+      "exportSHA256": "20a94e4cf891ac6ee190e0c795c31a054951e28d5e5880ba6fc606a744f8aff9"
+    },
+    {
+      "id": "cups-five",
+      "assetName": "TarotCups05",
+      "masterSHA256": "6ca436a16f27b8e0b54294aa566dda582d9f904186f41bc56e312e5e83d5f6ee",
+      "exportSHA256": "99b800eef13a46950edd36d1ebd07b6bd96c943da71b2466caf0e4599d3d0a6a"
+    },
+    {
+      "id": "cups-six",
+      "assetName": "TarotCups06",
+      "masterSHA256": "c7bfe52ec1998fc1005e164b9a2ef35bca29e02580f01efedcef9ead6ba0bb46",
+      "exportSHA256": "09ba2ca709f7221ccd223b723ad069830a550b9b77f4f05124a39ea70fe28ed8"
+    },
+    {
+      "id": "cups-seven",
+      "assetName": "TarotCups07",
+      "masterSHA256": "eb004c7cb9ebd131418167ef19588ef9cbf4952464e35ceb8f6485c71b6f2401",
+      "exportSHA256": "a3ec1fd340c9ee63f732133ecd5e92f5ae74dab1a43866180aa4e0e786c7bfe2"
+    },
+    {
+      "id": "cups-eight",
+      "assetName": "TarotCups08",
+      "masterSHA256": "e89403e8ccb69fb8bcb551ce368c1bc50d4101c382f39354dd38122161e9852a",
+      "exportSHA256": "825e4984b08859c0433da340966136a75c0154a1a0d7c9be9989eceab4a2963f"
+    },
+    {
+      "id": "cups-nine",
+      "assetName": "TarotCups09",
+      "masterSHA256": "eec1a091e1da75fcb47a71f529dc33677e03b128a836de4459ec430ea91c9c5e",
+      "exportSHA256": "80971eb0bbb09317efa5c86178ec8bc5650dd08cfa3043c4d02b241f323f193d"
+    },
+    {
+      "id": "cups-ten",
+      "assetName": "TarotCups10",
+      "masterSHA256": "13faaa03bc31f7d95c0d25bbecd98b713702f6356643480e45b9b35b9f38e87d",
+      "exportSHA256": "e9e8f0d09ba9648c5810d5ba7c2ed2a1bc7ea35766ecbe8c2f3fb6cac1dddb63"
+    },
+    {
+      "id": "cups-page",
+      "assetName": "TarotCupsPage",
+      "masterSHA256": "1624100df519fe39a3d74e335c97706d873733aa811971f84db897c9399d7865",
+      "exportSHA256": "63fb3f8c02d5d8d55eba9ffe9bba5d87e2338c7cd515317d5822882100d61a9e"
+    },
+    {
+      "id": "cups-knight",
+      "assetName": "TarotCupsKnight",
+      "masterSHA256": "e7fa14cd7400d0312f914e497bbaa836cdb5eb596eebef47ff81af4ce0f40e17",
+      "exportSHA256": "462eb6442b134064363c6fea3efceac0488575a1ca3733faec131ea9220630a7"
+    },
+    {
+      "id": "cups-queen",
+      "assetName": "TarotCupsQueen",
+      "masterSHA256": "7ee35b7fd94933a32dfa19233837295f9cf9676064c2be3459166cfdcd9bfc42",
+      "exportSHA256": "79730b4ea7ffd03f32721ded240dbb185a7296eb1799669bfd402e2fe679400b"
+    },
+    {
+      "id": "cups-king",
+      "assetName": "TarotCupsKing",
+      "masterSHA256": "344d6ed11b5a128e6014afab9fa56518104d21bc3c651e90c6eac229c94e4ce6",
+      "exportSHA256": "049075582c6841a14160f75a31e2519c25de1a92d765d68171b75fe206a1c225"
+    },
+    {
+      "id": "swords-ace",
+      "assetName": "TarotSwordsAce",
+      "masterSHA256": "eaa57afe8e9c6759cb1c2ef3b8f6c4273d71535d21b45a4f78202d2cca5edddd",
+      "exportSHA256": "001c1a15251361ab7b3831c446b0bfb21cf235d12c2a74a6c889281182425d9b"
+    },
+    {
+      "id": "swords-two",
+      "assetName": "TarotSwords02",
+      "masterSHA256": "7995749318ec14dd93561725384b23e18654c7ca7111ee467640e415509b479c",
+      "exportSHA256": "de2f24f129b0a9cb5115b9706c566c5e718c556841495ba414fda94438f416eb"
+    },
+    {
+      "id": "swords-three",
+      "assetName": "TarotSwords03",
+      "masterSHA256": "f8005025c9faf53bdfbf5aa9db39c8dfa2bec52eee51c7edf7a414b92c773998",
+      "exportSHA256": "3f1275f82ffbbdf28586c6aa03d16515f6de8ecf7bdacf811a30d1381b86e424"
+    },
+    {
+      "id": "swords-four",
+      "assetName": "TarotSwords04",
+      "masterSHA256": "7236baa2173d403d1f843d72baa337524fbfa09f7e58d8e1b85f99f810c08c95",
+      "exportSHA256": "8d8378278f44c62d74894cadf330ce1930305bb4d6bb7e5efd29a5ea72b2ea82"
+    },
+    {
+      "id": "swords-five",
+      "assetName": "TarotSwords05",
+      "masterSHA256": "dd11d353d421c2d0a83e70307be16648f44ac8a332635436bbb0a78c45c8930f",
+      "exportSHA256": "0057ffde8acaf7fdfae2273524d8568f5bf926b744053c1ae596175cdbe17c54"
+    },
+    {
+      "id": "swords-six",
+      "assetName": "TarotSwords06",
+      "masterSHA256": "1a3b43396bd9f28043368a5f2fd2d6991d0b0d4c43fd9379a20d3a75dd390f2b",
+      "exportSHA256": "849de829bb945a321f978f213489a75fe17a5960023a1ff0354226a9850547eb"
+    },
+    {
+      "id": "swords-seven",
+      "assetName": "TarotSwords07",
+      "masterSHA256": "705b753957f8b89aba47ee4679609e7d0985072effddcf9a18b6993f38ac1701",
+      "exportSHA256": "8fc321681ab785781aa8c18a5174fc64ad4cba0b8ef220ee3ae374dcd536ca4d"
+    },
+    {
+      "id": "swords-eight",
+      "assetName": "TarotSwords08",
+      "masterSHA256": "bb6a4f29f806bed5dcedf43aab0f2c8f27e31647c63fcb29c02b20786c92f3d5",
+      "exportSHA256": "ebb7fccfa50b92d8a253fc80feb9e1f7b0b2140d734c254f991dac0363a86110"
+    },
+    {
+      "id": "swords-nine",
+      "assetName": "TarotSwords09",
+      "masterSHA256": "d1b389f1be453a23fe599302ff25eb2f3652315c5f077c039f2c0ba569675a09",
+      "exportSHA256": "50e1d702e85eaf1dc57f46be23377399a676bb2314e7184dd22f947f0e10c504"
+    },
+    {
+      "id": "swords-ten",
+      "assetName": "TarotSwords10",
+      "masterSHA256": "9ea7944f81db437dc4bb1fb4d4d0c41e476a9dfb8d55a3c6602e95b1be46c160",
+      "exportSHA256": "c4e8ea7701861b8cc16c7de59241913cd73ec6045572c45710fe9cc2771f50ff"
+    },
+    {
+      "id": "swords-page",
+      "assetName": "TarotSwordsPage",
+      "masterSHA256": "0b49b1897478ccde22261688741410ef63d1de06b82a0533b8fac608efbcabf2",
+      "exportSHA256": "d143c1832f8a112625f8c59149fa77ea024aeaec2138a1c6903482f44b446f34"
+    },
+    {
+      "id": "swords-knight",
+      "assetName": "TarotSwordsKnight",
+      "masterSHA256": "6e678e3bdf737efe2bead958ce2ebf8a1c50a4fbc997e9d89146c7d22491437f",
+      "exportSHA256": "8bfc6cda030f849b2e6c1540b691f46a64bcfaa9f4b9f5adfea47ea5bcb1d540"
+    },
+    {
+      "id": "swords-queen",
+      "assetName": "TarotSwordsQueen",
+      "masterSHA256": "a8a10ca590452e1be497a860ae159766e8cb859e5f153bcabe95c28e0ca759b0",
+      "exportSHA256": "8ce5e2581d7de446f4b4d8bb62e84f0836bf34e19f5dba1dabd51bdc40f4ca13"
+    },
+    {
+      "id": "swords-king",
+      "assetName": "TarotSwordsKing",
+      "masterSHA256": "3c6885a9709ef450058196bebd90824c769052b3d32bac1efd6234d2189605e0",
+      "exportSHA256": "c9b0b4a8fee625676dfa4e233cee4721cf204b1a06a9e800725bb3b6625491d0"
+    },
+    {
+      "id": "pentacles-ace",
+      "assetName": "TarotPentaclesAce",
+      "masterSHA256": "0597b05395d5e68587cc0b60123198494d842fbc3338c56b24d972e3f6673808",
+      "exportSHA256": "a853dda31e95d283ce014345a8e46d907f76f085dd893be2ab8d389005b2b239"
+    },
+    {
+      "id": "pentacles-two",
+      "assetName": "TarotPentacles02",
+      "masterSHA256": "b512c52fa76f98b2d25aa4c32fadfb8b286194a2ae0ac7deb310ed1546aaa59a",
+      "exportSHA256": "c1b466d8cac3c70bffaa2e0cefea03a967effc2445b2e9e56a1c92d4da0d87d4"
+    },
+    {
+      "id": "pentacles-three",
+      "assetName": "TarotPentacles03",
+      "masterSHA256": "46ccda180d6f23b01b960a3c4417895d29cd253a2bcef1ad7cb7515bd4a24cce",
+      "exportSHA256": "cc4dbc2f3c66db38caee505373d63120a74fb5907d6fb620a9ad543053f792ac"
+    },
+    {
+      "id": "pentacles-four",
+      "assetName": "TarotPentacles04",
+      "masterSHA256": "e8c467b641684fa83f629434360d7fc56e0310437bbf07d5244cd01b2ef26b1a",
+      "exportSHA256": "4ca1df55922484e27cdf166aa41314fbca9a26bc4325f32ca9a46a49ded16f51"
+    },
+    {
+      "id": "pentacles-five",
+      "assetName": "TarotPentacles05",
+      "masterSHA256": "6f059c80bf35da402e41f393e847fbb9ab84c14610d5075abebe214e0e6c98ae",
+      "exportSHA256": "8f2cf5999960d4bc358ed9e71cc884d66348ff8393f018e8f32c99276584aca6"
+    },
+    {
+      "id": "pentacles-six",
+      "assetName": "TarotPentacles06",
+      "masterSHA256": "f0df3483b1bf0535447f2a80b0e24be335cc084906c7be51ea55a1e6461dcd2e",
+      "exportSHA256": "67dd3716bc71a66cfb7aa5a755cf8313858edfe0c99814f008122cf1fcf1a41f"
+    },
+    {
+      "id": "pentacles-seven",
+      "assetName": "TarotPentacles07",
+      "masterSHA256": "850359070ce4d025599c2b217492539e89baea04bf90f5cb42232f37216fa218",
+      "exportSHA256": "4b150c8da3810e06b007f54b01cf89caa246c764ee9328a6076a390ae9826079"
+    },
+    {
+      "id": "pentacles-eight",
+      "assetName": "TarotPentacles08",
+      "masterSHA256": "f41867808a4fbb76ec3d8e2171521effe00b9993c3a387dc49b4f9e8ac62984e",
+      "exportSHA256": "041602a497801069f71ac2ed1c8775a188c40538480686d02d375a63649821f0"
+    },
+    {
+      "id": "pentacles-nine",
+      "assetName": "TarotPentacles09",
+      "masterSHA256": "0eee2961be2b9588d71ad92cc61f018048dc434b29bbbd22d2bdfc8323071010",
+      "exportSHA256": "e5816c0203ae0ae204ee4445474365806fccfd7f01043d2c5de96edaba1f5059"
+    },
+    {
+      "id": "pentacles-ten",
+      "assetName": "TarotPentacles10",
+      "masterSHA256": "490dc2ad6f24003ca4a8bd03d0345105df88132d4461da85012f207906f82dd4",
+      "exportSHA256": "353f673057377287b98e24f43d552d1b9976428e3d1d4b253a95238e2c17fc8d"
+    },
+    {
+      "id": "pentacles-page",
+      "assetName": "TarotPentaclesPage",
+      "masterSHA256": "56fa261b61ac454f09b401e0800a56d0bca465f562c0b32f2cdab84c576bec02",
+      "exportSHA256": "b00cfd1307a640c550a0db64412a52828e00b81d55f086bc4a5eb6a0080653f9"
+    },
+    {
+      "id": "pentacles-knight",
+      "assetName": "TarotPentaclesKnight",
+      "masterSHA256": "c5c7b692a0b4d5c2dee41c9fa2cdbb2948fb11833acc4c5421bf007a612783c6",
+      "exportSHA256": "6eb969572a8bcea5334605f7b37fe011beb85603ae7b902bea545e57a0276622"
+    },
+    {
+      "id": "pentacles-queen",
+      "assetName": "TarotPentaclesQueen",
+      "masterSHA256": "5e55c680042389e8f9602161aa00dddc0cce140d5d11001b9990841356fe86f9",
+      "exportSHA256": "72ff7caf5e389016695fa25d180c8ea09e0b6a6378a1bc85868bb1d780496795"
+    },
+    {
+      "id": "pentacles-king",
+      "assetName": "TarotPentaclesKing",
+      "masterSHA256": "0fd63bdb335310ec90b15c3690b1076f1e49829bf2ddb532a0b583e1d317705c",
+      "exportSHA256": "b551b739bab6e2c935a3060c4c3a4466f810fd80d420e851bb36eaad45469ae1"
+    }
+  ],
+  "productionDirectory": "output/imagegen/unwritten-deck-v3-overnight",
+  "validation": "output/imagegen/unwritten-deck-v3-margins-round2-20261029/validation.json",
+  "latestInstalledCardIDs": [
+    "cups-queen",
+    "major-03",
+    "major-07",
+    "pentacles-nine",
+    "swords-queen",
+    "wands-ace"
+  ],
+  "productionDirectories": [
+    "output/imagegen/unwritten-deck-v3-integration",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-01",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-02",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-03",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-04",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-05",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-06",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-07",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-09",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-10",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-11",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-12",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-13",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-14",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-15",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-16",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-17",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-18",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-19",
+    "output/imagegen/unwritten-deck-v3-overnight/batches/batch-20",
+    "output/imagegen/unwritten-deck-v3-refinement-20261029",
+    "output/imagegen/unwritten-deck-v3-margins-round2-20261029"
+  ],
+  "latestProductionDirectory": "output/imagegen/unwritten-deck-v3-margins-round2-20261029",
+  "sourceFollowup": "output/imagegen/unwritten-deck-v3-overnight/source-transcript-followup.json",
+  "originalProductionDirectory": "output/imagegen/unwritten-deck-v3-integration",
+  "originalValidation": "output/imagegen/unwritten-deck-v3-integration/validation.json",
+  "reviewProof": "output/imagegen/unwritten-deck-v3-margins-round2-20261029/full-deck-audit/complete-78-card-proof.pdf",
+  "currentReport": "output/imagegen/unwritten-deck-v3-margins-round2-20261029/report.md",
+  "deviceInstalled": true,
+  "deviceLaunched": true,
+  "latestAuthorizedDebugBuild": "output/device-builds/Rabbit-Debug-20261029-203737Z/deployment-evidence.json",
+  "previousDeviceDeployment": {
+    "deckVersion": "unwritten-v3",
+    "evidence": "output/device-builds/Rabbit-Debug-20261029-163822Z/deployment-evidence.json",
+    "deviceInstalled": true,
+    "deviceLaunched": true
+  },
+  "refinedCardIDs": [
+    "cups-eight",
+    "cups-four",
+    "cups-king",
+    "cups-nine",
+    "cups-queen",
+    "cups-seven",
+    "cups-six",
+    "major-00",
+    "major-01",
+    "major-03",
+    "major-04",
+    "major-07",
+    "major-08",
+    "major-10",
+    "major-12",
+    "major-14",
+    "major-15",
+    "major-19",
+    "pentacles-ace",
+    "pentacles-five",
+    "pentacles-queen",
+    "pentacles-ten",
+    "swords-four",
+    "swords-nine",
+    "swords-seven",
+    "swords-six",
+    "swords-ten",
+    "swords-three",
+    "swords-two",
+    "wands-five",
+    "wands-knight",
+    "wands-nine",
+    "wands-queen",
+    "wands-seven"
+  ],
+  "latestRefinementDirectory": "output/imagegen/unwritten-deck-v3-margins-round2-20261029",
+  "latestAuthorizedDebugBuildCoversCurrentRevision": true,
+  "marginRefinedCardIDs": [
+    "cups-ace",
+    "cups-knight",
+    "cups-queen",
+    "cups-ten",
+    "cups-two",
+    "major-03",
+    "major-05",
+    "major-07",
+    "major-11",
+    "major-17",
+    "major-20",
+    "pentacles-knight",
+    "pentacles-nine",
+    "pentacles-page",
+    "pentacles-six",
+    "pentacles-two",
+    "swords-ace",
+    "swords-king",
+    "swords-page",
+    "swords-queen",
+    "wands-ace",
+    "wands-four",
+    "wands-page",
+    "wands-six",
+    "wands-three",
+    "wands-two"
+  ],
+  "previousSourceEdition": "unwritten-v3.1",
+  "fullDeckAudit": "output/imagegen/unwritten-deck-v3-margins-round2-20261029/full-deck-audit/card-by-card-audit.json",
+  "fullDeckAuditStatus": "passed-78-document-proofs-and-source-integrity",
+  "currentDeviceDeployment": {
+    "configuration": "Debug",
+    "deviceName": "Rabbit !.!",
+    "deckVersion": "unwritten-v3.2",
+    "sourceUnchanged": true,
+    "inputFiles": 1696,
+    "head": "45ef5b60b34a519a9775b04fbffb308c56edb12a",
+    "buildSucceeded": true,
+    "signaturesVerified": true,
+    "appInstalled": true,
+    "appLaunched": true,
+    "processID": 29478,
+    "processObservedAliveAfterSeconds": 74.6,
+    "newCrashReports": [],
+    "compiledTarotAssets": 79,
+    "compiledTarotDimensionsMatch": true,
+    "nativeTarotVisualQA": false,
+    "physicalPrintQA": false,
+    "sourceSHA256": "38647429ea4ab7232e93932c298b7f503827ea373bf805953d3097da3cf92054",
+    "manifestSHA256": "19402d42dfeae6b58341ad0496e205899c9008b181d1cb95b2a3a5c28728651e",
+    "evidence": "output/device-builds/Rabbit-Debug-20261029-203737Z/deployment-evidence.json"
+  }
+}

@@ -1435,7 +1435,7 @@ struct BindingAccount: Codable, Equatable {
             "What happened this month that you'd tell someone first?",
             "What did you notice that nobody else did?",
             "What's one thing you want to remember about how it felt?",
-            "If \(monthName) were a door, what colour was it, and did you go through?",
+            "If \(monthName) were a coat, what colour was it, and did you wear it out?",
             "What do you want next month to bring?"
         ]
     }

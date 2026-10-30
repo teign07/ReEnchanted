@@ -523,7 +523,7 @@ enum HandbookWorkbookBuilder {
         let resits = counts[.resit] ?? 0
         let incomplete = counts[.incomplete] ?? 0
         if incomplete == subjects.count {
-            return "Every subject is still open: five doors, all of them unlocked. I've left you notes."
+            return "Every subject is still open: five of them, nothing locked. I've left you notes."
         }
         if distinctions >= 3 {
             return "The Academy doesn't hand these out. It has noted that you earned them."

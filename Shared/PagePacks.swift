@@ -1205,7 +1205,7 @@ enum PageArchetypePackRegistry {
         rebellionWord(
             "fine",
             original: "Acceptable; without complaint; the word you say so no one asks again.",
-            grievance: "I have spent a lifetime meaning 'don't look closer,' and I'm tired of holding the door shut.",
+            grievance: "I have spent a lifetime meaning 'don't look closer,' and I'm tired of it.",
             category: .sensory, phase: "omen",
             recall: "It sighs, almost relieved, and goes back to covering for you.",
             pardonTitle: "Let it breathe", pardonSense: "the weather a room keeps before anyone checks whether the windows are open", pardonCategory: .sensory,
@@ -1498,6 +1498,10 @@ enum PageArchetypePackRegistry {
 
 /// One first-touch explanation, written in Zara Finch's voice. Shown once,
 /// the first time the player touches the thing it describes.
+///
+/// Zara is the scout: she speaks as herself and calls the Book "the Book".
+/// Each note says what the thing is, when and why it turns up, and what to
+/// do with it, including the way out. She notices exits before introductions.
 struct MarginTutorNote: Identifiable, Equatable {
     var id: String
     var title: String
@@ -1509,212 +1513,222 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "glow-menu",
             title: "Your Glow",
-            text: "That sparkle is your Glow: the Belief you carry. You can lend it to people, Pages, and things you want me to hold closer, or let them quiet again. I'll tell you when there's enough; you never need to count it."
+            text: "That sparkle's your Glow. Warm up the things you want more of, and the Book brings them round more often. Cool the ones that have got too loud. Cooling never throws anything away. It just lets it rest."
+        ),
+        MarginTutorNote(
+            id: "seal-camera",
+            title: "The Capture Tab",
+            text: "Capture is for things from outside. Bring the Book a photo, a few words, your voice, or a Weather Page, and it turns to the Notes at the back to keep them. Anything counts. A puddle counts."
         ),
         MarginTutorNote(
             id: "seal-body",
-            title: "The Body Seal",
-            text: "This seal asks your device how the body is carrying today. The numbers stay private on the device: I just turn them into weather I can write with."
+            title: "The Body Tab",
+            text: "The Body tab asks your phone's Health app how your body's doing. The numbers never leave the phone. The Book only turns them into weather it can write with. Rather not? Leave the tab alone. Nothing breaks."
         ),
         MarginTutorNote(
             id: "seal-weather",
-            title: "The Weather Seal",
-            text: "This seal reads your actual sky, then lets me enchant it. The real forecast stays legible underneath: we don't lie about rain here."
+            title: "Weather Pages",
+            text: "A Weather Page reads the real sky outside, then the Book gets to be dramatic about it. The real forecast is always printed underneath. Nobody here lies about rain."
         ),
         MarginTutorNote(
             id: "seal-location",
-            title: "The Location Seal",
-            text: "This seal listens for Anchors: real places that hold rooms in the Outer Stacks. Stand somewhere unanchored and you can grow a brand new room from your own words. You have to actually be there. The Outer Stacks can't be visited from the couch."
+            title: "The Place Tab",
+            text: "This is the map inside the front cover. Some real places you go have a room behind them in the Outer Stacks. Those are Anchors. Stand somewhere new, say a few words about it, and a room grows there. You have to really be there. I checked: the couch doesn't count."
+        ),
+        MarginTutorNote(
+            id: "seal-radio",
+            title: "The Radio",
+            text: "That's the Academy's radio: real songs, with someone from the Cast talking in between. Leave it on while you do something else. The next Pages might have heard it."
         ),
         MarginTutorNote(
             id: "keep-page",
             title: "Keeping a Page",
-            text: "Kept. It lives in Today's Margins now, and tonight it becomes a thread in your Book of You. Real noticing, honest answers, and nonfiction Pages brighten your Glow; Story Pages, Letters, Notes, and Parleys spend that attention on wonder."
+            text: "Kept. It goes in Today's Margins, and tonight the Book braids it into your Book of You. That's the whole trick: what you keep is what the Book reads you by."
         ),
         MarginTutorNote(
             id: "dismiss-surface",
-            title: "Letting a Page Go",
-            text: "Swiped away: I don't take it personally. Dismissed pages rest a while and may try again later. If a kind of page keeps overstaying its welcome, let it quiet from the Glow menu."
+            title: "Ripping a Page Out",
+            text: "Ripped out. No hard feelings. The Book can call it back another day if it thinks you'd like it then. If one kind of Page keeps turning up and you're sick of it, cool it in your Glow."
         ),
         MarginTutorNote(
             id: "story-page",
             title: "Story Pages",
-            text: "This scene is written from your real day. The choices are real forks: Slice of Life tends the day, Progress Arc moves the active thread, Surprise opens a side door. The cast remembers what you choose: for weeks."
+            text: "This scene is made from your real day, and the choices are real forks. Slice of Life stays with the day. Progress Arc pushes the story on. Surprise goes somewhere you didn't expect. Pick one. The Cast remember what you chose for weeks."
         ),
         MarginTutorNote(
             id: "monthly-story-page",
             title: "This Month's Story",
-            text: "This story has walked into my pages for a while. Keep a leaf and it stays sewn in. When there's a choice, keeping makes it stick. I save those turns for tonight's braid. Your own day has room beside them."
+            text: "This month's story has walked into the Book for a while. Keep a leaf and it stays sewn in. When there's a choice, keeping the Page is how your choice sticks. Tonight's braid still makes room for your own day."
         ),
         MarginTutorNote(
             id: "academy-class",
-            title: "Classes & Clubs",
-            text: "This is a scheduled Academy page: a class, club, or office door that's open right now. It appears because I found a real-time session that fits the hour. Tap through for the small lesson, then keep it if you want that subject to echo later."
+            title: "Classes",
+            text: "This is a real class on the Academy timetable, and the bell's ringing now. That's why it turned up. Go in, do the small thing they set, and keep it if you want that subject to come back."
         ),
         MarginTutorNote(
             id: "game-page",
             title: "Game Pages",
-            text: "This is a small playable page, not homework in disguise. It appears when a kept word or story thread wants to move under your fingers. Play the round, keep the result if it mattered, and I can remember the outcome."
+            text: "A game. Not homework wearing a hat. It shows up when one of your kept words or story threads wants to move about. Play a round. Keep the result if it mattered."
         ),
         MarginTutorNote(
             id: "gossip-page",
-            title: "Gossip Pages",
-            text: "Gossip means the cast did something while you were away. It appears when relationships, favors, or little rivalries have enough charge to leave a trace. Read it for the social weather; keep it if you want that rumor to become part of the archive."
+            title: "Gossip",
+            text: "Gossip is what the Cast got up to while you were away. It turns up when a friendship, a favor or a little feud has heated up enough to leave marks. Read it, and keep it if you want the rumor on the record."
         ),
         MarginTutorNote(
             id: "book-aside",
             title: "An Aside",
-            text: "Sometimes I can't file what happened as ordinary Gossip. An Aside is me telling you, in my own voice, which recent turn in the story delighted, worried, surprised, or irritated me. It appears when something in here got to me and I'd rather say so than pretend it didn't. Read it and go on with your day: it asks nothing of you. Keep it if you'd like to remember that I was in the room too."
+            text: "An Aside is the Book telling you how something in the story made it feel: pleased, worried, cross. It shows up when something really got to it. Read it and carry on. It doesn't want anything from you."
         ),
         MarginTutorNote(
             id: "letter-page",
             title: "Letters",
-            text: "A letter is a character reaching across the margin on purpose. It appears when someone in the cast has enough reason to answer, invite, tease, or report back. Read it like mail; keeping it gives that relationship a firmer thread."
+            text: "A letter means someone in the Cast wrote to you on purpose. Letters come when somebody's got a reason: an answer, an invite, a bit of news. Read it like post, and write back a line if you want. Keeping it makes that friendship a bit stronger."
         ),
         MarginTutorNote(
             id: "faculty-research",
             title: "Faculty Research",
-            text: "This is the Academy doing fieldwork on your patterns, not grading you. It appears when several kept pages start pointing at the same question. Read the finding, try the small experiment if it helps, and ignore it if it doesn't fit."
+            text: "This is the faculty looking at your kept Pages, and they're not grading you. It turns up when a few Pages point at the same question. Read what they found. Try the little experiment if it fits. Skip it if it doesn't."
         ),
         MarginTutorNote(
             id: "support-guild",
             title: "The Support Guild",
-            text: "The Support Guild is low-shame pattern spotting across body, fuel, mood, and weather notes. It appears when I have enough signals to be useful without pretending to diagnose you. Use the page as a gentle hypothesis, then keep only what feels true."
+            text: "This is Vellum and Inkrest putting your body, food and mood notes side by side. It turns up when they've got enough notes to spot something. Read it as a guess, not a diagnosis. Keep only the bit that sounds true."
         ),
         MarginTutorNote(
             id: "inkrest-office-hours",
             title: "Office Hours",
-            text: "Dr. Inkrest opens the door when a pattern deserves a slower look. This page appears because one thread has enough evidence for a focused question. Read the counsel, answer if you want, and I'll use that answer as context later."
+            text: "Dr. Inkrest's door is open. He shows up when one thread in your Pages deserves a slower look, and he asks one question. Read it, answer if you want, and he'll remember what you said. He can wait."
         ),
         MarginTutorNote(
             id: "glow-invitation",
             title: "Glow Invitations",
-            text: "A Glow Invitation is me asking where your attention wants to go next. It appears when a person, place, page type, or story thread is ready for more Belief. Choose only what you genuinely want more of; attention is how this place learns."
+            text: "This is your Glow asking where it should go next. It turns up when a person, a place or a story is ready for more of it. Pick only what you really want more of. The Book learns from where you put it."
         ),
         MarginTutorNote(
             id: "word-negotiation",
             title: "Word Negotiation",
-            text: "Sometimes I ask what one of your words means in your life. It appears when a repeated word could become a doorway instead of a label. Pick the meaning that fits, or decline it, and future pages will use the word more carefully."
+            text: "This shows up when one of your words keeps coming back and wants to know what it means to you. Pick the meaning that fits, or say no. After that, the Book uses the word your way."
         ),
         MarginTutorNote(
             id: "cast-bond",
             title: "Cast Turns",
-            text: "A Cast Turn shows people in the margins changing their stance toward each other. It appears when Belief, choices, or story events nudge a relationship. Read it as social continuity; keep it if you want that turn to count."
+            text: "Two of the Cast have been up to something: a new friendship, a feud, an apology. It shows up when something in the story moved them. Read it. Keep it if you want the change to count."
         ),
         MarginTutorNote(
             id: "two-readings",
             title: "Two Readings",
-            text: "Two Readings lets two cast members disagree over the same evidence. It appears when your archive can support more than one honest interpretation. Read both sides, then keep the one that sharpens the question."
+            text: "This is two of the Cast reading the same line of yours and disagreeing. It turns up when your Pages really could mean either thing. Read both sides. Keep the one that makes you think harder."
         ),
         MarginTutorNote(
             id: "book-notices",
             title: "I Notice",
-            text: "A Notice is a small thing I caught: two Pages touching, a word coming back muddy, your writing hour moving. One appears when I've seen it often enough to be sure I'm not imagining it. I show you the exact Pages. Tell me yes, not quite, or never read you that way again. Your pencil wins."
+            text: "A Notice is the Book catching something in your Pages: two of them touching, a word coming back, your writing hour moving. It only says so when it's seen it enough times. Read it, look at the Pages it used, and tell it if it's wrong. You get the last word."
         ),
         MarginTutorNote(
             id: "festival-page",
             title: "Festivals",
-            text: "Festival pages are calendar weather from the Wheel of the Year. They appear when a real seasonal door is open, so the timing matters more than your keep count. Read for the day’s flavor, then keep it if the ritual or image belongs in your margins."
+            text: "Somewhere in the world it's a feast day: a sabbat, a full moon, a saint's day, somebody's new year. These turn up when the real calendar says so. Read about it, and keep it if you want a bit of the feast in your margins."
         ),
         MarginTutorNote(
             id: "book-jump",
             title: "Book Jumps",
-            text: "A Book Jump is a small expedition into a public-domain story world. It appears when the Stacks can offer a clean doorway and a clear return. Choose a direction, bring back one souvenir, and the jump continues from what you kept."
+            text: "A Book Jump is a quick trip into an old story anyone's allowed to visit. It turns up when the Stacks can find a clean way in and a clear way back. Pick which way to go and bring back one souvenir. I always check the way back first."
         ),
         MarginTutorNote(
             id: "enchantment-page",
             title: "Enchantments",
-            text: "Pick or take a photo, and the spell reads the real subject, only what the photo actually shows. Everything Speaks even lets the subject talk back. The camera is a wand here."
+            text: "Pick a photo or take one, and the spell works on what's really in it. Everything Speaks even lets the thing in the picture talk back. The camera's a wand here. Point it at something boring."
         ),
         MarginTutorNote(
             id: "flyleaf",
             title: "The Flyleaf",
-            text: "The Flyleaf is where the quests and favors you chose wait for you. A thread appears here when you accept one, and stays until you finish it. Tap one to continue. Finish it with a sentence, photo, or place. Or let it rest. Five fit at once."
+            text: "This is where the quests and favors you said yes to wait. They land here when you keep the offer, and stay till they're done. Tap one to pick it back up. Finish it with a sentence, a photo or proof you were there, or let it rest. Only five fit."
         ),
         MarginTutorNote(
             id: "fae-bargain",
             title: "Fae Bargains",
-            text: "A bargain is a trade with teeth, and its cost is written on the label. It appears when a Fae wants something badly enough to offer terms. Read them. Take the consequence or swipe the whole creature off the desk if its price smells wrong."
+            text: "This is a Fae who gave you something first and wants something back. It turns up when a Fae wants a trade badly enough to offer one. Read the terms. Nothing's owed until you open it. Don't like the price? Rip it out and it goes."
         ),
         MarginTutorNote(
             id: "book-fae",
             title: "The Book Fae",
-            text: "Book Fae pages are visits from the stranger citizens of the margins. They appear when a pact, gift, debt, or mood gives them a reason to knock. Listen for the offer or warning, then keep the page only if you want that fae thread to stay awake."
+            text: "The Book Fae are the old, strange folk of the margins. They knock when a gift, a debt or a promise gives them a reason. Mind your words: they take everything exactly as you say it. Listen first."
         ),
         MarginTutorNote(
             id: "pact-dispatch",
             title: "Pact Dispatches",
-            text: "A dispatch is news from an active pact: who moved, what changed, and what I think it means. It appears after choices or favors start having consequences. Read it for the current state, then decide whether to answer with action or attention."
+            text: "This is news from the Pact War: a shelf or a door changed hands. It turns up after your choices start to matter out there. Read it to see where things stand."
         ),
         MarginTutorNote(
             id: "pact-verdict",
             title: "Pact Verdicts",
-            text: "A pact verdict is the closing note on a pact beat. It appears when I've got enough evidence to say how the bargain landed. Read the result, keep it if you want the outcome remembered, and let it go if the thread should cool."
+            text: "This is two sides reading the same Page of yours and refusing to agree. It turns up when the Pact War needs a judge, and that's you. Read both sides and pick one. A shelf really moves."
         ),
         MarginTutorNote(
             id: "pact-errand",
             title: "Pact Errands",
-            text: "A pact errand is a tiny real-world task attached to a larger magical promise. It appears when a talisman or faction wants proof outside the screen. Do the small thing only if it fits your day; I can wait."
+            text: "This is a tiny job in the real world for the Pact. It turns up when a talisman wants proof from outside the screen. Do it only if it fits your day. If you do, bring the proof back."
         ),
         MarginTutorNote(
             id: "the-bleed",
             title: "The Bleed",
-            text: "The Bleed is what happens when outside pressure leaks into the margins. It appears when I have reason to make the interference visible instead of pretending everything is fine. Read it as a weather report, then choose the gentlest next action."
+            text: "The Bleed is the Book's own newspaper. Penny prints it from your days and the Academy's, and a new one appears every morning and evening. Read it with your tea. Write in the margin if you want Penny to see."
         ),
         MarginTutorNote(
             id: "compass-run",
             title: "Compass Runs",
-            text: "A full run goes Notice, Embark, Sense, Write, Rest: constraints first, magic after. One small real adventure with a souvenir sentence at the end. Completing the loop warms my Glow."
+            text: "A Compass Run goes Notice, Embark, Sense, Write, Rest. Five steps, one small real adventure, and a souvenir sentence at the end. Plan it badly on purpose. Small plans don't fall over."
         ),
         MarginTutorNote(
             id: "ask-the-book",
-            title: "Chatting with Me",
-            text: "Say anything. Tell me about your day, argue with me, or ask what I remember. Say \"remember that…\" and I'll, once you say yes. Say \"keep this chat\" and it becomes a Page."
+            title: "Let's Chat",
+            text: "This is where you talk to the Book. Tell it about your day, argue with it, ask what it remembers. Say “remember that…” and it'll ask before keeping it. Say “keep this chat” and the whole chat becomes a Page."
         ),
         MarginTutorNote(
             id: "todays-margins",
             title: "Today's Margins",
-            text: "Everything you keep today gathers here. Tap a kept card to step back inside the full illuminated page: kept pages stay alive, they don't become receipts."
+            text: "Everything you kept today waits here. Tap one to step back into the whole Page. Kept Pages stay alive. They aren't receipts."
         ),
         MarginTutorNote(
             id: "returned-stacks",
-            title: "Returned From the Stacks",
-            text: "Old kept pages wander back when I think they rhyme with today. The Stacks have long memories and decent taste."
+            title: "Back From the Stacks",
+            text: "Old Pages wander back here when they match something about today. The Stacks have a long memory and good taste. Tap one to say hello again."
         ),
         MarginTutorNote(
             id: "search-stacks",
             title: "Search the Stacks",
-            text: "Everything you keep can be found again: pages, places, cast, favors, the library itself. Ask plainly, or strangely. The Stacks understand Glow tiers, moods, and names."
+            text: "Everything you've kept can be found again: Pages, places, the Cast, favors. Ask plainly, or ask strangely. Try a mood, a name, a colour."
         ),
         MarginTutorNote(
             id: "colophon",
             title: "The Colophon",
-            text: "The book's machinery lives down here: model status, charts, doorway settings. Every honest book admits how it was made; ours just keeps it in a drawer."
+            text: "This drawer is where the Book keeps how it's made: the brain on your phone, the charts, the settings. Honest books show their workings. This one just keeps them in a drawer."
         ),
         MarginTutorNote(
             id: "scrapbook-studio",
-            title: "Scrapbook Studio",
-            text: "This is the Pagewright: a worktable for pages you already kept. Pick scraps from your archive, arrange them by hand, add a note if you want, then keep the finished sheet so weekly, monthly, and yearly bindings can carry it forward."
+            title: "The Pagewright",
+            text: "This is the Pagewright, a worktable for Pages you've already kept. Pick scraps, move them round by hand, add a note, then keep the finished sheet. The weekly, monthly and yearly books can carry it after that."
         ),
         MarginTutorNote(
             id: "scrapbook-scraps",
             title: "Choosing Scraps",
-            text: "Scraps are kept pages, not raw material from nowhere. Add one because it belongs beside the others; filter by day, kind, photo, or search when the pile gets crowded. The finished page remembers which originals you used."
+            text: "Scraps are your kept Pages, not stuff from nowhere. Add one because it belongs next to the others. When the pile gets big, filter by day, kind or photo, or search. The finished Page remembers which ones you used."
         ),
         MarginTutorNote(
             id: "scrapbook-marks",
-            title: "Marks & Marginalia",
-            text: "Marks are little things you can put on a scrapbook Page. Some have locks. Do the thing named under a lock and it falls off for good. Or ask me for a hint. You never have to chase one."
+            title: "Marks",
+            text: "Marks are little things to stick on a scrapbook Page. Some have locks. Do the thing written under a lock and it falls off for good. Stuck? Ask for a hint. You never have to chase one."
         ),
         MarginTutorNote(
             id: "scrapbook-achievements",
-            title: "How Achievement Locks Open",
-            text: "An achievement is a track I noticed in what you did. Some tracks happen outside my covers. Some happen at the Pagewright table. When one finishes, one to three marks come loose. It isn't a grade. I'm just showing you what your hands changed."
+            title: "How Locks Open",
+            text: "An achievement is a trail you made without noticing. Some trails happen out in the world, some at the Pagewright table. When one finishes, a few marks come loose for your scrapbook Pages. It isn't a grade. It's just your tracks."
         ),
         MarginTutorNote(
             id: "scrapbook-keep",
             title: "Keeping a Scrapbook Page",
-            text: "Keep in Book makes this handmade sheet a real kept page. I checked the binding: I store the image, your note, and the source scraps, then the weekly issue and later bindings can include it as a Scrapbook Page."
+            text: "Keep in Book turns this handmade sheet into a real kept Page: the picture, your note, and which scraps you used. After that, the weekly issue and the bigger books can bind it in."
         )
     ]
 
@@ -2296,6 +2310,12 @@ struct PlayerVaultData: Codable, Equatable {
     /// from the archive if it is lost.
     var readerWear: ReaderWearLedger?
     var overnightConnectionDrafts: [OvernightConnectionDraft]?
+    /// "I want to write, please?": wants and the held drawer. Optional so an
+    /// older vault opens with an empty desk.
+    var writingDesk: WritingDesk? = nil
+    /// Adventures already offered, including runs never kept. No expiry: a
+    /// familiar place may host a new experience, but old activities stay retired.
+    var compassAdventures: [CompassAdventureRecord]? = nil
     var nothingGreyOffset: Int?
     /// A Page can leave the living Book while remaining intact in raw archives,
     /// Stacks, and export.

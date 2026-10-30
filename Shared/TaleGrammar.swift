@@ -226,7 +226,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     /// Plain enough for a child to say, the way the old tales are named.
     var commonName: String {
         switch self {
-        case .forbiddenDoor: return "The Door You Weren't to Open"
+        case .forbiddenDoor: return "The Thing You Weren't to Do"
         case .unpaidGift: return "The Gift Nobody Paid For"
         case .threeEncounters: return "Three Times"
         case .falseName: return "The Wrong Name"
@@ -242,7 +242,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     /// How this tale begins, after "Once upon a time, ".
     var once: String {
         switch self {
-        case .forbiddenDoor: return "there was a door you'd decided not to open."
+        case .forbiddenDoor: return "there was a thing you'd decided not to do."
         case .unpaidGift: return "somebody gave you something before you'd paid for it."
         case .threeEncounters: return "something turned up."
         case .falseName: return "I called you by a name."
@@ -275,7 +275,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     /// a tale.
     var climax: String {
         switch self {
-        case .forbiddenDoor: return "something happened at that door that can't be taken back."
+        case .forbiddenDoor: return "something happened there that can't be taken back."
         case .unpaidGift: return "the price came due."
         case .threeEncounters: return "it turned up a third time, and three is when it counts."
         case .falseName: return "the name broke."
@@ -293,7 +293,7 @@ enum TaleShape: String, Codable, Equatable, CaseIterable {
     var recognitionLine: String {
         switch self {
         case .forbiddenDoor:
-            return "There was a door. I watched you stand in front of it, and I didn't say a word."
+            return "There was a thing you'd said you wouldn't do. I watched you stand in front of it, and I didn't say a word."
         case .unpaidGift:
             return "You got given something before you'd paid. In the old tales that's never just being kind. I kept quiet."
         case .threeEncounters:
@@ -359,7 +359,7 @@ enum TaleEnding: String, Codable, Equatable, CaseIterable {
         case .transformed:
             return "something turned into something else, and it can't turn back. I looked."
         case .imperfect:
-            return "it finished badly. It still finished. I'll take that over a door left open forever."
+            return "it finished badly. It still finished. I'll take that over something left hanging forever."
         case .returnedEmpty:
             return "you went, and you came back with nothing. I'm writing the nothing down. Empty hands are a real ending."
         case .refused:
@@ -1483,11 +1483,11 @@ extension TaleGrammar {
     static func law(for shape: TaleShape, ending: TaleEnding, subjectName: String) -> String {
         switch (shape, ending) {
         case (.forbiddenDoor, .paid), (.forbiddenDoor, .transformed):
-            return "That door is open now and won't shut again. I've stopped counting it as a boundary and started counting it as a room."
+            return "You did it, and it can't be undone. I've stopped counting it as a line you wouldn't cross and started counting it as somewhere you've been."
         case (.forbiddenDoor, .refused):
-            return "You stood at that door and didn't go through, on purpose. I won't offer it to you again in that shape: the offering was the thing you refused."
+            return "You came right up to it and didn't do it, on purpose. I won't offer it to you again in that shape: the offering was the thing you refused."
         case (.forbiddenDoor, _):
-            return "There is a door in you I now know the location of. I'm not going to keep pointing at it, but I'm not going to forget where it is."
+            return "There's a place in you I now know the location of. I'm not going to keep pointing at it, but I'm not going to forget where it is."
 
         case (.unpaidGift, .paid):
             return "The debt is settled and the gift came back looking different. I'm not going to pretend it looks the way it did: repaired is its own finish and I'd rather you saw the seam."
@@ -1756,7 +1756,7 @@ enum RoleTransformationKeeper {
     /// which is what a transformation is.
     static func clause(for shape: TaleShape, ending: TaleEnding, roleVerb: String) -> String? {
         switch (shape, ending) {
-        case (.forbiddenDoor, .refused): return "Who Stopped at the Door"
+        case (.forbiddenDoor, .refused): return "Who Stopped Short"
         case (.forbiddenDoor, _): return "Who Went Through Anyway"
         case (.unpaidGift, .paid): return "Who Paid What Was Owed"
         case (.unpaidGift, _): return "Who Owes the Fae a Favour"
@@ -2107,7 +2107,7 @@ enum FaeLaw {
                     ? (marks >= 1
                         ? "The pixie runs a finger along the sentence, finds a comma doing honest work, and is satisfied in a way it would deny under questioning."
                         : "It closes. The pixie accepts it, visibly wishing there had been more furniture in the middle.")
-                    : "The pixie won't take it. There is no full stop. It isn't being difficult: to a pixie an unclosed sentence is a door left open in winter, and it will wait.",
+                    : "The pixie won't take it. There is no full stop. It isn't being difficult: to a pixie an unclosed sentence is a window left open in winter, and it will wait.",
                 dissent: nil
             )
 

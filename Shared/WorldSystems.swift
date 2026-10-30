@@ -704,9 +704,29 @@ struct RadioPageContext: Equatable {
         // Frost is its own tag rather than a shade of snow: the Firsts family
         // will only claim a first frost when the forecast actually said so.
         add("frost", when: ["frost", "freezing", "ice"])
-        add("hot", when: ["hot", "heat", "warm", "8", "9"])
-        add("cold", when: ["cold", "chill", "freez", "snow", "ice", "3", "2", "1"])
+        add("hot", when: ["hot", "heat", "warm"])
+        add("cold", when: ["cold", "chill", "freez", "snow", "ice"])
+        // Hot and cold read the thermometer, not its digits. They used to
+        // fire on any "8"/"9" or "1"/"2"/"3" anywhere in the text, so 73° was
+        // cold and 38° was hot *and* cold.
+        if let fahrenheit = fahrenheit(from: weather?.currentTemperature) {
+            if fahrenheit >= hotFahrenheit { tags.insert("hot") }
+            if fahrenheit <= coldFahrenheit { tags.insert("cold") }
+        }
         return tags
+    }
+
+    static let hotFahrenheit = 80.0
+    static let coldFahrenheit = 45.0
+
+    /// "73°F", "23°C", "23 °C": the formatter follows the reader's locale.
+    static func fahrenheit(from text: String?) -> Double? {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        let number = text.prefix { $0.isNumber || $0 == "-" || $0 == "−" || $0 == "." || $0 == "," }
+            .replacingOccurrences(of: "−", with: "-")
+            .replacingOccurrences(of: ",", with: ".")
+        guard let value = Double(number) else { return nil }
+        return text.uppercased().contains("C") && !text.uppercased().contains("F") ? value * 9 / 5 + 32 : value
     }
 }
 
@@ -1235,7 +1255,7 @@ enum RadioStationRegistry {
                 "Notice what lingers after something has properly ended."
             ),
             "mothlight-book-jumping": meaning(
-                ["curiosity", "side doors"],
+                ["curiosity", "detours"],
                 "a finger keeping two pages open",
                 "Let one nearby title lead you somewhere unplanned."
             ),
@@ -1282,7 +1302,7 @@ enum RadioStationRegistry {
             "thornwave-long-titles-in-the-dark": meaning(
                 ["naming", "mystery"],
                 "spine lettering disappearing into low light",
-                "Read one ordinary label as if it opens a side door."
+                "Read one ordinary label as if it's hiding something."
             ),
             "thornwave-duskthorn-rising": meaning(
                 ["fierce beauty", "change at dusk"],
@@ -2240,7 +2260,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-cast-inkrest", category: .gossip,
                     assetName: "DJ_mothlight_cast_inkrest_01",
-                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive: did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours are the kind of door that simply opens. No appointment. Just weather, a chair, and the lamp.",
+                    caption: "Dr. Inkrest sets the chairs out before the feelings arrive: did you know that? She seats a hard page near a lamp before she asks it to speak a single word. A difficult feeling isn't a verdict in that office. It's a page. And a page can be named, and seated, and revised one hour at a time. If today sat heavy as a low note, her office hours just happen. No appointment. Just weather, a chair, and the lamp.",
                     conditions: RadioBanter.Conditions(pageTypes: [.inkrestOfficeHours, .mood, .diary], minRecentPagesOfType: 1),
                     weight: 3
                 ),
@@ -2369,7 +2389,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-psa-samhain", category: .news,
                     assetName: "DJ_mothlight_psa_samhain_01",
-                    caption: "A note for the calendar's gentlest night: Samhain (the Thinning) comes at the turn of October, when the door between the kept and the lost stands a little ajar. The Book remembers more than usual then, and is kinder about it. Name someone you've lost, and one thing they left in your keeping. The veil is thin; be honest, be gentle. It isn't a sad feast. It's a held one.",
+                    caption: "A note for the calendar's quietest night: Samhain (the Thinning) comes at the turn of October, when the wall between the kept and the lost goes thin. The Book remembers more than usual then. Name someone you've lost, and one thing they left in your keeping. The veil is thin. Be honest. It isn't a sad feast. It's a held one.",
                     conditions: nil,
                     weight: 3
                 ),
@@ -2605,7 +2625,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-pages-story-night", category: .gossip,
                     assetName: "DJ_thornwave_pages_story_night_01",
-                    caption: "You've been keeping story pages. Thornwave noticed. Stories are doors with teeth, and you keep putting your hand on the handle. Respect.",
+                    caption: "You've been keeping story pages. Thornwave noticed. Stories can follow you home, and you keep going back in anyway. Respect.",
                     conditions: RadioBanter.Conditions(
                         timeOfDay: ["dusk", "night"],
                         pageTypes: [.narrativeOS, .gamePage, .bookJump],
@@ -2942,7 +2962,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-psa-beltane", category: .news,
                     assetName: "DJ_thornwave_psa_beltane_01",
-                    caption: "One feast even I won't sharpen my teeth on: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft: it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
+                    caption: "One feast even I won't make fun of: Beltane. The Greenfire. The first of May, when the courtyard goes reckless with bloom and the vines climb the shelves with tiny books for leaves. The bees in the Compass Rose are helpful and, frankly, a little drunk. Find the most alive green thing near you and talk to it like it can hear you. It can. That isn't me going soft: it's just true, and true is the only thing I deal in. Greenfire. Don't miss it.",
                     conditions: nil,
                     weight: nil
                 ),
@@ -3039,7 +3059,7 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "bleed-lore-unwritten", category: .network,
                     assetName: "DJ_bleed_lore_unwritten_01",
-                    caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name at anyone else's door. Write it from the inside. That's the only lock that holds.",
+                    caption: "Off the record, off the band: there's a chapter in this building no one can jump into, no one can assign, no one can grade. Yours. The Unwritten one. Everybody wants a look. Don't sign your name in anyone else's book. Write it from the inside. That's the only lock that holds.",
                     conditions: nil,
                     weight: 4
                 ),
@@ -3735,6 +3755,14 @@ struct BodySourceSignal: Equatable {
     var score: Int
     var phrase: String
     var metrics: [Metric] = []
+    /// Last night: first fell asleep, last woke. Not a metric, because metrics
+    /// are shown and prompted as text.
+    var sleepStart: Date? = nil
+    var sleepEnd: Date? = nil
+    /// Daylight, workouts, mindful minutes, a logged mood, surrounding sound
+    /// and stairs: for noticing, kept off `metrics` for the same reason.
+    var extras: BodyExtras? = nil
+    var lastWorkoutEndedAt: Date? = nil
 
     var isAvailable: Bool {
         !phrase.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -3758,6 +3786,13 @@ struct WeatherSourceSignal: Equatable {
     /// Carries the next several hours as well as the moment it was read, so
     /// the leaf can follow the weather between reads.
     var skyOutlook: PaperSkyOutlook?
+    /// The same reading as numbers, for noticing. Only a live forecast has it.
+    var measurements: WeatherMeasurements?
+    /// The sea, the air and the aurora at the same reading, for noticing.
+    /// Each absent where it doesn't apply (inland, outside Europe for pollen).
+    var sea: SeaReading?
+    var air: AirReading?
+    var kpIndex: Double?
 
     /// The sky as measured when this was read.
     var sky: PaperSky? { skyOutlook?.current }
@@ -3772,10 +3807,12 @@ struct WeatherSourceSignal: Equatable {
         currentTemperature: String? = nil,
         forecast: String? = nil,
         conditionSymbolName: String? = nil,
-        skyOutlook: PaperSkyOutlook? = nil
+        skyOutlook: PaperSkyOutlook? = nil,
+        measurements: WeatherMeasurements? = nil
     ) {
         self.phrase = phrase
         self.source = source
+        self.measurements = measurements
         self.currentTemperature = currentTemperature ?? Self.extractTemperature(from: phrase)
         self.forecast = forecast ?? Self.extractForecast(from: phrase)
         self.conditionSymbolName = conditionSymbolName ?? Self.symbolName(for: phrase)
@@ -4074,7 +4111,7 @@ enum AnchorTurnBuilder {
         let landings: [String: String] = [
             "slice-of-life": "The room trusts the reader with one more exact, kept detail; the bond warms a notch.",
             "progress-arc": "\(keeper) reveals the next piece of what it guards, and the room's story moves a step deeper into the stacks.",
-            "surprise": "A side door gives under the reader's attention; something adjacent to this place stirs and may call back later."
+            "surprise": "Something beside this place gives under the reader's attention, stirs, and may call back later."
         ]
 
         return StoryTurn(
@@ -4106,11 +4143,18 @@ enum AnchorMiniStory {
     }
 
     static func landing(from metadata: [String: String], tags: [String]) -> String? {
-        let role = selectedChoiceRole(from: tags)
-        let keyedLanding = role.flatMap { metadata[metadataKey(for: $0)]?.nonEmpty }
+        // Keeping the opening visit is not consent to one of its paths.
+        guard let role = selectedChoiceRole(from: tags) else { return nil }
+        if metadata["storyResultLeaf"] == "true", let result = metadata["storyResultText"]?.nonEmpty {
+            // The closing paragraph holds the generated payoff. Remember what
+            // actually happened rather than the earlier, generic planned turn.
+            return result.components(separatedBy: "\n\n").last(where: { $0.nonEmpty != nil }) ?? result
+        }
+        let keyedLanding = metadata[metadataKey(for: role)]?.nonEmpty
         return keyedLanding
             ?? metadata["storyTurnStatement"]?.nonEmpty
-            ?? metadata["storyResult\(role.map { resultSuffix(for: $0) } ?? "")"]?.nonEmpty
+            ?? metadata["storyResultText"]?.nonEmpty
+            ?? metadata["storyResult\(resultSuffix(for: role))"]?.nonEmpty
     }
 
     private static func selectedChoiceRole(from tags: [String]) -> String? {
@@ -4494,11 +4538,13 @@ enum AcademyActivityRegistry {
         "wayfinding-kineticism": AcademyActivity(
             id: "wayfinding-threshold-plan", sessionID: "wayfinding-kineticism", kind: .thresholdPlan,
             title: "Mark a Threshold",
-            invitation: "Momort won't sign off on a trip with no way back. Plan one small crossing — small enough that you'll actually finish it.",
+            invitation: "Momort won't sign off on a trip with no way back, or one with nothing good in it. Plan one small crossing — small enough that you'll actually finish it.",
             actionTitle: "Mark this crossing",
             fields: [
                 .init(id: "threshold", label: "Where it starts", placeholder: "The door, the corner, the first step out"),
                 .init(id: "destination", label: "Where it goes", placeholder: "Somewhere you'd genuinely be glad to end up"),
+                // The Adventure Recipe's Delight: the bribe that gets you off the sofa.
+                .init(id: "delight", label: "What you'll take for the road", placeholder: "A song, a snack, the good coat — only for this"),
                 .init(id: "return", label: "How you get back", placeholder: "How this ends and you come home")
             ]
         ),
@@ -4998,7 +5044,7 @@ enum AcademyChapterRegistry {
             traits: ["independence", "ambition", "creativity", "resilience"],
             compassFlavor: "What do you choose to see right now?",
             writeFraming: "Write the sentence that you need to read tomorrow morning.",
-            storyBias: "Lean toward self-agency: let the scene offer the player a bold authored choice, an Embark opportunity, a door they could open themselves.",
+            storyBias: "Lean toward self-agency: let the scene offer the player a bold authored choice, an Embark opportunity, a choice they could make themselves.",
             symbolName: "flame",
             talismanID: "ember-seal",
             talismanName: "The Ember Seal"
@@ -5099,11 +5145,11 @@ struct ChapterBindingCeremony: Equatable {
         switch chapter.id {
         case "emberheart":
             return ChapterBindingCeremony(
-                arrivalLine: "The seal takes heat first: red ink, a desk under lamplight, the fierce clean pressure of a door waiting for your hand.",
+                arrivalLine: "The seal takes heat first: red ink, a desk under lamplight, the fierce clean pressure of a choice waiting for you.",
                 sealLine: "The Ember Seal marks the page with a bright, impatient edge.",
                 oathLine: "I won't wait outside my own life for permission.",
-                invitationLine: "First Emberheart work: choose one small door today and cross it on purpose.",
-                aftermathLine: "After this, authored doors and brave revisions can tug harder at the margins."
+                invitationLine: "First Emberheart work: choose one small brave thing today and do it on purpose.",
+                aftermathLine: "After this, brave choices and brave revisions can tug harder at the margins."
             )
         case "mossbloom":
             return ChapterBindingCeremony(
@@ -6387,7 +6433,7 @@ enum FaeKind: String, Codable, CaseIterable, Identifiable, Equatable {
         case .deepLoreDwarf:
             base = "Slow, weighty, no wasted words. Considers everything before speaking. Remembers everything and will come to collect."
         case .goblin:
-            base = "Mercantile, precise, unpredictable. Every exchange is a transaction in attention. A performed observation insults them; a genuine one opens doors."
+            base = "Mercantile, precise, unpredictable. Every exchange is a transaction in attention. A performed observation insults them; a genuine one gets you served."
         }
 
         guard claim >= FaeEconomy.watchingClaimThreshold else { return base }
@@ -7712,7 +7758,7 @@ enum GoblinMarketEngine {
         MarketWare(
             id: "radio-sponsor-bramblewine-dram",
             title: "Bramblewine Dram",
-            clerkPitch: "A sip for nights with teeth. The cork lists the price twice. That's almost honest.",
+            clerkPitch: "A sip for the bad nights. The cork lists the price twice. That's almost honest.",
             contents: "Catches sharp attention, tunes Thornwave, and lets the grey lean a shade closer.",
             currency: .belief,
             basePrice: 11,
@@ -8511,7 +8557,7 @@ enum PactReadings {
         if !readerAuthored {
             switch talismanID {
             case "ember-seal":
-                return "The Book authored \(it). You chose to keep it. Read that choice as a hand on the door, not a claim that you wrote the Page."
+                return "The Book authored \(it). You chose to keep it. Read that choice as yours to keep. It doesn't mean you wrote the Page."
             case "moss-clasp":
                 return "\(it) came from the Book and you let it stay. Read it as something received, without pretending its events happened outside the covers."
             case "tide-glass":
@@ -10741,7 +10787,7 @@ enum WorldFeastAlmanac {
                  rule: .fixed(month: 4, day: 30),
                  commonName: "Walpurgisnacht",
                  academyTitle: "The Night of the Bonfires",
-                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one: I've been trying to get people to notice this door for centuries.",
+                 blurb: "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two spooky nights in it and everyone only ever remembers the one. I've been trying to get people to notice this one for centuries.",
                  invitationTitle: "The Night of the Bonfires",
                  invitation: "Make some noise tonight to see something off. Winter, a mood, a month. Tell me what you were shouting at.",
                  beliefBonus: 4, symbolName: "flame.fill", accent: "violet",
@@ -11229,7 +11275,7 @@ enum Almanac {
                   beliefBonus: 3, greyShift: 0, symbolName: "circle.righthalf.filled", accent: "amber",
                   startMonth: 9, startDay: 21, endMonth: 9, endDay: 23),
         SabbatDef(id: "samhain", commonName: "Samhain", academyTitle: "The Thinning",
-                  blurb: "The door between the kept and the lost stands ajar. I remember more than usual tonight, and I'm gentler about it.",
+                  blurb: "The wall between the kept and the lost has gone thin. I remember more than usual tonight.",
                   invitationTitle: "The Thinning",
                   invitation: "Name someone or something you've lost, and one thing it left in your keeping. The veil is thin; be honest, be kind.",
                   beliefBonus: 5, greyShift: 1, symbolName: "flame", accent: "amber",
@@ -11911,7 +11957,7 @@ enum BookOpenVoiceComposer {
     private static func stanceQuip(_ stance: BookStance) -> String? {
         switch stance {
         case .contrite: return "The eraser's asked for a seat at the editors' table. Fair."
-        case .protective: return "I've locked one door and left six windows open."
+        case .protective: return "I've shut one window and left six open."
         case .mischievous: return "The index has filed an objection. It was alphabetized beautifully."
         case .hushed: return "Even the footnotes have taken their shoes off."
         case .intent: return "A thread is moving. I'm pretending not to stare."
@@ -11985,22 +12031,36 @@ enum BookGreetingComposer {
 }
 
 enum BookAfterglow {
+    /// The first half of the slip after a keep, when no Cast member answers.
+    /// It never names the Page's kind ("the you page"); the Page is right there.
+    static func keptLine(pageID: String) -> String {
+        let lines = [
+            "Kept. It's in the margin now.",
+            "Kept. I put it with today's.",
+            "In it goes.",
+            "Kept. I'll read it again tonight.",
+            "Mine now. Well, ours."
+        ]
+        return lines[Int(KeepMarginalia.seed(for: pageID) % UInt64(lines.count))]
+    }
+
+    /// The second half: something to take back out into the day.
     static func line(for input: String, pageType: BookPageType, pageID: String) -> String {
         let seed = KeepMarginalia.seed(for: pageID)
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if let word = KeepMarginalia.featuredWord(in: trimmed) {
             let lines = [
-                "Carry \(word) into the next room and see where it echoes.",
-                "Look for \(word) once more before the next Page rises.",
-                "Let \(word) keep a small light on outside the covers."
+                "Go and see if there's any more \u{201C}\(word)\u{201D} out there.",
+                "Take \u{201C}\(word)\u{201D} outside with you. See if it holds.",
+                "\u{201C}\(word.capitalized)\u{201D} is my favourite word today. Say it to somebody."
             ]
             return lines[Int(seed % UInt64(lines.count))]
         }
 
         let lines = [
-            "When you close me, let the room show you one more detail.",
-            "I'm still here; take this noticing back into the day.",
-            "Look up once before the next Page. Something ordinary may answer."
+            "Now go and look at something. I'll wait.",
+            "There's more of today out there. Go and get some.",
+            "Look up. Something out there's been waiting for you to notice it."
         ]
         let offset = pageType.rawValue.count
         return lines[Int((seed >> 8) + UInt64(offset)) % lines.count]
@@ -12875,7 +12935,7 @@ enum KeepMarginalia {
             wordLines: [
                 "\u{201C}{word}\u{201D} arrived before the feeling did. That's the good order.",
                 "We can leave \u{201C}{word}\u{201D} in the room with the lamp on.",
-                "\u{201C}{word}\u{201D} may be the handle. The door knows its own weight. Leave it shut today.",
+                "\u{201C}{word}\u{201D} is heavy. Leave it where it is today.",
                 "I heard \u{201C}{word}\u{201D} lower its voice. That's often when it starts telling the truth."
             ]
         ),
@@ -12963,7 +13023,7 @@ enum KeepMarginalia {
             wordLines: [
                 "\u{201C}{word}\u{201D}: I tested it. It rang true. Don\u{2019}t gloat.",
                 "Even I can\u{2019}t collapse \u{201C}{word}\u{201D}. It\u{2019}s load-bearing.",
-                "\u{201C}{word}\u{201D} has teeth. Good. A true thing should.",
+                "\u{201C}{word}\u{201D} stood up to me. Good. A true thing should.",
                 "I kicked \u{201C}{word}\u{201D} and hurt my doubt. Educational."
             ]
         ),
@@ -13238,7 +13298,7 @@ enum KeepMarginalia {
         case "serenity-brown":
             return [
                 ReactionTemplate(id: "detour", move: .delight, line: "\(quote) is where the detour admitted it was the adventure. I drew it a tiny flag."),
-                ReactionTemplate(id: "side-door", move: .recruitment, line: "I found a side door in \(quote). It leads around the boring explanation and straight back to the alive bit."),
+                ReactionTemplate(id: "side-door", move: .recruitment, line: "I found a way round in \(quote). It skips the boring explanation and goes straight to the alive bit."),
                 ReactionTemplate(id: "kept-lightly", move: .witness, line: "I kept \(quote) lightly, not carelessly. The sentence can breathe and still belong here.")
             ]
         default:
@@ -15133,7 +15193,7 @@ extension PeopleOfTheBook {
                 ),
                 InvitationTemplate(
                     id: "voice-neighbor",
-                    title: { name, _ in "The neighboring door" },
+                    title: { name, _ in "The next channel over" },
                     body: { name, _ in "Use the next-nearest channel once: if you usually text \(name), send a short voice note; if you usually call, send one strange photograph." },
                     proof: { _, _ in "Keep what changed when the channel changed." }
                 )
@@ -15142,7 +15202,7 @@ extension PeopleOfTheBook {
             return [
                 InvitationTemplate(
                     id: "found-for-two",
-                    title: { name, interest in "Here. I found a door for you and \(name)." },
+                    title: { name, interest in "Here. I found something for you and \(name)." },
                     body: { name, interest in "Bring \(name) one small, arguable thing about \(interest ?? "the subject you share"). Don't send a summary; ask what they think it gets wrong." },
                     proof: { name, _ in "Keep the point where you and \(name) disagreed or surprised each other." }
                 ),
@@ -15186,7 +15246,7 @@ extension PeopleOfTheBook {
                     id: "edge-of-room",
                     title: { name, _ in "Ask \(name) about the edge of the room" },
                     body: { name, _ in "Ask what first made \(name) stop watching this community from the edge and take part." },
-                    proof: { _, _ in "Keep the door between watching and belonging." }
+                    proof: { _, _ in "Keep what they said about going from watching to joining in." }
                 ),
                 InvitationTemplate(
                     id: "teach-forward",
@@ -15286,7 +15346,7 @@ struct CompanyYouKeptVolume: Equatable {
                 switch self {
                 case .readerWords: return "From your own page"
                 case .readerAftermath: return "What you said happened"
-                case .bookOffer: return "A door I offered"
+                case .bookOffer: return "Something I offered"
                 }
             }
         }
@@ -15451,7 +15511,7 @@ extension PeopleOfTheBook {
         }
         let realCount = chapters.reduce(0) { $0 + $1.readerWrittenCount }
         let foreword = """
-        This isn't a ranking of who mattered most. It's the evidence that other lives kept crossing yours: in your own words, in the doors I offered, and in the aftermath you chose to bring back. Their inner lives remain their own. I have bound only what you actually kept.
+        This isn't a ranking of who mattered most. It's the evidence that other lives kept crossing yours: in your own words, in the things I offered, and in the aftermath you chose to bring back. Their inner lives remain their own. I have bound only what you actually kept.
         """
         let closing: String
         if realCount == 0 {

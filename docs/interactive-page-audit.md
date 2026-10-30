@@ -42,7 +42,7 @@ wherever they live. Nothing was migrated to add them.
 | `inventory` | spends a gift | "Open the satchel" |
 | `gamePage` | plays | "Play" |
 | `narrativeOS` | chooses | "Make the choice" |
-| `bookNotices` | tells the Book whether it is right | "Tell me if I have it right" |
+| `bookNotices` | replies to the Book's notices | "Talk back" |
 | `bookOfYou` | answers the braid | "Say what you thought" |
 | `taleBound` | binds a chapter | "Bind it" |
 | `frontMatter` | opens a door | "Open the door" |

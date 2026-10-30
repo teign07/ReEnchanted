@@ -450,7 +450,7 @@ private struct ChapterBindingCeremonyProfile {
 
     var sensoryLine: String {
         switch chapterID {
-        case "emberheart": "Heat without flame. A door waiting for your choice."
+        case "emberheart": "Heat without flame. A choice waiting for you."
         case "mossbloom": "Petrichor, old wood, and green persistence under the page."
         case "tidecrest": "Salt, streetlight, laughter, and the vivid present tense."
         case "riddlewind": "Cipher wind, shared breath, and the click of a solved lock."

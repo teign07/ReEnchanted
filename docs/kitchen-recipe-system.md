@@ -113,8 +113,12 @@ three failures found by the full run; see the Cast handoff for the exact verific
   while the event runs; drawers for recipes made and rescued).
 - ✅ Packs can post recipes (`PageArchetypePack.recipes`), installed at launch with the undertakings.
 - ✅ Aiken Drum named in the Stay ending and the December scene; Trencher and Boggle written in.
-- ⬜ **Gayle O'Brien's recipes:** waiting for the binder photos. They go in
-  `KitchenRecipeRegistry.inherited`, word for word, with her notes as `cookNote`.
+- ✅ **Gayle O'Brien's recipes (source added 2026-10-26):** fourteen distinct recipes
+  transcribed into `KitchenRecipeRegistry.inherited` from sixteen binder photographs.
+  Chocolate Raspberry Truffles and Rocky Road Candy each appeared twice and have one entry
+  apiece. Her measures, wording, and personal notes are preserved, including the handwritten
+  `350°` on Siobhan's brownies. No photographs are bundled. No build or device verification
+  was requested for this addition; the Swift regression checks have been updated but not run.
 - ✅ **The Guest as Cast:** implementation, portrait and native regression checks complete for
   runtime 12. Release installed/launched on Rabbit; hands-on story and illustration QA remains.
   He no longer waits for December.
@@ -122,6 +126,32 @@ three failures found by the full run; see the Cast handoff for the exact verific
   requires its separate publication step.
 - Later: a kept Recipe Page could carry the whole recipe, so a pack recipe outlives its month;
   the jars; the starter; the printed Kitchen.
+
+### Binder transcription decisions (2026-10-26)
+
+Bj explicitly asked to keep the measurements as they are: they are part of the charm and magic.
+Do not convert a block, stick, small/medium container, package, or chocolate square to an inferred
+weight. Do not fill in omitted measures or generate replacements. Her typos were corrected on
+2026-10-30 at bj's request (mild→milk, yokes→yolks, whish→whisk, bank→bake, and the like);
+her wording, measures and notes are otherwise unchanged. Line wrapping and title
+capitalization are presentation, not changes to her recipe. Ingredients
+that only appear in the directions remain there, with shopping-list entries copied from those
+directions where needed. Durations are not inferred into `minutes`.
+
+Allergen metadata stays separate from her ingredient text. It includes the named ingredients,
+optional nuts, and common allergens in packaged mixes, toppings, margarine, and chocolate;
+package labels still matter. Her own memories remain `cookNote`, without fictional attribution
+or a rewrite into the Book's voice. The inherited shelf is permanent app content.
+
+Explicitly labeled **Kitchen notes** sit above the instructions and outside her words: use
+cooked turkey in the tetrazzini, paraffin labeled for use as a food ingredient in the two dipped
+candies, and pasteurized shell eggs in Nana's pie. The pie's original lemon-juice statement is
+preserved as source text, with the note explaining that lemon juice and a browned meringue do
+not ensure raw-egg safety. Keep the pie refrigerated. See the
+[FDA's egg guidance](https://www.fda.gov/food/buy-store-serve-safe-food/what-you-need-know-about-egg-safety)
+and [Clemson Extension's pie guidance](https://hgic.clemson.edu/factsheet/safe-handling-of-eggs/).
+Food-ingredient paraffin is distinct from the forbidden wax seals on preserves; the FDA lists
+[paraffin wax among food substances](https://hfpappexternal.fda.gov/scripts/Fdcc/index.cfm?id=PARAFFINWAX&set=FoodSubstances).
 
 ## Build order
 

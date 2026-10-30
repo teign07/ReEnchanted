@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - The Kitchen
 //
-// Recipes in the Book. Every one is authored against a tested source and set
+// Recipes in the Book. Published recipes and Gayle's inherited binder are set
 // down here by hand; nothing in this file writes or adjusts a recipe, and no
 // model ever will (docs/kitchen-november-pack.md, house law 5). What the reader
 // does with them is read back out of the archive: a recipe was made because a
@@ -49,7 +49,8 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
     var line: String
     var makes: String?
     var minutes: Int?
-    /// As written. Allergens are named here too, in the words of the line.
+    /// As written. Inherited binder text is preserved without added labels;
+    /// its allergens are listed separately in `allergens` and `printed`.
     var ingredients: [String]
     /// The house allergen words this recipe carries: milk, egg, wheat, gluten,
     /// nuts, peanuts, soy, fish, shellfish, sesame, mustard, celery, sulphites.
@@ -73,6 +74,46 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
 
     /// The recipe as one block of text, for a Page body, the printed books, and
     /// any surface that can only show prose.
+    /// The steps as printed lines. Only real steps are numbered, and the
+    /// numbering carries on across sections: a binder heading (FROSTING, TOP)
+    /// stands on its own line above its step, and a parenthetical aside stands
+    /// unnumbered. The stored `steps` stay exactly as written.
+    var printedSteps: [String] {
+        var number = 0
+        var lines: [String] = []
+        for step in steps {
+            var text = step
+            if let newline = step.firstIndex(of: "\n") {
+                let first = String(step[..<newline])
+                if Self.isSectionHeading(first) {
+                    lines.append(first)
+                    text = String(step[step.index(after: newline)...])
+                }
+            }
+            if Self.isAside(text) {
+                lines.append(text)
+                continue
+            }
+            number += 1
+            lines.append("\(number). \(text)")
+        }
+        return lines
+    }
+
+    /// A short line in capitals, like PIECRUST or FROSTING.
+    static func isSectionHeading(_ line: String) -> Bool {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        return trimmed.count <= 24
+            && trimmed.contains(where: \.isLetter)
+            && !trimmed.contains(where: \.isLowercase)
+    }
+
+    /// "(The acid from the lemon juice cooks the eggs.)": said, not done.
+    static func isAside(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix("(") && trimmed.hasSuffix(")")
+    }
+
     var printed: String {
         var parts: [String] = []
         if let credit = credit?.nonEmpty { parts.append("From \(credit).") }
@@ -80,7 +121,7 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
         var need = "You'll need"
         if let makes = makes?.nonEmpty { need += " (makes \(makes))" }
         parts.append(need + ":\n" + ingredients.map { "• \($0)" }.joined(separator: "\n"))
-        parts.append("What you do:\n" + steps.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n"))
+        parts.append("What you do:\n" + printedSteps.joined(separator: "\n"))
         if let note = cookNote?.nonEmpty { parts.append(note) }
         if !allergens.isEmpty { parts.append("Has in it: \(allergens.joined(separator: ", ")).") }
         return parts.joined(separator: "\n\n")

@@ -635,6 +635,14 @@ struct StatusBanner: View {
     }
 }
 
+/// A slip says what went wrong in the Book's own words. The system's error
+/// text ("The operation couldn't be completed…") goes to the log, never onto
+/// paper.
+func slipLine(_ line: String, logging error: Error) -> String {
+    appLog.error("\(line, privacy: .public) \(String(describing: error), privacy: .private)")
+    return line
+}
+
 /// The material identity of one thing the Book has pushed out between its
 /// leaves. The message remains the accessibility and lifecycle key; the rest
 /// is provenance, never decoration inferred by parsing its prose.
@@ -659,7 +667,7 @@ struct BookStatusSlipPresentation: Equatable {
 
     var eyebrow: String {
         switch kind {
-        case .mutter: return "FROM THE BOOK"
+        case .mutter: return "UNDER MY BREATH"
         case .receipt: return "PRESSED INTO THE MARGIN"
         case .business:
             return attribution.map { "\($0.uppercased()) · FIELD NOTE" } ?? "ACADEMY FIELD NOTE"
@@ -2287,7 +2295,7 @@ struct GlowCommandMenu: View {
             }
             menuButton(
                 title: "The Living Almanac",
-                detail: "Open the door on whatever temporary weather has got into me.",
+                detail: "See what temporary weather has got into me.",
                 systemImage: "calendar.badge.clock",
                 compact: compact
             ) {
@@ -3404,6 +3412,17 @@ private struct ScribeWorkDescriptor {
                 quip: "A ribbon is being tied around the ordinary without squeezing it flat.",
                 accent: BookPalette.teal
             )
+        // "I want to write, please?" is secret: one sealed card for the whole
+        // session, whatever the job, and never the ink.
+        case WritingSessionSecrecy.label:
+            self.init(
+                title: "I'm writing. You can't see it.",
+                scribe: "Book Sprite",
+                assetName: "LabyrinthFaeBookSprite",
+                status: "It's mine until it's ready.",
+                quip: "No peeking. I'll show you when it's done.",
+                accent: BookPalette.violet
+            )
         default:
             self.init(
                 title: "The local scribe is writing",
@@ -3443,7 +3462,12 @@ struct LocalBrainWorkingStatusCard: View {
     @State private var paperIsInPlace = false
     @State private var inkIsVisible = false
 
-    private var descriptor: ScribeWorkDescriptor { ScribeWorkDescriptor(label: label) }
+    /// During a writing session every card is the sealed one, whatever the
+    /// model is working on underneath.
+    private var isSecret: Bool { WritingSessionSecrecy.isActive }
+    private var descriptor: ScribeWorkDescriptor {
+        ScribeWorkDescriptor(label: isSecret ? WritingSessionSecrecy.label : label)
+    }
     private var isCompact: Bool { presentation == .compact }
     private var emergenceOffset: CGSize {
         switch presentation {
@@ -3525,13 +3549,13 @@ struct LocalBrainWorkingStatusCard: View {
                 }
 
                 ScribeLiveInkPreview(
-                    progress: liveProgress,
-                    text: liveText,
-                    caption: progressLine,
+                    progress: isSecret ? nil : liveProgress,
+                    text: isSecret ? nil : liveText,
+                    caption: isSecret ? nil : progressLine,
                     accent: descriptor.accent
                 )
 
-                Text(quip?.nonEmpty ?? descriptor.quip)
+                Text(isSecret ? descriptor.quip : (quip?.nonEmpty ?? descriptor.quip))
                     .font(.system(.body, design: .serif, weight: .semibold))
                     .lineSpacing(3)
                     .foregroundStyle(BookPalette.ink.opacity(0.82))
@@ -3580,7 +3604,7 @@ struct LocalBrainWorkingStatusCard: View {
                             : "\(descriptor.scribe). \(descriptor.title). Writing privately on this device.")
     }
 
-    private var makingMoment: BookMakingMoment? { BookMakingMoment.writing(label: label) }
+    private var makingMoment: BookMakingMoment? { isSecret ? nil : BookMakingMoment.writing(label: label) }
 
     @MainActor
     private func performPaperArrival() async {

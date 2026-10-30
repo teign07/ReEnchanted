@@ -203,7 +203,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .gamePage:
             return "A Page That Plays Back"
         case .calendar:
-            return "The Hour Has Teeth"
+            return "An Hour Is Coming"
         case .helpTips:
             return "How I Like to Be Read"
         case .welcome:
@@ -685,7 +685,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .quotes:
             return ("A borrowed line.", "If it hooks you, keep it. If not, throw it back.")
         case .affirmations:
-            return ("Write down what needs saying.", "If it turns false, cross it out. Paper can take it.")
+            return ("What do you believe that you've never said out loud?", "Write it here. If it turns out false, cross it out. Paper can take it.")
         case .aboutYou:
             return ("What do I keep getting wrong about you?", "Tell me. I’ll change my notes.")
         case .wonderCompass:
@@ -695,7 +695,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .lore:
             return ("The Labyrinth keeps loose scraps here.", "Rooms, people, old rows. Take what catches.")
         case .patreon:
-            return ("An old door.", "Nothing new comes through. The old pages are still inside.")
+            return ("An old shop.", "Nothing new comes in. The old pages are still inside.")
         case .illustration:
             return ("Look.", "That's the whole job of this Page.")
         case .illuminatedPhoto:
@@ -980,7 +980,7 @@ struct BookPageSource: Codable, Identifiable, Equatable {
         case "grey-page-threat":
             return ("The Grey eats what you stop seeing.", "It can make me forget a Page. It can't eat the Page itself. That's still down in the Stacks.")
         case "world-event-door":
-            return ("Sometimes the whole Book changes its rules.", "When it does, the door appears here. Today it's shut.")
+            return ("Sometimes the whole Book changes its rules.", "When it does, you'll find it here. Today nothing's changing.")
         case "quillquarium-choosing":
             return ("Pens choose back in the Quillquarium.", "Mine is watching your hand. It'll jump when it knows how to disagree with you.")
         // Opened by hand with nothing in them yet. Each says honestly what
@@ -1303,7 +1303,7 @@ enum BookPageSourceRegistry {
             id: "book-reenchantment-director",
             type: .bookNotices,
             title: "My Long Game",
-            shortTitle: "A Small Door",
+            shortTitle: "A Small Try",
             symbolName: "door.left.hand.open",
             origin: .generated,
             privacy: .privateLocal,
@@ -1861,7 +1861,7 @@ enum BookPageSourceRegistry {
             privacy: .publicReference,
             isActive: true,
             cadence: "helpful rotation",
-            note: "The habits I have acquired, the doors I keep, and what the eraser is allowed to correct."
+            note: "The habits I have acquired, the promises I keep, and what the eraser is allowed to correct."
         ),
         BookPageSource(
             id: "labyrinth-welcome",
@@ -1897,7 +1897,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "daily for seven days",
-            note: "Seven small doors I hold open during our first week."
+            note: "Seven small things I try during our first week."
         ),
         BookPageSource(
             id: "local-brain-awake",
@@ -2495,6 +2495,23 @@ struct BookInterpretationIngredient: Codable, Equatable, Identifiable {
 /// Fuel and Inner Weather stay *references* to their private chart entries
 /// rather than copied prose, and Calendar titles remain excluded: neither has
 /// earned a feature yet. It is private page context, not a second activity log.
+/// The sky as numbers at the moment a Page was kept. The tags ("rain",
+/// "cold") are words for curation; these are what noticing compares.
+/// Every field is optional: a reading carries what Open-Meteo returned.
+struct WeatherMeasurements: Codable, Equatable, Hashable {
+    var temperatureF: Double?
+    /// Millimetres an hour.
+    var precipitationMM: Double?
+    var windKmh: Double?
+    var pressureHPa: Double?
+    /// Surface pressure now minus six hours ago. Negative is a falling glass.
+    var pressureChange6h: Double?
+    var humidity: Double?
+    /// Percent of the sky.
+    var cloudCover: Double?
+    var uvIndex: Double?
+}
+
 struct BookPageContextSnapshot: Codable, Equatable {
     var timeZoneIdentifier: String
     var utcOffsetSeconds: Int
@@ -2525,6 +2542,29 @@ struct BookPageContextSnapshot: Codable, Equatable {
     var steps: Int?
     var restingHeartRate: Int?
     var heartRateVariability: Double?
+    /// The heart at the keep itself, only when a sample landed within twenty
+    /// minutes of it. The resting rate above is the day's; this is the moment's.
+    var heartRateAtKeep: Int? = nil
+    var respiratoryRate: Double? = nil
+    var bloodGlucose: Double? = nil
+    var activeEnergy: Double? = nil
+    /// The night behind the Page: first fell asleep, last woke.
+    var sleepStart: Date? = nil
+    var sleepEnd: Date? = nil
+    var weatherMeasurements: WeatherMeasurements? = nil
+    /// The rest of the moment (`Shared/KeepContext.swift`): how it was
+    /// written and held, the day's shape around it, the sun, sea and air, and
+    /// more of the body. All optional, all absent on older Pages.
+    var writing: WritingProcess? = nil
+    var holding: HoldingSnapshot? = nil
+    var minutesSinceEventEnded: Int? = nil
+    var minutesUntilNextEvent: Int? = nil
+    var sunAltitude: Double? = nil
+    var sea: SeaReading? = nil
+    var air: AirReading? = nil
+    /// The planetary K-index: 5 and up is a geomagnetic storm, aurora weather.
+    var kpIndex: Double? = nil
+    var bodyExtras: BodyExtras? = nil
 
     init(
         at date: Date = Date(),
@@ -2598,6 +2638,22 @@ struct BookPageContextSnapshot: Codable, Equatable {
         case steps
         case restingHeartRate
         case heartRateVariability
+        case heartRateAtKeep
+        case respiratoryRate
+        case bloodGlucose
+        case activeEnergy
+        case sleepStart
+        case sleepEnd
+        case weatherMeasurements
+        case writing
+        case holding
+        case minutesSinceEventEnded
+        case minutesUntilNextEvent
+        case sunAltitude
+        case sea
+        case air
+        case kpIndex
+        case bodyExtras
     }
 
     init(from decoder: Decoder) throws {
@@ -2631,6 +2687,22 @@ struct BookPageContextSnapshot: Codable, Equatable {
         steps = try container.decodeIfPresent(Int.self, forKey: .steps)
         restingHeartRate = try container.decodeIfPresent(Int.self, forKey: .restingHeartRate)
         heartRateVariability = try container.decodeIfPresent(Double.self, forKey: .heartRateVariability)
+        heartRateAtKeep = try container.decodeIfPresent(Int.self, forKey: .heartRateAtKeep)
+        respiratoryRate = try container.decodeIfPresent(Double.self, forKey: .respiratoryRate)
+        bloodGlucose = try container.decodeIfPresent(Double.self, forKey: .bloodGlucose)
+        activeEnergy = try container.decodeIfPresent(Double.self, forKey: .activeEnergy)
+        sleepStart = try container.decodeIfPresent(Date.self, forKey: .sleepStart)
+        sleepEnd = try container.decodeIfPresent(Date.self, forKey: .sleepEnd)
+        weatherMeasurements = try container.decodeIfPresent(WeatherMeasurements.self, forKey: .weatherMeasurements)
+        writing = try container.decodeIfPresent(WritingProcess.self, forKey: .writing)
+        holding = try container.decodeIfPresent(HoldingSnapshot.self, forKey: .holding)
+        minutesSinceEventEnded = try container.decodeIfPresent(Int.self, forKey: .minutesSinceEventEnded)
+        minutesUntilNextEvent = try container.decodeIfPresent(Int.self, forKey: .minutesUntilNextEvent)
+        sunAltitude = try container.decodeIfPresent(Double.self, forKey: .sunAltitude)
+        sea = try container.decodeIfPresent(SeaReading.self, forKey: .sea)
+        air = try container.decodeIfPresent(AirReading.self, forKey: .air)
+        kpIndex = try container.decodeIfPresent(Double.self, forKey: .kpIndex)
+        bodyExtras = try container.decodeIfPresent(BodyExtras.self, forKey: .bodyExtras)
     }
 
     private static func dayPart(for date: Date, calendar: Calendar) -> String {
@@ -3103,6 +3175,13 @@ struct AttentionFingerprint: Codable, Equatable {
     var voiceTokens: [String]
     var contextTokens: [String]
     var modalities: [String]
+    /// Stored fingerprints older than `currentVersion` are rebuilt rather than
+    /// trusted. Version 1 counted photo bookkeeping ("photo", "likely",
+    /// "portrait", "soft light"), voice flags ("true") and the Book's own
+    /// prompts as things the reader noticed.
+    var version: Int? = nil
+
+    static let currentVersion = 2
 
     var patternTokens: [String] {
         Array(Set(subjectTokens + visualTokens + voiceTokens + contextTokens)).sorted()
@@ -3122,20 +3201,17 @@ struct AttentionFingerprint: Codable, Equatable {
         var modalities = Set<String>()
 
         for asset in page.mediaAssets {
-            let metadataText = asset.metadata
-                .filter { key, _ in
-                    let lowered = key.lowercased()
-                    return !lowered.contains("path") && !lowered.contains("identifier")
-                }
-                .map(\.value)
-                .joined(separator: " ")
+            // Only what the picture shows or the voice said. The rest of the
+            // metadata is bookkeeping: which eye looked, how sure it was, a
+            // default "soft light", a "true" flag. Counted as words, it made
+            // every photo page "about" photos.
             switch asset.kind {
             case .bundledImage, .renderedImageFile, .photoLibraryAsset:
                 modalities.insert("photo")
-                visualText += " \(asset.caption) \(metadataText)"
+                visualText += " \(asset.caption) \(Self.contentText(of: asset, keys: Self.visualContentKeys))"
             case .audioFile:
                 modalities.insert("voice")
-                voiceText += " \(asset.caption) \(metadataText)"
+                voiceText += " \(asset.caption) \(Self.contentText(of: asset, keys: Self.voiceContentKeys))"
             }
         }
 
@@ -3162,18 +3238,31 @@ struct AttentionFingerprint: Codable, Equatable {
             }
         }
 
-        // Prompt text is intentionally excluded. A generated prompt is what the
-        // Book asked, not evidence of what the reader noticed.
-        // A braid's prompt is plumbing ("The local Book brain braided today."),
-        // never a subject.
-        subjectText += page.origin == .userAuthored || page.type == .bookOfYou ? "" : " \(page.promptText)"
+        // Prompt text is excluded on every Page. A prompt is what the Book
+        // asked or offered (a quote and its author, a braid's "I braided
+        // today."), not evidence of what the reader noticed.
         return AttentionFingerprint(
             subjectTokens: tokens(in: subjectText),
             visualTokens: tokens(in: visualText),
             voiceTokens: tokens(in: voiceText),
             contextTokens: Array(Set(contextTokens)).sorted(),
-            modalities: modalities.sorted()
+            modalities: modalities.sorted(),
+            version: currentVersion
         )
+    }
+
+    /// Metadata fields that describe what a photograph shows. The current
+    /// keep path writes the `attention…` ones; `scene`/`motifs`/`labels`/
+    /// `subject` are the older spellings still in archives.
+    static let visualContentKeys = [
+        "attentionLabels", "attentionMotifs", "attentionSubject", "attentionScene",
+        "attentionVisibleText", "scene", "motifs", "labels", "subject"
+    ]
+
+    static let voiceContentKeys = [BookPageMediaAsset.voiceTranscriptMetadataKey]
+
+    private static func contentText(of asset: BookPageMediaAsset, keys: [String]) -> String {
+        keys.compactMap { asset.metadata[$0] }.joined(separator: " ")
     }
 
     /// Every nightly braid ends "I kept the page: …". Counted, that
@@ -4576,7 +4665,10 @@ extension BookPage {
     }
 
     var resolvedAttentionFingerprint: AttentionFingerprint {
-        attentionFingerprint ?? AttentionFingerprintMemo.fingerprint(for: self)
+        if let stored = attentionFingerprint, stored.version == AttentionFingerprint.currentVersion {
+            return stored
+        }
+        return AttentionFingerprintMemo.fingerprint(for: self)
     }
 
 

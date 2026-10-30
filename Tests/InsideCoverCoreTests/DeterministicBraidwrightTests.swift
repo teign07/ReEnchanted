@@ -605,13 +605,20 @@ final class DeterministicBraidwrightTests: XCTestCase {
       "slice-of-life",
       sealed: true
     )
+    // A glimmer needs three nights on three days, so two of them are sealed.
+    let olderSealedNight = choicePage(
+      "sealed-night-slice-older",
+      "2026-08-07T23:00:00Z",
+      "slice-of-life",
+      sealed: true
+    )
     let daylight = [
       choicePage("day-progress-a", "2026-08-11T11:00:00Z", "progress-arc"),
       choicePage("day-progress-b", "2026-08-09T11:00:00Z", "progress-arc"),
       choicePage("day-progress-c", "2026-08-08T11:00:00Z", "progress-arc"),
     ]
     let today = archiveDay(todayPage)
-    let history = ([sealedNight] + daylight).map(archiveDay)
+    let history = ([olderSealedNight, sealedNight] + daylight).map(archiveDay)
 
     let unfilteredConnections = RelationalLoom.connections(
       days: history + [today],

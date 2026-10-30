@@ -455,6 +455,14 @@ extension BodySourceSignal {
         case heartRateVariability = "heartRateVariabilitySDNN"
         case activeEnergy = "activeEnergyBurned"
         case distance = "distanceWalkingRunning"
+        case heartRate
+        case respiratoryRate
+        case bloodGlucose
+    }
+
+    /// The metric itself, for when the moment it was observed matters.
+    func metric(_ key: MetricKey) -> Metric? {
+        metrics.first { Self.normalizedMetricID($0.id) == key.rawValue }
     }
 
     /// `HKQuantityTypeIdentifierRestingHeartRate` → `restingHeartRate`.

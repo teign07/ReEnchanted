@@ -442,6 +442,11 @@ struct BookWager: Identifiable, Codable, Equatable {
     var resolutionLine: String?
     var basisSignalID: String
     var basisLine: String
+    /// Set on a wager sealed from a crossing the Book judged worth saying
+    /// (`CrossingWagers`). Graded by the next days that test it rather than by
+    /// a word coming back, and it can open before `opensAt`, which is only its
+    /// deadline. Optional so every older wager still opens.
+    var test: Noticing.Test? = nil
 
     var isSealed: Bool { status == .sealed }
 
@@ -550,7 +555,17 @@ enum SealedMarginEngine {
         calendar: Calendar = .current
     ) -> [BookWager] {
         wagers.map { wager in
-            guard wager.isSealed, now >= wager.opensAt else { return wager }
+            guard wager.isSealed else { return wager }
+            if wager.test != nil {
+                let outcome = CrossingWagers.outcome(of: wager, days: days, calendar: calendar)
+                guard outcome != nil || now >= wager.opensAt else { return wager }
+                var resolved = wager
+                resolved.status = outcome?.right == true ? .right : .wrong
+                resolved.resolvedAt = now
+                resolved.resolutionLine = CrossingWagers.resolutionLine(wager, outcome: outcome)
+                return resolved
+            }
+            guard now >= wager.opensAt else { return wager }
             var resolved = wager
             let appeared = subjectAppeared(wager, in: days, calendar: calendar)
             resolved.status = appeared ? .right : .wrong

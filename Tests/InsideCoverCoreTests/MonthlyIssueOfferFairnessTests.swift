@@ -31,4 +31,17 @@ final class MonthlyIssueOfferFairnessTests: XCTestCase {
             scope: .init(scopeID: "issue", runID: "last-year"), state: .opened, recordedAt: Date())
         XCTAssertEqual(MonthlyIssuePageCuration.fairlyOffering(pages, ledger: .init(receipts: [receipt])), pages)
     }
+
+    func testFairOfferKeepsTheIncomingStoryNodesOwnDeliveryClaim() {
+        let story = page("story", score: 94, priority: "spine").withMetadata([
+            MonthlyIssuePageMetadata.claimHistoryKey: "story-node-claim"
+        ])
+        let next = page("next", score: 90, priority: "spine").withMetadata([
+            MonthlyIssuePageMetadata.claimHistoryKey: "next-node-claim"
+        ])
+        let opened = AuthoredContentReceipt(contentID: "story", occurrenceID: "old-hour", channel: .storyScene,
+            scope: .init(scopeID: "issue", runID: "run"), state: .opened, recordedAt: Date())
+        let offered = MonthlyIssuePageCuration.fairlyOffering([story, next], ledger: .init(receipts: [opened]))
+        XCTAssertEqual(offered[1].payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey], "next-node-claim")
+    }
 }

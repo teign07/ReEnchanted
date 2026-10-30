@@ -6,6 +6,11 @@
 **Working product name:** Tarot Pages
 **Working deck name:** **ReEnchanted Tarot: The Unwritten Deck**
 
+**Production update, October 27, 2026:** see
+[Unwritten Tarot production and integration](unwritten-tarot-production.md).
+The art bible below supplies the card subjects; the current app already has
+the reading system and uses Serenity Brown. The new work extends that system.
+
 ---
 
 ## 1. The decision in one page

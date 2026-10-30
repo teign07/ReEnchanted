@@ -1240,7 +1240,7 @@ enum WorldEventResolver {
             eventID: event.id,
             runID: snapshot.runID,
             beatIDs: missed.map(\.id),
-            title: missed.count == 1 ? "A Report from the Closed Door" : "Reports from the Closed Door",
+            title: missed.count == 1 ? "A Report from While You Were Away" : "Reports from While You Were Away",
             body: visible.joined(separator: "\n") + tail
         )
     }

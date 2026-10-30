@@ -262,7 +262,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
     var narrativeDirective: String {
         switch self {
         case .triumph:
-            return "This is a rare bright fracture: the action succeeds beyond what was reached for. Grant the intent fully, then add one unexpected gift, opened door, or extra permission nobody asked for."
+            return "This is a rare bright fracture: the action succeeds beyond what was reached for. Grant the intent fully, then add one unexpected gift, extra chance, or permission nobody asked for."
         case .favor:
             return "Clean success: the action lands as intended. Show the wanted change actually happening, warmly and concretely."
         case .hesitate:
@@ -270,7 +270,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
         case .cost:
             return "Success with a price: the action works, but something is visibly spent, broken, owed, or overheard. Name the cost inside the scene and let it hook a future beat."
         case .sideways:
-            return "A sideways landing: the wanted change still arrives, but by an unexpected route: a different door, a different speaker, or a stranger answer than the one reached for."
+            return "A sideways landing: the wanted change still arrives, but by an unexpected route: a different place, a different speaker, or a stranger answer than the one reached for."
         }
     }
 
@@ -282,7 +282,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
         case .favor: return "The Inkbones favored it, and the thread takes the change cleanly."
         case .hesitate: return "But the Inkbones hesitated, so it only just holds: one more careful word will be owed before this sits easy."
         case .cost: return "But the Inkbones kept score: something in this scene is now spent or owed, and the margin will remember which."
-        case .sideways: return "The Inkbones turned it sideways on the way in, so the change arrived by a stranger door than the one that was knocked on."
+        case .sideways: return "The Inkbones turned it sideways on the way in, so the change arrived by a stranger route than the one that was tried."
         }
     }
 
@@ -291,7 +291,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
         let signals: [String]
         switch self {
         case .triumph:
-            signals = ["extra", "more than", "beyond", "another door", "second door", "wider open", "unexpected gift"]
+            signals = ["extra", "more than", "beyond", "another door", "second door", "wider open", "unexpected gift", "extra chance"]
         case .favor:
             // The committed-landing validator already proves clean success.
             return true
@@ -300,7 +300,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
         case .cost:
             signals = ["cost", "price", "spent", "broke", "broken", "owe", "owed", "debt", "overheard"]
         case .sideways:
-            signals = ["sideways", "instead", "different door", "wrong door", "different speaker", "someone else", "unexpected route"]
+            signals = ["sideways", "instead", "different door", "wrong door", "different place", "stranger route", "different speaker", "someone else", "unexpected route"]
         }
         return signals.contains { prose.contains($0) }
     }
@@ -606,7 +606,7 @@ enum BookJumpEngine {
             title: "Alice's Adventures in Wonderland",
             author: "Lewis Carroll",
             gutenbergID: "11",
-            world: "a bright impossible country where logic wears gloves and every rule has teeth",
+            world: "a bright impossible country where logic wears gloves and every rule means it",
             arrival: "You land beside a corridor of doors, with the sound of a rabbit-sized hurry somewhere ahead.",
             nothing: "The Rut of Routine appears as blank labels, jokes without punchlines, and paths that forget where they were going.",
             rules: ["Don't argue with dream-logic; answer it sideways.", "Size, time, and manners are unstable.", "The Spine hides where nonsense suddenly becomes exact."],
@@ -664,7 +664,7 @@ enum BookJumpEngine {
             world: "a candlelit moral weather system where memory, present kindness, and possible futures argue by apparition",
             arrival: "You arrive in a room where the fire has an opinion and the clock sounds slightly haunted.",
             nothing: "The Rut of Routine appears as a locked heart and a future no one speaks kindly of.",
-            rules: ["Memory is a door, not a prison.", "Small mercies change the temperature.", "The Spine hides where a future can still turn."],
+            rules: ["Memory is somewhere you can visit and leave.", "Small mercies change the temperature.", "The Spine hides where a future can still turn."],
             resonances: ["mercy", "memory", "winter", "change"]
         ),
         BookJumpWork(
@@ -5180,7 +5180,7 @@ enum GossipSimulationBuilder {
         case .attackBelief:
             templates = [
                 "\"\(actor.name) finally said out loud what it's been thinking about \(thread.title), and the shelves are still rattling.\"",
-                "\"It wasn't an argument, exactly. \(actor.name) just asked \(thread.title) one question, and the question had teeth.\"",
+                "\"It wasn't an argument, exactly. \(actor.name) just asked \(thread.title) one question, and the question stung.\"",
                 "\"Someone had to test whether \(thread.title) is still real or just well-rehearsed. Trust \(actor.name) to do it in front of everyone.\""
             ]
         }
@@ -5945,7 +5945,8 @@ enum StudentNotePageGenerator {
         day: BookDay,
         inputs: BookSourceInputs,
         now: Date,
-        semanticScorer: StacksSemanticScoring? = nil
+        semanticScorer: StacksSemanticScoring? = nil,
+        subjectPage: BookPage? = nil
     ) -> SurfacePage {
         let slot = SurfaceCadence.slotID(for: now, hours: 3)
         let playerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: inputs)
@@ -5987,13 +5988,15 @@ enum StudentNotePageGenerator {
         )
         let scorer = semanticScorer
             ?? (inputs.semanticPassageSelectionEnabled ? SemanticKeepEcho.keepTimeScorer : nil)
+        // A held Cast thought is about one Souvenir, chosen before the note was:
+        // the selector only gets that page, and any score will do.
         let selectedPassage = MeaningfulPassageSelector.select(
-            pages: keptPages,
+            pages: subjectPage.map { [$0] } ?? keptPages,
             query: passageQuery,
             inputs: inputs,
             scorer: scorer,
             maximumAge: 120 * 86_400,
-            minimumScore: 8,
+            minimumScore: subjectPage == nil ? 8 : 0,
             honorPriorUse: false,
             includeKeptGeneratedPages: true,
             now: now
@@ -6880,6 +6883,160 @@ enum CompassRunStep: String, CaseIterable, Identifiable {
     }
 }
 
+/// Only the offered adventure belongs here, never the reader's West sentence.
+/// Kept plans can seed older Books; the vault also remembers unkept offers.
+struct CompassAdventureRecord: Codable, Equatable {
+    var spark: String
+    var destination: String
+    var mission: String
+    var adventure: String
+    var createdAt: Date
+
+    init?(plan: [String: String], createdAt: Date = Date()) {
+        guard let spark = plan["spark"]?.nonEmpty,
+              let destination = plan["destination"]?.nonEmpty,
+              let mission = plan["mission"]?.nonEmpty else { return nil }
+        self.spark = spark
+        self.destination = destination
+        self.mission = mission
+        self.adventure = plan["adventure"] ?? ""
+        self.createdAt = createdAt
+    }
+
+    var summary: String {
+        "Experience: \(adventure) | North: \(spark) | Place: \(destination) | Activity: \(mission)"
+    }
+
+    var exclusionSummary: String {
+        "Place: \(destination.prefix(80)) | Activity: \((adventure.isEmpty ? mission : adventure).prefix(160)) | Senses: \(mission.prefix(180))"
+    }
+}
+
+enum CompassRunPlanPolicy {
+    enum Rejection: Error { case repeatedAdventure }
+
+    static let souvenirPrompt = "Looking back over this whole run, what sensory moment was best or stayed with you most? Keep it in one sentence. It can come from any part of the experience."
+
+    /// Reject incomplete output as a whole. Mixing individual generated fields
+    /// with a different fallback adventure breaks the Compass chain.
+    static func parse(_ response: String) -> [String: String]? {
+        let markers = [
+            ("adventure", "EXPERIENCE"), ("north", "NORTH (NOTICE)"),
+            ("east", "EAST (EMBARK)"), ("south", "SOUTH (SENSE)"),
+            ("west", "WEST (WRITE)"), ("center", "CENTER (REST)"), ("hint", "HINT")
+        ]
+        var sections: [String: String] = [:]
+        var current = -1
+        for line in response.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if let index = markers.firstIndex(where: { $0.1 == trimmed.uppercased() }) {
+                guard index == current + 1 else { return nil }
+                current = index
+            } else if current >= 0 {
+                sections[markers[current].0, default: ""] += line + "\n"
+            } else if !trimmed.isEmpty {
+                return nil
+            }
+        }
+        guard current == markers.count - 1 else { return nil }
+        sections = sections.mapValues { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard let east = sections["east"] else { return nil }
+        var plan = [
+            "adventure": sections["adventure"] ?? "",
+            "spark": sections["north"] ?? "",
+            "mission": sections["south"] ?? "",
+            // West is an invitation to recall reality, never a second mission
+            // or a sensory answer the model has decided for the reader.
+            "souvenirPrompt": souvenirPrompt,
+            "restPrompt": sections["center"] ?? "",
+            "hint": sections["hint"] ?? ""
+        ]
+        for label in ["Destination", "Delight", "Definition"] {
+            guard let line = east.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+                .first(where: { $0.lowercased().hasPrefix(label.lowercased() + ":") }) else { return nil }
+            plan[label.lowercased()] = String(line.dropFirst(label.count + 1))
+                .trimmingCharacters(in: .whitespaces)
+        }
+        guard plan.values.allSatisfy({ !$0.isEmpty }),
+              plan["spark"]?.lowercased().hasPrefix("i wonder") == true else { return nil }
+        return plan
+    }
+
+    /// Union, never a recency window. All dates remain eligible for rejection.
+    static func history(_ records: [CompassAdventureRecord], pages: [BookPage]) -> [CompassAdventureRecord] {
+        let recovered = pages.compactMap { page -> CompassAdventureRecord? in
+            guard page.type == .wonderCompass else { return nil }
+            if let metadata = page.metadata,
+               metadata["compassRunPrepared"] == "true" || metadata["compassMode"] == "runStep" {
+                return CompassAdventureRecord(plan: metadata, createdAt: page.createdAt)
+            }
+            // Before full metadata was archived, prepared runs kept this exact
+            // printable format. Never treat a reader's West memory as a plan.
+            guard page.tags.contains("wonder-compass-run"),
+                  page.userInput.hasPrefix("Wonder Compass Run\n"),
+                  let north = page.userInput.range(of: "NORTH (NOTICE)") else { return nil }
+            let printablePlan = String(page.userInput[north.lowerBound...])
+            let response = "EXPERIENCE\nRecovered adventure\n" + printablePlan + "\nHINT\nKeep it small."
+            guard let plan = parse(response) else { return nil }
+            var record = CompassAdventureRecord(plan: plan, createdAt: page.createdAt)
+            record?.adventure = ""
+            return record
+        }
+        var seen = Set<String>()
+        return (records + recovered).sorted { $0.createdAt > $1.createdAt }.filter {
+            seen.insert(normalized($0.destination) + "|" + normalized($0.mission)).inserted
+        }
+    }
+
+    static func duplicate(of candidate: CompassAdventureRecord, in history: [CompassAdventureRecord]) -> CompassAdventureRecord? {
+        history.first { previous in
+            if normalized(candidate.mission) == normalized(previous.mission) { return true }
+            if !candidate.adventure.isEmpty, !previous.adventure.isEmpty,
+               normalized(candidate.adventure) == normalized(previous.adventure) { return true }
+            let activityOverlap = overlap(candidate.mission, previous.mission)
+            return activityOverlap >= 0.72
+                || (overlap(candidate.destination, previous.destination) >= 0.6 && activityOverlap >= 0.56)
+        }
+    }
+
+    /// Bound the model's context, not the durable exclusion history. Retrieve
+    /// older related activities as well as recent offers for semantic review.
+    static func examples(from history: [CompassAdventureRecord], relatedTo text: String, limit: Int = 16) -> [CompassAdventureRecord] {
+        guard limit > 0 else { return [] }
+        guard history.count > limit else { return history }
+        let recentCount = min(4, limit)
+        let recent = Array(history.prefix(recentCount))
+        let related = history.dropFirst(recentCount).sorted {
+            overlap($0.summary, text) > overlap($1.summary, text)
+        }
+        return recent + related.prefix(max(0, limit - recentCount))
+    }
+
+    private static func normalized(_ text: String) -> String {
+        words(text).sorted().joined(separator: " ")
+    }
+
+    private static func overlap(_ left: String, _ right: String) -> Double {
+        let lhs = words(left), rhs = words(right)
+        let union = lhs.union(rhs)
+        return union.isEmpty ? 0 : Double(lhs.intersection(rhs).count) / Double(union.count)
+    }
+
+    private static func words(_ text: String) -> Set<String> {
+        let ignored: Set<String> = ["a", "an", "and", "at", "be", "by", "for", "from", "i", "in", "is", "it", "of", "on", "one", "or", "that", "the", "then", "this", "to", "what", "which", "with", "you", "your"]
+        let equivalents = [
+            "bookshelves": "bookshelf", "bookcase": "bookshelf", "bookcases": "bookshelf",
+            "volumes": "book", "books": "book", "choose": "pick", "select": "pick",
+            "choosing": "pick", "selecting": "pick", "picking": "pick",
+            "feel": "touch", "feeling": "touch", "touching": "touch",
+            "hear": "listen", "listening": "listen", "colours": "color", "colors": "color"
+        ]
+        return Set(text.lowercased().split { !$0.isLetter && !$0.isNumber }
+            .map(String.init).filter { !ignored.contains($0) }
+            .map { equivalents[$0] ?? $0 })
+    }
+}
+
 /// The intake is deliberately a short sequence instead of a dashboard. A
 /// Compass Run works best when the reader makes one small decision at a time;
 /// showing every constraint at once makes the beginning feel like paperwork.
@@ -7235,6 +7392,85 @@ struct PlayfulMission: Identifiable, Equatable {
     var hostSlugOverride: String? = nil
 }
 
+/// A relationship with the world, independent of whether the reader walks,
+/// listens, makes something, or takes a photograph. Tags travel through the
+/// existing Page receipts and notification snapshots without another ledger.
+enum PlayfulMissionPractice: String, CaseIterable {
+    case courtesy
+    case exchange
+    case localRule = "local-rule"
+    case otherWill = "other-will"
+    case mystery
+    case returnVisit = "return-visit"
+
+    var tag: String { "faerie-practice:\(rawValue)" }
+
+    static func from(tags: [String]) -> PlayfulMissionPractice? {
+        for tag in tags {
+            let normalized = tag.hasPrefix("mission:") ? String(tag.dropFirst(8)) : tag
+            guard normalized.hasPrefix("faerie-practice:") else { continue }
+            if let practice = Self(rawValue: String(normalized.dropFirst(16))) { return practice }
+        }
+        return nil
+    }
+}
+
+/// Also supplied to the custom mission writer. A premise must change the act,
+/// rather than decorate a sensory exercise with an unrelated joke.
+enum PlayfulMissionAuthoring {
+    static let grammar = """
+    - Give simple, clear steps in two or three short sentences, at most 45 words. Use everyday verbs: pick up, open, touch, listen, say, put, look, count. Each sentence should be easy to picture and do.
+    - Every mission stands alone. Name the thing and say what to do with it. The reader must understand it on the first reading, without the title, host, another Page, or an earlier conversation.
+    - Anything can be a character. Ask a sticking drawer to open. Tell a coat where you're taking it. Let the reader make up a reply. No explanation of what the character represents or why the act is magical.
+    - Use childlike honesty: plain, curious, sometimes biting, uncomfortable, weird, or surprising. Never childish. No idioms, stock metaphors, forced jokes, moral, therapy language, or instructions to find a deeper meaning.
+    - Ask for something small and physical that needs no purchase or special equipment. Keep any make-believe rule short and easy to follow. Do not make the reader invent a complicated game.
+    - Ask one clear return question about what the reader did, saw, heard, named, or said. An imagined reply is allowed when you ask for one. An actual sound or event must not be invented. Nothing happening is an answer too.
+    - Keep the act voluntary and harmless. Do not invent an earlier visit, name, agreement, or completed action. A return visit must include the earlier encounter and the reader's exact words.
+    """
+
+    /// Accept one complete generated invitation. Combining a new instruction
+    /// with an unrelated fallback return prompt, or cutting an instruction
+    /// mid-sentence, can make an otherwise good mission impossible to answer.
+    static func mission(title: String?, prompt: String?, proofPrompt: String?, tags: String?,
+                        allowsPhoto: String?, practice: String?) -> PlayfulMission? {
+        guard let rawTitle = completeLine(title, limit: 60),
+              let prompt = completeLine(prompt, limit: 320),
+              let proof = completeLine(proofPrompt, limit: 180),
+              let photo = allowsPhoto?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              ["true", "false"].contains(photo) else { return nil }
+        let title = rawTitle.trimmingCharacters(in: CharacterSet(charactersIn: ".!? "))
+        guard !title.isEmpty else { return nil }
+        guard prompt.split(whereSeparator: { $0.isWhitespace }).count <= 45 else { return nil }
+        let instruction = (prompt + " " + proof).lowercased()
+        let missingContext = ["as before", "as last time", "the previous mission", "the earlier page",
+                              "do the same thing", "where we left off", "you named earlier"]
+        guard !missingContext.contains(where: instruction.contains) else { return nil }
+        let practiceName = practice?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "none"
+        let relationship = PlayfulMissionPractice(rawValue: practiceName)
+        // The custom writer makes new encounters. Only the archive-backed
+        // return path may mint a return visit with evidence attached.
+        guard practiceName == "none" || (relationship != nil && relationship != .returnVisit) else { return nil }
+        var missionTags = (tags ?? "").split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty && !$0.hasPrefix("faerie-practice:") && !$0.hasPrefix("return-source:") }
+        missionTags.append("custom")
+        if let relationship { missionTags.append(relationship.tag) }
+        return PlayfulMission(
+            id: "custom-\(abs("\(title)-\(prompt)".stableHash))",
+            title: title, prompt: prompt, proofPrompt: proof,
+            tags: Array(Set(missionTags)).sorted(), allowsPhoto: photo == "true"
+        )
+    }
+
+    private static func completeLine(_ text: String?, limit: Int) -> String? {
+        let cleaned = text?.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }.joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+        guard let cleaned, !cleaned.isEmpty, cleaned.count <= limit else { return nil }
+        return cleaned
+    }
+}
+
 enum PlayfulMissionMode: String, CaseIterable, Hashable {
     case witness
     case perform
@@ -7253,6 +7489,8 @@ struct PlayfulMissionHost: Equatable {
 }
 
 extension PlayfulMission {
+    var practice: PlayfulMissionPractice? { PlayfulMissionPractice.from(tags: tags) }
+
     /// The person whose interests make this particular errand worth sending.
     /// Shadow missions belong to the Dusk Thorn; ordinary missions are cast by
     /// subject so the Page arrives as somebody's curiosity, not a loose prompt.
@@ -8072,6 +8310,86 @@ enum PlayfulMissionRegistry {
         }
     }
 
+    /// A later encounter with the same thing, with enough of the earlier
+    /// encounter printed here to stand alone. Only the reader's own short,
+    /// complete report may supply that context. No generated prose, inferred
+    /// object names, clipped quotations, or photograph-only guesses.
+    static func returnMissions(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [PlayfulMission] {
+        var seen: Set<String> = []
+        let pages = (inputs.days + [day]).flatMap(\.pages)
+            .filter { page in
+                guard seen.insert(page.id).inserted,
+                      let receipt = page.livedQuestReceipt, receipt.kind == .playfulMission else { return false }
+                let age = now.timeIntervalSince(receipt.completedAt)
+                return age >= 0 && age <= 90 * 86_400
+            }
+            .sorted { left, right in
+                left.createdAt == right.createdAt ? left.id < right.id : left.createdAt > right.createdAt
+            }
+        let answeredReturns = Set(pages.compactMap(\.attributableLivedQuestReceipt)
+            .flatMap(\.sourceTags)
+            .filter { $0.hasPrefix("mission:return-source:") }
+            .map { String($0.dropFirst("mission:return-source:".count)) })
+        var returns: [PlayfulMission] = []
+        for page in pages {
+            guard let receipt = page.attributableLivedQuestReceipt,
+                  receipt.kind == .playfulMission,
+                  let invitation = returnInvitations[receipt.questID],
+                  now.timeIntervalSince(receipt.completedAt) >= 86_400,
+                  now.timeIntervalSince(receipt.completedAt) <= 90 * 86_400,
+                  !answeredReturns.contains(page.id),
+                  let words = page.readerAuthoredTextForAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  words.count <= 220, words.split(whereSeparator: { $0.isWhitespace }).count >= 3 else { continue }
+            let mission = PlayfulMission(
+                id: "faerie-return-\(page.id)",
+                title: invitation.title,
+                prompt: "You wrote this about \(invitation.subject): “\(words)”\n\n\(invitation.action)",
+                proofPrompt: invitation.proof,
+                tags: ["object", "anywhere", "low-energy", PlayfulMissionPractice.returnVisit.tag,
+                       "return-source:\(page.id)"],
+                allowsPhoto: false
+            )
+            guard inputs.surfaceHistory[missionHistoryKey(for: mission)] == nil else { continue }
+            returns.append(mission)
+            if returns.count == 3 { break }
+        }
+        return returns
+    }
+
+    private struct ReturnInvitation {
+        var title: String
+        var subject: String
+        var action: String
+        var proof: String
+    }
+
+    private static let returnInvitations: [String: ReturnInvitation] = [
+        "faerie-door-courtesy": ReturnInvitation(
+            title: "Does It Still Refuse?", subject: "a door or drawer that sticks",
+            action: "Try that door or drawer again. Ask it to open first. Does it still stick?",
+            proof: "Which door or drawer you tried, and what happened this time."),
+        "faerie-name-earned": ReturnInvitation(
+            title: "Does the Name Still Fit?", subject: "a thing you named for what it does",
+            action: "Find that thing and say its name. Does the name still fit? Keep it or choose a new one. If the thing has gone, say so.",
+            proof: "What was its old name? Did you keep it or change it?"),
+        "faerie-closed-secret": ReturnInvitation(
+            title: "Still Closed?", subject: "a box, drawer, or book you chose to leave closed",
+            action: "Find that box, drawer, or book. Is it still closed? Ask it what it's hiding.",
+            proof: "What did you find, and was it still closed?"),
+        "faerie-uninvited": ReturnInvitation(
+            title: "Did It Stay?", subject: "dust, a cobweb, or a weed you let stay for a day",
+            action: "Look in the same spot. Is it still there? What has changed?",
+            proof: "The spot, and what was there this time."),
+        "tiny-kindness": ReturnInvitation(
+            title: "Is It Still Waiting?", subject: "a lost thing you gave a name or a sign",
+            action: "Visit that spot again. Is the lost thing still there?",
+            proof: "The spot, and whether the thing was still there."),
+        "chair-held": ReturnInvitation(
+            title: "The Same Chair", subject: "what a chair thought of you",
+            action: "Sit in that chair again. Ask it what it thinks of you today. Make up its answer.",
+            proof: "Which chair did you sit in, and what did it say?")
+    ]
+
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
@@ -8118,7 +8436,8 @@ enum PlayfulMissionRegistry {
                 return weightedMission(in: preferred, seed: seed)
             }
         }
-        return freshestMission(in: missions, seed: seed, history: inputs.surfaceHistory, now: now)
+        return freshestMission(in: missions, seed: seed, history: inputs.surfaceHistory, now: now,
+                               favorEverydayPractice: !shadowVariant)
     }
 
     private static func naturalPhenomenonMissions(inputs: BookSourceInputs, now: Date) -> [PlayfulMission] {
@@ -8166,10 +8485,18 @@ enum PlayfulMissionRegistry {
         in missions: [RankedMission],
         seed: Int,
         history: [String: SurfaceHistoryRecord],
-        now: Date
+        now: Date,
+        favorEverydayPractice: Bool = true
     ) -> PlayfulMission {
         let fresh = missions.filter { isRested($0.mission, history: history, now: now) }
         let pool = fresh.isEmpty ? missions : fresh
+        // One of three ordinary draws deliberately offers a relationship with
+        // the world. Live place/sky/undertaking errands still choose first.
+        // The other draws keep the full sensory and social range available.
+        if favorEverydayPractice, seed % 3 == 0 {
+            let practices = pool.filter { $0.mission.practice != nil }
+            if !practices.isEmpty { return weightedMission(in: practices, seed: seed) }
+        }
         return weightedMission(in: pool, seed: seed)
     }
 
@@ -8205,7 +8532,9 @@ enum PlayfulMissionRegistry {
         var draw = 0
         while chosen.count < limit, !pool.isEmpty {
             let seed = abs("\(day.id)-\(slot)-playful-mission-alternate-\(draw)".stableHash)
-            let next = weightedMission(in: pool, seed: seed)
+            let practices = pool.filter { $0.mission.practice != nil }
+            let suppliesPractice = !shadowVariant && !chosen.contains { $0.practice != nil }
+            let next = weightedMission(in: suppliesPractice && !practices.isEmpty ? practices : pool, seed: seed)
             guard seen.insert(next.id).inserted else { break }
             chosen.append(next)
             pool.removeAll { $0.mission.id == next.id }
@@ -8259,6 +8588,7 @@ enum PlayfulMissionRegistry {
         let missionPool = shadowVariant
             ? missions
             : missions.filter { !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
+                + returnMissions(for: day, inputs: inputs, now: now)
         let text = [
             inputs.weather?.phrase,
             inputs.body?.status,
@@ -8287,8 +8617,10 @@ enum PlayfulMissionRegistry {
             preferredTags.formUnion(["people", "connection"])
         }
 
-        let recentReceipts = inputs.days
+        var seenReceiptPages: Set<String> = []
+        let recentReceipts = (inputs.days + [day])
             .flatMap(\.pages)
+            .filter { seenReceiptPages.insert($0.id).inserted }
             .compactMap(\.attributableLivedQuestReceipt)
             .filter { $0.kind == .playfulMission }
             .sorted { $0.completedAt > $1.completedAt }
@@ -8303,6 +8635,9 @@ enum PlayfulMissionRegistry {
                 .map { String($0.dropFirst("play-mode:".count)) }
         }
         let repeatedRecentIDs = Set(recentReceipts.prefix(6).map(\.questID))
+        let recentPractices = recentReceipts.prefix(3).compactMap {
+            PlayfulMissionPractice.from(tags: $0.sourceTags)
+        }
         let shadowState = ShadowWonder.state(inputs: inputs, now: now)
 
         // Scoring a mission builds a tag set and scans its whole text, so each
@@ -8326,6 +8661,10 @@ enum PlayfulMissionRegistry {
                 if let lastMode = recentModes.first, lastMode != mission.playMode.rawValue {
                     score += 2
                 }
+                if let practice = mission.practice {
+                    score -= recentPractices.filter { $0 == practice }.count * 5
+                    if recentPractices.first != practice { score += 3 }
+                }
                 if shadowVariant && shadowState.isHardDay {
                     if !missionTags.isDisjoint(with: ["grief", "shadow-self", "true-names", "cost"]) { score -= 14 }
                     if !missionTags.isDisjoint(with: ["tribute", "light", "object", "inside", "low-energy"]) { score += 6 }
@@ -8340,7 +8679,72 @@ enum PlayfulMissionRegistry {
             }
     }
 
-    static let missions: [PlayfulMission] = coreMissions + ridiculousMissions + hostedSurpriseMissions + attentionMissions + sharedWonderMissions + peopleMissions + shadowMissions
+    static let missions: [PlayfulMission] = coreMissions + ridiculousMissions + hostedSurpriseMissions + attentionMissions + sharedWonderMissions + peopleMissions + everydayFaerieMissions + shadowMissions
+
+    /// Ordinary, freely available encounters. The darker Dusk Thorn shelf
+    /// keeps its own conditions; a drawer need not wait for an unlock to refuse.
+    static let everydayFaerieMissions: [PlayfulMission] = [
+        mission("faerie-door-courtesy", "Ask the Drawer",
+                "Find a drawer that sticks. Ask it to open. Pull the handle gently.",
+                "Which drawer did you ask, and did it open?",
+                ["object", "touch", "inside", "low-energy"], allowsPhoto: false, practice: .courtesy),
+        mission("faerie-waiting-coat", "Take Your Coat Out",
+                "Find a coat you haven't worn lately. Put it on. Ask it where it wants to go.",
+                "Which coat did you wear, and where did it want to go?",
+                ["object", "touch", "inside", "low-energy"], practice: .courtesy),
+        mission("faerie-object-honesty", "Tell It Whether You Like It",
+                "Pick up something somebody gave you. Tell it whether you like it. Say why.",
+                "What did you pick up, and what did you say to it?",
+                ["object", "inside", "low-energy"], allowsPhoto: false, practice: .courtesy),
+        mission("faerie-borrowed-shelter", "Thank Your Coat",
+                "Touch your coat, an umbrella, or a wall. Tell it what it kept out today.",
+                "What did you touch, and what did you say?",
+                ["object", "touch", "anywhere", "low-energy"], allowsPhoto: false, practice: .exchange),
+        mission("faerie-cupboard-light", "Show It Outside",
+                "Take something out of a drawer. Carry it to a window. Show it one thing outside.",
+                "What did you take out, and what did you show it?",
+                ["object", "light", "inside", "low-energy"], practice: .exchange),
+        mission("faerie-used-up", "Nearly Finished",
+                "Find a nearly used-up pencil or bar of soap. Tell it one thing it helped you do.",
+                "What did you find, and what had it helped you do?",
+                ["object", "touch", "inside", "low-energy"], practice: .exchange),
+        mission("faerie-door-toll", "Ask the Door",
+                "Choose a doorway. For the next ten minutes, say ‘May I?’ before you walk through it.",
+                "Which doorway did you choose? Did you remember to ask?",
+                ["threshold", "inside", "words"], allowsPhoto: false, practice: .localRule),
+        mission("faerie-forbidden-word", "Don't Say Fine",
+                "For ten minutes, don't say ‘fine.’ If someone asks how you are, give them a real answer.",
+                "What did you say instead? If nobody asked, write that.",
+                ["words", "anywhere", "low-energy"], allowsPhoto: false, practice: .localRule),
+        mission("faerie-table-border", "Make Them Share",
+                "Put two things you own next to each other on a table. Tell them they have to share that spot for ten minutes.",
+                "Which two things had to share? What did they say to each other?",
+                ["object", "making", "inside"], practice: .localRule),
+        mission("faerie-object-refusal", "Ask It Why",
+                "Find a zip, lid, or cord that won't work. Ask it why. Make up its excuse.",
+                "What was broken or stuck, and what was its excuse?",
+                ["object", "touch", "anywhere", "low-energy"], allowsPhoto: false, practice: .otherWill),
+        mission("faerie-not-an-audience", "Watch It Work",
+                "Watch a bird, insect, or pet for thirty seconds. What is it trying to do?",
+                "What did you watch, and what did it do?",
+                ["nature", "visual", "anywhere", "low-energy"], practice: .otherWill),
+        mission("faerie-uninvited", "You Can Stay",
+                "Find a weed or a cobweb. Tell it it can stay for today. Leave it where it is.",
+                "What did you let stay, and where was it?",
+                ["place", "visual", "anywhere", "low-energy"], practice: .otherWill),
+        mission("faerie-closed-secret", "Leave It Closed",
+                "Find a closed drawer or box. Tell it you're not looking inside. Leave it closed.",
+                "What did you leave closed?",
+                ["object", "touch", "inside", "low-energy"], allowsPhoto: false, practice: .mystery),
+        mission("faerie-room-answer", "Who's Awake?",
+                "Ask the room, ‘Who’s still awake?’ Listen for twenty seconds. What do you hear?",
+                "Write the sound you heard. If there wasn’t one, write ‘Nothing.’",
+                ["sound", "inside", "low-energy"], allowsPhoto: false, practice: .mystery),
+        mission("faerie-name-earned", "Give It a Name",
+                "Pick one thing you use every day. Name it after something it does. Tell it its name.",
+                "What did you name, and why did you choose that name?",
+                ["object", "words", "anywhere", "low-energy"], allowsPhoto: false, practice: .courtesy)
+    ]
 
     /// Missions with an authored comic turn, grouped by the curiosities of the
     /// person who sends them. They are not six skins over one noticing prompt:
@@ -8582,20 +8986,20 @@ enum PlayfulMissionRegistry {
         mission("quietest-sound", "The Quietest Sound", "Stand still and hunt for the quietest sound in the room. Not the loudest. The shyest one.", "Under everything else, I heard...", ["sound", "inside", "low-energy"]),
         mission("three-rough", "Texture Thief", "Find three rough things near you. Rank them from friendly to suspicious.", "The most suspicious texture.", ["touch", "inside", "public"]),
         mission("blue-count", "Blue Census", "Count every blue thing you can see without moving your feet. One of them isn't really blue. It's only pretending.", "The one that's only pretending.", ["visual", "color", "inside", "public"]),
-        mission("tiny-door", "Tiny Door", "Find the smallest opening near you: a crack, a keyhole, the gap in a drawer, the shadow under a door. Something could live through there.", "What lives on the other side.", ["visual", "imagination", "inside"]),
+        mission("tiny-door", "Tiny Door", "Find the smallest opening near you: a crack, a keyhole, the gap in a drawer, the shadow under a door. Something could live through there.", "What lives on the other side.", ["visual", "imagination", "inside"], practice: .mystery),
         mission("weather-scent", "Weather Has A Smell", "Open a door or a window. Smell the air inside, then the air outside. Which side has more weather in it?", "What the weather smelled like.", ["weather", "scent", "inside"]),
         mission("object-portrait", "Object Portrait", "Pick one ordinary thing and photograph it like it's the main character in a film.", "Its first line in the film.", ["photo", "visual", "character", "inside"]),
         mission("five-shadows", "Shadow Hunt", "Find five shadows. Pick the one that looks least like the thing that's making it.", "What that shadow is pretending to be.", ["visual", "photo", "inside", "public"]),
         mission("softest-edge", "The Softest Edge", "Find the softest edge near you. A sleeve, a bread crust, a blanket, a patch of light. Soft edges hide everywhere.", "The softest edge, and what made it soft.", ["touch", "visual", "low-energy"]),
         mission("smell-map", "Smell Map", "Walk through three spots nearby and smell each one. Find the exact border where one smell turns into another.", "Where the smell changed, and into what.", ["scent", "movement", "inside"]),
-        mission("tiny-kindness", "The Lost Property Office", "Find something lost near you: one glove, a button, a lid with no pot. Give it a sign, or just a name, so it knows someone's noticed it's waiting.", "What was lost, and what you called it.", ["visual", "public", "errand"]),
+        mission("tiny-kindness", "The Lost Property Office", "Find something lost near you: one glove, a button, a lid with no pot. Give it a sign, or just a name, so it knows someone's noticed it's waiting.", "What was lost, and what you called it.", ["visual", "public", "errand"], practice: .courtesy),
         mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker or sign near you. Read the whole thing out loud, like it was written for you.", "The line that was meant for you.", ["visual", "public", "errand"]),
         mission("sound-layer", "Sound Layer", "Listen for three kinds of sound: one a machine is making, one a body is making, and one the world outside is making.", "The three sounds, and which one felt most alive.", ["sound", "inside", "public"]),
         mission("weight-guess", "Weight Oracle", "Pick up something small. Guess exactly how heavy it is. Then decide whether your hand agrees with your guess.", "Heavier or lighter than it looked?", ["touch", "weight", "inside"]),
-        mission("one-inch-kingdom", "One-Inch Kingdom", "Look very closely at one tiny square of something: a jumper, bark, carpet, a table, a pavement. It's a whole kingdom.", "Who lives in the tiny kingdom?", ["visual", "touch", "photo", "low-energy"]),
+        mission("one-inch-kingdom", "One-Inch Kingdom", "Look very closely at one tiny square of something: a jumper, bark, carpet, a table, a pavement. It's a whole kingdom.", "Who lives in the tiny kingdom?", ["visual", "touch", "photo", "low-energy"], practice: .mystery),
         mission("borrowed-color", "Borrowed Color", "Find something wearing a colour that isn't its own: light through coloured glass, a screen's glow on a wall, the sunset on a window.", "Who lent it the colour?", ["visual", "color", "photo"]),
         mission("old-date", "Date Hunter", "Find the oldest date you can see: on a coin, a receipt, a book, a sign, a building.", "The date, and what it's been waiting through.", ["visual", "public", "history"]),
-        mission("chair-held", "The Chair's Opinion", "Sit in a chair and decide what it thinks of you. Pleased? Offended? Bored? Chairs have opinions. They just keep them to themselves.", "What the chair thinks of you.", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false),
+        mission("chair-held", "The Chair's Opinion", "Sit in a chair and decide what it thinks of you. Pleased? Offended? Bored? Chairs have opinions. They just keep them to themselves.", "What the chair thinks of you.", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false, practice: .otherWill),
         mission("brightest-small", "Small Bright Thing", "Find the brightest small thing near you. Not the biggest bright thing. The small one.", "Why it caught the light.", ["visual", "low-energy", "inside", "public"])
     ]
 
@@ -8663,7 +9067,7 @@ enum PlayfulMissionRegistry {
         mission("object-face", "Object Face", "Pick anything and find its face. Most things have one if you look. What's its expression?", "The thing, and the look on its face.", ["object", "visual", "imagination", "inside"]),
         mission("object-waiting", "Waiting Object", "Find something that's waiting. What for?", "What it's waiting for.", ["object", "visual", "inside"]),
         mission("object-repair", "Worth Saving", "Find something mended: tape, glue, a stitch, a nail. Somebody decided it was worth saving. Guess why.", "The mend, and why it was saved.", ["object", "visual", "history", "inside"]),
-        mission("object-in-charge", "Room Politics", "Decide which thing in this room is really in charge. Then decide which one only thinks it is.", "The ruler, and the pretender.", ["object", "imagination", "inside"]),
+        mission("object-in-charge", "Room Politics", "Decide which thing in this room is really in charge. Then decide which one only thinks it is.", "The ruler, and the pretender.", ["object", "imagination", "inside"], practice: .otherWill),
         mission("object-drawer-greeting", "Drawer Greeting", "Open a drawer you haven't opened in a month. Say hello to one thing inside it, by name.", "What you said hello to.", ["object", "inside", "low-energy"]),
         mission("object-pocket-story", "Pocket Story", "Find one thing in your pocket or bag that has a story you've never told anyone. Tell me the short version.", "The thing, and the short version.", ["object", "memory", "inside", "public"]),
         mission("object-remembered-color", "Remembered Color", "Find something that's a different colour from how you remembered it. Things do this.", "The colour you remembered, and the real one.", ["object", "visual", "color"]),
@@ -8702,10 +9106,10 @@ enum PlayfulMissionRegistry {
         mission("fuel-oldest-ingredient", "Oldest Ingredient", "Find the oldest ingredient in your next meal: the one that took longest to grow, age or travel. Give it the credit.", "The ingredient, and what it went through.", ["taste", "fuel", "history"], allowsPhoto: false),
         mission("fuel-smell-prediction", "Prediction Before Taste", "Smell something before you taste it and make a prediction. Then taste it and mark your prediction out of ten.", "The prediction, and its mark.", ["taste", "scent", "fuel"], allowsPhoto: false),
         mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count everything that's still awake.", "How many, and one of them.", ["night", "sound", "visual", "outside"]),
-        mission("night-guard-light", "Last Light Guard", "Find the last light on in your home tonight. What is it guarding?", "What the light is guarding.", ["night", "light", "inside", "low-energy"]),
-        mission("night-second-voice", "Second Voice", "Find one sound your home only makes at night. Houses have a second voice they save for after dark.", "The house's night voice.", ["night", "sound", "inside"], allowsPhoto: false),
+        mission("night-guard-light", "Last Light Guard", "Find the last light on in your home tonight. What is it guarding?", "What the light is guarding.", ["night", "light", "inside", "low-energy"], practice: .courtesy),
+        mission("night-second-voice", "Second Voice", "Find one sound your home only makes at night. Houses have a second voice they save for after dark.", "The house's night voice.", ["night", "sound", "inside"], allowsPhoto: false, practice: .mystery),
         mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something's over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
-        mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"]),
+        mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"], practice: .courtesy),
         mission("strange-outlive-you", "Outliving Object", "Touch something that'll still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
         mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago. It's a baby next to everything else in the room. How's it fitting in?", "The new thing, and how it's fitting in.", ["visual", "history", "inside", "public"]),
         mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then find out if you can.", "Your guess, and the truth, or the mystery.", ["visual", "history", "object"]),
@@ -8735,9 +9139,11 @@ enum PlayfulMissionRegistry {
         _ prompt: String,
         _ proofPrompt: String,
         _ tags: [String],
-        allowsPhoto: Bool = true
+        allowsPhoto: Bool = true,
+        practice: PlayfulMissionPractice? = nil
     ) -> PlayfulMission {
-        PlayfulMission(id: id, title: title, prompt: prompt, proofPrompt: proofPrompt, tags: tags, allowsPhoto: allowsPhoto)
+        PlayfulMission(id: id, title: title, prompt: prompt, proofPrompt: proofPrompt,
+                      tags: tags + (practice.map { [$0.tag] } ?? []), allowsPhoto: allowsPhoto)
     }
 }
 
@@ -8866,6 +9272,8 @@ enum PromptWhisperRegistry {
         }
 
         // Scored once per mission, for the same reason as `rankedMissions`.
+        // These words can appear on a lock screen. Archive-backed return
+        // invitations quote private Reader text and stay inside the Book.
         return PlayfulMissionRegistry.missions
             .filter { shadowActive || !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
             .map { mission in
@@ -9678,19 +10086,19 @@ enum StoryFormRegistry {
 
     static let coreRecipes: [StoryRecipe] = [
         recipe("souvenir-door", "A Sentence Opens", weight: 22, requirements: [.souvenirDoor], mode: .environmental,
-            premise: "A kept One-Sentence Souvenir opens a tiny door inside {{thread}}: {{grounding}}",
+            premise: "A kept One-Sentence Souvenir starts something small inside {{thread}}: {{grounding}}",
             beats: ["Let the sentence behave as world physics, not as a quoted journal line; one image from it should become touchable.", "After the chosen response, the sentence is read, entered, folded, or saved with one small lasting mark."],
-            turn: turn(.smallDecision, want: "to decide how the sentence-door made by {{grounding}} should be treated", obstacle: "the door will flatten if anyone explains it instead of meeting it", statement: "By the end, the kept sentence has opened, changed, or been protected as a tiny scene.", slice: "The reader lets the sentence stay small and luminous.", progress: "The sentence becomes evidence that moves {{thread}} one quiet step.", surprise: "The sentence was already a door for someone else."),
+            turn: turn(.smallDecision, want: "to decide how the story started by {{grounding}} should be treated", obstacle: "it will go flat if anyone explains it instead of meeting it", statement: "By the end, the kept sentence has opened, changed, or been protected as a tiny scene.", slice: "The reader lets the sentence stay small and luminous.", progress: "The sentence becomes evidence that moves {{thread}} one quiet step.", surprise: "The sentence already meant something to someone else."),
             tags: ["story-spark", "souvenir", "door", "threshold", "memory"], forms: ["threshold-crossing", "small-mystery", "correspondence"], genres: ["cozy-mystery", "field-naturalist", "kindly-ghost"],
             grounding: "Transform the exact Souvenir image into fictional physics. Don't say 'you wrote about...' or explain the meaning. Include one short phrase or concrete image from the sentence, and make it act.",
             tone: "Tiny, magical, reverent, and specific. The effect should feel earned by noticing, not generated as spectacle.",
-            choices: "Offer three concrete options in this emotional grammar: read or tend what the sentence underlined; step through or investigate the door it opened; fold, share, or save the shimmer without forcing it.",
-            continuation: "Mark the source sentence as having opened something. Future callbacks may treat it as a remembered doorway, not a reusable prompt.",
+            choices: "Offer three concrete options in this emotional grammar: read or tend what the sentence underlined; follow or investigate what it started; fold, share, or save the shimmer without forcing it.",
+            continuation: "Mark the source sentence as having opened something. Future callbacks may treat it as something remembered, not a reusable prompt.",
             groundingUse: .remembered,
             decisions: [
-                decision(.sliceOfLife, "Tend the tiny thing the sentence made visible", gain: "the small wonder remains close and recognizable", cost: "the door closes before anyone enters it"),
-                decision(.progressArc, "Step through the sentence-door before it flattens", gain: "the remembered image opens a new room in {{thread}}", cost: "the reader leaves one familiar detail behind as a threshold toll"),
-                decision(.surprise, "Fold the shimmer and give it to someone waiting nearby", gain: "the sentence becomes a shared doorway", cost: "the reader no longer chooses where it opens next")
+                decision(.sliceOfLife, "Tend the tiny thing the sentence made visible", gain: "the small wonder remains close and recognizable", cost: "it fades before anyone follows it"),
+                decision(.progressArc, "Follow the sentence before it goes flat", gain: "the remembered image opens a new room in {{thread}}", cost: "the reader leaves one familiar detail behind as a threshold toll"),
+                decision(.surprise, "Fold the shimmer and give it to someone waiting nearby", gain: "the sentence becomes something shared", cost: "the reader no longer chooses where it opens next")
             ]),
         recipe("dorm-room-visit", "Dorm-Room Visit", weight: 5, requirements: [.groundedSource, .character], mode: .conversation,
             premise: "{{lead}} visits your dorm because {{grounding}} has given them a concrete reason to knock.",
@@ -9785,8 +10193,8 @@ enum StoryFormRegistry {
             cooldown: 240),
         recipe("the-summons", "The Summons", weight: 15, requirements: [.groundedSource, .character, .activeThread, .outwardWake], mode: .balanced,
             premise: "Word travels through {{thread}} that something can only be done by the reader (not anyone brave, not anyone clever, specifically them) and {{lead}} has been sent to say so, because of {{grounding}}.",
-            beats: ["{{lead}} delivers the summons and names the exact, reader-specific reason the world asked for them and no one else.", "After the chosen response, the world visibly registers that its reader answered (or named their own hour) and holds the door."],
-            turn: turn(.handOff, want: "to bring the reader to the one small task the world reserved for them", obstacle: "the summons can't explain itself fully until it's accepted; some of it runs on trust", statement: "By the end, the summons is answered, deferred on the reader's own terms, or answered sideways, and the reserved task remains theirs alone.", slice: "The reader accepts only the first step, and the world treats even that as arrival.", progress: "Answering opens the reserved door and moves {{thread}} one committed step.", surprise: "The task was never the point; the world wanted to know whether its choice of reader was right, and it was."),
+            beats: ["{{lead}} delivers the summons and names the exact, reader-specific reason the world asked for them and no one else.", "After the chosen response, the world visibly registers that its reader answered (or named their own hour) and keeps its promise."],
+            turn: turn(.handOff, want: "to bring the reader to the one small task the world reserved for them", obstacle: "the summons can't explain itself fully until it's accepted; some of it runs on trust", statement: "By the end, the summons is answered, deferred on the reader's own terms, or answered sideways, and the reserved task remains theirs alone.", slice: "The reader accepts only the first step, and the world treats even that as arrival.", progress: "Answering moves {{thread}} one committed step.", surprise: "The task was never the point; the world wanted to know whether its choice of reader was right, and it was."),
             tags: ["mission", "thread", "arc", "momentum"], forms: ["threshold-crossing", "quiet-epic"], genres: ["serial-adventure", "kindly-ghost"],
             grounding: "Build the reader-specific reason from the grounded detail (something they actually did, kept, or noticed), never from generic flattery about destiny.",
             tone: "Ceremonial at kitchen scale: the world is formally asking, and it's allowed to feel good to be asked. No dread, and no guilt if she names her own hour.",
@@ -9815,7 +10223,7 @@ enum StoryFormRegistry {
         // noticing. These exist so Story Pages aren't always about her diary.
         recipe("unshelved-expedition", "Expedition to the Unshelved", weight: 15, requirements: [.character], mode: .action,
             premise: "{{lead}} has a hand-drawn map that stops mattering halfway and a plan to reach the Unshelved tonight (the far shelf where books wait that no one has written yet) with the reader as second lantern.",
-            beats: ["Set out: the route is physical (a ladder, a gap, a cold draft) and one rule of the Stacks must be obeyed or ducked before the halfway mark.", "After the chosen response, the expedition reaches something real (a find, a toll, or a closed door with tomorrow's handhold) and comes home changed."],
+            beats: ["Set out: the route is physical (a ladder, a gap, a cold draft) and one rule of the Stacks must be obeyed or ducked before the halfway mark.", "After the chosen response, the expedition reaches something real (a find, a toll, or a dead end with tomorrow's handhold) and comes home changed."],
             turn: turn(.smallDecision, want: "to reach the Unshelved and come back with proof", obstacle: "the Stacks quietly rearrange for travelers who look too confident", statement: "By the end, the expedition has won a find, paid a toll, or mapped a new handhold, and the way back isn't the way in.", slice: "The expedition stops halfway and eats, on a shelf where no one has ever eaten.", progress: "The proof carried back gives {{thread}} one new rung.", surprise: "Something in the Unshelved was expecting visitors, and had set out tea."),
             tags: ["world-led", "adventure", "mission", "energy", "night"], forms: ["threshold-crossing", "quiet-epic"], genres: ["serial-adventure", "tiny-heist"],
             grounding: "The real-day detail is atmosphere only: the hour, the weather at the high windows. Never quote, discuss, or build the plot from the reader's pages or day.",
@@ -9875,7 +10283,7 @@ enum StoryFormRegistry {
             continuation: "The corridor keeps whatever weather it was granted. Move to the next room's opinion; never re-discover the same sky."),
         recipe("kitchens-at-midnight", "The Kitchens at Midnight", weight: 13, requirements: [.character], mode: .balanced,
             premise: "The Kitchens have demanded one dish by midnight for a guest nobody will name, and {{lead}} has claimed the reader as sous-conspirator.",
-            beats: ["The brief is absurd and exact (one dish, one deadline, ingredients that negotiate) and the guest's identity is a locked pantry door.", "After the chosen response, the dish goes out, the guest's chair scrapes somewhere unseen, and one clue about who ate comes back on the empty plate."],
+            beats: ["The brief is absurd and exact (one dish, one deadline, ingredients that negotiate) and the guest's identity is the one thing nobody will say.", "After the chosen response, the dish goes out, the guest's chair scrapes somewhere unseen, and one clue about who ate comes back on the empty plate."],
             turn: turn(.handOff, want: "to get one worthy dish out the pass before midnight", obstacle: "the best ingredient has opinions about being cooked", statement: "By the end, a dish has been served, substituted, or gloriously improvised, and the empty plate returns one clue about the unnamed guest.", slice: "The kitchen quiets, the dish is simple, and simple turns out to be the right call.", progress: "The clue on the returned plate moves {{thread}} one course forward.", surprise: "The guest sent a dish back: in the other direction, as thanks, for the reader."),
             tags: ["world-led", "adventure", "care", "mission"], forms: ["quiet-epic", "correspondence"], genres: ["pastoral", "tiny-heist"],
             grounding: "Season and hour may flavor the menu; nothing else from the real day enters the kitchen. The reader's pages aren't ingredients.",

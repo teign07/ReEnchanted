@@ -1,0 +1,242 @@
+{
+  "status": "integrated-in-source-catalog",
+  "installed": true,
+  "sourceOfAuthority": "Reader direction: room variety, more marginalia, books everywhere including Kitchens",
+  "cards": [
+    {
+      "id": "major-01",
+      "name": "I \u2014 The Magician",
+      "title": "The Magician \u00b7 Penny Blackletter",
+      "owner": "root",
+      "bookishScene": "Penny Blackletter embodies the Magician as a tarot allegory, not new Cast canon. Preserve the supplied canonical face, dark curly pinned-up hair, gold wire spectacles, expressive sharp eyes, ink-blue tailored Academy coat/waistcoat, high paper-cream collar and blue jewel. Standing at a crooked printer-editor workbench inside the wildly overgrown Press desk in an endless library, she raises one long wooden brass-nib dip pen in her right hand while her left index points down, the unmistakable above/below gesture. An infinity loop floats above her head. On the workbench lie one cup, one brass paper knife, one round hinged pentacle book clasp, a blank catalog card and a folded book; the raised pen completes the four suit tools. No duplicate tools. Roses and lilies are small living sprigs among the shelves, not an outdoor garden. Behind her, shelves turn into stairs and one ladder arrives through a bookcase. A tiny punctuation pixie is stealing a physical comma from the outer margin, subordinate to Penny.",
+      "marginalLabel": "catalog tab",
+      "readingNote": "The tools are waiting for your hands.",
+      "marginalStudy": "One tiny paper catalog-tab study with a bent paperclip at upper-left, two small ink/watercolor swatches nearby, and the small pixie/comma vignette at outer right. No extra pen, cup, blade or clasp.",
+      "newSubjects": [
+        "penny-blackletter",
+        "catalog-card",
+        "printing-desk",
+        "punctuation-pixie"
+      ],
+      "requiredSymbols": [
+        "A standing writer with one hand pointing to earth and an opinionated pen raised to the sky; table holds staff, cup, sword, and pentacle; infinity sign, roses, lilies. No spellcasting wand."
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.095,
+        "labelWidth": 0.18
+      },
+      "worldDirection": "wild-library-academy-prototype",
+      "expectedSuitCount": null,
+      "additionalMarginalia": [
+        {
+          "text": "white lily",
+          "x": 0.045,
+          "y": 0.875,
+          "width": 0.2,
+          "fontWidthRatio": 0.033,
+          "maxLines": 1,
+          "leader": [
+            [
+              0.07,
+              0.875
+            ],
+            [
+              0.045,
+              0.84
+            ],
+            [
+              0.07,
+              0.79
+            ]
+          ]
+        },
+        {
+          "text": "Put that back.",
+          "x": 0.75,
+          "y": 0.873,
+          "width": 0.23,
+          "fontWidthRatio": 0.031,
+          "onPaper": false,
+          "maxLines": 2,
+          "rotation": -3
+        }
+      ],
+      "status": "expanded-marginalia-study"
+    },
+    {
+      "id": "pentacles-three",
+      "name": "Three of Pentacles",
+      "title": "Three of Pentacles \u00b7 Ink-Binding classroom",
+      "room": "Ink-Binding classroom",
+      "owner": "tarot_art_a",
+      "bookishScene": "A sunlit practical Ink-Binding classroom in the Inkworks. Exactly THREE large round five-point-marked brass book clasps with visible hinges are fixed on a wooden demonstration board above the workbench, each separately visible. An adult literary-elf bookbinding student stands on a low work stool sewing a book on a frame; Professor Vivian Villanelle and an adult Deep Lore Dwarf collaborator compare a wordless folded binding plan and contribute their different knowledge. THREE primary people, all visibly involved. Preserve Vivian\u2019s canonical East-Asian face, short dark bob, black/wine tailored coat and black-glass pen tucked away; no generic teacher replacement. Tall ordinary classroom windows, stools, one low shelf, practice folios, books/gatherings on every desk, loose blank leaves and linen thread. No temple arch or shelf canyon. Collaboration and material skill, not a teacher lecturing passive students.",
+      "marginalLabel": "linen thread",
+      "readingNote": "Three people. What does each know?",
+      "marginalStudy": "A tiny linen-thread/sewing-path study upper-left; one ordinary blunt sewing needle with thread at a lower outer edge; a tiny marginalia goblin at the opposite edge trying to pull a seam too tight. No extra pentacle/clasp/disks.",
+      "additionalMarginalia": [
+        {
+          "text": "sewing needle",
+          "x": 0.05,
+          "y": 0.865,
+          "width": 0.26,
+          "fontWidthRatio": 0.028,
+          "onPaper": false,
+          "maxLines": 1
+        },
+        {
+          "text": "Leave a little slack.",
+          "x": 0.66,
+          "y": 0.875,
+          "width": 0.3,
+          "fontWidthRatio": 0.029,
+          "onPaper": false,
+          "maxLines": 2
+        }
+      ],
+      "newSubjects": [
+        "inkworks-classroom",
+        "sewing-frame",
+        "practice-folio",
+        "linen-thread"
+      ],
+      "requiredSymbols": [
+        "Artisan works in an Academy arch while two others consult plans; exactly three pentacles in stonework; different kinds of expertise."
+      ],
+      "expectedSuitCount": 3,
+      "annotationLayout": {
+        "labelX": 0.04,
+        "labelY": 0.008,
+        "labelWidth": 0.24,
+        "labelFontWidthRatio": 0.03,
+        "noteX": 0.09,
+        "noteY": 0.925,
+        "noteWidth": 0.82
+      },
+      "status": "room-and-marginalia-study"
+    },
+    {
+      "id": "wands-four",
+      "name": "Four of Wands",
+      "title": "Four of Wands \u00b7 Great Hall",
+      "room": "Great Hall",
+      "owner": "tarot_art_b",
+      "bookishScene": "The Academy Great Hall in bright late-afternoon light, a finite welcoming room with timber roof, tall windows and long communal reading/supper tables. Exactly FOUR long wooden DIP PENS with FOUR clear brass split nibs stand as a celebratory threshold supporting one light ivy-and-flower garland; all four posts and nibs separately visible. Under it, Serenity Brown and Zara Finch raise small flower bunches to welcome arrivals, smiling with distinct canonical faces. Preserve Serenity\u2019s loose curly chestnut hair/sea-glass blue-green ribbons and buoyant posture; Zara\u2019s short dark bob/chipped blue sea-glass pendant and quieter grounded expression. Practical layered Academy clothes, no draped gowns. Books fill shelves, windowsills and tables, some opened for shared reading, others carried under arms; a few background students among chairs/coats, welcoming milestone rather than banquet excess. No giant shelf maze and no distant Mediterranean town. Do not add any other pen/quill/nib, including in margins.",
+      "marginalLabel": "ivy leaf",
+      "readingNote": "Come in. There is room.",
+      "marginalStudy": "A fine recognizable ivy-leaf study upper-left; a small plain tied ribbon study lower-left; a tiny practical margin goblin at the outer right ties an escaped garland ribbon back into place, without a pen. No extra full-size Cast or suit tools.",
+      "additionalMarginalia": [
+        {
+          "text": "ribbon knot",
+          "x": 0.06,
+          "y": 0.962,
+          "width": 0.28,
+          "fontWidthRatio": 0.026,
+          "onPaper": false,
+          "maxLines": 1
+        },
+        {
+          "text": "Mind the knot.",
+          "x": 0.72,
+          "y": 0.875,
+          "width": 0.23,
+          "fontWidthRatio": 0.03,
+          "onPaper": false,
+          "maxLines": 2
+        }
+      ],
+      "newSubjects": [
+        "great-hall",
+        "communal-reading-table",
+        "ivy-leaf",
+        "ribbon-knot"
+      ],
+      "requiredSymbols": [
+        "Exactly four garlanded staffs form a threshold; two celebrating figures, distant gathering and Academy walls."
+      ],
+      "expectedSuitCount": 4,
+      "annotationLayout": {
+        "labelX": 0.16,
+        "labelY": 0.115,
+        "labelWidth": 0.13,
+        "labelFontWidthRatio": 0.029,
+        "noteX": 0.44,
+        "noteY": 0.915,
+        "noteWidth": 0.53
+      },
+      "status": "room-and-marginalia-study"
+    },
+    {
+      "id": "swords-four",
+      "name": "Four of Swords",
+      "title": "Four of Swords \u00b7 Chapter common room",
+      "room": "Chapter common room",
+      "owner": "tarot_art_c",
+      "bookishScene": "A small lived-in Riddlewind Chapter common room during Quiet Hours: a finite comfortable reading room with window seat, fire grate, mismatched chairs, patchwork cushions and human-scale bookshelves. Professor Cedric Stonebrook rests reclined on a wooden daybed, eyes closed and hands gently folded together at his chest in the recognizable RWS rest pose; retain canonical older warm face, salt-and-pepper curls/beard, weathered moss/stone academic outdoor coat. He is peacefully resting, not dead/injured. Exactly FOUR warm brass paper knives total: THREE upright clearly separated on a bookcraft rack on the wall, ONE horizontal on the low closed-book bench beside the daybed. Bookworking letter-openers, not steel swords; no extra knives. Books everywhere: stacked by his slippers, in chair pockets, borrowed volumes on the windowsill, a closed reading book within reach, marked places but no writing. Soft overcast daylight plus a small hearth, no dizzying Stacks, no church or marble tomb. A common room is a social space taking a quiet hour, not a private bedroom.",
+      "marginalLabel": "mending study",
+      "readingNote": "The page can wait.",
+      "marginalStudy": "A small blanket-stitch fabric study upper-left; a fine rosemary sprig study near a lower outer edge; a tiny punctuation pixie curled asleep on a physical comma at opposite outer edge. No extra paper knife or full person in studies.",
+      "additionalMarginalia": [
+        {
+          "text": "rosemary",
+          "x": 0.735,
+          "y": 0.896,
+          "width": 0.23,
+          "fontWidthRatio": 0.03,
+          "onPaper": false,
+          "maxLines": 1
+        },
+        {
+          "text": "Do not wake the comma.",
+          "x": 0.06,
+          "y": 0.884,
+          "width": 0.47,
+          "fontWidthRatio": 0.031,
+          "onPaper": false,
+          "maxLines": 1
+        }
+      ],
+      "newSubjects": [
+        "chapter-common-room",
+        "quiet-hours",
+        "daybed",
+        "rosemary",
+        "closed-book"
+      ],
+      "requiredSymbols": [
+        "Recumbent figure in a chapel-library, one sword carved beneath and three hanging above, stained-paper window of blessing."
+      ],
+      "expectedSuitCount": 4,
+      "annotationLayout": {
+        "labelX": 0.04,
+        "labelY": 0.157,
+        "labelWidth": 0.25,
+        "labelFontWidthRatio": 0.03,
+        "noteX": 0.1,
+        "noteY": 0.935,
+        "noteWidth": 0.8
+      },
+      "status": "room-and-marginalia-study"
+    }
+  ],
+  "reviewFile": "/Users/bj/Projects/ReEnchanted/output/imagegen/unwritten-deck-v3-room-studies/production-reviews.json",
+  "nativeQA": false,
+  "readerFeedback": {
+    "date": "2026-10-27",
+    "quote": "I like these directions",
+    "acceptedDirection": [
+      "varied Academy rooms",
+      "books and booklike things everywhere, including Kitchens",
+      "fuller authored marginalia"
+    ],
+    "remainingClassroomDetails": [
+      "winged seam helper instead of intended goblin",
+      "pointed needle study instead of intended blunt needle"
+    ],
+    "perCardProductionAcceptanceRequired": true
+  },
+  "installationIndex": "docs/unwritten-tarot-installed-revision.json",
+  "acceptedAdaptations": [
+    "Winged seam fae and pointed sewing needle accepted with accurate labels; RWS three-clasp collaboration tableau intact."
+  ]
+}

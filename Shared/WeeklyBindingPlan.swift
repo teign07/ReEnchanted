@@ -599,7 +599,7 @@ enum WeeklyBindingWriter {
         let options: [String]
         if !plan.stillOpenIDs.isEmpty {
             options = ["I bound the week: some of it is still going.",
-                       "I bound the week and left a door ajar.",
+                       "I bound the week and left the last page loose.",
                        "I bound the week; a few threads stayed loose."]
         } else if !plan.returns.isEmpty {
             options = ["I bound the week: the same things kept arriving.",

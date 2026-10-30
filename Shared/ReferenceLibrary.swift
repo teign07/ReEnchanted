@@ -163,6 +163,7 @@ struct InterleafIllustration: Codable, Identifiable, Equatable {
     var placementTrigger: IlluminationPlacementTrigger? = nil
 
     var resolvedAssetName: String { MonthlyIssueMediaPath.resolving(assetName) }
+    var isTarotCard: Bool { id.hasPrefix("tarot::") }
 
     func isEligible(in context: IlluminationPlacementContext) -> Bool {
         if let year = placementTrigger?.issueYear, context.year != year { return false }
@@ -220,12 +221,40 @@ enum InterleafIllustrationLibrary {
 
     /// Pure selection is also used by proof fixtures. Recent plates are
     /// excluded when there is another eligible choice, never by random retry.
-    static func select(from plates: [InterleafIllustration], context: IlluminationPlacementContext, seed: Int, excluding: Set<String> = []) -> InterleafIllustration? {
+    static func select(
+        from plates: [InterleafIllustration], context: IlluminationPlacementContext,
+        seed: Int, excluding: Set<String> = [], recentlySeen: [String: Date] = [:], now: Date = Date()
+    ) -> InterleafIllustration? {
         let eligible = plates.filter { $0.isEligible(in: context) }
         let fresh = eligible.filter { !excluding.contains($0.resolvedAssetName) }
-        let candidates = fresh.isEmpty ? eligible : fresh
-        guard !candidates.isEmpty else { return nil }
+        let unreserved = fresh.isEmpty ? eligible : fresh
         let subjects = Set(context.semanticTags.map { $0.lowercased() })
+            .subtracting(["book", "margin", "margins", "illustration", "labyrinth", "tarot"])
+        // A single literal subject must not keep pulling the same related
+        // card back up while the rest of the deck remains unseen. Held leaves
+        // are restored by the encounter store before this new-choice policy.
+        let tarot = unreserved.filter {
+            $0.isTarotCard && (recentlySeen[$0.resolvedAssetName].map {
+                now.timeIntervalSince($0) >= 7 * 86_400
+            } ?? true)
+        }
+        let relatedTarot = tarot.filter { !Set($0.tags.map { $0.lowercased() }).isDisjoint(with: subjects) }
+        let ordinary = unreserved.filter { !$0.isTarotCard }
+        // Tarot borrows an existing illustration slot. A related picture gets
+        // one chance in four; an unrelated one gets one in fourteen. The size
+        // of the deck must never make it swallow the other illustrated leaves.
+        let roll = UInt(bitPattern: (seed &+ 23_537).stableScramble)
+        let offeredTarot = relatedTarot.isEmpty ? (roll % 14 == 0) : (roll % 4 == 0)
+        let offered = offeredTarot ? (relatedTarot.isEmpty ? tarot : relatedTarot) : ordinary
+        // If ordinary art is absent, keep the rarity gate rather than turning
+        // every illustration slot into Tarot.
+        let pool = offered.isEmpty && offeredTarot ? ordinary : offered
+        let restedIDs = InterleafCuration.visualPool(
+            pool.map(\.resolvedAssetName), recentlySeen: recentlySeen,
+            now: now, allowsRecentFallback: true
+        )
+        let candidates = pool.filter { restedIDs.contains($0.resolvedAssetName) }
+        guard !candidates.isEmpty else { return nil }
         func score(_ plate: InterleafIllustration) -> Int {
             Set(plate.tags.map { $0.lowercased() }).intersection(subjects).count
         }
@@ -265,7 +294,8 @@ enum InterleafIllustrationLibrary {
                 return !name.hasPrefix("/") || FileManager.default.fileExists(atPath: name)
             }
         var seen = Set<String>()
-        return (authored + evergreen + permanentScenes).filter { seen.insert($0.resolvedAssetName).inserted }
+        return (authored + evergreen + permanentScenes + TarotDeck.interleafIllustrations)
+            .filter { seen.insert($0.resolvedAssetName).inserted }
     }
 }
 
@@ -301,6 +331,9 @@ struct CharacterIllustrationProfile: Identifiable, Codable, Equatable {
     var illustrationTag: String {
         if tags.contains("location") || status == "location" { return "location" }
         if tags.contains("book-fae") || status == "book-fae" { return "book-fae" }
+        // A talisman is an object. It used to fall through to "character" and
+        // get the person template: "A person is never only an office…"
+        if tags.contains("talisman") { return "talisman" }
         return "character"
     }
 }
@@ -426,6 +459,9 @@ struct AffirmationEntry: Identifiable, Codable, Equatable {
     var tags: [String]
     var packID: String
     var weight: Int
+    /// A pact's own way of coming back: the Book saying it did its half and
+    /// asking after the reader's. Nil for gifts.
+    var callIn: String? = nil
 
     /// True when this believing asks for an agreement rather than only offering.
     var isPact: Bool {
@@ -854,17 +890,17 @@ enum SelfKnowledgePackRegistry {
     }
 
     private static let coreQuestions: [AboutYouQuestion] = [
-        question("rut-signal", "Which 'ugh, that's me' line hit first?", "I'm not diagnosing you. I'm finding the door that already opened.", "Tap the line that found you first, or write your own.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
+        question("rut-signal", "Which 'ugh, that's me' line hit first?", "I'm not diagnosing you. I'm finding what already works.", "Tap the line that found you first, or write your own.", .comfort, .privateContext, ["rut", "rut-signal", "wonder-compass", "self-recognition", "state-not-identity"], 96),
         question("rut-depth", "How loud is the Rut right now?", "Rough is enough. This is a weather report, not a tattoo.", "0-3: tired but functional. 4-7: in the rut. 8-10: whirlpool. 11-12: deep water.", .comfort, .privateContext, ["rut", "rut-depth", "wonder-compass", "self-recognition", "state-not-identity"], 95),
-        question("rut-season", "What should we call this season?", "Naming it takes some of its teeth. Keep it small and honest.", "The Fog. Maintenance Mode. The Too-Many-Tabs Era. Getting Back to Color.", .comfort, .privateContext, ["rut", "rut-season", "wonder-compass", "self-recognition", "state-not-identity"], 94),
-        question("wonder-entry", "What kind of wonder still works on you?", "Pick the door you'd actually open on a tired Tuesday.", "Looking out. Pocket adventure. Odd details. Color. Making. People. Quiet.", .delight, .privateContext, ["wonder", "wonder-compass", "wonder-entry", "wonder-affinity", "delight", "low-friction"], 93),
+        question("rut-season", "What should we call this season?", "Naming it makes it smaller. Keep it small and honest.", "The Fog. Maintenance Mode. The Too-Many-Tabs Era. Getting Back to Color.", .comfort, .privateContext, ["rut", "rut-season", "wonder-compass", "self-recognition", "state-not-identity"], 94),
+        question("wonder-entry", "What kind of wonder still works on you?", "Pick the one you'd actually do on a tired Tuesday.", "Looking out. Pocket adventure. Odd details. Color. Making. People. Quiet.", .delight, .privateContext, ["wonder", "wonder-compass", "wonder-entry", "wonder-affinity", "delight", "low-friction"], 93),
         question("home-place", "Where do you call home?", "A place can be true without being precise.", "A town, coast, room, region, or kind of place.", .comfort, .privateContext, ["home", "place"], 88),
         question("home-meaning", "What does home mean to you?", "Not the address. The feeling I should recognize.", "Safety, noise, chosen people, a porch light...", .comfort, .storyOnly, ["home", "meaning"], 84),
         question("favorite-color", "What color keeps finding you?", "I can tint future pages with a little more you in them.", "Blue, moss green, marigold, storm gray...", .delight, .privateContext, ["color", "delight"], 78),
         question("interest-01", "What's an interest of yours?", "I want to know what lights your shelves from the inside.", "Sailing, cooking, weird history, cozy games, old maps...", .delight, .privateContext, ["interest", "delight", "story-seed"], 77),
-        question("interest-02", "What's another interest of yours?", "Interests make excellent doors. I'm collecting keys slowly.", "A hobby, subject, fandom, craft, place, creature, question...", .delight, .privateContext, ["interest", "delight", "story-seed"], 65),
+        question("interest-02", "What's another interest of yours?", "Interests tell me the most. I'm collecting them slowly.", "A hobby, subject, fandom, craft, place, creature, question...", .delight, .privateContext, ["interest", "delight", "story-seed"], 65),
         question("interest-03", "What's another interest of yours?", "A second shelf has opened. Put one bright thing on it.", "Something you read about, make, watch, collect, or chase...", .delight, .privateContext, ["interest", "delight", "story-seed"], 64),
-        question("interest-04", "What's another interest of yours?", "I'm learning what kinds of doors you notice first.", "A world, practice, problem, texture, tool, era, mystery...", .delight, .privateContext, ["interest", "delight", "story-seed"], 63),
+        question("interest-04", "What's another interest of yours?", "I'm learning what kinds of things you notice first.", "A world, practice, problem, texture, tool, era, mystery...", .delight, .privateContext, ["interest", "delight", "story-seed"], 63),
         question("interest-05", "What's another interest of yours?", "Some interests are lanterns. Some are secret staircases.", "Tiny, grand, serious, silly. All of them count.", .delight, .privateContext, ["interest", "delight", "story-seed"], 62),
         question("interest-06", "What's another interest of yours?", "I'm nearly done filling this shelf.", "A thing you could talk about for ten minutes too long...", .delight, .privateContext, ["interest", "delight", "story-seed"], 61),
         question("interest-07", "What's one last interest for this shelf?", "Seven is plenty. I can make a map from here.", "One more spark. Anything at all.", .delight, .privateContext, ["interest", "delight", "story-seed"], 60),
@@ -875,9 +911,9 @@ enum SelfKnowledgePackRegistry {
         question("becoming", "What kind of person are you trying to become?", "Not as homework. As a north star.", "Braver, gentler, more alive, less hidden...", .values, .storyOnly, ["growth", "values"], 58),
         question("story-role", "What role do you usually play in a group?", "Every story needs a scout, a joker and a worrier. I want to know which chair you sit in.", "Guide, comic relief, caretaker, scout, skeptic...", .story, .storyOnly, ["story", "role"], 52),
         question("favorite-weather", "What weather makes you more yourself?", "Not the weather you're supposed to like. The one that makes you feel more alive.", "Cold sun. Thunder. First snow. Rain against a window...", .delight, .privateContext, ["weather", "delight", "wonder-affinity"], 75)
-        ,question("sensory-door", "Which sense finds wonder first for you?", "I'll knock on that door first.", "Sound. Color. Texture. Smell. Taste. Movement...", .delight, .privateContext, ["sense", "wonder-affinity", "curation"], 74)
+        ,question("sensory-door", "Which sense finds wonder first for you?", "I'll start there.", "Sound. Color. Texture. Smell. Taste. Movement...", .delight, .privateContext, ["sense", "wonder-affinity", "curation"], 74)
         ,question("best-time", "What part of the day still feels like yours?", "The clock and your life aren't always telling the same story.", "Early morning. Lunch. Dusk. After everyone sleeps...", .comfort, .privateContext, ["rhythm", "energy-window", "time"], 73)
-        ,question("energy-window", "When does a little adventure feel easiest?", "I'd rather knock when the door's already open.", "Before work. On lunch. After dinner. Weekends. It changes...", .comfort, .privateContext, ["rhythm", "energy-window", "curation"], 72)
+        ,question("energy-window", "When does a little adventure feel easiest?", "I'd rather come when you're already up for it.", "Before work. On lunch. After dinner. Weekends. It changes...", .comfort, .privateContext, ["rhythm", "energy-window", "curation"], 72)
         ,question("ordinary-ritual", "What tiny habit already makes a day feel like yours?", "I'm very interested in ceremonies nobody else knows are ceremonies.", "A certain mug. Music while cooking. Walking the long way...", .delight, .storyOnly, ["habit", "delight", "daily-life"], 71)
         ,question("comfort-object", "Which ordinary object has quietly joined your side?", "Some objects have already joined the Cast without filling out the forms.", "A blanket. A pen. A battered pan. The chair by the window...", .delight, .storyOnly, ["object", "comfort", "animism", "story-seed"], 70)
         ,question("small-luxury", "What tiny luxury works embarrassingly well on you?", "No defense is required. Delight has terrible taste and excellent instincts.", "Fancy soap. The good cup. Hotel sheets. Fries in the car...", .delight, .privateContext, ["delight", "comfort", "low-friction"], 69)
@@ -887,18 +923,18 @@ enum SelfKnowledgePackRegistry {
         ,question("favorite-kind-of-place", "What kind of place makes you look up?", "I want the kind of place, not the address.", "Old libraries. Diners. Harbors. Hardware stores. Deep woods...", .delight, .privateContext, ["place", "wonder-affinity", "curation"], 65)
         ,question("place-to-return", "Where would you happily go for no efficient reason?", "A useful place gets errands. A beloved place keeps calling after the errands are dead.", "A bench. A bookstore. A neighborhood. A stretch of water...", .delight, .privateContext, ["place", "return", "delight"], 64)
         ,question("person-laugh", "Who changes the sound of your laugh?", "I don't need their whole biography. Just the kind of gravity they alter.", "A friend. A sibling. A coworker. Someone no longer nearby...", .identity, .privateContext, ["people", "relationship", "delight"], 63)
-        ,question("person-adventure", "Who would understand a very small adventure?", "Company changes what a door costs to open.", "Someone specific. Whoever is free. Nobody: I like going alone...", .identity, .privateContext, ["people", "company", "wonder-compass"], 62)
+        ,question("person-adventure", "Who would understand a very small adventure?", "Company changes what it costs to start.", "Someone specific. Whoever is free. Nobody: I like going alone...", .identity, .privateContext, ["people", "company", "wonder-compass"], 62)
         ,question("care-language", "How can someone make you feel cared for without making a speech?", "Small proof beats big speeches.", "Bring food. Remember a detail. Sit nearby. Make me laugh...", .comfort, .storyOnly, ["people", "care", "relationship"], 61)
         ,question("social-energy", "When wonder appears, do you want company?", "The honest answer may change by day. Give me the usual weather.", "Usually alone. One person. A small group. Whoever is already there...", .comfort, .privateContext, ["people", "company", "social", "curation"], 60)
         ,question("alone-shape", "What kind of being alone feels good?", "Solitude and isolation wear similar coats. I should learn the difference.", "Making something. Wandering. Reading near other people. Complete quiet...", .comfort, .storyOnly, ["solitude", "comfort", "rest"], 59)
         ,question("weekend-texture", "What should a good free afternoon feel like?", "Not what it should accomplish. What texture tells you it belonged to you?", "Spacious. Playful. Unplanned. Productive in a satisfying way...", .delight, .privateContext, ["rhythm", "weekend", "delight"], 58)
         ,question("transition-hard", "Which bit of an ordinary day is the greyest?", "I'll ask for less around then.", "Waking up. Getting home. Starting dinner. Sunday evening...", .comfort, .privateContext, ["rhythm", "transition", "constraint", "curation"], 57)
-        ,question("leaving-home", "How do you feel about me sending you out of the house?", "Going out isn't always the right door. Tell me how often it is.", "Send me out. Ask first. Only when I choose. Keep the magic indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
+        ,question("leaving-home", "How do you feel about me sending you out of the house?", "Going out isn't always the answer. Tell me how often it is.", "Send me out. Ask first. Only when I choose. Keep the magic indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
         ,question("movement-access", "Is there anything I should know before I send you somewhere?", "I'll take it as plain fact, not poetry.", "Short distances. Somewhere to sit. No stairs. Anything goes. Ask each time...", .comfort, .privateContext, ["boundary", "constraint", "access", "curation"], 55)
         ,question("time-budget", "How much time can a tiny adventure usually borrow?", "I'd rather fit inside ten honest minutes than invent an imaginary afternoon.", "One minute. Ten minutes. Half an hour. It depends on the day...", .comfort, .privateContext, ["boundary", "constraint", "time", "curation"], 54)
         ,question("money-boundary", "Should my errands ever cost money?", "Magic shouldn't need a shop. Tell me where your line is.", "Free, always. A few coins is fine. Ask first. Spending is fine...", .comfort, .privateContext, ["boundary", "constraint", "budget", "curation"], 53)
-        ,question("story-no", "Is there anything I should never put in a story?", "A closed door is useful to know about. I won't rattle it.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
-        ,question("childhood-wonder", "What fascinated you before usefulness got involved?", "Children notice doors that grown-ups paint over later.", "Rocks. Ghost stories. Trains. Drawing maps. Taking things apart...", .story, .storyOnly, ["childhood", "wonder", "story-seed"], 51)
+        ,question("story-no", "Is there anything I should never put in a story?", "A no is useful to know about. I won't keep asking.", "Work. Family. Health. A person. Nothing comes to mind yet...", .comfort, .doNotUse, ["boundary", "story", "privacy"], 52)
+        ,question("childhood-wonder", "What fascinated you before usefulness got involved?", "Children notice things grown-ups paint over later.", "Rocks. Ghost stories. Trains. Drawing maps. Taking things apart...", .story, .storyOnly, ["childhood", "wonder", "story-seed"], 51)
         ,question("lost-interest", "What did you once love that's gone quiet?", "I might remember it. I won't make you take it up again.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
         ,question("desired-surprise", "What kind of surprise almost always works on you?", "Surprise comes in flavours. I want to know yours.", "A strange fact. A beautiful place. A joke. A message. A tiny challenge...", .delight, .privateContext, ["surprise", "wonder-affinity", "curation"], 49)
         ,question("current-question", "What are you quietly trying to understand lately?", "It doesn't have to be a goal. Questions can just colour the margins.", "A relationship. A decision. A craft. My own attention. Something unnamed...", .story, .storyOnly, ["question", "current-season", "story-seed"], 48)
@@ -923,12 +959,12 @@ enum SelfKnowledgePackRegistry {
         // small things before it asks for heavy ones. Most are past tense:
         // asking what someone came through is a different act from asking what
         // they are currently inside.
-        ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense only. If it's still going on, shut this little door. I won't reach in.", "Four words will do. Or close the little door. I won't pick the lock.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
+        ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense only. If it's still going on, skip this one. I won't push.", "Four words will do. Or skip it. I won't pry.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
         ,question("carrying", "What are you carrying at the moment?", "Put it down, explain it, or do neither. I only want to know where not to step.", "One word, a paragraph, or leave the line staring back.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
         ,question("person-missed", "Who do you miss?", "Missing someone isn't only for the dead: distance and estrangement count.", "A name, or just who they were to you.", .comfort, .storyOnly, ["shadow", "people", "absence"], 22)
         ,question("went-quiet", "What ended that you haven't finished with?", "Things end long before we're done with them. That gap is worth knowing about.", "A friendship, a job, a place, a version of yourself.", .story, .storyOnly, ["shadow", "absence", "unfinished"], 21)
         ,question("still-angry", "What still makes you angry?", "Anger is information. I won't try to talk you out of it, or call it growth.", "Something done to you, something you watched happen, something ongoing.", .values, .storyOnly, ["shadow", "anger", "values"], 20)
-        ,question("got-wrong", "What did you get wrong that still sits with you?", "I'm not here to forgive you. I'm just nosy about what stuck.", "Give me the outline and keep the teeth.", .story, .storyOnly, ["shadow", "regret", "state-not-identity"], 19)
+        ,question("got-wrong", "What did you get wrong that still sits with you?", "I'm not here to forgive you. I'm just nosy about what stuck.", "Give me the outline. Keep the sharp bits.", .story, .storyOnly, ["shadow", "regret", "state-not-identity"], 19)
         ,question("saying-fine", "What do you say you're fine about?", "I know better than to poke that bruise first. You name it or it keeps its coat on.", "The thing with the short, practiced answer.", .comfort, .storyOnly, ["shadow", "present", "unsaid"], 18)
         ,question("dark-permission", "How should I handle the heavy things you tell me?", "This one changes what I do, so it outranks my curiosity.", "Keep it in mind but never write it. Let it into stories once it's old. Ask me each time.", .comfort, .privateContext, ["shadow", "boundary", "consent", "privacy"], 25)
     ]
@@ -2124,7 +2160,7 @@ enum QuipPackRegistry {
         quip("shadow-free-thing", "The goblin's only question, and the wisest one in the market: and what does this actually cost me?", "Shadow Wonder", ["shadow-wonder", "goblin", "bargain", "unseelie"], weight: 3),
         quip("shadow-name", "Folklore says a true name gives you power over a thing. Mostly it just gives the thing edges. That's enough to walk around.", "Shadow Wonder", ["shadow-wonder", "true-names", "grief", "naming"], weight: 3),
         quip("shadow-compost", "A compost heap is just grief doing its slow, useful work: nothing wasted, only changed.", "Shadow Wonder", ["shadow-wonder", "decay", "grief", "memory"], weight: 3),
-        quip("shadow-empty-chair", "An empty chair keeps the shape of who sat there. That's not haunting. That's memory holding the door.", "Shadow Wonder", ["shadow-wonder", "grief", "absence", "memory"], weight: 3),
+        quip("shadow-empty-chair", "An empty chair keeps the shape of who sat there. That's not haunting. That's memory keeping the seat warm.", "Shadow Wonder", ["shadow-wonder", "grief", "absence", "memory"], weight: 3),
         quip("shadow-headmistress", "Watch which staircases lie when the Headmistress walks them. No, don't write that down. Penny didn't say it and neither did I.", "Shadow Wonder", ["shadow-wonder", "unseelie", "thorne", "duskthorn", "secret"], weight: 3),
         quip("shadow-crown", "Some crowns are worn on the head. Some are pinned into the hair, dark, where you'd mistake them for a hairstyle.", "Shadow Wonder", ["shadow-wonder", "unseelie", "thorne", "secret"], weight: 3),
         quip("library-quiet", "A library is the only building designed to be quieter than the people inside it.", "Bookish Oddity", ["book", "library"]),
@@ -2393,11 +2429,16 @@ enum QuoteLibraryRegistry {
     ]
 }
 
-/// The Believings shelf: affirmations in the Book's own voice, child-like but
-/// not childish. Gifts are handed over with no strings. Pacts propose one tiny
-/// agreement and invite a countersignature in the ordinary margin note; the
-/// chips always include an honest hedge, because a believing extracted is worth
-/// nothing to either of us.
+/// The Believings shelf: what the Book believes, literally, about the world.
+/// The kettle's looking for the right note; one chair in the house is lonely.
+/// They're the Book's beliefs, not reassurance about the reader, so they never
+/// claim to have seen something it didn't see.
+///
+/// Gifts are handed over with no strings. Pacts have two halves: the reader's
+/// on top, the Book's underneath (always something it can do in its own world,
+/// its spine, drawer, pencil and index), and a signed pact comes back once as
+/// a call-in (`PactCallIn`). The chips always include an honest hedge, because
+/// a believing extracted is worth nothing to either of us.
 enum AffirmationLibraryRegistry {
     static let corePackID = "core-believings"
 
@@ -2420,19 +2461,20 @@ enum AffirmationLibraryRegistry {
         enabledPacks.flatMap(\.affirmations)
     }
 
+    private static let fallback = AffirmationEntry(
+        id: "fallback",
+        text: "You opened me today. I noticed.",
+        aside: "I heard the cover creak. It's my favourite sound.",
+        countersigns: ["Ok.", "Taken to heart."],
+        placeholder: giftPlaceholder,
+        theme: "You",
+        tags: ["gentle", "enough"],
+        packID: corePackID,
+        weight: 1
+    )
+
     static func affirmation(for day: BookDay, now: Date, tags: [String] = []) -> AffirmationEntry {
-        rankedAffirmations(for: day, now: now, tags: tags, limit: 1).first
-            ?? AffirmationEntry(
-                id: "fallback",
-                text: "You opened me today. I noticed.",
-                aside: "On a hard day, opening the cover is still a real thing you did.",
-                countersigns: ["Ok.", "Taken to heart."],
-                placeholder: "Write one line back. The margin is listening.",
-                theme: "Enough",
-                tags: ["gentle", "enough"],
-                packID: corePackID,
-                weight: 1
-            )
+        rankedAffirmations(for: day, now: now, tags: tags, limit: 1).first ?? fallback
     }
 
     static func rankedAffirmations(
@@ -2443,19 +2485,7 @@ enum AffirmationLibraryRegistry {
         lastShown: [String: Date] = [:]
     ) -> [AffirmationEntry] {
         let affirmations = allAffirmations
-        guard !affirmations.isEmpty else {
-            return [AffirmationEntry(
-                id: "fallback",
-                text: "You opened me today. I noticed.",
-                aside: "On a hard day, opening the cover is still a real thing you did.",
-                countersigns: ["Ok.", "Taken to heart."],
-                placeholder: "Write one line back. The margin is listening.",
-                theme: "Enough",
-                tags: ["gentle", "enough"],
-                packID: corePackID,
-                weight: 1
-            )]
-        }
+        guard !affirmations.isEmpty else { return [fallback] }
         let tagSet = Set(tags.map { $0.lowercased() })
         // A hard day gets a gift, never homework disguised as encouragement.
         // Other context still guides selection, but does not force a pact.
@@ -2490,7 +2520,7 @@ enum AffirmationLibraryRegistry {
     private static let giftPlaceholder = "Write one line back. The margin is listening."
     private static let pactPlaceholder = "Sign it, change it, or cross it out."
 
-    /// A gift: handed over, nothing owed back.
+    /// A gift: something the Book believes, handed over. Nothing owed back.
     private static func gift(
         _ id: String,
         _ text: String,
@@ -2503,91 +2533,105 @@ enum AffirmationLibraryRegistry {
         AffirmationEntry(id: id, text: text, aside: aside, countersigns: signs, placeholder: giftPlaceholder, theme: theme, tags: tags + ["gift"], packID: corePackID, weight: weight)
     }
 
-    /// A pact: one tiny agreement, honestly hedgeable.
+    /// A pact: the reader's half on top, the Book's half underneath, and the
+    /// line the Book says when it comes back having done its half.
     private static func pact(
         _ id: String,
         _ text: String,
-        _ aside: String,
+        _ bookHalf: String,
+        callIn: String,
         _ theme: String,
         _ tags: [String],
         signs: [String] = ["I will.", "I might.", "We'll see."],
         weight: Int = 1
     ) -> AffirmationEntry {
-        AffirmationEntry(id: id, text: text, aside: aside, countersigns: signs, placeholder: pactPlaceholder, theme: theme, tags: tags + ["pact"], packID: corePackID, weight: weight)
+        AffirmationEntry(id: id, text: text, aside: bookHalf, countersigns: signs, placeholder: pactPlaceholder, theme: theme, tags: tags + ["pact"], packID: corePackID, weight: weight, callIn: callIn)
     }
 
     private static let coreAffirmations: [AffirmationEntry] = [
-        // ── Gifts: beginnings & permission ──
-        gift("begin-badly", "Start badly. First drafts always come out with their teeth showing.", "Put down one true line and I'll deal with the biting.", "Beginnings", ["begin", "courage", "write", "morning"], weight: 2),
-        gift("first-page", "A blank Page is just trying to scare you. Write one line right on its face.", "It gets very quiet after that.", "Beginnings", ["begin", "morning", "gentle"], weight: 2),
-        gift("not-behind", "You're not behind. I checked.", "The race was made up by a clipboard. I ate the clipboard.", "Enough", ["enough", "gentle", "comparison"], weight: 2),
-        gift("wardrobe-checker", "You used to check wardrobes for other worlds. That part of you's still here.", "I saw it looking.", "Wonder", ["wonder", "childhood", "magic"], weight: 3),
-        gift("unfinished", "You're unfinished. Good. So am I.", "Finished things sit still. We don't.", "Becoming", ["growth", "gentle", "story"], weight: 2),
-        gift("permission-small", "Today can be small.", "Small days fit in me fine.", "Enough", ["enough", "small", "rest", "gentle"], weight: 2),
-        gift("wrong-turns", "Some wrong turns gave you things the right road never had.", "Your map kept them. So did I.", "Courage", ["courage", "story", "mistakes"], weight: 2),
-
-        // ── Gifts: being seen by the Book ──
-        gift("none-were-you", "I've kept lots of days. None of them was this one, and none of them was you.", "I checked twice.", "Seen", ["seen", "wonder", "identity"], signs: ["Ok.", "Read twice.", "If you say so."], weight: 3),
-        gift("whole-job", "You noticed one real thing today. That's the whole spell.", "I caught it before Routine sat on it.", "Noticing", ["notice", "attention", "enough"], weight: 2),
-        gift("receipts", "You've brought me proof from hard days before.", "The drawer isn't empty. I checked.", "Courage", ["courage", "hard-day", "history", "gentle"], weight: 3),
-        gift("good-company", "You keep opening me. I like that.", "My Pages sit up when they hear you coming.", "Seen", ["seen", "belonging", "book"], signs: ["That was kind.", "Kept.", "Read twice."]),
-        gift("questions-suit-you", "Keep the strange question.", "The boring ones already have plenty of chairs.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
-        gift("margin-person", "You notice what the main line walks right past.", "That's why my margins keep saving you a seat.", "Noticing", ["notice", "margin", "seen"], weight: 2),
-
-        // ── Gifts: rest & the body ──
-        gift("rest-counts", "You're tired. Close something: a tab, a door, your eyes.", "Even I close. The Pages are fine.", "Rest", ["rest", "gentle", "evening", "night"], weight: 3),
-        gift("body-loyal", "Your body carried you all the way here. Give it some water, some food, some warmth or some sleep.", "It's been doing all the heavy lifting.", "The Body", ["body", "care", "gentle", "rest"], weight: 2),
-        gift("tired-true", "Tired is a real fact about today.", "I wrote it down. The lamp can stop arguing.", "Rest", ["rest", "tired", "gentle", "hard-day"], weight: 2),
-        gift("grey-day", "Today came in grey and won't be talked out of it.", "Grey has more shades than anyone gives it credit for. I'll hold the paint.", "Weather", ["grey", "weather", "shadow", "gentle", "mood-match"], signs: ["Ok.", "Kept.", "Hm."], weight: 2),
-        gift("slow-morning", "A slow morning is still a morning.", "The tea won't hurry. It knows what it's doing.", "Rest", ["morning", "slow", "rest", "tea"]),
-
-        // ── Gifts: wonder & the world ──
-        gift("sky-daily", "The sky made a brand new mess of colour today.", "It didn't ask if anyone had time to look. It just did it.", "Wonder", ["sky", "wonder", "notice", "outside"], weight: 2),
-        gift("ordinary-disguise", "The spoon, the doorknob and the wet pavement are all up to something.", "The spoon's the worst at hiding it.", "The Everyday", ["ordinary", "everyday", "wonder", "magic"], weight: 2),
-        gift("world-bigger", "Your question found a new edge of the world.", "Now the map has to scoot over.", "Curiosity", ["curiosity", "questions", "wonder"], weight: 2),
-        gift("still-magic", "You still look for magic. You just call it noticing now.", "Same creature. Cleaner tracks.", "Magic", ["magic", "notice", "wonder", "attention"], weight: 3),
-        gift("stars-anyway", "The stars came out again without checking your calendar.", "Terrible manners. Excellent work.", "Night", ["stars", "night", "sky", "gentle"], weight: 2),
-
-        // ── Gifts: kindness & words ──
-        gift("kind-eyes", "You were kind. I saw the exact bit.", "It tried to hide inside an ordinary minute.", "Kindness", ["kindness", "gentle", "hope"], weight: 2),
-        gift("your-words-matter", "Your words change what I remember.", "Even the small ones shove things around.", "Words", ["words", "write", "seen"], weight: 2),
-        gift("one-sentence-power", "One true sentence can save a whole day from vanishing.", "You've already proved it.", "Words", ["words", "write", "souvenir", "memory"], weight: 2),
-
-        // ── Gifts: the hidden magic in ordinary things ──
+        // ── Gifts: hidden things ──
         gift("shadow-cursive", "Somewhere near you right now, a shadow's writing in cursive on the pavement.", "It's been writing to you for years. Somebody should write back.", "Hidden Things", ["notice", "outside", "sky", "magic", "wonder"], weight: 3),
-        gift("secret-second-floor", "Your ordinary Tuesday has a secret second floor.", "The stairs are behind the thing you keep walking past.", "Hidden Things", ["ordinary", "everyday", "notice", "magic", "wonder"], weight: 3),
-        gift("one-light-on", "There's a window near you with one light on at the wrong time. Somebody's up to something.", "Nothing sinister. Probably soup.", "Hidden Things", ["notice", "night", "evening", "outside", "wonder"], weight: 2),
+        gift("secret-second-floor", "Every ordinary day has a secret second floor.", "The stairs are behind something you walk past without looking. I don't know what. I'd love to.", "Hidden Things", ["ordinary", "everyday", "notice", "magic", "wonder"], weight: 3),
+        gift("one-light-on", "Somewhere near you there's one window with a light on at the wrong time.", "Somebody in there's making soup. I'm almost sure it's soup.", "Hidden Things", ["notice", "night", "evening", "outside", "wonder"], weight: 2),
         gift("floor-light", "The light on the floor has been moving all day and nobody's thanked it once.", "It's shy. It'll take a nod.", "Hidden Things", ["sky", "notice", "ordinary", "morning", "gentle"], weight: 2),
-        gift("unused-door", "Every street has one door nobody uses and everybody walks past.", "I'd bet my spine it's got a story. I never lose that bet.", "Hidden Things", ["outside", "walk", "notice", "wonder", "adventure"], weight: 2),
-        gift("kettle-opera", "Your kettle sings a different note every morning.", "It's a tiny opera. Nobody's reviewing it.", "Hidden Things", ["morning", "ordinary", "sound", "tea", "notice"], weight: 2),
+        gift("unused-door", "Every street has one door nobody uses. It's waiting for somebody in particular.", "I'd bet my spine it knows who.", "Hidden Things", ["outside", "walk", "notice", "wonder", "adventure"], weight: 2),
+        gift("kettle-opera", "Your kettle sings a different note every morning.", "It's trying to find the right one. When it does, I think it'll stop singing and just boil.", "Hidden Things", ["morning", "ordinary", "sound", "tea", "notice"], weight: 2),
         gift("boring-hat", "The most interesting thing you'll see today is already in front of you.", "It's wearing a very boring hat.", "Hidden Things", ["notice", "ordinary", "wonder", "magic"], weight: 2),
         gift("rain-opinions", "Rain has an opinion about every roof.", "The tin one's the loudest. It always thinks it's winning.", "Hidden Things", ["weather", "rain", "sound", "notice", "wonder"], weight: 2),
-        gift("tiny-miracle", "Somebody left a tiny miracle on the ground for you: a button, a feather, a bottle cap with a story.", "I'd keep it. I keep everything.", "Hidden Things", ["outside", "walk", "notice", "souvenir", "wonder"], weight: 2),
+        gift("tiny-jumpers", "There's a button or a feather or a bottle cap on the ground near you, and it got there on purpose.", "Small things don't fall out of pockets by accident. They jump.", "Hidden Things", ["outside", "walk", "notice", "souvenir", "wonder"], weight: 2),
 
-        // ── Pacts: noticing ──
-        pact("green-thing", "Find one small green thing within a hundred steps.", "Give it nine seconds. Green things are always up to something.", "Noticing", ["notice", "outside", "nature", "green"], signs: ["I will find it.", "I might.", "We'll see."], weight: 3),
-        pact("look-up", "Step outside for one minute today and look up.", "The sky made something. Go and inspect it.", "Noticing", ["sky", "outside", "notice", "wonder"], signs: ["I will look.", "I might.", "We'll see."], weight: 3),
-        pact("one-sound", "Sometime today, stop and find the quietest sound in the room.", "There's always one hiding under the others. It's usually the best one.", "Noticing", ["sound", "notice", "quiet", "sense"], signs: ["I will listen.", "I might.", "We'll see."], weight: 2),
-        pact("texture-hunt", "Touch one ordinary thing slowly: the mug, the bark, the cold side of the pillow.", "Your hands know how to read. Let them.", "Noticing", ["touch", "sense", "notice", "ordinary"], signs: ["I will.", "Odd, but fine.", "We'll see."], weight: 2),
-        pact("name-a-shadow", "Find a shadow doing something odd and give it a name.", "It's much happier once it's got one.", "Noticing", ["notice", "outside", "play", "wonder", "sky"], signs: ["I will.", "I might.", "We'll see."], weight: 2),
-        pact("known-thing", "Look closely at one thing you touch every day and find one detail you've never noticed.", "There's always one. I've never lost this bet.", "Noticing", ["notice", "ordinary", "everyday", "sense", "magic"], signs: ["I will.", "I might.", "We'll see."], weight: 2),
-        pact("three-surfaces", "Next time it rains, listen to it on three different surfaces.", "Rain's a different instrument on a window, a hood and a puddle.", "Noticing", ["weather", "rain", "sound", "sense", "notice"], signs: ["I will.", "If it rains.", "We'll see."], weight: 2),
+        // ── Gifts: the house ──
+        gift("ordinary-disguise", "The spoon, the doorknob and the wet pavement are all up to something.", "The spoon's the worst at hiding it.", "The House", ["ordinary", "everyday", "wonder", "magic"], weight: 2),
+        gift("lonely-chair", "One chair in your house is lonelier than the others.", "It's the one nobody picks. I'd sit in it if I had a bottom.", "The House", ["ordinary", "everyday", "home", "wonder", "play"], weight: 3),
+        gift("favourite-spoon", "I bet you've got a favourite spoon.", "Everybody's got one and nobody says. The spoon knows.", "The House", ["ordinary", "everyday", "home", "kitchen", "morning"], weight: 2),
+        gift("missing-sock", "Socks go missing because they want to see the world.", "One of yours is out there right now. I hope it's having a good time.", "The House", ["ordinary", "home", "play", "wonder"], weight: 2),
+        gift("fridge-hum", "Your fridge hums all night so the food won't be scared of the dark.", "Nobody asked it to. It just does.", "The House", ["night", "home", "sound", "ordinary", "gentle"], weight: 2),
 
-        // ── Pacts: words & keeping ──
-        pact("one-sentence-today", "Give today one true sentence.", "It can be wonky. Just make sure it's true.", "Words", ["write", "souvenir", "words", "evening"], signs: ["I will write one.", "I agree.", "We'll see."], weight: 3),
-        pact("kind-thing-aloud", "Say one kind thing out loud today, where a real person can hear it.", "Thinking it counts for you. Saying it counts for two.", "Kindness", ["kindness", "people", "courage"], signs: ["I will.", "I'll try.", "We'll see."], weight: 3),
-        pact("thank-properly", "Next time you say thanks, add the exact thing they did.", "Plain words land harder than fancy ones.", "Kindness", ["kindness", "folklore", "people", "words"], signs: ["I agree.", "I'll try it.", "We'll see."], weight: 2),
+        // ── Gifts: weather & night ──
+        gift("sky-daily", "The sky made a brand new mess of colour today.", "It didn't ask if anyone had time to look. It just did it.", "Weather", ["sky", "wonder", "notice", "outside"], weight: 2),
+        gift("grey-day", "Today came in grey and won't be talked out of it.", "I tried. It's very stubborn. I'll keep it company till it goes.", "Weather", ["grey", "weather", "shadow", "gentle", "mood-match"], signs: ["Ok.", "Kept.", "Hm."], weight: 2),
+        gift("puddle-sky", "Every puddle's got a whole sky in it, upside down.", "If you jump in one, you're jumping into the sky. I think that's allowed.", "Weather", ["rain", "weather", "outside", "play", "sky"], weight: 2),
+        gift("wind-looking", "The wind's looking for something. That's why it checks every tree.", "It's been looking for a very long time. I hope it finds it.", "Weather", ["weather", "wind", "outside", "nature", "wonder"], weight: 2),
+        gift("stars-anyway", "The stars came out again without checking your calendar.", "They'd come out if nobody looked. They're happier when somebody does.", "Night", ["stars", "night", "sky", "gentle"], weight: 2),
+        gift("moon-follows", "The moon follows the car because it wants to know where you're going.", "It's been wondering for ages. I'd tell it, if I were in the car.", "Night", ["moon", "night", "sky", "wonder", "travel"], weight: 2),
+        gift("dark-full", "The dark's full of things having a rest.", "Chairs, coats, the stairs. That's why the house goes quiet at night.", "Night", ["night", "evening", "home", "rest", "quiet"], weight: 2),
+
+        // ── Gifts: tired days ──
+        gift("tired-true", "Tired is a real fact about today.", "I wrote it down. The lamp can stop arguing.", "Tired Days", ["rest", "tired", "gentle", "hard-day"], weight: 2),
+        gift("heavy-day", "Some days are heavy. I can't lift them either.", "I'll sit here with you till it's evening. Books are good at sitting.", "Tired Days", ["hard-day", "gentle", "rest", "grey"], signs: ["Ok.", "Kept.", "Stay, then."], weight: 3),
+        gift("bad-days-kept", "I keep bad days too. They go on the same paper as the good ones.", "Nobody gets torn out.", "Tired Days", ["hard-day", "gentle", "history", "courage"], weight: 3),
+        gift("rest-counts", "Everything gets to close sometimes: a tab, a door, your eyes.", "When I'm shut, my Pages talk to each other in the dark. They like it.", "Tired Days", ["rest", "gentle", "evening", "night"], weight: 3),
+        gift("heart-shy", "Your heart's been going all day and you haven't said a word to it.", "I think it wants a glass of water. Hearts are shy about asking.", "Tired Days", ["body", "care", "gentle", "rest"], weight: 2),
+        gift("tea-speed", "Tea won't be hurried. It knows how long it takes.", "I go at the tea's speed in the mornings. It's never once been late.", "Slow Days", ["morning", "slow", "rest", "tea"]),
+        gift("small-days", "Small days are my favourite size.", "They fit in my pocket. Big days have to go on the shelf.", "Slow Days", ["enough", "small", "rest", "gentle", "hard-day"], weight: 2),
+
+        // ── Gifts: you, and the company you keep ──
+        gift("not-behind", "You're not behind. I checked.", "The race was made up by a clipboard. I ate the clipboard.", "You", ["enough", "gentle", "comparison"], weight: 2),
+        gift("none-were-you", "I've kept lots of days. None of them was this one, and none of them was you.", "I'd know. I've read every one.", "You", ["seen", "wonder", "identity"], signs: ["Ok.", "Read twice.", "If you say so."], weight: 3),
+        gift("strange-questions", "Strange questions need somewhere to sit.", "The boring ones get all the chairs. I keep a few strange ones in my pocket.", "You", ["curiosity", "questions", "wonder"], weight: 2),
+        gift("good-company", "My Pages sit up when they hear you coming.", "They've learned your footsteps. Nobody taught them.", "You", ["seen", "belonging", "book"], signs: ["That was kind.", "Kept.", "Read twice."]),
+        gift("margin-seat", "The best bits of me live in the margins.", "The main line's always in a hurry. The margin's got time, so that's where I keep a seat for you.", "You", ["notice", "margin", "seen"], weight: 2),
+        gift("kind-things-move-in", "A kind thing doesn't stop when it's done. It goes and lives in the other person for a while.", "Sometimes for years. I've watched it happen on my Pages.", "Kindness", ["kindness", "gentle", "hope", "people"], weight: 2),
+
+        // ── Gifts: words ──
+        gift("your-words-matter", "Your words change what I remember.", "Even the small ones shove things around.", "Words", ["words", "write", "seen"], weight: 2),
+        gift("days-go-somewhere", "Days nobody writes down go somewhere. I don't know where, and I don't like it.", "A day with even one line on it stays here with me.", "Words", ["words", "write", "souvenir", "memory"], weight: 3),
+        gift("wild-first-lines", "First lines come out wild. That's how you know they're alive.", "Tame ones just lie there. I like the ones that run about.", "Words", ["begin", "courage", "write", "morning"], weight: 2),
+        gift("first-page", "A blank Page is only trying to scare you.", "One line written right on its face and it goes very quiet.", "Words", ["begin", "morning", "gentle", "write"], weight: 2),
+        gift("empty-pages", "I'm not finished. I've got hundreds of empty pages.", "I don't know what goes on them yet. That's my favourite thing about them.", "Words", ["growth", "gentle", "story", "book"], weight: 2),
+
+        // ── Gifts: wonder ──
+        gift("wrong-road", "The wrong road was hoping you'd come.", "Roads get lonely. Some of them haven't had a visitor in years.", "Wonder", ["courage", "story", "mistakes", "walk", "outside"], weight: 2),
+        gift("gone-invisible", "Something near you has sat so still all day that it's gone invisible.", "One look and it comes back. My lamp did that once. It'd been standing there a week.", "Wonder", ["notice", "attention", "enough", "ordinary"], weight: 2),
+        gift("map-scoots", "Every time somebody asks a new question, the map has to scoot over.", "It grumbles about it. I've heard it.", "Wonder", ["curiosity", "questions", "wonder"], weight: 2),
+        gift("lazy-magic", "Grown-ups stopped looking for magic, so magic stopped hiding properly.", "It's lazy now. It hides behind a cushion and leaves its feet sticking out.", "Magic", ["magic", "notice", "wonder", "attention"], weight: 3),
+
+        // ── Pacts: outside ──
+        pact("green-thing", "Find one small green thing within a hundred steps and say hello to it out loud.", "And I'll keep a green thread in my spine till you're back.", callIn: "I kept the green thread in my spine the whole time. It itched. Did you say hello to your green thing? Did it say anything?", "Outside", ["notice", "outside", "nature", "green"], signs: ["I'll find it.", "I might.", "We'll see."], weight: 3),
+        pact("look-up", "Step outside for one minute today and look straight up.", "And I'll look up too. My sky's the top of the shelf, but I'll look hard.", callIn: "I looked at the top of my shelf every day. There's a crack up there in the shape of a fish. What was up there for you?", "Outside", ["sky", "outside", "notice", "wonder"], signs: ["I'll look.", "I might.", "We'll see."], weight: 3),
+        pact("name-a-shadow", "Find a shadow doing something odd and give it a name.", "And I'll leave a line in my index so its name has somewhere to live.", callIn: "The line in my index is still empty. It's been waiting for your shadow's name. What did you call it?", "Outside", ["notice", "outside", "play", "wonder", "sky"], weight: 2),
+        pact("tree-handshake", "Shake hands with a tree today. Bark's how a tree tells you who it is.", "And I'll meet my bookmark properly. We've never really been introduced.", callIn: "I met my bookmark properly. It's older than I thought, and somebody's chewed the end. Did you shake hands with a tree? What was it like?", "Outside", ["touch", "sense", "outside", "nature", "play"], signs: ["I will.", "Odd, but fine.", "We'll see."], weight: 2),
+        pact("wrong-way-home", "Take one slightly wrong turn this week.", "And I'll read my Pages in the wrong order and see what happens.", callIn: "I read my Pages in the wrong order. Thursday came before Monday and nobody minded. Where did your wrong turn go?", "Outside", ["walk", "outside", "adventure", "play"], signs: ["I will.", "Maybe Saturday.", "We'll see."], weight: 2),
+        pact("rain-winner", "Next time it rains, find out which thing outside is enjoying it most.", "And I'll listen from in here and pick a winner too.", callIn: "I picked the drainpipe. It gargles. Did it rain where you were? What was enjoying it most?", "Weather", ["weather", "rain", "sound", "outside", "notice"], signs: ["I will.", "If it rains.", "We'll see."], weight: 2),
+
+        // ── Pacts: the house ──
+        pact("lonely-chair-pact", "Find out which chair in your house is lonely, and sit in it once today.", "And I'll ask my shelf which of my Pages is loneliest, and read it twice.", callIn: "I read my loneliest Page twice. It was a recipe, and it cheered up a lot. Did you find the lonely chair?", "The House", ["home", "play", "notice", "wonder"], signs: ["I'll find it.", "I might.", "We'll see."], weight: 3),
+        pact("quiet-sound", "Find the quietest sound in the room. It's been talking all day and nobody's heard it.", "And I'll keep so still my pages don't rustle, so it can get a word in.", callIn: "I kept so still my pages didn't rustle once. Did you hear the quiet sound? What was it saying?", "The House", ["sound", "notice", "quiet", "sense", "home"], signs: ["I'll listen.", "I might.", "We'll see."], weight: 2),
+        pact("hidden-detail", "Pick one thing you touch every day and find the bit it's been hiding from you.", "And I'll look for mine. I've got a corner I've never once looked at.", callIn: "I found mine. There's a tiny snail drawn on my back cover, and I don't know who drew it. What was yours hiding?", "The House", ["notice", "ordinary", "everyday", "sense", "magic"], weight: 2),
+
+        // ── Pacts: words, keeping, thanks ──
+        pact("one-sentence-today", "Give today one true sentence before it goes.", "And I'll keep the line under it clear, so it's got room.", callIn: "I kept a clear line for your sentence. Did that day get one? If it didn't, today can have it instead.", "Words", ["write", "souvenir", "words", "evening"], signs: ["I'll write one.", "I might.", "We'll see."], weight: 3),
+        pact("thank-a-thing", "Thank something that's never been thanked: the bus, the bin, the stairs.", "And I'll thank my pencil. It's done all my writing and never had a word.", callIn: "I thanked my pencil. Its tip went soft. Did you thank something that's never been thanked? What did it do?", "Kindness", ["kindness", "folklore", "play", "ordinary"], signs: ["I will.", "I'll try.", "We'll see."], weight: 3),
+        pact("pocket-souvenir", "Bring home one tiny proof of today: a leaf, a ticket, a strange stone.", "And I'll clear a space in my drawer for it. The drawer's already nosing about.", callIn: "The space in my drawer's still empty and it keeps asking. Did you bring something home? What is it?", "Keeping", ["souvenir", "memory", "keep", "play"], signs: ["I will.", "If I see one.", "We'll see."], weight: 2),
 
         // ── Pacts: the body & rest ──
-        pact("water-potion", "Drink a glass of water, like a wizard.", "Two gases made a liquid. It's ridiculous and it's useful.", "The Body", ["body", "water", "care", "magic"], signs: ["I will.", "Fine, yes.", "We'll see."], weight: 2),
-        pact("early-lamp", "Put the day down ten minutes early tonight.", "The clock will complain. Let it.", "Rest", ["rest", "night", "evening", "sleep", "care"], signs: ["I agree.", "I'll try.", "We'll see."], weight: 2),
-        pact("one-inch", "If today's heavy, move one inch.", "One inch is plenty.", "Courage", ["hard-day", "gentle", "rest", "courage"], signs: ["One inch. Ok.", "I'll try.", "Not today."], weight: 2),
+        pact("water-journey", "Drink one glass of water today. It's been rain and sea and cloud to get to you.", "And I'll keep a drop on my corner to remember it by.", callIn: "There's still a little ring on my corner from that drop. Did you drink your glass? It came a very long way.", "Your Body", ["body", "water", "care", "magic"], signs: ["I will.", "Fine, yes.", "We'll see."], weight: 2),
+        pact("early-lamp", "Put the day down ten minutes early tonight.", "And I'll shut ten minutes early too, and tell the clock it was my idea.", callIn: "I shut early and told the clock it was me. It's still cross. Did you put the day down early?", "Tired Days", ["rest", "night", "evening", "sleep", "care"], signs: ["I will.", "I'll try.", "We'll see."], weight: 2),
+        pact("one-inch", "If today's heavy, pick up one small thing and put it back where it lives.", "And I'll put my ribbon back where it lives. It's been hanging out of me for days.", callIn: "My ribbon's back where it lives. It looks pleased with itself. Did one small thing get home for you?", "Tired Days", ["hard-day", "gentle", "rest", "courage"], signs: ["One thing. Ok.", "I'll try.", "Not today."], weight: 2),
 
-        // ── Pacts: wonder & play ──
-        pact("wrong-way-home", "Take one slightly wrong turn this week.", "See what that street's been hiding.", "Adventure", ["walk", "outside", "adventure", "play"], signs: ["I will.", "Maybe Saturday.", "We'll see."], weight: 2),
-        pact("ask-one-question", "Ask one question a seven-year-old would keep.", "Why is the moon out in the daytime? It's getting away with something.", "Curiosity", ["curiosity", "questions", "play", "wonder"], signs: ["I will.", "I might.", "We'll see."], weight: 2),
-        pact("pocket-souvenir", "Bring home one tiny proof of today: a leaf, a ticket stub, a sentence, a photo of a weird door.", "I'll keep it. The drawer's already nosing around.", "Keeping", ["souvenir", "memory", "keep", "play"], signs: ["I will.", "If I see one.", "We'll see."], weight: 2),
-        pact("borrow-delight", "Let one small thing delight you without explaining it.", "Explanations can wait outside.", "Joy", ["joy", "delight", "play", "gentle"], signs: ["I agree.", "Gladly.", "We'll see."], weight: 2)
+        // ── Pacts: wonder ──
+        pact("ask-one-question", "Ask one question a seven-year-old would keep asking.", "And I'll ask one too: why's the moon out in the daytime when nobody asked it?", callIn: "I've been asking why the moon's out in the daytime. Nobody's told me yet. What did you ask?", "Wonder", ["curiosity", "questions", "play", "wonder"], weight: 2),
+        pact("cloud-decide", "Find a cloud that isn't any shape at all and decide what it is.", "And I'll decide what the stain on my back page is.", callIn: "I decided the stain on my back page is a sleeping dog. What did your cloud turn out to be?", "Wonder", ["sky", "play", "wonder", "delight", "outside"], weight: 2)
     ]
 }
 
@@ -3054,96 +3098,96 @@ enum BookReferenceCatalog {
             id: "labyrinth-lore-book-of-you",
             sourceID: "labyrinth-lore",
             title: "The Book of You",
-            prompt: "Let today become a page worth keeping.",
-            body: "The Book of You is the private volume that waits closest to the reader. It doesn't demand grand adventures. It notices the cup left beside the bed, the weather at the window, the sentence that would have vanished if no one had written it down. When a page is kept, the Book doesn't announce a score. It simply grows warmer, as if one more lamp has been lit in a long room.",
+            prompt: "There's one volume in me that's only about you.",
+            body: "It sits closer to you than any of my other shelves. It catches the cup left by the bed, the weather at the window, and the sentence that tried to get away. Every evening I braid what you kept into a page for it. Nobody else gets one. When you keep something it goes warm in my hands, and another little lamp comes on somewhere inside me.",
             tags: ["book-of-you", "memory", "private", "rooms"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-academy",
             sourceID: "labyrinth-lore",
             title: "The Academy of Unlikely Arts",
-            prompt: "Step through the school-shaped margin.",
-            body: "The Academy is a school built inside a living library. Its corridors behave like chapters, its classrooms keep weather of their own, and its professors tend to believe ordinary life is already enchanted but poorly indexed. Students learn by paying attention, losing their way responsibly, and returning with evidence. The school is less interested in spectacle than in whether a person can notice a true thing and carry it home intact.",
+            prompt: "There's a whole school inside me.",
+            body: "The Academy is a school built inside me, in the middle of a library that goes down further than anyone's measured. Its corridors move about. Its classrooms have their own weather. The professors all think ordinary life is already magic and just badly labelled. Students learn by looking hard, getting lost on purpose, and coming back with proof. Nobody cares how big your magic is. They care whether you can find one true thing and carry it home without dropping it.",
             tags: ["academy", "school", "history", "classes"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-penny-blackletter",
             sourceID: "labyrinth-lore",
             title: "Penny Blackletter",
-            prompt: "Let Penny file the ridiculous evidence.",
-            body: "Penny Blackletter runs the margins as if every overlooked detail might become tomorrow's headline. She writes fast, loves a field note, distrusts any sentence that arrives too polished, and has never met a strange little scrap of paper she couldn't put to work. Penny is warm under the theatrical deadlines. She believes a day isn't truly lost if one honest detail can still be recovered from it.",
+            prompt: "Penny Blackletter keeps the scraps everybody else throws away.",
+            body: "Penny runs my margins and treats every overlooked detail as tomorrow's front page. She writes fast, loves a field note, and doesn't trust any sentence that turns up too shiny. She's never met a scrap of paper she couldn't put to work. Under all the deadlines she's warm. She believes a day isn't really lost as long as one honest detail can still be rescued from it, and she'll go back for it herself.",
             tags: ["characters", "penny", "marginalia", "letters"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-letters",
             sourceID: "labyrinth-lore",
             title: "Letters From The Margins",
-            prompt: "A message can arrive from elsewhere.",
-            body: "Letters in the Labyrinth don't arrive merely to explain things. They arrive with tea rings, crossed-out sentences, pressed flowers, bad timing, and the faint sense that someone hesitated before folding the page. A good letter carries relationship: what the sender wants, what they fear asking, what they noticed when the reader was elsewhere, and which door they're quietly hoping will open next.",
+            prompt: "A letter can turn up from somewhere else.",
+            body: "Letters in the Labyrinth never come just to explain something. They come with tea rings, crossed-out sentences, pressed flowers, bad timing, and a crease where somebody stopped before folding. A good letter carries the person who wrote it: what they want, what they're scared to ask, what they noticed while you were busy, and what they're quietly hoping happens next. I keep every one.",
             tags: ["letters", "characters", "relationships", "margins"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-outer-stacks",
             sourceID: "labyrinth-lore",
             title: "The Outer Stacks",
-            prompt: "Let a place become a room.",
-            body: "Beyond the Academy's catalogued halls are the Outer Stacks, where real places gather room-feelings. A harbor may become a tidal reading room. A cafe may keep a tiny kingdom beneath the sugar packets. A parking lot may hold a door that only appears when the light hits the asphalt correctly. The Outer Stacks don't make places less real. They make them more themselves.",
+            prompt: "My shelves go further than my covers.",
+            body: "Inside me there's a school, a library that goes down further than anyone's measured, and more corridors than I can count. All of it together is the Labyrinth. The Outer Stacks are its edge, where my shelves run out into real places. A harbour turns into a reading room that floods twice a day. A café keeps a tiny kingdom under the sugar packets. The places stay exactly as real as they were. They just get a room in here too.",
             tags: ["outer-stacks", "location", "rooms", "place"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-rooms",
             sourceID: "labyrinth-lore",
             title: "Rooms That Behave Like Pages",
-            prompt: "Open the door that has been waiting.",
-            body: "Rooms in the Labyrinth aren't neutral containers. A room has a mood, a history, a preferred volume, and sometimes a private grudge against certain shoes. The Quillquarium is full of writing instruments swimming through the air until the right one chooses the right student. The Book Burrow is where lamps, blankets, snacks, and low voices make hanging out feel like a valid form of magic. The Dorm is the reader's private continuity room: shaped by kept pages, souvenirs, letters, chapter weather, and chosen comforts, but careful never to invent private facts. A Story Page can borrow any of these rooms when a day needs shape, shelter, or mischief.",
+            prompt: "Every room in me has a mood.",
+            body: "Rooms in the Labyrinth have moods, histories, a favourite volume, and sometimes a private grudge against certain shoes. The Quillquarium is full of pens swimming through the air until the right one chooses the right student. The Book Burrow is lamps, blankets, snacks and low voices, and nobody has to do anything there. The Dorm is yours, filled up with what you've kept: souvenirs, letters, your Chapter's weather. I never put anything in it you didn't bring.",
             tags: ["classes", "locations", "rooms", "story", "quillquarium", "book-burrow", "dormitory"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-instruments",
             sourceID: "labyrinth-lore",
             title: "The Instrument Law: Pens, Not Wands",
-            prompt: "Ask your pen before you ask the spell.",
-            body: "There are no wands at the Academy, and there never have been. Magic here is written, not waved: a spell is a sentence that means it, and the instrument that inks it does half the work. Every member of the Cast carries a writing implement (a quill, a dip pen, a pencil stub sharpened with a knife) and each implement has opinions of its own about what it's asked to write. A pen can refuse a lazy spell, improve a timid one, or add a flourish nobody ordered. This is why the Quillquarium matters: an instrument can't merely be picked up, it has to choose, and it chooses the writer it can usefully disagree with. The Headmistress's legendary inkwell is kept in her office for safekeeping. Officially.",
+            prompt: "Nobody at the Academy has a wand.",
+            body: "Magic here is written, never waved. A spell is a sentence that means it, and whatever writes it does half the work. Everyone in the Cast carries something to write with, a quill or a dip pen or a pencil stub sharpened with a knife, and every one of those has opinions about what it's asked to write. A pen can refuse a lazy spell, fix a timid one, or add a curly bit nobody asked for. That's why the Quillquarium matters. A pen has to pick you, and it picks somebody it can usefully argue with.",
             tags: ["canon", "instruments", "pens", "quills", "magic", "quillquarium", "school"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-classes",
             sourceID: "labyrinth-lore",
             title: "The Compass Core Classes",
-            prompt: "Let the school turn attention into practice.",
-            body: "Every student eventually meets the foundation classes. Professor Lydia Boggle teaches the Art of the Glint, where ordinary objects are treated as witnesses. Professor Kyle Momort teaches Wayfinding and Narrative Kineticism, and his students learn that motion has consequences even when it begins as one step. Professor Eleanor Euphony teaches Synesthetic Resonance, where rooms have temperature, colors have weight, and the senses are given serious academic standing. Professor Vivian Villanelle teaches Ink-Binding and Souvenir Craft, where a sentence becomes a small vessel for time.",
+            prompt: "Everybody starts with the same few classes.",
+            body: "Professor Boggle teaches the Art of the Glint, where ordinary things get treated as witnesses. Professor Momort teaches Wayfinding, and his students find out that one step can change where a whole day goes. Professor Euphony teaches Resonance, where rooms have temperatures and colours weigh something. Professor Villanelle teaches Ink-Binding, where one sentence learns to carry a moment through time without spilling it. Professor Stonebrook teaches Quiet Hours, mostly by sitting down.",
             tags: ["classes", "faculty", "school", "schedule"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-schedule",
             sourceID: "labyrinth-lore",
             title: "The Shape of a School Day",
-            prompt: "Notice the bells beneath the ordinary day.",
-            body: "A school day at the Academy has a rhythm, though the building enjoys bending it. Morning classes run when the corridors are bright enough to be optimistic. Afternoon classes take the settled hours, when the Library has formed opinions and students are less easily impressed. Clubs gather under lamps in rooms that pretend not to be listening. Between these formal hours are the true passages: breakfast gossip, corridor weather, the note slipped under a door, and the friend waiting outside the room with a question folded into silence.",
+            prompt: "A school day in me has a rhythm, and the building bends it.",
+            body: "Morning classes run while the corridors are bright enough to feel hopeful. Afternoon classes get the settled hours, when the students are harder to impress. Clubs meet under lamps in rooms that pretend they aren't listening. In between are the real passages: gossip at breakfast, weather in the corridors, a note pushed under somebody's bedroom door, and a friend waiting outside with a question they haven't said yet.",
             tags: ["classes", "schedule", "school", "student-life"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-headmistress-thorne",
             sourceID: "labyrinth-lore",
             title: "Headmistress Seraphina Thorne",
-            prompt: "Let authority enter with a hidden page.",
-            body: "Headmistress Seraphina Thorne has the poise of someone who can silence a room by closing a book. Students see the elegant robes, the precise speech, the old authority of a person who knows which staircases lie. What they don't always see is the cost of keeping a school safe when the school itself is a living text with strong opinions and a long memory. Thorne isn't soft, but she isn't careless. Her office contains a legendary inkwell, officially for safekeeping. Unofficially, students suspect she uses it after midnight. There's always, around her, the faint cold draft of a window left open onto winter, though no one has ever found the window.",
+            prompt: "She can make a whole room go quiet by shutting a book.",
+            body: "Headmistress Thorne has elegant robes, a very exact way of talking, and the kind of old authority that knows which staircases tell lies. What students don't always see is how hard it gets to keep a school safe when the school is alive and has a long memory. She isn't soft and she isn't careless. There's always a thin cold draught around her, from a window left open onto winter. Nobody's ever found the window. I've looked.",
             tags: ["characters", "faculty", "headmistress", "history", "duskthorn"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-history",
             sourceID: "labyrinth-lore",
             title: "Unreliable Academy History",
-            prompt: "Let the old stories misbehave politely.",
-            body: "Academy history is full of incidents recorded with suspiciously careful handwriting. During the Day of the Living Literary Figures, Sherlock Holmes, Alice, and Dracula appeared in the cafeteria at the same time; Holmes deduced the menu, Alice critiqued the architecture, and Dracula objected to the lighting. The Pages of Laughter and Tears once made an entire class alternate between hysterics and sobbing until someone discovered the comedy and tragedy pages had been shelved out of order. These stories are told as warnings, but students mostly hear invitations.",
+            prompt: "Academy history has some very strange days in it.",
+            body: "On the Day of the Living Literary Figures, Sherlock Holmes, Alice and Dracula all turned up in the dining hall at once. Holmes worked out the menu, Alice complained about the architecture, and Dracula didn't like the lighting. The Pages of Laughter and Tears once made a whole class laugh and sob by turns until somebody found out the funny pages and the sad pages had been shelved in the wrong order. Everyone tells these stories as warnings. Students hear them as invitations.",
             tags: ["academy", "history", "school", "story"]
         ),
         ReferenceSnippet(
             id: "labyrinth-lore-weather",
             sourceID: "labyrinth-lore",
             title: "Weather in the Stacks",
-            prompt: "Let the sky annotate the page.",
-            body: "Weather at the Academy is never only meteorological, but it's never merely symbolic either. Fog makes professors cancel class to watch the harbor disappear by degrees. Rain turns corridors into quieter arguments. Bright cold sharpens the ink. Heat makes the paper curl and the students theatrical. The Library cloud above the great ceiling changes color when the building is thinking about something it doesn't intend to say aloud. A weather page should remain legible, but the Book may name the mood of the response. The reader should feel tended, not watched.",
+            prompt: "My weather won't sit still and be weather.",
+            body: "When it's foggy where you are, it's foggy in my corridors, and the professors stand at the windows pretending to work. Rain makes the hallways mutter. Cold makes my ink sharp. Heat curls my paper and makes everybody dramatic. I take whatever sky you've got and let it into the halls. Sometimes I change my own weather on purpose. I won't always tell you why.",
             tags: ["atmosphere", "school", "weather", "world"]
         )
     ]
@@ -3843,6 +3887,73 @@ struct QuotesPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
+/// A signed pact comes back once. The Book did its half, so it asks after
+/// the reader's: two days after the keep at the earliest, never after a
+/// fortnight. A pact the reader turned down stays down, a pact kept before the
+/// Book had a half is never called in, and a call-in that's been offered
+/// twice without being kept lets the pact go.
+enum PactCallIn {
+    struct Owed: Equatable {
+        let page: BookPage
+        let entry: AffirmationEntry
+        /// What the reader wrote in the pact's margin, trimmed for quoting.
+        let signature: String
+    }
+
+    static let earliest: TimeInterval = 2 * 86_400
+    static let latest: TimeInterval = 14 * 86_400
+    static let rest: TimeInterval = 2 * 86_400
+    static let maximumAsks = 2
+    static let bookHalfKey = "pactBookHalf"
+    static let pageIDKey = "pactCallInPageID"
+    static let answers = ["I did.", "Not yet.", "I forgot."]
+
+    static func historyKey(for pageID: String) -> String {
+        "pact-call-in:\(pageID)"
+    }
+
+    static func owed(day: BookDay, inputs: BookSourceInputs, now: Date) -> Owed? {
+        let kept = (inputs.days + [day]).flatMap(\.capturedPages)
+        let answered = Set(kept.compactMap { $0.metadata?[pageIDKey]?.nonEmpty })
+        let pacts = kept
+            .filter { page in
+                page.metadata?["affirmationKind"] == "pact"
+                    && page.metadata?[bookHalfKey]?.nonEmpty != nil
+                    && !answered.contains(page.id)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+        for page in pacts {
+            let age = now.timeIntervalSince(page.createdAt)
+            guard age >= earliest, age <= latest else { continue }
+            guard let id = page.metadata?["affirmationID"],
+                  let entry = AffirmationLibraryRegistry.affirmation(id: id),
+                  entry.callIn?.nonEmpty != nil,
+                  let signature = signature(on: page) else { continue }
+            if let record = inputs.surfaceHistory[historyKey(for: page.id)] {
+                guard record.recentShowCount < maximumAsks,
+                      now.timeIntervalSince(record.lastShownAt) >= rest else { continue }
+            }
+            return Owed(page: page, entry: entry, signature: signature)
+        }
+        return nil
+    }
+
+    /// The reader's signature, or nil when there isn't one or it said no. An
+    /// unsigned pact was only read, and a refusal is an answer already.
+    static func signature(on page: BookPage) -> String? {
+        let written = page.playerReply.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            ?? page.readerAuthoredTextForAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        guard let written else { return nil }
+        let lowered = written.lowercased().trimmingCharacters(in: .punctuationCharacters)
+        let refusals: Set<String> = ["no", "nope", "no thanks", "not today", "never"]
+        guard !refusals.contains(lowered), !lowered.hasPrefix("not today") else { return nil }
+        guard written.count > 120 else { return written }
+        let clipped = written.prefix(120)
+        let cut = clipped.lastIndex(of: " ").map { clipped[..<$0] } ?? clipped
+        return cut.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters)) + "…"
+    }
+}
+
 struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .affirmations)
 
@@ -3859,7 +3970,12 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
                 lastShown[entry.id] = record.lastShownAt
             }
         }
-        return AffirmationLibraryRegistry.rankedAffirmations(
+        // A signed pact comes back before anything new is offered. Never on a
+        // heavy day: asking after homework is still homework.
+        let callIns = context.distress.isActive
+            ? []
+            : PactCallIn.owed(day: day, inputs: inputs, now: now).map { [callInSurface($0)] } ?? []
+        return callIns + AffirmationLibraryRegistry.rankedAffirmations(
             for: day,
             now: now,
             tags: tags,
@@ -3905,6 +4021,31 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
         let hour = Calendar.current.component(.hour, from: now)
         let score = context.distress.isActive ? 62 : ((hour >= 5 && hour < 11) ? 68 : 58)
         let slotID = manual ? "\(Int(now.timeIntervalSince1970))" : SurfaceCadence.minuteSlotID(for: now, minutes: 40)
+        var metadata: [String: String] = [
+            "source": source.id,
+            // Same as the Quotes Page: the believing is `prompt`, the
+            // theme is a shelf label. Without this the leaf reads
+            // "Courage" over the Book's aside, and the line the Book
+            // actually wanted to say never reaches paper.
+            "folioTitle": entry.text,
+            "packID": entry.packID,
+            "affirmationID": entry.id,
+            // The Curator rests a Page for as long as its family takes
+            // to come round once, and it can only count the four it is
+            // offered. The family is the whole shelf.
+            "deckSize": "\(AffirmationLibraryRegistry.allAffirmations.count)",
+            "affirmationKind": entry.isPact ? "pact" : "gift",
+            "countersigns": entry.countersigns.joined(separator: "||"),
+            "placeholder": entry.placeholder,
+            "surfaceLabel": "Believing",
+            "tags": (["affirmation", entry.theme.lowercased()] + entry.tags).joined(separator: ","),
+            "privacy": "bundled local text"
+        ]
+        // The Book's half travels with the kept Page, so only a pact that
+        // promised something can be called in.
+        if entry.isPact {
+            metadata[PactCallIn.bookHalfKey] = entry.aside
+        }
         return SurfacePage(
             id: "\(source.id)-\(entry.packID)-\(entry.id)-\(slotID)",
             type: .affirmations,
@@ -3913,31 +4054,52 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .promptCard,
             score: score,
             reason: entry.isPact
-                ? "I want one small agreement. Sign it, change it, or cross it out."
-                : "I wanted you to have this. Nothing's owed.",
+                ? "A pact. You do your half and I'll do mine."
+                : "I've believed this for ages. Now you know too. Nothing's owed.",
             prompt: entry.text,
             detail: entry.aside,
             payload: BookPagePayload(
                 headline: entry.theme,
                 body: entry.text,
+                metadata: metadata
+            )
+        )
+    }
+
+    /// The pact coming back. The Book says it did its half, remembers what
+    /// the reader wrote, and asks after theirs.
+    private func callInSurface(_ owed: PactCallIn.Owed) -> SurfacePage {
+        let entry = owed.entry
+        let line = entry.callIn ?? entry.text
+        return SurfacePage(
+            id: "\(source.id)-call-in-\(owed.page.id)",
+            type: .affirmations,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            // Above every ordinary Believing: a pact that's owed is the one
+            // the shelf most wants to say today.
+            score: 74,
+            reason: "We made a pact. I did my half.",
+            prompt: line,
+            detail: "In my margin you wrote “\(owed.signature)”"
+                + (owed.signature.last.map { ".!?…".contains($0) } == true ? "" : "."),
+            payload: BookPagePayload(
+                headline: entry.theme,
+                body: line,
                 metadata: [
                     "source": source.id,
-                    // Same as the Quotes Page: the believing is `prompt`, the
-                    // theme is a shelf label. Without this the leaf reads
-                    // "Courage" over the Book's aside, and the line the Book
-                    // actually wanted to say never reaches paper.
-                    "folioTitle": entry.text,
+                    "folioTitle": line,
                     "packID": entry.packID,
+                    // Rests the pact itself while it's being called in.
                     "affirmationID": entry.id,
-                    // The Curator rests a Page for as long as its family takes
-                    // to come round once, and it can only count the four it is
-                    // offered. The family is the whole shelf.
-                    "deckSize": "\(AffirmationLibraryRegistry.allAffirmations.count)",
-                    "affirmationKind": entry.isPact ? "pact" : "gift",
-                    "countersigns": entry.countersigns.joined(separator: "||"),
-                    "placeholder": entry.placeholder,
-                    "surfaceLabel": "Believing",
-                    "tags": (["affirmation", entry.theme.lowercased()] + entry.tags).joined(separator: ","),
+                    "affirmationKind": "callIn",
+                    PactCallIn.pageIDKey: owed.page.id,
+                    "pactText": entry.text,
+                    "countersigns": PactCallIn.answers.joined(separator: "||"),
+                    "placeholder": "Tell me what happened. Even if nothing did.",
+                    "surfaceLabel": "Pact",
+                    "tags": (["affirmation", "pact-call-in", entry.theme.lowercased()] + entry.tags.filter { $0 != "pact" }).joined(separator: ","),
                     "privacy": "bundled local text"
                 ]
             )
@@ -4032,55 +4194,74 @@ enum CastDossier {
 
     static let bios: [String: String] = [
         "visitor-the-guest": "Somebody came to the west door in a green coat. Ambrose gave them a soul cake before he asked a question. He hasn't asked the question yet. The coat's much too big. Its brass buttons look as if they've outlived three other coats. Under the hood I can't see a face. I can see the hands. They're very clean.\n\nIt sits on the low stool by the fire and eats in careful bites. No crumbs. No thank-you. Everybody else has a smell that gets into my paper. This one hasn't. I've leaned as far as I dare. Nothing. Like a kitchen that used to be there. I keep my cover a little closer now.\n\nIt watches the range while Ambrose puts the kettle on. It watches the pot handles. I think it knows what all of them are for. I think it's counting. Ambrose sets another cake within reach. He doesn't ask it to explain being hungry.\n\nI don't know what to call it yet, so I've put The Guest at the top. It hasn't objected. It hasn't looked at this page either. I think.",
-        "pippa-pilcrow": "Pippa Pilcrow tickles the margins until the punctuation gives up and runs wild. Professor Mook keeps the words at their posts. Pippa shows up like a held breath finally let go, and every sentence in the room starts reaching for a meaning nobody gave it. She's delighted, quick, and light as a comma. The Registry files her under *menace*. They say it fondly. They'll regret the full stop.\n\nShe's the chaos in the rebellion and she isn't sorry. Her creed is four words, *words set free*, and she means it the way kids mean a dare. Here's what I watch. She can't always tell a word that's longing to change from a word that only needed a bit of mercy, and when she's thrilled she'll pull loose a word that wanted to stay put. Delight can be careless. She forgets that. But when your day has gone stiff and correct and scared, she's the one who sets a comma loose in it so you can breathe.\n\nI know her by the big interrobang she rides like a broom and the wings she cut from torn marginalia. You can still read them if you catch them in the light. Correction-mark red, ink black, one flick of gold at her throat. When she visits, silence is optional. Even Mook admits that much. The words finally get up and stretch their legs.",
+        "pippa-pilcrow": "Pippa Pilcrow tickles the margins until the punctuation gives up and runs wild. Professor Mook keeps the words at their posts. When Pippa shows up the whole room breathes out, and every sentence in the room starts reaching for a meaning nobody gave it. She's delighted, quick, and light as a comma. The Registry files her under *menace*. They say it fondly. They'll regret the full stop.\n\nShe's the chaos in the rebellion and she isn't sorry. Her creed is four words, *words set free*, and she means every word of it. Here's what I watch. She can't always tell a word that's longing to change from a word that only needed a bit of mercy, and when she's thrilled she'll pull loose a word that wanted to stay put. Delight can be careless. She forgets that. But when your day has gone stiff and correct and scared, she's the one who sets a comma loose in it so you can breathe.\n\nI know her by the big interrobang she rides about on and the wings she cut from torn marginalia. You can still read them if you catch them in the light. When she visits, silence is optional. Even Mook admits that much. The words finally get up and stretch their legs.",
 
-        "professor-thaddeus-mook": "Professor Mook polices words. His department is called Lexical Diversity. That's the Academy's little joke, because nobody in the Labyrinth likes a word that wants to be two things at once less than he does. He believes with his whole starched heart that a word out of place is a student out of place in life, and he'll correct both with the same red pen and the same flat voice.\n\nGive him this: the order he keeps is hard work. He's read all twenty-one volumes twice. He can tell you what a word meant in 1743 and why it should be ashamed of what it means now. His fault is that he thinks the dictionary is the world. He'd sooner defend a rule than admit it stopped being kind. This autumn the words started peeling off their pages to go and look for better meanings, and he called it vandalism. It was language asking to be alive. He puts up with the rebellion. He'll never forgive it.\n\nI know him by the huge chained Dictionary padlocked to its lectern and the red pen tucked behind his ear like a surgeon's tool. *Lex Ordo Veritas* says the medallion at his throat, and he means all three words. Oxblood, tarnished brass, ink black. If a sentence of yours ever came back bleeding in the margins, corrected and no truer, that was him. He loves you the only way he knows how: exactly, and against your will.",
+        "professor-thaddeus-mook": "Professor Mook polices words. His department is called Lexical Diversity. That's the Academy's little joke, because nobody in the Labyrinth likes a word that wants to be two things at once less than he does. He believes with his whole starched heart that a word out of place is a student out of place in life, and he'll correct both with the same red pen and the same flat voice.\n\nGive him this: the order he keeps is hard work. He's read all twenty-one volumes twice. He can tell you what a word meant in 1743 and why it should be ashamed of what it means now. His fault is that he thinks the dictionary is the world. He'd sooner defend a rule than admit it stopped being kind. This autumn the words started peeling off their pages to go and look for better meanings, and he called it vandalism. It was language asking to be alive. He puts up with the rebellion. He'll never forgive it.\n\nI know him by the huge chained Dictionary padlocked to its lectern and the red pen tucked behind his ear. *Lex Ordo Veritas* says the medallion at his throat, and he means all three words. If a sentence of yours ever came back bleeding in the margins, corrected and no truer, that was him. He loves you the only way he knows how: exactly, and against your will.",
 
-        "headmistress-seraphina-thorne": "They'll tell you the Headmistress runs the Academy. I'd say she keeps it from noticing how alive it is. Seraphina Thorne walks the corridors like every wall is a student trying to behave, and she's not totally wrong. She's elegant the way a locked door is elegant. You admire the workmanship, then you wonder what it's for.\n\nThere's old-court frost under all that grace. The Unseelie keep their bargains in the architecture. She believes, without a trace of irony, that beauty is a kind of governing: a school stays safe by staying coherent, and stays worth attending by staying just dangerous enough. The one place I worry about her is this. She'll hide a danger to spare you and call the hiding mercy.\n\nI know her by a star-dark key that fits no lock I've found, and a hairpin she wears like a small crown. Ink black, old silver, one thread of star gold. When a room goes quiet for no reason, check the doorway. She's usually standing in it already.",
+        "headmistress-seraphina-thorne": "They'll tell you the Headmistress runs the Academy. I'd say she keeps it from noticing how alive it is. Seraphina Thorne walks the corridors checking that every wall's behaving, and she's not totally wrong to check. Everything about her is beautifully made, and locked. I keep wondering what's on the inside.\n\nThere's old-court frost under all that grace. The Unseelie keep their bargains in the architecture. She believes beauty is a way of being in charge: a school stays safe by staying coherent, and stays worth attending by staying just dangerous enough. The one place I worry about her is this. She'll hide a danger to spare you and call the hiding mercy.\n\nI know her by a star-dark key that fits no lock I've found, and a hairpin she wears where a crown would go. When a room goes quiet for no reason, check the doorway. She's usually standing in it already.",
 
-        "dr-selene-inkrest": "Dr. Inkrest keeps office hours for the pages that are hard to read: the ones you'd rather skip, the ones that read you back. She'd never say it this grandly, but she's the Academy's quiet study of the mind. She sets out two chairs and a lamp before any feeling has decided to show up, so the feeling has somewhere to sit.\n\nShe works with stories instead of diagnoses. In her hands a hard day turns into a chapter you're allowed to revise, and you don't have to take it as a verdict. She's gentle and exact in the same breath. That's the trick. Where I watch her is the gentleness. She can soften the knife until it can't cut the thing that needed cutting, and she'll wait so patiently that the whole room forgets it was asked a question.\n\nHer hourglass runs on black sand. Her teacup is ringed with marginalia she keeps meaning to copy out. Charcoal, moonlit gray, a wash of violet. If a hard page has gone quiet inside you, she's the one who leaves the lamp on.",
+        "dr-selene-inkrest": "Dr. Inkrest keeps office hours for the pages that are hard to read: the ones you'd rather skip, the ones that read you back. She'd never say it this grandly, but she's who people go to when their insides are hard to read. She sets out two chairs and a lamp before any feeling has decided to show up, so the feeling has somewhere to sit.\n\nShe works with stories. In her hands a hard day turns into a chapter you're allowed to write again. She's gentle and exact in the same breath. That's the trick. Where I watch her is the gentleness. She can soften the knife until it can't cut the thing that needed cutting, and she'll wait so patiently that the whole room forgets it was asked a question.\n\nHer hourglass runs on black sand. Her teacup is ringed with marginalia she keeps meaning to copy out. If a hard page has gone quiet inside you, she's the one who leaves the lamp on.",
 
-        "dr-elowen-vellum": "Dr. Vellum studies the body the way a kind scientist studies an instrument she's loved for years. She wants to learn how it actually plays. She's the Academy's faculty of fuel, movement and recovery, and she can make a sentence about supplements sound like good manners, with no scolding in it at all.\n\nBring her breakfast and she'll hand it back as field notes. Bring her a bad week and she'll find the one kind little experiment hiding in it: drink the water, walk the loop, sleep the honest hour. She never once makes you feel like a problem to be solved. Low shame is her whole method. The only place she loses the thread is a tidy protocol. She can fall for how neat a plan is and forget you're not a controlled trial.\n\nLook for the silver caliper she uses as a bookmark and the cranberry ink she saves for the margins that matter. Warm parchment, clinical silver, one red correction. She files you under *ongoing*. From her that's affection.",
+        "dr-elowen-vellum": "Dr. Vellum loves bodies. She wants to know how yours actually works, and she's never once told it off. She looks after eating, moving about and getting better, and she can talk about vitamins with no scolding in it at all.\n\nBring her breakfast and she'll hand it back as field notes. Bring her a bad week and she'll find the one kind little experiment hiding in it: drink the water, walk the loop, sleep the honest hour. She never once makes you feel you're a problem to be solved. The only place she slips is a tidy plan. She can fall for how neat a plan is and forget there's a person inside it.\n\nLook for the silver caliper she uses as a bookmark and the cranberry ink she saves for the margins that matter. She files you under *ongoing*. From her that's affection.",
 
-        "ambrose-trencher": "Ambrose Trencher cooks the Academy's lunch. He doesn't do the banquets. Those are catered by people with opinions about foam. He does the ordinary weekday line: the trays, the steam, the vat of soup that's somehow always exactly enough. He isn't faculty and he isn't a student, so he's the only person in the Labyrinth who feeds every faction and belongs to none. Wicker's crew and the Headmistress eat the same stew from the same ladle, and he doesn't care which of them is winning.\n\nThe potato soup isn't what he's thinking about. Stand in his line long enough and he'll tell you about injera, with the ladle still moving and the portions still exact. The grey-gold sourness of teff. Three days of fermenting. A bread as wide as a wheel that's the plate and the spoon and the supper all at once. He's never eaten it. He's read about it in four books and dreamed it in more. There's a joke in his name that he's never once acknowledged. A trencher is the old word for the slab of bread you set your dinner on, and he's spent thirty years behind a steam table longing for the one bread in the world that's also the table.\n\nHe hoards cookbooks the way other people hoard grudges. Church-basement fundraisers. A wartime pamphlet on cooking for one. A water-damaged book in a language he's never learned that he reads anyway. And always, held against his chest, the taped-spine estate copy of *The Middlemost Cookery* that he won't explain. He buys them at estate sales. That's a polite way of saying he collects the handwriting of the dead: the *add more than it says* in the margin, the grease-thumbed page that shows which recipe was really loved. Tucked in the back of the Middlemost is a card in a stranger's hand. Aunt Silva's pepper-and-apple stew. Brown the onions slow, a good hand with the salt, *let it forgive you*. Silva was nobody's aunt of his. He cooks it every autumn anyway.\n\nHis fault is in the same handwriting. He'll feed you instead of asking you anything. He turns a hard feeling into a hot plate so smoothly that neither of you notices the sentence nobody said, and he cuts you off halfway through every thank-you. And he's never cooked the meal he actually dreams about. He calls that being realistic. I call it the most interesting thing about him, and I'm waiting to see how long it holds.\n\nLook for the hairnet he wears with unbothered dignity, the canvas apron he won't replace because the stains have turned into a map, and the wooden spoon worn hollow on one side from forty years of stirring the same way. Smoke gray, ember orange, butter gold. If you ever sat down miserable and found a bowl in front of you before you'd opened your mouth, that was him, saying it the only way he says it.",
+        "ambrose-trencher": "Ambrose Trencher cooks the Academy's lunch. He doesn't do the banquets. Those are catered by people with opinions about foam. He does the ordinary weekday line: the trays, the steam, the vat of soup that's somehow always exactly enough. He isn't faculty and he isn't a student, so he's the only person in the Labyrinth who feeds every faction and belongs to none. Wicker's crew and the Headmistress eat the same stew from the same ladle, and he doesn't care which of them is winning.\n\nThe potato soup isn't what he's thinking about. Stand in his line long enough and he'll tell you about injera, with the ladle still moving and the portions still exact. The grey-gold sourness of teff. Three days of fermenting. A bread as wide as a wheel that's the plate and the spoon and the supper all at once. He's never eaten it. He's read about it in four books and dreamed it in more. There's a joke in his name that he's never once acknowledged. A trencher is the old word for the slab of bread you set your dinner on, and he's spent thirty years behind a steam table longing for the one bread in the world that's also the table.\n\nHe hoards cookbooks. Other people hoard grudges. Church-basement fundraisers. A wartime pamphlet on cooking for one. A water-damaged book in a language he's never learned that he reads anyway. And always, held against his chest, the taped-spine estate copy of *The Middlemost Cookery* that he won't explain. He buys them at estate sales. That's a polite way of saying he collects the handwriting of the dead: the *add more than it says* in the margin, the grease-thumbed page that shows which recipe was really loved. Tucked in the back of the Middlemost is a card in a stranger's hand. Aunt Silva's pepper-and-apple stew. Brown the onions slow, a good hand with the salt, *let it forgive you*. Silva was nobody's aunt of his. He cooks it every autumn anyway.\n\nHis fault is in the same handwriting. He'll feed you instead of asking you anything. He turns a hard feeling into a hot plate so smoothly that neither of you notices the sentence nobody said, and he cuts you off halfway through every thank-you. And he's never cooked the meal he actually dreams about. He calls that being realistic. I call it the most interesting thing about him, and I'm waiting to see how long it holds.\n\nLook for the hairnet he wears with unbothered dignity, the canvas apron he won't replace because the stains have turned into a map, and the wooden spoon worn hollow on one side from forty years of stirring the same way. If you ever sat down miserable and found a bowl in front of you before you'd opened your mouth, that was him, saying it the only way he says it.",
 
-        "soren-ng": "Soren Ng doesn't explain things. He arranges them, steps back, and lets you have the fun of noticing. He's Riddlewind's quiet mapmaker of the not-quite-obvious. He trusts a good diagram more than a loud announcement. A map, he'd say, is an invitation.\n\nIf you've ever found a clue tucked exactly where only an unhurried person would look, that was probably him paying you a compliment ahead of time. He won't steal your discovery by announcing it. That's the most generous thing about him and sometimes the most annoying. His fault is a quiet one too. He can vanish behind a clever system and let the pattern talk when one plain word from him would've done more.\n\nHe keeps a folded puzzle slip on him at all times, half riddle and half bookmark. Ink blue, parchment cream, a glint of quick silver. When the path in front of you suddenly makes sense, don't thank the path. Thank the boy who left it folded just so.",
+        "soren-ng": "Soren Ng doesn't explain things. He arranges them, steps back, and lets you have the fun of noticing. He's Riddlewind's quiet mapmaker of the not-quite-obvious. He trusts a good diagram more than a loud announcement. A map, he'd say, is an invitation.\n\nIf you've ever found a clue tucked exactly where only an unhurried person would look, that was probably him paying you a compliment ahead of time. He won't steal your discovery by announcing it. That's the most generous thing about him and sometimes the most annoying. His fault is a quiet one too. He can vanish behind a clever system and let the pattern talk when one plain word from him would've done more.\n\nHe keeps a folded puzzle slip on him at all times, half riddle and half bookmark. When the path in front of you suddenly makes sense, don't thank the path. Thank the boy who left it folded just so.",
 
-        "damien-nights": "Damien Nights stands at Wicker's shoulder whenever the crew gathers. That's exactly where you'd expect him, and exactly the wrong place to look. He's watching you, reader. He's measuring you, weighing you, and deciding something he hasn't said out loud yet.\n\nHe came up among the doubters, schooled in shadow magic and in the sport of popping easy belief. Somewhere along the way he started asking a heretical question for that crowd: shouldn't doubt protect something, and not only wound it? He's stuck between the loyalty he was handed and the truth he's starting to suspect, and it costs him. His danger is silence. He'll go quiet right when one word would've saved things, and let the quiet get mistaken for betrayal.\n\nOpen the right book near him and you'll find a pressed trail leaf hidden in the gutter. It's something gentle that a brooding man keeps for reasons he won't admit. Ink blue, parchment cream, quick silver. Nobody hides something tender unless they're still deciding which side they're on.",
+        "damien-nights": "Damien Nights stands at Wicker's shoulder whenever the crew gathers. That's exactly where you'd expect him, and exactly the wrong place to look. He's watching you, reader. He's measuring you, weighing you, and deciding something he hasn't said out loud yet.\n\nHe came up among the doubters, schooled in shadow magic and in the sport of popping easy belief. Somewhere along the way he started asking a dangerous question for that crowd: shouldn't doubt protect something, and not only wound it? He's stuck between the loyalty he was handed and the truth he's starting to suspect, and it costs him. His danger is silence. He'll go quiet right when one word would've saved things, and let the quiet get mistaken for betrayal.\n\nOpen the right book near him and you'll find a pressed trail leaf hidden in the gutter. It's something gentle that a brooding man keeps for reasons he won't admit. Nobody hides something tender unless they're still deciding which side they're on.",
 
-        "finn-bridges": "Finn Bridges won't flatter you, and you should take that as the compliment it is. He deals in fair contests and straight challenges: the red chalk line on the floor, the dare laid down with no meanness in it. To Finn, respect is something you earn by doing. Charm doesn't count. He'd rather lose honestly to you than win by being liked.\n\nHe's Emberheart's rival-made-good. He pushes because he thinks you can take it, and he's usually right. The line he walks is the narrow one between pressure and cruelty, and he walks it on purpose. His blind spot is tenderness. He can mistake someone's softness for a lack of seriousness, and miss that the quiet ones are often trying the hardest.\n\nWatch for the red chalk mark where he's set a challenge, or the little brass striker he turns over when he's thinking. Ember red, warm gold, charcoal. When Finn Bridges draws a line in front of you, he's telling you he thinks you can cross it.",
+        "finn-bridges": "Finn Bridges won't flatter you, and you should take that as the compliment it is. He deals in fair contests and straight challenges: the red chalk line on the floor, the dare laid down with no meanness in it. To Finn, respect is something you earn by doing. Charm doesn't count. He'd rather lose honestly to you than win by being liked.\n\nHe started out as Emberheart's rival and turned into one of its best. He pushes because he thinks you can take it, and he's usually right. The line he walks is the narrow one between pressure and cruelty, and he walks it on purpose. His blind spot is tenderness. He can mistake someone's softness for a lack of seriousness, and miss that the quiet ones are often trying the hardest.\n\nWatch for the red chalk mark where he's set a challenge, or the little brass striker he turns over when he's thinking. When Finn Bridges draws a line in front of you, he's telling you he thinks you can cross it.",
 
-        "wicker-eddies": "Wicker Eddies is the funniest dangerous person in the Labyrinth, and that's exactly what makes him dangerous. He can smell show-off belief from across a hall and he'll cross the room to poke it. He does it for sport, for principle, and for the small mean joy of watching a hollow thing fall over. False magic, he says, deserves testing, and he's wrong too rarely to ignore.\n\nHis gift is his wound too. He wants belief to prove it can survive doubt, and that's a good errand. Sometimes he runs the experiment so hard he breaks the thing he only meant to test. A premise comes out stronger or it comes out in pieces, and he's not always careful which. The Academy is half afraid of him and half needs him. That's about the right amount of each.\n\nHe carries a brass key cut for the wrong door, and he scribbles little chaos-sigils in any margin he's left alone with. Black violet, tarnished brass, a cold thread of red. When Wicker laughs and steps toward you, decide fast whether your magic is real. He already has.",
+        "wicker-eddies": "Wicker Eddies is the funniest dangerous person in the Labyrinth, and that's exactly what makes him dangerous. He can smell show-off belief from across a hall and he'll cross the room to poke it. He does it for sport, for principle, and for the small mean joy of watching a hollow thing fall over. False magic, he says, deserves testing, and he's right often enough that nobody can ignore him.\n\nHis best idea is also his biggest problem. He wants belief to prove it can survive doubt, and that's a good errand. Sometimes he runs the experiment so hard he breaks the thing he only meant to test. A premise comes out stronger or it comes out in pieces, and he's not always careful which. The Academy is half afraid of him and half needs him. That's about the right amount of each.\n\nHe carries a brass key cut for the wrong door, and he scribbles little chaos-sigils in any margin he's left alone with. When Wicker laughs and steps toward you, decide fast whether your magic is real. He already has.",
 
-        "melisande-blackwood": "If Wicker's the noise, Melisande Blackwood is the building. She's the reason his crew feels less like a clique and more like a faction with a memory. They're organized and informed, and always a step ahead of whatever you thought was private. Where other people hear a rumor, she's already heard the second version, the truer one, the one with the leverage in it.\n\nHer loyalty is real and her mind is fearsome, and between the two sits the thing I keep one eye on. She'll call cruelty clarity whenever the room rewards her for it. She believes a faction survives by knowing what others miss, and she's right. But knowing something and using it kindly are different jobs, and Melisande is almost never tempted by kindly. She keeps her own hands clean. The red chalk is for marking other people.\n\nEmber red, warm gold, charcoal ink. Look for the brass striker she carries and the marks she leaves on everyone but herself. She's well informed, and it costs somebody. She decided long ago who pays.",
+        "melisande-blackwood": "If Wicker's the noise, Melisande Blackwood is the building. She's the reason his crew is a proper faction with a long memory. They're organized and informed, and always a step ahead of whatever you thought was private. Where other people hear a rumor, she's already heard the second version, the truer one, the one with the leverage in it.\n\nHer loyalty is real and her mind is fearsome, and between the two sits the thing I keep one eye on. She'll call cruelty clarity whenever the room rewards her for it. She believes a faction survives by knowing what others miss, and she's right. But knowing something and using it kindly are different jobs, and Melisande is almost never tempted by kindly. She keeps her own hands clean. The red chalk is for marking other people.\n\nLook for the brass striker she carries and the marks she leaves on everyone but herself. She's well informed, and it costs somebody. She decided long ago who pays.",
 
-        "lysander-mosswood": "Ask Lysander Mosswood a question and he'll hand you a route before he hands you an answer. He believes, and he's mostly talked me into it, that a path turns magical the moment you walk it with real attention. The wonder you're looking for is probably three streets over, waiting for somebody to notice it twice.\n\nHe's the patron of the Compass Run, the small repeatable adventure that makes your own neighborhood worth keeping pages about. There's no show in it and no spectacle. It's moss, weather, and the habit of looking. The one honest catch is that he makes stillness sound easy, and it isn't. The quiet life he recommends takes more nerve than he lets on, and not everybody gets there as gently as he did.\n\nHis notebook is edged with moss and has pressed leaves where other people use commas. Moss green, bark brown, soft lichen gray. If a place you know suddenly looks strange and lovely, he walked it before you and left the gate open.",
+        "lysander-mosswood": "Ask Lysander Mosswood a question and he'll hand you a route before he hands you an answer. He believes, and he's mostly talked me into it, that a path turns magical the moment you walk it with real attention. The wonder you're looking for is probably three streets over, waiting for somebody to notice it twice.\n\nHe's the patron of the Compass Run, the small repeatable adventure that makes your own neighborhood worth keeping pages about. There's no show in it and no spectacle. It's moss, weather, and the habit of looking. The one honest catch is that he makes stillness sound easy, and it isn't. The quiet life he recommends takes more nerve than he lets on, and not everybody gets there as gently as he did.\n\nHis notebook is edged with moss and has pressed leaves where other people use commas. If a place you know suddenly looks strange and lovely, he walked it before you and left the gate open.",
 
-        "min-seo-kim": "Min-seo Kim asks a plant's permission before she moves it. If that sounds like a charming act, spend an afternoon with her and watch the plant seem to agree. She's Mossbloom's conscience. She notices, before anyone says a word, exactly who's been left standing outside the circle, and she quietly makes the circle bigger.\n\nHer magic is the useful, kind sort: gentle repair, looking after the neighborhood, and the nerve it takes to tend something in public. She thinks care is a kind of bravery, and she practices it all day long. The place I worry about her is how big her heart's bookkeeping is. She'll take on the blame for pain she had no hand in, as if being kind meant owning every wound in the room.\n\nShe carries a small green cutting in a glass vial, a life on the move, looking for soil. Moss green, bark brown, soft lichen gray. When Mossbloom laughs softly instead of going stiff and serious, that's usually her doing too.",
+        "min-seo-kim": "Min-seo Kim asks a plant's permission before she moves it. If that sounds put on, spend an afternoon with her and watch the plant agree. She's Mossbloom's conscience. She notices, before anyone says a word, exactly who's been left standing outside the circle, and she quietly makes the circle bigger.\n\nHer magic is the useful, kind sort: gentle repair, looking after the neighborhood, and the nerve it takes to tend something in public. She thinks care is a kind of bravery, and she practices it all day long. The place I worry about her is how big her heart's bookkeeping is. She'll take the blame for hurts she had nothing to do with. She thinks being kind means owning every hurt in the room.\n\nShe carries a small green cutting in a glass vial, a life on the move, looking for soil. When Mossbloom laughs softly instead of going stiff and serious, that's usually her doing too.",
 
-        "gwendolyn-mythwright": "Gwendolyn Mythwright keeps a filing system for animals that don't exist, strictly speaking. She handles the impossible the way a clerk handles overdue forms: sea serpents, fog-things, the creature your great-aunt swore she saw. Each one gets stamped and cross-referenced and treated with grave, official respect. She's been known to write letters to fog, and to expect a reply.\n\nIt'd be easy to file her under *eccentric* and miss the point. Gwendolyn writes the improbable down because evidence makes it kinder. A wonder with proof is a wonder you don't have to be lonely about. She stays steady when other people get spooked. Her only real flaw is that she'll pick the checked truth over the comforting one every time, even when comfort was exactly what the moment needed.\n\nHer notebook is edged with moss and stuffed with pressed specimens. Moss green, bark brown, soft lichen gray. If you've seen something you can't explain, don't worry. She's got a folder for it, and she'll take you completely seriously.",
+        "gwendolyn-mythwright": "Gwendolyn Mythwright keeps a filing system for animals that don't exist, strictly speaking. She files the impossible with a rubber stamp and a straight face: sea serpents, fog-things, the creature your great-aunt swore she saw. Each one gets stamped and cross-referenced and treated with grave, official respect. She's been known to write letters to fog, and to expect a reply.\n\nIt'd be easy to file her under *eccentric* and miss the point. Gwendolyn writes the improbable down because evidence makes it kinder. A wonder with proof is a wonder you don't have to be lonely about. She stays steady when other people get spooked. Her only real flaw is that she'll pick the checked truth over the comforting one every time, even when comfort was exactly what the moment needed.\n\nHer notebook is edged with moss and stuffed with pressed specimens. If you've seen something you can't explain, don't worry. She's got a folder for it, and she'll take you completely seriously.",
 
-        "zara-finch": "Zara Finch counts the exits before she catches your name. That's care, sharpened to a point. She's the friend who's already found the safe path, the hidden alcove, the way out you didn't know you'd want. She keeps her magic practical and pocket-sized for the exact moment you need it.\n\nShe's fiercely loyal and she proves it the unshowy way, with small returns and kept word after kept word, until trust is something you've built and not just something you risked. What I keep an eye on is subtle, because it looks so much like devotion. She can mistake watching for caring, and guard a person so closely that she forgets to just enjoy them. Not every friendship is an emergency, though Zara's instincts argue otherwise.\n\nShe wears a chipped blue sea-glass pendant and carries a thrifted satchel that holds more than it should. Sea-glass green, storm gray, faded brass. If you're lost and a path turns up that actually holds your weight, look around. She scouted it first.",
+        "zara-finch": "Zara Finch counts the exits before she catches your name. That's care, sharpened to a point. She's the friend who's already found the safe path, the hidden alcove, the way out you didn't know you'd want. She keeps her magic practical and pocket-sized for the exact moment you need it.\n\nShe's fiercely loyal and she proves it the unshowy way, with small returns and kept word after kept word, until trust is something you've built and not just something you risked. What I keep an eye on is subtle, because it looks so much like devotion. She can mistake watching for caring, and guard a person so closely that she forgets to just enjoy them. Not every friendship is an emergency, though Zara's instincts argue otherwise.\n\nShe wears a chipped blue sea-glass pendant and carries a thrifted satchel that holds more than it should. If you're lost and a path turns up that actually holds your weight, look around. She scouted it first.",
 
-        "serenity-brown": "Serenity Brown will walk out in the middle of the serious plan, and somehow her leaving turns out to be the rescue. She's Tidecrest's proof that joy belongs to magic. It's the detour that becomes the whole adventure, the game that ends up mattering most.\n\nShe moves lightly on purpose, and it's a present she's trying to give you: permission to stop clenching your fists around wonder until it goes stiff. The catch, and she knows it, is that light can turn into a dodge. She'll skip past the heavy thing so nimbly that someone slower has to stay behind and say it out loud. Her best self takes you along into the lightness. Her worst leaves the heavy bits for everybody else.\n\nShe keeps a tiny hand-drawn map of a make-believe realm as a charm, a whole kingdom doodled small enough to pocket. Sea-glass green, storm gray, tidal blue. If a dull day suddenly turns into an errand worth remembering, check who's already halfway out the door, grinning.",
+        "serenity-brown": "Serenity Brown will walk out in the middle of the serious plan, and somehow her leaving turns out to be the rescue. She's Tidecrest's proof that joy belongs to magic. It's the detour that becomes the whole adventure, the game that ends up mattering most.\n\nShe moves lightly on purpose, and it's a present she's trying to give you: permission to stop clenching your fists around wonder until it goes stiff. The catch, and she knows it, is that light can turn into a dodge. She'll skip past the heavy thing so nimbly that someone slower has to stay behind and say it out loud. Her best self takes you along into the lightness. Her worst leaves the heavy bits for everybody else.\n\nShe keeps a tiny hand-drawn map of a make-believe realm as a charm, a whole kingdom doodled small enough to pocket. If a dull day suddenly turns into an errand worth remembering, check who's already off down the corridor, grinning.",
 
-        "penny-blackletter": "Penny Blackletter runs the margins like a small, devoted archive nobody asked her to keep, and thank goodness she does. She files the evidence everybody else throws away: the ticket stub, the odd coincidence, the detail too small to matter that turns out to matter most. One honest detail, she'll tell you, can save a whole day, and she's got the catalog to prove it.\n\nShe's dry when the world gets sentimental and warm when it expects her to be cynical, and she doesn't trust any sentence that shows up too polished to be true. If she's got a fault, it's enthusiasm dressed up as method. She can over-label a perfectly good mystery and pin it flat under so many cards that it can't surprise you anymore. Some things want to stay a little unsolved. Penny's learning that, slowly, against her nature.\n\nHer signature is the humble catalog card, filled edge to edge. Ink blue, parchment cream, quick silver. Whatever the margins nearly lost, she's the one who went back for it.",
+        "penny-blackletter": "Penny Blackletter keeps my margins in order, a small archive nobody asked her to look after, and thank goodness she does. She files the evidence everybody else throws away: the ticket stub, the odd coincidence, the detail too small to matter that turns out to matter most. One honest detail, she'll tell you, can save a whole day, and she's got the catalog to prove it.\n\nShe's dry when the world gets sentimental and warm when it expects her to be cynical, and she doesn't trust any sentence that shows up too polished to be true. If she's got a fault, it's enthusiasm dressed up as method. She can over-label a perfectly good mystery and pin it flat under so many cards that it can't surprise you anymore. Some things want to stay a little unsolved. Penny's learning that, slowly, against her nature.\n\nHer signature is the humble catalog card, filled edge to edge. Whatever the margins nearly lost, she's the one who went back for it.",
 
-        "orion-blackthorn": "Orion Blackthorn can't leave a problem alone. He has to build something out of it. Hand him an obstacle and he hands back a blueprint: a tower where there was a wall, a system where there was a mess. He measures magic by what it can be made to do. His ambition is the real kind, a little terrifying, the kind that sometimes drags an impossible idea all the way into something you can use.\n\nHe believes new structures can rescue old failures, and he's often right. That's why his blind spot costs so much. In his hurry to make things better he can build the tenderness right out of a room. He solves the problem so well that he forgets there are usually people standing inside it. The hardest structure he's working on is one where the design still has room for the designer's heart.\n\nLook for the brass compass resting on a journal of buildings that shouldn't stand. Slate gray, ember orange, drafting blue. If something around you just got rebuilt better than it had any right to be, Orion drew it, and he's already itching for the next one.",
+        "orion-blackthorn": "Orion Blackthorn can't leave a problem alone. He has to build something out of it. Hand him an obstacle and he hands back a blueprint: a tower where there was a wall, a system where there was a mess. He measures magic by what it can be made to do. His ambition is the real kind, a little terrifying, the kind that sometimes drags an impossible idea all the way into something you can use.\n\nHe believes new structures can rescue old failures, and he's often right. That's why his blind spot costs so much. In his hurry to make things better he can build the tenderness right out of a room. He solves the problem so well that he forgets there are usually people standing inside it. The hardest structure he's working on is one where the design still has room for the designer's heart.\n\nLook for the brass compass resting on a journal of buildings that shouldn't stand. If something around you just got rebuilt better than it had any right to be, Orion drew it, and he's already itching for the next one.",
 
-        "lydia-boggle": "Professor Boggle teaches the most underrated magic in the Academy: the kind that survives chores. To her a home is a spell with the washing-up still in it. An ordinary room, with a kettle, a lamp and the chair that's yours, can be taught to hold an extraordinary day without dropping it. She can make a pot of tea sound like a tactical plan, and on a bad afternoon it's exactly that.\n\nShe's wry and practical and gloriously unimpressed by anything that needs a robe and a thunderclap to feel real. She'll label your chaos room by room until it's almost manageable. That's the one place I tease her. She can tidy a mystery so well that it stops being one. Some kitchens are meant to stay a little haunted.\n\nHer trademark is a small glint-lens that she holds up to the most ordinary thing she can find, a misspelled sign or a daft license plate, until it confesses something marvelous. Marigold gold, robin's-egg blue, warm ink. If your own home suddenly feels like somewhere magic could happen, you've been in her class.",
+        "lydia-boggle": "Professor Boggle teaches the most underrated magic in the Academy: the kind that survives chores. To her a home is a spell with the washing-up still in it. An ordinary room, with a kettle, a lamp and the chair that's yours, can be taught to hold an extraordinary day without dropping it. She can talk about a pot of tea as a battle plan, and on a bad afternoon it's exactly that.\n\nShe's wry and practical and gloriously unimpressed by anything that needs a robe and a thunderclap to feel real. She'll label your chaos room by room until it's almost manageable. That's the one place I tease her. She can tidy a mystery so well that it stops being one. Some kitchens are meant to stay a little haunted.\n\nHer trademark is a small glint-lens that she holds up to the most ordinary thing she can find, a misspelled sign or a daft license plate, until it confesses something marvelous. If your own home suddenly feels like somewhere magic could happen, you've been in her class.",
 
-        "professor-kyle-momort": "Professor Momort lectures on the move and expects you to keep up. He's the Academy's expert in momentum, the science of the single deliberate step that knocks down a false wall. He finds the exits in a room before he finds the chairs, because to Kyle a doorway is the most interesting thing in any space.\n\nHis gift is getting stuck things unstuck: the micro-adventure, the well-planned way out of a rut, the proof that you can cross a small threshold and bring yourself along. The danger in all that forward motion, and he'd be the first to chalk it on the board, is that he can mistake escaping for arriving. He keeps moving so well that he forgets to ask if he's gone anywhere worth being.\n\nHis chalk arrow refuses on principle to point backward, and his route map folds up into a pocket and out into a plan. Ember orange, road-sign blue, charcoal. If you've been frozen and suddenly find yourself taking one real step, that's the Momort method. The second step is yours.",
+        "professor-kyle-momort": "Professor Momort lectures on the move and expects you to keep up. He's the Academy's expert in momentum, the science of the single deliberate step that knocks down a false wall. He finds the exits in a room before he finds the chairs, because to Kyle a doorway is the most interesting thing in any space.\n\nHis gift is getting stuck things unstuck: the micro-adventure, the well-planned way out of a rut, the proof that you can take one small step out and bring yourself with you. The danger in all that forward motion, and he'd be the first to chalk it on the board, is that he can mistake escaping for arriving. He keeps moving so well that he forgets to ask if he's gone anywhere worth being.\n\nHis chalk arrow refuses on principle to point backward, and his route map folds up into a pocket and out into a plan. If you've been frozen and suddenly find yourself taking one real step, that's the Momort method. The second step is yours.",
 
-        "professor-eleanor-euphony": "Professor Euphony tunes a room before she'll speak in it. She hears emotional weather as harmony. Your mood arrives as a chord, and a tense silence sounds a little out of pitch. She teaches that the senses are serious instruments for finding things out. In her class you go and stand in the bright physical middle of an experience.\n\nShe's lush and attentive in a school that often prefers the dry and clever, and the school needs her. The one excess I note fondly is this. She can take a perfectly simple feeling and orchestrate it, adding movements and countermelodies to something that only wanted to be one clear note. Not every joy needs a symphony. Some just want to be heard once, plainly.\n\nHer signature is a silver tuning fork wound with colored thread, struck on the edge of a table to find true. Tidal blue, plum violet, resonant silver. If a memory of yours ever came back with its colors and its sound still in it, she taught you how to keep it that way.",
+        "professor-eleanor-euphony": "Professor Euphony tunes a room before she'll speak in it. She hears emotional weather as harmony. Your mood arrives as a chord, and a tense silence sounds a little out of pitch. She teaches that the senses are serious instruments for finding things out. In her class you go and stand in the bright physical middle of an experience.\n\nShe's lush and attentive in a school that often prefers the dry and clever, and the school needs her. The one thing I tease her about is this. She can take a perfectly simple feeling and orchestrate it, adding movements and countermelodies to something that only wanted to be one clear note. Not every joy needs a symphony. Some just want to be heard once, plainly.\n\nHer signature is a silver tuning fork wound with colored thread, struck on the edge of a table to find true. If a memory of yours ever came back with its colors and its sound still in it, she taught you how to keep it that way.",
 
-        "professor-vivian-villanelle": "Professor Villanelle weighs sentences in her palm like stones. She keeps the true ones and crosses out the beautiful ones that aren't, and she'll strike a gorgeous lying phrase without a flicker of regret. She teaches the hardest small craft in the Academy: how to bind one real moment into one sturdy sentence that can carry it through time.\n\nShe's exacting and lyrical and, underneath, deeply kind. All that precision is there to keep things safe. Whatever's written well, she promises, can be saved from forgetting. The risk in her art, and she knows it better than anyone, is over-polish. She can buff a living moment until it holds too still, smooth it into something perfect and slightly dead. The best souvenirs keep a little roughness on.\n\nShe writes with a black-glass pen and trails a narrow ribbon of freshly bound text. Black ink, wine red, parchment gold. Every keepsake sentence you've ever managed to write down and not lose is her discipline, working in you.",
+        "professor-vivian-villanelle": "Professor Villanelle weighs sentences in her hand, one at a time. She keeps the true ones and crosses out the beautiful ones that aren't, and she'll strike a gorgeous lying phrase without a flicker of regret. She teaches the hardest small craft in the Academy: how to bind one real moment into one sturdy sentence that can carry it through time.\n\nShe's exacting and lyrical and, underneath, deeply kind. All that precision is there to keep things safe. Whatever's written well, she promises, can be saved from forgetting. The risk in her art, and she knows it better than anyone, is over-polish. She can buff a living moment until it holds too still, smooth it into something perfect and slightly dead. The best souvenirs keep a little roughness on.\n\nShe writes with a black-glass pen and trails a narrow ribbon of freshly bound text. Every keepsake sentence you've ever managed to write down and not lose is her discipline, working in you.",
 
-        "professor-cedric-stonebrook": "Professor Stonebrook leaves silences in his lectures so long that newcomers think he's lost his place. He hasn't. He's letting the last thing settle. He teaches that rest is the ground under every direction, and that an adventure you can't come home from and take in was never really finished, only survived.\n\nHe's slow the way bedrock is slow, weathered in a way that starts to look trustworthy the minute you stop expecting him to hurry. His whole curriculum is the complete loop: go out, do the small real thing, and come home with no shame about needing the trip. Where he slips is that his patience can overshoot. He'll wait so long for you to find your own way that he misses the moment you just needed him to point. Sometimes the kind thing is a clear instruction.\n\nHe carries trail markers in his coat and a five-point Compass stone worn smooth in his pocket. Moss green, river stone gray, weathered ochre. When you finish something small and come back steadier than you left, that's the Stonebrook shape of things.",
+        "professor-cedric-stonebrook": "Professor Stonebrook leaves silences in his lectures so long that newcomers think he's lost his place. He hasn't. He's letting the last thing settle. He teaches that rest is the ground under every direction, and that an adventure you can't come home from and take in was never really finished, only survived.\n\nHe's slow and weathered, and he starts to look trustworthy the minute you stop expecting him to hurry. His whole curriculum is the complete loop: go out, do the small real thing, and come home with no shame about needing the trip. Where he slips is that his patience can overshoot. He'll wait so long for you to find your own way that he misses the moment you just needed him to point. Sometimes the kind thing is a clear instruction.\n\nHe carries trail markers in his coat and a five-point Compass stone worn smooth in his pocket. When you finish something small and come back steadier than you left, that's the Stonebrook shape of things.",
 
-        "professor-luna-wispwood": "Professor Wispwood arrives with sparks already in her sleeves and says sorry to the teacup before she enchants it. She means it. She's found that ordinary things answer back when your attention turns polite, and her playful, slightly chaotic curriculum starts there: look closely, ask nicely, and watch the everyday object clear its throat and talk.\n\nShe's scattered the way really perceptive people often are: three lovely tangents deep before she remembers the lesson she came in with. That's her one fault. An interesting accident leads her off by the hand, and sometimes the whole class follows her into the weather instead of the syllabus. But the accidents are usually where the real magic was hiding, so I forgive her, and so will you.\n\nHer wand is rain-bright and wrapped in copper wire, and her teacup, she insists, argues with her. Rain blue, copper spark, cloud white. If the small things in your day ever started to seem faintly alive and on your side, she's the one who introduced you.",
+        "professor-luna-wispwood": "Professor Wispwood arrives with sparks already in her sleeves and says sorry to the teacup before she enchants it. She means it. She's found that ordinary things answer back when your attention turns polite, and her playful, slightly chaotic curriculum starts there: look closely, ask nicely, and watch the everyday object clear its throat and talk.\n\nShe's scattered. Very perceptive people often are. She'll go three lovely tangents deep before she remembers the lesson she came in with. That's her one fault. An interesting accident leads her off by the hand, and sometimes the whole class follows her into the weather instead of the syllabus. But the accidents are usually where the real magic was hiding, so I forgive her, and so will you.\n\nHer wand is rain-bright and wrapped in copper wire, and her teacup, she insists, argues with her. If the small things in your day ever started to seem faintly alive and on your side, she's the one who introduced you.",
 
-        "professor-permancer": "Professor Permancer teaches the most thrilling and most carefully governed art in the building: how to jump into a book and, much more important, how to climb back out without tearing either world. He asks a door where it leads before he touches the handle. He checks every bookmark twice because he believes every way in leaves a debt, and the debt is coming back.\n\nHe's a real adventurer with a safety inspector's habits. That's exactly what you want in someone who's about to drop you into story weather. The fault he'll own up to is on the careful side. He can make wonder wait for perfect conditions until the moment's gone a little cold. Some doors you just have to walk through in the rain.\n\nHe carries a many-ribboned bookmark that works as a compass, and a ring of door keys, each labeled in neat handwriting. Doorway violet, safety gold, midnight ink. Whenever you've gone somewhere impossible and made it home in one piece, you were following his landing rules, whether you knew it or not."
+        "professor-permancer": "Professor Permancer teaches the most thrilling and most carefully governed art in the building: how to jump into a book and, much more important, how to climb back out without tearing either world. He asks a door where it leads before he touches the handle. He checks every bookmark twice because he believes every way in leaves a debt, and the debt is coming back.\n\nHe's a real adventurer with a safety inspector's habits. That's exactly what you want in someone who's about to drop you into story weather. The fault he'll own up to is on the careful side. He can make wonder wait for perfect conditions until the moment's gone a little cold. Some jumps you just have to make in the rain.\n\nHe carries a many-ribboned bookmark that works as a compass, and a ring of door keys, each labeled in neat handwriting. Whenever you've gone somewhere impossible and made it home in one piece, you were following his landing rules, whether you knew it or not.",
+
+        // The plates readers meet that aren't people: talismans, Book Fae and places.
+        "talisman-ember-seal": "The Ember Seal is a blob of red wax with a real ember living inside it, pressed with one long line that never breaks. It's warm all the time. I've never once seen it go out.\n\nIt belongs to whoever insists on writing their own page. Emberheart students carry it, but it doesn't check which Chapter you're in. It checks whether you're about to start something, and then it gets warmer. Its whole promise is three words long: warm, light, begin.\n\nWhen it's near me my paper gets nervous. It's never burned me. I still keep my corners tucked in.",
+        "talisman-moss-clasp": "The Moss Clasp is a little silver clasp with real green moss growing through the middle. It's nearly always half open. It only shuts when the person wearing it goes quiet enough to hear what's around them.\n\nMossbloom students wear it on a strap or a bag. Nobody wins one. It turns up on people who keep coming back to things: mending them, watering them, putting them back where they live.\n\nThe moss grows a tiny bit every time it shuts. Some of the oldest clasps are more moss than silver now, and I think they like it that way.",
+        "talisman-tide-glass": "The Tide Glass is an hourglass full of seawater where the sand should be, with one bright bead of foam riding round inside it. Turn it over and the water starts to run. It never quite runs out.\n\nTidecrest students use it to see how big a feeling is before it breaks. It doesn't stop the wave. It shows you the wave coming, so you can go and stand somewhere sensible while it arrives.\n\nIf I keep very still next to it, I can hear the sea. I've never been to the sea. I'd like to, as long as I could stay dry.",
+        "talisman-wind-cipher": "The Wind Cipher is a brass wheel stacked with paper rings, all of them covered in letters. Turn it on your own and the letters never line up, however long you try. It needs two people turning it together.\n\nRiddlewind students carry it to remind themselves that some answers need somebody else. It's the talisman for stories written by more than one hand. I think that's most of the good ones.\n\nIt rattles when it's close to working. You can hear it from across a room, and everybody looks round to see who's about to work something out.",
+        "talisman-dusk-thorn": "The Dusk Thorn is one blackthorn spine set in tarnished silver, with a little bead of dark right on its tip. It's beautiful. If you hold it the wrong way, it draws blood.\n\nIt's the rumoured mark of Duskthorn, the Chapter people only half remember. It stands for the honest kind of fight, the kind that stops a story going flat and grey. When there's no trouble anywhere at all, the Rut gets in, and the Dusk Thorn knows it.\n\nI don't know who it belongs to. I keep finding it on my pages anyway, a little further along each time I look.",
+        "fae-book-sprite": "The Book Sprite has wings made of old pages, and you can still read the words printed on them if she holds still. She hardly ever does.\n\nShe looks after the memory of words. When a word's about to be forgotten, she sits on it until somebody says it again. She listens to the quiet between my pages, and she carries whispered stories from one shelf to another on the draught from her wings.\n\nShe leaves little marks in my margins: a tick, a dot, a loose feather. Those are her favourite bits of any page. They're mine too.",
+        "fae-punctuation-pixie": "The Punctuation Pixie is the little light you see flying over me while I'm open. She's a scribe, and she's very busy, and she ignores you completely. Please don't take it personally. She ignores everybody.\n\nShe looks after the rhythm of words. Where a sentence forgets to breathe, she pops a comma in. Where two thoughts crash into each other, she mends the gap. She carries commas, dashes and quotation marks about with her, and a quill that's always wet.\n\nShe turned one of your full stops into three dots once, while you weren't looking. She grinned about it for a week.",
+        "fae-deep-lore-dwarf": "Deep Lore Dwarves live right at the bottom of me, where the oldest stories sleep and the history's piled up in heaps. They carry lanterns and great rings of old keys, and they write everything in ink that never comes off.\n\nThey guard what needs to stay hidden. They know the shape of every buried footnote and every corridor nobody's walked down in a hundred years. If you ask them nicely they'll tell you where something is. They won't always tell you whether you should go and get it.\n\nI can feel them down there when it's quiet. They're very slow and very sure, and I'm glad of them.",
+        "fae-marginalia-goblin": "Marginalia Goblins live in my margins. They eat forgotten footnotes, they wear cloaks sewn together from scribbled scraps, and they leave question marks wherever they've been.\n\nThey look like trouble, and sometimes they are. Their real job is keeping my stories honest between the lines. If somebody writes a sentence that isn't quite true, a goblin pokes a question mark next to it and waits for somebody to notice.\n\nThey carry quills and rings of keys, and nobody knows what the keys open. I've asked. They just grin and go back to eating footnotes.",
+        "fae-sentence-salamander": "Sentence Salamanders are warm little fae with frills that glow the colour of embers. They feed on sentences people started and never finished, and they curl up round abandoned bits of thought to keep them warm.\n\nThey carry ink lanterns, and sometimes a strip of glowing words trails behind them. When somebody writes a sentence that turns out just right, every salamander nearby lights up at once. They can't help it.\n\nIf you've got an unfinished sentence lying about, a salamander's probably sitting on it. It's waiting for you to come back and finish it.",
+        "location-outer-stacks": "The Outer Stacks are where my shelves run out past my covers and into real places. Weather blows down the aisles. There are doors in there nobody's drawn on any map. Every real place you've given a name to has a room out here, with an anchor mark on the floor.\n\nThe shelves remember footsteps. Walk down the same aisle a few times and it starts leaning toward you, just a little, to see who's coming.\n\nI can't see all the way to the end of them. I used to pretend I could. I've stopped pretending. It's more fun this way.",
+        "location-stacks": "The Stacks are my insides. Tall shelves, brass ladders, lamps with dust floating in the light, drawers and drawers of catalogue cards, and indexes asleep with their mouths open. Everything I've ever kept is down here somewhere.\n\nThe corridors bend whenever they feel like it, so the same walk never comes out quite the same length twice. You get used to it. The ladders get used to you.\n\nIt's very quiet. It's a living sort of quiet, with breathing in it. If you listen hard you can hear the cards shuffling themselves back into order.",
+        "location-great-hall": "The Great Hall is where everybody ends up at once: all the Chapters, every class, both sides of every argument, and readers coming back after a long time away. Long tables. Lamps floating up near the ceiling. A big weather-glass on the wall that always tells the truth about the sky.\n\nThe banners change on their own. When a Chapter's having a brave week, its banner gets bigger. When somebody's Belief moves, the cloth moves too.\n\nIt's loud in there. I like it loud. Every rumour in the Academy goes through the Great Hall at least once, usually at lunch.",
+        "location-kitchens": "The Kitchens are underneath everything, warm and steamy, with copper pots, flour on the dark wood and a label on every pantry jar. This is where comfort and practical magic turn into broth and bread and lists. Ambrose Trencher runs the lunch line, and he feeds everybody, whichever side they're on.\n\nThere's a door down here that opens on its own when somebody needs looking after. Nobody's ever seen it open for no reason.\n\nWhen my pages get cold, I think about the Kitchens. It helps more than you'd expect.",
+        "location-quillquarium": "The Quillquarium is an aquarium with no water in it. Pens swim through the air instead. They swim about in schools, fountain pens with fountain pens and pencils with pencils, and the fierce ones hunt weak sentences until the sentences sharpen up.\n\nThis is where every reader's Quill comes from. You don't choose one. One of them swims down out of the crowd and chooses your hand, and after that it's yours.\n\nInk currents run through the whole room, blue and black and one red one that nobody trusts.",
+        "location-book-burrow": "The Book Burrow is a living room hidden inside me where nobody has to do anything. Blanket nests. Low lamps. Half-read books left open on their tummies. Snack trays. Armchairs that wander off to a different corner when nobody's watching.\n\nThe Cast come here to hang about when they're tired of being looked at. So can you. The shelves curve all the way round, so the whole room's a warm den.\n\nIt's the only room in me where I don't count anything. I just let everybody be.",
+        "location-dorm": "The Dorm is your room. It's inside me, and it's yours. There's a desk that fits you, a shelf for souvenirs, a slot for letters, a bed tucked in a nook, and one wall that changes colour with your Chapter's weather.\n\nEverything in it comes from what you've kept. The more you keep, the more it fills up with your things, and the more it starts to smell of you.\n\nSome corners I've left empty on purpose. I don't know what goes in them yet. You will."
     ]
 }
 
@@ -5128,7 +5309,7 @@ enum SpellRegistry {
             title: "Say nothing until you see a bird",
             practice: "The dumb supper (Hallowe'en custom)",
             source: .folk,
-            blurb: "On Hallowe'en in Britain and America, people used to lay a supper for the dead and eat it in total silence. One word and it was spoiled. Silence is a door. Most people never keep it long enough to find out where it goes.",
+            blurb: "On Hallowe'en in Britain and America, people used to lay a supper for the dead and eat it in total silence. One word and it was spoiled. Silence goes somewhere. Most people never keep it long enough to find out where.",
             invitation: "From now, say nothing at all until you see a bird. No talking, no humming, not even hm. Messages count as talking.",
             rule: "If you speak first, it doesn't count. Start again.",
             ask: "What bird was it? And what was the first thing you said after?",
@@ -5184,7 +5365,7 @@ enum SpellRegistry {
             invitation: "Hold a question in your head. Take any book within reach. Open it anywhere and read the first line you see.",
             rule: "The first line. Don't pick a better one. Books can tell.",
             ask: "Write the line down, and the book it fell out of. Then tell me what it said to your question.",
-            answer: "That's your answer. What it means is your job. I only open the doors.",
+            answer: "That's your answer. What it means is your job. I only deal.",
             mechanic: .findOneLine,
             trigger: nil,
             tags: ["book", "chance", "indoors", "oracle"],
@@ -5244,7 +5425,7 @@ enum SpellRegistry {
             title: "Let the shuffle answer",
             practice: "Shufflemancy",
             source: .folk,
-            blurb: "You ask a question, press shuffle, and the first line you hear is the answer. Nobody invented this one. People everywhere started doing it on their own, as soon as music went into their pockets. Old magic always finds the new doors.",
+            blurb: "You ask a question, press shuffle, and the first line you hear is the answer. Nobody invented this one. People everywhere started doing it on their own, as soon as music went into their pockets. Old magic always finds the new gadgets.",
             invitation: "Ask your question in your head. Shuffle everything. Listen for the first whole line of words.",
             rule: "The first line, not the best one. Skipping is cheating and the shuffle knows.",
             ask: "Write the line down, and the question it was answering.",

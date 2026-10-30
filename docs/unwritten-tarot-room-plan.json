@@ -1,0 +1,730 @@
+{
+  "status": "visual-staging-plan-not-new-lore",
+  "approvedWorld": "ReEnchanted library Academy; room variety, fuller marginalia, books everywhere including Kitchens",
+  "constraints": [
+    "Preserve RWS identities, gestures and exact numbered suit counts.",
+    "The wild Stacks are a specific setting, not the default background.",
+    "Named room and action choices are art staging; no new relationships, powers or Chapter membership are silently established.",
+    "No installation or build is authorized by this planning file."
+  ],
+  "roomKinds": {
+    "threshold": 8,
+    "workroom": 5,
+    "reading-room": 9,
+    "chapter-common-room": 10,
+    "great-hall": 3,
+    "classroom": 12,
+    "wild-stacks": 5,
+    "courtyard": 7,
+    "catalogue-room": 1,
+    "faculty-room": 6,
+    "garden": 6,
+    "kitchens": 4,
+    "field-library": 1,
+    "dorm": 1
+  },
+  "cards": [
+    {
+      "id": "major-00",
+      "name": "0 \u2014 The Fool",
+      "room": "Outer Stacks threshold",
+      "kind": "threshold",
+      "booksInUse": "A new reader\u2019s bundle, escaping leaf and library doorway.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-01",
+      "name": "I \u2014 The Magician",
+      "room": "Press & Peculiar Commerce workroom",
+      "kind": "workroom",
+      "booksInUse": "Catalog cards, proof leaves, printing press and books being made.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-02",
+      "name": "II \u2014 The High Priestess",
+      "room": "Restricted reading room",
+      "kind": "reading-room",
+      "booksInUse": "Closed volumes, veiled shelves and one guarded reading book.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-03",
+      "name": "III \u2014 The Empress",
+      "room": "Mossbloom common-room conservatory",
+      "kind": "chapter-common-room",
+      "booksInUse": "Plant books, pressed specimens and well-used shared reading volumes.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-04",
+      "name": "IV \u2014 The Emperor",
+      "room": "Great Hall head table",
+      "kind": "great-hall",
+      "booksInUse": "House records, boundary plans and a worn volume under a steady hand.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-05",
+      "name": "V \u2014 The Hierophant",
+      "room": "Lexical Diversity classroom",
+      "kind": "classroom",
+      "booksInUse": "Teacher\u2019s chained dictionary, learners\u2019 folios and passed-on books.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-06",
+      "name": "VI \u2014 The Lovers",
+      "room": "Forked library reading rooms",
+      "kind": "wild-stacks",
+      "booksInUse": "Two freely chosen readers meet over one shared root-bound volume.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-07",
+      "name": "VII \u2014 The Chariot",
+      "room": "Book-delivery courtyard",
+      "kind": "courtyard",
+      "booksInUse": "A loaded book cart under a canopy, with packages and return slips.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-08",
+      "name": "VIII \u2014 Strength",
+      "room": "Basic Enchantments classroom",
+      "kind": "classroom",
+      "booksInUse": "A calm keeper tends an ink-and-paper lion beside a dropped book.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-09",
+      "name": "IX \u2014 The Hermit",
+      "room": "Deep Under-Stacks landing",
+      "kind": "wild-stacks",
+      "booksInUse": "Strapped archive volumes, keys and a star lantern lighting the next step.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-10",
+      "name": "X \u2014 Wheel of Fortune",
+      "room": "Catalogue hall",
+      "kind": "catalogue-room",
+      "booksInUse": "A rotating wheel of catalog drawers and four corner readers.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-11",
+      "name": "XI \u2014 Justice",
+      "room": "Department of Attestation room",
+      "kind": "faculty-room",
+      "booksInUse": "Open ledger, correction leaves and the material weight of a decision.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-12",
+      "name": "XII \u2014 The Hanged Man",
+      "room": "Book Jumping classroom",
+      "kind": "classroom",
+      "booksInUse": "A safe inverted reader, a floor book and a beam with paper hinges.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-13",
+      "name": "XIII \u2014 Death",
+      "room": "Old-paper garden",
+      "kind": "garden",
+      "booksInUse": "Fallen library leaves return to shoots beneath the traditional rider.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-14",
+      "name": "XIV \u2014 Temperance",
+      "room": "Inkworks dye room",
+      "kind": "workroom",
+      "booksInUse": "Dye vessels, swatch books and paper-drying cloths; exact two vessels.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-15",
+      "name": "XV \u2014 The Devil",
+      "room": "Locked lending alcove",
+      "kind": "reading-room",
+      "booksInUse": "Open book clasps, held chains and a lectern whose bargain can be questioned.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-16",
+      "name": "XVI \u2014 The Tower",
+      "room": "Storm-struck archive tower",
+      "kind": "wild-stacks",
+      "booksInUse": "Exposed shelves and signatures burst from a broken library tower.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-17",
+      "name": "XVII \u2014 The Star",
+      "room": "Moonlit reading garden",
+      "kind": "garden",
+      "booksInUse": "Water-damaged pages dry beside a pool under exactly eight stars.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-18",
+      "name": "XVIII \u2014 The Moon",
+      "room": "Tidal library approach",
+      "kind": "wild-stacks",
+      "booksInUse": "Two towers, uncertain path and a map that ends short of the water.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-19",
+      "name": "XIX \u2014 The Sun",
+      "room": "Sunlit Academy courtyard",
+      "kind": "courtyard",
+      "booksInUse": "A carried storybook, sunflower lesson leaves and an open reading window.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-20",
+      "name": "XX \u2014 Judgement",
+      "room": "Vault of Doors",
+      "kind": "classroom",
+      "booksInUse": "Open book-shaped coffers, loose ribbon markers and a call to answer.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "major-21",
+      "name": "XXI \u2014 The World",
+      "room": "Completion gallery",
+      "kind": "great-hall",
+      "booksInUse": "A handmade book, stitched wreath and four witnesses to a completed work.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-ace",
+      "name": "Ace of Wands",
+      "room": "New-writer desk",
+      "kind": "reading-room",
+      "booksInUse": "One offered pen, an open book, first-mark paper and a library window.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-two",
+      "name": "Two of Wands",
+      "room": "Map classroom window",
+      "kind": "classroom",
+      "booksInUse": "A planning globe, annotated map shapes and two pens at the window.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-three",
+      "name": "Three of Wands",
+      "room": "Library shipping balcony",
+      "kind": "threshold",
+      "booksInUse": "Borrowing parcels, bound travel records and ships beyond the rail.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-four",
+      "name": "Four of Wands",
+      "room": "Great Hall",
+      "kind": "great-hall",
+      "booksInUse": "Books on communal tables and shelves; four-pen garland, shared welcome.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-five",
+      "name": "Five of Wands",
+      "room": "Collaborative writing classroom",
+      "kind": "classroom",
+      "booksInUse": "Five pens contest one sheet; practice books and ink live on the desks.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-six",
+      "name": "Six of Wands",
+      "room": "Academy entrance hall",
+      "kind": "threshold",
+      "booksInUse": "A carried volume, book-return procession and recognition made public.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-seven",
+      "name": "Seven of Wands",
+      "room": "Library lending threshold",
+      "kind": "threshold",
+      "booksInUse": "A defended book trolley and open manuscript; one held pen plus six below.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-eight",
+      "name": "Eight of Wands",
+      "room": "Courier-room open window",
+      "kind": "workroom",
+      "booksInUse": "Correspondence and book parcels below eight pens crossing sky and river.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-nine",
+      "name": "Nine of Wands",
+      "room": "Late-shift return desk",
+      "kind": "reading-room",
+      "booksInUse": "A repaired folio beside the tired keeper; one pen plus eight in a rack.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-ten",
+      "name": "Ten of Wands",
+      "room": "Crooked bindery stair",
+      "kind": "wild-stacks",
+      "booksInUse": "The goblin\u2019s ten-pen burden, book parcels and a practical bindery door.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-page",
+      "name": "Page of Wands",
+      "room": "First-year study room",
+      "kind": "classroom",
+      "booksInUse": "A notebook and one budding pen examined before anything is written.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-knight",
+      "name": "Knight of Wands",
+      "room": "Library delivery lane",
+      "kind": "courtyard",
+      "booksInUse": "An unsecured saddle folio loses blank leaves into the wind.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-queen",
+      "name": "Queen of Wands",
+      "room": "Emberheart common room",
+      "kind": "chapter-common-room",
+      "booksInUse": "A host\u2019s unfinished book, sunflower, cat and warm shared shelf corners.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "wands-king",
+      "name": "King of Wands",
+      "room": "Quillquarium faculty workroom",
+      "kind": "faculty-room",
+      "booksInUse": "Folded signatures, binding cord and supplies sustaining the one held pen.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-ace",
+      "name": "Ace of Cups",
+      "room": "Library garden pool",
+      "kind": "garden",
+      "booksInUse": "A dry open volume, water lilies and five streams from one cup.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-two",
+      "name": "Two of Cups",
+      "room": "Tidecrest common-room reading table",
+      "kind": "chapter-common-room",
+      "booksInUse": "A shared book between two equal readers and two exchanged cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-three",
+      "name": "Three of Cups",
+      "room": "Kitchen story table",
+      "kind": "kitchens",
+      "booksInUse": "Flour-dusted cookbooks and shared stories beneath three raised cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-four",
+      "name": "Four of Cups",
+      "room": "Book Burrow window seat",
+      "kind": "chapter-common-room",
+      "booksInUse": "A neglected reading book beside three cups and one offered cup.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-five",
+      "name": "Five of Cups",
+      "room": "Kitchen cookbook alcove",
+      "kind": "kitchens",
+      "booksInUse": "Warped recipe leaves beside three spilled and two standing cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-six",
+      "name": "Six of Cups",
+      "room": "Small Academy courtyard",
+      "kind": "courtyard",
+      "booksInUse": "An old picture book and six flower cups among remembered places.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-seven",
+      "name": "Seven of Cups",
+      "room": "Illustrated-book classroom",
+      "kind": "classroom",
+      "booksInUse": "Seven cup visions rise from a reader\u2019s open book, not a generic dream palace.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-eight",
+      "name": "Eight of Cups",
+      "room": "Tidal reading-room departure",
+      "kind": "threshold",
+      "booksInUse": "A closed shelf book and trailing bookmark beside eight abandoned cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-nine",
+      "name": "Nine of Cups",
+      "room": "Private library nook",
+      "kind": "reading-room",
+      "booksInUse": "A well-used knee book, mended chair and exactly nine shelf cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-ten",
+      "name": "Ten of Cups",
+      "room": "Library kitchen and hearth",
+      "kind": "kitchens",
+      "booksInUse": "A shared storybook on a blanket, recipe books on stove-side shelves; ten cups.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-page",
+      "name": "Page of Cups",
+      "room": "Tidecrest message room",
+      "kind": "chapter-common-room",
+      "booksInUse": "A blank folded letter, one cup and an unexpected fish answer.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-knight",
+      "name": "Knight of Cups",
+      "room": "Bridge to the lending library",
+      "kind": "courtyard",
+      "booksInUse": "A ribbon-tied invitation book in a measured rider\u2019s saddle pocket.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-queen",
+      "name": "Queen of Cups",
+      "room": "Tidecrest common-room bay window",
+      "kind": "chapter-common-room",
+      "booksInUse": "A tide-marked volume, silk bookmark and closed cup above moving water.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "cups-king",
+      "name": "King of Cups",
+      "room": "Tidal faculty reading room",
+      "kind": "faculty-room",
+      "booksInUse": "A wet ledger held by a plain stone; steady hands amid rough water.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-ace",
+      "name": "Ace of Swords",
+      "room": "Attestation copying desk",
+      "kind": "faculty-room",
+      "booksInUse": "One paper knife opens a folded leaf; proof paper and closed volumes nearby.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-two",
+      "name": "Two of Swords",
+      "room": "Shore-library quiet room",
+      "kind": "reading-room",
+      "booksInUse": "A closed sewn volume, a folded leaf and two crossed paper knives.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-three",
+      "name": "Three of Swords",
+      "room": "Book conservation bench",
+      "kind": "workroom",
+      "booksInUse": "Three paper knives pierce a book-leaf heart; a repair sample asks where to begin.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-four",
+      "name": "Four of Swords",
+      "room": "Riddlewind common room",
+      "kind": "chapter-common-room",
+      "booksInUse": "Resting Cedric, books in chair pockets and at slippers; three knives plus one.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-five",
+      "name": "Five of Swords",
+      "room": "Disputed reading-room table",
+      "kind": "reading-room",
+      "booksInUse": "A torn shared folio; three knives gathered and two left behind.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-six",
+      "name": "Six of Swords",
+      "room": "Library ferry landing",
+      "kind": "threshold",
+      "booksInUse": "Salvaged books tied against water, six paper knives and rough-to-calm crossing.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-seven",
+      "name": "Seven of Swords",
+      "room": "Field-library camp",
+      "kind": "field-library",
+      "booksInUse": "Five carried knives, two left upright and a concealed folio among tents.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-eight",
+      "name": "Eight of Swords",
+      "room": "Library keep approach",
+      "kind": "threshold",
+      "booksInUse": "Binding tape, a torn map and a visible gap among eight paper knives.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-nine",
+      "name": "Nine of Swords",
+      "room": "Reader\u2019s dorm",
+      "kind": "dorm",
+      "booksInUse": "A fallen open book, rose quilt and exactly nine mounted knives above a wakeful reader.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-ten",
+      "name": "Ten of Swords",
+      "room": "Dawn after-hours reading room",
+      "kind": "reading-room",
+      "booksInUse": "A ruined manuscript and ten knives above an exhausted cloaked figure; window dawn.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-page",
+      "name": "Page of Swords",
+      "room": "Weather-window study room",
+      "kind": "classroom",
+      "booksInUse": "A strapped-shut notebook and one raised knife; thinking before opening.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-knight",
+      "name": "Knight of Swords",
+      "room": "Stormy library delivery road",
+      "kind": "courtyard",
+      "booksInUse": "Blank saddle-folio leaves blow backward while the rider rushes ahead.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-queen",
+      "name": "Queen of Swords",
+      "room": "Faculty editorial room",
+      "kind": "faculty-room",
+      "booksInUse": "An open book and correction tip-in beside one upright paper knife.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "swords-king",
+      "name": "King of Swords",
+      "room": "Library rules committee room",
+      "kind": "faculty-room",
+      "booksInUse": "A rulebook and loose correction leaf keep authority answerable.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-ace",
+      "name": "Ace of Pentacles",
+      "room": "Bookbinding garden desk",
+      "kind": "garden",
+      "booksInUse": "An uncased sewn book waits below one offered hinged brass clasp.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-two",
+      "name": "Two of Pentacles",
+      "room": "Book-parcel dispatch room",
+      "kind": "workroom",
+      "booksInUse": "Two books in a satchel, two juggled clasps and ships beyond a low window.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-three",
+      "name": "Three of Pentacles",
+      "room": "Ink-Binding classroom",
+      "kind": "classroom",
+      "booksInUse": "Three collaborators, a sewing frame, binding plan and exactly three sample clasps.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-four",
+      "name": "Four of Pentacles",
+      "room": "Closed lending desk",
+      "kind": "reading-room",
+      "booksInUse": "One held closed book; four clasps express security that prevents opening.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-five",
+      "name": "Five of Pentacles",
+      "room": "Winter library porch",
+      "kind": "threshold",
+      "booksInUse": "Books glow behind a window with five clasp panels; two travelers pass a nearby door.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-six",
+      "name": "Six of Pentacles",
+      "room": "Kitchen lending counter",
+      "kind": "kitchens",
+      "booksInUse": "A blank repair ledger and wrapped cookbooks; six clasps distributed with unequal power.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-seven",
+      "name": "Seven of Pentacles",
+      "room": "Mossbloom reading garden",
+      "kind": "garden",
+      "booksInUse": "A planted book feeds moss; six vine clasps plus one at the gardener\u2019s feet.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-eight",
+      "name": "Eight of Pentacles",
+      "room": "Bindery practice classroom",
+      "kind": "classroom",
+      "booksInUse": "A maker\u2019s bench, trial bindings and exactly eight worked brass clasps.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-nine",
+      "name": "Nine of Pentacles",
+      "room": "Conservatory reading garden",
+      "kind": "garden",
+      "booksInUse": "Cultivated books, grape leaves, a falcon and nine carefully tended clasps.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-ten",
+      "name": "Ten of Pentacles",
+      "room": "Book Burrow family table",
+      "kind": "chapter-common-room",
+      "booksInUse": "A worn storybook passes between generations; two dogs and ten clasps.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-page",
+      "name": "Page of Pentacles",
+      "room": "Bookbinding study room",
+      "kind": "classroom",
+      "booksInUse": "A first practice fold, uncased book and one clasp studied closely.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-knight",
+      "name": "Knight of Pentacles",
+      "room": "Book-parcel delivery yard",
+      "kind": "courtyard",
+      "booksInUse": "Sewn book parcels on a patient rider\u2019s horse; one offered clasp.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-queen",
+      "name": "Queen of Pentacles",
+      "room": "Mossbloom common-room repair table",
+      "kind": "chapter-common-room",
+      "booksInUse": "An unfinished book, linen scraps, thread, one clasp and a rabbit beneath the chair.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    },
+    {
+      "id": "pentacles-king",
+      "name": "King of Pentacles",
+      "room": "Book Burrow steward\u2019s desk",
+      "kind": "chapter-common-room",
+      "booksInUse": "Worn leather, maintained volumes and one clasp: care for what has been inherited.",
+      "casting": "Use current Cast, authored older Academy characters or literary fae when the card fits; final casting remains per-card.",
+      "marginalia": "Card-specific material/specimen study, secondary diagram or trace, tiny fae action, authored aside and reading note; vary density and preserve counted symbols."
+    }
+  ]
+}

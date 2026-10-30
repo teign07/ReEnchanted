@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import PencilKit
+import Accelerate
 #if canImport(InsideCoverCore)
 import InsideCoverCore
 #endif
@@ -10,15 +11,17 @@ import InsideCoverCore
 struct BookInkMaterialPhase: AnimatableModifier {
     var progress: Double
     let isSinking: Bool
+    private let isPicture: Bool
     private let phaseSeed: Float
     private let regionDelaySpan: Float
     private let regionDuration: Float
     private let objectDelay: Float
     private let clockImage: Image
 
-    init(progress: Double, seed: String, isSinking: Bool, sentenceClock: UIImage? = nil) {
+    init(progress: Double, seed: String, isSinking: Bool, style: BookInkStyle = .writing, sentenceClock: UIImage? = nil) {
         self.progress = progress
         self.isSinking = isSinking
+        isPicture = style == .picture
         // These values belong to the mark, not the animation frame. Keep the
         // deterministic hashing and image wrapper outside animatable body work.
         phaseSeed = Float(BookInkTiming.variation(seed) * 97)
@@ -56,6 +59,7 @@ struct BookInkMaterialPhase: AnimatableModifier {
                     .float(regionDelaySpan),
                     .float(regionDuration),
                     .float(objectDelay),
+                    .float(isPicture ? 1.0 : 0.0),
                     .image(clockImage)
                 ),
                 maxSampleOffset: CGSize(width: 24, height: 24),
@@ -109,8 +113,11 @@ private struct BookPigmentSnapshot: View {
 final class BookLabelPigment {
     private var host: UIHostingController<AnyView>?
     private var finishTask: Task<Void, Never>?
+    private var mapTask: Task<Void, Never>?
 
     func remove() {
+        mapTask?.cancel()
+        mapTask = nil
         finishTask?.cancel()
         finishTask = nil
         host?.view.removeFromSuperview()
@@ -122,7 +129,7 @@ final class BookLabelPigment {
         let elapsed = Date().timeIntervalSince(arrival)
         guard elapsed < BookInkTiming.arrivalDuration,
               label.bounds.width > 0, label.bounds.height > 0,
-              let attributed = label.attributedText, attributed.length > 0 else { return false }
+              let attributed = label.attributedText?.copy() as? NSAttributedString, attributed.length > 0 else { return false }
         let seed = BookInkTiming.arrivalSeed(seed, arrival: arrival)
         // At most two million pixels per text box; reading precision returns
         // to the native label, independent of this temporary texture budget.
@@ -131,18 +138,30 @@ final class BookLabelPigment {
         format.scale = min(2, sqrt(2_000_000 / max(1, label.bounds.width * label.bounds.height)))
         let size = label.bounds.size
         let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in draw(label.bounds) }
-        let clock = sentenceMap(attributed: attributed, label: label, seed: seed)
-        let view = BookPigmentSnapshot(image: image, clock: clock, size: size, startedAt: arrival,
-                                      duration: BookInkTiming.arrivalDuration, seed: seed, isSinking: false)
-        let host = UIHostingController(rootView: AnyView(view))
-        host.view.backgroundColor = .clear
-        host.view.isOpaque = false
-        host.view.isUserInteractionEnabled = false
-        host.view.accessibilityElementsHidden = true
-        host.view.frame = label.bounds
-        host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        label.addSubview(host.view)
-        self.host = host
+        let textRect = label.textRect(forBounds: label.bounds, limitedToNumberOfLines: 0)
+        let lineBreakMode = label.lineBreakMode
+        // The timing maps take tens of milliseconds of layout, glyph drawing
+        // and blurring; the leaf is turning, so they are built off the main
+        // thread. The label is already blank and the shader catches up to the
+        // arrival clock, so a late host loses only the first faint frames.
+        mapTask = Task { @MainActor [weak self, weak label] in
+            let clock = await Task.detached(priority: .userInitiated) {
+                Self.sentenceMap(attributed: attributed, size: size, textRect: textRect,
+                                 lineBreakMode: lineBreakMode, seed: seed, ink: image)
+            }.value
+            guard let self, let label, !Task.isCancelled else { return }
+            let view = BookPigmentSnapshot(image: image, clock: clock, size: size, startedAt: arrival,
+                                          duration: BookInkTiming.arrivalDuration, seed: seed, isSinking: false)
+            let host = UIHostingController(rootView: AnyView(view))
+            host.view.backgroundColor = .clear
+            host.view.isOpaque = false
+            host.view.isUserInteractionEnabled = false
+            host.view.accessibilityElementsHidden = true
+            host.view.frame = label.bounds
+            host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            label.addSubview(host.view)
+            self.host = host
+        }
         finishTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(max(0, BookInkTiming.arrivalDuration - elapsed))) }
             catch { return }
@@ -153,40 +172,151 @@ final class BookLabelPigment {
         return true
     }
 
-    private func sentenceMap(attributed: NSAttributedString, label: UILabel, seed: String) -> UIImage {
+    /// The label's own ink, blurred once on arrival, is the puddle's surface:
+    /// thresholding it lets neighbouring letters run together as liquid. A ring
+    /// of shader taps at puddle width drew a dozen copies of each glyph instead.
+    /// Coverage goes to the green channel only, beside the red order ramp.
+    nonisolated private static func puddleField(_ ink: UIImage, size: CGSize, margin: CGFloat) -> UIImage? {
+        guard let cgImage = ink.cgImage else { return nil }
+        let width = Int(ceil(size.width + margin * 2)), height = Int(ceil(size.height + margin * 2))
+        var coverage = [UInt8](repeating: 0, count: width * height)
+        var blurred = coverage
+        let drawn = coverage.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                          bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue) else { return false }
+            context.interpolationQuality = .medium
+            context.draw(cgImage, in: CGRect(x: margin, y: CGFloat(height) - margin - size.height,
+                                             width: size.width, height: size.height))
+            return true
+        }
+        guard drawn else { return nil }
+        // A 13-point tent at 1x spreads like a Gaussian of about 2.6pt.
+        let error = coverage.withUnsafeMutableBytes { source in
+            blurred.withUnsafeMutableBytes { destination in
+                var src = vImage_Buffer(data: source.baseAddress, height: vImagePixelCount(height),
+                                        width: vImagePixelCount(width), rowBytes: width)
+                var dst = vImage_Buffer(data: destination.baseAddress, height: vImagePixelCount(height),
+                                        width: vImagePixelCount(width), rowBytes: width)
+                return vImageTentConvolve_Planar8(&src, &dst, nil, 0, 0, 13, 13, 0, vImage_Flags(kvImageBackgroundColorFill))
+            }
+        }
+        guard error == kvImageNoError else { return nil }
+        var green = [UInt8](repeating: 0, count: width * height * 4)
+        for index in 0..<(width * height) { green[index * 4 + 1] = blurred[index] }
+        guard let provider = CGDataProvider(data: Data(green) as CFData),
+              let field = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                                  bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                  bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: false,
+                                  intent: .defaultIntent) else { return nil }
+        return UIImage(cgImage: field)
+    }
+
+    nonisolated private static func sentenceMap(attributed: NSAttributedString, size: CGSize, textRect: CGRect,
+                                                lineBreakMode: NSLineBreakMode, seed: String, ink: UIImage) -> UIImage {
         let storage = NSTextStorage(attributedString: attributed)
         let layout = NSLayoutManager()
-        let container = NSTextContainer(size: CGSize(width: label.bounds.width, height: .greatestFiniteMagnitude))
+        let container = NSTextContainer(size: CGSize(width: size.width, height: .greatestFiniteMagnitude))
         container.lineFragmentPadding = 0
-        container.lineBreakMode = label.lineBreakMode
+        container.lineBreakMode = lineBreakMode
         storage.addLayoutManager(layout)
         layout.addTextContainer(container)
         layout.ensureLayout(for: container)
-        let yOffset = label.textRect(forBounds: label.bounds, limitedToNumberOfLines: 0).minY - layout.usedRect(for: container).minY
+        // UILabel centres its text in a taller box; the map must follow it.
+        let yOffset = textRect.minY + max(0, (size.height - textRect.height) / 2) - layout.usedRect(for: container).minY
         var ranges: [NSRange] = []
         attributed.string.enumerateSubstrings(in: attributed.string.startIndex..<attributed.string.endIndex,
                                              options: [.bySentences, .substringNotRequired]) { _, _, enclosing, _ in
             ranges.append(NSRange(enclosing, in: attributed.string))
         }
         if ranges.isEmpty { ranges = [NSRange(location: 0, length: attributed.length)] }
-        // The shader removes its transparent 12pt sampling margin before
-        // looking up this map in the original content coordinates.
-        let size = label.bounds.size
+        // Both maps span the shader's padded layer, including the transparent
+        // 12pt margin a puddle may spill into. Start bands fill the top half.
+        // In the bottom half each sentence's reading order runs as a red ramp
+        // along its own lines, so its ink writes from its first letter
+        // to its last, and the puddle field shares those pixels in green. The
+        // two grey rows at the foot let the shader undo whatever colour
+        // conversion the ramp meets.
+        let margin: CGFloat = 12
+        let width = size.width + margin * 2
+        let height = ceil(size.height) + margin * 2
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
-        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+        format.preferredRange = .standard
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
+        func grey(_ value: CGFloat) -> CGColor { CGColor(colorSpace: space, components: [value, value, value, 1])! }
+        func red(_ value: CGFloat) -> CGColor { CGColor(colorSpace: space, components: [value, 0, 0, 1])! }
+        let field = Self.puddleField(ink, size: size, margin: margin)
+        return UIGraphicsImageRenderer(size: CGSize(width: width, height: height * 2 + 2), format: format).image { context in
+            let cg = context.cgContext
             UIColor.black.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height * 2 + 2))
+            cg.setFillColor(grey(0.5))
+            cg.fill(CGRect(x: 0, y: height * 2, width: width, height: 2))
+            // Line boxes tile the paper between and around the words. They
+            // nearly touch the glyphs, so the glyphs themselves are drawn over
+            // them, thickened a little, carrying their own line's clock: an
+            // ascender or descender reaching into a neighbouring box keeps its
+            // own timing instead of firing early as a stray mark.
+            var boxes: [(rect: CGRect, glyphs: NSRange, clock: UIColor, start: CGFloat, end: CGFloat)] = []
             for (index, range) in ranges.enumerated() {
-                BookInkTiming.clockColor(seed, index: index).setFill()
                 let glyphs = layout.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
-                layout.enumerateEnclosingRects(forGlyphRange: glyphs,
-                                               withinSelectedGlyphRange: NSRange(location: NSNotFound, length: 0),
-                                               in: container) { rect, _ in
-                    context.fill(rect.offsetBy(dx: 0, dy: yOffset).insetBy(dx: -2, dy: -2))
+                var lines: [(rect: CGRect, glyphs: NSRange)] = []
+                layout.enumerateLineFragments(forGlyphRange: glyphs) { _, _, _, lineGlyphs, _ in
+                    let part = NSIntersectionRange(lineGlyphs, glyphs)
+                    let rect = layout.boundingRect(forGlyphRange: part, in: container)
+                    if part.length > 0, rect.width > 0 {
+                        lines.append((rect.offsetBy(dx: margin, dy: yOffset + margin), part))
+                    }
+                }
+                let length = max(1, lines.reduce(0) { $0 + $1.rect.width })
+                var written: CGFloat = 0
+                for line in lines {
+                    let start = 0.1 + 0.9 * written / length
+                    written += line.rect.width
+                    boxes.append((line.rect, line.glyphs, BookInkTiming.clockColor(seed, index: index),
+                                  start, 0.1 + 0.9 * written / length))
                 }
             }
+            for box in boxes {
+                let area = box.rect.insetBy(dx: -2, dy: 0)
+                box.clock.setFill()
+                context.fill(area)
+                guard let ramp = CGGradient(colorsSpace: space, colors: [red(box.start), red(box.end)] as CFArray,
+                                            locations: [0, 1]) else { continue }
+                cg.saveGState()
+                cg.clip(to: area.offsetBy(dx: 0, dy: height))
+                cg.drawLinearGradient(ramp, start: CGPoint(x: box.rect.minX, y: 0), end: CGPoint(x: box.rect.maxX, y: 0),
+                                      options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+                cg.restoreGState()
+            }
+            let everything = NSRange(location: 0, length: storage.length)
+            let allGlyphs = layout.glyphRange(for: container)
+            let origin = CGPoint(x: margin, y: yOffset + margin)
+            storage.removeAttribute(.shadow, range: everything)
+            storage.addAttribute(.strokeWidth, value: -8, range: everything)
+            for box in boxes {
+                let characters = layout.characterRange(forGlyphRange: box.glyphs, actualGlyphRange: nil)
+                storage.addAttribute(.foregroundColor, value: box.clock, range: characters)
+            }
+            layout.drawGlyphs(forGlyphRange: allGlyphs, at: origin)
+            for box in boxes {
+                var glyph = box.glyphs.location
+                while glyph < NSMaxRange(box.glyphs) {
+                    let line = layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+                    let x = line.minX + layout.location(forGlyphAt: glyph).x + margin
+                    let along = min(1, max(0, (x - box.rect.minX) / box.rect.width))
+                    let characters = layout.characterRange(forGlyphRange: NSRange(location: glyph, length: 1), actualGlyphRange: nil)
+                    storage.addAttribute(.foregroundColor,
+                                         value: UIColor(red: box.start + (box.end - box.start) * along, green: 0, blue: 0, alpha: 1),
+                                         range: characters)
+                    glyph += 1
+                }
+            }
+            layout.drawGlyphs(forGlyphRange: allGlyphs, at: CGPoint(x: origin.x, y: origin.y + height))
+            field?.draw(in: CGRect(x: 0, y: height, width: width, height: height), blendMode: .plusLighter, alpha: 1)
         }
     }
 }
@@ -349,7 +479,7 @@ private struct BookInkCaptureProbe: UIViewRepresentable {
 #if DEBUG
 /// A single tuning leaf using the production label, editor, illustration and
 /// illuminated photo seams. It never writes a Keep or changes a reader's Book.
-private struct BookPigmentProofLeaf: View {
+struct BookPigmentProofLeaf: View {
     @State private var arrival = Date()
     @State private var words = "I found a feather beside the gate."
     @State private var sinking = false
@@ -366,7 +496,7 @@ private struct BookPigmentProofLeaf: View {
                 HStack {
                     Image("IlluminationScrapS01_15").resizable().scaledToFit()
                         .frame(width: 100, height: 150)
-                        .bookInkEmergence(seed: "proof-illustration")
+                        .bookInkEmergence(seed: "proof-illustration", style: .picture)
                     IlluminatedArtifactPreview(draft: photo)
                         .frame(height: 220)
                 }

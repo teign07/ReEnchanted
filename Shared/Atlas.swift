@@ -280,7 +280,7 @@ enum MapPlateDestination: Equatable {
 }
 
 /// One mark drawn on a plate.
-struct MapPlateMark: Equatable {
+struct MapPlateMark: Hashable {
     var latitude: Double
     var longitude: Double
     var glyph: String
@@ -289,7 +289,7 @@ struct MapPlateMark: Equatable {
 
 /// Everything needed to draw a place's chart, decided before any tile is
 /// fetched so the decision is testable without a network.
-struct MapPlateSpec: Equatable {
+struct MapPlateSpec: Hashable {
     /// Stable across redraws, so a rendered plate can be cached against it.
     var id: String
     var latitude: Double
@@ -382,7 +382,7 @@ enum MapPlate {
 /// The quiet leaf is binding-space: a turn of paper the reader either stops at
 /// or does not. It is the right home for a chart, because a plate is something
 /// to come across rather than something to go and look up.
-struct GazetteerLeaf: Equatable {
+struct GazetteerLeaf: Hashable {
     var anchorID: String
     var title: String
     /// Why this one, said plainly. The Book is not allowed to put a place on
@@ -561,10 +561,19 @@ extension Gazetteer {
         dayID: String = "",
         calendar: Calendar = .current
     ) -> GazetteerLeaf? {
+        quietLeaves(anchors: anchors, days: days, now: now, dayID: dayID, calendar: calendar).first
+    }
+
+    /// The same eligible places and reasons, in priority order. Interleaves
+    /// can let other places take a turn without inventing another map source.
+    static func quietLeaves(
+        anchors: [AnchorRecord], days: [BookDay], now: Date = Date(),
+        dayID: String = "", calendar: Calendar = .current
+    ) -> [GazetteerLeaf] {
         // This leaf uses place/count/plate facts, never the Gazetteer's prose
         // previews. Do not trim and clip kept writing it will not display.
         let entries = entries(anchors: anchors, days: days, happeningsPerPlace: 0)
-        guard !entries.isEmpty else { return nil }
+        guard !entries.isEmpty else { return [] }
         var byID: [String: AnchorRecord] = [:]
         for anchor in anchors { byID[anchor.id] = anchor }
 
@@ -587,7 +596,7 @@ extension Gazetteer {
 
         let firstNamed = firstPlaceID(among: anchors)
 
-        var best: (leaf: GazetteerLeaf, score: Int)?
+        var candidates: [(leaf: GazetteerLeaf, score: Int)] = []
         for entry in entries {
             guard let anchor = byID[entry.id], let plate = entry.plate else { continue }
             let pages = pagesByAnchor[anchor.id] ?? []
@@ -641,9 +650,11 @@ extension Gazetteer {
 
             guard let line else { continue }
             let leaf = GazetteerLeaf(anchorID: anchor.id, title: entry.name, line: line, plate: plate)
-            if best == nil || score > best!.score { best = (leaf, score) }
+            candidates.append((leaf, score))
         }
-        return best?.leaf
+        return candidates.sorted {
+            $0.score == $1.score ? $0.leaf.anchorID < $1.leaf.anchorID : $0.score > $1.score
+        }.map(\.leaf)
     }
 
     /// Months, because "forty-seven days" is a stopwatch and the Book is not

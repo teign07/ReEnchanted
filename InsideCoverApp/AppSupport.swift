@@ -2959,21 +2959,32 @@ enum HealthKitBodyReader {
             .quantityType(forIdentifier: .dietaryFiber)
         ].compactMap(\.self)
         let readTypes = Set<HKObjectType>([stepType, distanceType, activeEnergyType, sleepType] + optionalQuantityTypes)
+            .union(extraReadTypes())
         try await store.requestAuthorization(toShare: [], read: readTypes)
 
         async let steps = optionalQuantitySum(for: stepType, unit: .count(), store: store, daysBack: 1)
         async let distance = optionalQuantitySum(for: distanceType, unit: .meter(), store: store, daysBack: 1)
         async let energy = optionalQuantitySum(for: activeEnergyType, unit: .kilocalorie(), store: store, daysBack: 1)
-        async let sleep = optionalSleepHours(for: sleepType, store: store)
+        async let sleep = optionalSleepNight(for: sleepType, store: store)
         async let richerMetrics = optionalDoctorMetrics(store: store)
 
-        return translate(
+        let night = await sleep
+        var signal = translate(
             steps: await steps,
             distanceMeters: await distance,
             activeKilocalories: await energy,
-            sleepHours: await sleep,
+            sleepHours: night.hours,
             metrics: await richerMetrics
         )
+        // The night itself, so a kept Page can say how long after waking (or
+        // before sleeping) it was written. Kept off `metrics`, which reach
+        // prompts and pages as display text.
+        signal.sleepStart = night.start
+        signal.sleepEnd = night.end
+        let extras = await optionalBodyExtras(store: store)
+        signal.extras = extras.extras
+        signal.lastWorkoutEndedAt = extras.lastWorkoutEndedAt
+        return signal
         #else
         throw ReaderError.unavailable
         #endif
@@ -2987,6 +2998,89 @@ enum HealthKitBodyReader {
         daysBack: Int
     ) async -> Double {
         (try? await quantitySum(for: type, unit: unit, store: store, daysBack: daysBack)) ?? 0
+    }
+
+    /// The extra types noticing reads. Asked for with the rest; any the reader
+    /// declines just stay blank.
+    private static func extraReadTypes() -> Set<HKObjectType> {
+        var types: [HKObjectType?] = [
+            HKQuantityType.quantityType(forIdentifier: .flightsClimbed),
+            HKQuantityType.quantityType(forIdentifier: .environmentalAudioExposure),
+            HKCategoryType.categoryType(forIdentifier: .mindfulSession),
+            HKObjectType.workoutType()
+        ]
+        if #available(iOS 17.0, *) { types.append(HKQuantityType.quantityType(forIdentifier: .timeInDaylight)) }
+        if #available(iOS 18.0, *) { types.append(HKObjectType.stateOfMindType()) }
+        return Set(types.compactMap(\.self))
+    }
+
+    private static func optionalBodyExtras(store: HKHealthStore) async -> (extras: BodyExtras?, lastWorkoutEndedAt: Date?) {
+        let startOfDay = Calendar.current.startOfDay(for: Date())
+        let today = HKQuery.predicateForSamples(withStart: startOfDay, end: Date())
+
+        func statistic(_ identifier: HKQuantityTypeIdentifier, unit: HKUnit, options: HKStatisticsOptions) async -> Double? {
+            guard let type = HKQuantityType.quantityType(forIdentifier: identifier) else { return nil }
+            return await withCheckedContinuation { continuation in
+                let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: today, options: options) { _, result, _ in
+                    let quantity = options.contains(.cumulativeSum) ? result?.sumQuantity() : result?.averageQuantity()
+                    continuation.resume(returning: quantity?.doubleValue(for: unit))
+                }
+                store.execute(query)
+            }
+        }
+
+        func samples(_ type: HKSampleType, predicate: NSPredicate?, limit: Int) async -> [HKSample] {
+            await withCheckedContinuation { continuation in
+                let sort = NSSortDescriptor(key: HKSampleSortIdentifierEndDate, ascending: false)
+                let query = HKSampleQuery(sampleType: type, predicate: predicate, limit: limit, sortDescriptors: [sort]) { _, results, _ in
+                    continuation.resume(returning: results ?? [])
+                }
+                store.execute(query)
+            }
+        }
+
+        var extras = BodyExtras()
+        if #available(iOS 17.0, *) {
+            extras.daylightMinutes = await statistic(.timeInDaylight, unit: .minute(), options: .cumulativeSum)
+        }
+        extras.flightsClimbed = await statistic(.flightsClimbed, unit: .count(), options: .cumulativeSum).map { Int($0) }
+        extras.environmentDecibels = await statistic(
+            .environmentalAudioExposure, unit: .decibelAWeightedSoundPressureLevel(), options: .discreteAverage
+        )
+        if let mindful = HKCategoryType.categoryType(forIdentifier: .mindfulSession) {
+            let sessions = await samples(mindful, predicate: today, limit: HKObjectQueryNoLimit)
+            let minutes = sessions.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) } / 60
+            extras.mindfulMinutes = minutes > 0 ? minutes : nil
+        }
+        var workoutEnded: Date?
+        let weekAgo = HKQuery.predicateForSamples(withStart: Date().addingTimeInterval(-7 * 86_400), end: Date())
+        if let workout = await samples(HKObjectType.workoutType(), predicate: weekAgo, limit: 1).first as? HKWorkout {
+            extras.lastWorkout = Self.workoutName(workout.workoutActivityType)
+            workoutEnded = workout.endDate
+        }
+        if #available(iOS 18.0, *) {
+            if let mood = await samples(HKObjectType.stateOfMindType(), predicate: today, limit: 1).first as? HKStateOfMind {
+                extras.loggedValence = mood.valence
+            }
+        }
+        return (extras == BodyExtras() ? nil : extras, workoutEnded)
+    }
+
+    /// Plain names for the workouts people actually log; the rest are just "a workout".
+    private static func workoutName(_ type: HKWorkoutActivityType) -> String {
+        switch type {
+        case .walking: return "walk"
+        case .running: return "run"
+        case .cycling: return "bike ride"
+        case .swimming: return "swim"
+        case .hiking: return "hike"
+        case .yoga: return "yoga"
+        case .dance: return "dance"
+        case .traditionalStrengthTraining, .functionalStrengthTraining: return "strength workout"
+        case .rowing: return "row"
+        case .paddleSports: return "paddle"
+        default: return "workout"
+        }
     }
 
     private static func quantitySum(
@@ -3014,8 +3108,14 @@ enum HealthKitBodyReader {
         }
     }
 
-    private static func optionalSleepHours(for type: HKCategoryType, store: HKHealthStore) async -> Double {
-        (try? await sleepHours(for: type, store: store)) ?? 0
+    private struct SleepNight {
+        var hours: Double
+        var start: Date?
+        var end: Date?
+    }
+
+    private static func optionalSleepNight(for type: HKCategoryType, store: HKHealthStore) async -> SleepNight {
+        (try? await sleepNight(for: type, store: store)) ?? SleepNight(hours: 0)
     }
 
     private static func optionalDoctorMetrics(store: HKHealthStore) async -> [BodySourceSignal.Metric] {
@@ -3111,7 +3211,7 @@ enum HealthKitBodyReader {
         String(format: "%.\(decimals)f", value)
     }
 
-    private static func sleepHours(for type: HKCategoryType, store: HKHealthStore) async throws -> Double {
+    private static func sleepNight(for type: HKCategoryType, store: HKHealthStore) async throws -> SleepNight {
         let start = Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date()
         let predicate = HKQuery.predicateForSamples(withStart: start, end: Date())
         let asleepValues: Set<Int> = [
@@ -3132,10 +3232,13 @@ enum HealthKitBodyReader {
                     continuation.resume(throwing: error)
                     return
                 }
-                let seconds = (samples as? [HKCategorySample] ?? [])
-                    .filter { asleepValues.contains($0.value) }
-                    .reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
-                continuation.resume(returning: seconds / 3600)
+                let asleep = (samples as? [HKCategorySample] ?? []).filter { asleepValues.contains($0.value) }
+                let seconds = asleep.reduce(0) { $0 + $1.endDate.timeIntervalSince($1.startDate) }
+                continuation.resume(returning: SleepNight(
+                    hours: seconds / 3600,
+                    start: asleep.map(\.startDate).min(),
+                    end: asleep.map(\.endDate).max()
+                ))
             }
             store.execute(query)
         }
@@ -3243,6 +3346,11 @@ enum WeatherLocationReader {
 
     #if canImport(CoreLocation)
     fileprivate static func weatherSignal(for coordinate: CLLocationCoordinate2D) async throws -> WeatherSourceSignal {
+        // The sea, the air and the aurora ride along with the forecast. Each is
+        // optional: a failure leaves that reading blank, never the weather.
+        async let sea = OpenMeteoExtras.sea(at: coordinate)
+        async let air = OpenMeteoExtras.air(at: coordinate)
+        async let kp = OpenMeteoExtras.planetaryK()
         let weather = try await OpenMeteoClient.forecast(for: coordinate)
         let temperature = weather.currentTemperature
         let condition = WeatherCode.describe(weather.current.weatherCode)
@@ -3254,7 +3362,7 @@ enum WeatherLocationReader {
             forecast.map { "Forecast: \($0)" }
         ].compactMap(\.self).joined(separator: " | ")
 
-        return WeatherSourceSignal(
+        var signal = WeatherSourceSignal(
             phrase: phrase,
             source: "Open-Meteo",
             currentTemperature: temperature,
@@ -3263,8 +3371,13 @@ enum WeatherLocationReader {
             // Stamped with the moment it was read, not the moment it is drawn.
             // The leaf fades the sky out as this ages; a reading that carried
             // no time would claim to be forever current.
-            skyOutlook: weather.skyOutlook(readAt: Date())
+            skyOutlook: weather.skyOutlook(readAt: Date()),
+            measurements: weather.measurements(readAt: Date())
         )
+        signal.sea = await sea
+        signal.air = await air
+        signal.kpIndex = await kp
+        return signal
     }
     #endif
 }
@@ -3396,6 +3509,77 @@ enum NightlyBraidContextReader {
 }
 
 #if canImport(CoreLocation)
+/// The free extras beside the forecast: Open-Meteo's marine and air-quality
+/// endpoints, and NOAA's planetary K-index. Read with the weather, never at a
+/// keep; every failure is a blank reading.
+private enum OpenMeteoExtras {
+    private static func json(_ url: URL?) async -> Any? {
+        guard let url else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
+    }
+
+    private static func url(_ base: String, _ coordinate: CLLocationCoordinate2D, _ items: [URLQueryItem]) -> URL? {
+        var components = URLComponents(string: base)
+        components?.queryItems = [
+            URLQueryItem(name: "latitude", value: String(format: "%.4f", coordinate.latitude)),
+            URLQueryItem(name: "longitude", value: String(format: "%.4f", coordinate.longitude))
+        ] + items
+        return components?.url
+    }
+
+    static func sea(at coordinate: CLLocationCoordinate2D) async -> SeaReading? {
+        guard let object = await json(url("https://marine-api.open-meteo.com/v1/marine", coordinate, [
+            URLQueryItem(name: "current", value: "wave_height,sea_level_height_msl"),
+            URLQueryItem(name: "hourly", value: "sea_level_height_msl"),
+            URLQueryItem(name: "forecast_hours", value: "2"),
+            URLQueryItem(name: "timeformat", value: "unixtime")
+        ])) as? [String: Any],
+              let current = object["current"] as? [String: Any] else { return nil }
+        let level = current["sea_level_height_msl"] as? Double
+        let waves = current["wave_height"] as? Double
+        guard level != nil || waves != nil else { return nil }
+        var rising: Bool?
+        if let level,
+           let hourly = object["hourly"] as? [String: Any],
+           let levels = hourly["sea_level_height_msl"] as? [Any],
+           let next = levels.compactMap({ $0 as? Double }).last {
+            rising = next > level
+        }
+        return SeaReading(seaLevelMeters: level, rising: rising, waveHeightMeters: waves)
+    }
+
+    static func air(at coordinate: CLLocationCoordinate2D) async -> AirReading? {
+        guard let object = await json(url("https://air-quality-api.open-meteo.com/v1/air-quality", coordinate, [
+            URLQueryItem(name: "current", value: "us_aqi,grass_pollen,birch_pollen,ragweed_pollen")
+        ])) as? [String: Any],
+              let current = object["current"] as? [String: Any] else { return nil }
+        let reading = AirReading(
+            usAQI: current["us_aqi"] as? Double,
+            grassPollen: current["grass_pollen"] as? Double,
+            birchPollen: current["birch_pollen"] as? Double,
+            ragweedPollen: current["ragweed_pollen"] as? Double
+        )
+        return reading == AirReading() ? nil : reading
+    }
+
+    /// The latest planetary K-index. NOAA serves rows of strings; the first row
+    /// is the header.
+    static func planetaryK() async -> Double? {
+        guard let rows = await json(URL(string: "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json")) else { return nil }
+        if let table = rows as? [[Any]], let last = table.last, last.count > 1 {
+            return (last[1] as? String).flatMap(Double.init) ?? last[1] as? Double
+        }
+        if let objects = rows as? [[String: Any]], let last = objects.last {
+            return (last["Kp"] as? Double) ?? (last["kp_index"] as? Double) ?? (last["Kp"] as? String).flatMap(Double.init)
+        }
+        return nil
+    }
+}
+
 private enum OpenMeteoClient {
     struct Response: Decodable {
         var current: Current
@@ -3414,6 +3598,11 @@ private enum OpenMeteoClient {
             var isDay: Int?
             /// Seconds the current values are summed over — 900 today.
             var interval: Int?
+            /// hPa. These four are for noticing, not for the paper.
+            var surfacePressure: Double?
+            var relativeHumidity2m: Double?
+            var cloudCover: Double?
+            var uvIndex: Double?
 
             enum CodingKeys: String, CodingKey {
                 case temperature2m = "temperature_2m"
@@ -3422,7 +3611,50 @@ private enum OpenMeteoClient {
                 case windSpeed10m = "wind_speed_10m"
                 case isDay = "is_day"
                 case interval
+                case surfacePressure = "surface_pressure"
+                case relativeHumidity2m = "relative_humidity_2m"
+                case cloudCover = "cloud_cover"
+                case uvIndex = "uv_index"
             }
+        }
+
+        /// The last six hours of surface pressure, so a falling glass is a
+        /// measurement rather than a guess.
+        var hourly: Hourly?
+
+        struct Hourly: Decodable {
+            var time: [Double]
+            var surfacePressure: [Double?]?
+
+            enum CodingKeys: String, CodingKey {
+                case time
+                case surfacePressure = "surface_pressure"
+            }
+        }
+
+        /// The reading as numbers, for noticing.
+        func measurements(readAt: Date) -> WeatherMeasurements {
+            let interval = Double(current.interval ?? 3_600)
+            var pressureChange: Double?
+            if let now = current.surfacePressure,
+               let hourly, let pressures = hourly.surfacePressure {
+                let sixHoursAgo = readAt.timeIntervalSince1970 - 6 * 3_600
+                let earlier = zip(hourly.time, pressures)
+                    .filter { $0.0 <= sixHoursAgo + 1_800 }
+                    .compactMap { $0.1 }
+                    .last
+                pressureChange = earlier.map { now - $0 }
+            }
+            return WeatherMeasurements(
+                temperatureF: current.temperature2m,
+                precipitationMM: current.precipitation.map { $0 * 3_600 / max(60, interval) },
+                windKmh: current.windSpeed10m,
+                pressureHPa: current.surfacePressure,
+                pressureChange6h: pressureChange,
+                humidity: current.relativeHumidity2m,
+                cloudCover: current.cloudCover,
+                uvIndex: current.uvIndex
+            )
         }
 
         /// The next several hours in fifteen-minute rows, so the leaf can
@@ -3452,6 +3684,7 @@ private enum OpenMeteoClient {
             case current
             case daily
             case minutely15 = "minutely_15"
+            case hourly
         }
 
         /// The sky as the paper needs it: what is overhead now, and what the
@@ -3535,8 +3768,14 @@ private enum OpenMeteoClient {
             // whether the air is moving. Same free endpoint, no new permission.
             URLQueryItem(
                 name: "current",
-                value: "temperature_2m,weather_code,precipitation,wind_speed_10m,is_day"
+                value: "temperature_2m,weather_code,precipitation,wind_speed_10m,is_day,"
+                    + "surface_pressure,relative_humidity_2m,cloud_cover,uv_index"
             ),
+            // Pressure over the last six hours: the glass rising or falling
+            // is one of the strange things noticing can cross with the body.
+            URLQueryItem(name: "hourly", value: "surface_pressure"),
+            URLQueryItem(name: "past_hours", value: "7"),
+            URLQueryItem(name: "forecast_hours", value: "1"),
             URLQueryItem(name: "wind_speed_unit", value: "kmh"),
             URLQueryItem(name: "daily", value: "weather_code,temperature_2m_max,temperature_2m_min"),
             URLQueryItem(name: "temperature_unit", value: "fahrenheit"),

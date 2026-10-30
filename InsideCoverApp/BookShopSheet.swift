@@ -451,7 +451,7 @@ struct BookShopSheet: View {
                 marketHero
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(showsStandingOrder ? "FOUR DOORS" : "THREE DOORS")
+                    Text(showsStandingOrder ? "FOUR STALLS" : "THREE STALLS")
                         .font(.caption.weight(.black))
                         .kerning(1.2)
                         .foregroundStyle(BookPalette.lampGold)
@@ -1855,7 +1855,7 @@ struct BookShopSheet: View {
     private var boundYearStandingLine: String {
         if boundYearOwnedElsewhere { return "Not standing in this Book." }
         guard let boundYear, boundYear.isCurrent else {
-            return "Not standing. Three seasons in softcover and the year in cloth and foil, posted to your door."
+            return "Not standing. Three seasons in softcover and the year in cloth and foil, posted to your house."
         }
         let cadence = boundYear.cadence == .annual ? "by the year" : "by the month"
         if let ending = boundYear.endedAt {
@@ -1876,7 +1876,7 @@ struct BookShopSheet: View {
         let saved = pendingBoundYearPurchase
         let email = saved?.contactEmail ?? physicalBookContactEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard email.contains("@"), let shippingAddress = saved?.shippingAddress ?? physicalBookShippingAddress else {
-            boundYearStatusNote = "I need the whole door: name, street, town, post code, phone, and email. Parcels are literal-minded beasts."
+            boundYearStatusNote = "I need the whole address: name, street, town, post code, phone, and email. Parcels are literal-minded beasts."
             return
         }
         guard saved?.acceptsLuluFulfillment == true || physicalBookThirdPartyPrintConsent else {
@@ -1986,7 +1986,7 @@ struct BookShopSheet: View {
     private func updateBoundYearShippingAddress() async {
         guard let membershipID = boundYearMembershipID,
               let shippingAddress = physicalBookShippingAddress else {
-            boundYearStatusNote = "Fill in the whole door first. The parcel refuses riddles."
+            boundYearStatusNote = "Fill in the whole address first. The parcel refuses riddles."
             return
         }
         isChangingBoundYear = true
@@ -2001,7 +2001,7 @@ struct BookShopSheet: View {
             boundYearStatusNote = "Changed. Stripe keeps the street; I only keep the fact that you checked it."
             BookFeedback.play(.select)
         } catch {
-            boundYearStatusNote = "That door wouldn't stay in the ledger: \(error.localizedDescription)"
+            boundYearStatusNote = "That address wouldn't stay in the ledger: \(error.localizedDescription)"
         }
     }
 
@@ -7411,7 +7411,7 @@ struct StandingOrderSheet: View {
         case .sealing:
             return "You made me a promise. I'm writing one back, which is more than most receipts do."
         case .ready:
-            return "New doors, new voices, new mysteries, and from here on they remember what you choose."
+            return "New rooms, new voices, new mysteries, and from here on they remember what you choose."
         case .opening:
             return "Somewhere a faerie is re-reading the terms, annoyed. I couldn't care less. Come in."
         case .idle:
@@ -7871,7 +7871,7 @@ struct StandingOrderSheet: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Plotted in advance, but not on rails. The skeleton is written through December 2027 and it will change as it meets you: what you keep, and the weather and season outside your window, decide which doors open. Only ever using what you've said I can use.")
+            Text("Plotted in advance, but not on rails. The skeleton is written through December 2027 and it will change as it meets you: what you keep, and the weather and season outside your window, decide what happens. Only ever using what you've said I can use.")
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.80))
                 .lineSpacing(3)

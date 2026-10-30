@@ -204,7 +204,7 @@ enum PublicationHouseCatalogue {
         id: "special-people-you-kept",
         title: "The People You Kept",
         subtitle: "A private atlas of the people who altered the year",
-        invitation: "I've been keeping the doors between you. I could bind the ones that stayed open.",
+        invitation: "I've been keeping the threads between you. I could bind the ones that held.",
         sourceKinds: [.keptPeople, .relationshipReceipts, .readerLetters, .keptPages],
         minimumItemCount: 3,
         bindingKinds: [.softcover, .illustratedHardcover, .clothFoilHardcover],
@@ -391,6 +391,22 @@ enum PublicationCoverCatalogue {
         titleLayout: .centeredNight
     )
 
+    static let placeAtTheTable = PublicationCoverPlate(
+        id: "a-place-at-the-table-november-2026",
+        title: "A Place at the Table",
+        assetName: "OfficialCoverPlaceAtTheTableNovember2026",
+        titleLayout: .centeredNight,
+        artworkIncludesCoverMatter: true
+    )
+
+    static let guestAllSouls = PublicationCoverPlate(
+        id: "the-guest-november-2026",
+        title: "The Guest Who Came on All Souls",
+        assetName: "OfficialCoverTheGuestNovember2026",
+        titleLayout: .centeredNight,
+        artworkIncludesCoverMatter: true
+    )
+
     /// Add another entry with the same year and month to give that month more
     /// than one official face. The first entry is the default until the reader
     /// chooses another; a one-entry month needs no chooser at all.
@@ -415,6 +431,20 @@ enum PublicationCoverCatalogue {
             plate: countUnbound,
             subtitle: "Something in the stacks has teeth.",
             monthLine: "Issue No. 1"
+        ),
+        .init(
+            year: 2026,
+            month: 11,
+            plate: placeAtTheTable,
+            subtitle: "The Guest Who Came on All Souls",
+            monthLine: "Issue No. 2"
+        ),
+        .init(
+            year: 2026,
+            month: 11,
+            plate: guestAllSouls,
+            subtitle: "The Guest Who Came on All Souls",
+            monthLine: "Issue No. 2"
         ),
         .init(
             year: 2027,
@@ -1796,7 +1826,7 @@ enum SeasonalDispatchAction: String, Codable, CaseIterable {
         case .dedication: return "Put one line inside"
         case .rebind: return "Bind it differently"
         case .giftCopy: return "Send one to somebody"
-        case .address: return "Tell me the door"
+        case .address: return "Tell me where it goes"
         case .hold: return "Hold it a while"
         case .release: return "Send it now"
         }
@@ -1991,7 +2021,7 @@ enum BoundVolumePublicationMatterBuilder {
                 receipt.editionLines.prefix(2).enumerated().map { offset, line in
                     item(
                         id: "volume-crossing-\(receipt.id)-\(offset)",
-                        title: receipt.significance == .rupture ? "A Door Changed Its Mind" : "Across the Hedge",
+                        title: receipt.significance == .rupture ? "The Hedge Changed Its Mind" : "Across the Hedge",
                         body: line,
                         date: receipt.createdAt,
                         sourceID: receipt.id,
@@ -4947,6 +4977,9 @@ struct WeeklyIssue: Codable, Equatable {
     /// The issue is also a place to play. These leaves never report what the
     /// Reader later does with the physical page.
     var playLeaves: [BoundEditionPlayLeaf]? = nil
+    /// One card from the week's actual interleaves/readings. Frozen with the
+    /// issue; it only prints in spare closing-page space, never on a new leaf.
+    var tarotCard: TarotEditionKeepsake.Card? = nil
     var isFirstIssue: Bool { number == 1 }
 
     static func == (lhs: WeeklyIssue, rhs: WeeklyIssue) -> Bool {
@@ -4969,6 +5002,7 @@ struct WeeklyIssue: Codable, Equatable {
             && lhs.previousLooseThread == rhs.previousLooseThread
             && lhs.dedication == rhs.dedication
             && lhs.playLeaves == rhs.playLeaves
+            && lhs.tarotCard == rhs.tarotCard
     }
 
     /// UUIDs identify archive records, not the literary contents of an issue.
@@ -5238,6 +5272,10 @@ struct WeeklyIssue: Codable, Equatable {
                 cadence: .weekly,
                 pages: captured,
                 calendar: calendar
+            ),
+            tarotCard: TarotEditionKeepsake.weeklyCard(
+                encounters: TarotEditionEncounterStore.shared.snapshot(), pages: weekPages,
+                start: start, end: end, calendar: calendar
             )
         )
     }
@@ -6071,6 +6109,13 @@ extension MonthlyEdition {
 
     /// One step smaller, or nil when nothing more may be given up.
     func trimmedForPrint() -> MonthlyEdition? {
+        // This optional retrospective never displaces a reader's Page or night.
+        // Drop it before the archive or day book enters the existing fitting pass.
+        if handbook?.keepsakes?.tarot != nil {
+            var copy = self
+            copy.handbook?.keepsakes?.tarot = nil
+            return copy
+        }
         // The Field Book prints the days; once the archive is sampled, the
         // days give up what they can spare before any other section does.
         if handbook != nil,

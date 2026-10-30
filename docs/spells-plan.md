@@ -283,9 +283,12 @@ spell; `new-moon-silver` and `first-star` add the moon and the first star.
 **The desk.** `SpellPageSourceAdapter` offers one spell per half day from the
 same deterministic shelf as the Magic menu. Spells are `.errand` /
 `.outward`, hidden in a reader's first six hours like every errand. The
-Curator's `placeSpellFloor` keeps one spell in every ordinary block, past the
-visible trio; a spell the world laid out today (`spellConditional`) takes a
-visible chair, the way a feast does. Never on a hard day.
+Curator no longer reserves a chair for a spell (`placeSpellFloor` was removed
+and a test holds that line): spells fight for placement on score like most
+Pages, an everyday spell scoring 76 and one the world laid out today
+(`spellConditional`) 84. What the Curator does guarantee are the things owed
+by a calendar: monthly story Pages, festivals, the Fuel Log and Inner Weather
+at each bell, every Bleed edition, classes and clubs in their session.
 
 ---
 

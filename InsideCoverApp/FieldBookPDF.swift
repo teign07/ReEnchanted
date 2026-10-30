@@ -3075,9 +3075,12 @@ extension MonthlyEditionPDFWriter {
             (tallyText as NSString).draw(in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth, height: tallyHeight + 4),
                                       withAttributes: [.font: tallyFont, .foregroundColor: ink.withAlphaComponent(0.6), .paragraphStyle: tallyParagraph])
             leaf.y += tallyHeight + 4
-            drawBotanical(month: monthNumber, seed: "weekly-close-\(issue.number)",
-                          in: CGRect(x: leaf.left, y: leaf.y + 24, width: leaf.contentWidth, height: max(0, min(170, leaf.bottom - leaf.y - 65))),
-                          alignRight: false, rotation: 0.04)
+            let closingArt = CGRect(x: leaf.left, y: leaf.y + 24, width: leaf.contentWidth,
+                                    height: max(0, min(170, leaf.bottom - leaf.y - 65)))
+            if !drawWeeklyTarotInset(issue.tarotCard, style: style, in: closingArt) {
+                drawBotanical(month: monthNumber, seed: "weekly-close-\(issue.number)",
+                              in: closingArt, alignRight: false, rotation: 0.04)
+            }
             let monthName = monthFormatter.string(from: issue.startDate)
             let colophon = "The Tale of Your Week · Issue No. \(issue.number) · Every week of \(monthName) is gathered in \(monthName)’s book · Made with ReEnchanted" as NSString
             let colophonFont = UIFont.fbSerifItalic(ofSize: 7.6)

@@ -618,7 +618,7 @@ struct SentenceBuilderPack: Identifiable, Equatable {
         displayName: "Souvenir Sentence",
         ritualTitle: "Steal the diamond",
         replayPrompt: "What was the single best feeling, moment, or thing from the last hour?",
-        replayHelper: "Replay the moment before you write. The first real detail that returns is the door back in.",
+        replayHelper: "Replay the moment before you write. The first real detail that comes back is where you start.",
         vagueWords: [],
         avoidWords: [],
         concreteWords: ["ticket", "receipt", "pocket", "curb", "cloud", "handle", "mirror", "napkin"],

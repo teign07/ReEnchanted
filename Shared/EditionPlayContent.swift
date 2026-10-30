@@ -524,7 +524,7 @@ enum EditionPlayCatalogue {
             templateSlot: .weeklyInterruption,
             footprint: .rectoWithBlankReverse,
             eventPhaseIDs: [],
-            body: "NOTICE OF MANDATORY STILLNESS. Every sentence found moving between meanings must report to the nearest margin before dusk. Words may not borrow coats, aliases, punctuation, weather, crumbs, or private jokes. Any phrase caught opening a small door inside an ordinary page will be corrected in red. Exceptions are forbidden, especially useful ones. The clerk who issued this notice has misplaced the key, three commas, and the part where the paper admits it wanted to run too.",
+            body: "NOTICE OF MANDATORY STILLNESS. Every sentence found moving between meanings must report to the nearest margin before dusk. Words may not borrow coats, aliases, punctuation, weather, crumbs, or private jokes. Any phrase caught slipping out of an ordinary page will be corrected in red. Exceptions are forbidden, especially useful ones. The clerk who issued this notice has misplaced the key, three commas, and the part where the paper admits it wanted to run too.",
             prompts: [
                 .init(id: "escaped", label: "WHAT GOT OUT", writingLines: 2)
             ],

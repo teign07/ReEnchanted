@@ -50,12 +50,12 @@ enum BookSoundBank {
         case turn, turnback, toggle, ink, radiolock
         case fae, constellation, belief, rise, jump, nothing, ceremony
         case overture, today, seal, lift, drop, whisper
-        case peek, confirm, begin
+        case peek, confirm, begin, pixie
 
         /// Everyday touches. Quiet mode keeps only the families that mark a moment.
         var isEveryday: Bool {
             switch self {
-            case .press, .tap, .select, .turn, .turnback, .toggle, .ink, .seal, .lift, .drop, .peek, .confirm, .begin:
+            case .press, .tap, .select, .turn, .turnback, .toggle, .ink, .seal, .lift, .drop, .peek, .confirm, .begin, .pixie:
                 return true
             default:
                 return false

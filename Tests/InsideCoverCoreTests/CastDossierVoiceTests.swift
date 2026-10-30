@@ -31,7 +31,7 @@ final class CastDossierVoiceTests: XCTestCase {
             silhouette: "upright", continuity: "", avoid: "", assetName: nil, intendedAssetName: "",
             prompt: "p", negativePrompt: "", marginalia: [], tags: ["character"]
         )
-        for tag in ["location", "book-fae", "character"] {
+        for tag in ["location", "book-fae", "talisman", "character"] {
             var probe = profile
             probe.tags = [tag]
             let text = [

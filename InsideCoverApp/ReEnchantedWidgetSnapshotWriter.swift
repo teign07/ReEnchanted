@@ -149,7 +149,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         }
         if let dispute = interior.currentDispute, dispute.hasUnpresentedEvidence {
             return ReEnchantedWidgetBookInterior(
-                title: "Our Argument Grew Teeth",
+                title: "Our Argument Came Back",
                 line: dispute.returnCount == 0
                     ? "I kept both our sentences. Something new has come nosing around them."
                     : "Our old argument's chewing my margin again. Something new fed it.",

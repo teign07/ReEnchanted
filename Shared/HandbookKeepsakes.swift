@@ -1,5 +1,117 @@
 import Foundation
 
+/// Only cards actually exposed to the reader belong here, never curation candidates.
+/// IDs deduplicate re-layouts and reopening a saved reading; no question or prose is stored.
+struct TarotEditionEncounter: Codable, Equatable, Identifiable {
+    enum Source: String, Codable { case interleaf, reading }
+    var id: String
+    var cardID: String
+    var source: Source
+    var date: Date
+
+    static func interleaf(assetName: String, leafID: String, date: Date, calendar: Calendar = .current) -> Self? {
+        guard let card = TarotDeck.card(assetName: assetName) else { return nil }
+        // One card on one boundary on one day. Reopening or resizing that leaf
+        // does not manufacture another appearance; a later day can be a return.
+        let boundary = HandbookBuilder.stableHash(leafID)
+        let day = calendar.startOfDay(for: date).timeIntervalSince1970
+        return Self(id: "interleaf:\(boundary):\(day):\(card.id)", cardID: card.id, source: .interleaf, date: date)
+    }
+
+    static func reading(_ reading: TarotReadingArtifact, card: TarotDrawnCard) -> Self {
+        Self(id: "reading:\(reading.id):\(card.id)", cardID: card.cardID, source: .reading, date: reading.drawnAt)
+    }
+}
+
+/// Local encounter receipts outlive the folio's 180-day repeat-avoidance cache.
+/// Event writes are serialized off the animation path; edition assembly sees
+/// the in-memory snapshot immediately, even before the disk write completes.
+final class TarotEditionEncounterStore {
+    static let shared = TarotEditionEncounterStore()
+    private let defaults: UserDefaults
+    private static let key = "tarotEditionEncounters.v1"
+    private let lock = NSLock()
+    private let queue: DispatchQueue
+    private var events: [String: TarotEditionEncounter]
+
+    init(defaults: UserDefaults = .standard,
+         queue: DispatchQueue = DispatchQueue(label: "book.tarot-edition-receipts", qos: .utility)) {
+        self.defaults = defaults
+        self.queue = queue
+        let saved = defaults.data(forKey: Self.key)
+            .flatMap { try? JSONDecoder().decode([TarotEditionEncounter].self, from: $0) } ?? []
+        events = Dictionary(saved.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    func snapshot() -> [TarotEditionEncounter] {
+        lock.lock()
+        defer { lock.unlock() }
+        return Array(events.values)
+    }
+
+    func record(_ encounter: TarotEditionEncounter) {
+        guard TarotDeck.card(id: encounter.cardID) != nil else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        guard events[encounter.id] == nil else { return }
+        events[encounter.id] = encounter
+        let snapshot = Array(events.values)
+        queue.async { [defaults, key = Self.key] in
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            defaults.set(data, forKey: key)
+        }
+    }
+}
+
+struct TarotEditionKeepsake: Codable, Equatable {
+    struct Card: Codable, Equatable {
+        var cardID: String
+        var interleafCount: Int
+        var readingCount: Int
+        var dates: [Date]
+        var count: Int { interleafCount + readingCount }
+    }
+    var cards: [Card]
+    var timeZoneID: String = TimeZone.current.identifier
+
+    /// A week gets one actual card, even when none repeated. The monthly
+    /// gathering still requires recurrence; both use the same evidence rules.
+    static func weeklyCard(encounters: [TarotEditionEncounter], pages: [BookPage],
+                           start: Date, end: Date, calendar: Calendar = .current) -> Card? {
+        make(encounters: encounters, pages: pages, start: start, end: end,
+             calendar: calendar, minimumAppearances: 1)?.cards.first
+    }
+
+    /// Half-open bounds, just like a calendar month. Kept artifacts recover
+    /// historical readings; interleaf counts begin with actual visibility receipts.
+    static func make(encounters: [TarotEditionEncounter], pages: [BookPage], start: Date, end: Date,
+                     calendar: Calendar = .current, minimumAppearances: Int = 2) -> Self? {
+        var unique: [String: TarotEditionEncounter] = [:]
+        for event in encounters { unique[event.id] = event }
+        for page in pages where page.type == .tarot {
+            guard let encoded = page.metadata?[TarotReadingArtifact.metadataKey],
+                  let data = encoded.data(using: .utf8),
+                  let reading = try? JSONDecoder().decode(TarotReadingArtifact.self, from: data) else { continue }
+            for card in reading.cards {
+                let event = TarotEditionEncounter.reading(reading, card: card)
+                unique[event.id] = event
+            }
+        }
+        let eligible = unique.values.filter { $0.date >= start && $0.date < end && TarotDeck.card(id: $0.cardID) != nil }
+        let cards = Dictionary(grouping: eligible, by: \.cardID).map { cardID, events in
+            Card(cardID: cardID,
+                 interleafCount: events.filter { $0.source == .interleaf }.count,
+                 readingCount: events.filter { $0.source == .reading }.count,
+                 dates: Array(Set(events.map(\.date))).sorted())
+        }.filter { $0.count >= max(1, minimumAppearances) }.sorted {
+            if $0.count != $1.count { return $0.count > $1.count }
+            return $0.cardID < $1.cardID
+        }
+        guard !cards.isEmpty else { return nil }
+        return Self(cards: Array(cards.prefix(3)), timeZoneID: calendar.timeZone.identifier)
+    }
+}
+
 // MARK: - Keepsakes
 //
 // What a month's book gives back that the reader did not know to ask for. Every piece is made from the
@@ -25,6 +137,8 @@ struct HandbookKeepsakes: Codable, Equatable {
     var questions: Questions?
     var eightWords: EightWords?
     var capsule: Capsule?
+    /// A single optional leaf, frozen with the edition. Older editions decode without it.
+    var tarot: TarotEditionKeepsake? = nil
 
     // MARK: Pieces
 
@@ -127,12 +241,13 @@ struct HandbookKeepsakes: Codable, Equatable {
 
     var isEmpty: Bool {
         pixels == nil && photos == nil && superlatives == nil && poem == nil && index == nil && passport == nil && cutouts == nil
-            && questions == nil && eightWords == nil && capsule == nil
+            && questions == nil && eightWords == nil && capsule == nil && tarot == nil
     }
 
-    /// The extras go first when a book must be thinner: a time capsule, questions, a story frame,
+    /// The extras go first when a book must be thinner: Tarot, a time capsule, questions, a story frame,
     /// bookmarks and the poem. None of them is the month itself.
     mutating func removeExtra() -> Bool {
+        if tarot != nil { tarot = nil; return true }
         if capsule != nil { capsule = nil; return true }
         if questions != nil { questions = nil; return true }
         if index != nil { index = nil; return true }
@@ -183,7 +298,13 @@ enum HandbookKeepsakesBuilder {
             cutouts: cutouts(lines: lines, days: days, monthName: monthName, seed: seed),
             questions: questions(pages: pages, seed: seed),
             eightWords: eightWords(pages: pages, seed: seed),
-            capsule: capsule(monthName: monthName, year: year, seed: seed)
+            capsule: capsule(monthName: monthName, year: year, seed: seed),
+            tarot: calendar.date(byAdding: .month, value: 1, to: monthStart).flatMap {
+                TarotEditionKeepsake.make(
+                    encounters: TarotEditionEncounterStore.shared.snapshot(), pages: pages,
+                    start: monthStart, end: $0, calendar: calendar
+                )
+            }
         )
         return built.isEmpty ? nil : built
     }

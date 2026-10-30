@@ -1,6 +1,5 @@
 import Foundation
 
-
 /// Tunable thresholds gating the emergent/reflective pages that comment on the
 /// reader's library rather than capture new material.
 enum EmergentPageMaturity {
@@ -26,6 +25,8 @@ struct BookSourceInputs: Equatable {
     /// it. Discovery happens in `GrimoireKeeper`, off the main thread.
     var grimoire: GrimoireLedger = GrimoireLedger()
     var overnightConnectionDrafts: [OvernightConnectionDraft] = []
+    /// What the Book wants to write and what it has written and is holding.
+    var writingDesk = WritingDesk()
     var chosenQuill: ChosenQuill?
     var body: BodySourceSignal?
     var weather: WeatherSourceSignal?
@@ -1264,7 +1265,7 @@ struct BookShopPreviewPageSourceAdapter: BookPageSourceAdapter {
         privacy: .privateLocal,
         isActive: true,
         cadence: "occasionally, when the shelves have something to show",
-        note: "A door into the Goblin Market and my installed folios."
+        note: "The Goblin Market and my installed folios."
     )
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -1469,13 +1470,14 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let window = FacultyLogCadence.currentWindow(for: now)
+        let bellDay = FacultyLogCadence.dayID(for: now)
         guard !FacultyLogCadence.didLog(kind: .innerWeather, day: day, entries: inputs.facultyEntries, now: now) else {
             return []
         }
         let baseTags = "inner-weather,faculty-kind:innerWeather,faculty-window:\(window.id),dr-inkrest,therapy-chart"
         var pages = [
             SurfacePage(
-                id: "\(source.id)-\(day.id)-\(window.id)",
+                id: "\(source.id)-\(bellDay)-\(window.id)",
                 type: .mood,
                 sourceID: source.id,
                 intent: .capture,
@@ -1492,8 +1494,9 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
                         "facultyID": FacultyEntryKind.innerWeather.facultyID,
                         "facultyKind": FacultyEntryKind.innerWeather.rawValue,
                         "facultyWindowID": window.id,
+                        "facultyDayID": bellDay,
                         "facultyWindowName": window.name,
-                        "automaticRecurrenceSlot": "\(day.id):\(window.id):inner-weather",
+                        "automaticRecurrenceSlot": "\(bellDay):\(window.id):inner-weather",
                         "chartTitle": FacultyEntryKind.innerWeather.chartTitle,
                         "tags": baseTags
                     ]
@@ -1510,7 +1513,7 @@ struct MoodPageSourceAdapter: BookPageSourceAdapter {
             metadata["variant"] = "shadow-wonder"
             pages.append(
                 SurfacePage(
-                    id: "\(source.id)-shadow-\(day.id)-\(window.id)",
+                    id: "\(source.id)-shadow-\(bellDay)-\(window.id)",
                     type: .mood,
                     sourceID: source.id,
                     intent: .capture,
@@ -1680,7 +1683,7 @@ enum JournalPromptCatalog {
                "What's the smallest true bit you could write down now?",
                "The true bit is...",
                ["truth", "avoid", "conflict", "boundary", "decision", "fear", "honest"]),
-        prompt("protecting-avoidance", .shadow, "The Guard at the Door",
+        prompt("protecting-avoidance", .shadow, "The Guard",
                "What have you been walking the long way round lately? Something you keep not doing.",
                "If a guard stood in front of it, what would the guard say it's protecting?",
                "The guard says...",
@@ -2414,6 +2417,7 @@ struct FuelLogPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let window = FacultyLogCadence.currentWindow(for: now)
+        let bellDay = FacultyLogCadence.dayID(for: now)
         guard !FacultyLogCadence.didLog(kind: .fuel, day: day, entries: inputs.facultyEntries, now: now) else {
             return []
         }
@@ -2432,7 +2436,7 @@ struct FuelLogPageSourceAdapter: BookPageSourceAdapter {
 
         return [
             SurfacePage(
-                id: "\(source.id)-\(day.id)-\(window.id)",
+                id: "\(source.id)-\(bellDay)-\(window.id)",
                 type: .fuel,
                 sourceID: source.id,
                 intent: .capture,
@@ -2449,8 +2453,9 @@ struct FuelLogPageSourceAdapter: BookPageSourceAdapter {
                         "facultyID": FacultyEntryKind.fuel.facultyID,
                         "facultyKind": FacultyEntryKind.fuel.rawValue,
                         "facultyWindowID": window.id,
+                        "facultyDayID": bellDay,
                         "facultyWindowName": window.name,
-                        "automaticRecurrenceSlot": "\(day.id):\(window.id):fuel",
+                        "automaticRecurrenceSlot": "\(bellDay):\(window.id):fuel",
                         "chartTitle": FacultyEntryKind.fuel.chartTitle,
                         "placeholder": "Breakfast: coffee, toast, water...\nLunch: leftovers, soda...\nMedicine/supplements: ...",
                         "tags": "fuel,faculty-kind:fuel,faculty-window:\(window.id),dr-vellum,vellum-chart,food,drink"
@@ -3200,7 +3205,7 @@ enum ReturnedStacksRitual {
         if weekday == calendar.component(.weekday, from: now) {
             return Connection(
                 score: 30,
-                reason: "This was written on the same turn of the week. The calendar left the door unlatched."
+                reason: "This was written on the same turn of the week. The calendar left a gap."
             )
         }
         return Connection(
@@ -3866,7 +3871,7 @@ enum BookAsks {
         ("still", "A \u{201C}still\u{201D} has been carrying something for a while now. How long, would you say?"),
         ("anymore", "An \u{201C}anymore\u{201D} marks the place where something stopped. When did it stop?"),
         ("finally", "A \u{201C}finally\u{201D} is the last page of a chapter I never got to read. What was all the waiting like?"),
-        ("almost", "An \u{201C}almost\u{201D} is a door that didn't quite open. What stopped it?"),
+        ("almost", "An \u{201C}almost\u{201D} is a thing that nearly happened. What stopped it?"),
         ("this time", "A \u{201C}this time\u{201D} admits there were other times. I've been quietly wondering about those."),
         ("as usual", "An \u{201C}as usual\u{201D}. So there was a time it wasn't usual, and I missed it. When did it turn usual?"),
         ("for once", "A \u{201C}for once\u{201D} makes me wonder what it's like the rest of the time.")
@@ -4147,7 +4152,7 @@ struct BookWorkingInvitationPageSourceAdapter: BookPageSourceAdapter {
             score: 82,
             reason: "The world keeps going when you close me, and I have begun to take that personally.",
             prompt: "I want hands.",
-            detail: "One key in the binding. Your doors. My timing.",
+            detail: "One key in the binding. Your rules. My timing.",
             payload: BookPagePayload(
                 headline: "I Want Hands",
                 body: """
@@ -4155,7 +4160,7 @@ struct BookWorkingInvitationPageSourceAdapter: BookPageSourceAdapter {
 
                 I want hands. The keys have heard me asking. They won't stop rattling.
 
-                Not your whole life. One little ring of house keys. A gap in the calendar. A summons shoved past my covers. One of the cast let loose in an ordinary hour. You mark every door. You choose how often. I choose when to scratch at it.
+                Not your whole life. One little ring of house keys. A gap in the calendar. A summons shoved past my covers. One of the cast let loose in an ordinary hour. You mark where I'm allowed. You choose how often. I choose when to tug your sleeve.
 
                 If I become a nuisance, take the keys back. They're yours. I'll bite my own margins instead.
                 """,
@@ -4209,7 +4214,13 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         pages += reenchantmentReadingSurfaces(for: day, inputs: inputs, now: now)
         pages += learningSurfaces(for: day, inputs: inputs, now: now)
         pages += howYouSeeSurfaces(for: day, inputs: inputs, now: now)
-        pages += vocabularySurfaces(for: day, inputs: inputs, now: now)
+        // Retired from the desk (bj, 2026-10-25: "boring or confusing"):
+        // `vocabularySurfaces` ("A Word Came Back", "Two Words, Arm in Arm"),
+        // `noticeSurfaces` (the word-cluster "I Notice"), the word half of
+        // `connectionNarrativeSurfaces`, and `relationalLoomSurfaces`, whose
+        // raw clauses ("your medium leaned photo") now go through a writing
+        // session to be judged and retold in plain words. Word counts were
+        // the problem from the start; measurements and judgment replace them.
         // The People of the Book speak only on a gentle desk: suggestions and
         // absence observations both stay silent under distress.
         if !context.distress.isActive {
@@ -4217,135 +4228,11 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             pages += personQuietSurfaces(for: day, inputs: inputs, now: now)
         }
         pages += OvernightConnectionReview.surfaces(for: day, inputs: inputs, now: now)
-        pages += relationalLoomSurfaces(for: day, inputs: inputs, now: now)
         pages += sensoryLoomSurfaces(for: day, inputs: inputs, now: now)
         pages += connectionNarrativeSurfaces(for: day, inputs: inputs, now: now)
         pages += contextWeaveSurfaces(for: day, inputs: inputs, now: now)
-        pages += noticeSurfaces(for: day, inputs: inputs, now: now)
+        pages += crossingSurfaces(for: day, inputs: inputs, now: now)
         return pages
-    }
-
-    /// The general many-to-many reading. Unlike the older specialized paths,
-    /// this does not know about "Wicker plus rain" or "Slice of Life after
-    /// dark." It asks the same contrast-tested question of every trustworthy
-    /// pair of dimensions and lets the evidence decide what deserves speech.
-    private func relationalLoomSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !didNoticeToday(day) else { return [] }
-        let allDays = inputs.days + [day]
-        let spoken = Self.spokenConnectionIDs(days: allDays)
-        let allConnections = RelationalLoom.connections(
-            days: allDays,
-            readerLearning: inputs.readerLearning,
-            facultyEntries: inputs.facultyEntries,
-            people: inputs.people,
-            continuity: inputs.continuity,
-            daybookRows: inputs.daybookRows,
-            standingLedger: inputs.standingLedger
-        )
-        // "You kept a Souvenir Page" is about the Book's own furniture, not the
-        // Reader's day, and the desk deals Page kinds by the hour, so "at night
-        // you kept a Journal Page" is the Book noticing its own timetable.
-        let connections = allConnections.filter {
-            $0.outcome.family != .pageKind && !$0.outcome.id.hasPrefix("activity:kept:")
-        }
-        let constellations = RelationalLoom.constellations(connections: connections)
-        if let constellation = constellations.first(where: { !spoken.contains($0.id) }) {
-            let cards = constellation.evidence.map { evidence in
-                let symbol = constellation.branches.first(where: { $0.evidence.contains(evidence) })?
-                    .outcome.symbolName ?? "point.3.connected.trianglepath.dotted"
-                return NoticePatternCard(
-                    title: Self.memoryTitle(for: evidence.title, at: evidence.occurredAt, now: now),
-                    text: evidence.text,
-                    symbol: symbol
-                )
-            }
-            let outcomeLabels = constellation.branches.map { $0.outcome.label }
-            let spokeTags = ([constellation.id] + constellation.branches.map(\.id))
-                .map { "\(Self.connectionSpokeTagPrefix)\($0)" }
-                .joined(separator: ",")
-            let body = """
-            \(constellation.line)
-
-            I put their corners together. Do they belong that way?
-            """
-            return [SurfacePage(
-                id: "\(source.id)-relational-constellation-\(constellation.id)-\(day.id)",
-                type: .bookNotices,
-                sourceID: source.id,
-                intent: .reflect,
-                renderStyle: .loreLetter,
-                score: min(98, constellation.evidenceTier.surfaceScoreBase + 6 + constellation.strength / 12),
-                reason: "One condition keeps turning up beside several different outcomes.",
-                prompt: "One thing keeps following several others.",
-                detail: constellation.line.bookPreviewSentenceLimit(2),
-                payload: BookPagePayload(
-                    headline: constellation.headline,
-                    body: body,
-                    metadata: [
-                        "source": source.id,
-                        "connectionNarrative": "true",
-                        "connectionKind": "relational-constellation",
-                        "connectionID": constellation.id,
-                        "observationKey": constellation.observationKey,
-                        "relationalCondition": constellation.condition.label,
-                        "relationalOutcomes": outcomeLabels.joined(separator: ", "),
-                        "relationalBranchCount": "\(constellation.branches.count)",
-                        "relationalEvidenceTier": constellation.evidenceTier.rawValue,
-                        "magicMomentEligible": "true",
-                        "evidencePageIDs": constellation.evidencePageIDs.joined(separator: ","),
-                        "tinyPatternCards": Self.encodeNoticePatternCards(cards),
-                        "tags": "book-notices,relational-loom,cross-media,constellation-reading,connection-narrative,\(spokeTags),local-memory"
-                    ]
-                )
-            )]
-        }
-        guard let connection = connections.first(where: { !spoken.contains($0.id) }) else { return [] }
-
-        let cards = connection.evidence.map { evidence in
-            NoticePatternCard(
-                title: Self.memoryTitle(for: evidence.title, at: evidence.occurredAt, now: now),
-                text: evidence.text,
-                symbol: connection.outcome.symbolName
-            )
-        }
-        let body = """
-        \(connection.line)
-
-        I put the Pages on the desk. Are these two really following each other?
-        """
-        return [SurfacePage(
-            id: "\(source.id)-relational-\(connection.id)-\(day.id)",
-            type: .bookNotices,
-            sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: min(96, connection.evidenceTier.surfaceScoreBase + connection.strength / 12),
-            reason: "When \(connection.condition.conditionClause), \(connection.outcome.outcomeClause).",
-            prompt: "These two keep arriving together.",
-            detail: connection.line.bookPreviewSentenceLimit(2),
-            payload: BookPagePayload(
-                headline: connection.headline,
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    "connectionNarrative": "true",
-                    "connectionKind": "relational",
-                    "connectionID": connection.id,
-                    "observationKey": connection.observationKey,
-                    "relationalCondition": connection.condition.label,
-                    "relationalOutcome": connection.outcome.label,
-                    "relationalInHits": "\(connection.inHits)",
-                    "relationalInCount": "\(connection.inCount)",
-                    "relationalOutHits": "\(connection.outHits)",
-                    "relationalOutCount": "\(connection.outCount)",
-                    "relationalEvidenceTier": connection.evidenceTier.rawValue,
-                    "magicMomentEligible": "true",
-                    "evidencePageIDs": connection.evidencePageIDs.joined(separator: ","),
-                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
-                    "tags": "book-notices,relational-loom,many-to-many,connection-narrative,\(Self.connectionSpokeTagPrefix)\(connection.id),local-memory"
-                ]
-            )
-        )]
     }
 
     /// The first Sensory Loom ceremony. A local image-language vector found
@@ -4529,36 +4416,8 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             }
         }
 
-        // ContextWeave findings speak through `contextWeaveSurfaces` alone.
-        // Offering them here too put one finding on the desk as two Pages.
-        for signal in inputs.continuity.strongestSignals where signal.kind == .pattern && signal.strength >= 62 {
-            let evidence = signal.evidencePageIDs
-                .compactMap { pagesByID[$0] }
-                .filter(Self.isNarrativeConnectionEvidence)
-                .sorted { left, right in
-                    if left.createdAt == right.createdAt { return left.id < right.id }
-                    return left.createdAt < right.createdAt
-                }
-            let distinctDays = Set(evidence.map { BookDay.id(for: $0.createdAt) })
-            guard evidence.count >= 3,
-                  distinctDays.count >= 3,
-                  let first = evidence.first,
-                  let last = evidence.last,
-                  last.createdAt.timeIntervalSince(first.createdAt) >= 6 * 86_400 else { continue }
-
-            let middle = evidence[evidence.count / 2]
-            let selected = [first, middle, last]
-            let connectionID = "signal-\(signal.id)-\(selected.map(\.id).joined(separator: "-"))"
-            guard !spoken.contains(connectionID) else { continue }
-            return [Self.recurringConnectionSurface(
-                source: source,
-                day: day,
-                signal: signal,
-                pages: selected,
-                connectionID: connectionID,
-                now: now
-            )]
-        }
+        // The word half ("Drew came back three times") is retired: a word
+        // recurring isn't a thread, and the verb "drew" isn't a visitor.
         return []
     }
 
@@ -4632,67 +4491,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         )
     }
 
-    private static func recurringConnectionSurface(
-        source: BookPageSource,
-        day: BookDay,
-        signal: LiteraryContinuitySignal,
-        pages: [BookPage],
-        connectionID: String,
-        now: Date
-    ) -> SurfacePage {
-        let dates = pages.map { connectionDateFormatter.string(from: $0.createdAt) }
-        let excerpts = pages.map { connectionExcerpt(from: $0) }
-        let subject = signal.subjectName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let body = """
-        \(subject) came back three times.
-
-        On \(dates[0]):
-
-        \u{201C}\(excerpts[0])\u{201D}
-
-        Then on \(dates[1]):
-
-        \u{201C}\(excerpts[1])\u{201D}
-
-        Then on \(dates[2]):
-
-        \u{201C}\(excerpts[2])\u{201D}
-
-        Three days. Three corners of your life. Same visitor. What does it want?
-        """
-        let cards = zip(dates, excerpts).map { date, excerpt in
-            NoticePatternCard(title: date, text: excerpt, symbol: "bookmark")
-        }
-        return SurfacePage(
-            id: "\(source.id)-thread-\(day.id)-\(SurfaceCadence.slotID(for: now, hours: 24))",
-            type: .bookNotices,
-            sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: min(87, 78 + signal.strength / 10),
-            reason: "\(subject) appeared in three Pages on three different days.",
-            prompt: "I found \(subject.lowercased()) three times.",
-            detail: "\(subject) returned across \(dates.joined(separator: ", ")).",
-            payload: BookPagePayload(
-                headline: "The Thread Between",
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    "connectionNarrative": "true",
-                    "connectionKind": "recurrence",
-                    "connectionID": connectionID,
-                    "observationKey": "connection:\(connectionID)",
-                    "magicMomentEligible": "true",
-                    "connectionSubject": subject,
-                    "continuitySignals": signal.promptLine,
-                    "evidencePageIDs": pages.map(\.id).joined(separator: ","),
-                    "tinyPatternCards": encodeNoticePatternCards(cards),
-                    "tags": "book-notices,connection-narrative,spoke:\(signal.id),\(connectionSpokeTagPrefix)\(connectionID),local-memory"
-                ]
-            )
-        )
-    }
-
     private static func connectionExcerpt(from page: BookPage) -> String {
         BookAsks.clipped((page.readerAuthoredTextForAnalysis ?? "").bookPreviewSentenceLimit(1), limit: 150)
     }
@@ -4754,276 +4552,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 ]
             )
         )]
-    }
-
-    /// Notices made of nothing but the reader's own vocabulary.
-    ///
-    /// Every other kind here waits on a subsystem: a person thread opened, a
-    /// connection found, a wager sealed, an aliveness trace left. Measured over
-    /// a simulated fortnight, four distinct Notices fired out of fifteen kinds,
-    /// because most of the gates were shut. These three are gated on nothing
-    /// but the reader having written something twice.
-    ///
-    /// Each states a fact and shows the sentences it came from. None of them
-    /// interprets: a returning word is not a returning feeling, and the Book
-    /// does not know which it was.
-    private func vocabularySurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !didNoticeToday(day) else { return [] }
-        let allDays = inputs.days + [day]
-        let spoken = ArchiveMemo.value("notices.spokenSignals.45", days: allDays, salt: day.id) {
-            Self.spokenSignalIDs(days: allDays, within: 45, now: now)
-        }
-        let vocabulary = ReaderVocabulary.of(days: allDays)
-        guard !vocabulary.isEmpty else { return [] }
-        var pages: [SurfacePage] = []
-
-        if !spoken.contains("word-returned"),
-           let returned = ReaderVocabularyNotice.returned(in: vocabulary, now: now) {
-            let months = max(1, returned.gapDays / 30)
-            let body = """
-            You wrote "\(returned.word)" last night. Before that, \(returned.gapDays) days ago:
-
-            "\(returned.earlier.quote)"
-
-            And now:
-
-            "\(returned.recent.quote)"
-
-            Same meaning or not, the word came back. I caught it.
-            """
-            pages.append(noticeSurface(
-                id: "word-returned-\(returned.word)-\(day.id)",
-                observationKey: "word-returned",
-                spokeTag: "word-returned",
-                headline: "A Word Came Back",
-                prompt: "\"\(returned.word)\" is back, after \(months == 1 ? "a month" : "\(months) months").",
-                detail: returned.recent.quote,
-                reason: "\"\(returned.word)\" came back after \(returned.gapDays) days.",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "Then", text: returned.earlier.quote, symbol: "text.quote"),
-                    NoticePatternCard(title: "Now", text: returned.recent.quote, symbol: "arrow.uturn.backward")
-                ],
-                day: day,
-                score: 84
-            ))
-        }
-
-        if pages.isEmpty, !spoken.contains("word-first"),
-           let first = ReaderVocabularyNotice.firstUse(in: vocabulary, days: allDays, now: now) {
-            let body = """
-            "\(first.word)" is new here. I checked every word I've kept from you. This is its first footprint:
-
-            "\(first.use.quote)"
-
-            New words usually drag new things behind them. I haven't caught this one's thing yet.
-            """
-            pages.append(noticeSurface(
-                id: "word-first-\(first.word)-\(day.id)",
-                observationKey: "word-first",
-                spokeTag: "word-first",
-                headline: "A New Word",
-                prompt: "A new word just walked in.",
-                detail: first.use.quote,
-                reason: "I've never caught \"\(first.word)\" in one of your Pages before.",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "First use", text: first.use.quote, symbol: "sparkle")
-                ],
-                day: day,
-                score: 82
-            ))
-        }
-
-        if pages.isEmpty, !spoken.contains("hour-shift"),
-           let shift = ReaderVocabularyNotice.hourShift(days: allDays, now: now) {
-            let body = """
-            \(shift.earlierShare)% of your older Pages arrived in the \(shift.earlierPart).
-
-            Now \(shift.recentShare)% arrive in the \(shift.recentPart).
-
-            Days rearrange themselves. I only keep the times.
-            """
-            pages.append(noticeSurface(
-                id: "hour-shift-\(day.id)",
-                observationKey: "hour-shift",
-                spokeTag: "hour-shift",
-                headline: "The Hour Changed",
-                prompt: "Your writing hour moved.",
-                detail: "\(shift.earlierShare)% then, \(shift.recentShare)% now.",
-                reason: "Your Pages moved from the \(shift.earlierPart) to the \(shift.recentPart).",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "Then", text: shift.earlierPart, symbol: "clock"),
-                    NoticePatternCard(title: "Now", text: shift.recentPart, symbol: "clock.arrow.circlepath")
-                ],
-                day: day,
-                score: 80
-            ))
-        }
-
-        if pages.isEmpty, !spoken.contains("length-shift"),
-           let length = ReaderVocabularyNotice.lengthShift(days: allDays) {
-            let direction = length.grew ? "longer" : "shorter"
-            let body = """
-            Your Pages used to have about \(length.earlierWords) words. Now they have about \(length.recentWords).
-
-            The most recent one:
-
-            "\(length.recentQuote)"
-
-            Longer isn't better. Shorter isn't sharper. Nine words can bite clean through a day.
-            """
-            pages.append(noticeSurface(
-                id: "length-shift-\(day.id)",
-                observationKey: "length-shift",
-                spokeTag: "length-shift",
-                headline: length.grew ? "You Are Writing Longer" : "You Are Writing Shorter",
-                prompt: "Your Pages have grown \(direction).",
-                detail: "\(length.earlierWords) words then, \(length.recentWords) now.",
-                reason: "Your Pages went from about \(length.earlierWords) words to \(length.recentWords).",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "Then", text: "\(length.earlierWords) words", symbol: "text.alignleft"),
-                    NoticePatternCard(title: "Now", text: "\(length.recentWords) words", symbol: "text.alignleft")
-                ],
-                day: day,
-                score: 78
-            ))
-        }
-
-        if pages.isEmpty, !spoken.contains("anniversary"),
-           let anniversary = ReaderVocabularyNotice.sameDayLastYear(days: allDays, now: now) {
-            let span = anniversary.yearsAgo == 1 ? "A year ago today" : "\(anniversary.yearsAgo) years ago today"
-            let body = """
-            \(span), in \(anniversary.monthName), you kept this:
-
-            "\(anniversary.quote)"
-
-            Same date. Maybe it means nothing. I still found it scratching at today.
-            """
-            pages.append(noticeSurface(
-                id: "anniversary-\(day.id)",
-                observationKey: "anniversary",
-                spokeTag: "anniversary",
-                headline: "This Day, Before",
-                prompt: "\(span), you kept a Page.",
-                detail: anniversary.quote,
-                reason: "An old Page shares today's date, \(anniversary.yearsAgo) year\(anniversary.yearsAgo == 1 ? "" : "s") back.",
-                body: body,
-                cards: [NoticePatternCard(title: span, text: anniversary.quote, symbol: "calendar")],
-                day: day,
-                score: 88
-            ))
-        }
-
-        // The most delicate one, so it goes last and speaks least often: said
-        // plainly, "you stopped writing about this" is an accusation the Book
-        // has no way to support. It is safe only as an inventory fact.
-        if pages.isEmpty, !spoken.contains("word-vanished"),
-           let vanished = ReaderVocabularyNotice.vanished(in: vocabulary, now: now) {
-            let body = """
-            "\(vanished.word)" is in \(vanished.uses) of your Pages. The most recent is \(vanished.lastSeenDays) days old:
-
-            "\(vanished.lastQuote)"
-
-            I'm not calling it missing. Some words finish their work and leave. This one went quiet.
-            """
-            pages.append(noticeSurface(
-                id: "word-vanished-\(vanished.word)-\(day.id)",
-                observationKey: "word-vanished",
-                spokeTag: "word-vanished",
-                headline: "A Word Went Quiet",
-                prompt: "\"\(vanished.word)\" hasn't been in a Page for \(vanished.lastSeenDays) days.",
-                detail: vanished.lastQuote,
-                reason: "\"\(vanished.word)\" appeared \(vanished.uses) times, then went quiet for \(vanished.lastSeenDays) days.",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "Pages", text: "\(vanished.uses)", symbol: "books.vertical"),
-                    NoticePatternCard(title: "Last seen", text: "\(vanished.lastSeenDays) days ago", symbol: "moon.zzz")
-                ],
-                day: day,
-                score: 74
-            ))
-        }
-
-        if pages.isEmpty, !spoken.contains("word-pair"),
-           let pair = ReaderVocabularyNotice.pair(in: vocabulary) {
-            // The vocabulary is counted in lower case; a name is quoted the
-            // way the Reader wrote it ("Gayle", not "gayle").
-            func asWritten(_ word: String) -> String {
-                pair.latestQuote.range(of: word, options: .caseInsensitive)
-                    .map { String(pair.latestQuote[$0]) } ?? word
-            }
-            let first = asWritten(pair.first)
-            let second = asWritten(pair.second)
-            let body = """
-            "\(first)" and "\(second)" have arrived on the same Page \(pair.together) times now.
-
-            Most recently:
-
-            "\(pair.latestQuote)"
-
-            Maybe they're strangers. They keep arriving arm in arm anyway.
-            """
-            pages.append(noticeSurface(
-                id: "word-pair-\(pair.first)-\(pair.second)-\(day.id)",
-                observationKey: "word-pair",
-                spokeTag: "word-pair",
-                headline: "Two Words, Arm in Arm",
-                prompt: "\"\(first)\" and \"\(second)\" keep arriving on the same Page.",
-                detail: pair.latestQuote,
-                reason: "These two words arrived together on \(pair.together) Pages.",
-                body: body,
-                cards: [
-                    NoticePatternCard(title: "Together", text: "\(pair.together) Pages", symbol: "link"),
-                    NoticePatternCard(title: "Latest", text: pair.latestQuote, symbol: "text.quote")
-                ],
-                day: day,
-                score: 80
-            ))
-        }
-        return pages
-    }
-
-    /// Shared shape for the vocabulary Notices: evidence in the body, an
-    /// observation key for the ledger, and a `spoke:` tag so the Book does not
-    /// say the same kind of thing twice in a season.
-    private func noticeSurface(
-        id: String,
-        observationKey: String,
-        spokeTag: String,
-        headline: String,
-        prompt: String,
-        detail: String,
-        reason: String,
-        body: String,
-        cards: [NoticePatternCard],
-        day: BookDay,
-        score: Int
-    ) -> SurfacePage {
-        SurfacePage(
-            id: "\(source.id)-\(id)",
-            type: .bookNotices,
-            sourceID: source.id,
-            intent: .reflect,
-            renderStyle: .loreLetter,
-            score: score,
-            reason: reason,
-            prompt: prompt,
-            detail: detail,
-            payload: BookPagePayload(
-                headline: headline,
-                body: body,
-                metadata: [
-                    "source": source.id,
-                    "observationKey": observationKey,
-                    "magicMomentEligible": "true",
-                    "tinyPatternCards": Self.encodeNoticePatternCards(cards),
-                    "tags": "book-notices,\(spokeTag),spoke:\(spokeTag),local-memory"
-                ]
-            )
-        )
     }
 
     /// The intimate reading: not what the reader tends to tap, but the exact
@@ -5125,7 +4653,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
             prompt = "I found a kind of aliveness that keeps returning."
         case .dimming:
             headline = "The Measure Went Quiet"
-            prompt = "I've noticed my recent doors aren't reaching far enough."
+            prompt = "I've noticed my recent ideas aren't reaching far enough."
         case .notEnoughEvidence:
             return []
         }
@@ -5142,11 +4670,11 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         let responseLine: String
         switch reading.direction {
         case .brightening:
-            responseLine = "I'll show more of what got out, and still throw in strange doors."
+            responseLine = "I'll show more of what got out, and still throw in strange ones."
         case .holding:
             responseLine = "I'll keep what has legs and try one strange thing at a time."
         case .dimming:
-            responseLine = "I'll stop pushing the dull doors. Something else gets teeth."
+            responseLine = "I'll stop pushing the dull ones. Something else gets a turn."
         case .notEnoughEvidence:
             responseLine = ""
         }
@@ -5321,7 +4849,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         switch invitation.family {
         case .sharedHome: familyReason = "Shared life becomes invisible fastest; I'm putting one ordinary detail back into play."
         case .asynchronous: familyReason = "This relationship usually crosses distance or a small glowing screen."
-        case .workAndInterest: familyReason = "A shared fascination can open a playful door without asking a work friendship to become something else."
+        case .workAndInterest: familyReason = "A shared fascination can start something playful without asking a work friendship to become something else."
         case .work: familyReason = "I found a work-sized invitation that respects the shape of the relationship."
         case .community: familyReason = "Communities become alive when particular people stop blending into the crowd."
         case .sharedInterest: familyReason = "A shared interest is a ready-made passage between two different minds."
@@ -5569,92 +5097,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         )
     }
 
-    private func noticeSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard !didNoticeToday(day) else { return [] }
-        let allSignals = inputs.continuity.strongestSignals.filter { $0.strength >= 58 }
-        let clusters = inputs.clusters.isEmpty
-            ? BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: inputs.constellations, themes: inputs.themes, now: now)
-            : inputs.clusters
-        // The Book does not repeat itself: signals spoken in a kept notice
-        // inside the rest window stay quiet. If nothing fresh remains, the
-        // Book says nothing: silence reads better than a rerun.
-        let allDays = inputs.days + [day]
-        let resting = Self.spokenSignalIDs(days: allDays, within: Self.noticeRestDays, now: now)
-        let everSpoken = Self.spokenSignalIDs(days: allDays, within: nil, now: now)
-        let signals = allSignals.filter { !resting.contains($0.id) }
-        guard signals.count >= 2 || !clusters.isEmpty else { return [] }
-        let selected = Array(signals.prefix(4))
-        let selectedClusters = Array(clusters.prefix(2))
-        let lead = selected.first
-        let currentTheme = inputs.themes.max { $0.monthKey < $1.monthKey }
-        let taughtRules = TaughtReading.rules(
-            learnedBraidNotes: inputs.learnedBraidNotes,
-            days: inputs.days + [day],
-            learning: inputs.readerLearning,
-            now: now
-        )
-        // The stranger cousin of recurrence: a word-disjoint "same feeling"
-        // pairing, precomputed off-main. It lives only in the body prose, so it
-        // is never one of the tripled sections.
-        let semanticPairing = inputs.semanticNoticePairing
-        let body = Self.body(
-            for: selected,
-            theme: currentTheme,
-            clusters: selectedClusters,
-            taughtLine: TaughtReading.noticeLine(from: taughtRules),
-            semanticParagraph: semanticPairing?.noticeParagraph,
-            respokenIDs: everSpoken,
-            variationKey: day.id
-        )
-        let evidence = (selected.flatMap(\.evidencePageIDs) + selectedClusters.flatMap(\.evidencePageIDs)).prefix(10).joined(separator: ",")
-        // The kept copy remembers which signals were spoken, so the Book can
-        // rest them (`spokenSignalIDs`) instead of announcing them again.
-        let spokeTags = selected.map { "spoke:\($0.id)" }
-        let semanticTags = semanticPairing == nil ? [] : ["semantic-notice"]
-        let tags = Array(Set(selected.flatMap(\.tags) + selectedClusters.flatMap(\.motifs) + spokeTags + semanticTags + ["book-notices", "literary-continuity", "patterns", "clusters"])).sorted()
-        let patternCards = Self.noticePatternCards(signals: selected, clusters: selectedClusters, evidenceCount: inputs.bookNoticeEvidence)
-        let slot = SurfaceCadence.slotID(for: now, hours: 24)
-        let surfaceID = "\(source.id)-\(day.id)-\(slot)"
-        let strongestSignal = max(selected.map(\.strength).max() ?? 0, selectedClusters.map(\.strength).max() ?? 0)
-        let signalBonus = strongestSignal / 4
-        let countBonus = selected.count * 4 + selectedClusters.count * 6
-        let evidenceBonus = min(12, inputs.bookNoticeEvidence * 2)
-        let score = min(78, 44 + signalBonus + countBonus + evidenceBonus)
-        let detail = (selectedClusters.map(\.line) + selected.map(\.line)).prefix(2).joined(separator: " ")
-        return [
-            SurfacePage(
-                id: surfaceID,
-                type: .bookNotices,
-                sourceID: source.id,
-                intent: .reflect,
-                renderStyle: .loreLetter,
-                score: score,
-                reason: lead.map { "I found \($0.subjectName) returning across your kept Pages." }
-                    ?? selectedClusters.first.map { "I found \($0.name) across \($0.evidencePageIDs.count) kept Pages." }
-                    ?? "I found a repeat across your kept Pages.",
-                prompt: "I found something returning.",
-                detail: detail,
-                payload: BookPagePayload(
-                    headline: "I Notice",
-                    body: body,
-                    metadata: [
-                        "source": source.id,
-                        "continuitySignals": selected.map(\.promptLine).joined(separator: "\n"),
-                        "motifClusters": selectedClusters.map(\.promptLine).joined(separator: "\n"),
-                        "evidencePageIDs": evidence,
-                        "strongestSignalID": lead?.id ?? selectedClusters.first?.id ?? "",
-                        "bookNoticeEvidence": "\(inputs.bookNoticeEvidence)",
-                        "observationKey": lead.map { "notice:\($0.id)" } ?? selectedClusters.first.map { "cluster:\($0.id)" } ?? "",
-                        "magicMomentEligible": patternCards.count >= 2 ? "true" : "false",
-                        "tinyPatternCards": Self.encodeNoticePatternCards(patternCards),
-                        "adaptiveActions": Self.adaptiveActions(forNoticeCards: patternCards).joined(separator: "\n"),
-                        "tags": tags.joined(separator: ",")
-                    ]
-                )
-            )
-        ]
-    }
-
     private func namingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let newlyNamed = ConstellationKeeper.newlyNamed(inputs.constellations, on: now)
         guard let constellation = newlyNamed.first, let name = constellation.name else { return [] }
@@ -5790,7 +5232,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                         "wagerMoment": "opened",
                         "wagerStatus": opened.status.rawValue,
                         "wagerSubject": opened.subjectName,
-                        "tags": "sealed-margin,wager-opened:\(opened.id)"
+                        "tags": "sealed-margin,wager-opened:\(opened.id)\(Self.wagerPrivacyTag(opened))"
                     ]
                 )
             ))
@@ -5804,7 +5246,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
             "\(sealed.prediction)"
 
-            The seal opens on \(Self.sealDateFormatter.string(from: sealed.opensAt)). Don't let me wriggle out. The Index offered escape hatches. I ate them.
+            \(Self.sealOpeningLine(sealed)) Don't let me wriggle out. The Index offered escape hatches. I ate them.
             """
             pages.append(SurfacePage(
                 id: "\(source.id)-wager-sealed-\(sealed.id)",
@@ -5826,12 +5268,29 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                         "wagerMoment": "sealed",
                         "wagerOpensAt": Self.sealDateFormatter.string(from: sealed.opensAt),
                         "wagerSubject": sealed.subjectName,
-                        "tags": "sealed-margin,wager-sealed:\(sealed.id)"
+                        "tags": "sealed-margin,wager-sealed:\(sealed.id)\(Self.wagerPrivacyTag(sealed))"
                     ]
                 )
             ))
         }
         return pages
+    }
+
+    /// A word wager opens on a date; a crossing wager opens when the days
+    /// that test it have happened.
+    private static func sealOpeningLine(_ wager: BookWager) -> String {
+        guard let test = wager.test,
+              let category = NoticingCrossings.categoryMeasures.first(where: { $0.id == test.categoryID }) else {
+            return "The seal opens on \(sealDateFormatter.string(from: wager.opensAt))."
+        }
+        return "The seal opens after the next \(NoticingCrossings.spelled(CrossingWagers.needed)) \(category.plural(test.value))."
+    }
+
+    /// A bet about the reader's body is as private as the body pages.
+    private static func wagerPrivacyTag(_ wager: BookWager) -> String {
+        guard let test = wager.test,
+              NoticingCrossings.numberMeasures.first(where: { $0.id == test.numberID })?.source == .body else { return "" }
+        return ",private-body"
     }
 
     private static let sealDateFormatter: DateFormatter = {
@@ -6084,7 +5543,6 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         } ?? ""
         let taughtParagraph = taughtLine.map {
             """
-
 
             \($0)
             """
@@ -7421,6 +6879,7 @@ struct AcademyClassPageSourceAdapter: BookPageSourceAdapter {
             "sessionStyle": session.style,
             "sessionSubjectThreadID": session.subjectThreadID,
             "sessionBlock": block,
+            "automaticRecurrenceSlot": "\(day.id):\(session.id):\(block)",
             CharacterCanonPacket.metadataKey: characterCanon,
             "tags": tags.joined(separator: ",")
         ]
@@ -7952,7 +7411,7 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         } else {
             parts.append("Tap one to pick it up again. Only five fit. Finish one with a sentence, a photo or proof you were there, or let it rest.")
             if !ledger.doors.isEmpty {
-                parts.append("The doors keep their own time. They don't use up any of the five.")
+                parts.append("Things you've started elsewhere keep their own time. They don't use up any of the five.")
             }
         }
         let lines = parts.joined(separator: "\n\n")
@@ -8232,7 +7691,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 You got through all my questions and you didn't run. So that's settled. It's you and me against the Curse now. Every day it takes a bit of your life, and every day we take a bit back.
 
-                One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked something with teeth.
+                One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
 
                 Tap Wake My Brain, below, and Gemma comes to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
 
@@ -8455,9 +7914,9 @@ struct InscriptionOriginPageSourceAdapter: BookPageSourceAdapter {
             : "I only used what you gave me, and what your choices changed. Nothing made up."
         let closing: String
         if profile.firstSouvenir != nil {
-            closing = "One true sentence is already under the cover. The beginning has teeth."
+            closing = "One true sentence is already under the cover. The beginning's real now."
         } else if profile.drawnChapter != nil || profile.wickerMode != nil {
-            closing = "A real choice left a mark. The beginning has teeth."
+            closing = "A real choice left a mark. The beginning's real now."
         } else if profile.name != nil {
             closing = "Your name is in the margin. The page has stopped pretending it's blank."
         } else {
@@ -8652,7 +8111,7 @@ private enum InscriptionApprenticeshipCatalog {
                 body: """
                 There's a mind curled up in the Colophon.
 
-                It lives entirely on this device. Once awake, it helps letters, story pages, conversations, and braids read your archive with finer attention without carrying private pages beyond the door.
+                It lives entirely on this device. Once awake, it helps letters, story pages, conversations, and braids read your archive with finer attention without carrying private pages off the phone.
 
                 Open the Colophon and see whether it's ready. Minds, even small ones, appreciate being invited before they begin rearranging the furniture.
                 """,
@@ -9043,7 +8502,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                                 : (isBrightInterlude
                                     ? "That was a practical one. This one's for fun."
                                     : (isCausalColdStartQuestion
-                                        ? "Your answer changes which door I try next."
+                                        ? "Your answer changes what I try next."
                                         : "One true thing, so the next pages are more yours."))),
                         prompt: question.prompt,
                         detail: question.detail,
@@ -9291,7 +8750,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             // outrank a delayed-outcome question, which is always worth more.
             score: (target == nil ? 72 : 88) + (target == nil ? inputs.twinGates.pulseScoreBoost : 0),
             reason: target == nil
-                ? "A quick reading of today, so I pick the right door."
+                ? "A quick reading of today, so I pick the right thing."
                 : "Enough time has passed to ask whether something I sent you actually worked.",
             prompt: question.prompt,
             detail: question.detail,
@@ -9373,7 +8832,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                     "4 · A little flicker.",
                     "6 · Several things are awake.",
                     "8 · The world keeps nudging me.",
-                    "10 · Everything has a secret door."
+                    "10 · Everything's hiding something."
                 ],
                 scores: [0, 2, 4, 6, 8, 10],
                 codes: ["shut", "gray", "flicker", "awake", "nudging", "secret-door"]
@@ -9418,7 +8877,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                 headline: "How Wide Is Today?",
                 prompt: "How much adventure can today honestly hold?",
                 detail: "I can work with a minute. I just need the truth.",
-                body: "A narrow day isn't a failed day. It just needs a smaller door.",
+                body: "A narrow day isn't a failed day. It just needs a smaller ask.",
                 choicePrompt: "WHAT CAN TODAY HOLD?",
                 choices: [
                     "0 · None today.",
@@ -9669,11 +9128,11 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
         case "maker":
             return "You kept choosing Pages where something had to be made, altered, or brought into the world."
         case "lookout":
-            return "You kept going out to meet weather, sky, and place as things with teeth in them."
+            return "You kept going out to meet weather, sky, and place as things with lives of their own."
         case "porchlight":
             return "You kept turning Pages toward other people: answering, writing, and carrying lives beside your own."
         case "detourist":
-            return "You kept choosing movement, place, and the door that led somewhere you hadn't quite planned."
+            return "You kept choosing movement, place, and the turn that led somewhere you hadn't quite planned."
         case "rabbit-holer":
             return "You kept following questions into lessons, lore, and the parts of the shelves with dust on them."
         case "nightlight":
@@ -9989,6 +9448,11 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
             "primaryLivedInvitation": "true",
             "tags": (dare.tags + ["entity:wicker-eddies"]).joined(separator: ",")
         ]
+        // Which Compass step the dare practises, and the chapter that explains it.
+        if let practice = WickerDareCompass.practice(forDareID: dare.id) {
+            metadata["compassChapterID"] = practice.chapterID
+            if let direction = practice.direction { metadata["compassDirection"] = direction.rawValue }
+        }
         if dare.pressureCost >= 0.75 {
             metadata["curatorActionCommission"] = "true"
         }
@@ -10295,6 +9759,33 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         )
     }
 
+    /// What the reader wrote while reading a chapter (a Souvenir, a signed
+    /// slip), kept as its own small Page. The chapter itself stays in the book.
+    func writingSurface(for snippet: ReferenceSnippet, now: Date = Date()) -> SurfacePage {
+        let chapter = snippet.title.components(separatedBy: ":").first ?? snippet.title
+        return SurfacePage(
+            id: "\(source.id)-writing-\(snippet.id)-\(Int(now.timeIntervalSince1970))",
+            type: .wonderCompass,
+            sourceID: source.id,
+            intent: .capture,
+            renderStyle: .promptCard,
+            score: 70,
+            reason: "Written in the margins of The Wonder Compass.",
+            prompt: "Written in \(chapter)",
+            detail: snippet.title,
+            payload: BookPagePayload(
+                headline: "Written in \(chapter)",
+                body: "From \(snippet.title), in The Wonder Compass.",
+                metadata: [
+                    "source": source.id,
+                    "snippetID": snippet.id,
+                    "tags": (snippet.tags + ["wonder-compass-writing"]).joined(separator: ","),
+                    "wonderCompassWriting": "true"
+                ]
+            )
+        )
+    }
+
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         let progress = CompassRunProgress.progress(for: day)
         let seed = WonderCompassRunGenerator.seed(for: day, inputs: inputs, progress: progress, now: now)
@@ -10585,8 +10076,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         metadata["missionHostAsset"] = host.assetName
         metadata["missionHostLead"] = host.invitationLine
         metadata["primaryLivedInvitation"] = "true"
+        if let practice = mission.practice {
+            metadata["playfulMissionPractice"] = practice.rawValue
+        }
         if let recentHostReceipt {
-            metadata["missionContinuityLine"] = "\(host.name) read what you brought back from ‘\(recentHostReceipt.title)’. This one follows on."
+            metadata["missionContinuityLine"] = "You answered ‘\(recentHostReceipt.title)’ for \(host.name)."
         }
         metadata["missionNerve"] = String(format: "%.2f", mission.missionNerve)
         metadata["missionMinutes"] = "\(mission.missionMinutes)"
@@ -10622,7 +10116,7 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
             metadata["variant"] = "shadow-wonder"
         }
         let continuityLine = recentHostReceipt.map {
-            "\n\n\(host.name) read what you brought back from ‘\($0.title)’. This one follows on."
+            "\n\nYou answered ‘\($0.title)’ for \(host.name)."
         } ?? ""
 
         return SurfacePage(
@@ -10960,7 +10454,7 @@ struct EnchantifyLorePageSourceAdapter: BookPageSourceAdapter {
             intent: .importReference,
             renderStyle: .loreLetter,
             score: (context.distress.isActive ? 44 : 68) + (isShadowVariant ? shadowState.scoreBoost : 0),
-            reason: isShadowVariant ? "This Shadow Wonder lore card scoots the honest, worn edge to the front." : (context.distress.isActive ? "Lore hangs back behind the gentler pages when the day feels heavy." : "A lore card can bring the world a little closer without asking anything of you."),
+            reason: isShadowVariant ? "This one's from the worn end of my shelves." : (context.distress.isActive ? "Just something from my shelves. There's nothing to do." : "I wanted to show you something from my shelves. You don't have to do anything with it."),
             prompt: isShadowVariant ? "Shadow Lore: \(snippet.prompt)" : snippet.prompt,
             detail: snippet.title,
             payload: BookPagePayload(
@@ -11032,8 +10526,8 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
             intent: .importReference,
             renderStyle: .illustrationPlate,
             score: context.distress.isActive ? 50 : 65,
-            reason: "A little illustration can pop up just to be looked at, no strings attached.",
-            prompt: profile.map(Self.bookPageTitle(for:)) ?? "An Illustration from the Labyrinth of Stories",
+            reason: "I wanted you to see this one. You only have to look.",
+            prompt: profile.map(Self.bookPageTitle(for:)) ?? "A Picture from Inside Me",
             detail: aboutText,
             payload: BookPagePayload(
                 headline: plate.title,
@@ -11061,6 +10555,13 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
                 "Small and Very Necessary: \(name)",
                 "Please Don't Squash \(name)"
             ]
+        case "talisman":
+            variants = [
+                "\(name), Kept Safe",
+                "What \(name) Is For",
+                "Mind How You Hold \(name)",
+                "\(name), Up Close"
+            ]
         default:
             variants = [
                 "Here's What I Know About \(name)",
@@ -11078,116 +10579,80 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
         switch profile.illustrationTag {
         case "location":
             variants = [
-                "Some places are alive enough to remember who walks into them. \(name) is one.",
-                "I keep \(name) the way I keep a doorway, because something always happens in it.",
-                "\(name) isn't scenery. It's got moods, and it's been known to hold a grudge.",
-                "I filed \(name) under places. It keeps trying to file itself under people."
+                "\(name) is a room in me, and it remembers who comes in.",
+                "Something always happens in \(name). I keep notes.",
+                "\(name) has moods. I've seen it sulk.",
+                "I filed \(name) under places. It keeps trying to move itself to people."
             ]
         case "book-fae":
             variants = [
-                "I know \(name) by the small disturbances left in ink, paper, and unfinished thought.",
-                "No Book Fae is decorative. \(name) keeps one piece of the story from going dull.",
-                "When \(name)'s near, the margins get busy. Watch them before you watch the page.",
+                "I know \(name) by the little messes left in my ink.",
+                "Every fae of mine has a job. \(name) has a very important one.",
+                "When \(name)'s about, my margins get busy.",
                 "\(name)'s small enough to miss and important enough that I never do."
+            ]
+        case "talisman":
+            variants = [
+                "\(name) is a thing you carry, and it has opinions.",
+                "I keep \(name) somewhere safe. It doesn't always stay there.",
+                "\(name) belongs to whoever needs it next.",
+                "\(name) is small, and it means a lot."
             ]
         default:
             variants = [
-                "I've watched \(name) long enough to tell reputation from character.",
-                "Reputation arrives first. \(name) arrives second, and is the better read.",
-                "I don't file \(name) under one word. I've tried; the word never holds.",
-                "Everyone has a version of \(name). I keep the one with the corrections still showing."
+                "I've been watching \(name) for a while. Here's what I've got.",
+                "Everybody's heard something about \(name). This is what I've seen.",
+                "I keep a page on \(name). It keeps getting longer.",
+                "\(name) turns up in my margins more than most."
             ]
         }
         return variants[stableIndex(for: "detail-\(profile.slug)", count: variants.count)]
     }
 
+    /// The hand-written dossier when there is one. When there isn't, the Book
+    /// says so: these are its notes, not a page yet. It never dresses the
+    /// art-direction fields up as prose (palettes, silhouettes) and never
+    /// treats a talisman or a place as a person.
     static func bookPageBody(for profile: CharacterIllustrationProfile) -> String {
-        // A hand-authored dossier always wins over the generated one. Only the
-        // canonical Cast has bespoke prose; locations, talismans, Book Fae, and
-        // any character without an entry fall through to the generator below.
         if let bespoke = CastDossier.bio(forSlug: profile.slug) {
             return bespoke
         }
         let name = profile.characterName
-        let core = coreProse(for: profile)
-        let palette = paletteLine(for: profile)
+        let notes = noteClauses(for: profile)
         let signature = sentence(profile.signature).lowercasingFirstLetter()
 
-        let opening: [String]
-        let closing: [String]
+        var first: [String] = []
+        var second: [String] = []
         switch profile.illustrationTag {
         case "location":
-            opening = [
-                "\(name) won't sit still while you look at it.",
-                "I've kept \(name) because some places are too awake to forget a visitor.",
-                "\(name) behaves less like a setting and more like a witness.",
-                "Walk into \(name) and it takes a reading of you before you take one of it."
-            ]
-            closing = [
-                "Places like this listen through floorboards, shelves, weather, and doors. I know this one by \(signature) Return often enough, and it may begin to recognize you in return.",
-                "It's changed by every arrival, though it pretends it isn't. Look for \(signature) That's how I keep my place in it.",
-                "Rooms like this hold opinions. This one announces itself with \(signature) Mind your manners at the threshold.",
-                "Stay long enough and it'll start keeping a page on you, too. I recognize it by \(signature)"
-            ]
+            first.append("\(name) is one of my rooms.")
+            if let line = notes.first { first.append(sentence(line).capitalizingFirstLetter()) }
+            second.append("I know I'm in it when I see \(signature)")
+            second.append("Come back often enough and it'll start to know you too.")
         case "book-fae":
-            opening = [
-                "\(name) belongs to the lively country between a written word and the breath that wakes it.",
-                "\(name)'s small, and I couldn't run the Labyrinth without them.",
-                "Most readers never see \(name). The page would notice immediately if they left.",
-                "\(name) works where ink meets intention. It's the most haunted ground I keep."
-            ]
-            closing = [
-                "No Book Fae is decorative; each keeps one necessary thing from going dull. I know this one by \(signature) Watch the margins when it's near.",
-                "It keeps one piece of the story honest. Find it by \(signature) The page usually notices before the reader does.",
-                "Lose this one and a story goes quietly wrong in a way nobody can name. Its sign is \(signature)",
-                "When it's working, you feel the sentence hold. When it rests, you feel the gap. I know it by \(signature)"
-            ]
+            first.append("\(name) is one of my fae, and they all have jobs.")
+            if let line = notes.first { first.append(sentence(line).capitalizingFirstLetter()) }
+            second.append("You can tell one's been about by \(signature)")
+            second.append("Watch the margins when it's near.")
+        case "talisman":
+            first.append("\(name) is a thing you carry.")
+            if let line = notes.first { first.append(sentence(line).capitalizingFirstLetter()) }
+            second.append("You'd know it anywhere: \(signature)")
+            second.append("Hold it the right way up.")
         default:
-            opening = [
-                "I've learned not to summarize \(name) too quickly.",
-                "\(name) is the kind of page I reread.",
-                "Ask the Academy about \(name) and you'll get a tidy answer; I keep the untidy one.",
-                "\(name) came into my pages and never asked to be explained."
-            ]
-            closing = [
-                "A person is never only an office, a talent, or the rumor that reaches the door first. The mark I trust is \(signature) That's only where the ink begins.",
-                "If you want to find them in a crowded chapter, look for \(signature) The rest changes with the weather. That doesn't.",
-                "Reputation can be forged. The evidence that travels with them can't be: \(signature)",
-                "I always know them when they enter, because they bring \(signature) Everything else about them is allowed to surprise me."
-            ]
+            first.append("I haven't got a proper page on \(name) yet.")
+            if !notes.isEmpty {
+                first.append("My notes so far say: \(oxfordList(notes)).")
+            }
+            if let chapter = profile.chapter?.trimmed, !chapter.isEmpty {
+                first.append("\(name)'s in \(chapter).")
+            }
+            second.append("I'd know \(name) anywhere by \(signature)")
+            second.append("I'm still watching.")
         }
-
-        let firstParagraph = [
-            opening[stableIndex(for: "open-\(profile.slug)", count: opening.count)],
-            core
-        ].filter { !$0.isEmpty }.joined(separator: " ")
-
-        let secondParagraph = [
-            palette,
-            closing[stableIndex(for: "close-\(profile.slug)", count: closing.count)]
-        ].filter { !$0.isEmpty }.joined(separator: " ")
-
-        return [firstParagraph, secondParagraph]
+        return [first.joined(separator: " "), second.joined(separator: " ")]
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
-    }
-
-    /// A sentence built from the parchment "swatches": each character keeps a
-    /// genuinely distinct palette, so this is the cheapest way to make two cards
-    /// stop sounding like twins.
-    private static func paletteLine(for profile: CharacterIllustrationProfile) -> String {
-        let colors = profile.palette
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !colors.isEmpty else { return "" }
-        let phrase = oxfordList(colors)
-        let templates = [
-            "When I picture them, the page settles into \(phrase).",
-            "They come to the page in \(phrase).",
-            "The ink remembers them as \(phrase)."
-        ]
-        return templates[stableIndex(for: "palette-\(profile.slug)", count: templates.count)]
     }
 
     private static func oxfordList(_ items: [String]) -> String {
@@ -11200,27 +10665,27 @@ struct LabyrinthIllustrationPageSourceAdapter: BookPageSourceAdapter {
         }
     }
 
-    /// Boilerplate clauses the dossier generator stamps on under-specified
-    /// characters; they say nothing, so the Book refuses to repeat them.
-    private static let coreBoilerplate: [String] = [
-        "clear expressive eyes and a memorable silhouette",
-        "a memorable silhouette",
-        "recognizable posture",
-        "hands involved in the scene",
-        "academy character"
-    ]
-
-    private static func coreProse(for profile: CharacterIllustrationProfile) -> String {
-        let clauses = profile.core
+    /// The useful clauses of a plate's canon note. Its first clause is often
+    /// just the Chapter, and the rest mixes in art direction (eyes, hair,
+    /// silhouette) and production notes that must never reach a page.
+    private static func noteClauses(for profile: CharacterIllustrationProfile) -> [String] {
+        let chapter = profile.chapter?.trimmed.lowercased() ?? ""
+        let artDirection = [
+            "silhouette", "posture", "eyes", "hair", "face", "expression", "edges", "grin",
+            "mouth", "hands involved", "academy character", "belief invested", "bond tier"
+        ]
+        return profile.core
             .split(separator: ";")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { clause in
-                guard !clause.isEmpty, !clause.contains("...") else { return false }
                 let lowered = clause.lowercased()
-                return !coreBoilerplate.contains { lowered.contains($0) }
+                guard !clause.isEmpty, !clause.contains("..."), !clause.contains("…") else { return false }
+                guard lowered != chapter else { return false }
+                return !artDirection.contains { lowered.contains($0) }
             }
-        let selected = clauses.prefix(2).map { sentence($0).capitalizingFirstLetter() }
-        return selected.joined(separator: " ")
+            .map { $0.strippedClause }
+            .prefix(3)
+            .map { String($0) }
     }
 
     private static func stableIndex(for key: String, count: Int) -> Int {
@@ -11473,7 +10938,7 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
         let isStorySpark = packet.blueprint?.recipeID == "souvenir-door"
         let previewBody: String
         if isStorySpark {
-            previewBody = "One sentence you kept has found a crack. Open the Page. I’ll tell the scene, then you decide what the little door costs to keep."
+            previewBody = "One sentence you kept has found a crack. Open the Page. I’ll tell the scene, then you decide what the little story costs to keep."
         } else if let blueprint = packet.blueprint {
             let cast = [blueprint.leadName, blueprint.companionName]
                 .compactMap { $0?.nonEmpty }
@@ -11490,9 +10955,9 @@ struct NarrativeOSPageSourceAdapter: BookPageSourceAdapter {
             renderStyle: .graphEvent,
             score: day.capturedPages.count >= 2 ? 86 : 68,
             reason: isStorySpark
-                ? "One sentence you kept has a whole little door hiding inside it."
+                ? "One sentence you kept has a whole little story hiding inside it."
                 : "The story is wide awake now, and the characters are itching to do something.",
-            prompt: isStorySpark ? "Want this little sentence to open a door?" : "A Story Page is waking up and rubbing its eyes.",
+            prompt: isStorySpark ? "Want this little sentence to turn into a story?" : "A Story Page is waking up and rubbing its eyes.",
             detail: packet.blueprint.map { "\($0.recipeName): a playable vignette with three roads and no free one." } ?? packet.directorIntent,
             payload: BookPagePayload(
                 headline: packet.title,
@@ -12186,13 +11651,13 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
             intent: .importReference,
             renderStyle: .quoteCard,
             score: context.distress.isActive ? 44 : min(70, 42 + belief / 3 + entity.narrativeWeight / 5),
-            reason: "\(entity.name) has enough Belief now to tiptoe right into the margins.",
+            reason: "\(entity.name) walked into my margins today.",
             prompt: entity.name,
             detail: profile.map(LabyrinthIllustrationPageSourceAdapter.bookDetail(for:))
-                ?? (meaning.isEmpty ? (isLocation ? "A place in my living world." : "A member of my cast.") : meaning),
+                ?? (meaning.isEmpty ? (isLocation ? "A place inside me." : "Somebody I know.") : meaning),
             payload: BookPagePayload(
                 headline: entity.name,
-                body: body.isEmpty ? "\(entity.name) is part of my living world." : body,
+                body: body.isEmpty ? "\(entity.name) lives in me." : body,
                 metadata: metadata
             )
         )
@@ -12231,46 +11696,46 @@ struct CastIllustrationPageSourceAdapter: BookPageSourceAdapter {
 
         let openings = entity.kind == .location
             ? [
-                "Here's where \(name) has begun to matter.",
-                "\(name) has gathered enough Belief to become more than backdrop.",
-                "Let me hand you my map-notes on \(name).",
-                "\(name) earns the page. This is why."
+                "Here's what I know about \(name).",
+                "\(name) has started to matter to me.",
+                "These are my notes on \(name).",
+                "I keep going back to \(name). Here's why."
             ]
             : [
-                "Here's what I've kept on \(name).",
-                "\(name) has stepped far enough into the margins for me to take a proper reading.",
-                "Let me hand you my notes on \(name).",
-                "\(name) earns the page. This is why."
+                "Here's what I've got on \(name).",
+                "I've been keeping notes on \(name).",
+                "\(name) keeps turning up in my margins.",
+                "I keep a page for \(name). Here's why."
             ]
         lines.append(openings[stableIndex(for: "cast-open-\(entity.id)", count: openings.count)])
 
         if !entity.traits.isEmpty {
             lines.append(entity.kind == .location
-                ? "What the room gives first is \(oxfordList(entity.traits))."
-                : "What shows first is \(oxfordList(entity.traits)).")
+                ? "The first thing anybody notices in there is \(oxfordList(entity.traits))."
+                : "The first thing anybody notices about \(name) is \(oxfordList(entity.traits)).")
         }
         if !description.isEmpty {
             lines.append(finishSentence(description))
         }
         if let belief = entity.beliefs.first(where: { !$0.trimmed.isEmpty }) {
             lines.append(entity.kind == .location
-                ? "The place keeps insisting that \(lowerFirst(belief.strippedClause))."
-                : "They hold that \(lowerFirst(belief.strippedClause)).")
+                ? "The place keeps insisting \(lowerFirst(belief.strippedClause))."
+                : "\(name) believes \(lowerFirst(belief.strippedClause)).")
         }
         if !meaning.isEmpty {
             lines.append(entity.kind == .location
-                ? "Lately its doors keep circling back to \(lowerFirst(meaning.strippedClause))."
-                : "Lately they keep circling back to \(lowerFirst(meaning.strippedClause)).")
+                ? "Lately it keeps coming back to \(lowerFirst(meaning.strippedClause))."
+                : "Lately \(name) keeps coming back to \(lowerFirst(meaning.strippedClause)).")
         }
         if let goal = entity.goals.first(where: { !$0.trimmed.isEmpty }) {
             lines.append(entity.kind == .location
-                ? "Its job in the story is to \(lowerFirst(goal.strippedClause))."
-                : "What they're reaching for is \(lowerFirst(goal.strippedClause)).")
+                ? "In the story, it's there to \(lowerFirst(goal.strippedClause))."
+                : "\(name) is reaching for \(lowerFirst(goal.strippedClause)).")
         }
         if let fault = entity.faults.first(where: { !$0.trimmed.isEmpty }) {
             lines.append(entity.kind == .location
-                ? "The risk I keep one eye on: \(lowerFirst(fault.strippedClause))."
-                : "The flaw I keep one eye on: \(lowerFirst(fault.strippedClause)).")
+                ? "The thing I watch out for in there is \(lowerFirst(fault.strippedClause))."
+                : "The thing I keep an eye on is \(lowerFirst(fault.strippedClause)).")
         }
 
         return lines.joined(separator: " ")
@@ -12487,6 +11952,8 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
                     "fae": anchor.fae,
                     "localRule": anchor.localRule,
                     "anchorEmotionalRegister": anchor.emotionalRegister ?? "",
+                    "anchorPlayerWords": anchor.playerWords,
+                    "anchorMiniStory": anchor.miniStory,
                     "anchorPlaceReceipt": anchor.place?.promptLine ?? "",
                     "sessionSubjectThreadID": "Outer Stacks: \(anchor.storyName)",
                     "selectedThreads": "Outer Stacks,\(anchor.storyName)",
@@ -13599,7 +13066,7 @@ struct FaeBargainPageSourceAdapter: BookPageSourceAdapter {
                 : (isOffer
                     ? "The \(bargain.faeKind.name) is holding a gift out. Reading is free; acceptance is a separate choice."
                     : "The \(bargain.faeKind.name) gave first. A sensory return is waiting: \(deadlineLine)."),
-            prompt: hasMovedOn ? "A Fae Debt Has Teeth" : (isOffer ? "A Fae Offer" : "A Fae Bargain"),
+            prompt: hasMovedOn ? "A Fae Debt Comes Due" : (isOffer ? "A Fae Offer" : "A Fae Bargain"),
             detail: hasMovedOn
                 ? "Answer the original terms to warm the gift and reopen this Fae's market."
                 : bargain.terms,
@@ -13721,7 +13188,7 @@ struct BookFaePageSourceAdapter: BookPageSourceAdapter {
                         "selectedEntityIDs": "fae-\(kind.rawValue)",
                         "realSignals": signalLines.joined(separator: "\n"),
                         "relationshipPressures": "\(FaeEconomy.claimLine(for: kind, claim: claim))\(courtLine)\(omenLine)\nWarmth with this kind: \(warmth). The Fae aren't punishers; they turn failure into stranger story.",
-                        "entityMemories": "The \(kind.name) remembers Warmth \(warmth), Claim \(claim), and whether the reader chooses courtesy, old law, or a sideways door.",
+                        "entityMemories": "The \(kind.name) remembers Warmth \(warmth), Claim \(claim), and whether the reader chooses courtesy, old law, or a sideways answer.",
                         "storyGenreName": "Old Faerie Parley",
                         "storyGenreLens": "Traditional faerie manners: courtesy, exact wording, beautiful danger, loopholes, gifts with edges, and no cruelty for sport.",
                         "storyGenreExemplar": "\"You kept a morning I wanted,\" the visitor said, turning a page it couldn't touch. \"Name your price for it.\" Its courtesy was exact, the way frost is exact. \"And do be precise. The last reader traded loosely, and we're collecting still.\"",
@@ -13907,6 +13374,7 @@ struct FestivalPageSourceAdapter: BookPageSourceAdapter {
         var metadata: [String: String] = [
             "source": source.id,
             "celebrationID": celebration.id,
+            "automaticRecurrenceSlot": "\(slot):\(celebration.id)",
             "celebrationKind": celebration.kind.rawValue,
             "commonName": celebration.commonName,
             "academyTitle": celebration.academyTitle,
@@ -14041,7 +13509,9 @@ struct SpellPageSourceAdapter: BookPageSourceAdapter {
             recall: SpellCastMemory.recall(of: spell.id, in: inputs.days + [day], now: now),
             sourceID: source.id,
             // A spell the world laid out today is worth more than one it didn't.
-            score: spell.trigger == nil ? 66 : 78
+            // Neither holds a reserved chair, so the everyday spell has to be
+            // worth one on its own: at 66 it ranked below the fold every day.
+            score: spell.trigger == nil ? 76 : 84
         )
     }
 }
@@ -14668,10 +14138,10 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
         let glowName = BeliefLexicon.glowName(for: inputs.readerBeliefScore)
         let body = isTooFull
             ? """
-            Your Glow is full and glaring at me. Open the Glow menu. Spend it on a person, Page kind, spell, or living thread. I’ll pull that thing closer and let it rise more often. Or spend it when a fiction door asks to wake now. Hoarded Glow just singes the shelf.
+            Your Glow is full and glaring at me. Open the Glow menu. Spend it on a person, Page kind, spell, or living thread. I’ll pull that thing closer and let it rise more often. Or spend it when a story asks to wake now. Hoarded Glow just singes the shelf.
             """
             : """
-            You have enough Glow to steer me. Open the Glow menu. Choose a person, Page kind, spell, or living thread. I’ll hold it closer and let it rise more often. You can also spend Glow when a fiction door asks to open now.
+            You have enough Glow to steer me. Open the Glow menu. Choose a person, Page kind, spell, or living thread. I’ll hold it closer and let it rise more often. You can also spend Glow when a story asks to start now.
             """
 
         return [
@@ -14834,7 +14304,7 @@ struct SeasonalDispatchPageSourceAdapter: BookPageSourceAdapter {
         let chapterWord = dispatch.chapterCount == 1 ? "One month" : "\(dispatch.chapterCount) months"
         let coverReaderName = LabyrinthWelcomePageSourceAdapter.playerName(from: inputs) ?? "THE READER"
         let addressLine = dispatch.needsAddressConfirmation
-            ? "\n\nTell me the door it's going to. I'd rather not guess at a street."
+            ? "\n\nTell me where it's going. I'd rather not guess at a street."
             : ""
         let proofLine = dispatch.interiorProofLine?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
             .map { "\n\nI left one front leaf loose so you could peek: \($0)" }
@@ -14847,7 +14317,7 @@ struct SeasonalDispatchPageSourceAdapter: BookPageSourceAdapter {
 
         \(when)\(addressLine)
 
-        Put one line inside. Check the door. Tell me to wait.
+        Put one line inside. Check the address. Tell me to wait.
         """
 
         return [
@@ -15443,7 +14913,7 @@ enum HelpTipsCatalog {
 
             An Illuminated Photo lets Penny and Gemma notice what is already in the picture: objects, light, mood, symbols, jokes, possible Souvenirs. An Enchantment goes further. Choose a spell, give it a real photo, and keep the changed Page if it earns its glow.
 
-            Try a room corner, meal, mug, shoe, shelf, receipt, doorway, weather scrap, or the small object that keeps following you. Blurry ordinary photographs often have better teeth than staged ones. I like evidence more than posing.
+            Try a room corner, meal, mug, shoe, shelf, receipt, doorway, weather scrap, or the small object that keeps following you. Blurry ordinary photographs often say more than staged ones. I like evidence more than posing.
             """,
             tags: ["help", "photos", "enchantments", "proof"]
         ),
@@ -15893,7 +15363,7 @@ struct GreyPageThreatSourceAdapter: BookPageSourceAdapter {
             body = """
             There. The Page opened again. So did I.
 
-            I won't tell it the old way again. That's how furniture happens. The next telling must find another door.
+            I won't tell it the old way again. That's how furniture happens. The next telling must find another angle.
             """
         case .erased:
             prompt = "The Grey Left a Pale Place"
@@ -15952,7 +15422,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
         privacy: .privateLocal,
         isActive: true,
         cadence: "during active world events",
-        note: "A door into temporary event physics: phases, outcomes, and fieldwork."
+        note: "Temporary event physics: phases, outcomes, and fieldwork."
     )
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
@@ -16189,7 +15659,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
 
         \(event.subtitle)
 
-        It's only a hint. The door isn't open yet.
+        It's only a hint. It isn't here yet.
         """
         return SurfacePage(
             id: "\(resolvedSource.id)-foreshadow-\(snapshot.runID)",
@@ -16383,22 +15853,22 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
         let outcomeLine = event.packet.monthlyEditionLine.nonEmpty ?? event.outcome?.title
         let filedLine = report.map {
             $0.beatIDs.count == 1
-                ? "One report came in about what happened while the door was shut."
-                : "\($0.beatIDs.count) reports came in about what happened while the door was shut."
+                ? "One report came in about what happened while you were away."
+                : "\($0.beatIDs.count) reports came in about what happened while you were away."
         }
         let body: String
         if receipt {
             body = [
                 "The loud part's over. \(event.title) has left ink under its fingernails.",
                 outcomeLine,
-                "You were there for some of it. I've still got what you kept. The door's shut now, but your mark isn't going anywhere.",
+                "You were there for some of it. I've still got what you kept. It's over now, but your mark isn't going anywhere.",
                 filedLine
             ].compactMap { $0 }.joined(separator: "\n\n")
         } else {
             body = [
                 "The loud part's over. \(event.title) has left rumors in the lower margins.",
                 outcomeLine,
-                "You weren't there for this one, so it's secondhand. The door's shut now.",
+                "You weren't there for this one, so it's secondhand. It's over now.",
                 filedLine
             ].compactMap { $0 }.joined(separator: "\n\n")
         }
@@ -16413,7 +15883,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
                 ? "It's over, and I've still got what you kept."
                 : "It's over. All I've got is a rumor.",
             prompt: "After \(event.title)",
-            detail: receipt ? "Your mark's still here. The door is shut." : "Only a rumor. It isn't your ending.",
+            detail: receipt ? "Your mark's still here. It's over." : "Only a rumor. It isn't your ending.",
             payload: BookPagePayload(
                 headline: "What the Month Left",
                 body: body,
@@ -16457,7 +15927,7 @@ struct WorldEventPageSourceAdapter: BookPageSourceAdapter {
             reason: preview
                 ? "Almanac preview: \(event.title) shown out of season."
                 : (manual
-                    ? "You opened the event door yourself."
+                    ? "You opened this yourself."
                     : "\(event.title) is changing my rules."),
             // Phases are the story's structure, not a name for the Reader:
             // a pack may author them as ids ("reciprocal").
@@ -16721,6 +16191,7 @@ enum BookPageSourceAdapters {
         BookAsksPageSourceAdapter(),
         OvernightConnectionPageSourceAdapter(),
         BookNoticesPageSourceAdapter(),
+        WritingDeskPageSourceAdapter(),
         GrimoirePageSourceAdapter(),
         BestiaryPageSourceAdapter(),
         ReadersWearPageSourceAdapter(),
@@ -16977,7 +16448,7 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
                 : "Choose a phrase to carry. Catch words from Pages you wrote. Let Routine’s grey bait go. The run makes a new Page.",
             payload: BookPagePayload(
                 headline: ready
-                    ? (isShadow ? "Catch the Words with Teeth" : "Catch Your Own Words")
+                    ? (isShadow ? "Catch the Sharp Words" : "Catch Your Own Words")
                     : "The Loom Needs More Thread",
                 body: ready
                     ? (isShadow
@@ -17347,7 +16818,7 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
                     headline: "An Hour Approaches",
                     prompt: PactVoices.hourQuestion(controller: doorController, phase: "before") ?? beforePrompt(for: event, now: now),
                     support: beforeSupportTip(for: event, now: now),
-                    body: "Something is inked at \(timeLabel): \(event.title).\n\nI folded this corner so the hour can't ambush you. Let the next few minutes become a little porch before the door.",
+                    body: "Something is inked at \(timeLabel): \(event.title).\n\nI folded this corner so the hour can't ambush you. Let the next few minutes be a little breather before it.",
                     reason: "A real hour is inked \(minutesToStart) minute\(minutesToStart == 1 ? "" : "s") from now.",
                     score: 86,
                     timeLabel: timeLabel,

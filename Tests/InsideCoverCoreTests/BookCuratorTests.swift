@@ -1795,7 +1795,9 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             for: emptyDay(),
             inputs: richInputs(),
             now: localDate(year: 2026, month: 7, day: 7, hour: 9),
-            limit: 14
+            // The whole bench: the morning's edition, logs and sessions are owed
+            // their chairs now, and this is about identity, not placement.
+            limit: BookDeskRound.candidateBenchCapacity
         )
         let lore = try XCTUnwrap(morning.first { $0.type == .lore })
         let wonder = try XCTUnwrap(morning.first { $0.type == .wonderCompass })
@@ -2772,11 +2774,14 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
 
     func testAboutYouSkipsAnsweredQuestionsFromEnabledPacks() throws {
         let day = emptyDay()
+        // The whole bench: scheduled bells and sessions now take chairs in the
+        // first dozen, and what's under test is the answered question, not
+        // where About You ranks on one morning.
         let firstPass = BookCurator.surfacedPages(
             for: day,
             inputs: richInputs(selfFacts: []),
             now: localDate(hour: 10),
-            limit: 12
+            limit: 27
         )
         let firstQuestion = try XCTUnwrap(firstPass.first { $0.type == .aboutYou })
         let questionID = try XCTUnwrap(firstQuestion.payload.metadata["questionID"])
@@ -3210,8 +3215,9 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         // it locks the set even though the bundled JSON is unavailable under SwiftPM.
         // 22 base Cast + the Dictionary Rebellion pack's two illustrated cast
         // members (Professor Mook and Pippa Pilcrow) + Ambrose Trencher, the
-        // cafeteria cook, plus November's story-gated Guest.
-        XCTAssertEqual(CastDossier.bios.count, 26, "Expected 26 bespoke Cast dossiers")
+        // cafeteria cook, plus November's story-gated Guest. Then the plates that
+        // aren't people: five talismans, five Book Fae and seven places.
+        XCTAssertEqual(CastDossier.bios.count, 43, "Expected 43 bespoke Cast dossiers")
 
         // Every bespoke dossier reads like real, longer narrative prose in the
         // Book's voice and never leaks the dossier production metadata.

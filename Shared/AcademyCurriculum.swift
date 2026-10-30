@@ -492,7 +492,7 @@ enum AcademyCurriculum {
             id: "wayfinding-bribe-003",
             sessionID: "wayfinding-kineticism",
             title: "Bribe Yourself",
-            realSubject: "using a treat to get yourself out of the door",
+            realSubject: "using a treat to get yourself out of the house",
             concept: "Pair the thing you're putting off with something you love. Only let yourself have the nice thing while you're doing it.",
             lectureBeats: [
                 "Most people won't do something just because it's good for them.",
@@ -500,7 +500,7 @@ enum AcademyCurriculum {
                 "The treat works best if you only get it while you're doing the thing."
             ],
             demonstration: "Professor Momort put a tin of toffees at the far end of the Momentum Yard and said they were only for people who'd walked there. Then he sat on the tin. Finn had to argue him off it, which took longer than the walk and was much more fun to watch.",
-            interactionPrompt: "What treat would get you out of the door this week?",
+            interactionPrompt: "What treat would get you out of the house this week?",
             realWorldPractice: "Pick one treat you only get while you're doing a thing you've been putting off. Try it once this week.",
             number: 3,
             mode: "A game",
@@ -548,7 +548,7 @@ enum AcademyCurriculum {
             id: "wayfinding-coat-005",
             sessionID: "wayfinding-kineticism",
             title: "The Going-Out Coat",
-            realSubject: "how what you wear can get you out of the door",
+            realSubject: "how what you wear can get you out of the house",
             concept: "Keep one thing you only wear for going out. Putting it on tells your body you're going.",
             lectureBeats: [
                 "Fred Rogers changed into a cardigan and trainers at the start of every show.",
@@ -644,7 +644,7 @@ enum AcademyCurriculum {
             realWorldPractice: "Next time you leave the house on purpose, stop on the doorstep for three seconds before you go. Feel the line.",
             number: 8,
             mode: "An old pattern",
-            lecture: "In 1949 a man called Joseph Campbell wrote a book about the old stories from all over the world, and he noticed the same thing kept happening in them. Somebody leaves home. They cross a line, a door, a river, the edge of a wood, and once they're over it, the rules change. He called it crossing the first threshold. You do it every time you shut your front door on purpose. Stand on the step for three seconds. The house air's behind you. The outside air's on your face. That's the line. Nothing happens to people who stay inside. Not in the old stories, and not in yours. Everything worth telling starts on the other side of a door.",
+            lecture: "In 1949 a man called Joseph Campbell wrote a book about the old stories from all over the world, and he noticed the same thing kept happening in them. Somebody leaves home. They cross a line, a door, a river, the edge of a wood, and once they're over it, the rules change. He called it crossing the first threshold. You do it every time you shut your front door on purpose. Stand on the step for three seconds. The house air's behind you. The outside air's on your face. That's the line. Nothing happens to people who stay inside. Not in the old stories, and not in yours. Everything worth telling starts once somebody steps outside.",
             twoMinutes: "Go and stand in a doorway for thirty seconds, half in and half out. Write one thing you can feel on each side.",
             reading: "Joseph Campbell, The Hero with a Thousand Faces (1949)",
             practice: wayPractice(
@@ -905,7 +905,7 @@ enum AcademyCurriculum {
             realWorldPractice: "Smell five things on purpose this week, like coffee, an old book or soap. Write down anything they bring back.",
             number: 5,
             mode: "A true story",
-            lecture: "More than a hundred years ago a French writer called Marcel Proust dipped a little cake in his tea and took a bite, and his whole childhood came back. Not as a thought. All at once, like a door opening. Sunday mornings. His aunt's room. The town where he grew up. He wrote thousands of pages about it, and it all started with one mouthful. Smell and taste do that. They take a shorter road to the part of you that keeps feelings and memories. That's why a stranger's perfume on the bus can make you miss somebody. So go and smell things on purpose. The inside of an old book. Coffee. Rain on a hot pavement. Find out which doors they open.",
+            lecture: "More than a hundred years ago a French writer called Marcel Proust dipped a little cake in his tea and took a bite, and his whole childhood came back. Not as a thought. All at once, like a sneeze. Sunday mornings. His aunt's room. The town where he grew up. He wrote thousands of pages about it, and it all started with one mouthful. Smell and taste do that. They take a shorter road to the part of you that keeps feelings and memories. That's why a stranger's perfume on the bus can make you miss somebody. So go and smell things on purpose. The inside of an old book. Coffee. Rain on a hot pavement. Find out what they bring back.",
             twoMinutes: "Find the strongest smell you can get to in two minutes. Smell it with your eyes shut. Write down what it brings back, even if it's nothing much.",
             reading: "Marcel Proust, Swann's Way (1913)",
             practice: resonancePractice(
@@ -1692,7 +1692,7 @@ enum AcademyCurriculum {
             realWorldPractice: "Next time you're working on something long, stop for ten minutes the first time you read the same line twice.",
             number: 9,
             mode: "Your body's clock",
-            lecture: "You're not a machine. You're more like the tide. Lots of people find they can only really concentrate for about an hour and a half before their body asks for a break. You get fidgety. Hungry. You read the same line three times. That isn't you being lazy. That's the tide going out. If you push on through with coffee and gritted teeth, you can keep going, but you're borrowing, and it has to be paid back later. So when the tide goes out, stop. Ten minutes. Stand up, look out of a window, get a glass of water. Then go back. Work, rest. Work, rest. That's the rhythm.",
+            lecture: "You're not a machine. You're more like the tide. Lots of people find they can only really concentrate for about an hour and a half before their body asks for a break. You get fidgety. Hungry. You read the same line three times. That isn't you being lazy. That's the tide going out. If you push on through with coffee and stubbornness, you can keep going, but you're borrowing, and it has to be paid back later. So when the tide goes out, stop. Ten minutes. Stand up, look out of a window, get a glass of water. Then go back. Work, rest. Work, rest. That's the rhythm.",
             twoMinutes: "Think about today. When did your energy dip? Write down what you were doing, and whether you stopped.",
             reading: centerReading,
             practice: quietPractice(
@@ -2351,14 +2351,14 @@ enum AcademyCurriculum {
             lectureBeats: [
                 "Every picture has a world going on beyond its edges.",
                 "Imagining the ground, the smell and the sounds puts you inside it.",
-                "The edges of the frame are a door."
+                "There's always more past the edges of the frame."
             ],
             demonstration: "Professor Permancer hung an old painting of a harbour in the Vault and asked what was just out of the frame on the left. Zara said a fish market. Orion said a man shouting about the price of eels. Zara said that was the fish market. They argued for ten minutes, then both drew it.",
             interactionPrompt: "Pick a picture you can see. What's just outside its edge?",
             realWorldPractice: "Pick one painting or photo this week. Step into it in your head, and write what's just outside the frame.",
             number: 8,
             mode: "A game",
-            lecture: "You can jump into a picture as well as a book. Pick a painting, a photo, a postcard on somebody's fridge. Look at it for a full minute. Now step in. What's the ground like under your feet? What can you smell? What's just outside the edge of the frame, where the painter didn't show you? Who's about to walk in? The edges of a picture are a door. Painters always leave a little world going on beyond them. Go and have a look, and come back before the paint dries.",
+            lecture: "You can jump into a picture as well as a book. Pick a painting, a photo, a postcard on somebody's fridge. Look at it for a full minute. Now step in. What's the ground like under your feet? What can you smell? What's just outside the edge of the frame, where the painter didn't show you? Who's about to walk in? There's always more past the edges of a picture. Painters always leave a little world going on beyond them. Go and have a look, and come back before the paint dries.",
             twoMinutes: "Find any picture near you. Look at it for one minute. Write what's just outside its left edge.",
             reading: "J. R. R. Tolkien, \"Leaf by Niggle\" (1945)",
             practice: jumpPractice(
@@ -2457,11 +2457,11 @@ enum AcademyCurriculum {
         AcademyLessonModule(
             id: "book-jumping-doors-012",
             sessionID: "book-jumping",
-            title: "Your Shelf of Doors",
+            title: "Your Year of Stories",
             realSubject: "looking back at a year of stories as places you've been",
             concept: "Count the stories you went into this year. Which took you furthest? Which was hardest to leave? A year of reading is a map.",
             lectureBeats: [
-                "Every story you read this year was a door you went through.",
+                "Every story you read this year took you somewhere.",
                 "Thinking about which took you furthest shows you what you love.",
                 "Next year, try a kind of story you'd never usually choose."
             ],
@@ -2469,13 +2469,13 @@ enum AcademyCurriculum {
             interactionPrompt: "Which story took you furthest this year?",
             realWorldPractice: "List every story you went into this year. Star the one that took you furthest, and pick one new kind to try next year.",
             number: 12,
-            mode: "Counting your doors",
-            lecture: "End of the year. Go to your shelf, or your list, or wherever you keep them, and count the doors. Every story you went into this year. The ones you loved. The ones you left halfway. The pirate ones. Put them in order. Which one took you furthest? Which one was hardest to come back from? Which one did you bring something back from? A year of reading isn't a pile. It's a map of places you've been. And next year, I'd like you to go somewhere you'd never usually go. A kind of story you've never tried. Mark the page. Off you go.",
+            mode: "Counting your stories",
+            lecture: "End of the year. Go to your shelf, or your list, or wherever you keep them, and count the stories. Every story you went into this year. The ones you loved. The ones you left halfway. The pirate ones. Put them in order. Which one took you furthest? Which one was hardest to come back from? Which one did you bring something back from? A year of reading isn't a pile. It's a map of places you've been. And next year, I'd like you to go somewhere you'd never usually go. A kind of story you've never tried. Mark the page. Off you go.",
             twoMinutes: "Write down the three stories that took you furthest this year. Put a star by the one that was hardest to leave.",
             reading: "Italo Calvino, If on a Winter's Night a Traveller (1979)",
             practice: jumpPractice(
-                "doors", title: "Count Your Doors",
-                invitation: "Permancer's last lesson of the year: count your doors. Write the story that took you furthest, the one hardest to leave, and a kind you'll try next year.",
+                "doors", title: "Count Your Stories",
+                invitation: "Permancer's last lesson of the year: count your stories. Write the story that took you furthest, the one hardest to leave, and a kind you'll try next year.",
                 action: "Mark the map",
                 [("furthest", "Furthest", "The one that took you furthest"),
                  ("hardest", "Hardest to leave", "The one that nearly kept you"),
@@ -4104,19 +4104,19 @@ enum AcademyCurriculum {
             id: "book-jumpers-garden-007",
             sessionID: "book-jumpers",
             title: "The Key in the Earth",
-            realSubject: "finding a door that's been there all along",
-            concept: "In The Secret Garden, a robin shows Mary a key buried in the earth, and a locked garden comes back to life. Look for the door in your own life that's been there all along.",
+            realSubject: "finding something that's been there all along",
+            concept: "In The Secret Garden, a robin shows Mary a key buried in the earth, and a locked garden comes back to life. Look for something in your own life that's been there all along.",
             lectureBeats: [
                 "Mary finds a garden that's been locked up for ten years.",
                 "A robin shows her where the key is buried.",
-                "The best doors are already there, waiting to be noticed."
+                "The best finds are already there, waiting to be noticed."
             ],
             demonstration: "The club landed by the ivy-covered wall and spent ten minutes looking for the door. Zara found it first, behind the ivy, exactly where the book says. Permancer made them wait outside without going in until a robin landed on the wall. It took a while. It was worth it.",
-            interactionPrompt: "What's a door in your own life that's been there all along?",
+            interactionPrompt: "What's something in your own life that's been there all along?",
             realWorldPractice: "Look for one secret garden near you this month: a path, a gate or a corner you've never gone through. Go through it.",
             number: 7,
             mode: "A spring jump",
-            lecture: "March, so it's The Secret Garden. Mary Lennox is sent to a big gloomy house where nobody talks to her, and she finds out about a garden that's been locked up for ten years. A robin shows her where the key's buried. She digs it up. She goes in, and the garden that looked dead is only sleeping. It's the best door on the whole shelf, because nobody made it. It was already there, waiting for somebody to notice. Tonight we land by the wall, by the ivy, and look for the door. Then, in the real world, you go and look for yours.",
+            lecture: "March, so it's The Secret Garden. Mary Lennox is sent to a big gloomy house where nobody talks to her, and she finds out about a garden that's been locked up for ten years. A robin shows her where the key's buried. She digs it up. She goes in, and the garden that looked dead is only sleeping. It's the best door on the whole shelf, because nobody made it. It was already there, waiting for somebody to notice. Tonight we land by the wall, by the ivy, and look for the door. Then, in the real world, you go and look for something that's been waiting to be noticed.",
             twoMinutes: "Think of a place near you that you've walked past but never gone into. Write where it is, and what you think is behind it.",
             reading: "Frances Hodgson Burnett, The Secret Garden (1911)",
             practice: jumpersPractice(
@@ -4195,7 +4195,7 @@ enum AcademyCurriculum {
             sessionID: "book-jumpers",
             title: "X Marks the Spot",
             realSubject: "drawing a map and letting it become a story",
-            concept: "Treasure Island started with a map drawn on a rainy holiday. Draw a map, mark the landing, the treasure and the way back, and you've made a door.",
+            concept: "Treasure Island started with a map drawn on a rainy holiday. Draw a map, mark the landing, the treasure and the way back, and you've made a story to jump into.",
             lectureBeats: [
                 "Stevenson drew a map of an island first, then wrote the story.",
                 "A map with a landing, a treasure and a way back is a story waiting to happen.",
@@ -4206,7 +4206,7 @@ enum AcademyCurriculum {
             realWorldPractice: "Draw a treasure map of somewhere near you. Mark where you'd land, the treasure, and the way back. Then go to the X.",
             number: 10,
             mode: "Start with a map",
-            lecture: "Treasure Island started with a map. Robert Louis Stevenson was stuck indoors on a rainy holiday in Scotland, and he drew a map of an island with his stepson. Then he made up the story to go with it. That's a door you can build yourself. Draw a map of somewhere. A real place, or one you've made up. Mark where you'd land. Mark the treasure. Mark the way back to the boat. Every map is a story waiting to be told. Summer's a good time to go and find out what's at the X.",
+            lecture: "Treasure Island started with a map. Robert Louis Stevenson was stuck indoors on a rainy holiday in Scotland, and he drew a map of an island with his stepson. Then he made up the story to go with it. That's a story you can build yourself. Draw a map of somewhere. A real place, or one you've made up. Mark where you'd land. Mark the treasure. Mark the way back to the boat. Every map is a story waiting to be told. Summer's a good time to go and find out what's at the X.",
             twoMinutes: "Draw a quick map of the room you're in. Put an X on the most interesting spot. Write what's there.",
             reading: "Robert Louis Stevenson, Treasure Island (1883)",
             practice: jumpersPractice(
@@ -4261,7 +4261,7 @@ enum AcademyCurriculum {
                 "When he got back, hardly anybody recognised him, except his dog.",
                 "A year of stories changes you too. Notice how."
             ],
-            demonstration: "The club landed on the beach at Ithaca for the last jump of the year. Nobody spoke. Then they came back to the Vault of Doors, and Permancer made each of them say one way they'd changed since September. Zara said she'd stopped holding the exit door quite so tightly. Orion said he now owned a sock with a story.",
+            demonstration: "The club landed on the beach at Ithaca for the last jump of the year. Nobody spoke. Then they came back to the Vault of Doors, and Permancer made each of them say one way they'd changed since September. Zara said she'd stopped watching the exits quite so hard. Orion said he now owned a sock with a story.",
             interactionPrompt: "How have you changed since the start of the year?",
             realWorldPractice: "At the end of this year of stories, write down one way you've changed, and one story that helped.",
             number: 12,

@@ -1,0 +1,115 @@
+{
+  "status": "four-previews-for-review",
+  "installed": false,
+  "sourceOfAuthority": "Reader direction, October 27, 2026",
+  "cards": [
+    {
+      "id": "major-09",
+      "name": "IX \u2014 The Hermit",
+      "title": "The Hermit \u00b7 Deep Lore Dwarf",
+      "owner": "tarot_art_a",
+      "bookishScene": "A solitary ancient Deep Lore Dwarf stands on a narrow root-bound stair in the deepest Under-Stacks, holding one lantern containing a clear six-pointed star and one ordinary walking staff. Short grounded body, long grey braided beard, pointed ears, patched layered paper-and-cloth scholar coat, old keys and strapped archival volume: retain the existing dwarf identity. The lantern lights only the next step. Towering warped bookcases and paths descend into blue-grey ink mist, with a distant stair looping impossibly behind a shelf. Quiet solitude and searching, not a comedy miner or a dungeon warrior. One small book moth follows the light; no other major figure.",
+      "marginalLabel": "lantern wick",
+      "readingNote": "Enough light for this step.",
+      "marginalStudy": "A tiny ink study of a curled linen lantern wick, no second lantern. A few moth-wing marks approach the lit paper edge.",
+      "newSubjects": [
+        "lantern",
+        "under-stacks",
+        "book-moth",
+        "old-keys"
+      ],
+      "requiredSymbols": [
+        "Elder on a high Stacks landing holding a six-pointed lamp and staff, snow or mist below; the lamp illuminates only the next few steps."
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.17,
+        "labelWidth": 0.24,
+        "labelOnPaper": true
+      },
+      "worldDirection": "wild-library-academy-prototype",
+      "expectedSuitCount": null
+    },
+    {
+      "id": "wands-ten",
+      "name": "Ten of Wands",
+      "title": "Ten of Wands \u00b7 Marginalia Goblin",
+      "owner": "tarot_art_b",
+      "bookishScene": "A weary adult-sized-in-frame Marginalia Goblin archivist bends under exactly TEN long wooden dip pens with TEN separate brass split nibs, carried in one awkward fan bundle. The main ten pens must each be independently traceable, each has one nib and one blunt end. Use the existing green-brown clever goblin with long nose, large ears, ink-stained fingers, patched blue hood and scrap cloak, naturally weighted anatomy, never babyish. He is struggling up a crooked timber library stair toward a tiny open bindery door; shelves have rooted through the stair, overhead bridges turn back into bookshelves, loose paper roosts like birds. Burden obscures his forward view, but he still chooses to carry it. No other pen, nib, quill or writing tool anywhere, even in margins.",
+      "marginalLabel": "binding cord",
+      "readingNote": "You could put some down.",
+      "marginalStudy": "A small untied binding-cord study at upper-left. A tiny margin goblin footprint at the side points toward a sensible place to set the bundle down. No extra pen in either study.",
+      "newSubjects": [
+        "dip-pen",
+        "bindery-door",
+        "binding-cord",
+        "marginalia-goblin"
+      ],
+      "requiredSymbols": [
+        "Figure carries exactly ten bundled staffs toward a town, view partially blocked by the load; Emberheart ambition at its limit."
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.18,
+        "labelWidth": 0.2,
+        "labelOnPaper": true
+      },
+      "worldDirection": "wild-library-academy-prototype",
+      "expectedSuitCount": 10
+    },
+    {
+      "id": "major-06",
+      "name": "VI \u2014 The Lovers",
+      "title": "The Lovers \u00b7 Literary Elves",
+      "owner": "tarot_art_c",
+      "bookishScene": "Two adult literary elves, one Seelie and one Unseelie, stand as equal readers at a shared open book-lectern grown from interlaced library roots. Both have distinctive fine pointed ears, believable adult faces and hands, practical layered Academy clothes and ink-stained fingers: moss/ivory waistcoat and fitted coat for one, plum/ink-blue long tailored scholar coat and old brass knots for the other. Neither is villainous or submissive; their expressions show chosen trust and an unresolved difference. Preserve the RWS two-figure choice/relationship tableau, sun above, one winged witness above them, apple/serpent branch to left and flame-leaved branch to right. The winged witness is an enigmatic adult Book Fae with folded-manuscript wings high among the rafters, not a Greco-Roman angel. Around them, a tangled neverending library forks into two impossible stair corridors; a tiny punctuation pixie loosens a comma at the far outer edge. Preserve the central pair as first read.",
+      "marginalLabel": "joining stitch",
+      "readingNote": "Two hands. Neither holds the other shut.",
+      "marginalStudy": "One tiny study of a graft-like linen stitch joining two different paper edges at upper-left, and the small punctuation-pixie comma mischief at the opposite edge. No extra full-size people.",
+      "newSubjects": [
+        "literary-elf",
+        "seelie",
+        "unseelie",
+        "shared-book",
+        "graft-stitch"
+      ],
+      "requiredSymbols": [
+        "Two unclothed or simply draped figures standing apart in an open garden, tree and serpent behind one, flame tree behind the other, winged witness and sun above; mutual gaze and choice, not romance-only."
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.14,
+        "labelWidth": 0.23,
+        "labelOnPaper": true
+      },
+      "worldDirection": "wild-library-academy-prototype",
+      "expectedSuitCount": null
+    },
+    {
+      "id": "major-01",
+      "name": "I \u2014 The Magician",
+      "title": "The Magician \u00b7 Penny Blackletter",
+      "owner": "root",
+      "bookishScene": "Penny Blackletter embodies the Magician as a tarot allegory, not new Cast canon. Preserve the supplied canonical face, dark curly pinned-up hair, gold wire spectacles, expressive sharp eyes, ink-blue tailored Academy coat/waistcoat, high paper-cream collar and blue jewel. Standing at a crooked printer-editor workbench inside the wildly overgrown Press desk in an endless library, she raises one long wooden brass-nib dip pen in her right hand while her left index points down, the unmistakable above/below gesture. An infinity loop floats above her head. On the workbench lie one cup, one brass paper knife, one round hinged pentacle book clasp, a blank catalog card and a folded book; the raised pen completes the four suit tools. No duplicate tools. Roses and lilies are small living sprigs among the shelves, not an outdoor garden. Behind her, shelves turn into stairs and one ladder arrives through a bookcase. A tiny punctuation pixie is stealing a physical comma from the outer margin, subordinate to Penny.",
+      "marginalLabel": "catalog tab",
+      "readingNote": "The tools are waiting for your hands.",
+      "marginalStudy": "One tiny paper catalog-tab study with a bent paperclip at upper-left, two small ink/watercolor swatches nearby, and the small pixie/comma vignette at outer right. No extra pen, cup, blade or clasp.",
+      "newSubjects": [
+        "penny-blackletter",
+        "catalog-card",
+        "printing-desk",
+        "punctuation-pixie"
+      ],
+      "requiredSymbols": [
+        "A standing writer with one hand pointing to earth and an opinionated pen raised to the sky; table holds staff, cup, sword, and pentacle; infinity sign, roses, lilies. No spellcasting wand."
+      ],
+      "annotationLayout": {
+        "labelX": 0.025,
+        "labelY": 0.095,
+        "labelWidth": 0.18
+      },
+      "worldDirection": "wild-library-academy-prototype",
+      "expectedSuitCount": null
+    }
+  ]
+}

@@ -914,7 +914,11 @@ struct PageCapabilityContract: Codable, Equatable {
     }
 
     func applying(to surface: SurfacePage) -> SurfacePage {
-        guard let data = try? JSONEncoder().encode(self) else { return surface }
+        // Sorted keys: the same contract must encode to the same string, or two
+        // copies of one Page compare unequal and the desk thinks it changed.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(self) else { return surface }
         return surface.withMetadata([
             Self.metadataKey: data.base64EncodedString(),
             "pageCapabilityVersion": String(version),
@@ -1151,7 +1155,11 @@ struct LivedEncounterContract: Codable, Equatable {
     }
 
     func applying(to surface: SurfacePage) -> SurfacePage {
-        guard let data = try? JSONEncoder().encode(self) else { return surface }
+        // Sorted keys: the same contract must encode to the same string, or two
+        // copies of one Page compare unequal and the desk thinks it changed.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(self) else { return surface }
         return surface.withMetadata([
             Self.metadataKey: data.base64EncodedString(),
             "livedEncounterVersion": String(version),
@@ -1719,6 +1727,9 @@ enum PartingWhisper {
 
     /// `{page}` is filled with the page's short title, matching the mundane
     /// dismissal line's "the <kind> page" phrasing.
+    ///
+    /// None of them names the Page's kind: "the you page" and "the office
+    /// hours page" were what a type name made of the sentence.
     static let winkLines = [
         "Away it goes.",
         "I’ll put that one back.",
@@ -1726,21 +1737,21 @@ enum PartingWhisper {
         "That one can wait.",
         "Back into the stacks.",
         "I thought you might like it. On we go.",
-        "The {page} page has gone back inside.",
+        "Ow. All right.",
         "Let’s see what else is here."
     ]
 
     /// Said when the release itself pays out a fragment. `{page}` is the short
     /// title as above; `{object}` is what the Pocket took off the Page.
     static let keepsakeLines = [
-        "The {page} page goes. \u{201C}{object}\u{201D} stays — it's in my Pocket.",
-        "Off it wanders. I picked \u{201C}{object}\u{201D} out of the {page} page first.",
+        "That page can go. \u{201C}{object}\u{201D} stays. It's in my Pocket.",
+        "Off it wanders. I picked \u{201C}{object}\u{201D} out of it first.",
         "Gone, and I'm not empty-handed. \u{201C}{object}\u{201D} is in my Pocket now.",
-        "I let the {page} page go and kept \u{201C}{object}\u{201D} out of it.",
-        "Away goes the {page} page. \u{201C}{object}\u{201D} fell out of it into my Pocket.",
-        "You released the {page} page. I caught \u{201C}{object}\u{201D} on the way past.",
-        "The {page} page slips off. \u{201C}{object}\u{201D} stayed in my hand.",
-        "The {page} page bows out and leaves \u{201C}{object}\u{201D} on the desk. Pocketed."
+        "I let it go and kept \u{201C}{object}\u{201D} out of it.",
+        "Away it goes. \u{201C}{object}\u{201D} fell out of it into my Pocket.",
+        "You let it go. I caught \u{201C}{object}\u{201D} on the way past.",
+        "It slipped off. \u{201C}{object}\u{201D} stayed in my hand.",
+        "Out it comes, and \u{201C}{object}\u{201D} drops on the desk. Pocketed."
     ]
 
     /// Weighty narrative and transactional cards keep their own partings, so the
@@ -1757,10 +1768,8 @@ enum PartingWhisper {
 
     static func closingLine(for surface: SurfacePage) -> String? {
         guard isEligible(surface) else { return nil }
-        let page = surface.type.shortTitle.lowercased()
         let lineIndex = Int(surface.id.stableHash.magnitude % UInt(winkLines.count))
         return winkLines[lineIndex]
-            .replacingOccurrences(of: "{page}", with: page)
     }
 
     /// The whole payout decision for a released Page, kept in the shared core
@@ -1780,10 +1789,8 @@ enum PartingWhisper {
     /// One index along from the wink so the same Page never spends both of its
     /// partings on the same sentence shape.
     static func keepsakeClosingLine(for surface: SurfacePage, keepsake: Keepsake) -> String {
-        let page = surface.type.shortTitle.lowercased()
         let lineIndex = Int((surface.id.stableHash.magnitude &+ 1) % UInt(keepsakeLines.count))
         return keepsakeLines[lineIndex]
-            .replacingOccurrences(of: "{page}", with: page)
             .replacingOccurrences(of: "{object}", with: clipped(keepsake.title, limit: 56))
     }
 
@@ -3043,7 +3050,113 @@ enum LeafPresentation: Equatable {
 }
 
 extension SurfacePage {
+    /// Reading that fits in three leaves, counting the leaf that carries
+    /// Rip it Out / Keep / the input box, is read on the leaves. About two
+    /// leaves of ink is about this many words. Anything longer is a teaser on
+    /// paper and is read once, in the opened Page, so the reader never reads
+    /// the same prose on the leaves and then again unfolded.
+    ///
+    /// A word count rather than a measured leaf count, on purpose: the
+    /// division between paper and the unfolded Page must not change with the
+    /// screen or the reader's text size.
+    static let leafReadingWordBudget = 140
+
+    /// Pages that are short by nature, or authored for the leaf: they never
+    /// become a teaser.
+    private var staysOnTheLeafWhateverItsLength: Bool {
+        if offersCompassRunStart { return true }
+        switch type {
+        case .welcome, .helpTips, .lore, .quotes, .weather, .quip, .todaysSky,
+             .illustration, .glowInvitation:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Prepared Pages may have dried before the Curator seats them, so they do
+    /// not all carry the transient insertion marker. Their established prose
+    /// fields are the stronger signal that the leaf should show the writing
+    /// itself instead of another preview card.
+    var pagesRisingHasWrittenProse: Bool {
+        if payload.metadata["pagesRisingFolioGeneratedResult"] == "true" {
+            return true
+        }
+        if type == .bookOfYou,
+           payload.metadata["keptPageID"]?.nonEmpty != nil {
+            return true
+        }
+        if type == .weather,
+           payload.metadata["rawWeather"]?.nonEmpty != nil {
+            return true
+        }
+        return Self.pagesRisingProseKeys.contains { payload.metadata[$0]?.nonEmpty != nil }
+    }
+
+    /// A writing invitation waits for the reader to ask the local writer.
+    /// Activity previews are separate: their complete prose already exists.
+    var pagesRisingNeedsUserInitiatedGeneration: Bool {
+        if type == .illuminatedPhoto,
+           payload.metadata["cameraFirst"] == "true" {
+            return false
+        }
+        return !pagesRisingHasWrittenProse
+            && SurfaceReadinessState(surface: self).needsLocalBrainToOpen
+    }
+
+    /// Some generators retain their complete prose in typed metadata while the
+    /// payload body stays a small old card-preview. Both the folio and the Keep
+    /// path must read the same complete Page.
+    var pagesRisingReadingBody: String {
+        guard pagesRisingHasWrittenProse else { return payload.body }
+        for key in Self.pagesRisingProseKeys {
+            if let prose = payload.metadata[key]?.nonEmpty,
+               prose != "fallback" {
+                return prose
+            }
+        }
+        return payload.body
+    }
+
+    private static let pagesRisingProseKeys = [
+        "storyScene",
+        "letterProse",
+        "noteProse",
+        "gossipProse",
+        "researchProse",
+        "bleedProse",
+        "classProse",
+        "twoReadingsProse",
+        "castBondProse",
+        "quillChoosingProse",
+        "bookJumpProse",
+        "guildProse",
+        "packProse"
+    ]
+
+    /// The prose a leaf would print, counted in words.
+    var leafReadingWordCount: Int {
+        pagesRisingReadingBody.split(whereSeparator: \.isWhitespace).count
+    }
+
+    /// True when this Page's reading is long enough that bound paper shows a
+    /// hook and the unfolded Page shows the reading.
+    var isLeafReadingTeaser: Bool {
+        guard !staysOnTheLeafWhateverItsLength,
+              !pagesRisingNeedsUserInitiatedGeneration else { return false }
+        switch baseLeafPresentation {
+        case .reading, .readingWithActivity:
+            return leafReadingWordCount > Self.leafReadingWordBudget
+        case .shortAnswer, .activityPreview:
+            return false
+        }
+    }
+
     var leafPresentation: LeafPresentation {
+        isLeafReadingTeaser ? .activityPreview : baseLeafPresentation
+    }
+
+    private var baseLeafPresentation: LeafPresentation {
         if payload.metadata["keptPageID"] != nil || payload.metadata["keptPage"] == "true" {
             return .reading
         }
@@ -3109,6 +3222,7 @@ extension SurfacePage {
     /// (which lives in `detail`, not in Wicker's letter) is printed under the
     /// opener.
     func leafActivityPreview(from body: String) -> String {
+        if isLeafReadingTeaser { return leafReadingTeaser }
         var paragraphs = body.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -3163,9 +3277,55 @@ extension SurfacePage {
         return words.prefix(wordBudget).joined(separator: " ") + "…"
     }
 
+    /// What bound paper prints for a Page whose reading is too long for it:
+    /// a hook and what is folded inside. Never the opening of the reading,
+    /// because the unfolded Page begins with the opening and the reader
+    /// would meet the same sentences twice.
+    var leafReadingTeaser: String {
+        [leafReadingHook, leafUnfoldLine].filter { !$0.isEmpty }.joined(separator: "\n\n")
+    }
+
+    private var leafReadingHook: String {
+        let metadata = payload.metadata
+        if type == .theBleed {
+            let briefs = TheBleedEditionBuilder.decodedBriefs(metadata["bleedBriefs"] ?? "")
+            if let front = briefs.first(where: { $0.id == "front-page" }),
+               let headline = front.title.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+                return "On the front page: \(headline)"
+            }
+        }
+        if metadata["storyResultLeaf"] == "true",
+           let chosen = metadata["storyResultChoiceTitle"]?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
+            return "You chose: \(chosen)."
+        }
+        func same(_ left: String, _ right: String) -> Bool {
+            left.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                == right.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+        let hook = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hookWords = hook.split(whereSeparator: \.isWhitespace).count
+        if (3...40).contains(hookWords), !same(hook, payload.headline), !same(hook, prompt) {
+            return hook
+        }
+        let opening = pagesRisingReadingBody.components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty && !same($0, payload.headline) } ?? ""
+        return opening.isEmpty ? "" : Self.leafExcerpt([opening], wordBudget: 28)
+    }
+
     /// The last line of a preview leaf: what's folded inside, said by the
     /// Book. Not instructions. The Unfold button already says how.
     var leafUnfoldLine: String {
+        if isLeafReadingTeaser {
+            if payload.metadata["storyResultLeaf"] == "true" { return "What happened is folded inside." }
+            switch type {
+            case .theBleed: return "Today's whole paper is folded inside."
+            case .letter: return "The whole letter's folded inside."
+            case .note: return "The whole note's folded inside."
+            case .gossip: return "The rest of the gossip's folded inside."
+            default: return "The rest of it's folded inside."
+            }
+        }
         switch type {
         case .narrativeOS, .bookFae: return "The rest of the story's folded inside. What happens next is up to you."
         case .academyClass: return "The rest of the lesson's folded inside. Then it's your turn."
@@ -3194,7 +3354,8 @@ extension SurfacePage {
         case .gamePage: return "Unfold it. Let's play."
         case .calendar: return "The calendar's folded inside. Pick what happens next."
         case .bindery: return "Pick a book in here and I'll show you how it gets bound."
-        case .supportGuild, .patreon: return "This one's about money. Unfold it to see what it pays for. You don't have to."
+        case .supportGuild: return "Vellum and Inkrest have their charts out. What they spotted is folded inside."
+        case .patreon: return "This one's about money. Unfold it to see what it pays for. You don't have to."
         case .frontMatter: return "I wrote down what I know about you. Unfold it and fix what's wrong."
         case .bookPocket: return "Everything in my pocket's folded in here."
         case .spell: return "The steps are folded inside. Do them in order. Spells notice."
@@ -3253,6 +3414,9 @@ extension SurfacePage {
     /// honest. Do not invent one to fill the table: "Open the page" is a better
     /// offer than a verb the Page cannot honour.
     var leafInvitation: (title: String, symbol: String)? {
+        // A teaser's one job is to be opened; the verbs below assume the
+        // reader has already read what they answer.
+        if isLeafReadingTeaser { return ("Read it", "book.pages") }
         // A Compass book preview's job is to open the full page; the full page,
         // once read, is where the run starts.
         if offersCompassRunStart && payload.metadata["compassBookPreview"] != "true" {
@@ -3317,7 +3481,7 @@ extension SurfacePage {
         case .bookConnections:
             return ("Explore the connections", "point.3.connected.trianglepath.dotted")
         case .bookNotices:
-            return ("Tell me if I have it right", "quote.bubble")
+            return ("Talk back", "quote.bubble")
         case .bookOfYou:
             return ("Say what you thought", "text.bubble")
         case .taleBound:
@@ -3357,7 +3521,8 @@ extension SurfacePage {
             return metadata["readingPage"] == "true"
                 || metadata["compassBookPreview"] == "true"
         case .lore:
-            return metadata["snippetID"] == "labyrinth-system-compass-runs"
+            return ["labyrinth-system-compass-runs", "labyrinth-class-compass-core"]
+                .contains(metadata["snippetID"] ?? "")
         default:
             return false
         }
@@ -3977,15 +4142,46 @@ enum BookCurator {
             let existingVisibleAsk = picked.indices.prefix(visibleLimit).last(where: {
                 picked[$0].spendsCuratorAskBudget
             })
+            // A bell's log is owed to the block, not to the opening trio: the
+            // scheduled floor seats it again at the head of the second trio,
+            // so it may give the trio's one question to the daily invitation.
+            let ownedByTheBellsLog: (SurfacePage) -> Bool = {
+                ($0.type == .fuel || $0.type == .mood) && $0.hasScheduledCuratorAppearance
+            }
             if tarot.spendsCuratorAskBudget,
                let existingVisibleAsk,
                !picked[existingVisibleAsk].isDeskMilestone,
-               !holdsItsChair(picked[existingVisibleAsk]),
+               !holdsItsChair(picked[existingVisibleAsk]) || ownedByTheBellsLog(picked[existingVisibleAsk]),
                picked[existingVisibleAsk].type != .bookOfYou {
                 // Tarot is an ordinary invitation, not permission to put a
                 // second question on the desk. If it enters, it takes the
                 // existing ask's chair.
+                let displaced = picked[existingVisibleAsk]
                 picked[existingVisibleAsk] = tarot
+                // The invitation arrives after the scheduled floor has run, so
+                // a bell's log it displaces is put back at the head of the
+                // second trio, and the weakest ordinary Page behind it waits.
+                if ownedByTheBellsLog(displaced), limit > visibleLimit {
+                    let doorway = min(visibleLimit, picked.count)
+                    picked.insert(displaced, at: doorway)
+                    if picked.count > limit {
+                        if let tail = picked.indices.last(where: { index in
+                            let page = picked[index]
+                            return index > doorway
+                                && !holdsItsChair(page)
+                                && !page.isDeskMilestone
+                                && !page.isReaderActionCommission
+                                && !page.belongsToAuthoredIssue
+                                && page.deskJob != .errand
+                                && page.payload.metadata[Self.loopFloorMetadataKey] == nil
+                                && page.payload.metadata["curatorPreparedArtifact"] != "true"
+                        }) {
+                            picked.remove(at: tail)
+                        } else {
+                            picked.remove(at: doorway)
+                        }
+                    }
+                }
             } else if tarot.spendsCuratorAskBudget, existingVisibleAsk != nil {
                 // A protected question already owns the reader's attention.
             } else if picked.count < limit {
@@ -4086,8 +4282,8 @@ enum BookCurator {
     /// One ready live spine atom may claim one Page chair. The claim is an
     /// editorial debt, not a second feed: all gates, dependencies, occurrence
     /// limits, source preferences, mood, capability, memory, and novelty have
-    /// already had their say. A daily shared history key keeps several ready
-    /// beats from marching through consecutive desk rebuilds.
+    /// already had their say. Each story node has its own dated claim, so a
+    /// newly unlocked node need not wait for an earlier node's delivery rest.
     static func reservingAuthoredIssuePageIfOwed(
         in picked: [SurfacePage],
         candidates: [SurfacePage],
@@ -4128,6 +4324,8 @@ enum BookCurator {
                       ),
                   let historyKey = page.payload.metadata[MonthlyIssuePageMetadata.claimHistoryKey]
             else { return false }
+            if let occurrence = page.curatorAutomaticRecurrenceHistoryKey,
+               inputs.surfaceHistory[occurrence] != nil { return false }
             return inputs.surfaceHistory[historyKey] == nil
         }.sorted { left, right in
             let leftFair = left.payload.metadata["authoredFairOffer"] == "true"
@@ -4142,7 +4340,11 @@ enum BookCurator {
         guard let strongest = claims.first else { return picked }
 
         var result = picked
-        let existingIssueIndex = result.firstIndex(where: \.belongsToAuthoredIssue)
+        // A monthly overlay on a timed class or festival does not turn its
+        // scheduled chair into a replaceable story slot.
+        let existingIssueIndex = result.firstIndex {
+            $0.belongsToAuthoredIssue && !$0.hasScheduledCuratorAppearance
+        }
         let existingIssue = existingIssueIndex.map { result[$0] }
         let incoming: SurfacePage
         if let existingIssue,
@@ -4432,12 +4634,8 @@ enum BookCurator {
     /// feast could be seated and then quietly taken back by either — which is
     /// exactly what was happening, in both directions.
     static func holdsItsChair(_ page: SurfacePage) -> Bool {
-        page.isDeskMilestone || page.type == .bookOfYou || page.type == .festival
-            // A spell the world laid out today (fog, dusk, the shore) is as
-            // bound to the day as a feast: tomorrow it may not exist at all.
-            || (page.type == .spell && page.payload.metadata["spellConditional"] == "true")
-            // A log the floor seated for this bell. Its window closes, and the
-            // bell does not come round again until the next one.
+        page.isDeskMilestone || page.type == .bookOfYou || page.hasScheduledCuratorAppearance
+            || (page.isAuthoredStoryScenePage && page.mayReserveAuthoredIssueSlot)
             || page.payload.metadata[logFloorMetadataKey] == "true"
     }
 
@@ -4661,7 +4859,8 @@ enum BookCurator {
         let preparedContextKey = ReaderAlivenessCurationContext.contextKey(alivenessFacets)
 
         func isDebut(_ page: SurfacePage) -> Bool {
-            page.payload.metadata["firstReading"] == "true"
+            if page.hasScheduledCuratorAppearance { return false }
+            return page.payload.metadata["firstReading"] == "true"
                 ? false
                 : IntroductionCurriculum.isManagedDebut(page.type, surfaceHistory: mood.surfaceHistory)
         }
@@ -5065,7 +5264,7 @@ enum BookCurator {
             pickedSourceIDs.insert(seat.sourceID)
         }
 
-        /// The logs, guaranteed once per bell.
+        /// Logs arrive once per bell; a class or club arrives in its session.
         ///
         /// Fuel Log and Inner Weather were ordinary candidates, so they won a
         /// chair only when ranking happened to like them, and the loop floors
@@ -5075,18 +5274,16 @@ enum BookCurator {
         /// that did not make the desk in that time did not happen. The adapter
         /// already withdraws the candidate once the reader has logged that bell
         /// or the bell's occurrence has been served, so whatever is still in
-        /// `allowed` is a log that is owed.
+        /// `allowed` is an occurrence that is owed.
         ///
         /// No hard-day rule, deliberately. The reader is allowed to name a
         /// heavy sky, and Inner Weather is the Page made for it.
         ///
         /// It runs once the whole desk is composed and promotes from
-        /// `selectionOrder`, so the type-refresh cooldown still applies: a log
-        /// shown twenty minutes ago is not shown again. It sits at the head of
-        /// the second trio, where a reader turning leaves finds it, and never
-        /// takes a chair a promise already holds.
-        func placeLogFloors() {
-            for type in [BookPageType.fuel, .mood] {
+        /// `selectionOrder`. Exact occurrence history prevents repeated offers;
+        /// a different bell or session does not inherit a type cooldown.
+        func placeScheduledFloors() {
+            for (offset, type) in [BookPageType.fuel, .mood, .academyClass, .theBleed].enumerated() {
                 // Already somewhere on the bench is not the same as somewhere the
                 // reader will open. The ranking was seating these at leaf 18 and
                 // 21 of 27, and a floor that only asked "is it anywhere?" never
@@ -5096,18 +5293,20 @@ enum BookCurator {
                     guard existing >= blockLimit, blockLimit > visibleLimit else { continue }
                     let moved = picked.remove(at: existing)
                         .withMetadata([Self.logFloorMetadataKey: "true"])
-                    let doorway = min(visibleLimit + (type == .fuel ? 0 : 1), blockLimit - 1)
+                    let doorway = min(visibleLimit + offset, blockLimit - 1)
                     picked.insert(moved, at: min(doorway, picked.count))
                     continue
                 }
-                guard let seat = selectionOrder.first(where: { $0.type == type })
+                guard let seat = selectionOrder.first(where: {
+                    $0.type == type && $0.hasScheduledCuratorAppearance
+                })
                 else { continue }
                 let stamped = seat.withMetadata([Self.logFloorMetadataKey: "true"])
                 // The log slips in at the head of the second trio and everything
                 // behind it moves back a leaf. What falls off is the tail's
                 // weakest unprotected Page, so no ranked Page loses its seat to
                 // a log, it only waits one leaf longer.
-                let doorway = min(picked.count, visibleLimit + (type == .fuel ? 0 : 1))
+                let doorway = min(picked.count, visibleLimit + offset)
                 func bumped(_ index: Int) -> Bool {
                     let page = picked[index]
                     return !holdsItsChair(page)
@@ -5152,105 +5351,6 @@ enum BookCurator {
                 pickedTypes.insert(seat.type)
                 pickedSourceIDs.insert(seat.sourceID)
             }
-        }
-
-        /// Spells come to the reader. A spell waiting only in the Glow menu is
-        /// a spell nobody meets, and a fairy tale does not wait to be looked
-        /// up: it happens to you on the way somewhere.
-        ///
-        /// So one spell is always somewhere in the block. An ordinary one
-        /// takes a chair past the visible trio, where a reader turning leaves
-        /// will find it; one the world has laid out today — fog, dusk, the
-        /// shore — takes a chair on the visible desk, the way a feast does.
-        /// The ration caps are looked past for the same reason the feast floor
-        /// looks past them: they stop a family crowding the desk, and this is
-        /// one Page. A hard day gets one too.
-        func placeSpellFloor() {
-            // Already on the block: a spell the world laid out that ranked
-            // below the fold still belongs on the visible desk. It swaps with
-            // the chair it would have taken, so nothing leaves the block.
-            if let seated = picked.firstIndex(where: { $0.type == .spell }) {
-                guard seated >= visibleLimit,
-                      picked[seated].payload.metadata["spellConditional"] == "true"
-                else { return }
-                let visible = Array(picked.indices.prefix(visibleLimit))
-                // The visible desk already has its one errand. The spell the
-                // world laid out today outranks an ordinary one, so they trade
-                // places: the other errand stays on the block, one leaf down.
-                if let errand = visible.first(where: { picked[$0].isReaderActionCommission }) {
-                    let other = picked[errand]
-                    if !holdsItsChair(other),
-                       other.payload.metadata["curatorPreparedArtifact"] != "true",
-                       other.payload.metadata["bookCurationDirectiveID"] == nil,
-                       intention?.liveOpportunity?.matches(other) != true {
-                        picked.swapAt(errand, seated)
-                    }
-                    return
-                }
-                let reprises = visible.filter { picked[$0].deskJob == .reprise }.count
-                func swapIndex(_ job: DeskJob) -> Int? {
-                    visible.last { index in
-                        let page = picked[index]
-                        return page.deskJob == job
-                            && page.type != .bookOfYou
-                            && page.type != .festival
-                            && !page.isDeskMilestone
-                            && page.payload.metadata["curatorPreparedArtifact"] != "true"
-                    }
-                }
-                if let chair = swapIndex(.play) ?? swapIndex(.instrument) ?? swapIndex(.quiet)
-                    ?? (reprises > 1 ? swapIndex(.reprise) : nil) {
-                    picked.swapAt(chair, seated)
-                }
-                return
-            }
-            guard let seat = selectionOrder.first(where: { $0.type == .spell }) else { return }
-            // One errand at a glance, still. The visible desk never shows a
-            // spell beside another thing to go and do.
-            let visibleHasErrand = picked.prefix(visibleLimit).contains(where: \.isReaderActionCommission)
-            if picked.count < limit {
-                if picked.count < visibleLimit, visibleHasErrand { return }
-                add(seat)
-                // Appended below the fold on a desk still filling up; a spell
-                // the world laid out then moves up, by the rule above.
-                placeSpellFloor()
-                return
-            }
-            let worldLaidItOut = seat.payload.metadata["spellConditional"] == "true" && !visibleHasErrand
-            let chairs = worldLaidItOut
-                ? Array(picked.indices.prefix(visibleLimit))
-                : Array(picked.indices.dropFirst(visibleLimit))
-            func victimIndex(_ job: DeskJob) -> Int? {
-                chairs.last { index in
-                    let page = picked[index]
-                    return page.deskJob == job
-                        && page.type != .bookOfYou
-                        && page.type != .festival
-                        && !page.isDeskMilestone
-                        && !page.isReaderActionCommission
-                        && page.payload.metadata["curatorPreparedArtifact"] != "true"
-                }
-            }
-            // A reprise may give up its chair only when it isn't the desk's
-            // only return: the Book answering the reader outranks a spell.
-            let reprises = chairs.filter { picked[$0].deskJob == .reprise }.count
-            guard let victim = victimIndex(.play)
-                ?? victimIndex(.instrument)
-                ?? victimIndex(.quiet)
-                ?? (reprises > 1 ? victimIndex(.reprise) : nil)
-            else { return }
-            let capable = seat.withResolvedPageCapabilities()
-            picked[victim] = intention == nil
-                ? capable
-                : BookSessionIntention.inheriting(
-                    capable,
-                    from: picked[victim],
-                    role: BookSessionRole(
-                        rawValue: picked[victim].payload.metadata[BookSessionIntention.metadataRole] ?? ""
-                    ) ?? .horizon
-                )
-            pickedTypes.insert(seat.type)
-            pickedSourceIDs.insert(seat.sourceID)
         }
 
         func placeLoopFloors() {
@@ -5418,8 +5518,6 @@ enum BookCurator {
         // Last, and after the loop floors, so a feast takes its chair from the
         // finished desk rather than from a desk still being reasoned about.
         placeFestivalFloor()
-        // After the feast, so a feast day's chair is never the one it takes.
-        placeSpellFloor()
 
         if let intention, let selectionSeed {
             // The deep bench is not a heap of leftovers. Compose it as further
@@ -5430,19 +5528,12 @@ enum BookCurator {
             var actIndex = 1
             while picked.count < limit {
                 let countBeforeAct = picked.count
-                // Branching decides how the next honest trio is arranged; it
-                // does not give a low-ranked Page permission to vault the
-                // Curator's entire bench. This preserves broad discoverability
-                // while still preparing meaningfully different responses.
-                let actFrontier = Array(typeRepresentatives.filter { canAdd($0) }.prefix(
-                    BookSessionRole.allCases.count
-                ))
+                // Every act draws from the whole eligible pool, just like the
+                // opening. A rank-truncated frontier made most of the folio a
+                // fixed shortlist, and discarded exact-Page variety as well.
                 for role in BookSessionRole.allCases {
                     guard picked.count < limit else { break }
-                    let frontierCandidates = actFrontier.filter { canAdd($0) }
-                    let eligibleRoleCandidates = frontierCandidates.isEmpty
-                        ? typeRepresentatives.filter { canAdd($0) }
-                        : frontierCandidates
+                    let eligibleRoleCandidates = selectionOrder.filter { canAdd($0) }
                     guard !eligibleRoleCandidates.isEmpty else { break }
                     let branch = BookPreparedExperimentScore.branch(forActIndex: actIndex)
                     let roleOrder = weightedOrder(
@@ -5524,26 +5615,41 @@ enum BookCurator {
         // Runs whenever the bench is short, including a block that came up
         // short because few types had anything unseen: that is exactly when a
         // second Page of a type beats a gap.
+        //
+        // The densities over the block (one ask per three leaves, and so on)
+        // stop applying once the block is full, but a single pass in rank order
+        // has already walked past whatever they turned away. So the pass goes
+        // round again while it's still finding Pages: an ask stepped over at
+        // leaf five gets its second look at leaf ten. Measured: every unseen
+        // Help & Tips Page was an ask by the eleventh round, and the bench lost
+        // the whole family to one pass.
         if picked.count < limit {
             var perType: [BookPageType: Int] = [:]
             for page in picked { perType[page.type, default: 0] += 1 }
             var seenContent = Set(picked.map(\.curatorContentNoveltyKey))
-            for page in selectionOrder where picked.count < limit {
-                guard !picked.contains(where: { $0.id == page.id }),
-                      perType[page.type, default: 0] < Self.reserveSiblingsPerType,
-                      !seenContent.contains(page.curatorContentNoveltyKey),
-                      canAdd(page, allowingSiblingContent: true)
-                else { continue }
-                seenContent.insert(page.curatorContentNoveltyKey)
-                perType[page.type, default: 0] += 1
-                add(page)
+            var grew = true
+            while grew, picked.count < limit {
+                grew = false
+                for page in selectionOrder where picked.count < limit {
+                    guard !picked.contains(where: { $0.id == page.id }),
+                          perType[page.type, default: 0] < Self.reserveSiblingsPerType,
+                          !seenContent.contains(page.curatorContentNoveltyKey),
+                          canAdd(page, allowingSiblingContent: true)
+                    else { continue }
+                    seenContent.insert(page.curatorContentNoveltyKey)
+                    perType[page.type, default: 0] += 1
+                    add(page)
+                    grew = true
+                }
             }
         }
 
         // Last of all, once the bench is full: a log placed earlier spends a
         // chair the bench would have given to a way out. Here it can only
         // swap, and the Pages that cannot be swapped are named in the floor.
-        placeLogFloors()
+        // Seating a second log ahead of the first can push the first back out
+        // of the block, so the floor goes round once more to settle them.
+        for _ in 0..<2 { placeScheduledFloors() }
 
         return picked
             .enumerated()
@@ -8144,6 +8250,49 @@ struct MomentaryActionOutcome: Equatable {
 /// ids, while resolved slots are continuously replaced from the Curator's
 /// already-ranked reserve.
 struct BookDeskRound: Equatable {
+    /// A new bell or session must reach an already published folio too. Hold
+    /// the leaf being read, but let timed arrivals use another ordinary chair.
+    static func renewingScheduledPages(
+        in desk: [SurfacePage],
+        from rebuilt: [SurfacePage],
+        protecting protectedIDs: Set<String> = [],
+        now: Date = Date(),
+        capacity: Int = reserveCapacity
+    ) -> [SurfacePage] {
+        guard capacity > 0 else { return desk }
+        var next = desk.filter { page in
+            guard page.type == .academyClass, !protectedIDs.contains(page.id),
+                  let rawEnd = page.payload.metadata["sessionEndTimestamp"],
+                  let end = Double(rawEnd) else { return true }
+            return now.timeIntervalSince1970 < end
+        }
+        for incoming in rebuilt.prefix(capacity) where incoming.hasScheduledCuratorAppearance {
+            guard !next.contains(where: { $0.id == incoming.id }) else { continue }
+            if let existing = next.firstIndex(where: { $0.type == incoming.type }) {
+                guard !protectedIDs.contains(next[existing].id) else { continue }
+                next[existing] = incoming
+                continue
+            }
+            if next.count >= capacity {
+                guard let victim = next.lastIndex(where: {
+                    !protectedIDs.contains($0.id) && !BookCurator.holdsItsChair($0)
+                        && $0.payload.metadata["curatorPreparedArtifact"] != "true"
+                }) else { continue }
+                next.remove(at: victim)
+            }
+            next.insert(incoming, at: min(BookDeskRound.openingCapacity, next.count))
+        }
+        // An expired session may have left a vacancy. Ordinary refreshed
+        // material can fill it without replacing any surviving encounter.
+        var occupiedKeys = Set(next.flatMap(\.curatorDeskExclusionKeys))
+        for page in rebuilt where next.count < capacity {
+            guard page.curatorDeskExclusionKeys.isDisjoint(with: occupiedKeys) else { continue }
+            next.append(page)
+            occupiedKeys.formUnion(page.curatorDeskExclusionKeys)
+        }
+        return next
+    }
+
     /// Source/type slots group many authored scenes together. Background
     /// refresh must not swap their prose or route under a reader. Runtime
     /// access/expiry cleanup and explicit retirement remain authoritative.
@@ -8164,11 +8313,19 @@ struct BookDeskRound: Equatable {
         protecting protectedIDs: Set<String> = [],
         capacity: Int = reserveCapacity
     ) -> [SurfacePage] {
-        guard let incoming = rebuilt.first(where: \.isAuthoredStoryScenePage),
+        guard capacity > 0,
+              let incoming = rebuilt.first(where: \.isAuthoredStoryScenePage),
               !desk.contains(where: { $0.id == incoming.id }),
               !desk.contains(where: { $0.isAuthoredStoryScenePage && protectedIDs.contains($0.id) })
         else { return desk }
         var next = desk.filter { !$0.isAuthoredStoryScenePage }
+        if next.count >= capacity {
+            guard let victim = next.lastIndex(where: {
+                !protectedIDs.contains($0.id) && !BookCurator.holdsItsChair($0)
+                    && $0.payload.metadata["curatorPreparedArtifact"] != "true"
+            }) else { return desk }
+            next.remove(at: victim)
+        }
         next.insert(incoming, at: 0)
         if next.count > capacity { next.removeLast(next.count - capacity) }
         return next
@@ -8658,6 +8815,9 @@ extension SurfacePage {
     }
 
     var isStoryPlayablePage: Bool {
+        // A chosen path has already answered on this leaf. Do not invent a
+        // fresh set of choices or require another choice before keeping it.
+        guard payload.metadata["storyResultLeaf"] != "true" else { return false }
         switch type {
         case .narrativeOS:
             if payload.metadata["authoredStoryScene"] == "true" {
@@ -8683,6 +8843,25 @@ extension SurfacePage {
     /// first reading, a constellation naming, a sealed or opened wager. These
     /// are pinned above the desk's three lanes and are never evicted.
     var isDeskMilestone: Bool { payload.metadata["milestone"] == "true" }
+
+    /// Timed appearances are owed by their source's calendar, not by taste.
+    /// Ordinary prompts and evergreen fallbacks of these types have no bell.
+    var hasScheduledCuratorAppearance: Bool {
+        switch type {
+        case .fuel, .mood:
+            return payload.metadata["facultyWindowID"]?.nonEmpty != nil
+        case .academyClass:
+            return payload.metadata["sessionID"]?.nonEmpty != nil
+                && curatorAutomaticRecurrenceHistoryKey != nil
+        case .theBleed:
+            // A dated edition, morning or evening, is a bell of its own.
+            return curatorAutomaticRecurrenceHistoryKey != nil
+        case .festival:
+            return true
+        default:
+            return false
+        }
+    }
 
     /// What "the same page again" means to a reader: the content identity,
     /// not the surface id (which changes every slot).
@@ -8797,6 +8976,10 @@ extension SurfacePage {
         // it has built a Page whose copy it could fingerprint.
         if let id = payload.metadata["affirmationID"]?.nonEmpty {
             keys.append("affirmation:\(id)")
+        }
+        // A pact's call-in counts its own asks, so it can let the pact go.
+        if let pactPageID = payload.metadata[PactCallIn.pageIDKey]?.nonEmpty {
+            keys.append(PactCallIn.historyKey(for: pactPageID))
         }
         if carriesEarnedReaderTrace {
             keys.append(Self.earnedReaderTraceHistoryKey)
@@ -9669,10 +9852,13 @@ enum CuratorNoveltyPolicy {
         history: [String: SurfaceHistoryRecord],
         now: Date
     ) -> Int {
-        // Never shown at all is already answered by the novelty welcome above.
-        // Patience is for what the desk has forgotten, not what it has yet to
-        // meet.
-        guard let record = page.curatorContentHistoryRecord(in: history) else { return 0 }
+        // An unseen sibling can wait too. Use its type/family's absence when
+        // it has no individual receipt; rotating prose must not reset the wait.
+        // Entirely new families already receive the larger novelty welcome.
+        let contentRecord = page.curatorContentHistoryRecord(in: history)
+        let familyRecord = history["source:\(page.sourceID)"]
+        let typeRecord = history[CuratorVarietyGovernor.typeKey(for: page.type)]
+        guard let record = contentRecord ?? typeRecord ?? familyRecord else { return 0 }
         let tempo = ReaderTempo.current(history: history, now: now)
         let sitting = max(1, tempo.hoursBetweenSittings)
         let waited = now.timeIntervalSince(record.lastShownAt) / 3600 / sitting
@@ -9683,13 +9869,15 @@ enum CuratorNoveltyPolicy {
         // desk constantly. Waiting only counts when the *family* has been away
         // too, so the weather card cannot eat the mechanism meant for the
         // sentence runner.
-        let familyWaited = history["source:\(page.sourceID)"]
+        let familyWaited = familyRecord
+            .map { now.timeIntervalSince($0.lastShownAt) / 3600 / sitting } ?? waited
+        let typeWaited = typeRecord
             .map { now.timeIntervalSince($0.lastShownAt) / 3600 / sitting } ?? waited
         // And a Page the reader has already been shown many times has been
         // answered. Waiting earns a turn; it does not earn a turn already
         // refused three times.
-        let offers = Double(max(0, record.recentShowCount - 1))
-        let earned = min(waited, familyWaited) / (1 + offers * 0.75)
+        let offers = Double(max(0, (contentRecord?.recentShowCount ?? 1) - 1))
+        let earned = min(waited, familyWaited, typeWaited) / (1 + offers * 0.75)
         return Int(min(patienceCapPoints, earned * patiencePointsPerSitting))
     }
 
@@ -10595,6 +10783,8 @@ struct CuratorMood {
         if RutInterventionPolicy.namesTheRut(page), !mayNameRut {
             return false
         }
+        // A real bell, feast, class, or club cannot wait for a staged debut.
+        if page.hasScheduledCuratorAppearance { return true }
         if IntroductionCurriculum.locks(page.type, keptPageCount: keptPageCount, surfaceHistory: surfaceHistory) {
             // The First Reading is a deliberately early Book Notices milestone:
             // it fires at three kept pages as proof the Book has started reading
@@ -10624,6 +10814,7 @@ struct CuratorMood {
     }
 
     func allowsTypeRefresh(for page: SurfacePage, now: Date = Date()) -> Bool {
+        if page.hasScheduledCuratorAppearance { return true }
         guard let record = surfaceHistory[CuratorVarietyGovernor.typeKey(for: page.type)] else {
             return true
         }

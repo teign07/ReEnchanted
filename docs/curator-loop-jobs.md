@@ -2,6 +2,38 @@
 
 Status: in progress (started 2026-08-23)
 
+## Scheduled appearances and Page-type breadth (October 2026)
+
+The timed promises are explicit:
+
+- Fuel and Inner Weather each arrive at three bells: morning (05:00–11:00),
+  midday (11:00–16:00), and evening (16:00–05:00). Midnight continues the
+  preceding evening; it does not create another check-in.
+- A Festival Page arrives on its festival date.
+- Academy classes and clubs arrive during their existing timetable windows.
+- An unlocked monthly story beat owns a delivery claim for its particular
+  content, node, run, and time slot. Delivery of an earlier node cannot spend
+  the new node's claim. Authoring gates and dependencies still decide unlocks.
+
+These occurrences use dated history rather than exact-prose rest or a type
+refresh cooldown. The published folio can admit a newly due timed Page during
+ordinary background refresh, preserving protected reader work. The existing
+foreground maintenance tick notices bell/session boundaries; no separate
+scheduler is added.
+
+Spells have no reserved seat or conditional chair protection. They compete
+through ordinary context, Belief, learned weights, and individual-content rest.
+Every later trio draws from the full eligible pool, including exact Page
+variants, rather than the three highest-ranked remaining type representatives.
+An unseen sibling can earn the bounded patience bonus when its family and type
+have been absent too.
+
+`CuratorScheduleAndBreadthTests` covers these contracts. The fortnight simulation
+also compares regularly eligible types against types actually served. The
+measurements below predate these changes; they are historical evidence, not
+validation of this revision. This revision has syntax/diff checks only until
+a build and test run are requested.
+
 ## The loop we are curating for
 
 > A prompt sends the reader into their life. They write one sentence about what

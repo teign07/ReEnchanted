@@ -695,30 +695,6 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue((clusters.first?.strength ?? 0) >= 58)
     }
 
-    func testBookNoticesSurfaceCanLeadWithCluster() {
-        let now = date(2026, 6, 10)
-        let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
-        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
-        inputs.continuity = LiteraryContinuityDigest(
-            signals: [
-                signal(id: "pattern-harbor", subjectID: "harbor", subjectName: "Harbor", strength: 74, at: now),
-                signal(id: "pattern-fog", subjectID: "fog", subjectName: "Fog", strength: 66, at: now)
-            ],
-            beliefLifecycles: []
-        )
-        inputs.clusters = BookMotifClusterEngine.clusters(from: inputs.continuity, constellations: [], themes: [], now: now)
-
-        let pages = BookNoticesPageSourceAdapter().candidates(
-            for: day,
-            context: CuratorContext.make(for: day),
-            inputs: inputs,
-            now: now
-        )
-
-        XCTAssertTrue(pages.first?.payload.body.contains("The Shoreline") == true)
-        XCTAssertTrue(pages.first?.payload.metadata["motifClusters"]?.contains("The Shoreline") == true)
-    }
-
     // MARK: Gossip
 
     func testGossipIsSpecificWithQuotesWitnessAndReaderEcho() {

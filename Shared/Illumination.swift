@@ -717,7 +717,7 @@ enum FakePhotoIlluminationAnalyzer {
                     stampLabel: titleWords.isEmpty ? "Field Plate" : titleWords,
                     observationList: [
                         "Ink kept its post",
-                        "Color held the doorway",
+                        "Color held its edges",
                         "Margins stayed awake",
                         "The plate watched back",
                         "Story light lingered"
@@ -2011,7 +2011,8 @@ struct IlluminationAssetResolver {
         placementContext: IlluminationPlacementContext? = nil,
         seed: Int? = nil,
         salt: Int = 0,
-        excludingAssetNames: Set<String> = []
+        excludingAssetNames: Set<String> = [],
+        preferFreshCandidates: Bool = false
     ) -> IlluminationAsset? {
         let normalizedTags = Set(tags.map { $0.lowercased() })
         let effectiveContext = placementContext ?? IlluminationPlacementContext(
@@ -2091,7 +2092,9 @@ struct IlluminationAssetResolver {
             preferred = favoursMotif ? tagged : generic
         }
         let unused = preferred.filter { !excludingAssetNames.contains($0.assetName) }
-        let pool = unused.isEmpty ? preferred : unused
+        let otherUnused = preferFreshCandidates && unused.isEmpty
+            ? candidates.filter { !excludingAssetNames.contains($0.assetName) } : []
+        let pool = !unused.isEmpty ? unused : (!otherUnused.isEmpty ? otherUnused : preferred)
 
         guard !pool.isEmpty else { return nil }
         guard let seed else { return pool.first }
@@ -2424,10 +2427,13 @@ enum LeafDecorationLibrary {
         semanticText: String = "",
         documentID: String,
         leafIndex: Int,
-        decorationPlate: Bool = false
+        decorationPlate: Bool = false,
+        excludingAssetNames: Set<String> = [],
+        excludingSnippetIDs: Set<String> = [],
+        densityOverride: LeafMarginaliaDensity? = nil
     ) -> LeafDecorationRecipe {
         let seed = "\(documentID)|\(leafIndex)|leaf-material-v1|\(decorationPlate)".stableHash
-        let density = LeafMarginaliaDensity.resolve(metadata: metadata, documentID: documentID, leafIndex: leafIndex, decorationPlate: decorationPlate)
+        let density = densityOverride ?? LeafMarginaliaDensity.resolve(metadata: metadata, documentID: documentID, leafIndex: leafIndex, decorationPlate: decorationPlate)
         let motifs = resolvedMotifs(
             pageType: pageType,
             metadata: metadata,
@@ -2469,10 +2475,10 @@ enum LeafDecorationLibrary {
                 packs: preferredPacks,
                 fallbackPacks: allPacks,
                 seed: seed,
-                salt: 7
+                salt: 7, excluding: excludingAssetNames, preferFreshCandidates: !excludingAssetNames.isEmpty
             )
             : nil)
-        let secondary = density != .quiet && bucket(seed, salt: 11) < (density == .ordinary ? 55 : 100)
+        var secondary = density != .quiet && bucket(seed, salt: 11) < (density == .ordinary ? 55 : 100)
             ? resolve(
                 resolver: resolver,
                 kind: primaryKind == .stamp ? .doodle : .stamp,
@@ -2482,9 +2488,16 @@ enum LeafDecorationLibrary {
                 fallbackPacks: allPacks,
                 seed: seed,
                 salt: 13,
-                excluding: Set([primary?.assetName].compactMap { $0 })
+                excluding: excludingAssetNames.union(Set([primary?.assetName].compactMap { $0 })),
+                preferFreshCandidates: !excludingAssetNames.isEmpty
             )
             : nil
+        if !excludingAssetNames.isEmpty, let primary, secondary?.assetName == primary.assetName {
+            secondary = resolve(resolver: resolver, kind: primaryKind == .stamp ? .doodle : .stamp,
+                motifs: motifs, placementContext: placementContext, packs: preferredPacks, fallbackPacks: allPacks,
+                seed: seed, salt: 13, excluding: [primary.assetName], preferFreshCandidates: true)
+            if secondary?.assetName == primary.assetName { secondary = nil }
+        }
         let support = density != .quiet && bucket(seed, salt: 14) < (decorationPlate ? 58 : 24)
             ? resolve(
                 resolver: resolver,
@@ -2526,7 +2539,8 @@ enum LeafDecorationLibrary {
                 motifs: motifs,
                 placementContext: placementContext,
                 seed: seed,
-                count: 1
+                count: 1,
+                excludingIDs: excludingSnippetIDs
             ).first
             : nil
         // Rich leaves need visible companions rather than a large pale watermark.
@@ -2542,12 +2556,22 @@ enum LeafDecorationLibrary {
             // Select through the existing cabinet, including its occasion and
             // subject gates. Never duplicate a mark to manufacture busyness.
             for index in 0..<density.markBudget {
-                guard let asset = resolve(
-                    resolver: resolver, kind: index.isMultiple(of: 3) ? .stamp : .doodle,
+                let kind: IlluminationAssetKind = index.isMultiple(of: 3) ? .stamp : .doodle
+                var candidate = resolve(
+                    resolver: resolver, kind: kind,
                     motifs: motifs, placementContext: placementContext,
                     packs: preferredPacks, fallbackPacks: allPacks,
-                    seed: seed, salt: 151 + index * 17, excluding: used
-                ), !asset.directedOnly, !used.contains(asset.assetName) else { continue }
+                    seed: seed, salt: 151 + index * 17, excluding: used.union(excludingAssetNames),
+                    preferFreshCandidates: !excludingAssetNames.isEmpty
+                )
+                // A small cabinet can run out of rested marks. Reuse an old
+                // one before duplicating a mark already on this same leaf.
+                if let selected = candidate, used.contains(selected.assetName), !excludingAssetNames.isEmpty {
+                    candidate = resolve(resolver: resolver, kind: kind, motifs: motifs,
+                        placementContext: placementContext, packs: preferredPacks, fallbackPacks: allPacks,
+                        seed: seed, salt: 151 + index * 17, excluding: used, preferFreshCandidates: true)
+                }
+                guard let asset = candidate, !asset.directedOnly, !used.contains(asset.assetName) else { continue }
                 used.insert(asset.assetName)
                 companions.append(asset)
             }
@@ -2584,7 +2608,8 @@ enum LeafDecorationLibrary {
         fallbackPacks: [IlluminationAssetPack],
         seed: Int,
         salt: Int,
-        excluding: Set<String> = []
+        excluding: Set<String> = [],
+        preferFreshCandidates: Bool = false
     ) -> IlluminationAsset? {
         resolver.resolveAsset(
             kind: kind,
@@ -2594,7 +2619,8 @@ enum LeafDecorationLibrary {
             placementContext: placementContext,
             seed: seed,
             salt: salt,
-            excludingAssetNames: excluding
+            excludingAssetNames: excluding,
+            preferFreshCandidates: preferFreshCandidates
         ) ?? resolver.resolveAsset(
             kind: kind,
             tags: motifs,
@@ -2603,7 +2629,8 @@ enum LeafDecorationLibrary {
             placementContext: placementContext,
             seed: seed,
             salt: salt,
-            excludingAssetNames: excluding
+            excludingAssetNames: excluding,
+            preferFreshCandidates: preferFreshCandidates
         )
     }
 
@@ -2930,7 +2957,15 @@ enum IlluminationMarginaliaLibrary {
         snippet("pawlogy", "Pawlogy: rest demonstrated.", tags: ["paw", "creature", "rest"]),
         snippet("good-company", "Good company, plainly glowing.", tags: ["company", "smile", "warm"]),
         snippet("room-museum", "Home made a museum of ordinary things.", tags: ["home", "room", "ordinary"]),
-        snippet("quiet-office", "Quiet arrived and took notes.", tags: ["quiet", "rest", "soft"])
+        snippet("quiet-office", "Quiet arrived and took notes.", tags: ["quiet", "rest", "soft"]),
+        snippet("creature-stay", "Stay there. I am drawing you.", tags: ["creature", "animal", "wild"]),
+        snippet("plant-corner", "I tucked the roots in first.", tags: ["botanical", "plant", "flower"]),
+        snippet("footsteps-answer", "The footprints went that way.", tags: ["walk", "track", "path"]),
+        snippet("letter-caught", "Caught this by the corner.", tags: ["letter", "paper", "scrap"]),
+        snippet("ink-argument", "The ink has other ideas.", tags: ["ink", "writing", "pen"]),
+        snippet("night-pocket", "I put a little night here.", tags: ["night", "moon", "star"]),
+        snippet("map-squabble", "The map and I disagree.", tags: ["map", "place", "compass"]),
+        snippet("water-saved", "Water got into the margins again.", tags: ["water", "harbor", "rain"])
     ]
 
     static var availableSnippets: [IlluminationMarginaliaSnippet] {
@@ -2946,9 +2981,13 @@ enum IlluminationMarginaliaLibrary {
         motifs: [String],
         placementContext: IlluminationPlacementContext? = nil,
         seed: Int,
-        count: Int
+        count: Int,
+        excludingIDs: Set<String> = []
     ) -> [IlluminationMarginaliaSnippet] {
-        let wantedTags = Set(motifs.map { $0.lowercased() })
+        // These describe the container, not the ink's subject. Counting them
+        // made the same "Margins" captions win on almost every kind of leaf.
+        let containerTags: Set<String> = ["book", "margin", "margins", "marginalia", "illustration", "labyrinth"]
+        let wantedTags = Set(motifs.map { $0.lowercased() }).subtracting(containerTags)
         let effectiveContext = placementContext ?? IlluminationPlacementContext(
             semanticTags: motifs,
             month: nil,
@@ -2964,7 +3003,8 @@ enum IlluminationMarginaliaLibrary {
                 let jitter = abs((seed &+ index * 7919).stableScramble % 1000)
                 return (snippet, Double(tagScore) * 10 + snippet.weight + Double(jitter) / 10000)
             }
-        return ranked
+        let fresh = ranked.filter { !excludingIDs.contains("\($0.0.packID)|\($0.0.id)") }
+        return (fresh.isEmpty ? ranked : fresh)
             .sorted { $0.1 > $1.1 }
             .prefix(count)
             .map(\.0)
@@ -3057,7 +3097,7 @@ enum IlluminatedPhotoFallbackWords {
             "The picture can keep its secrets.",
             "I left the edges loose.",
             "Tell me if you want. I'll be here.",
-            "I have no teeth for this kind of keeping.",
+            "I won't hold on to this one too tight.",
             "A whole elsewhere, caught on paper.",
             "I won't squeeze a lesson out of it.",
             "Your eyes get the last word.",
@@ -3460,10 +3500,409 @@ enum IlluminatedPageComposer {
 
 }
 
+/// Sentence tips: one small thing the Book has noticed about how a sentence
+/// works, with a sentence to look at. The Book says them the way it says
+/// everything: plainly, as itself, believing the kettle. They are never
+/// assignments and never claims about the Reader's life.
+enum InterleafWritingCraft {
+    struct Lesson {
+        let id: String
+        let title: String
+        let explanation: String
+        let example: String
+        let why: String
+        /// What the Book writes in the margin of its own tip. Short, handwritten,
+        /// and not a copy of the printed words above it.
+        let aside: String
+        let tags: [String]
+
+        var textID: String { "writing-tip:\(id)" }
+        /// Printed label for the top of the leaf.
+        var label: String { "Sentence Tip: \(title)" }
+        var quotedExample: String { "“\(example)”" }
+        var body: String { "\(explanation)\n\n\(why)" }
+
+        /// Identity and accessibility reading. The leaf prints these parts
+        /// separately, but a single string keeps one ink key per tip.
+        var text: String { "\(label)\n\n\(quotedExample)\n\n\(body)" }
+
+        var marginalia: IlluminationMarginaliaSnippet {
+            .init(id: textID, text: aside, title: "Sentence tip",
+                  tags: ["writing", "sentence", "writing-tip"] + tags,
+                  packID: IlluminationMarginaliaLibrary.corePackID, weight: 1)
+        }
+    }
+
+    static func lesson(forTextID id: String) -> Lesson? {
+        lessons.first { $0.textID == id }
+    }
+
+    static let lessons: [Lesson] = [
+        Lesson(id: "specific-daisies", title: "Count it and name it",
+            explanation: "“Three” counts the flowers. “Daisies” says which flowers. “Through the bench” says where. Now I can see the whole spot.",
+            example: "Three daisies grew through the bench.",
+            why: "When I don't know what to say, I count something and give it its name.",
+            aside: "I counted. Three!",
+            tags: ["specificity", "flower", "botanical", "notice"]),
+        Lesson(id: "specific-bird", title: "A bird with no name",
+            explanation: "I don't know what kind of bird that is, and the sentence doesn't either. It has a yellow throat and it's on a broken gutter. That's enough for me to see exactly which bird.",
+            example: "A bird with a yellow throat sang from the broken gutter.",
+            why: "If I can't name a thing, I say what it looked like.",
+            aside: "No name. Yellow throat, though.",
+            tags: ["specificity", "bird", "creature", "sound"]),
+        Lesson(id: "specific-mug", title: "The chip in the mug",
+            explanation: "“Lovely” is only what somebody thinks about a mug. A chip is a thing that's on it. Somebody's thumb found that chip, so I know this mug was really held.",
+            example: "My thumb found the chip in the blue mug.",
+            why: "When I want to write “lovely”, I go and look for the chip.",
+            aside: "I like the chip better than lovely.",
+            tags: ["specificity", "cup", "home", "touch"]),
+        Lesson(id: "world-wind", title: "Let the wind do it",
+            explanation: "If I write “I walked back”, I'm doing all the work. In this sentence the wind does it. It pushes, and you go where it pushes you. I can feel it on my back.",
+            example: "The wind pushed me back through the gate.",
+            why: "If something outside did it, I put that something first.",
+            aside: "The wind did that. Give it credit.",
+            tags: ["world-the-pen", "wind", "weather", "walk"]),
+        Lesson(id: "world-bench", title: "The bench was busy",
+            explanation: "“I sat down” is only about me. “The bench held my weight” is about the bench too. It had a job, and it did it.",
+            example: "The bench held my weight while I caught my breath.",
+            why: "I like saying what the bench did. Benches never get thanked.",
+            aside: "Thank you, bench.",
+            tags: ["world-the-pen", "bench", "rest", "wood"]),
+        Lesson(id: "world-sleeve", title: "The bramble grabbed",
+            explanation: "“I noticed a bramble” leaves it far away. “The bramble caught my sleeve” has it reaching out and taking hold. I can feel the cloth pulling on an arm.",
+            example: "The bramble caught my sleeve at the gate.",
+            why: "A thing that grabs me is more exciting than a thing I noticed.",
+            aside: "It wanted you to stay.",
+            tags: ["world-the-pen", "plant", "botanical", "walk"]),
+        Lesson(id: "character-kettle", title: "The kettle complained",
+            explanation: "A whistle is only a noise. “Complained” says the kettle is upset and wants somebody to come. It does. It's been waiting.",
+            example: "The kettle complained until someone came.",
+            why: "Writers call this personification, which means giving a thing a person's feelings. I just call it listening to the kettle.",
+            aside: "Kettles complain. I've heard them.",
+            tags: ["object-character", "kettle", "sound", "home"]),
+        Lesson(id: "character-door", title: "The door refused",
+            explanation: "People refuse when they don't want to do something. So the swollen door doesn't want to shut. It has a mind of its own now, and a stubborn one.",
+            example: "The swollen door refused to shut.",
+            why: "That's personification again. One word gave the door its own mind.",
+            aside: "That door has opinions.",
+            tags: ["object-character", "door", "wood", "home"]),
+        Lesson(id: "character-sock", title: "The sulking sock",
+            explanation: "“Sulked” gives the sock a mood. It's wet, it's drooping, and its heel is hanging out, so sulking is exactly what it's doing.",
+            example: "One wet sock sulked on the radiator, its heel hanging out.",
+            why: "Pick the feeling the thing already looks like. That's personification too.",
+            aside: "Poor sock. Still wet.",
+            tags: ["object-character", "home", "warm", "ordinary"]),
+        Lesson(id: "cross-bell", title: "A bell you can see",
+            explanation: "You hear a bell, and you see yellow. Putting them together tells me the ringing was bright and sharp, and I couldn't have got that from “loud”.",
+            example: "The bell rang yellow across the yard.",
+            why: "Writers call mixing up the senses synaesthesia. If a sound looks like a colour to you, write the colour.",
+            aside: "Yellow. Yes. I heard it.",
+            tags: ["crossed-senses", "sound", "colour", "bell"]),
+        Lesson(id: "cross-voice", title: "A voice you can feel",
+            explanation: "You hear a voice, and you feel wool on your cheek. Both are soft, so they belong together. Now I can feel the voice.",
+            example: "Her voice felt like a wool sleeve against my cheek.",
+            why: "When a sound is soft, I look for a soft thing from another sense.",
+            aside: "Voices can be wool.",
+            tags: ["crossed-senses", "sound", "touch", "soft"]),
+        Lesson(id: "cross-light", title: "A light you can taste",
+            explanation: "You see light, and you taste pennies. Pennies are sharp and cold in the mouth, so the white light is sharp and cold too.",
+            example: "The white light tasted of pennies.",
+            why: "It's the same trick again. If a sight does something to you, say what it tastes like.",
+            aside: "I know that taste.",
+            tags: ["crossed-senses", "light", "taste", "metal"]),
+        Lesson(id: "concrete-shoes", title: "Things instead of verdicts",
+            explanation: "“Neglected” is what somebody decided about the house. Rain in the shoes by the door is what's actually there. I can see it, and I can decide for myself.",
+            example: "Rain filled the shoes by the door.",
+            why: "A thing I can picture stays longer than a word that sums it all up.",
+            aside: "Wet shoes. I get it.",
+            tags: ["concrete-words", "rain", "water", "home"]),
+        Lesson(id: "concrete-spoon", title: "One small thing",
+            explanation: "A spoon stuck to a jam jar is a whole breakfast. Nobody tidied up, and I can almost smell the toast.",
+            example: "The spoon was still stuck to the jam jar.",
+            why: "One small thing can hold a whole morning. I don't have to list the rest.",
+            aside: "Spoon. Jam. Breakfast.",
+            tags: ["concrete-words", "food", "kitchen", "ordinary"]),
+        Lesson(id: "concrete-thumb", title: "Mud under the nail",
+            explanation: "“Difficult” is just a word for the climb. Mud under a thumbnail is the climb itself. I know exactly how it felt.",
+            example: "Mud filled the space under my thumbnail.",
+            why: "When I want to say it was hard, I look at my hands.",
+            aside: "Check your thumbnails.",
+            tags: ["concrete-words", "earth", "walk", "touch"]),
+        Lesson(id: "plain-cold", title: "Small words",
+            explanation: "“I was experiencing discomfort” and “my fingers hurt” mean the same thing. The second one gets there first.",
+            example: "My fingers hurt in the cold.",
+            why: "When it hurts, I say hurt.",
+            aside: "Hurt. That's the word.",
+            tags: ["plain-writing", "cold", "weather", "touch"]),
+        Lesson(id: "plain-missed", title: "Say the feeling",
+            explanation: "“I experienced a feeling of longing for him” is a very long way to say “I missed him”. All those extra words hide the feeling.",
+            example: "I missed him.",
+            why: "When a feeling is big, a short sentence can still hold it.",
+            aside: "That's all. That's plenty.",
+            tags: ["plain-writing", "memory", "company", "quiet"]),
+        Lesson(id: "plain-rain", title: "Enough words",
+            explanation: "“Ran down” is the movement. “My neck” is where. The rain is already running down me, and I don't need anything else.",
+            example: "Rain ran down my neck.",
+            why: "When the sentence is finished, I stop.",
+            aside: "Done. Put the pen down.",
+            tags: ["plain-writing", "rain", "water", "touch"]),
+        Lesson(id: "honest-napkin", title: "Only what you saw",
+            explanation: "Everyone laughing and her folding the napkin are things anybody could have seen. How she felt, nobody knows. I wasn't inside her, so I don't say.",
+            example: "Everyone laughed. She kept folding her napkin.",
+            why: "I write what her hands did and leave her feelings alone.",
+            aside: "What was she thinking? I don't know.",
+            tags: ["honest-noticing", "hands", "company", "notice"]),
+        Lesson(id: "honest-weed", title: "Small things count",
+            explanation: "“An ordinary day” is only a label for a day. A weed growing out of a church step is a day with something in it.",
+            example: "A weed grew out of the church step.",
+            why: "A small thing, noticed properly, is worth keeping.",
+            aside: "A weed in a step. I'd keep that.",
+            tags: ["honest-noticing", "plant", "botanical", "small"]),
+        Lesson(id: "honest-cake", title: "Two true things",
+            explanation: "The cake was good, and I wanted to go home. Both are true at the same time. If I wrote “nice”, one of them would vanish.",
+            example: "The cake was lovely. I wanted to go home.",
+            why: "When two feelings are both there, I put both in.",
+            aside: "Cake: good. Home: also good.",
+            tags: ["honest-noticing", "food", "home", "company"])
+    ]
+
+    static let texts: [InterleafCuration.Text] = lessons.map {
+        .init(id: $0.textID, text: $0.text, kind: .writingTip)
+    }
+}
+
 /// A balanced binding, rather than ten independent dice rolls. Rotation and
 /// reversal vary the rhythm without allowing photo/illustration droughts.
 enum InterleafCuration {
     enum Slot: Equatable { case photo, illustration, other }
+
+    /// A rare, authored scrap. Its ink is the Book's, never an invented
+    /// recollection or a claim about the Reader's life.
+    static func discovery(seed: Int) -> String? {
+        let draw = UInt(bitPattern: (seed &+ 9_143).stableScramble)
+        guard draw % 15 == 0 else { return nil }
+        let lines = [
+            "I hid this bit from the straight lines.",
+            "There. A little room for trouble.",
+            "I wanted a secret pocket.",
+            "Don't tell the tidy pages.",
+            "I caught this scrap before it ran."
+        ]
+        return lines[Int((draw / 15) % UInt(lines.count))]
+    }
+
+    /// Compose against what was actually encountered and the preceding
+    /// interleaf, while retaining authored density when a pack specifies it.
+    static func curatedDecoration(
+        baseline: LeafDecorationRecipe, pageType: BookPageType, metadata: [String: String],
+        semanticText: String, documentID: String, previous: LeafDecorationRecipe?,
+        recentAssets: Set<String>, recentNotes: Set<String>, neighborIsCrowded: Bool = false,
+        reservedAssets: Set<String> = [], reservedNotes: Set<String> = []
+    ) -> LeafDecorationRecipe {
+        let priorAssets = Set([previous?.primaryAsset?.assetName, previous?.secondaryAsset?.assetName].compactMap { $0 })
+        let priorNote = previous?.handwrittenSnippet.map { "\($0.packID)|\($0.id)" }
+        let crowdedBefore = neighborIsCrowded || (previous.map { $0.density == .rich || $0.density == .overdone } ?? false)
+        let crowdedNow = baseline.density == .rich || baseline.density == .overdone
+        let breathe: LeafMarginaliaDensity? = crowdedBefore && crowdedNow && metadata["leafMarginaliaDensity"] == nil ? .ordinary : nil
+        let assets = recentAssets.union(priorAssets).union(reservedAssets)
+        let notes = recentNotes.union(Set([priorNote].compactMap { $0 })).union(reservedNotes)
+        let baselineAssets = Set(([baseline.primaryAsset, baseline.secondaryAsset].compactMap { $0 } + baseline.companionAssets).map(\.assetName))
+        let baselineNote = baseline.handwrittenSnippet.map { "\($0.packID)|\($0.id)" }
+        let needsFreshSelection = !baselineAssets.isDisjoint(with: assets) || baselineNote.map { notes.contains($0) } == true
+        var result = (needsFreshSelection || breathe != nil) ? LeafDecorationLibrary.recipe(
+            pageType: pageType, metadata: metadata, semanticText: semanticText,
+            documentID: documentID, leafIndex: 0, decorationPlate: true,
+            excludingAssetNames: assets, excludingSnippetIDs: notes, densityOverride: breathe
+        ) : baseline
+        // Some handwritten marks answer the drawing beside them. Only use an
+        // authored note with an actual subject in common and valid pack gates.
+        if result.handwrittenSnippet != nil, let primary = result.primaryAsset,
+           UInt(bitPattern: (result.seed &+ 8_113).stableScramble) % 4 == 0 {
+            let generic: Set<String> = ["book", "margin", "margins", "generic", "illustration", "labyrinth"]
+            let subjects = Set((primary.tags + (primary.leafTraits?.subjectTags ?? [])).map { $0.lowercased() }).subtracting(generic)
+            let context = LeafDecorationLibrary.resolvedPlacementContext(motifs: result.motifs, metadata: metadata)
+            if !subjects.isEmpty,
+               let answer = IlluminationMarginaliaLibrary.select(motifs: Array(subjects).sorted(),
+                    placementContext: context, seed: result.seed &+ 8_113, count: 1, excludingIDs: notes).first,
+               !Set(answer.tags.map { $0.lowercased() }).isDisjoint(with: subjects) {
+                result.handwrittenSnippet = answer
+            }
+        }
+        return result
+    }
+
+    /// Saved ink, a supported finding, or an explicitly authored writing tip. Identity is
+    /// independent of its boundary, the tending date, and changing counts.
+    struct Text: Hashable {
+        struct Source: Hashable {
+            let pageID: String
+            let title: String
+            let date: Date
+
+            init(page: BookPage) {
+                pageID = page.id
+                let excerpt = page.readerAuthoredTextForAnalysis?.bookPreviewSentenceLimit(1)
+                    .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                title = excerpt.map { String($0.prefix(72)) } ?? page.bindingDisplayTitle
+                date = page.createdAt
+            }
+        }
+
+        enum Kind: String, CaseIterable { case reader, noticing, receipt, writingTip }
+        let id: String
+        let text: String
+        let kind: Kind
+        let sourcePageIDs: [String]
+        let sources: [Source]
+        let inkKey: String
+
+        init(id: String, text: String, kind: Kind, sourcePageIDs: [String] = [], sources: [Source] = []) {
+            self.id = id
+            self.text = text
+            self.kind = kind
+            self.sourcePageIDs = sourcePageIDs
+            self.sources = sources
+            let normalized = text.lowercased().split(whereSeparator: \Character.isWhitespace).joined(separator: " ")
+            inkKey = "ink:\(normalized.stableHash)"
+        }
+        var historyKeys: Set<String> { [id, inkKey] }
+        var attribution: String {
+            switch kind {
+            case .reader: return "YOU WROTE THIS"
+            case .noticing: return "I NOTICED THIS"
+            case .receipt: return "I KEPT THIS"
+            case .writingTip: return "ME, ON WRITING"
+            }
+        }
+
+        static func receipt(_ line: String) -> Text {
+            Text(id: "receipt:\(line.lowercased().stableHash)", text: line, kind: .receipt)
+        }
+    }
+
+    /// Authored lessons join the same text slots and encounter history as the
+    /// archive. No extra teaching leaf is inserted into the binding rhythm.
+    static func rotationTexts(_ saved: [Text], grimoireResidue: String?) -> [Text] {
+        var result = saved + InterleafWritingCraft.texts
+        if let grimoireResidue { result.append(.receipt(grimoireResidue)) }
+        return result
+    }
+
+    /// Use the whole archive, not just the latest 32 keeps. Generated prose
+    /// never becomes the reader's quotation, and sensitive pages stay shut.
+    static func texts(days: [BookDay], noticings: [Noticing], excluding: Set<String> = []) -> [Text] {
+        let pages = days.flatMap(\.pages).filter { $0.privacy == .privateLocal && $0.origin != .simulated }
+        let allowedPageIDs = Set(pages.map(\.id))
+        let pagesByID = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var seenInk = Set<String>()
+        var result: [Text] = []
+        for page in pages.sorted(by: { $0.id < $1.id }) {
+            guard let authored = page.readerAuthoredTextForAnalysis?.nonEmpty else { continue }
+            var sentences: [String] = []
+            authored.enumerateSubstrings(in: authored.startIndex..<authored.endIndex, options: .bySentences) { substring, _, _, stop in
+                guard let excerpt = substring?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      excerpt.count <= 220,
+                      excerpt.split(whereSeparator: \Character.isWhitespace).count >= 4 else { return }
+                sentences.append(excerpt)
+                if sentences.count == 12 { stop = true }
+            }
+            for (index, excerpt) in sentences.enumerated() {
+                // Retain the old first-sentence identity and history; later
+                // sentences get content identities that survive rearrangement.
+                let id = index == 0 ? "reader:\(page.id)" : "reader:\(page.id):\(excerpt.stableHash)"
+                let candidate = Text(id: id, text: excerpt, kind: .reader,
+                    sourcePageIDs: [page.id], sources: [.init(page: page)])
+                if seenInk.insert(candidate.inkKey).inserted { result.append(candidate) }
+            }
+        }
+        for noticing in noticings.sorted(by: { $0.id < $1.id }) {
+            guard !noticing.touchesBody, !excluding.contains(noticing.id),
+                  !excluding.contains("crossing:\(noticing.id)"),
+                  !noticing.receipts.isEmpty,
+                  noticing.receipts.allSatisfy({ allowedPageIDs.contains($0.pageID) }) else { continue }
+            // Keep the counts with the finding; never cut away its qualification.
+            let line = [noticing.line, noticing.counted].compactMap { $0?.nonEmpty }.joined(separator: " ")
+            guard !line.isEmpty, line.count <= 220 else { continue }
+            let candidate = Text(id: "noticing:\(noticing.id)", text: line, kind: .noticing,
+                sourcePageIDs: noticing.receipts.map(\.pageID),
+                sources: noticing.receipts.compactMap { pagesByID[$0.pageID] }.reduce(into: [Text.Source]()) { sources, page in
+                    if !sources.contains(where: { $0.pageID == page.id }) { sources.append(.init(page: page)) }
+                })
+            if seenInk.insert(candidate.inkKey).inserted { result.append(candidate) }
+        }
+        return result
+    }
+
+    /// Unseen visuals first, then the oldest eligible return. Maps may stay
+    /// quiet for a week; illustration slots may use an older familiar plate
+    /// when a small eligible catalogue has no rested alternatives.
+    static func visualPool(
+        _ ids: [String], recentlySeen: [String: Date], excluding: Set<String> = [],
+        now: Date, allowsRecentFallback: Bool
+    ) -> Set<String> {
+        let available = ids.filter { !excluding.contains($0) }
+        let unseen = available.filter { recentlySeen[$0] == nil }
+        if !unseen.isEmpty { return Set(unseen) }
+        let rested = available.filter { now.timeIntervalSince(recentlySeen[$0] ?? now) >= 7 * 86_400 }
+        let pool = rested.isEmpty && allowsRecentFallback ? available : rested
+        guard let oldest = pool.compactMap({ recentlySeen[$0] }).min() else { return [] }
+        return Set(pool.filter { recentlySeen[$0] == oldest })
+    }
+
+    /// Most quotations supply their own subjects. One in five keeps the
+    /// surrounding Pages' subjects, leaving room for unrelated Book mischief.
+    static func decorationContext(
+        quotation: Text?, neighboringText: String, pageType: BookPageType,
+        metadata: [String: String], seed: Int
+    ) -> (text: String, pageType: BookPageType, metadata: [String: String]) {
+        guard let quotation,
+              UInt(bitPattern: (seed &+ 211).stableScramble) % 5 != 0 else {
+            return (neighboringText, pageType, metadata)
+        }
+        let subjectKeys: Set<String> = [
+            "tags", "marginaliaTags", "motifs", "senderID", "senderName", "castID",
+            "characterID", "facultyID", "speaker", "locationID", "locationName"
+        ]
+        // Keep pack/density/season/phase gates, but don't let the next Page's
+        // topic override the ink actually on this leaf.
+        var ownMetadata = metadata.filter { !subjectKeys.contains($0.key) }
+        let structuralTags = (metadata["tags"] ?? "")
+            .components(separatedBy: CharacterSet(charactersIn: ",|;"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.lowercased().hasPrefix("event-phase:") || $0.hasPrefix("authored-mark:") }
+        if !structuralTags.isEmpty { ownMetadata["tags"] = structuralTags.joined(separator: ",") }
+        if quotation.kind == .writingTip,
+           let lesson = InterleafWritingCraft.lesson(forTextID: quotation.id) {
+            ownMetadata["marginaliaTags"] = (["writing-tip"] + lesson.tags).joined(separator: ",")
+        }
+        return (quotation.text, quotation.kind == .reader ? .souvenir : .bookNotices, ownMetadata)
+    }
+
+    static let textRest: TimeInterval = 30 * 86_400
+
+    /// Unseen ink first, then the least recently read. A depleted cabinet
+    /// leaves an ornament instead of repeating yesterday's sentence.
+    static func text(
+        from candidates: [Text], recentlySeen: [String: Date],
+        excluding: Set<String>, now: Date, seed: Int
+    ) -> Text? {
+        func lastSeen(_ candidate: Text) -> Date {
+            candidate.historyKeys.compactMap { recentlySeen[$0] }.max() ?? .distantPast
+        }
+        let available = candidates.filter {
+            $0.historyKeys.isDisjoint(with: excluding) && now.timeIntervalSince(lastSeen($0)) >= textRest
+        }
+        guard let oldest = available.map({ lastSeen($0) }).min() else { return nil }
+        let rested = available.filter { lastSeen($0) == oldest }
+        // A large writing archive must not drown out the smaller noticing pool.
+        let kinds = Text.Kind.allCases.filter { kind in rested.contains { $0.kind == kind } }
+        let kind = kinds[Int(UInt(bitPattern: seed.stableScramble) % UInt(kinds.count))]
+        return rested.filter { $0.kind == kind }.min { left, right in
+            let a = UInt(bitPattern: ("\(left.id)|\(seed)").stableHash.stableScramble)
+            let b = UInt(bitPattern: ("\(right.id)|\(seed)").stableHash.stableScramble)
+            return a == b ? left.id < right.id : a < b
+        }
+    }
 
     static func slot(at index: Int, seed: Int) -> Slot {
         let rhythm: [Slot] = [.photo, .illustration, .other, .other, .illustration,

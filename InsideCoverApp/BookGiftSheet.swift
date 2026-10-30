@@ -1118,7 +1118,7 @@ struct BookGiftSheet: View {
             route = .share
         } catch {
             statusMessage = wasSavedForRetry
-                ? "Payment was received and kept safely. Tap Seal the paid gift to try the doorway again: \(error.localizedDescription)"
+                ? "Payment was received and kept safely. Tap Seal the paid gift to try again: \(error.localizedDescription)"
                 : "Payment was received, but this device could not keep the retry key. Keep this screen open and contact the Bindery if the seal will not finish: \(error.localizedDescription)"
         }
     }

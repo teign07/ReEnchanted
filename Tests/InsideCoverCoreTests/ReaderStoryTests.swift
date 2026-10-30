@@ -382,7 +382,7 @@ final class ReaderStoryTests: XCTestCase {
         XCTAssertEqual(question?.key, "season:\(story.priorSeasons[0].id)")
         XCTAssertTrue(line?.contains("The Fog") == true)
         // Asks when it ended; never what it meant.
-        XCTAssertTrue(line?.contains("Tell me if you want that door open. Otherwise it stays shut.") == true)
+        XCTAssertTrue(line?.contains("Tell me if you want to talk about it. Otherwise I won't bring it up.") == true)
     }
 
     func testTheQuestionIsAlwaysBackwardsNeverForwards() {

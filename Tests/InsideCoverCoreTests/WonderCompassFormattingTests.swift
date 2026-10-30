@@ -105,4 +105,59 @@ final class WonderCompassFormattingTests: XCTestCase {
             }
         }
     }
+
+    // MARK: Writing in the book
+
+    func testSignedSlipAndSouvenirComposeInReadingOrder() throws {
+        let chapter = try XCTUnwrap(try sections().first { $0.id == "wonder-compass-chapter4b" })
+        let blocks = chapter.wonderCompassBlocks(for: chapter.body)
+        let slip = try XCTUnwrap(blocks.firstIndex { if case .certificate = $0 { return true }; return false })
+        let souvenir = try XCTUnwrap(blocks.lastIndex { if case .souvenir = $0 { return true }; return false })
+        XCTAssertEqual(WonderCompassWriting.compose(blocks: blocks, answers: [:], date: "26 October 2026"), "")
+
+        let answers = [
+            WonderCompassWriting.blankKey(block: slip, item: 0, blank: 0): "Rabbit",
+            WonderCompassWriting.signatureKey(block: slip): "Rabbit",
+            WonderCompassWriting.souvenirKey(block: souvenir): "The kettle sang flat.",
+        ]
+        let ink = WonderCompassWriting.compose(blocks: blocks, answers: answers, date: "26 October 2026")
+        XCTAssertTrue(ink.hasPrefix("THE PERMISSION SLIP\nI, Rabbit, hereby grant myself permission to be inefficient."))
+        XCTAssertTrue(ink.contains("Signed, Rabbit\nDate: 26 October 2026"))
+        XCTAssertTrue(ink.hasSuffix("Your One Sentence Souvenir: The kettle sang flat."))
+        // Unanswered blanks stay visibly blank rather than vanishing.
+        XCTAssertTrue(ink.contains("The thing my Caveman says most often is: _________"))
+    }
+
+    func testFailureSlipBlankIsARunOfSpaces() {
+        XCTAssertEqual(WonderCompassWriting.blankCount("I,                           , give myself permission to fail at this."), 1)
+        XCTAssertEqual(WonderCompassWriting.filled("I,                           , give myself", answers: ["Rabbit"]), "I, Rabbit, give myself")
+    }
+
+    func testWritingKeepsAsItsOwnSmallPage() throws {
+        let chapter = try XCTUnwrap(try sections().first { $0.id == "wonder-compass-chapter7" })
+        let page = WonderCompassPageSourceAdapter().writingSurface(for: chapter)
+        XCTAssertEqual(page.payload.headline, "Written in Chapter 7")
+        XCTAssertNil(page.payload.metadata["readingPage"])
+        XCTAssertEqual(page.payload.metadata["wonderCompassWriting"], "true")
+        XCTAssertFalse(page.payload.body.contains("couch"), "the chapter itself is not copied into the keep")
+    }
+
+    // MARK: Dares and the book
+
+    func testEveryDareNamesARealChapterOfTheBook() throws {
+        let chapterIDs = Set(try sections().map(\.id))
+        let placeStems = ["local-bookstore-question", "local-library-poem", "local-wild-voice", "local-water-verdict",
+                          "local-secret-favorite", "creative-drop", "local-curiosity"]
+        for id in WickerDareRegistry.immediate.map(\.id) + placeStems.map({ $0 + "-some-place" }) {
+            let practice = try XCTUnwrap(WickerDareCompass.practice(forDareID: id), id)
+            XCTAssertTrue(chapterIDs.contains(practice.chapterID), "\(id) → \(practice.chapterID)")
+        }
+        XCTAssertEqual(WickerDareCompass.practice(forDareID: "route-mutiny")?.direction, .east)
+        XCTAssertEqual(WickerDareCompass.practice(forDareID: "tell-the-plant")?.chapterID, "wonder-compass-chapter8b")
+    }
+
+    func testMarkAThresholdAsksForTheDelight() throws {
+        let plan = try XCTUnwrap(AcademyActivityRegistry.activities["wayfinding-kineticism"])
+        XCTAssertEqual(plan.fields.map(\.id), ["threshold", "destination", "delight", "return"])
+    }
 }

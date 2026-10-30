@@ -1601,7 +1601,7 @@ final class BraidPromptContextTests: XCTestCase {
         XCTAssertEqual(anchor.keptText, "The lobby clock ticked while I found my coat.")
         XCTAssertEqual(anchor.reason, "one-sentence souvenir kept from another page")
         XCTAssertTrue(prompt.contains("SOUVENIR SPINE (required):"))
-        XCTAssertTrue(prompt.contains("from The Hour Has Teeth"))
+        XCTAssertTrue(prompt.contains("from An Hour Is Coming"))
         XCTAssertTrue(prompt.contains("The lobby clock ticked while I found my coat."))
         XCTAssertTrue(prompt.contains("govern the braid's emphasis"))
         XCTAssertTrue(prompt.contains("normally return transformed in \"I kept the page:\""))

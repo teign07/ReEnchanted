@@ -183,7 +183,7 @@ final class GreyPageThreatTests: XCTestCase {
         let surface = GreyPageThreatSourceAdapter.surface(for: rescued, now: now)
 
         XCTAssertTrue(surface.payload.body.contains("So did I"))
-        XCTAssertTrue(surface.payload.body.contains("another door"))
+        XCTAssertTrue(surface.payload.body.contains("another angle"))
         XCTAssertEqual(surface.payload.metadata["bookRupturePhase"], "reopened")
     }
 }

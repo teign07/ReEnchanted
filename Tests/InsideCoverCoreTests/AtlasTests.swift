@@ -314,6 +314,20 @@ final class QuietLeafPlaceTests: XCTestCase {
         }
     }
 
+    func testQuietLeavesExposeTheSameRankedEligiblePlacesForRotation() throws {
+        let anchors = [anchor("busy", name: "The Footbridge", lastVisitedDaysAgo: 1),
+                       anchor("quiet", name: "The Waiting Tree", lastVisitedDaysAgo: 200)]
+        let archive = days("busy", count: 6) + days("quiet", count: 2)
+        let leaves = Gazetteer.quietLeaves(anchors: anchors, days: archive, now: now, calendar: calendar)
+        XCTAssertEqual(Set(leaves.map(\.anchorID)), ["busy", "quiet"])
+        XCTAssertEqual(leaves.first, Gazetteer.quietLeaf(anchors: anchors, days: archive, now: now, calendar: calendar))
+        XCTAssertEqual(leaves.first?.anchorID, "quiet")
+        let pool = InterleafCuration.visualPool(leaves.map(\.anchorID), recentlySeen: ["quiet": now],
+            now: now, allowsRecentFallback: false)
+        XCTAssertEqual(leaves.first { pool.contains($0.anchorID) }?.anchorID, "busy")
+        XCTAssertFalse(try XCTUnwrap(leaves.first).line.isEmpty)
+    }
+
     func testNoPlacesMeansNoLeaf() {
         XCTAssertNil(Gazetteer.quietLeaf(anchors: [], days: [], now: now, calendar: calendar))
     }

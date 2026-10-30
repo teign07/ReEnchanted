@@ -42,12 +42,15 @@ final class KitchenTests: XCTestCase {
             let ingredientText = recipe.ingredients.joined(separator: " ").lowercased()
             for allergen in recipe.allergens {
                 XCTAssertTrue(houseAllergens.contains(allergen), "\(recipe.id): \(allergen) isn't a house allergen word")
-                XCTAssertTrue(ingredientText.contains("(\(allergen)") || ingredientText.contains("\(allergen))")
+                XCTAssertTrue(recipe.shelf == .inherited
+                              || ingredientText.contains("(\(allergen)") || ingredientText.contains("\(allergen))")
                               || ingredientText.contains(allergen),
                               "\(recipe.id): \(allergen) isn't named in the ingredient line")
             }
             let text = ([recipe.title, recipe.line, recipe.cookNote ?? ""] + recipe.steps).joined(separator: " ").lowercased()
-            for banned in ["hinge", "ritual", "forgive", "pressure can", "open-kettle", "paraffin"] {
+            // The house law excludes wax seals for preserving, not Gayle's
+            // original candy coating. Her measures must not be rewritten.
+            for banned in ["hinge", "ritual", "forgive", "pressure can", "open-kettle", "paraffin wax seal"] {
                 XCTAssertFalse(text.contains(banned), "\(recipe.id): \(banned)")
             }
         }
@@ -58,6 +61,80 @@ final class KitchenTests: XCTestCase {
         XCTAssertTrue(soup.printed.hasPrefix("From The Middlemost Cookery."))
         XCTAssertTrue(soup.printed.contains("1. Melt the butter"))
         XCTAssertTrue(soup.printed.contains("Has in it: milk, celery."))
+    }
+
+    /// The leaf only teases a recipe (credit and Ambrose's line), so the whole
+    /// of it has to survive in the body for the opened Page to print above its
+    /// chips. Unfolding must never trim it.
+    func testARecipeLeafTeasesAndTheOpenedPageKeepsTheWholeRecipe() {
+        for recipe in KitchenRecipeRegistry.all {
+            let page = KitchenOffering.surface(for: recipe, dayID: "2026-10-31", days: [], now: date(10, 31))
+            XCTAssertEqual(page.leafPresentation, .activityPreview, recipe.id)
+            XCTAssertTrue(page.leafUnfoldLine.contains("ingredients"), recipe.id)
+            let opened = page.unfoldingFromLeaf()
+            XCTAssertEqual(opened.payload.body, page.payload.body, recipe.id)
+            for ingredient in recipe.ingredients {
+                XCTAssertTrue(opened.payload.body.contains(ingredient), "\(recipe.id): \(ingredient)")
+            }
+            for line in recipe.printedSteps {
+                XCTAssertTrue(opened.payload.body.contains(line), "\(recipe.id): \(line)")
+            }
+        }
+    }
+
+    func testGaylesBinderKeepsItsMeasuresAndNotesWithoutDuplicateRecipes() throws {
+        let recipes = KitchenRecipeRegistry.inherited
+        XCTAssertEqual(recipes.count, 14)
+        XCTAssertEqual(Set(recipes.map(\.title)).count, 14)
+        XCTAssertTrue(recipes.allSatisfy { $0.shelf == .inherited && $0.credit == "Gayle O'Brien, Mom" })
+        let bonBons = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-peanut-butter-bon-bons"))
+        XCTAssertTrue(bonBons.ingredients.contains("2½ sticks melted margarine"))
+        XCTAssertTrue(bonBons.ingredients.contains("12 oz chocolate chips and ½ block of paraffin wax"))
+        let coconut = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-chocolate-coconut-balls"))
+        XCTAssertTrue(coconut.ingredients.contains("¾ stick paraffin wax"))
+        let birthday = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-bj-lemon-birthday-cake"))
+        XCTAssertTrue(birthday.steps.joined().contains("Fold in small container of cool whip."))
+        let fudge = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-dark-chocolate-fudge"))
+        XCTAssertEqual(fudge.cookNote, "I have always made two batches of this fudge. One with nuts and one plain.")
+        let brownies = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-siobhan-chocolate-raspberry-brownies"))
+        XCTAssertTrue(brownies.steps.contains("350°\nBake for 35 to 38 minutes. Let completely cool before cutting."))
+    }
+
+    /// Her section headings and asides print as themselves; only the steps count.
+    func testBinderHeadingsAndAsidesAreNotNumberedAsSteps() throws {
+        let pie = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-nana-lemon-icebox-pie"))
+        XCTAssertEqual(pie.printedSteps.count, 7)
+        XCTAssertEqual(pie.printedSteps[0], "PIECRUST")
+        XCTAssertTrue(pie.printedSteps[1].hasPrefix("1. Make one graham cracker piecrust."))
+        XCTAssertEqual(pie.printedSteps[2], "FILLING")
+        XCTAssertTrue(pie.printedSteps[3].hasPrefix("2. Separate your three eggs."))
+        XCTAssertEqual(pie.printedSteps[4], "(The acid from the lemon juice cooks the eggs.)")
+        XCTAssertEqual(pie.printedSteps[5], "TOP")
+        XCTAssertTrue(pie.printedSteps[6].hasPrefix("3. Beat the 3 egg whites"))
+        XCTAssertEqual(pie.steps.count, 4, "the stored steps stay as she wrote them")
+
+        let cake = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-strawberry-cake"))
+        let starts = ["1. Bake cake", "FROSTING", "2. Drain strawberries", "3. In medium bowl", "4. Frost cake"]
+        XCTAssertEqual(cake.printedSteps.count, starts.count)
+        for (line, start) in zip(cake.printedSteps, starts) {
+            XCTAssertTrue(line.hasPrefix(start), "\(line) should start \(start)")
+        }
+        // A step that merely begins in capitals is still a step.
+        let truffles = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-chocolate-peanut-butter-truffles"))
+        XCTAssertTrue(truffles.printedSteps[0].hasPrefix("1. MICROWAVE chocolate"))
+        // Ordinary recipes number exactly as before.
+        let soup = KitchenRecipeRegistry.recipe(id: "leek-and-potato-soup")!
+        XCTAssertEqual(soup.printedSteps.count, soup.steps.count)
+    }
+
+    func testNanasPieSeparatesTheKitchenNoteFromHerOriginalWords() throws {
+        let pie = try XCTUnwrap(KitchenRecipeRegistry.recipe(id: "gayle-nana-lemon-icebox-pie"))
+        XCTAssertTrue(pie.line.contains("Kitchen note: Use pasteurized shell eggs"))
+        XCTAssertTrue(pie.steps.contains("(The acid from the lemon juice cooks the eggs.)"))
+        XCTAssertEqual(pie.cookNote, "This pie is Carol’s, Judy’s and my favorite. Mom always makes this for the three of us each time we go home.")
+        let note = try XCTUnwrap(pie.printed.range(of: "Kitchen note:"))
+        let directions = try XCTUnwrap(pie.printed.range(of: "What you do:"))
+        XCTAssertLessThan(note.lowerBound, directions.lowerBound)
     }
 
     // MARK: Which recipe today

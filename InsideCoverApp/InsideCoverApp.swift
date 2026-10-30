@@ -189,6 +189,8 @@ struct InsideCoverApp: App {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--smoke-edition-reader") {
                     EditionReaderSmokeView()
+                } else if ProcessInfo.processInfo.arguments.contains("--pigment-proof") {
+                    BookPigmentProofLeaf()
                 } else {
                     LockedBookRoot()
                 }

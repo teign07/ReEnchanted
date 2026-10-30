@@ -113,6 +113,7 @@ final class LeafInvitationTests: XCTestCase {
         XCTAssertTrue(page(.wonderCompass, ["readingPage": "true"]).offersCompassRunStart)
         XCTAssertTrue(page(.wonderCompass, ["compassBookPreview": "true"]).offersCompassRunStart)
         XCTAssertTrue(page(.lore, ["snippetID": "labyrinth-system-compass-runs"]).offersCompassRunStart)
+        XCTAssertTrue(page(.lore, ["snippetID": "labyrinth-class-compass-core"]).offersCompassRunStart)
     }
 
     func testCompassStartDoorDoesNotInterruptMissionsStepsOrUnrelatedPages() {
@@ -122,10 +123,15 @@ final class LeafInvitationTests: XCTestCase {
                 "compassStep": step,
                 "readingPage": "true"
             ]).offersCompassRunStart)
+            XCTAssertFalse(page(.lore, [
+                "compassStep": step,
+                "snippetID": "labyrinth-class-compass-core"
+            ]).offersCompassRunStart)
         }
         XCTAssertFalse(page(.helpTips, ["tipID": "glow-menu"]).offersCompassRunStart)
         XCTAssertFalse(page(.lore, ["tags": "wonder-compass"]).offersCompassRunStart)
         XCTAssertFalse(page(.letter, ["snippetID": "labyrinth-system-compass-runs"]).offersCompassRunStart)
+        XCTAssertFalse(page(.letter, ["snippetID": "labyrinth-class-compass-core"]).offersCompassRunStart)
     }
 }
 
@@ -207,7 +213,7 @@ final class LeafPresentationContractTests: XCTestCase {
 
     func testWhatTheBookNoticedIsReadOnPaper() {
         for type in [BookPageType.bookNotices, .bookRemembered, .bookConnections] {
-            let noticing = page(type, body: String(repeating: "I saw the heron again. ", count: 40))
+            let noticing = page(type, body: String(repeating: "I saw the heron again. ", count: 12))
             XCTAssertEqual(noticing.leafPresentation, .readingWithActivity, "\(type)")
             XCTAssertFalse(noticing.leafRequiresUnfoldingToKeep, "\(type)")
         }
@@ -228,6 +234,7 @@ final class LeafPresentationContractTests: XCTestCase {
     func testAuthoredChoicesAlwaysPreviewAndNarrativeOnlyScenesReadWhole() {
         for count in [20, 800] {
             let body = String(repeating: "A word. ", count: count)
+            let isShort = count * 2 <= SurfacePage.leafReadingWordBudget
             let metadata = [
                 MonthlyIssuePageMetadata.authoredStoryScene: "true",
                 MonthlyIssuePageMetadata.interaction: MonthlyIssueInteractionKind.choice.rawValue
@@ -237,11 +244,73 @@ final class LeafPresentationContractTests: XCTestCase {
             XCTAssertEqual(scene.leafInvitation?.title, "Read and choose")
             XCTAssertEqual(scene.unfoldingFromLeaf().payload.body, body)
             let narrative = page(.narrativeOS, body: body, metadata: [
+                "storyScene": body,
                 MonthlyIssuePageMetadata.authoredStoryScene: "true",
                 MonthlyIssuePageMetadata.interaction: MonthlyIssueInteractionKind.none.rawValue
             ])
-            XCTAssertEqual(narrative.leafPresentation, .reading)
-            XCTAssertFalse(narrative.leafRequiresUnfoldingToKeep)
+            // A scene with nothing to choose is read on its leaves while it
+            // fits in three, and unfolded once when it does not.
+            XCTAssertEqual(narrative.leafPresentation, isShort ? .reading : .activityPreview)
+            XCTAssertEqual(narrative.leafRequiresUnfoldingToKeep, !isShort)
+        }
+    }
+
+    private func longProse(opening: String) -> String {
+        ([opening] + (1...40).map { "Another thing happened, number \($0), and it mattered." })
+            .joined(separator: "\n\n")
+    }
+
+    func testReadingLongerThanThreeLeavesIsATeaserThatNeverRepeatsItsOpening() {
+        let opening = "The heron was back on the wall this morning."
+        let long = longProse(opening: opening)
+        let letter = page(.letter, body: "A short card.", metadata: ["letterProse": long])
+        XCTAssertEqual(letter.leafPresentation, .activityPreview)
+        XCTAssertTrue(letter.leafRequiresUnfoldingToKeep)
+        XCTAssertEqual(letter.leafInvitation?.title, "Read it")
+        XCTAssertEqual(letter.pagesRisingReadingBody, long, "the unfolded Page keeps every word")
+
+        let teaser = letter.leafActivityPreview(from: letter.pagesRisingReadingBody)
+        XCTAssertFalse(teaser.contains(opening), "the opening is read once, unfolded")
+        XCTAssertTrue(teaser.hasSuffix(letter.leafUnfoldLine))
+        XCTAssertLessThan(teaser.split(whereSeparator: \.isWhitespace).count, 40)
+        XCTAssertEqual(letter.unfoldingFromLeaf().payload.metadata["leafReadingComplete"], "false")
+    }
+
+    func testReadingThatFitsInThreeLeavesStaysOnThem() {
+        let budget = SurfacePage.leafReadingWordBudget
+        let fits = String(repeating: "word ", count: budget).trimmingCharacters(in: .whitespaces)
+        let over = fits + " word"
+        let kept = page(.letter, metadata: ["letterProse": fits])
+        XCTAssertEqual(kept.leafPresentation, .readingWithActivity)
+        XCTAssertFalse(kept.leafRequiresUnfoldingToKeep)
+        XCTAssertEqual(page(.letter, metadata: ["letterProse": over]).leafPresentation, .activityPreview)
+    }
+
+    func testLongBleedAndStoryResultsBecomeTeasers() {
+        let paper = page(.theBleed, metadata: ["bleedProse": longProse(opening: "MORNING BLEED")])
+        XCTAssertEqual(paper.leafPresentation, .activityPreview)
+        XCTAssertEqual(paper.leafUnfoldLine, "Today's whole paper is folded inside.")
+
+        let result = page(.narrativeOS, metadata: [
+            "storyResultLeaf": "true",
+            "storyScene": longProse(opening: "The bridge held."),
+            "storyResultChoiceTitle": "Stay and listen"
+        ])
+        XCTAssertEqual(result.leafPresentation, .activityPreview)
+        let teaser = result.leafActivityPreview(from: result.pagesRisingReadingBody)
+        XCTAssertTrue(teaser.hasPrefix("You chose: Stay and listen."), teaser)
+        XCTAssertFalse(teaser.contains("The bridge held."))
+
+        let shortResult = page(.narrativeOS, metadata: [
+            "storyResultLeaf": "true", "storyScene": "The bridge held. You crossed."
+        ])
+        XCTAssertEqual(shortResult.leafPresentation, .reading)
+    }
+
+    func testPagesShortByNatureOrAuthoredForTheLeafNeverBecomeTeasers() {
+        let long = longProse(opening: "A long authored thing.")
+        for type in [BookPageType.welcome, .helpTips, .lore, .quotes, .quip, .todaysSky] {
+            XCTAssertNotEqual(page(type, body: long).leafPresentation, .activityPreview, "\(type)")
         }
     }
 
@@ -249,9 +318,11 @@ final class LeafPresentationContractTests: XCTestCase {
         for (type, metadata) in [
             (BookPageType.helpTips, ["tipID": "wonder-compass"]),
             (.lore, ["snippetID": "labyrinth-system-compass-runs"]),
+            (.lore, ["snippetID": "labyrinth-class-compass-core"]),
             (.wonderCompass, ["readingPage": "true"])
         ] {
             let explanation = page(type, metadata: metadata)
+            XCTAssertEqual(explanation.leafInvitation?.title, "Start a Compass Run")
             XCTAssertEqual(explanation.leafPresentation, .readingWithActivity)
             XCTAssertEqual(explanation.unfoldingFromLeaf().payload.metadata["leafReadingComplete"], "true")
         }
@@ -262,6 +333,12 @@ final class LeafPresentationContractTests: XCTestCase {
     func testFinishedStoriesAndKeptPagesRemainReadable() {
         let finished = page(.narrativeOS, metadata: ["storyResultLeaf": "true"])
         XCTAssertEqual(finished.leafPresentation, .reading)
+        for type in [BookPageType.anchor, .narrativeOS, .bookFae, .academyClass] {
+            let result = page(type, metadata: ["storyResultLeaf": "true", "anchorID": "home"])
+            XCTAssertFalse(result.isStoryPlayablePage, "A finished result must not ask for another choice: \(type)")
+            XCTAssertEqual(result.leafPresentation, .reading)
+            XCTAssertFalse(result.leafRequiresUnfoldingToKeep)
+        }
         let kept = page(.academyClass, metadata: ["keptPageID": "original-page"])
         XCTAssertEqual(kept.leafPresentation, .reading)
         XCTAssertFalse(kept.leafRequiresUnfoldingToKeep)

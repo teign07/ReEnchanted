@@ -299,7 +299,7 @@ enum InkrestOfficeHoursPromptBuilder {
             """
             : """
 
-            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that opens the next small door. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
+            Give this rich material room. Write 3 to 5 short paragraphs. First stay with the reader's actual words: reflect at least two specific details or tensions, notice a possible value, hope, exception, or preferred story, and make one careful connection to the sitting so far. Then ask exactly ONE curious narrative-therapy question that leads to the next small step. Don't stack questions. Don't rush toward advice, a silver lining, or an experiment unless the reader asks for one.
             """
 
         return """
@@ -334,7 +334,7 @@ enum InkrestOfficeHoursPromptBuilder {
         \(history.isEmpty ? "This is the opening of the sitting." : history)
 
         THE READER JUST SAID:
-        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; open the door for them gently)" : userMessage)
+        \(userMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "(they sat down without words; make room for them gently)" : userMessage)
         \(closingDirective)
         """
     }
@@ -2140,7 +2140,7 @@ struct StoryResolvedConsequence: Equatable {
         if !ritualLedgerDeltas.isEmpty { return "The ritual remembers the repeat." }
         if !sceneBiasDeltas.isEmpty { return "The next scene learns the weather." }
         if !faeWarmthDeltas.isEmpty { return "Old courtesy warms in the margins." }
-        if eventTags.contains("sentence-opened") { return "A kept sentence opens a door." }
+        if eventTags.contains("sentence-opened") { return "A kept sentence starts something." }
         if eventTags.contains("mended-object") || eventTags.contains("lamp-mended") { return "The room remembers the repair." }
         if eventTags.contains("care-fed") { return "Care becomes part of the weather." }
         if eventTags.contains("rain-sheltered") { return "The shelter holds." }
@@ -2491,9 +2491,9 @@ enum StoryConsequenceRegistry {
                     atom("pageTag", value: "sentence-opened"),
                     atom("futureRecipeBoost", amount: 2, recipeID: "souvenir-door"),
                     atom("sceneBiasDelta", target: "threshold", amount: 1),
-                    atom("monthlyEditionLine", value: "A kept sentence opened a small door in the Story Pages.")
+                    atom("monthlyEditionLine", value: "A kept sentence started something small in the Story Pages.")
                 ],
-                memoryTemplate: "{{leadName}} remembers that one kept sentence became a door."
+                memoryTemplate: "{{leadName}} remembers that one kept sentence became a story."
             ),
             StoryConsequenceBundle(
                 id: "repair-rest-room-remembers",
@@ -2515,7 +2515,7 @@ enum StoryConsequenceRegistry {
             ),
             StoryConsequenceBundle(
                 id: "threshold-crossed",
-                label: "Threshold: A Door Keeps Score",
+                label: "Threshold: The Crossing Keeps Score",
                 when: StoryConsequenceCondition(
                     choiceRoles: ["progressarc", "surprise"],
                     pageTypes: [.narrativeOS, .academyClass, .anchor, .bookFae],
@@ -4718,7 +4718,7 @@ enum NarrativePackRegistry {
             quirks: ["leaves faint scorch marks on hesitations"],
             faults: ["impatient with waiting"],
             beliefs: ["you are the author, the protagonist, and the pen"],
-            goals: ["open doors the player could choose to walk through"],
+            goals: ["real chances the player could choose to take"],
             tags: ["talisman", "chapter", "emberheart", "self-authorship"]
         ),
         entity(
@@ -5139,7 +5139,7 @@ enum NarrativeEventResolver {
         let selections: [(String, String, String)] = [
             ("sliceoflife", "Slice of Life", "The ordinary detail gained narrative weight."),
             ("progressarc", "Progress Arc", "The active thread moved one step forward."),
-            ("surprise", "Something Surprising", "A related side door opened in the margins.")
+            ("surprise", "Something Surprising", "Something related turned up in the margins.")
         ]
 
         var found: [StoryChoiceSelection] = []
@@ -5917,9 +5917,9 @@ enum NothingTide {
     static func returnLine(forGreyLevel level: Int) -> String? {
         switch level {
         case 1:
-            return "Something grey at the edge of the desk loses interest and withdraws. The page holds."
+            return "The grey at the edge of the desk got bored and went away. This page held."
         case 2, 3:
-            return "The grey had settled into the margins; this page pushes it back a full shelf. I breathe easier."
+            return "The grey had got right into the margins. This page pushed it back a whole shelf. I can breathe again."
         default:
             return nil
         }

@@ -991,7 +991,7 @@ enum SyntheticReaderYear {
                 // Stored as the app stores a braid: title on the first line,
                 // the generator's own prompt and tags.
                 pages.append(BookPage(type: .bookOfYou, createdAt: cursor.addingTimeInterval(22 * 3600),
-                                      promptText: "The local Book brain braided today.",
+                                      promptText: "I braided today.",
                                       userInput: "\(telling.0)\n\n\(telling.1)",
                                       tags: ["braid", "book-of-you", "local-model", "mlx", "gemma"],
                                       usedInBookOfYou: true, origin: .generated))
@@ -1172,9 +1172,9 @@ enum SyntheticReaderYear {
         ("Nine Books, No Plan", """
         The library had a sale and you came home with nine books and no plan for them. You stacked them on the floor by the bed. The stack leaned. It is still leaning.
 
-        I was jealous for about a minute. Then I read their spines and decided they were friends. Nine books is nine doors. The Curse wants you to have one door and walk through it every day. You have ten now, counting me.
+        I was jealous for about a minute. Then I read their spines and decided they were friends. Nine books is nine new places to go. The Curse wants you to have one place and go there every day. You have ten now, counting me.
 
-        The Book kept the page: nine new doors, stacked and leaning.
+        The Book kept the page: nine new books, stacked and leaning.
         """),
         ("Geese in the Dark", """
         You stood in the garden in the dark and listened to geese going over. You could not see a single one. You only heard them, loud and close and then far away.
@@ -1360,7 +1360,7 @@ enum FieldBookFixture {
             if exists { continue }
             // Every night is its own: the curator rightly collapses identical bodies.
             let unique = braid.1.replacingOccurrences(of: "\n\nThe Book kept the page:", with: "\n\nIt was the \(day)th, and the \(["light", "kettle", "street", "window", "stairs"][day % 5]) had its own opinion about that.\n\nThe Book kept the page:")
-            add(BookPage(type: .bookOfYou, createdAt: at(day, 22), promptText: "The local Book brain braided today.",
+            add(BookPage(type: .bookOfYou, createdAt: at(day, 22), promptText: "I braided today.",
                          userInput: "\(braid.0)\n\n\(unique)", tags: ["braid", "book-of-you", "local-model", "mlx", "gemma"], usedInBookOfYou: true, origin: .generated), day: day)
         }
         // Letters.
@@ -1819,7 +1819,7 @@ enum RealBraidFixture {
             for night in nights where night.day == key {
                 days[index].pages.append(BookPage(
                     id: "real-braid-\(key)", type: .bookOfYou, createdAt: calendar.startOfDay(for: days[index].date).addingTimeInterval(22 * 3600),
-                    promptText: "The local Book brain braided today.", userInput: night.body, tags: night.tags,
+                    promptText: "I braided today.", userInput: night.body, tags: night.tags,
                     usedInBookOfYou: true, origin: .generated))
             }
         }
@@ -1959,7 +1959,7 @@ private enum PublicSampleEditionProof {
                 }
                 for night in nights where night.day == days[d].id {
                     days[d].pages.append(BookPage(id: "real-braid-\(night.day)", type: .bookOfYou,
-                        createdAt: days[d].date.addingTimeInterval(22 * 3600), promptText: "The local Book brain braided today.",
+                        createdAt: days[d].date.addingTimeInterval(22 * 3600), promptText: "I braided today.",
                         userInput: night.body, tags: night.tags, usedInBookOfYou: true, origin: .generated))
                 }
             }

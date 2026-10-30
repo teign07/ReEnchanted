@@ -1939,7 +1939,7 @@ enum AuthoredJumpReturnRecognition {
         if active.authoredAnchorSourceID != nil {
             return "I still have the detail you gave me. This end never went into the story. Here. Hold it. You're home."
         }
-        return "The class ribbon is still here. I kept my teeth on this end. You're home."
+        return "The class ribbon is still here. I kept this end tucked in my pages the whole time. You're home."
     }
 }
 

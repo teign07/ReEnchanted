@@ -30,25 +30,23 @@ final class PartingWhisperTests: XCTestCase {
         XCTAssertGreaterThan(lines.count, 1)
     }
 
-    func testDismissalClosingFillsThePagePlaceholder() throws {
-        // Only one of the eight wink lines carries `{page}`, and which line a
-        // Page gets is a hash of its id — so the old version of this test, which
-        // let the id default to a fresh UUID, asserted on a one-in-eight roll
-        // and failed most runs. Search the ids for the line under test instead
-        // of gambling on one.
-        let filled = try XCTUnwrap(
-            (0..<64).lazy.compactMap { index -> String? in
-                let line = PartingWhisper.closingLine(for: self.surface(.souvenir, id: "souvenir-\(index)"))
-                return line?.contains("souvenir") == true ? line : nil
-            }.first,
-            "no id reached the wink line that carries {page}"
-        )
-        XCTAssertFalse(filled.contains("{page}"), "the placeholder was left unfilled")
-
-        // And whichever line a Page lands on, the raw token never ships.
-        for index in 0..<64 {
-            let line = PartingWhisper.closingLine(for: surface(.souvenir, id: "leak-\(index)"))
-            XCTAssertFalse(line?.contains("{page}") ?? false, "id leak-\(index) leaked the token")
+    /// "The you page has gone back inside" was what a Page kind's short title
+    /// made of these sentences. The partings never name the kind.
+    func testPartingsNeverNameThePageKind() {
+        for type in BookPageType.allCases {
+            let kind = type.shortTitle.lowercased() + " page"
+            for index in 0..<16 {
+                let leaving = surface(type, id: "\(type.rawValue)-\(index)")
+                let wink = PartingWhisper.closingLine(for: leaving) ?? ""
+                let keepsake = PartingWhisper.keepsakeClosingLine(
+                    for: leaving,
+                    keepsake: PartingWhisper.keepsake(from: leaving, evidence: "")
+                )
+                for line in [wink, keepsake] {
+                    XCTAssertFalse(line.lowercased().contains(kind), line)
+                    XCTAssertFalse(line.contains("{"), line)
+                }
+            }
         }
     }
 
@@ -150,7 +148,7 @@ final class PartingWhisperTests: XCTestCase {
 
         XCTAssertFalse(line.contains("{page}"))
         XCTAssertFalse(line.contains("{object}"))
-        XCTAssertTrue(line.contains("souvenir"))
+        XCTAssertFalse(line.lowercased().contains("souvenir page"), "the parting names the object, not the Page's kind")
         XCTAssertTrue(line.contains(keepsake.title))
         XCTAssertNotEqual(line, PartingWhisper.closingLine(for: leaving))
         XCTAssertEqual(line, PartingWhisper.keepsakeClosingLine(for: leaving, keepsake: keepsake))

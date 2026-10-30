@@ -70,7 +70,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
         XCTAssertTrue(SelfKnowledgePackRegistry.exampleLines(for: signal).allSatisfy { $0.hasSuffix(".") })
         XCTAssertTrue(SelfKnowledgePackRegistry.exampleLines(for: home).isEmpty)
         XCTAssertTrue(depth.detail.contains("weather report"))
-        XCTAssertTrue(season.detail.contains("teeth"))
+        XCTAssertTrue(season.detail.contains("smaller"))
         XCTAssertTrue(entry.detail.contains("tired Tuesday"))
     }
 
@@ -339,7 +339,7 @@ final class RutSelfKnowledgeTests: XCTestCase {
             $0.payload.metadata["causalColdStartQuestion"] == "true"
         })
         XCTAssertEqual(directed.score, 77)
-        XCTAssertTrue(directed.reason.contains("which door I try next"))
+        XCTAssertTrue(directed.reason.contains("what I try next"))
 
         let answeredQuestion = try XCTUnwrap(
             SelfKnowledgePackRegistry.question(

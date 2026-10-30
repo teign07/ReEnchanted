@@ -16,6 +16,7 @@ extension MonthlyEditionPDFWriter {
         _ keepsakes: HandbookKeepsakes, style: EditionStyle, context: UIGraphicsPDFRendererContext,
         cursor: inout PDFCursor, monthNumber: Int
     ) {
+        if let tarot = keepsakes.tarot { drawTarotKeepsake(tarot, style: style, context: context, cursor: &cursor) }
         if let pixels = keepsakes.pixels { drawPixelsLeaf(pixels, style: style, context: context, cursor: &cursor) }
         if let photos = keepsakes.photos { drawPhotoLeaves(photos, style: style, context: context, cursor: &cursor) }
         if let superlatives = keepsakes.superlatives { drawSuperlativesLeaf(superlatives, style: style, context: context, cursor: &cursor) }
@@ -41,6 +42,89 @@ extension MonthlyEditionPDFWriter {
     }
 
     // MARK: Small drawing helpers
+
+    /// Uses only its supplied closing-page rectangle. No cursor or PDF page
+    /// context is passed, so this optional weekly mark cannot add a page.
+    @discardableResult
+    static func drawWeeklyTarotInset(
+        _ entry: TarotEditionKeepsake.Card?, style: EditionStyle, in rect: CGRect
+    ) -> Bool {
+        guard let entry, entry.count > 0,
+              rect.width >= 180, rect.height >= 96,
+              let card = TarotDeck.card(id: entry.cardID),
+              let image = UIImage(named: card.assetName) else { return false }
+        let ink = style.palette.ink
+        let imageHeight = min(120, rect.height)
+        let imageWidth = imageHeight * 7 / 12
+        drawFittedImage(image, in: CGRect(x: rect.minX, y: rect.minY, width: imageWidth, height: imageHeight))
+        let x = rect.minX + imageWidth + 12
+        let width = rect.maxX - x
+        kText("A CARD FROM YOUR WEEK", font: smallCaps(6.8), color: style.palette.accent,
+              in: CGRect(x: x, y: rect.minY, width: width, height: 12))
+        kText(card.name, font: .fbSerif(ofSize: 15, weight: .bold), color: ink,
+              in: CGRect(x: x, y: rect.minY + 16, width: width, height: 36))
+        var receipts: [String] = []
+        if entry.interleafCount > 0 { receipts.append("Between the Pages: \(entry.interleafCount)") }
+        if entry.readingCount > 0 { receipts.append("In readings: \(entry.readingCount)") }
+        kText(receipts.joined(separator: "\n"), font: .fbSerif(ofSize: 10, weight: .regular), color: ink.withAlphaComponent(0.84),
+              in: CGRect(x: x, y: rect.minY + 56, width: width, height: 36))
+        return true
+    }
+
+    /// At most three cards on one page. The artwork is the installed deck;
+    /// titles and receipts stay live text, with no invented interpretation.
+    private static func drawTarotKeepsake(
+        _ tarot: TarotEditionKeepsake, style: EditionStyle,
+        context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor
+    ) {
+        let cards = tarot.cards.prefix(3).compactMap { entry in
+            TarotDeck.card(id: entry.cardID).map { (entry, $0) }
+        }
+        guard !cards.isEmpty else { return }
+        let ink = style.palette.ink
+        var leaf = fieldLeaf(&cursor, style: style, context: context,
+                             headLeft: "The cards", headRight: "What came back")
+        drawEyebrow("The Unwritten Deck", style: style, leaf: &leaf)
+        hbText("The cards that kept finding you", font: .fbSerif(ofSize: 24, weight: .bold),
+               color: ink, leaf: &leaf, justified: false, gap: 8)
+        hbText("These came back. I put the dates beside them. You can decide what to make of that.",
+               font: .fbSerifItalic(ofSize: 11), color: ink.withAlphaComponent(0.84),
+               leaf: &leaf, justified: false, gap: 12)
+        let footerHeight: CGFloat = 36
+        let rowHeight = (leaf.bottom - leaf.y - footerHeight) / CGFloat(cards.count)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: tarot.timeZoneID)
+        formatter.dateFormat = "MMM d"
+        for (entry, card) in cards {
+            let imageHeight = min(260, rowHeight - 12)
+            let imageWidth = imageHeight * 7 / 12
+            let imageBox = CGRect(x: leaf.left, y: leaf.y, width: imageWidth, height: imageHeight)
+            if let image = UIImage(named: card.assetName) {
+                drawFittedImage(image, in: imageBox)
+            }
+            let x = imageBox.maxX + 14
+            let width = leaf.right - x
+            kText(card.name, font: .fbSerif(ofSize: 17, weight: .bold), color: ink,
+                  in: CGRect(x: x, y: leaf.y, width: width, height: 43))
+            var receipts: [String] = []
+            if entry.interleafCount > 0 { receipts.append("Between the Pages: \(entry.interleafCount)") }
+            if entry.readingCount > 0 { receipts.append("In readings: \(entry.readingCount)") }
+            kText(receipts.joined(separator: "\n"), font: .fbSerif(ofSize: 10, weight: .regular), color: ink,
+                  in: CGRect(x: x, y: leaf.y + 44, width: width, height: 32))
+            // Multiple receipts on the same local date share a single date label.
+            var seen = Set<String>()
+            let dates = entry.dates.map { formatter.string(from: $0) }.filter { seen.insert($0).inserted }
+            var line = dates.prefix(6).joined(separator: " · ")
+            if dates.count > 6 { line += " · +\(dates.count - 6) more days" }
+            kText(line, font: .fbSerifItalic(ofSize: 9), color: ink.withAlphaComponent(0.78),
+                  in: CGRect(x: x, y: leaf.y + 80, width: width, height: max(20, rowHeight - 84)))
+            leaf.y += rowHeight
+        }
+        kText("Only the appearances I have dates for are counted here.",
+              font: .fbSerifItalic(ofSize: 9), color: ink.withAlphaComponent(0.72),
+              in: CGRect(x: leaf.left, y: leaf.bottom - footerHeight, width: leaf.contentWidth, height: footerHeight))
+    }
 
     private static func kText(_ text: String, font: UIFont, color: UIColor, in rect: CGRect, alignment: NSTextAlignment = .left, lineSpacing: CGFloat = 2) {
         let paragraph = NSMutableParagraphStyle()

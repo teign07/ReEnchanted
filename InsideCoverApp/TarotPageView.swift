@@ -1,5 +1,162 @@
 import SwiftUI
 
+/// One physical card face, shared by readings, interleaves and the existing
+/// full-screen artifact inspector. Typography stays live and consistent.
+struct TarotCardFace: View {
+    let card: TarotCardDefinition
+
+    private var title: String {
+        guard card.arcana == .major,
+              let number = Int(card.id.replacingOccurrences(of: "major-", with: "")),
+              (0...21).contains(number) else { return card.name }
+        let numerals = ["0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI"]
+        return "\(numerals[number]) · \(card.name)"
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let inset = max(3, proxy.size.width * 0.018)
+            VStack(spacing: 0) {
+                illustration
+                Text(title)
+                    .font(.system(size: max(12, proxy.size.width * 0.054), weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: proxy.size.height * 0.085)
+                    .padding(.horizontal, inset * 2)
+            }
+            .padding(inset)
+            .background(BookPalette.page)
+            .overlay {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .stroke(BookPalette.ink.opacity(0.35), lineWidth: max(0.6, proxy.size.width * 0.002))
+                    .padding(inset)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .aspectRatio(7.0 / 12.0, contentMode: .fit)
+        .environment(\.colorScheme, .light)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(card.name)
+        .accessibilityValue(TarotDeck.marginalia(for: card.id)?.accessibleDescription ?? "")
+    }
+
+    private var illustration: some View {
+        GeometryReader { available in
+            let width = min(available.size.width, available.size.height * 7 / 12)
+            let height = width * 12 / 7
+            ZStack(alignment: .topLeading) {
+                Image(card.assetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: width, height: height)
+                if let margin = TarotDeck.marginalia(for: card.id) {
+                    Text(margin.label)
+                        .font(.custom("BradleyHandITCTT-Bold", fixedSize: width * CGFloat(margin.labelFontWidthRatio)))
+                        .foregroundStyle(BookPalette.ink.opacity(0.78))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                        .frame(width: width * CGFloat(margin.labelWidth), alignment: .leading)
+                        .background {
+                            if margin.labelOnPaper {
+                                BookPalette.page.opacity(0.96)
+                                    .padding(-width * 0.008)
+                                    .blur(radius: width * 0.006)
+                            }
+                        }
+                        .rotationEffect(.degrees(margin.labelRotation), anchor: .topLeading)
+                        .offset(x: width * CGFloat(margin.labelX), y: height * CGFloat(margin.labelY))
+                    Text(margin.note)
+                        .font(.custom("BradleyHandITCTT-Bold", fixedSize: width * 0.052))
+                        .foregroundStyle(BookPalette.ink.opacity(0.86))
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .rotationEffect(.degrees(-1), anchor: .leading)
+                        .frame(width: width * CGFloat(margin.noteWidth),
+                               height: height * min(0.075, 1 - CGFloat(margin.noteY)),
+                               alignment: .topLeading)
+                        .offset(x: width * CGFloat(margin.noteX), y: height * CGFloat(margin.noteY))
+                    ForEach(margin.additional.indices, id: \.self) { index in
+                        additionalAnnotation(margin.additional[index], width: width, height: height)
+                    }
+                }
+            }
+            .frame(width: width, height: height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func additionalAnnotation(_ annotation: TarotDeck.Marginalia.Annotation,
+                                      width: CGFloat, height: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            if let first = annotation.leader.first, let last = annotation.leader.last {
+                Path { path in
+                    path.move(to: CGPoint(x: width * CGFloat(first.x), y: height * CGFloat(first.y)))
+                    for point in annotation.leader.dropFirst() {
+                        path.addLine(to: CGPoint(x: width * CGFloat(point.x), y: height * CGFloat(point.y)))
+                    }
+                }
+                .stroke(BookPalette.ink.opacity(0.55), lineWidth: max(0.4, width * 0.00125))
+                Circle()
+                    .fill(BookPalette.ink.opacity(0.55))
+                    .frame(width: width * 0.003, height: width * 0.003)
+                    .position(x: width * CGFloat(last.x), y: height * CGFloat(last.y))
+            }
+            Text(annotation.text)
+                .font(annotation.isInscription
+                      ? .system(size: width * CGFloat(annotation.fontWidthRatio), weight: .regular, design: .serif)
+                      : .custom("BradleyHandITCTT-Bold", fixedSize: width * CGFloat(annotation.fontWidthRatio)))
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .lineLimit(annotation.maxLines)
+                .minimumScaleFactor(0.75)
+                .frame(width: width * CGFloat(annotation.width), alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .background {
+                    if annotation.onPaper {
+                        BookPalette.page.opacity(0.94)
+                            .padding(-width * 0.008)
+                            .blur(radius: width * 0.006)
+                    }
+                }
+                .rotationEffect(.degrees(annotation.rotation), anchor: .topLeading)
+                .offset(x: width * CGFloat(annotation.x), y: height * CGFloat(annotation.y))
+        }
+        .frame(width: width, height: height, alignment: .topLeading)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Paired, rotated impressions make the back exactly orientation-neutral,
+/// including its paper wear. A generated pattern alone cannot guarantee that.
+struct TarotCardBack: View {
+    var body: some View {
+        GeometryReader { proxy in
+            VStack(spacing: 0) {
+                ForEach(0..<2, id: \.self) { half in
+                    Image("TarotBackUnwritten")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height / 2)
+                        .clipped()
+                        .rotationEffect(.degrees(Double(half) * 180))
+                }
+            }
+            .background(Color(red: 0.16, green: 0.10, blue: 0.22))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(BookPalette.lampGold.opacity(0.85), lineWidth: 1.5)
+                    .padding(proxy.size.width * 0.045)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .aspectRatio(7.0 / 12.0, contentMode: .fit)
+        .accessibilityLabel("The Unwritten Deck, face down")
+    }
+}
+
 struct TarotPageView: View {
     @Binding var reading: TarotReadingArtifact?
     let isReadOnly: Bool
@@ -24,6 +181,11 @@ struct TarotPageView: View {
             } else {
                 unopenedDeck
             }
+
+            Text("The Unwritten Deck · after Pamela Colman Smith")
+                .font(.caption2)
+                .foregroundStyle(BookPalette.ink.opacity(0.58))
+                .accessibilityLabel("The Unwritten Deck. Based on Pamela Colman Smith’s Rider–Waite–Smith illustrations.")
         }
         .onAppear {
             guard !didSeedTarotPage else { return }
@@ -226,17 +388,16 @@ struct TarotPageView: View {
 
             Group {
                 if isRevealed, let card {
-                    Image(card.assetName)
-                        .resizable()
-                        .scaledToFit()
+                    TarotCardFace(card: card)
                         .rotationEffect(drawn.isReversed ? .degrees(180) : .zero)
                         .accessibilityLabel("\(card.name)\(drawn.isReversed ? ", reversed" : "")")
+                        .tarotCardPreviewOnTap(card, isReversed: drawn.isReversed)
                 } else {
                     tarotCardBack
                         .accessibilityLabel("Face-down tarot card")
                 }
             }
-            .aspectRatio(0.583, contentMode: .fit)
+            .aspectRatio(7.0 / 12.0, contentMode: .fit)
             .frame(maxWidth: 254)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
@@ -476,39 +637,7 @@ struct TarotPageView: View {
     }
 
     private var tarotCardBack: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.16, green: 0.08, blue: 0.23),
-                            Color(red: 0.29, green: 0.11, blue: 0.31)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.82), lineWidth: 2)
-                .padding(8)
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(BookPalette.lampGold.opacity(0.36), lineWidth: 1)
-                .padding(15)
-            ForEach(0..<4, id: \.self) { turn in
-                Image(systemName: "sparkle")
-                    .font(.system(size: 38, weight: .thin))
-                    .foregroundStyle(BookPalette.lampGold.opacity(0.72))
-                    .rotationEffect(.degrees(Double(turn) * 90))
-                    .offset(y: -40)
-                    .rotationEffect(.degrees(Double(turn) * 90))
-            }
-            Circle()
-                .stroke(BookPalette.lampGold.opacity(0.68), lineWidth: 1.5)
-                .frame(width: 74, height: 74)
-            Image(systemName: "moon.stars.fill")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(BookPalette.lampGold)
-        }
+        TarotCardBack()
     }
 
     private func draw(_ spread: TarotSpread) {
@@ -541,6 +670,7 @@ struct TarotPageView: View {
 
     private func revealNext() {
         guard let reading, revealedCount < reading.cards.count else { return }
+        TarotEditionEncounterStore.shared.record(.reading(reading, card: reading.cards[revealedCount]))
         withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
             revealedCount += 1
         }

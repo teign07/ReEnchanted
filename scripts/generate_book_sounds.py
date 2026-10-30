@@ -604,7 +604,7 @@ PROFILE_OF = {
     **{f: 'soft' for f in ('tap', 'select', 'dismiss', 'close', 'glowopen', 'undo', 'refresh', 'error', 'toggle', 'seal',
                             'peek', 'confirm', 'begin')},
     **{f: 'whisper' for f in ('turn', 'turnback')},
-    **{f: 'candy' for f in ('today', 'lift', 'drop')},
+    **{f: 'candy' for f in ('today', 'lift', 'drop', 'pixie')},
     **{f: 'wake' for f in ('keep', 'braidstart', 'braidcomplete', 'rise', 'constellation', 'fae', 'jump',
                             'radiolock')},
     **{f: 'hearth' for f in ('overture',)},
@@ -1293,6 +1293,27 @@ def drop():
         tr.add(plop(f * 1.2, f * 0.6, 0.16, tau=0.034), 0.0, pan=[0.1, -0.1, 0.15, -0.15, 0.0][i], gain=0.9)
         tr.add(damped(pluck(f * 0.5, 0.2, tone=0.5, rng=rng), tau=0.06, cutoff=1500), 0.004, gain=0.35)
         write('drop', i, finish(reverb(tr.stereo(), 0.22, 0.10), 0.18))
+
+
+@family('pixie')
+def pixie():
+    """Pippa, poked: a startled 'eep' of rising pops, sometimes with her pocketful tumbling out after it.
+    Chord tones only and nothing above A5, so it's bright without being shrill."""
+    shapes = [
+        [(7, 0.0, True), (8, 0.06, True)],                   # eep
+        [(5, 0.0, True), (8, 0.07, True)],                   # eep-eep
+        [(7, 0.0, True), (8, 0.13, False), (7, 0.17, False), (5, 0.21, False)],   # eep, and everything falls out
+        [(7, 0.0, True), (5, 0.08, False)],                  # hmph
+    ]
+    for i, shape in enumerate(shapes):
+        rng = rng_for('pixie', i)
+        tr = Track(0.5)
+        tr.add(blip(deg(5), deg(8), 0.07, vib=0.02, tone=0.2), 0.0, pan=0.1, gain=0.10)
+        tr.add(soft(deg(5), 0.18, rng, cutoff=1800), 0.0, gain=0.22)
+        for k, (step, at, rising) in enumerate(shape):
+            tr.add(plop(deg(step), deg(step) * 0.6, 0.10, tau=0.022, rising=rising), at,
+                   pan=[-0.3, 0.35, -0.15, 0.25][k], gain=0.85 if rising else 0.6)
+        write('pixie', i, finish(reverb(tr.stereo(), 0.22, 0.12), 0.16))
 
 
 @family('whisper')

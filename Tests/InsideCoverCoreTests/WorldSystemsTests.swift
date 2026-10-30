@@ -5147,6 +5147,21 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             AnchorMiniStory.landing(from: metadata, tags: ["anchor", "choice:progressarc"]),
             "The Fae reveals the next guarded piece."
         )
+        XCTAssertNil(AnchorMiniStory.landing(from: metadata, tags: ["anchor"]))
+        XCTAssertEqual(
+            AnchorMiniStory.landing(from: metadata.merging([
+                "storyResultLeaf": "true",
+                "storyResultText": "You ask about the locked map.\n\nThe Fae hands over its brass key."
+            ]) { _, new in new }, tags: ["anchor", "choice:progressarc"]),
+            "The Fae hands over its brass key."
+        )
+        XCTAssertEqual(
+            AnchorMiniStory.landing(
+                from: ["storyResultText": "The Fae hands over the missing key."],
+                tags: ["anchor", "choice:progressarc"]
+            ),
+            "The Fae hands over the missing key."
+        )
     }
 
     func testAnchorVisitSurfaceCarriesStoryPageChoices() {
@@ -5189,6 +5204,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertEqual(surface.payload.metadata["storyChoiceSurpriseTitle"], "Test the Threshold")
         XCTAssertEqual(surface.payload.metadata["storyChoiceSliceOfLifeMechanic"], "none")
         XCTAssertEqual(surface.payload.metadata["beliefReward"], "2")
+        XCTAssertEqual(surface.payload.metadata["anchorPlayerWords"], anchor.playerWords)
+        XCTAssertEqual(surface.payload.metadata["anchorMiniStory"], anchor.miniStory)
         XCTAssertFalse(surface.payload.metadata["storyTurnStatement"]?.isEmpty ?? true)
         XCTAssertFalse(surface.payload.metadata["storyTurnLandingSliceOfLife"]?.isEmpty ?? true)
         XCTAssertFalse(surface.payload.metadata["storyTurnLandingProgressArc"]?.isEmpty ?? true)
@@ -5660,61 +5677,6 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
 
         XCTAssertTrue(digest.signals.contains { $0.kind == .pattern && $0.subjectID == "harbor" })
         XCTAssertTrue(digest.signals.contains { $0.kind == .absence && $0.subjectID == "harbor" })
-    }
-
-    func testBookNoticesPageSurfacesContinuitySignals() {
-        let calendar = utcCalendar
-        let now = date(2026, 6, 12, hour: 12, calendar: calendar)
-        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now, calendar: calendar)
-        inputs.continuity = LiteraryContinuityDigest(
-            signals: [
-                LiteraryContinuitySignal(
-                    id: "pattern-water",
-                    kind: .pattern,
-                    subjectID: "water",
-                    subjectName: "Water",
-                    line: "Water has gathered across four kept pages.",
-                    evidencePageIDs: ["a", "b", "c"],
-                    relatedEntityIDs: [],
-                    tags: ["water", "pattern"],
-                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
-                    lastSeenAt: now,
-                    strength: 78
-                ),
-                LiteraryContinuitySignal(
-                    id: "duration-book",
-                    kind: .duration,
-                    subjectID: "book",
-                    subjectName: "my oldest Page",
-                    line: "My oldest kept Page has lived in me for 42 days.",
-                    evidencePageIDs: ["a"],
-                    relatedEntityIDs: [],
-                    tags: ["duration"],
-                    firstSeenAt: date(2026, 5, 1, hour: 9, calendar: calendar),
-                    lastSeenAt: now,
-                    strength: 70
-                )
-            ],
-            beliefLifecycles: []
-        )
-
-        let day = BookDay(id: "today", date: date(2026, 6, 12, hour: 0, calendar: calendar), pages: [])
-        let surfaces = BookNoticesPageSourceAdapter().candidates(
-            for: day,
-            context: CuratorContext.make(for: day),
-            inputs: inputs,
-            now: now
-        )
-
-        XCTAssertEqual(surfaces.first?.type, .bookNotices)
-        // The body names the subject once; the observation line itself lives in
-        // the "What I found" card, not restated a second time in prose.
-        XCTAssertTrue(surfaces.first?.payload.body.contains("Water") == true)
-        XCTAssertFalse(surfaces.first?.payload.body.contains("Water has gathered") == true)
-        XCTAssertTrue(surfaces.first?.payload.metadata["tinyPatternCards"]?.contains("Water has gathered") == true)
-        XCTAssertTrue(surfaces.first?.payload.metadata["continuitySignals"]?.contains("oldest kept Page") == true)
-        XCTAssertFalse(surfaces.first?.payload.body.contains("The Book") == true)
-        XCTAssertEqual(surfaces.first?.payload.metadata["source"], "the-book-notices")
     }
 
     func testBookJumpShelfUsesPublicDomainProfiles() {

@@ -17,6 +17,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+if [[ -f "$ROOT/docs/unwritten-deck-art-manifest.json" ]]; then
+    echo "The Unwritten Deck is installed. This historical importer would replace its artwork." >&2
+    echo "Use the preserved RWS references for research; do not run this importer against the current deck." >&2
+    exit 1
+fi
+
 if [[ ! -s "$ARCHIVE" ]]; then
     DOWNLOADED_ARCHIVE=true
     curl -L --fail --retry 4 --retry-all-errors \

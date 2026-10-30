@@ -10,6 +10,8 @@
 		A1C024000000000000000001 /* WonderCompassReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000101 /* WonderCompassReadingView.swift */; };
 		A1C024000000000000000002 /* WonderCompassImages in Resources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000102 /* WonderCompassImages */; };
 		B1FFA0000000000000000001 /* PippaScraps.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000101 /* PippaScraps.swift */; };
+		0200000000000000000009C5 /* WritingSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009C6 /* WritingSessions.swift */; };
+		0200000000000000000009CB /* KeepMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009CC /* KeepMoment.swift */; };
 		B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000102 /* PippaWordFinds.swift */; };
 		0A1012000000000000000002 /* BookPigment.metal in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000102 /* BookPigment.metal */; };
 		0A1012000000000000000001 /* BookPigmentInk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A1012000000000000000101 /* BookPigmentInk.swift */; };
@@ -117,6 +119,10 @@
 		020000000000000000000316 /* GrimoireVoice.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000317 /* GrimoireVoice.swift */; };
 		020000000000000000000318 /* LoomProjectors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000319 /* LoomProjectors.swift */; };
 		02000000000000000000031A /* GrimoireSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031B /* GrimoireSurfacing.swift */; };
+		0200000000000000000009C1 /* NoticingCrossings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009C2 /* NoticingCrossings.swift */; };
+		0200000000000000000009C3 /* WritingDesk.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009C4 /* WritingDesk.swift */; };
+		0200000000000000000009C7 /* ThinkingJobs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009C8 /* ThinkingJobs.swift */; };
+		0200000000000000000009C9 /* KeepContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009CA /* KeepContext.swift */; };
 		02000000000000000000031C /* Atlas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031D /* Atlas.swift */; };
 		02000000000000000000031E /* Bestiary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000031F /* Bestiary.swift */; };
 		0200000000000000000003A2 /* KitchenRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000003A3 /* KitchenRecipes.swift */; };
@@ -214,6 +220,8 @@
 		A1C024000000000000000101 /* WonderCompassReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderCompassReadingView.swift; sourceTree = "<group>"; };
 		A1C024000000000000000102 /* WonderCompassImages */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WonderCompassImages; sourceTree = "<group>"; };
 		B1FFA0000000000000000101 /* PippaScraps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaScraps.swift; sourceTree = "<group>"; };
+		0200000000000000000009C6 /* WritingSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingSessions.swift; sourceTree = "<group>"; };
+		0200000000000000000009CC /* KeepMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepMoment.swift; sourceTree = "<group>"; };
 		B1FFA0000000000000000102 /* PippaWordFinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaWordFinds.swift; sourceTree = "<group>"; };
 		0A1012000000000000000102 /* BookPigment.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = BookPigment.metal; sourceTree = "<group>"; };
 		0A1012000000000000000101 /* BookPigmentInk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookPigmentInk.swift; sourceTree = "<group>"; };
@@ -324,6 +332,10 @@
 		020000000000000000000317 /* GrimoireVoice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireVoice.swift; sourceTree = "<group>"; };
 		020000000000000000000319 /* LoomProjectors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoomProjectors.swift; sourceTree = "<group>"; };
 		02000000000000000000031B /* GrimoireSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireSurfacing.swift; sourceTree = "<group>"; };
+		0200000000000000000009C2 /* NoticingCrossings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoticingCrossings.swift; sourceTree = "<group>"; };
+		0200000000000000000009C4 /* WritingDesk.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingDesk.swift; sourceTree = "<group>"; };
+		0200000000000000000009C8 /* ThinkingJobs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThinkingJobs.swift; sourceTree = "<group>"; };
+		0200000000000000000009CA /* KeepContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepContext.swift; sourceTree = "<group>"; };
 		02000000000000000000031D /* Atlas.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Atlas.swift; sourceTree = "<group>"; };
 		02000000000000000000031F /* Bestiary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Bestiary.swift; sourceTree = "<group>"; };
 		0200000000000000000003A3 /* KitchenRecipes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KitchenRecipes.swift; sourceTree = "<group>"; };
@@ -443,6 +455,8 @@
 				01000000000000000000011E /* AcademyMapView.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				B1FFA0000000000000000101 /* PippaScraps.swift */,
+				0200000000000000000009C6 /* WritingSessions.swift */,
+				0200000000000000000009CC /* KeepMoment.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
 				0E0000000000000000000101 /* EditionProofHarness.swift */,
 				0F0000000000000000000101 /* BraidProofHarness.swift */,
@@ -535,6 +549,10 @@
 				0200000000000000000001FA /* PublicationPeriod.swift */,
 				020000000000000000000301 /* ReaderAtlas.swift */,
 				02000000000000000000031B /* GrimoireSurfacing.swift */,
+				0200000000000000000009C2 /* NoticingCrossings.swift */,
+				0200000000000000000009C4 /* WritingDesk.swift */,
+				0200000000000000000009C8 /* ThinkingJobs.swift */,
+				0200000000000000000009CA /* KeepContext.swift */,
 				02000000000000000000031D /* Atlas.swift */,
 				02000000000000000000031F /* Bestiary.swift */,
 				0200000000000000000003A3 /* KitchenRecipes.swift */,
@@ -803,6 +821,8 @@
 				010000000000000000000026 /* AcademyMapView.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				B1FFA0000000000000000001 /* PippaScraps.swift in Sources */,
+				0200000000000000000009C5 /* WritingSessions.swift in Sources */,
+				0200000000000000000009CB /* KeepMoment.swift in Sources */,
 				B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */,
 				060000000000000000000001 /* PagesRisingFolio.swift in Sources */,
 				0E0000000000000000000001 /* EditionProofHarness.swift in Sources */,
@@ -883,6 +903,10 @@
 				0200000000000000000002FA /* PublicationPeriod.swift in Sources */,
 				020000000000000000000300 /* ReaderAtlas.swift in Sources */,
 				02000000000000000000031A /* GrimoireSurfacing.swift in Sources */,
+				0200000000000000000009C1 /* NoticingCrossings.swift in Sources */,
+				0200000000000000000009C3 /* WritingDesk.swift in Sources */,
+				0200000000000000000009C7 /* ThinkingJobs.swift in Sources */,
+				0200000000000000000009C9 /* KeepContext.swift in Sources */,
 				02000000000000000000031C /* Atlas.swift in Sources */,
 				02000000000000000000031E /* Bestiary.swift in Sources */,
 				0200000000000000000003A2 /* KitchenRecipes.swift in Sources */,

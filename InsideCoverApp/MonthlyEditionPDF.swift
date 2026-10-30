@@ -8011,6 +8011,11 @@ enum WeeklyIssuePDFWriter {
             cursor.y += 22
             label("Next week", cursor: &cursor)
             body(card.nextIssueTease.nonEmpty ?? "Issue No. \(issue.number + 1) is already gathering.", cursor: &cursor, limit: 360, size: 11.5)
+            Monthly.drawWeeklyTarotInset(
+                issue.tarotCard, style: style,
+                in: CGRect(x: cursor.left, y: cursor.y + 12, width: cursor.contentWidth,
+                           height: max(0, cursor.bottom - cursor.y - 12))
+            )
             finishLeaf(kind: .closing, cursor: cursor, gutterSide: side)
 
             (cursor, side) = beginLeaf(section: "Colophon", kind: .colophon)

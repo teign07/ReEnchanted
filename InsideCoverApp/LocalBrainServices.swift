@@ -1276,7 +1276,7 @@ struct MLXBookBraider: Braider {
 
         return BookPage(
             type: .bookOfYou,
-            promptText: "The local Book brain braided today.",
+            promptText: "I braided today.",
             userInput: tellingText,
             tags: finalTags,
             usedInBookOfYou: true
@@ -1970,6 +1970,7 @@ struct MLXSerenityTarotReadingWriter {
             Keywords: \(card.keywords.joined(separator: ", "))
             Light: \(card.lightMeaning)
             Worn edge: \(card.shadowMeaning)
+            \(TarotDeck.illustrationContext(for: card.id) ?? "")
             Local margin note: \(reading.revealProse?[drawn.id] ?? TarotLocalInterpreter.reveal(for: drawn, in: reading))
             """
         }.joined(separator: "\n\n")
@@ -2013,7 +2014,7 @@ struct MLXSerenityTarotReadingWriter {
         THE PICTURE TOGETHER
         THE HOPEFUL EDGE
         THE THORN IN IT
-        A DOOR YOU COULD TRY
+        SOMETHING YOU COULD TRY
 
         End with one unheaded sentence that returns authority to the reader.
         When archive Pages were supplied, mention no more than two by their visible titles and only when the connection is supported by their excerpt. Never imply you searched anything beyond the receipt.
@@ -2469,9 +2470,12 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
             repair = ""
         }
         let prompt = StoryPageResultPromptBuilder.prompt(for: context) + repair
-        let sourceID = context.draft.surface.type == .bookFae
-            ? "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
-            : "story-page-result"
+        let sourceID: String
+        switch context.draft.surface.type {
+        case .anchor: sourceID = "anchor-story-page-result"
+        case .bookFae: sourceID = "fae-parley-\(context.draft.surface.payload.metadata["faeKind"] ?? "bookSprite")-result"
+        default: sourceID = "story-page-result"
+        }
         func generate(correction: String? = nil, priorDraft: String? = nil) async throws -> String {
             let response = try await MLXBraidTaskRunner.run(
                 prompt: prompt + (correction.map { notes in
@@ -2482,7 +2486,7 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
                     block += "\n\nWHAT IS WRONG WITH IT:\n\(notes)\n\nRewrite it, keeping every sentence that already worked. Return the full result prose."
                     return block
                 } ?? ""),
-                instructions: StoryPageResultPromptBuilder.instructions,
+                instructions: StoryPageResultPromptBuilder.instructions(for: context),
                 // The consequence is now a real 170-260 word story beat. Give
                 // it enough room to show both the chosen gift and its cost,
                 // then land the committed world fact without being clipped.
@@ -2492,7 +2496,11 @@ struct MLXStoryPageResultWriter: StoryPageResultWriting {
                 temperature: 0.8,
                 topP: 0.92
             )
-            return StoryPageResultPromptBuilder.clean(response)
+            let cleaned = StoryPageResultPromptBuilder.clean(response)
+            if context.draft.surface.type == .anchor, cleaned.isEmpty {
+                throw StoryPageResultError.unfinishedConsequence
+            }
+            return cleaned
         }
 
         func evaluate(_ prose: String, label: String) async -> (fidelity: CharacterFidelityAudit, dramatic: StoryDramaticValidation) {
@@ -2924,9 +2932,9 @@ struct FakeCharacterLetterWriter: CharacterLetterWriting {
 
         I went looking for \(interest), especially where it brushes against \(home). \(researchLine)
 
-        What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
+        What interested me was not the grand theory, but the way a subject changes when it has to come into a real place. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
 
-        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its handles.
+        Keep this near the day, not above it. \(interest) can live in your ordinary place too.
 
         Yours from the margins,
         \(sender)
@@ -5796,6 +5804,17 @@ private extension JSONEncoder {
 
 struct StudentNoteWriter {
     func write(surface: SurfacePage) async -> String {
+        await compose(surface: surface, strict: false) ?? fallback(surface: surface)
+    }
+
+    /// The note only if the model really wrote it and it's really about the
+    /// required subject: nil instead of the canned fallback. Held writing is
+    /// revealed later as the sender's own, so it must never be a stand-in.
+    func writeHeld(surface: SurfacePage) async -> String? {
+        await compose(surface: surface, strict: true)
+    }
+
+    private func compose(surface: SurfacePage, strict: Bool) async -> String? {
         let prompt = prompt(for: surface)
         let instructions = """
         You are writing a quick in-world student note for ReEnchanted.
@@ -5815,7 +5834,8 @@ struct StudentNoteWriter {
             sourceID: "student-notes",
             tags: ["note", "student-note", "character-note"]
         ) {
-            let first = sanitize(response, fallback: fallback(surface: surface))
+            let first = sanitize(response, fallback: "")
+            guard !first.isEmpty else { return nil }
             let canon = surface.payload.metadata[CharacterCanonPacket.metadataKey] ?? ""
             let sender = surface.payload.metadata["senderName"] ?? "the sender"
             let firstUsesSubject = usesRequiredSubject(first, surface: surface)
@@ -5864,7 +5884,7 @@ struct StudentNoteWriter {
                     return second
                 }
                 if !firstUsesSubject {
-                    return fallback(surface: surface)
+                    return nil
                 }
             } else {
                 await CharacterFidelityReviewer.recordDecision(
@@ -5876,9 +5896,11 @@ struct StudentNoteWriter {
                     selected: .first
                 )
             }
+            // Off-subject is acceptable for a daily note; not for held writing.
+            if strict && !usesRequiredSubject(first, surface: surface) { return nil }
             return first
         }
-        return fallback(surface: surface)
+        return nil
     }
 
     private func prompt(for surface: SurfacePage) -> String {
@@ -6094,9 +6116,9 @@ struct CharacterLetterWriter {
 
         \(passageParagraph)
 
-        What interested me was not the grand theory, but the way a subject changes when it has to pass through a real doorway. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
+        What interested me was not the grand theory, but the way a subject changes when it has to come into a real place. A fact becomes different when it has weather on it, errands near it, and one person deciding whether to notice.
 
-        Keep this near the day, not above it. If \(interest) is a door, then your ordinary place is one of its handles.
+        Keep this near the day, not above it. \(interest) can live in your ordinary place too.
 
         Yours from the margins,
         \(sender)
@@ -6112,33 +6134,21 @@ struct PlayfulMissionWriter {
             instructions: """
             You are The Wonder Compass inside ReEnchanted. Generate one tiny Playful Mission for South = Sense. \(BookVoice.animismLine) Return compact strict JSON only.
             """,
-            maxTokens: 240,
+            maxTokens: 400,
             sourceID: "wonder-compass-playful-mission",
             tags: ["wonder-compass", "playful-mission", "custom"]
         ), let raw = JSONSalvage.dictionary(from: response) else {
             return fallback
         }
 
-        let title = compactLine(JSONSalvage.string("title", in: raw), limit: 44)?.trimmingCharacters(in: CharacterSet(charactersIn: ".!? ")) ?? fallback.title
-        let prompt = compactLine(JSONSalvage.string("prompt", in: raw), limit: 180) ?? fallback.prompt
-        let proofPrompt = compactLine(JSONSalvage.string("proofPrompt", in: raw), limit: 120) ?? fallback.proofPrompt
-        let tags = JSONSalvage.string("tags", in: raw)?
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .filter { !$0.isEmpty }
-            ?? fallback.tags
-        let allowsPhoto = JSONSalvage.string("allowsPhoto", in: raw).map { value in
-            !["false", "no", "sentence"].contains(value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
-        } ?? fallback.allowsPhoto
-
-        return PlayfulMission(
-            id: "custom-\(abs("\(title)-\(prompt)".stableHash))",
-            title: title,
-            prompt: prompt,
-            proofPrompt: proofPrompt,
-            tags: Array(Set(tags + ["custom"])).sorted(),
-            allowsPhoto: allowsPhoto
-        )
+        return PlayfulMissionAuthoring.mission(
+            title: JSONSalvage.string("title", in: raw),
+            prompt: JSONSalvage.string("prompt", in: raw),
+            proofPrompt: JSONSalvage.string("proofPrompt", in: raw),
+            tags: JSONSalvage.string("tags", in: raw),
+            allowsPhoto: JSONSalvage.string("allowsPhoto", in: raw),
+            practice: JSONSalvage.string("practice", in: raw)
+        ) ?? fallback
     }
 
     private func prompt(for surface: SurfacePage) -> String {
@@ -6155,59 +6165,19 @@ struct PlayfulMissionWriter {
         \(surface.payload.metadata["readerLexiconPromptSection"]?.nonEmpty ?? "")
 
         Authoring grammar:
-        - Aim at the world or the body, never at self-analysis. Use find, track, press, count, follow, taste, listen, touch, compare, or report.
-        - The answer must be concrete: a noun, a number, a sound, a temperature, a location, or a verdict.
-        - Completable in under three minutes.
-        - Include a pinch of premise: objects wait, rooms have moods, buildings have days, light performs, bodies report.
-        - End with a small surprise, reversal, verdict, or smile.
-        - Do not ask for planning, journaling, therapy, productivity, or belief.
-        - Do not claim the player completed anything.
+        \(PlayfulMissionAuthoring.grammar)
+        Write a new first encounter. The current Page supplies a subject, not proof of an earlier action. Do not write a return visit.
+        Use two or three short sentences, at most 45 words and 320 characters. Keep the title under 60 characters and the return prompt under 180. Finish every sentence.
 
         Return JSON exactly:
-        {"title":"2-5 word title","prompt":"one mission sentence or two short sentences","proofPrompt":"one concrete capture prompt","tags":"comma,separated,tags","allowsPhoto":"true or false"}
+        {"title":"2-5 word title","prompt":"a complete standalone instruction","proofPrompt":"one concrete capture prompt","tags":"comma,separated,tags","allowsPhoto":"true or false","practice":"courtesy, exchange, local-rule, other-will, mystery, or none"}
         """
-    }
-
-    private func compactLine(_ text: String?, limit: Int) -> String? {
-        let cleaned = text?
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-            .trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
-        guard let cleaned, !cleaned.isEmpty else { return nil }
-        guard cleaned.count > limit else { return cleaned }
-        let end = cleaned.index(cleaned.startIndex, offsetBy: limit)
-        return String(cleaned[..<end]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
     private func fallbackMission(from surface: SurfacePage) -> PlayfulMission {
         let seed = abs("\(surface.id)-custom-playful-mission".stableHash)
-        let templates: [PlayfulMission] = [
-            PlayfulMission(
-                id: "custom-fallback-room-voice-\(seed)",
-                title: "Room Voice",
-                prompt: "Find the smallest sound in the room and decide what job it has been doing without thanks.",
-                proofPrompt: "Write the sound and its job.",
-                tags: ["custom", "sound", "inside", "low-energy"],
-                allowsPhoto: false
-            ),
-            PlayfulMission(
-                id: "custom-fallback-light-verdict-\(seed)",
-                title: "Light Verdict",
-                prompt: "Find one patch of light and decide whether it is arriving, leaving, hiding, or showing off.",
-                proofPrompt: "Write the light's verdict.",
-                tags: ["custom", "light", "visual", "inside"],
-                allowsPhoto: true
-            ),
-            PlayfulMission(
-                id: "custom-fallback-object-job-\(seed)",
-                title: "Exact Job",
-                prompt: "Pick one object within reach and name the exact job it is doing for the world right now.",
-                proofPrompt: "Write the object and its exact job.",
-                tags: ["custom", "object", "touch", "inside"],
-                allowsPhoto: true
-            )
-        ]
+        let currentID = surface.payload.metadata["playfulMissionID"]
+        let templates = PlayfulMissionRegistry.everydayFaerieMissions.filter { $0.id != currentID }
         return templates[seed % templates.count]
     }
 }

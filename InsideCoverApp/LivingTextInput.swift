@@ -33,7 +33,15 @@ extension EnvironmentValues {
 
 enum BookInkTiming {
     static let absorptionDuration = 1.65
-    static let arrivalDuration = 1.0
+    /// Long enough for each sentence's puddle to run the length of its line
+    /// and dry; the old stain-and-gather needed only a second.
+    static let arrivalDuration = 1.35 * debugSlowdown
+    #if DEBUG
+    /// `--pigment-slow` stretches the leaf clock for frame-by-frame review.
+    private static let debugSlowdown = ProcessInfo.processInfo.arguments.contains("--pigment-slow") ? 8.0 : 1.0
+    #else
+    private static let debugSlowdown = 1.0
+    #endif
     // Preserve the stagger and wet/dry proportions as the leaf clock shortens.
     static let regionalDelaySpan = arrivalDuration * 0.40
     static let regionalPhaseDuration = arrivalDuration * 0.56
@@ -82,9 +90,18 @@ enum BookInkTiming {
     }
 }
 
+/// How arriving ink finds its marks. Writing runs as a dark bead along the
+/// line in reading order; a picture seeps out from one wet point in its own
+/// colours, which separate a little at the wet edge.
+enum BookInkStyle {
+    case writing
+    case picture
+}
+
 extension View {
-    func bookInkEmergence(seed: String, sentenceClock: UIImage? = nil, isEnabled: Bool = true) -> some View {
-        modifier(BookInkEmergence(seed: seed, sentenceClock: sentenceClock, isEligible: isEnabled))
+    func bookInkEmergence(seed: String, style: BookInkStyle = .writing, sentenceClock: UIImage? = nil,
+                          isEnabled: Bool = true) -> some View {
+        modifier(BookInkEmergence(seed: seed, style: style, sentenceClock: sentenceClock, isEligible: isEnabled))
     }
 
     func bookInkAbsorption(isActive: Bool, seed: String, startedAt: Date? = nil) -> some View {
@@ -94,6 +111,7 @@ extension View {
 
 private struct BookInkEmergence: ViewModifier {
     let seed: String
+    let style: BookInkStyle
     let sentenceClock: UIImage?
     let isEligible: Bool
     @Environment(\.bookLeafInkArrival) private var arrival
@@ -108,6 +126,7 @@ private struct BookInkEmergence: ViewModifier {
                 progress: !isEligible || !enabled || reduceMotion || voiceOver ? 1 : progress,
                 seed: BookInkTiming.arrivalSeed(seed, arrival: arrival),
                 isSinking: false,
+                style: style,
                 sentenceClock: sentenceClock
             ))
             .task(id: arrival) {

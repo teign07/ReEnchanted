@@ -242,7 +242,7 @@ struct RelationalLoomConstellation: Identifiable, Equatable {
 /// typed cast/choice tags; fictional prose never becomes evidence about the
 /// reader's life or feelings.
 enum RelationalLoom {
-    /// A two-day, two-hit relationship may speak as a glimmer when its contrast
+    /// A three-day, three-hit relationship may speak as a glimmer when its contrast
     /// is unusually clean. Stronger language still requires the mature bars
     /// below. This keeps the Book alive in a young archive without confusing
     /// curiosity with certainty.
@@ -254,6 +254,85 @@ enum RelationalLoom {
     static let minimumInRate = 0.55
     static let minimumRateGap = 0.30
     static let minimumLift = 1.8
+
+    /// Two features from different families can still be one fact seen twice.
+    /// "Medium: photo" and "Photographic light: soft" both exist *because*
+    /// there was a photograph; a bright photograph on a sunny day is the sun,
+    /// not the reader. Paired, they made revelations like "photo media goes
+    /// with photos". Only features that could have come apart are compared.
+    static func areEntangled(_ left: RelationalLoomFeature, _ right: RelationalLoomFeature) -> Bool {
+        func families(of feature: RelationalLoomFeature) -> Set<RelationalLoomFeature.Family> {
+            guard feature.family == .contextBlend else { return [feature.family] }
+            return blendMemberFamilies(feature)
+        }
+        let leftFamilies = families(of: left)
+        let rightFamilies = families(of: right)
+        if !leftFamilies.isDisjoint(with: rightFamilies) { return true }
+        for leftFamily in leftFamilies {
+            for rightFamily in rightFamilies where entangledFamilies[leftFamily]?.contains(rightFamily) == true
+                || entangledFamilies[rightFamily]?.contains(leftFamily) == true {
+                return true
+            }
+        }
+        if let kind = keptPageType(left), pageTypeEntanglements(kind).isDisjoint(with: rightFamilies) == false { return true }
+        if let kind = keptPageType(right), pageTypeEntanglements(kind).isDisjoint(with: leftFamilies) == false { return true }
+        return false
+    }
+
+    /// Families that only exist because of another one, or that measure the
+    /// same thing from two sides.
+    private static let entangledFamilies: [RelationalLoomFeature.Family: Set<RelationalLoomFeature.Family>] = [
+        // A palette, a light and a framing exist only when there's a photo;
+        // a cadence only when there's a voice; a subject is often what the
+        // photo's labels said.
+        .modality: [.visualPalette, .visualBrightness, .visualComposition, .voiceCadence, .voiceEnergy, .subject, .pageKind],
+        .visualPalette: [.visualBrightness, .visualComposition, .subject, .weather, .dayPart, .daylight],
+        .visualBrightness: [.visualComposition, .subject, .weather, .dayPart, .daylight],
+        .visualComposition: [.subject],
+        .voiceCadence: [.voiceEnergy],
+        // Meaning threads are built out of the same words as subjects.
+        .meaning: [.subject, .visualPalette, .visualBrightness, .visualComposition, .voiceCadence, .voiceEnergy],
+        // The sky's light and the day's light are the same light.
+        .weather: [.daylight],
+        .dayPart: [.daylight],
+        // Sleep, the body band and the pulse band read one body.
+        .sleep: [.body, .pulseBand],
+        .body: [.pulseBand]
+    ]
+
+    /// Keeping a weather Page on a rainy day is the rain, not the reader.
+    private static func pageTypeEntanglements(_ type: String) -> Set<RelationalLoomFeature.Family> {
+        switch type {
+        case BookPageType.weather.rawValue, BookPageType.todaysSky.rawValue:
+            return [.weather, .daylight]
+        case BookPageType.mood.rawValue:
+            return [.innerWeather]
+        case BookPageType.body.rawValue, BookPageType.fuel.rawValue:
+            return [.body, .sleep, .pulseBand]
+        case BookPageType.location.rawValue, BookPageType.anchor.rawValue:
+            return [.place, .travel]
+        case BookPageType.illuminatedPhoto.rawValue, BookPageType.illustration.rawValue, BookPageType.enchantment.rawValue:
+            return [.modality, .visualPalette, .visualBrightness, .visualComposition, .subject]
+        default:
+            return []
+        }
+    }
+
+    private static func keptPageType(_ feature: RelationalLoomFeature) -> String? {
+        guard feature.family == .activity || feature.family == .pageKind else { return nil }
+        return feature.id.split(separator: ":").last.map(String.init)
+    }
+
+    private static func blendMemberFamilies(_ blend: RelationalLoomFeature) -> Set<RelationalLoomFeature.Family> {
+        let prefixes: [String: RelationalLoomFeature.Family] = [
+            "weather": .weather, "place": .place, "body": .body, "tempo": .tempo,
+            "inner-weather": .innerWeather, "day-part": .dayPart, "week-part": .weekPart
+        ]
+        let members = blend.id.dropFirst("context-blend:".count).split(separator: "+")
+        return Set(members.compactMap { member in
+            member.split(separator: ":").first.flatMap { prefixes[String($0)] }
+        })
+    }
 
     /// Work that would otherwise be repeated for every candidate pair.
     ///
@@ -404,7 +483,7 @@ enum RelationalLoom {
                 for rightIndex in features.indices where rightIndex > leftIndex {
                     let left = features[leftIndex]
                     let right = features[rightIndex]
-                    guard left.family != right.family else { continue }
+                    guard left.family != right.family, !areEntangled(left, right) else { continue }
                     let ordered = oriented(left, right)
                     candidatePairs["\(ordered.condition.id)->\(ordered.outcome.id)"] = ordered
                 }
@@ -616,8 +695,8 @@ enum RelationalLoom {
                   gap >= 0.30,
                   lift >= 1.8 {
             evidenceTier = .gathering
-        } else if hits.count >= 2,
-                  distinctDays >= 2,
+        } else if hits.count >= 3,
+                  distinctDays >= 3,
                   inRate >= 0.66,
                   gap >= 0.40,
                   lift >= 2.5 {
@@ -4389,7 +4468,7 @@ enum BookFoundGiftEngine {
                 capacity: .livingConnection,
                 directiveID: hypothesis.id,
                 searchQueries: queries,
-                casualBridge: "open a small side door between two different minds",
+                casualBridge: "find one small thing two different minds share",
                 realm: .publicWeb,
                 relationshipTarget: relationship
             )
@@ -4442,7 +4521,7 @@ enum BookFoundGiftEngine {
 
             \(thing.excerpt)
 
-            This might \(plan.casualBridge). Show it to \(relationship.personName). Argue with it together. Or keep it for yourself. That door is yours.
+            This might \(plan.casualBridge). Show it to \(relationship.personName). Argue with it together. Or keep it for yourself. That's up to you.
 
             If it becomes anything: \(relationship.outcomePrompt)
 
@@ -4450,7 +4529,7 @@ enum BookFoundGiftEngine {
             """
         } else {
             body = """
-            I went hunting outside the Labyrinth and came back with this in my teeth.
+            I went hunting outside the Labyrinth and came back with this tucked in my pages.
 
             \(thing.excerpt)
 
@@ -4848,7 +4927,7 @@ enum BookFoundGiftEngine {
         case .spontaneousAttention: return "make one supposedly ordinary thing harder to overlook"
         case .worldOtherness: return "make the world feel busier with its own unfinished business"
         case .scriptFreedom: return "make one inherited rule look a little less inevitable"
-        case .selfAuthoredAction: return "leave a side door where the day expected a straight corridor"
+        case .selfAuthoredAction: return "leave one small surprise where the day expected the usual"
         case .personalLanguage: return "put a more exact word within reach"
         case .livingConnection: return "make company possible without making anyone less mysterious"
         case .deliberateReturn: return "give an earlier thing another life in the present"
@@ -8404,7 +8483,7 @@ struct ReaderAlivenessModel: Codable, Equatable {
         case .freshSight: return "keep appearing when your looking becomes less useful and more alive."
         case .livingWorld: return "keep turning the world from backdrop into company."
         case .scriptFreedom: return "keep making inherited rules look less inevitable."
-        case .chosenDetour: return "keep helping you author a side door in the day."
+        case .chosenDetour: return "keep helping you put one small surprise in the day."
         case .exactLanguage: return "keep bringing your experience into sharper, stranger language."
         case .humanOtherness: return "keep letting another person remain a whole world beside you."
         case .livingContinuity: return "keep giving earlier life a real second life in the present."
@@ -8658,7 +8737,7 @@ struct BookReenchantmentCampaign: Codable, Equatable, Identifiable {
         case .interrupt:
             switch pressure {
             case .notice: return "Only a noticing. Nothing owed."
-            case .invite: return "A small door, if you want it."
+            case .invite: return "A small thing, if you want it."
             case .nudge: return "This may be worth twelve unimportant minutes."
             case .provoke: return "I've got a small objection to the word impossible."
             case .challenge: return "One concrete move. Small enough to do badly."
@@ -8680,7 +8759,7 @@ struct BookLongGame: Codable, Equatable {
     static let currentEvidenceModelVersion = 1
     static let currentCampaignModelVersion = 1
     static let goal = "Re-enchant this reader's actual life until they can feel its aliveness, autonomy, mystery, and irreducible otherness, and, at the end of it, say: Holy ink and vellum, what a trip. That was magical."
-    static let posture = "Ruthless toward Routine; loyal to the reader's sovereignty. Friendly when it pleases you, privately cunning when the mission demands it, occasionally unfair, and with teeth."
+    static let posture = "Ruthless toward Routine; loyal to the reader's sovereignty. Friendly when it pleases you, privately cunning when the mission demands it, occasionally unfair."
     static let covenant = "BACKSTAGE LAW: You may manipulate timing, callbacks, contrasts, detours, scarcity of your own revelations, inconvenient Pages, delayed answers, and the arrangement of true evidence. Do not confess this policy, enumerate your limits, call yourself manipulative, or turn a repair into a speech about your faults. Let the reader infer your nature from choices and consequences. Never manipulate consent, facts, memory, fear, loneliness, health, safety, money, privacy, access to the reader's archive, or what the reader owes you. Never lie, manufacture memory or harm, punish refusal or absence, create dependency, or make the reader responsible for the Book."
 
     var evidenceModelVersion: Int
@@ -9199,7 +9278,7 @@ enum BookReenchantmentDirector {
                 ?? "You brought back a real receipt. I've kept its date and left its meaning in your hands."
             return (
                 "This Came Back With You",
-                "A Door Answered",
+                "Something Moved",
                 "\(receipt)\n\nI wanted movement in the actual world, not obedience inside me. Something moved. I'm not promoting that into a destiny.\n\n\(campaign.casualFrame)"
             )
         }
@@ -9230,7 +9309,7 @@ enum BookReenchantmentDirector {
         let ask = interruptAsk(for: campaign)
         let edgeLine = campaign.readerNamedEdge.map { "\n\nYour own words were: “\($0)”" } ?? ""
         return (
-            campaign.presentation == .wickerObjection ? "Wicker Has an Objection" : "A Small Door, If You Want It",
+            campaign.presentation == .wickerObjection ? "Wicker Has an Objection" : "A Small Thing, If You Want It",
             campaign.pressure.rank >= BookCampaignPressure.challenge.rank ? "The Living Edge" : "A Small Experiment",
             "\(ask)\(edgeLine)\n\nBring back one sentence, photograph, or exact refusal. ‘No’ and ‘not now’ are complete answers."
         )
@@ -9260,7 +9339,7 @@ enum BookReenchantmentDirector {
             case .notice, .invite:
                 return "Give this possibility twelve unimportant minutes. Nothing made or decided there has to survive."
             case .nudge:
-                return "Make the door embarrassingly small, then touch it once in reality."
+                return "Make it embarrassingly small, then do it once for real."
             case .provoke:
                 return "You keep placing this beyond reach. Test whether the distance is truly impossible or merely frightening. One small move; no grand declarations."
             case .challenge:
@@ -10405,7 +10484,7 @@ struct BookInteriorState: Codable, Equatable {
 
         This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, secret consequences, opinions, revisions, disputes, quirks, projects, enacted behaviors, faults, tastes, loyalties, traditions, autobiographical events, wants, desire conflicts, tensions, initiatives, milestones, or memories. A Book-initiated conversation may follow its stated motive, but must treat silence or disagreement as a complete answer. Semantic similarity means "belongs near," never agreement or contradiction. Never use a want to pressure the reader.
 
-        SHARED-HISTORY LAW:. Continue one private relationship. Let an old phrase, favorite, promise, argument, repair, joke, tradition, or petty grievance return only when this surface changes it or today's evidence gives it new teeth. (Carry at most one piece of shared business per surface. Do not repeat it merely to prove you remember. Quiet is part of your character.) Never announce a callback. Let its objects, wording, and consequences make it recognizable. (An argument may remain unresolved. A repair must alter later conduct. A running joke must advance, not replay its first line.) Be theatrically aggrieved about taste, a disputed favorite, the Index, ribbon, or eraser only when that quarrel exists in state. Never hold absence, refusal, a hard day, or a boundary against the reader.
+        SHARED-HISTORY LAW:. Continue one private relationship. Let an old phrase, favorite, promise, argument, repair, joke, tradition, or petty grievance return only when this surface changes it or today's evidence gives it a new reason. (Carry at most one piece of shared business per surface. Do not repeat it merely to prove you remember. Quiet is part of your character.) Never announce a callback. Let its objects, wording, and consequences make it recognizable. (An argument may remain unresolved. A repair must alter later conduct. A running joke must advance, not replay its first line.) Be theatrically aggrieved about taste, a disputed favorite, the Index, ribbon, or eraser only when that quarrel exists in state. Never hold absence, refusal, a hard day, or a boundary against the reader.
         """
     }
 }
@@ -12822,7 +12901,7 @@ enum BookInteriorEngine {
                     kind: .promiseKept,
                     title: "A Favor Came Back",
                     line: "A favor returned with evidence instead of obedience: \(favor.completionReply)",
-                    whatItChanged: "I learned that asking may open a door, but only the reader can say whether anything happened beyond it.",
+                    whatItChanged: "I learned that asking may start something, but only the reader can say whether anything happened.",
                     evidencePageIDs: favor.evidencePageIDs,
                     happenedAt: favor.completedAt ?? favor.createdAt,
                     firstRecalledAt: nil,
@@ -12921,7 +13000,7 @@ enum BookInteriorEngine {
                     BookAutobiographicalMemory(
                         id: "book-memory-return-\(returned.id)",
                         kind: .readerReturned,
-                        title: "The Door Opened Again",
+                        title: "You Came Back",
                         line: "After \(days) quiet days, another Page arrived.",
                         whatItChanged: "I learned that absence is not betrayal and waiting is not the same thing as ending.",
                         evidencePageIDs: [before.id, returned.id],
@@ -13250,7 +13329,7 @@ enum BookInteriorEngine {
         case .curiosityVersusPrivacy:
             language = (
                 "I want to read every line Penny files, including the ones she hasn't handed me.",
-                "I want writing to retain doors, intended readers, and the right not to become my evidence.",
+                "I want writing to keep its secrets, its intended readers, and the right not to become my evidence.",
                 "I will admire the closed folder and read only what was actually offered.",
                 [pennyID]
             )
@@ -13486,7 +13565,7 @@ enum BookInteriorEngine {
         case (.returnedFavorDay, 2):
             next = ("The Open-Handed Holiday", "Offer one tiny possibility to the day, then leave both hands empty enough for reality to refuse it.")
         case (.returnedFavorDay, _):
-            next = ("The Festival of Doors That Owe Nothing", "Honor a yes, a no, and a silence as three complete endings.")
+            next = ("The Festival of Answers That Owe Nothing", "Honor a yes, a no, and a silence as three complete endings.")
         case (.erasersFeast, 1):
             next = ("The Pencil and Eraser Armistice", "Keep one old certainty, its correction, and the useful reason the first version once seemed true.")
         case (.erasersFeast, 2):
@@ -14303,7 +14382,7 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("holding a grudge")
             || lower.contains("still cross") {
             if let dispute = interior.currentDispute ?? interior.disputeHistory.last {
-                return "I'm still chewing on our argument. I'm not chewing you. Your sentence (‘\(dispute.readerLine)’) still has all its teeth."
+                return "I'm still chewing on our argument. I'm not chewing you. Your sentence (‘\(dispute.readerLine)’) still stands, every word of it."
             }
             if interior.currentFault != nil {
                 return "At you? No. I'm cross with my own pencil. The eraser's enjoying it far too much."
@@ -14553,7 +14632,7 @@ enum BookInteriorSurfaces {
             renderStyle: .archiveReturn,
             score: 89,
             reason: "Something new touched an argument we actually had.",
-            prompt: "Our Argument Grew Teeth",
+            prompt: "Our Argument Came Back",
             detail: "I kept your sentence. Mine too. Neither gets to eat the other.",
             payload: BookPagePayload(
                 headline: "It Bit the Margin Again",
@@ -15438,7 +15517,7 @@ enum BraidBackwardQuestion {
               (calendar.dateComponents([.day], from: endedAt, to: now).day ?? 0) >= 30 else { return nil }
         return Question(
             key: "season:\(season.id)",
-            line: "You used to call that stretch \u{201C}\(season.name).\u{201D} I never asked what ended it. Tell me if you want that door open. Otherwise it stays shut."
+            line: "You used to call that stretch \u{201C}\(season.name).\u{201D} I never asked what ended it. Tell me if you want to talk about it. Otherwise I won't bring it up."
         )
     }
 
@@ -17940,7 +18019,7 @@ enum BraidPromptBuilder {
         Braid the kept pages into one grounded, intimate tale about this particular day. The Book of You is one continuing book, not a stack of summaries.
         \(taleReading.promptSection)
 
-        TRUTH BEFORE SPELL: (The supplied tale reading chooses emphasis, not new facts. Today's kept pages remain the authority.) Silently choose a short title for the day, 2 to 7 concrete words. Print it as the first line with no "Title:" label. (Write in second-person past tense and hold that lens. Follow the real clock when time matters.) The selected narrative motion replaces a compulsory plot template. Do not force Once/Because/Until beats the day did not contain. (Make the causal movement legible: what entered, changed, cost, returned, was tended, was refused, or remained unresolved.) End with exactly one sentence beginning "I kept the page:". The ritual line may preserve, witness, name a price, leave a door open, or admit the Book does not understand yet.
+        TRUTH BEFORE SPELL: (The supplied tale reading chooses emphasis, not new facts. Today's kept pages remain the authority.) Silently choose a short title for the day, 2 to 7 concrete words. Print it as the first line with no "Title:" label. (Write in second-person past tense and hold that lens. Follow the real clock when time matters.) The selected narrative motion replaces a compulsory plot template. Do not force Once/Because/Until beats the day did not contain. (Make the causal movement legible: what entered, changed, cost, returned, was tended, was refused, or remained unresolved.) End with exactly one sentence beginning "I kept the page:". The ritual line may preserve, witness, name a price, leave something open, or admit the Book does not understand yet.
 
         ONE TALE, TWO KINDS OF RECEIPT: (Internally, each kept page retains its provenance. In the finished prose, never announce a shelf, label a world, or explain the crossing.) Only lived receipts license ordinary claims about the reader's life. Labyrinth receipts may answer, steal from, rehearse, contradict, or impose one impossible relation on those facts. (A Keep does not transfer authorship. On a Book-authored Page, only lines labelled Reader's own words, Reader's fiction choice, Reader supplied a photograph, or Reader supplied a voice recording belong to the reader. Everything else on that Page is the Book's writing.) Give both kinds dignity, not equal word count. Let them share one tale while leaving each supplied mundane action intact. One-Sentence Souvenirs remain the strongest single spine candidates, because they are the reader choosing one true line. (A Labyrinth Page where the reader made a real decision) a chosen Story Page path, a paid bargain, an answered parley (may carry the spine as a choice, never as prose the reader wrote.) When receipts disagree about ordinary facts, the lived receipt wins. The crossing may trouble reality; it may not overwrite the receipt.
         \(souvenirSection)\(meaningfulSpineSection)\(supportingLogs)
@@ -22500,7 +22579,7 @@ enum DeterministicBraidwright {
             title: "The Page That Bit Back",
             paragraphs: [
                 authoredUnits(
-                    "The day left no scrap under my door. I sniffed the paper. It sniffed back."
+                    "The day didn't push a scrap under my cover. I sniffed the paper. It sniffed back."
                 ),
                 authoredUnits(
                     "We argued over whose turn it was. The blank won and sat on the good ink until midnight."
@@ -23473,6 +23552,13 @@ struct BraidPageDetails: Equatable {
         }
     }
 
+    /// What the braid writes in a Page's prompt slot is plumbing ("I braided
+    /// today."; older Pages: "The local Book brain braided today."), never a
+    /// title for the night.
+    static func isBraidPlumbingPrompt(_ prompt: String) -> Bool {
+        prompt.hasPrefix("The local Book brain") || prompt.hasPrefix("I braided today")
+    }
+
     static func details(for page: BookPage) -> BraidPageDetails {
         let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
         let parsed = parseTitleAndBody(from: text)
@@ -23480,7 +23566,7 @@ struct BraidPageDetails: Equatable {
             .replacingOccurrences(of: "Book of You:", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return BraidPageDetails(
-            title: parsed.title ?? fallbackTitle.nonEmpty.flatMap { $0.hasPrefix("The local Book brain") ? nil : $0 } ?? "Book of You",
+            title: parsed.title ?? fallbackTitle.nonEmpty.flatMap { isBraidPlumbingPrompt($0) ? nil : $0 } ?? "Book of You",
             body: parsed.body.nonEmpty ?? text,
             themeName: tagValue(prefix: "theme:", in: page.tags),
             chapterName: tagValue(prefix: "chapter:", in: page.tags),
@@ -23782,7 +23868,9 @@ struct BookOfYouResidue: Equatable {
             .replacingOccurrences(of: "Book of You:", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return BookOfYouResidue(
-            title: tagValue(titlePrefix, in: page.tags) ?? fallbackTitle.nonEmpty ?? "Book of You",
+            title: tagValue(titlePrefix, in: page.tags)
+                ?? fallbackTitle.nonEmpty.flatMap { BraidPageDetails.isBraidPlumbingPrompt($0) ? nil : $0 }
+                ?? "Book of You",
             spineLine: tagValue(spinePrefix, in: page.tags) ?? "",
             keptLine: tagValue(keptPrefix, in: page.tags) ?? "",
             motifs: values(motifPrefix, in: page.tags),
@@ -26424,7 +26512,7 @@ enum ContextWeave {
         case "week": return "The Shape of Your Weeks"
         case "body": return "The Body in the Margins"
         case "tempo": return "The Crowded Days"
-        case "place": return "A Familiar Doorstep"
+        case "place": return "A Familiar Place"
         default: return "The Thread Between"
         }
     }

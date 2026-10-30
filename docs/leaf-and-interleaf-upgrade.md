@@ -18,6 +18,126 @@ Volume reveals use existing edition readers and routes without redesigning the s
 
 ## Work log and next step
 
+### October 26: interleaf discoveries and marginalia memory
+
+Reader-authored keeps can now offer up to twelve eligible sentence-sized
+excerpts each, preserving exact ink, source identity, privacy checks, the old
+first-sentence identity, and the existing tap-to-open route. Long sentences
+that do not fit the quotation limit are skipped rather than cut mid-sentence.
+
+The encounter store remembers seven days of marginalia and captions actually
+placed on a visible interleaf, using the existing ordered background history
+writer. The compositor reports accepted placements only; preloaded and
+collision-rejected marks do not become sightings. New boundaries reserve a
+short run of nearby planned marks as well, without treating that reservation
+as an encounter. Existing boundary recipes remain held. Crowded neighboring
+Pages or consecutive crowded interleaves can give way to a quieter recipe,
+while explicit pack density remains authoritative.
+
+Eight new handwritten lines and five small discoveries are authored in the
+Book's voice. A minority of captions answer an actual subject in their primary
+drawing. On rare pure-marginalia leaves, a folded scrap or a creature drawing
+can be tapped to reveal a line. The existing folio interaction store remembers
+opened scraps by a bounded hashed identity across host recreation and reopen;
+the creature's short movement settles immediately under Reduce Motion. Text,
+footer, page edges and other marks retain the compositor's collision guards.
+
+The standalone month audit exercises production selection and the encounter
+store using synthetic fixtures, with proposed recipe marks treated as placed
+for simulation. It checks sentence provenance, stable choices, seven-day
+history, rarity, density, and ordered persistence, but cannot prove actual UIKit
+placement, tap/curl interaction, VoiceOver, visual quality, or frame pacing.
+No app build, install or native device review was performed.
+
+### October 26: keep repeat tracking out of page presentation
+
+The smoothness source review found two avoidable costs in the new encounter
+history: synchronous encoding/defaults writes on visibility and full binding-cache
+invalidation after each exposure. History now encodes and writes on one ordered
+utility queue, with immediate in-memory snapshots so rapid reopening still sees
+pending encounters. The opening identity and complete source/layout inputs key
+the binding; exposure alone leaves it cached. Boundary reservation maintenance
+also runs only after a cache miss. New boundaries still consult current history.
+
+The standalone audit checks background writes, immediate reopening while the
+writer is suspended, ordered writes and encoded reload, and the actual binding
+key remaining equal after exposure while changing for a new opening or source
+pool. Its month scenarios are rerun against these changes. This establishes
+source-level regression behavior, not frame pacing. Existing asynchronous photo
+preparation and page-turn animations are retained. No app build or on-device
+performance measurement was performed.
+
+### October 26: month-long interleaf selection audit
+
+Ran `scripts/audit_interleaf_month.py`, which extracts the current production
+selection/recipe/compositor declarations and executes them in a standalone Swift
+interpreter harness. Four explicitly synthetic scenarios cover 31 consecutive
+days, two openings per day, ten boundaries per opening: 2,480 encounters.
+Scenarios include a well-stocked archive, limited material, no personal material,
+and the authored Guest margins pack as a fixture. The harness uses an injected
+clock and isolated encoded history bytes; it does not read the app vault or Photos.
+
+The audit found a real caption-ranking problem: generic `book` and `margin` tags
+made two handwritten captions dominate unrelated leaves. Those container tags
+no longer count as subject evidence. In the well-stocked fixture, distinct
+handwritten captions increased from 12 to 30, with literal subject matching
+preserved. The month exercises all density ceilings, paper stocks, primary
+placement choices, size bands, and all six illuminated-photo templates. It checks
+reopening history, repeat rests, held choices, and rotated photo-composition
+collisions. Selected bundled artwork files were also checked for existence.
+
+Full results, baseline, raw encounter sequence and source fingerprints are in
+`docs/fixtures/interleaf-month-audit/`. This is executed source-level evidence;
+UIKit fitting, Dynamic Type, page-curl/tap gestures, live photo delivery and
+installed-pack behavior remain unverified. No app build, installation or native
+render review was performed. The full XCTest suite remains unrun; an invalid
+`.story` test fixture enum was corrected to `.narrativeOS` during this audit.
+
+### October 26: interleaf memory, quoted subjects, and source keeps
+
+Extended the existing folio encounter store with persistent visible-history for
+illustrations and place plates. Unseen eligible illustrations take precedence;
+a small fully seen catalogue can return its oldest plate. Gazetteer now exposes
+its existing ranked eligible places as a list while retaining `quietLeaf` for
+existing callers. Map slots choose different places within a binding and rest
+seen places for seven days. Choices remain held for each boundary and history
+is recorded on visibility, including both faces of a spread, rather than during
+pagination. The binding cache includes complete map inputs and the opening's
+encounter identity; new selections consult current exposure history.
+
+Quotation marginalia uses the quotation's literal subjects on roughly four out
+of five leaves, preserving occasional neighboring-Page subjects. This uses the
+existing motif resolver, with pack, density, and story-phase gates retained.
+Reader quotations carry their original source identity, date, and a short title.
+Tapping the quotation opens its keep through `openKeptPage`; tapping a finding
+with several source keeps opens a chooser anchored to its text. The quotation
+keeps its existing typography, with no separate source button or menu indicator.
+Its measured center text rectangle owns the tap; page edges remain available for
+turning. VoiceOver announces the text and its source action. Both pagers forward
+the same action. Opening rechecks live archive presence and privacy, and the curl
+host refreshes when interleaf content or provenance changes.
+
+Verification: Swift syntax parsing and whitespace checks pass. Regression cases
+were added for persisted visual selection, map rotation/rest, quoted subjects,
+and exact source identities. Swift tests have not been executed. No build,
+installation, or rendered/device QA. Folded-note and creature reveals remain
+outside this slice.
+
+### October 25: varied marginalia sizes between Pages
+
+Marginalia interleaves keep their familiar drawing sizes about one fifth of
+the time. Other leaves independently scale the main drawing, secondary mark,
+and companion marks into smaller or larger bands (55-85% or 115-150% before
+fitting to the available paper). Sizes use the existing stable recipe seed,
+so returning to a leaf preserves its composition. Main drawings and secondary
+marks stay bounded by the paper; rotated collision checks still protect text,
+handwriting, other marks, and navigation. Handwriting keeps its readable size.
+Reading-leaf marginalia and artwork baked into illustrations are unchanged.
+
+Verification: Swift syntax parsing and whitespace checks pass. A 10,000-seed
+arithmetic sample yields about 20% familiar and 80% varied sizes, within the
+intended bands. No build or rendered-device review.
+
 ### October 18: illuminated photographs coalesce together
 
 Photo interleaves now reveal their complete prepared image with the same
@@ -289,7 +409,7 @@ Work in the existing paginator and compositor in `InsideCoverApp/PagesRisingFoli
    preserve a comfortable reading measure; move large compositions onto an
    interleaf rather than shrinking prose or turning it into a thin column.
 4. Fix attribution: grimoire residue must not carry the Reader quotation label
-   `YOUR INK, COME BACK UP`.
+   `YOU WROTE THIS` (formerly `YOUR INK, COME BACK UP`).
 5. Replace photograph-template claims of contextual recognition unless the
    selection has actual evidence for that claim. A chance discovery may be
    presented honestly as a chance discovery.

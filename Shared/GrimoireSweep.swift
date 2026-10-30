@@ -909,7 +909,7 @@ extension GrimoireLedger {
             let from = row.state
             row.state = .forbidden
             row.revisions.append(GrimoireRevision(
-                at: now, from: from, to: .forbidden, because: "the reader shut this door"
+                at: now, from: from, to: .forbidden, because: "the reader said never"
             ))
         case .notQuite:
             if row.state == .standing {
