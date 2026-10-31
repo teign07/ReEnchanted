@@ -2368,6 +2368,24 @@ enum MeaningfulPassageSelector {
         var evidenceKind: Selection.EvidenceKind
     }
 
+    private struct EligibleCandidate {
+        var pageID: String
+        var pageType: BookPageType
+        var createdAt: Date
+        var material: GroundingMaterial
+        var signal: Int
+        var fingerprintWords: Set<String>
+    }
+
+    private struct RankedCandidate {
+        var pageID: String
+        var pageType: BookPageType
+        var createdAt: Date
+        var passage: PassageScore
+        var total: Int
+        var evidenceKind: Selection.EvidenceKind
+    }
+
     static func storyQuery(
         tags: Set<String>,
         primaryThread: NarrativeStoryThread?,
@@ -2459,77 +2477,93 @@ enum MeaningfulPassageSelector {
                 return nil
             }
         }) : []
-        let deduplicated = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, second in
-            first.createdAt >= second.createdAt ? first : second
-        }).values
+        // BookPage is large, and the compiler gives every local copy of a tuple
+        // that holds one a runtime-sized stack slot that is only released when
+        // the function returns. Carried through the loop and the sorts below,
+        // those slots piled up past a cooperative thread's 512 KB on a full
+        // archive and the launch desk build died in `___chkstk_darwin` on the
+        // phone. So no BookPage is held here: Pages are reached by index, one
+        // `eligibleCandidate` call at a time, and everything that is ranked is a
+        // small value.
+        var winningIndex: [String: Int] = [:]
+        for index in pages.indices {
+            let id = pages[index].id
+            if let existing = winningIndex[id], pages[existing].createdAt >= pages[index].createdAt {
+                continue
+            }
+            winningIndex[id] = index
+        }
         // The grounding material and the archive-signal boost are read once per
         // Page here and carried. Both used to be recomputed inside the
         // comparator — and the boost walks every strong signal, cluster and
         // theme, so a whole archive paid for it O(n log n) times over.
-        let eligible = deduplicated
-            .compactMap { page -> (page: BookPage, material: GroundingMaterial, signal: Int)? in
-                let age = now.timeIntervalSince(page.createdAt)
-                guard age >= 0,
-                      age <= maximumAge,
-                      page.type != .welcome,
-                      !page.tags.contains("first-door-origin"),
-                      !EditionCurator.defaultPrivateTypes.contains(page.type),
-                      page.privacy != .publicReference,
-                      !usedSourceIDs.contains(page.id.lowercased()),
-                      let material = groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else {
-                    return nil
-                }
-                return (page, material, archiveSignalBoost(for: page, inputs: inputs))
+        let eligible = winningIndex.values
+            .compactMap { index in
+                eligibleCandidate(
+                    in: pages,
+                    at: index,
+                    inputs: inputs,
+                    usedSourceIDs: usedSourceIDs,
+                    maximumAge: maximumAge,
+                    includeKeptGeneratedPages: includeKeptGeneratedPages,
+                    now: now
+                )
             }
             .sorted { left, right in
                 if left.signal != right.signal { return left.signal > right.signal }
-                if left.page.createdAt != right.page.createdAt { return left.page.createdAt > right.page.createdAt }
-                return left.page.id < right.page.id
+                if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
+                return left.pageID < right.pageID
             }
             .prefix(maximumCandidates)
 
         let queryWords = SemanticKeepEcho.contentWords(in: query)
-        var ranked: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
+        var ranked: [RankedCandidate] = []
         for candidate in eligible {
             guard !Task.isCancelled else { return [] }
-            let page = candidate.page
             let material = candidate.material
             let passage = bestPassage(
                 in: material.text,
-                page: page,
+                fingerprintWords: candidate.fingerprintWords,
                 query: query,
                 queryWords: queryWords,
                 scorer: scorer
             )
             guard !Task.isCancelled else { return [] }
-            let ageDays = max(0, now.timeIntervalSince(page.createdAt) / 86_400)
+            let ageDays = max(0, now.timeIntervalSince(candidate.createdAt) / 86_400)
             let freshness = max(0, 8 - Int(ageDays / 14))
             let total = passage.score
                 + candidate.signal
-                + pageTypeBoost(page.type)
+                + pageTypeBoost(candidate.pageType)
                 + freshness
                 + (material.evidenceKind == .readerPhotograph || material.evidenceKind == .readerVoiceRecording ? 8 : 0)
             guard total >= minimumScore else { continue }
-            ranked.append((page, passage, total, material.evidenceKind))
+            ranked.append(RankedCandidate(
+                pageID: candidate.pageID,
+                pageType: candidate.pageType,
+                createdAt: candidate.createdAt,
+                passage: passage,
+                total: total,
+                evidenceKind: material.evidenceKind
+            ))
         }
         ranked.sort { left, right in
             if left.total != right.total { return left.total > right.total }
             if left.passage.semanticSimilarity != right.passage.semanticSimilarity {
                 return (left.passage.semanticSimilarity ?? 0) > (right.passage.semanticSimilarity ?? 0)
             }
-            if left.page.createdAt != right.page.createdAt { return left.page.createdAt > right.page.createdAt }
-            return left.page.id < right.page.id
+            if left.createdAt != right.createdAt { return left.createdAt > right.createdAt }
+            return left.pageID < right.pageID
         }
 
         var remaining = ranked
-        var selected: [(page: BookPage, passage: PassageScore, total: Int, evidenceKind: Selection.EvidenceKind)] = []
+        var selected: [RankedCandidate] = []
         var selectedTypes = Set<BookPageType>()
         while selected.count < limit, !remaining.isEmpty {
             let pickIndex: Int
             if diversifyPageTypes,
                let diverseIndex = remaining.indices.max(by: { left, right in
-                   let leftScore = remaining[left].total - (selectedTypes.contains(remaining[left].page.type) ? 5 : 0)
-                   let rightScore = remaining[right].total - (selectedTypes.contains(remaining[right].page.type) ? 5 : 0)
+                   let leftScore = remaining[left].total - (selectedTypes.contains(remaining[left].pageType) ? 5 : 0)
+                   let rightScore = remaining[right].total - (selectedTypes.contains(remaining[right].pageType) ? 5 : 0)
                    return leftScore < rightScore
                }) {
                 pickIndex = diverseIndex
@@ -2538,13 +2572,13 @@ enum MeaningfulPassageSelector {
             }
             let picked = remaining.remove(at: pickIndex)
             selected.append(picked)
-            selectedTypes.insert(picked.page.type)
+            selectedTypes.insert(picked.pageType)
         }
 
         return selected.map { candidate in
             Selection(
-                pageID: candidate.page.id,
-                pageType: candidate.page.type,
+                pageID: candidate.pageID,
+                pageType: candidate.pageType,
                 excerpt: clipped(candidate.passage.text, limit: maximumExcerptCharacters),
                 score: candidate.total,
                 semanticSimilarity: candidate.passage.semanticSimilarity,
@@ -2552,6 +2586,39 @@ enum MeaningfulPassageSelector {
                 evidenceKind: candidate.evidenceKind
             )
         }
+    }
+
+    /// One Page's standing, read where its stack copy dies with the call.
+    @inline(never)
+    private static func eligibleCandidate(
+        in pages: [BookPage],
+        at index: Int,
+        inputs: BookSourceInputs,
+        usedSourceIDs: Set<String>,
+        maximumAge: TimeInterval,
+        includeKeptGeneratedPages: Bool,
+        now: Date
+    ) -> EligibleCandidate? {
+        let page = pages[index]
+        let age = now.timeIntervalSince(page.createdAt)
+        guard age >= 0,
+              age <= maximumAge,
+              page.type != .welcome,
+              !page.tags.contains("first-door-origin"),
+              !EditionCurator.defaultPrivateTypes.contains(page.type),
+              page.privacy != .publicReference,
+              !usedSourceIDs.contains(page.id.lowercased()),
+              let material = groundingMaterial(for: page, includeKeptGeneratedPages: includeKeptGeneratedPages) else {
+            return nil
+        }
+        return EligibleCandidate(
+            pageID: page.id,
+            pageType: page.type,
+            createdAt: page.createdAt,
+            material: material,
+            signal: archiveSignalBoost(for: page, inputs: inputs),
+            fingerprintWords: Set(page.resolvedAttentionFingerprint.patternTokens)
+        )
     }
 
     private static func selectionReason(for passage: PassageScore) -> String {
@@ -2597,13 +2664,12 @@ enum MeaningfulPassageSelector {
 
     private static func bestPassage(
         in text: String,
-        page: BookPage,
+        fingerprintWords: Set<String>,
         query: String,
         queryWords: Set<String>,
         scorer: StacksSemanticScoring?
     ) -> PassageScore {
         let candidates = passages(in: text)
-        let fingerprintWords = Set(page.resolvedAttentionFingerprint.patternTokens)
         var best: PassageScore?
         for passage in candidates {
             if Task.isCancelled { break }
