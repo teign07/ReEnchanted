@@ -501,7 +501,7 @@ struct BookPigmentProofLeaf: View {
                         .frame(height: 220)
                 }
                 Text("The gate tried to keep it.")
-                    .font(.custom("Noteworthy", size: 16))
+                    .font(BookHand.book.font(16))
                     .foregroundStyle(BookPalette.violet)
                     .bookInkEmergence(seed: "proof-handwriting")
                 LivingTextEditor(title: "Your words", placeholder: "Leave a real thing here.", text: $words,

@@ -144,7 +144,7 @@ enum EditionProofHarness {
                 UIColor(hue: hue, saturation: 0.25, brightness: 0.92, alpha: 1).setFill(); cg.fill(CGRect(origin: .zero, size: size))
                 UIColor(hue: hue, saturation: 0.45, brightness: 0.55, alpha: 1).setFill()
                 cg.fillEllipse(in: CGRect(x: size.width * 0.2, y: size.height * 0.2, width: size.width * 0.6, height: size.height * 0.5))
-                let font = UIFont(name: "BradleyHandITCTT-Bold", size: 60) ?? .systemFont(ofSize: 60)
+                let font = BookHand.book.uiFont(60)
                 ("PLATE · " + label as NSString).draw(in: CGRect(x: 60, y: size.height - 160, width: size.width - 120, height: 140),
                                                       withAttributes: [.font: font, .foregroundColor: UIColor(white: 0.2, alpha: 1)])
             }
@@ -571,10 +571,12 @@ enum EditionProofHarness {
             let fieldDays = FieldBookFixture.yearKeepsakes(days: FieldBookFixture.termSittings(
                 days: try FieldBookFixture.augment(days: days, directory: directory, calendar: calendar), calendar: calendar),
                 calendar: calendar, months: 9...11)
-            let season = MonthlyEditionBuilder.seasonal(
+            var season = MonthlyEditionBuilder.seasonal(
                 from: fieldDays, startingMonth: SyntheticReaderYear.date(2026, 9, 1),
                 readerName: reader, authoredReceipts: try FieldBookFixture.receipts(calendar: calendar), calendar: calendar
             )
+            // So the proof shows the leaf the reader writes themself.
+            season.dedication = BoundDedication(text: "For whoever finds this on a bus. Keep it dry.")
             let seasonURL = directory.appendingPathComponent("seasonal-interior.pdf")
             let pages = try MonthlyEditionPDFWriter.writeVolumePrintInterior(
                 season, spec: .perfectBoundSoftcover6x9,
@@ -1759,7 +1761,7 @@ enum FieldBookFixture {
                     UIColor(red: 0.9, green: 0.75, blue: 0.45, alpha: 0.7).setFill(); cg.fill(CGRect(x: rect.midX - 60, y: rect.minY - 30, width: 120, height: 34))
                     cg.restoreGState()
                 }
-                let hand = UIFont(name: "BradleyHandITCTT-Bold", size: 64) ?? .systemFont(ofSize: 64)
+                let hand = BookHand.book.uiFont(64)
                 (title as NSString).draw(at: CGPoint(x: 80, y: 80), withAttributes: [.font: hand, .foregroundColor: UIColor(red: 0.2, green: 0.2, blue: 0.35, alpha: 1)])
                 if !note.isEmpty {
                     (note as NSString).draw(in: CGRect(x: 90, y: 1060, width: 720, height: 200),

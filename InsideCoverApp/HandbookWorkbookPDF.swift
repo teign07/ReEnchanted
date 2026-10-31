@@ -636,7 +636,7 @@ extension MonthlyEditionPDFWriter {
         rule.move(to: CGPoint(x: x + width * 0.45, y: y + 18)); rule.addLine(to: CGPoint(x: x + width, y: y + 18))
         rule.lineWidth = 0.5; rule.stroke()
         (card.proctorName as NSString).draw(at: CGPoint(x: x + width * 0.45, y: y - 4),
-            withAttributes: [.font: handFont(15), .foregroundColor: style.palette.ink.withAlphaComponent(0.85)])
+            withAttributes: [.font: handFont(15, .book), .foregroundColor: style.palette.ink.withAlphaComponent(0.85)])
         drawTracked("Proctor", at: CGPoint(x: x + width * 0.45, y: y + 22), font: smallCaps(6.4),
                     color: style.palette.ink.withAlphaComponent(0.5), tracking: 1.2)
     }

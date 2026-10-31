@@ -4787,6 +4787,51 @@ extension BookPage {
     }
 }
 
+/// The reader's own sentences, carried from a kept Page onto its leaf so the
+/// leaf can set them in the reader's hand and nothing else in it.
+///
+/// A leaf shows a Page's body, and for most kept Pages the body *is* what the
+/// reader wrote — but not always: a Page kept without writing shows the Book's
+/// prompt there, and a Pagewright page appends its own list of scraps. Asking
+/// `readerAuthoredTexts` is the only honest test, so the leaf is handed those
+/// texts rather than guessing from the Page's origin.
+enum ReaderWords {
+    static let metadataKey = "readerWords"
+    private static let separator = "\u{1E}"
+
+    static func encoded(_ texts: [String]) -> String? {
+        texts.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: separator)
+            .nonEmpty
+    }
+
+    static func decoded(_ metadata: [String: String]) -> [String] {
+        (metadata[metadataKey] ?? "")
+            .components(separatedBy: separator)
+            .filter { !$0.isEmpty }
+    }
+
+    /// True when `paragraph` is the reader's: the whole of one of their
+    /// sentences, or a paragraph of one. A short line that merely occurs inside
+    /// their writing ("Yes.") is not enough to claim the Book's words as theirs.
+    static func isReaders(_ paragraph: String, among texts: [String]) -> Bool {
+        let line = normalized(paragraph)
+        guard !line.isEmpty else { return false }
+        return texts.contains { text in
+            let theirs = normalized(text)
+            return theirs == line || (line.count >= 24 && theirs.contains(line))
+        }
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\u{201C}\u{201D}\"' "))
+            .lowercased()
+    }
+}
+
 struct BookDay: Codable, Identifiable, Equatable {
     var id: String
     var date: Date

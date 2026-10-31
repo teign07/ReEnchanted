@@ -54,7 +54,7 @@ struct TarotCardFace: View {
                     .frame(width: width, height: height)
                 if let margin = TarotDeck.marginalia(for: card.id) {
                     Text(margin.label)
-                        .font(.custom("BradleyHandITCTT-Bold", fixedSize: width * CGFloat(margin.labelFontWidthRatio)))
+                        .font(BookHand.book.font(fixedSize: width * CGFloat(margin.labelFontWidthRatio)))
                         .foregroundStyle(BookPalette.ink.opacity(0.78))
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
@@ -69,7 +69,7 @@ struct TarotCardFace: View {
                         .rotationEffect(.degrees(margin.labelRotation), anchor: .topLeading)
                         .offset(x: width * CGFloat(margin.labelX), y: height * CGFloat(margin.labelY))
                     Text(margin.note)
-                        .font(.custom("BradleyHandITCTT-Bold", fixedSize: width * 0.052))
+                        .font(BookHand.book.font(fixedSize: width * 0.052))
                         .foregroundStyle(BookPalette.ink.opacity(0.86))
                         .lineLimit(2)
                         .minimumScaleFactor(0.8)
@@ -108,7 +108,7 @@ struct TarotCardFace: View {
             Text(annotation.text)
                 .font(annotation.isInscription
                       ? .system(size: width * CGFloat(annotation.fontWidthRatio), weight: .regular, design: .serif)
-                      : .custom("BradleyHandITCTT-Bold", fixedSize: width * CGFloat(annotation.fontWidthRatio)))
+                      : BookHand.book.font(fixedSize: width * CGFloat(annotation.fontWidthRatio)))
                 .foregroundStyle(BookPalette.ink.opacity(0.78))
                 .lineLimit(annotation.maxLines)
                 .minimumScaleFactor(0.75)

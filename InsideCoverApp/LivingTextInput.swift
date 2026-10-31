@@ -273,9 +273,11 @@ struct LivingTextEditor: View {
             }
 
             ZStack(alignment: .topLeading) {
+                // On the leaf the reader writes in their own hand, the same one
+                // their words keep on every kept Page and in print.
                 TextEditor(text: $text)
-                    .font(isOnLeaf ? .system(.body, design: .serif) : .body)
-                    .foregroundStyle(BookPalette.ink)
+                    .font(isOnLeaf ? BookHand.reader.font(19) : .body)
+                    .foregroundStyle(isOnLeaf ? BookHand.readerInkColor : BookPalette.ink)
                     .scrollContentBackground(.hidden)
                     .focused($isWriting)
                     .bookUIKitInkAbsorption(isActive: inkIsSinking, seed: title, startedAt: inkAbsorptionStartedAt)

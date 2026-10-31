@@ -9076,6 +9076,7 @@ struct ContentView: View {
             "keptPage": "true",
             "tags": page.tags.joined(separator: ",")
         ]
+        metadata[ReaderWords.metadataKey] = ReaderWords.encoded(page.readerAuthoredTexts)
         if let reference = page.externalReference,
            reference.captureID != nil {
             metadata["externalShare"] = "true"

@@ -222,8 +222,9 @@ struct IlluminatedArtifactPreview: View {
     private func annotationFont(for style: IlluminatedFontStyle, scale: CGFloat) -> Font {
         switch style {
         case .handwritten:
-            if UIFont(name: "BradleyHandITCTT-Bold", size: 34) != nil {
-                return .custom("BradleyHandITCTT-Bold", fixedSize: 36 * scale)
+            // The card's field notes are the Book's reading, so the Book's hand.
+            if UIFont(name: BookHand.book.fontName, size: 34) != nil {
+                return BookHand.book.font(fixedSize: 34 * scale)
             }
             return .system(size: 34 * scale, design: .serif).italic()
         case .stamp:

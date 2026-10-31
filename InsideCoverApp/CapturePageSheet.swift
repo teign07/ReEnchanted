@@ -10508,7 +10508,8 @@ struct CapturePageSheet: View {
                     "source": source.id,
                     "keptPageID": page.id,
                     "keptPage": "true",
-                    "tags": page.tags.joined(separator: ",")
+                    "tags": page.tags.joined(separator: ","),
+                    ReaderWords.metadataKey: ReaderWords.encoded(page.readerAuthoredTexts) ?? ""
                 ]
             )
         )
@@ -20888,7 +20889,7 @@ struct BleedNewspaperView: View {
     private var accentPale: Color {
         edition == .morning ? Color(red: 0.86, green: 0.90, blue: 0.88) : Color(red: 0.93, green: 0.86, blue: 0.84)
     }
-    private var readerInk: Color { Color(red: 0.13, green: 0.20, blue: 0.36) }
+    private var readerInk: Color { BookHand.readerInkColor }
 
     private typealias Piece = BleedPrintDesign.Piece
 
@@ -21072,7 +21073,7 @@ struct BleedNewspaperView: View {
             let lines = text.components(separatedBy: "\n")
             VStack(alignment: .leading, spacing: 3) {
                 Text(lines[0])
-                    .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
+                    .font(BookHand.reader.font(19))
                     .foregroundStyle(readerInk)
                     .textSelection(.enabled)
                 if lines.count > 1 {
@@ -21125,7 +21126,7 @@ struct BleedNewspaperView: View {
                         Text(lines[0]).font(.system(.caption, design: .serif).italic()).foregroundStyle(soft)
                     }
                     Text(lines.last ?? block)
-                        .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 18))
+                        .font(BookHand.reader.font(18))
                         .foregroundStyle(readerInk)
                         .textSelection(.enabled)
                 }
@@ -21171,7 +21172,7 @@ struct BleedNewspaperView: View {
                     let lines = text.components(separatedBy: "\n")
                     VStack(alignment: .leading, spacing: 3) {
                         if hand {
-                            Text(lines[0]).font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
+                            Text(lines[0]).font(BookHand.reader.font(19))
                                 .foregroundStyle(readerInk).textSelection(.enabled)
                         } else {
                             Text(lines[0]).font(.system(.body, design: .serif).italic()).foregroundStyle(ink).lineSpacing(3)

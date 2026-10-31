@@ -2470,6 +2470,13 @@ enum MonthlyEditionPDFWriter {
         drawText("Foreword to the \(noun)", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
         drawAccentRule(style, cursor: &cursor)
 
+        // The foreword quotes the reader ("Before I count anything, this: …");
+        // those words are theirs, so they're in their hand.
+        let days = annual.chapters.compactMap(\.dayBook).flatMap(\.days)
+        let readerTexts = days.flatMap(\.entries).map(\.text) + days.flatMap(\.words)
+        func hands(_ text: String) -> [Range<Int>] {
+            FieldMarked(text: text).markingQuotedHands(readerTexts).hands
+        }
         let paragraphs = annual.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
             ensureSpace(90, style: style, context: context, cursor: &cursor)
@@ -2481,17 +2488,20 @@ enum MonthlyEditionPDFWriter {
                 ]
                 let capSize = (capital as NSString).size(withAttributes: capAttributes)
                 (capital as NSString).draw(at: CGPoint(x: cursor.left, y: cursor.y - 4), withAttributes: capAttributes)
+                let rest = String(paragraph.dropFirst())
                 drawText(
-                    String(paragraph.dropFirst()),
+                    rest,
                     font: .serifFont(ofSize: 12, weight: .regular),
                     color: style.palette.ink,
                     cursor: &cursor,
                     spacingAfter: 14,
                     leftInset: capSize.width + 6,
-                    firstLineOnlyInsetHeight: capSize.height
+                    firstLineOnlyInsetHeight: capSize.height,
+                    hands: hands(rest)
                 )
             } else {
-                drawText(paragraph, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor, spacingAfter: 14)
+                drawText(paragraph, font: .serifFont(ofSize: 12, weight: .regular), color: style.palette.ink, cursor: &cursor,
+                         spacingAfter: 14, hands: hands(paragraph))
             }
         }
         drawOrnamentRow(style, centerY: cursor.y + 14, in: cursor.bounds, color: style.palette.accent)
@@ -3726,6 +3736,11 @@ enum MonthlyEditionPDFWriter {
         drawText("Foreword", font: .serifFont(ofSize: 24, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
         drawAccentRule(style, cursor: &cursor)
 
+        let days = edition.dayBook?.days ?? []
+        let readerTexts = days.flatMap(\.entries).map(\.text) + days.flatMap(\.words)
+        func hands(_ text: String) -> [Range<Int>] {
+            FieldMarked(text: text).markingQuotedHands(readerTexts).hands
+        }
         let paragraphs = edition.foreword.components(separatedBy: "\n\n")
         for (index, paragraph) in paragraphs.enumerated() {
             ensureSpace(90, style: style, context: context, cursor: &cursor)
@@ -3746,7 +3761,8 @@ enum MonthlyEditionPDFWriter {
                     cursor: &cursor,
                     spacingAfter: 14,
                     leftInset: capSize.width + 6,
-                    firstLineOnlyInsetHeight: capSize.height
+                    firstLineOnlyInsetHeight: capSize.height,
+                    hands: hands(rest)
                 )
             } else {
                 drawText(
@@ -3754,7 +3770,8 @@ enum MonthlyEditionPDFWriter {
                     font: .serifFont(ofSize: 12, weight: .regular),
                     color: style.palette.ink,
                     cursor: &cursor,
-                    spacingAfter: 14
+                    spacingAfter: 14,
+                    hands: hands(paragraph)
                 )
             }
         }
@@ -5214,9 +5231,10 @@ enum MonthlyEditionPDFWriter {
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
         paragraph.lineSpacing = 6
+        // The reader wrote this leaf; it's in their hand, not set in the Book's type.
         let attributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.serifItalicFont(ofSize: 14),
-            .foregroundColor: style.palette.ink.withAlphaComponent(0.86),
+            .font: handFont(16, .reader),
+            .foregroundColor: readerInk,
             .paragraphStyle: paragraph
         ]
         // Sits in the upper third, where a dedication belongs. Centring it
@@ -5762,6 +5780,7 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
+    /// `hands` are character ranges of the Reader's own words, set in their hand.
     static func drawText(
         _ text: String,
         font: UIFont,
@@ -5769,10 +5788,11 @@ enum MonthlyEditionPDFWriter {
         cursor: inout PDFCursor,
         spacingAfter: CGFloat,
         leftInset: CGFloat = 0,
-        firstLineOnlyInsetHeight: CGFloat = 0
+        firstLineOnlyInsetHeight: CGFloat = 0,
+        hands: [Range<Int>] = []
     ) {
         let width = cursor.contentWidth - leftInset
-        let rectHeight = measuredTextHeight(text, font: font, width: width)
+        let rectHeight = measuredTextHeight(text, font: font, width: width, hands: hands)
         drawMeasuredText(
             text,
             font: font,
@@ -5782,18 +5802,37 @@ enum MonthlyEditionPDFWriter {
             width: width,
             rectHeight: rectHeight,
             leftInset: leftInset,
-            firstLineOnlyInsetHeight: firstLineOnlyInsetHeight
+            firstLineOnlyInsetHeight: firstLineOnlyInsetHeight,
+            hands: hands
         )
     }
 
-    static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat) -> CGFloat {
+    private static func handed(_ text: String, attributes: [NSAttributedString.Key: Any], hands: [Range<Int>]) -> NSAttributedString {
+        guard !hands.isEmpty else { return NSAttributedString(string: text, attributes: attributes) }
+        let marked = FieldMarked(text: text, hands: hands)
+        let base = attributes[.font] as? UIFont ?? .serifFont(ofSize: 12, weight: .regular)
+        let result = NSMutableAttributedString(string: text, attributes: attributes)
+        let chars = Array(marked.text)
+        let hand = handFont(base.pointSize * 1.12, .reader)
+        for range in marked.hands where range.upperBound <= chars.count {
+            let lower = String(chars[0..<range.lowerBound]).utf16.count
+            let upper = String(chars[0..<range.upperBound]).utf16.count
+            guard upper > lower else { continue }
+            let nsRange = NSRange(location: lower, length: upper - lower)
+            result.addAttribute(.font, value: hand, range: nsRange)
+            result.addAttribute(.foregroundColor, value: readerInk, range: nsRange)
+        }
+        return result
+    }
+
+    static func measuredTextHeight(_ text: String, font: UIFont, width: CGFloat, hands: [Range<Int>] = []) -> CGFloat {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .paragraphStyle: paragraph
         ]
-        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let attributed = handed(text, attributes: attributes, hands: hands)
         let rect = attributed.boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -5811,7 +5850,8 @@ enum MonthlyEditionPDFWriter {
         width: CGFloat,
         rectHeight: CGFloat,
         leftInset: CGFloat,
-        firstLineOnlyInsetHeight: CGFloat
+        firstLineOnlyInsetHeight: CGFloat,
+        hands: [Range<Int>] = []
     ) {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
@@ -5820,7 +5860,7 @@ enum MonthlyEditionPDFWriter {
             .foregroundColor: color,
             .paragraphStyle: paragraph
         ]
-        let attributed = NSAttributedString(string: text, attributes: attributes)
+        let attributed = handed(text, attributes: attributes, hands: hands)
         attributed.draw(in: CGRect(x: cursor.left + leftInset, y: cursor.y, width: width, height: rectHeight))
         cursor.y += max(rectHeight, firstLineOnlyInsetHeight) + spacingAfter
     }
@@ -6185,7 +6225,7 @@ enum BleedPDFWriter {
                             flowAttributed(styled(lines[0], font: .fbSerifItalic(ofSize: 8.4), color: palette.soft),
                                            leading: 11, state: &state, next: next)
                         }
-                        flowAttributed(styled(lines.last ?? block, font: MonthlyEditionPDFWriter.handFont(12),
+                        flowAttributed(styled(lines.last ?? block, font: MonthlyEditionPDFWriter.handFont(12, .reader),
                                               color: MonthlyEditionPDFWriter.readerInk),
                                        leading: 16, state: &state, next: next)
                     }
@@ -6449,7 +6489,7 @@ enum BleedPDFWriter {
             if text.hasPrefix("“") {
                 // The quotation and who said it stay together on one column.
                 let lines = text.components(separatedBy: "\n")
-                let quote = NSMutableAttributedString(attributedString: styled(lines[0], font: MonthlyEditionPDFWriter.handFont(12.6),
+                let quote = NSMutableAttributedString(attributedString: styled(lines[0], font: MonthlyEditionPDFWriter.handFont(12.6, .reader),
                                                                               color: MonthlyEditionPDFWriter.readerInk))
                 if lines.count > 1 {
                     quote.append(NSAttributedString(string: "\n" + lines.dropFirst().joined(separator: " "), attributes: [
@@ -6651,7 +6691,7 @@ enum BleedPDFWriter {
             if trimmed.hasPrefix("“") {
                 let lines = trimmed.components(separatedBy: "\n")
                 let quote = NSMutableAttributedString(attributedString: readerInk
-                    ? styled(lines[0], font: MonthlyEditionPDFWriter.handFont(12.6), color: MonthlyEditionPDFWriter.readerInk)
+                    ? styled(lines[0], font: MonthlyEditionPDFWriter.handFont(12.6, .reader), color: MonthlyEditionPDFWriter.readerInk)
                     : styled(lines[0], font: .fbSerifItalic(ofSize: bodySize + 0.4), color: palette.ink))
                 if lines.count > 1 {
                     quote.append(NSAttributedString(string: "\n" + lines.dropFirst().joined(separator: " "), attributes: [
@@ -7647,8 +7687,8 @@ enum WeeklyIssuePDFWriter {
                 (dedication.text as NSString).draw(
                     in: CGRect(x: cursor.left, y: pageBounds.height * 0.29, width: cursor.contentWidth, height: pageBounds.height * 0.35),
                     withAttributes: [
-                        .font: UIFont.serifItalicFont(ofSize: 14),
-                        .foregroundColor: ink.withAlphaComponent(0.88),
+                        .font: MonthlyEditionPDFWriter.handFont(16, .reader),
+                        .foregroundColor: MonthlyEditionPDFWriter.readerInk,
                         .paragraphStyle: dedicationParagraph
                     ]
                 )
@@ -8239,8 +8279,8 @@ enum WeeklyIssuePDFWriter {
                         height: pageBounds.height * 0.46
                     ),
                     withAttributes: [
-                        .font: UIFont.serifItalicFont(ofSize: 14),
-                        .foregroundColor: ink.withAlphaComponent(0.88),
+                        .font: MonthlyEditionPDFWriter.handFont(16, .reader),
+                        .foregroundColor: MonthlyEditionPDFWriter.readerInk,
                         .paragraphStyle: paragraph
                     ]
                 )

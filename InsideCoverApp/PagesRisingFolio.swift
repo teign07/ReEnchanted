@@ -4707,8 +4707,8 @@ private struct FolioLeafComposition: Equatable {
         switch role {
         case .title: scale = titleScale
         case .deck: scale = deckScale
-        case .body: scale = bodyScale
-        case .handwritten, .underlined: scale = min(1.08, bodyScale + 0.03)
+        case .body, .readerHand: scale = bodyScale
+        case .handwritten, .underlined, .readerUnderlined: scale = min(1.08, bodyScale + 0.03)
         case .provenance, .privacy: scale = min(1.02, bodyScale)
         }
         return scale * typeScale
@@ -4756,6 +4756,10 @@ private struct FolioLeafComposition: Equatable {
             return .leading
         case .provenance:
             return choice < 38 ? .trailing : .leading
+        case .readerHand, .readerUnderlined:
+            // The reader's writing keeps the way they wrote it: flush left,
+            // never justified or set off as a pull-quote.
+            return .leading
         case .privacy:
             return .leading
         }
@@ -5148,7 +5152,7 @@ private struct FolioTextRegion: Identifiable, Equatable {
     var maximumBlocks: Int? = nil
 
     func accepts(_ role: FolioInkRole) -> Bool {
-        allowedRoles.contains(role)
+        allowedRoles.contains(role.layoutRole)
     }
 }
 
@@ -5579,8 +5583,8 @@ private enum FolioInkRole: Equatable {
         switch self {
         case .title: return .title2
         case .deck: return .body
-        case .body: return .body
-        case .handwritten, .underlined: return .callout
+        case .body, .readerHand: return .body
+        case .handwritten, .underlined, .readerUnderlined: return .callout
         case .provenance, .privacy: return .footnote
         }
     }
@@ -5593,14 +5597,32 @@ private enum FolioInkRole: Equatable {
         case .handwritten, .underlined: return 16
         case .provenance, .privacy: return 13
         }
+    /// The reader's own words, in their hand and ink. Laid out wherever the
+    /// Book's prose may go; only the hand changes.
+    case readerHand
+    /// The reader's own words that the Book has underlined.
+    case readerUnderlined
     }
 
     var lineSpacing: CGFloat {
+    /// The role whose place on the leaf this one takes: the reader's writing
+    /// sits where prose or a marked line would, so the region plans don't
+    /// need to know whose hand it is.
+    var layoutRole: FolioInkRole {
+        switch self {
+        case .readerHand: return .body
+        case .readerUnderlined: return .underlined
+        default: return self
+        }
+    }
+
+    var isReaders: Bool { self == .readerHand || self == .readerUnderlined }
+
         switch self {
         case .title: return 2
         case .deck: return 3
-        case .body: return 4
-        case .handwritten, .underlined: return 3
+        case .body, .readerHand: return 4
+        case .handwritten, .underlined, .readerUnderlined: return 3
         case .provenance, .privacy: return 2
         }
     }
@@ -5609,9 +5631,13 @@ private enum FolioInkRole: Equatable {
         switch self {
         case .title: return 14
         case .deck: return 12
-        case .body: return 11
+        case .body, .readerHand: return 11
         case .handwritten: return 13
-        case .underlined: return 10
+        // A hand sits smaller on its line than print does; these match the
+        // serif's apparent size rather than its nominal one.
+        case .readerHand: return 19
+        case .readerUnderlined: return 17.5
+        case .underlined, .readerUnderlined: return 10
         case .provenance, .privacy: return 8
         }
     }
@@ -5642,8 +5668,9 @@ private enum FolioInkRole: Equatable {
         case .body:
             base = FolioTypography.bodyFont(size: pointSize, typeface: composition.typeface)
         case .handwritten:
-            base = UIFont(name: "Noteworthy-Light", size: pointSize)
-                ?? FolioTypography.serifItalicFont(size: pointSize)
+            base = BookHand.book.uiFont(pointSize)
+        case .readerHand, .readerUnderlined:
+            base = BookHand.reader.uiFont(pointSize)
         case .underlined:
             base = FolioTypography.serifFont(size: pointSize, weight: .semibold)
         case .provenance, .privacy:
@@ -5665,8 +5692,8 @@ private enum FolioInkRole: Equatable {
         case .body:
             return FolioTypography.swiftBodyFont(size: pointSize, typeface: typeface)
         case .handwritten:
-            if UIFont(name: "Noteworthy-Light", size: pointSize) != nil {
-                return .custom("Noteworthy-Light", fixedSize: pointSize)
+            if UIFont(name: BookHand.book.fontName, size: pointSize) != nil {
+                return BookHand.book.font(fixedSize: pointSize)
             }
             return .system(size: pointSize, weight: .regular, design: .serif).italic()
         case .underlined:
@@ -5690,6 +5717,8 @@ private enum FolioTypography {
             return .monospacedSystemFont(ofSize: size, weight: .semibold)
         case (.field, .specimenLabel):
             return .systemFont(ofSize: size, weight: .semibold)
+        case .readerHand, .readerUnderlined:
+            return BookHand.reader.font(fixedSize: pointSize)
         default:
             return serifFont(size: size, weight: .semibold)
         }
@@ -7706,7 +7735,7 @@ private enum PagesRisingFolioPaginator {
             if isAccidentallySparse(leaf) { quality.sparseLeafCount += 1 }
             for fragment in leaf.fragments {
                 guard let text = fragment.plainText,
-                      [.body, .deck].contains(fragment.role) else { continue }
+                      [.body, .deck].contains(fragment.role.layoutRole) else { continue }
                 let font = fragment.role.uiFont(
                     pointSize: fragment.pointSize,
                     composition: leaf.composition
@@ -7754,7 +7783,7 @@ private enum PagesRisingFolioPaginator {
                     text: paragraph,
                     media: nil,
                     startOffset: textCursor,
-                    minimumFragmentLines: [.body, .deck].contains(role) ? 2 : 1
+                    minimumFragmentLines: [.body, .deck].contains(role.layoutRole) ? 2 : 1
                 ))
                 textCursor += count + 1
                 blockIndex += 1
@@ -7831,7 +7860,8 @@ private enum PagesRisingFolioPaginator {
                let excerpt = surface.payload.metadata["bookInterjectionTargetExcerpt"]?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                !excerpt.isEmpty {
-                appendText("“\(excerpt)”", role: .underlined, key: "underlined-excerpt")
+                // The excerpt is always a line of the reader's kept writing.
+                appendText("“\(excerpt)”", role: .readerUnderlined, key: "underlined-excerpt")
             }
             appendText("\(heading)\(margin)", role: .handwritten, key: "acted-margin")
         }
@@ -7855,7 +7885,10 @@ private enum PagesRisingFolioPaginator {
                 mediaAfterParagraph[target, default: []].append(item)
             }
             for (paragraphIndex, paragraph) in bodyParagraphs.enumerated() {
-                appendText(paragraph, role: .body, key: "body-\(paragraphIndex)")
+                let role: FolioInkRole = isBookAsk
+                    ? (paragraphIndex == 0 ? .readerUnderlined : (paragraphIndex == 1 ? .handwritten : .body))
+                    : (ReaderWords.isReaders(paragraph, among: readerWords) ? .readerHand : .body)
+                appendText(paragraph, role: role, key: "body-\(paragraphIndex)")
                 for item in mediaAfterParagraph[paragraphIndex] ?? [] {
                     appendMedia(item)
                 }
@@ -7928,6 +7961,11 @@ private enum PagesRisingFolioPaginator {
                 role: role,
                 font: font,
                 width: width,
+            // The Book's question is set the way the Book would mark it: it
+            // underlines your sentence, then writes its wondering in the margin.
+            // Anywhere else, a paragraph the reader wrote is in their hand.
+            let isBookAsk = surface.payload.metadata["bookAsks"] == "true"
+            let readerWords = ReaderWords.decoded(surface.payload.metadata)
                 composition: composition,
                 alignment: alignment
             ) <= height {
@@ -9193,6 +9231,7 @@ private struct FolioLeafPage: View {
         .contentShape(Rectangle())
         .accessibilityHidden(true)
     }
+        case .readerHand, .readerUnderlined: return BookHand.readerInkColor
 
     /// Loose leaves keep only their ordinary turning strip below the ink.
     private var interstitialFooter: some View {
@@ -9202,6 +9241,7 @@ private struct FolioLeafPage: View {
             .padding(.top, FolioLeafMeasure.interstitialFooterTopPadding)
     }
 
+        case .readerUnderlined: return "You wrote, and I underlined: \(text)"
     /// The way into the Page itself.
     ///
     /// A leaf can set prose and take a written answer. It cannot show the
@@ -10125,6 +10165,10 @@ private struct FolioStoryChoicesLeafPanel: View {
                 Text("Touch one. The other two will sulk and shut.")
                     .font(.system(size: 13, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
+            } else if role == .readerUnderlined {
+                // Their words, the Book's pen: the rule is in the Book's accent.
+                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                attributes[.underlineColor] = UIColor(accent)
             }
 
             ForEach(actions) { action in

@@ -10,6 +10,7 @@
 		A1C024000000000000000001 /* WonderCompassReadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000101 /* WonderCompassReadingView.swift */; };
 		A1C024000000000000000002 /* WonderCompassImages in Resources */ = {isa = PBXBuildFile; fileRef = A1C024000000000000000102 /* WonderCompassImages */; };
 		B1FFA0000000000000000001 /* PippaScraps.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000101 /* PippaScraps.swift */; };
+		B0A4D0000000000000000001 /* BookHands.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A4D0000000000000000101 /* BookHands.swift */; };
 		0200000000000000000009C5 /* WritingSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009C6 /* WritingSessions.swift */; };
 		0200000000000000000009CB /* KeepMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000009CC /* KeepMoment.swift */; };
 		B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1FFA0000000000000000102 /* PippaWordFinds.swift */; };
@@ -220,6 +221,7 @@
 		A1C024000000000000000101 /* WonderCompassReadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WonderCompassReadingView.swift; sourceTree = "<group>"; };
 		A1C024000000000000000102 /* WonderCompassImages */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WonderCompassImages; sourceTree = "<group>"; };
 		B1FFA0000000000000000101 /* PippaScraps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaScraps.swift; sourceTree = "<group>"; };
+		B0A4D0000000000000000101 /* BookHands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookHands.swift; sourceTree = "<group>"; };
 		0200000000000000000009C6 /* WritingSessions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WritingSessions.swift; sourceTree = "<group>"; };
 		0200000000000000000009CC /* KeepMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeepMoment.swift; sourceTree = "<group>"; };
 		B1FFA0000000000000000102 /* PippaWordFinds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PippaWordFinds.swift; sourceTree = "<group>"; };
@@ -455,6 +457,7 @@
 				01000000000000000000011E /* AcademyMapView.swift */,
 				010000000000000000000113 /* BookSurfaceViews.swift */,
 				B1FFA0000000000000000101 /* PippaScraps.swift */,
+				B0A4D0000000000000000101 /* BookHands.swift */,
 				0200000000000000000009C6 /* WritingSessions.swift */,
 				0200000000000000000009CC /* KeepMoment.swift */,
 				060000000000000000000101 /* PagesRisingFolio.swift */,
@@ -821,6 +824,7 @@
 				010000000000000000000026 /* AcademyMapView.swift in Sources */,
 				01000000000000000000001B /* BookSurfaceViews.swift in Sources */,
 				B1FFA0000000000000000001 /* PippaScraps.swift in Sources */,
+				B0A4D0000000000000000001 /* BookHands.swift in Sources */,
 				0200000000000000000009C5 /* WritingSessions.swift in Sources */,
 				0200000000000000000009CB /* KeepMoment.swift in Sources */,
 				B1FFA0000000000000000002 /* PippaWordFinds.swift in Sources */,

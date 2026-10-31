@@ -282,7 +282,7 @@ struct PippaMessageCard: View {
     private var words: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(scrap.line)
-                .font(.custom("BradleyHandITCTT-Bold", size: 19, relativeTo: .body))
+                .font(BookHand.book.font(19))
                 .foregroundStyle(BookPalette.ink)
                 .lineSpacing(1)
                 .fixedSize(horizontal: false, vertical: true)
@@ -300,7 +300,7 @@ struct PippaMessageCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 3) {
             Spacer(minLength: 0)
             Text("Pippa")
-                .font(.custom("BradleyHandITCTT-Bold", size: 15, relativeTo: .footnote))
+                .font(BookHand.book.font(15, relativeTo: .footnote))
             // Her interrobang, built from its two halves: the single glyph
             // turns into a plain question mark at this weight.
             ZStack {
@@ -522,19 +522,21 @@ struct PippaSpillView: View {
             ForEach(spill.pieces.indices, id: \.self) { index in
                 let piece = spill.pieces[index]
                 Text(piece.text)
+                    // The word is one she pocketed from the reader's own
+                    // writing, so it falls out in their hand and ink.
                     .font(piece.isWord
-                          ? .custom("BradleyHandITCTT-Bold", fixedSize: piece.size)
+                          ? BookHand.reader.font(fixedSize: piece.size)
                           : .system(size: piece.size, weight: .heavy, design: .serif))
                     // Red, gold and ink: gold and red still read when they
                     // tumble off the paper into the dark room.
-                    .foregroundStyle(piece.isWord ? BookPalette.ink
+                    .foregroundStyle(piece.isWord ? BookHand.readerInkColor
                                      : [pippaRed, BookPalette.lampGold, BookPalette.ink][index % 3])
                     .fixedSize()
                     .modifier(PippaFallingPiece(progress: progress, piece: piece, origin: spill.origin))
             }
             if let protest = spill.protest {
                 Text(protest)
-                    .font(.custom("BradleyHandITCTT-Bold", fixedSize: 22))
+                    .font(BookHand.book.font(fixedSize: 22))
                     .foregroundStyle(pippaRed)
                     .shadow(color: BookPalette.page.opacity(0.9), radius: 2)
                     .multilineTextAlignment(.center)

@@ -626,8 +626,8 @@ private struct WonderCompassCertificate: View {
                 .fixedSize(horizontal: false, vertical: true)
             ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
                 TextField(placeholder(for: line, blank: index), text: answer(key))
-                    .font(.custom("BradleyHandITCTT-Bold", size: 18, relativeTo: .body))
-                    .foregroundStyle(BookPalette.teal)
+                    .font(BookHand.reader.font(18))
+                    .foregroundStyle(BookHand.readerInkColor)
                     .multilineTextAlignment(.center)
                     .padding(.vertical, 4)
                     .overlay(alignment: .bottom) {
@@ -658,8 +658,6 @@ private struct WonderCompassCertificate: View {
                     Text(value ?? "")
                 }
             }
-            .font(.custom("BradleyHandITCTT-Bold", size: 19, relativeTo: .body))
-            .foregroundStyle(BookPalette.teal)
             .padding(.bottom, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .bottom) {
@@ -688,13 +686,13 @@ private struct WonderCompassSouvenirLines: View {
                     .font(.footnote.weight(.semibold))
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.custom("BradleyHandITCTT-Bold", size: 20, relativeTo: .title3))
+                    .font(BookHand.book.font(20, relativeTo: .title3))
             }
             .foregroundStyle(tint)
             .padding(.bottom, 10)
             TextField("One true sentence from today.", text: $sentence, axis: .vertical)
-                .font(.custom("BradleyHandITCTT-Bold", size: 20, relativeTo: .body))
-                .foregroundStyle(BookPalette.ink)
+                .font(BookHand.reader.font(20))
+                .foregroundStyle(BookHand.readerInkColor)
                 .lineLimit(lines...max(lines, 5))
                 .lineSpacing(10)
                 .background(alignment: .top) {
@@ -711,11 +709,16 @@ private struct WonderCompassSouvenirLines: View {
                 }
             Text("Keep the page to keep your sentence.")
                 .font(.system(.caption2, design: .serif).italic())
+            // The reader signs; a line the Book fills in (the date) is in its hand.
                 .foregroundStyle(BookPalette.ink.opacity(0.5))
                 .padding(.top, 12)
         }
+                        .font(BookHand.reader.font(19))
+                        .foregroundStyle(BookHand.readerInkColor)
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(BookHand.book.font(19))
+                        .foregroundStyle(BookPalette.teal)
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(BookPalette.page.opacity(0.7))

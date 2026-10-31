@@ -5453,8 +5453,8 @@ struct BookTodayKeepsakeView: View {
                 }
                 if let text = keepsake.text {
                     Text("\u{201C}\(text)\u{201D}")
-                        .font(.custom(MonthlyEditionPDFWriter.handwriting, size: 19))
-                        .foregroundStyle(Color(red: 0.13, green: 0.20, blue: 0.36))
+                        .font(BookHand.reader.font(19))
+                        .foregroundStyle(BookHand.readerInkColor)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }

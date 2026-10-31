@@ -72,6 +72,34 @@ struct FieldMarked: Equatable {
         return copy
     }
 
+    /// Marks each “quoted” run whose words are the reader's, even cut short
+    /// with an ellipsis, as a foreword quotes them. Anyone else's quotation
+    /// isn't in `readerTexts`, so it stays in print.
+    func markingQuotedHands(_ readerTexts: [String]) -> FieldMarked {
+        func plain(_ s: String) -> String {
+            s.replacingOccurrences(of: "\u{2019}", with: "'")
+                .split(whereSeparator: \.isWhitespace).joined(separator: " ")
+                .lowercased()
+        }
+        let written = readerTexts.map(plain).filter { !$0.isEmpty }
+        guard !written.isEmpty else { return self }
+        let chars = Array(text)
+        var found = hands
+        var open: Int?
+        for (index, char) in chars.enumerated() {
+            if char == "\u{201C}" { open = index + 1 }
+            guard char == "\u{201D}", let start = open else { continue }
+            open = nil
+            let inner = String(chars[start..<index])
+            let quoted = plain(inner.trimmingCharacters(in: CharacterSet(charactersIn: " ….!?,")))
+            guard quoted.count >= 12, written.contains(where: { $0.contains(quoted) }) else { continue }
+            found.append(start..<index)
+        }
+        var copy = self
+        copy.hands = found
+        return copy
+    }
+
     /// Parses `*italic*` runs and drops the other bits of markup the authored
     /// scenes carry: `{placeholder}` tokens and a leading `> ` on a notice.
     init(parsing raw: String) {
@@ -186,7 +214,7 @@ enum FieldText {
             }
             if !marked.hands.isEmpty {
                 let chars = Array(marked.text)
-                let hand = MonthlyEditionPDFWriter.handFont(base.pointSize * 1.12)
+                let hand = MonthlyEditionPDFWriter.handFont(base.pointSize * 1.12, .reader)
                 for range in marked.hands where range.upperBound <= chars.count {
                     let lower = String(chars[0..<range.lowerBound]).utf16.count
                     let upper = String(chars[0..<range.upperBound]).utf16.count
@@ -678,12 +706,10 @@ final class MarginaliaDealer {
 // MARK: Layout
 
 extension MonthlyEditionPDFWriter {
-    static let handwriting: String = "BradleyHandITCTT-Bold"
-
-    static func handFont(_ size: CGFloat) -> UIFont {
-        UIFont(name: handwriting, size: size)
-            ?? UIFont(name: "Noteworthy-Light", size: size)
-            ?? .fbSerifItalic(ofSize: size)
+    /// Every handwritten line names whose hand it is: the reader's is theirs
+    /// alone, so a caption or a Cast note in it would claim they wrote it.
+    static func handFont(_ size: CGFloat, _ hand: BookHand) -> UIFont {
+        hand.uiFont(size)
     }
 
     /// Labels and running heads: a tracked serif, the way a printed book
@@ -821,9 +847,28 @@ extension MonthlyEditionPDFWriter {
     }
 
     /// A torn paper label, taped on at a slant. The caller owns its measured height.
+    /// Slips are the Book's (and the Cast's) unless `hand` says the reader wrote
+    /// it; the reader's slips take their own ink unless told otherwise.
     @discardableResult
     static func drawHandSlip(
         _ text: String,
+        hand: BookHand = .book,
+        style: EditionStyle,
+        in rect: CGRect,
+        rotation: CGFloat,
+        seed: String,
+        fontSize: CGFloat = 11.5,
+        color: UIColor? = nil
+    ) -> FieldText.Flow {
+        drawHandSlip(FieldMarked(parsing: text), hand: hand, style: style, in: rect, rotation: rotation,
+                     seed: seed, fontSize: fontSize, color: color)
+    }
+
+    /// A slip that may carry the reader's own runs (`hands`) inside the Book's label.
+    @discardableResult
+    static func drawHandSlip(
+        _ marked: FieldMarked,
+        hand: BookHand = .book,
         style: EditionStyle,
         in rect: CGRect,
         rotation: CGFloat,
@@ -836,12 +881,17 @@ extension MonthlyEditionPDFWriter {
         drawTapeStrip(center: CGPoint(x: rect.midX + (frac("\(seed)-tx") - 0.5) * rect.width * 0.5, y: rect.minY + 1),
                       length: 38, angle: (frac("\(seed)-ta") - 0.5) * 0.6, tint: style.palette.gold)
         let inset = rect.insetBy(dx: 11, dy: 7)
-        return FieldText.flow(text, font: handFont(fontSize), color: color ?? style.palette.ink.withAlphaComponent(0.85),
-                           in: inset, lineSpacing: 1.6, paragraphSpacing: 2, justified: false)
+        let ink = color ?? (hand == .reader ? readerInk : style.palette.ink.withAlphaComponent(0.85))
+        return FieldText.flow(marked, font: handFont(fontSize, hand), color: ink,
+                              in: inset, lineSpacing: 1.6, paragraphSpacing: 2, justified: false)
     }
 
-    static func slipHeight(_ text: String, width: CGFloat, fontSize: CGFloat = 11.5) -> CGFloat {
-        FieldText.height(text, font: handFont(fontSize), width: width - 22, lineSpacing: 1.6, paragraphSpacing: 2, justified: false) + 20
+    static func slipHeight(_ text: String, hand: BookHand = .book, width: CGFloat, fontSize: CGFloat = 11.5) -> CGFloat {
+        slipHeight(FieldMarked(parsing: text), hand: hand, width: width, fontSize: fontSize)
+    }
+
+    static func slipHeight(_ marked: FieldMarked, hand: BookHand = .book, width: CGFloat, fontSize: CGFloat = 11.5) -> CGFloat {
+        FieldText.height(marked, font: handFont(fontSize, hand), width: width - 22, lineSpacing: 1.6, paragraphSpacing: 2, justified: false) + 20
     }
 
     /// A choice is a complete Reader mark, not a one-line caption. Measure it
@@ -853,17 +903,17 @@ extension MonthlyEditionPDFWriter {
     ) {
         let text = "you chose · \(choice)"
         let width = min(leaf.contentWidth * widthFraction,
-                        max(120, (text as NSString).size(withAttributes: [.font: handFont(fontSize)]).width + 32))
+                        max(120, (text as NSString).size(withAttributes: [.font: handFont(fontSize, .reader)]).width + 32))
         var rest = FieldMarked(parsing: text)
-        let needed = slipHeight(text, width: width, fontSize: fontSize) + 8
+        let needed = slipHeight(text, hand: .reader, width: width, fontSize: fontSize) + 8
         if leaf.y + needed > leaf.bottom { leaf = fresh() }
         var part = 0
         while !rest.isEmpty {
-            if leaf.bottom - leaf.y < handFont(fontSize).lineHeight + 26 { leaf = fresh() }
-            let height = min(slipHeight(rest.text, width: width, fontSize: fontSize), leaf.bottom - leaf.y - 8)
+            if leaf.bottom - leaf.y < handFont(fontSize, .reader).lineHeight + 26 { leaf = fresh() }
+            let height = min(slipHeight(rest.text, hand: .reader, width: width, fontSize: fontSize), leaf.bottom - leaf.y - 8)
             let rect = CGRect(x: alignedRight ? leaf.right - width : leaf.left, y: leaf.y, width: width, height: height)
-            let flow = drawHandSlip(rest.text, style: style, in: rect, rotation: rotation,
-                                    seed: "\(seed)-\(part)", fontSize: fontSize, color: color ?? style.palette.accent)
+            let flow = drawHandSlip(rest.text, hand: .reader, style: style, in: rect, rotation: rotation,
+                                    seed: "\(seed)-\(part)", fontSize: fontSize, color: color ?? readerInk)
             leaf.y += height + 8
             rest = flow.rest
             part += 1
@@ -975,7 +1025,7 @@ extension MonthlyEditionPDFWriter {
         if let caption {
             (caption as NSString).draw(
                 in: CGRect(x: frame.minX + mat + 2, y: frame.maxY - foot + 3, width: frame.width - mat * 2, height: 14),
-                withAttributes: [.font: handFont(9.6), .foregroundColor: style.palette.ink.withAlphaComponent(0.78)]
+                withAttributes: [.font: handFont(9.6, .book), .foregroundColor: style.palette.ink.withAlphaComponent(0.78)]
             )
         }
         cg.restoreGState()
@@ -1000,7 +1050,7 @@ extension MonthlyEditionPDFWriter {
         guard !specimens.isEmpty else { return }
         drawTracked("Pinned to the day", at: CGPoint(x: rect.minX, y: rect.minY), font: smallCaps(6.8), color: style.palette.accent, tracking: 1.4)
         var y = rect.minY + 15
-        let font = handFont(9.8)
+        let font = handFont(9.8, .book)
         for (index, specimen) in specimens.enumerated() {
             var label = [specimen.title, specimen.clock].compactMap { $0 }.joined(separator: " · ")
             while (label as NSString).size(withAttributes: [.font: font]).width > rect.width - 34, label.count > 6 {
@@ -1409,8 +1459,12 @@ extension MonthlyEditionPDFWriter {
         let photoWidth = photo == nil ? 0 : min(leaf.contentWidth * 0.52, 190)
         let sideWidth = photo == nil ? leaf.contentWidth : leaf.contentWidth - photoWidth - columnGap
 
+        // The Book labels the slip; what follows the label is the reader's.
+        let wordsLabel = "your own words\n"
         let wordsText = words.joined(separator: "\n")
-        let wordsHeight = words.isEmpty ? 0 : slipHeight("your own words\n" + wordsText, width: sideWidth, fontSize: 11.2)
+        let wordsSlip = FieldMarked(text: wordsLabel + wordsText,
+                                    hands: [wordsLabel.count..<(wordsLabel.count + wordsText.count)])
+        let wordsHeight = words.isEmpty ? 0 : slipHeight(wordsSlip, width: sideWidth, fontSize: 11.2)
         let sideHeight = specimensHeight(specimens) + (words.isEmpty ? 0 : wordsHeight + 14)
         let photoHeight: CGFloat = photo.map {
             min(170, (photoWidth - 12) * $0.0.size.height / max(1, $0.0.size.width) + 30)
@@ -1436,7 +1490,7 @@ extension MonthlyEditionPDFWriter {
             }
             if !words.isEmpty {
                 let rect = CGRect(x: sideX, y: sy, width: sideWidth, height: wordsHeight)
-                drawHandSlip("your own words\n" + wordsText, style: style, in: rect, rotation: 0.025, seed: "words-\(day.id)", fontSize: 11.2)
+                drawHandSlip(wordsSlip, style: style, in: rect, rotation: 0.025, seed: "words-\(day.id)", fontSize: 11.2)
             }
             leaf.y = top + blockHeight + 10
         }
@@ -1768,19 +1822,29 @@ extension MonthlyEditionPDFWriter {
             leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: headLeft, headRight: "continued")
         }
         for day in days {
-            var spoken: [String] = day.words.map { "“\($0)”" }
+            // The reader's sentences sit among quotations and Cast notes on one
+            // run of paper; only theirs is in their hand.
+            var spoken: [(text: String, isReaders: Bool)] = day.words.map { ("“\($0)”", true) }
             for keep in day.keeps {
                 switch keep.kind {
-                case .quotation: spoken.append("“" + keep.body.trimmingCharacters(in: .whitespacesAndNewlines) + "”" + (keep.speakerName.map { " — \($0)" } ?? ""))
+                case .quotation: spoken.append(("“" + keep.body.trimmingCharacters(in: .whitespacesAndNewlines) + "”" + (keep.speakerName.map { " — \($0)" } ?? ""), false))
                 case .castNote, .lore:
-                    spoken.append((keep.speakerName.map { "\($0): " } ?? "") + "“" + keep.body.trimmingCharacters(in: .whitespacesAndNewlines) + "”")
+                    spoken.append(((keep.speakerName.map { "\($0): " } ?? "") + "“" + keep.body.trimmingCharacters(in: .whitespacesAndNewlines) + "”", false))
                 default: break
                 }
             }
-            let wordsText = (perDay.map { Array(spoken.prefix($0)) } ?? spoken).joined(separator: " ")
+            var wordsText = ""
+            var readerRuns: [Range<Int>] = []
+            for (index, piece) in (perDay.map { Array(spoken.prefix($0)) } ?? spoken).enumerated() {
+                if index > 0 { wordsText += " " }
+                let start = wordsText.count
+                wordsText += piece.text
+                if piece.isReaders { readerRuns.append(start..<wordsText.count) }
+            }
+            let words = FieldMarked(text: wordsText, hands: readerRuns)
             let specimenLine = day.specimens.map(\.title).joined(separator: " · ")
-            let wordFont = handFont(11.4)
-            let wordHeight = wordsText.isEmpty ? 0 : FieldText.height(wordsText, font: wordFont, width: leaf.contentWidth - 4, lineSpacing: 1.6, paragraphSpacing: 2, justified: false)
+            let wordFont = handFont(11.4, .book)
+            let wordHeight = wordsText.isEmpty ? 0 : FieldText.height(words, font: wordFont, width: leaf.contentWidth - 4, lineSpacing: 1.6, paragraphSpacing: 2, justified: false)
             let specFont = UIFont.fbSerifItalic(ofSize: 8.8)
             let specHeight = specimenLine.isEmpty ? 0 : FieldText.height(specimenLine, font: specFont, width: leaf.contentWidth, lineSpacing: 1, paragraphSpacing: 0, justified: false)
             let needed = 22 + wordHeight + specHeight + 10
@@ -1792,7 +1856,7 @@ extension MonthlyEditionPDFWriter {
                            waxing: moon.moonAgeDays < MoonPhaseCalendar.synodicMonthDays / 2, ink: ink)
             leaf.y += 16
             if wordHeight > 0 {
-                _ = FieldText.flow(wordsText, font: wordFont, color: ink.withAlphaComponent(0.86),
+                _ = FieldText.flow(words, font: wordFont, color: ink.withAlphaComponent(0.86),
                                    in: CGRect(x: leaf.left, y: leaf.y, width: leaf.contentWidth - 4, height: wordHeight + 2),
                                    lineSpacing: 1.6, paragraphSpacing: 2, justified: false)
                 leaf.y += wordHeight + 3
@@ -2894,7 +2958,9 @@ extension MonthlyEditionPDFWriter {
             // a page of its own: one short note, then the way in.
             let openingText = matter.editorialNote?.nonEmpty ?? reading.note(at: .opening)
             let openingFont = UIFont.fbSerifItalic(ofSize: 11.2)
-            var opening = FieldMarked(parsing: openingText)
+            // The Book's note quotes the reader; their sentences stay in their hand.
+            let weekSentences = entrySentences(book.days.flatMap(\.entries))
+            var opening = FieldMarked(parsing: openingText).markingHands(weekSentences)
             var openingPasses = 0
             while !opening.isEmpty, openingPasses < 4 {
                 openingPasses += 1
@@ -3034,7 +3100,7 @@ extension MonthlyEditionPDFWriter {
             leaf.y += 40
             let closing = matter.closingNote?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? reading.note(at: .closing)
-            var ending = FieldMarked(parsing: closing)
+            var ending = FieldMarked(parsing: closing).markingHands(weekSentences)
             while !ending.isEmpty {
                 if leaf.bottom - leaf.y < 45 {
                     leaf = fieldLeaf(&cursor, style: style, context: context, headLeft: headLeft, headRight: "The End · continued")
@@ -3615,7 +3681,7 @@ extension MonthlyEditionPDFWriter {
                 if keep.kind == .letter, let name = keep.speakerName {
                     room(24)
                     let sig = "— \(name)" as NSString
-                    let attrs: [NSAttributedString.Key: Any] = [.font: handFont(13), .foregroundColor: keep.accentHex.map { castInk($0) } ?? style.palette.accent]
+                    let attrs: [NSAttributedString.Key: Any] = [.font: handFont(13, .book), .foregroundColor: keep.accentHex.map { castInk($0) } ?? style.palette.accent]
                     let w = sig.size(withAttributes: attrs).width
                     sig.draw(at: CGPoint(x: leaf.right - w, y: leaf.y), withAttributes: attrs)
                     leaf.y += 24
@@ -3698,7 +3764,7 @@ extension MonthlyEditionPDFWriter {
     static let ownHandLineSpacing: CGFloat = 5.2
 
     /// The height one line of the reader's hand takes, rule to rule.
-    static var ownHandPitch: CGFloat { handFont(ownHandSize).lineHeight + ownHandLineSpacing }
+    static var ownHandPitch: CGFloat { handFont(ownHandSize, .reader).lineHeight + ownHandLineSpacing }
 
     /// The reader's writing, set in a hand on ruled lines and allowed to run
     /// on to further leaves: it is the one thing on a page nobody else wrote.
@@ -3711,7 +3777,7 @@ extension MonthlyEditionPDFWriter {
         indent: CGFloat = 0,
         fresh: () -> PDFCursor
     ) {
-        let font = handFont(ownHandSize)
+        let font = handFont(ownHandSize, .reader)
         let ink = style.palette.ink
         let left = leaf.left + indent
         let width = leaf.contentWidth - indent
@@ -3745,7 +3811,7 @@ extension MonthlyEditionPDFWriter {
 
     /// The ink the reader writes in: darker and bluer than the type, so their
     /// hand reads as ink on the page and not as more print.
-    static let readerInk = UIColor(red: 0.13, green: 0.20, blue: 0.36, alpha: 0.94)
+    static let readerInk = BookHand.readerInk
     static func ownInk(_ style: EditionStyle) -> UIColor { readerInk }
 
     /// Faint ruled lines under handwritten text, one per line of it.
@@ -3905,7 +3971,7 @@ extension MonthlyEditionPDFWriter {
         } else {
             return
         }
-        let noteHeight: CGFloat = page.note.map { FieldText.height($0, font: handFont(ownHandSize), width: leaf.contentWidth - 20, lineSpacing: ownHandLineSpacing, paragraphSpacing: 2, justified: false) + 26 } ?? 0
+        let noteHeight: CGFloat = page.note.map { FieldText.height($0, font: handFont(ownHandSize, .reader), width: leaf.contentWidth - 20, lineSpacing: ownHandLineSpacing, paragraphSpacing: 2, justified: false) + 26 } ?? 0
         drawEyebrow("From your scrapbook", style: style, leaf: &leaf)
         let box = CGRect(x: leaf.left + 8, y: leaf.y + 10, width: leaf.contentWidth - 16,
                          height: max(160, leaf.bottom - leaf.y - 52 - min(noteHeight, 120)))
@@ -4270,7 +4336,7 @@ extension MonthlyEditionPDFWriter {
         drawTapeStrip(center: CGPoint(x: frame.midX + frame.width * 0.3, y: frame.maxY - 2), length: 34, angle: -0.5 + tilt, tint: style.palette.gold)
         let formatter = DateFormatter(); formatter.setLocalizedDateFormatFromTemplate("EEEE d MMMM")
         let caption = "pressed here, \(formatter.string(from: day.date))" as NSString
-        let attrs: [NSAttributedString.Key: Any] = [.font: handFont(10), .foregroundColor: style.palette.ink.withAlphaComponent(0.6)]
+        let attrs: [NSAttributedString.Key: Any] = [.font: handFont(10, .book), .foregroundColor: style.palette.ink.withAlphaComponent(0.6)]
         let w = caption.size(withAttributes: attrs).width
         caption.draw(at: CGPoint(x: rect.midX - w / 2, y: frame.maxY + 10), withAttributes: attrs)
     }
@@ -4559,7 +4625,7 @@ extension MonthlyEditionPDFWriter {
         dates.dateFormat = "MMM d"
         let titleFont = UIFont.fbSerif(ofSize: 13.5, weight: .semibold)
         let readingFont = UIFont.fbSerif(ofSize: 10.4, weight: .regular)
-        let handAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10.4), .foregroundColor: readerInk]
+        let handAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10.4, .reader), .foregroundColor: readerInk]
         for (index, connection) in connections.enumerated() {
             let readingH = FieldText.height(connection.reading, font: readingFont, width: leaf.contentWidth - 22,
                                             lineSpacing: 2.2, paragraphSpacing: 4, justified: false)
@@ -4580,7 +4646,7 @@ extension MonthlyEditionPDFWriter {
             for item in connection.evidence.prefix(3) {
                 let quote = "\u{201C}\(item.excerpt)\u{201D}" as NSString
                 let width = leaf.contentWidth - 22 - 50
-                let h = min(handFont(10.4).lineHeight * 3 + 2, ceil(quote.boundingRect(
+                let h = min(handFont(10.4, .reader).lineHeight * 3 + 2, ceil(quote.boundingRect(
                     with: CGSize(width: width, height: .greatestFiniteMagnitude), options: [.usesLineFragmentOrigin],
                     attributes: handAttributes, context: nil).height))
                 if leaf.y + h + 6 > leaf.bottom { break }
@@ -4788,8 +4854,8 @@ extension MonthlyEditionPDFWriter {
                 leaf.y += 4
                 drawEyebrow("That same day, you wrote", style: chapterStyle, leaf: &leaf)
                 let quote = "\u{201C}\(line)\u{201D}"
-                let attributes: [NSAttributedString.Key: Any] = [.font: handFont(11), .foregroundColor: readerInk]
-                let h = min(handFont(11).lineHeight * 2 + 4, leaf.bottom - leaf.y)
+                let attributes: [NSAttributedString.Key: Any] = [.font: handFont(11, .reader), .foregroundColor: readerInk]
+                let h = min(handFont(11, .reader).lineHeight * 2 + 4, leaf.bottom - leaf.y)
                 (quote as NSString).draw(with: CGRect(x: leaf.left + 8, y: leaf.y, width: leaf.contentWidth - 16, height: h),
                                          options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: attributes, context: nil)
                 leaf.y += h + 8

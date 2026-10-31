@@ -207,8 +207,8 @@ extension MonthlyEditionPDFWriter {
                         .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                         .joined(separator: " · ")
                     let quote = "\u{201C}\(line)\u{201D}" as NSString
-                    let quoteAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10), .foregroundColor: readerInk]
-                    let twoLines = handFont(10).lineHeight * 2 + 2
+                    let quoteAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10, .reader), .foregroundColor: readerInk]
+                    let twoLines = handFont(10, .reader).lineHeight * 2 + 2
                     let height = min(twoLines, ceil(quote.boundingRect(with: CGSize(width: leaf.contentWidth - 10, height: .greatestFiniteMagnitude),
                         options: [.usesLineFragmentOrigin], attributes: quoteAttributes, context: nil).height))
                     quote.draw(with: CGRect(x: leaf.left + 10, y: leaf.y - 4, width: leaf.contentWidth - 10, height: height),
@@ -264,13 +264,13 @@ extension MonthlyEditionPDFWriter {
         var shownMonth = -1
         let truncating = NSMutableParagraphStyle()
         truncating.lineBreakMode = .byTruncatingTail
-        let handAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10), .foregroundColor: readerInk]
+        let handAttributes: [NSAttributedString.Key: Any] = [.font: handFont(10, .reader), .foregroundColor: readerInk]
         let indent: CGFloat = 46
         for sitting in sittings {
             var answerHeight: CGFloat = 0
             let quote = sitting.answer.map { "\u{201C}\($0)\u{201D}" as NSString }
             if let quote {
-                answerHeight = min(handFont(10).lineHeight * 3 + 2, ceil(quote.boundingRect(
+                answerHeight = min(handFont(10, .reader).lineHeight * 3 + 2, ceil(quote.boundingRect(
                     with: CGSize(width: leaf.contentWidth - indent, height: .greatestFiniteMagnitude),
                     options: [.usesLineFragmentOrigin], attributes: handAttributes, context: nil).height)) + 4
             }
@@ -501,7 +501,7 @@ extension MonthlyEditionPDFWriter {
         var total: CGFloat = 13 + titleH + 5 + inviteH + 12 + footTextH + 34 + 12
         if let entry = lesson.readerEntry {
             let shown = entry.count > 360 ? String(entry.prefix(360)) + "…" : entry
-            total += 14 + slipHeight(shown, width: width - 20) + 10
+            total += 14 + slipHeight(shown, hand: .reader, width: width - 20) + 10
         }
         return total + CGFloat(fields) * 60
     }
@@ -520,8 +520,8 @@ extension MonthlyEditionPDFWriter {
             drawTracked("What you brought back from the room", at: CGPoint(x: leaf.left, y: leaf.y), font: smallCaps(6.6), color: style.palette.accent, tracking: 1.2)
             leaf.y += 12
             let shown = entry.count > 360 ? String(entry.prefix(360)).trimmingCharacters(in: .whitespaces) + "…" : entry
-            let slipH = slipHeight(shown, width: leaf.contentWidth - 20)
-            drawHandSlip(shown, style: style, in: CGRect(x: leaf.left + 4, y: leaf.y, width: leaf.contentWidth - 20, height: slipH),
+            let slipH = slipHeight(shown, hand: .reader, width: leaf.contentWidth - 20)
+            drawHandSlip(shown, hand: .reader, style: style, in: CGRect(x: leaf.left + 4, y: leaf.y, width: leaf.contentWidth - 20, height: slipH),
                          rotation: (frac("hb-entry-\(lesson.id)") - 0.5) * 0.035, seed: "hb-entry-\(lesson.id)")
             leaf.y += slipH + 10
         }
@@ -567,8 +567,8 @@ extension MonthlyEditionPDFWriter {
             leaf.y += 14
             let width = leaf.contentWidth - 20
             let shown = entry.count > 520 ? String(entry.prefix(520)).trimmingCharacters(in: .whitespaces) + "…" : entry
-            let slipH = slipHeight(shown, width: width)
-            drawHandSlip(shown, style: style,
+            let slipH = slipHeight(shown, hand: .reader, width: width)
+            drawHandSlip(shown, hand: .reader, style: style,
                          in: CGRect(x: leaf.left + 4, y: leaf.y, width: width, height: slipH),
                          rotation: (frac("hb-entry-\(lesson.id)") - 0.5) * 0.035, seed: "hb-entry-\(lesson.id)")
             leaf.y += slipH + 14
