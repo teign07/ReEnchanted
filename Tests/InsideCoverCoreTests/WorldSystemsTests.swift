@@ -409,7 +409,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
 
     func testMarginTutorCatalogCoversIntroductionCurriculumDebuts() throws {
         let whatCues = ["This", " is ", " are ", "means", "shows", "lets", "live here", "happens"]
-        let whyCues = ["appears", "because", "when", "after", "enough", "real"]
+        let whyCues = ["appears", "because", "when", "after", "enough", "real", "starts from"]
         let howCues = ["Tap", "Read", "Choose", "Use", "Play", "Pick", "Do", "Listen", "Treat"]
 
         for type in IntroductionCurriculum.requiredStage.keys {

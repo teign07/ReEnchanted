@@ -433,7 +433,7 @@ final class StoryPageConsequenceTests: XCTestCase {
         XCTAssertEqual(consequence.sceneBiasDeltas["threshold"], 1)
         XCTAssertTrue(consequence.eventTags.contains("sentence-opened"))
         XCTAssertTrue(consequence.eventTags.contains("motif:threshold"))
-        XCTAssertTrue(consequence.monthlyEditionLines.contains("A kept sentence started something small in the Story Pages."))
+        XCTAssertTrue(consequence.monthlyEditionLines.contains("A kept sentence started something small in a vignette."))
         XCTAssertTrue(consequence.entityMemoryWrites.contains { $0.entityID == "the-book" && $0.summary.contains("sentence became a story") })
     }
 
