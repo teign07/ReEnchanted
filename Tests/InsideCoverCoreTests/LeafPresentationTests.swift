@@ -103,7 +103,7 @@ final class LeafPresentationTests: XCTestCase {
 
     func testSearsportReceiptCannotRepeatOnANewTendOrBoundary() throws {
         let now = Date(timeIntervalSinceReferenceDate: 700_000_000)
-        let line = "Searsport kept turning up, so the pencil started a tally while you were out."
+        let line = "Searsport kept turning up, so the ink started a tally while you were out."
         let receipt = InterleafCuration.Text.receipt(line)
         let fresh = InterleafCuration.Text(id: "new", text: "The gull stole my lunch.", kind: .reader)
         // Round-trip the durable history just as reopening the app does.

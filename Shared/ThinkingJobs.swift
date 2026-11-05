@@ -30,7 +30,7 @@ enum CrossingWagers {
         guard let test = noticing.test,
               let category = NoticingCrossings.categoryMeasures.first(where: { $0.id == test.categoryID }),
               let number = NoticingCrossings.numberMeasures.first(where: { $0.id == test.numberID }),
-              existing.filter(\.isSealed).count < SealedMarginEngine.maximumSealed,
+              existing.filter({ $0.isSealed && $0.bet == nil }).count < SealedMarginEngine.maximumSealed,
               !existing.contains(where: { $0.subjectID == noticing.id && ($0.isSealed || recentlyResolved($0, now: now, calendar: calendar)) })
         else { return nil }
         let clause = test.rises ? number.rises : number.falls

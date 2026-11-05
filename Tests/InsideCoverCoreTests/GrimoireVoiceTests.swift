@@ -251,7 +251,7 @@ final class GrimoireVoiceTests: XCTestCase {
             // A promise is only a promise if it says what taking it back looks
             // like. Adding a new phrasing to the pool means adding its marker
             // here on purpose — that is what this test is for.
-            let forfeits = ["gets crossed out", "the pencil comes out and this goes", "I was wrong"]
+            let forfeits = ["cross it out", "the ink sinks back into the paper and this goes", "I was wrong"]
             XCTAssertTrue(
                 forfeits.contains(where: promise.contains),
                 "a promise with no forfeit: \(promise)"

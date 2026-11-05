@@ -4471,13 +4471,11 @@ private enum FolioLeafMeasure {
 
     /// Advice has the interleaf's whole reading field, with only its turning
     /// strip and attribution reserved. Ordinary Pages also reserve controls;
-    /// that smaller measure can incorrectly exclude every writing tip. The
-    /// bottom of the leaf stays clear for the Book's handwritten aside.
-    static let writingTipMarginReserve: CGFloat = 160
+    /// that smaller measure can incorrectly exclude every writing tip.
     static func writingTipBounds(pageWidth: CGFloat, pageHeight: CGFloat) -> CGRect {
         let inset = inkPadding + typesettingSafetyInset
         let top: CGFloat = 14
-        let attributionAndBreath: CGFloat = 14 + 26 + 8 + writingTipMarginReserve
+        let attributionAndBreath: CGFloat = 14 + 26 + 8
         return CGRect(
             x: inset, y: top,
             width: typesettingWidth(pageWidth: pageWidth),
@@ -4756,11 +4754,11 @@ private struct FolioLeafComposition: Equatable {
             return .leading
         case .provenance:
             return choice < 38 ? .trailing : .leading
+        case .privacy:
+            return .leading
         case .readerHand, .readerUnderlined:
             // The reader's writing keeps the way they wrote it: flush left,
             // never justified or set off as a pull-quote.
-            return .leading
-        case .privacy:
             return .leading
         }
     }
@@ -5165,6 +5163,29 @@ private struct FolioWritingTipBlock {
     var pointSize: CGFloat
     var height: CGFloat
     var gapAfter: CGFloat
+}
+
+/// The tip's reading blocks, then its foot: the sign-off on one side and the
+/// Book's handwritten aside on the other. The aside is measured with the rest,
+/// so a tip that fits always has its margin note and the note never depends on
+/// leftover paper.
+private struct FolioWritingTipLayout {
+    var blocks: [FolioWritingTipBlock]
+    var aside: FolioWritingTipBlock
+    var signOffWidth: CGFloat
+    var asideWidth: CGFloat
+    /// Aside under the sign-off instead of beside it, at accessibility sizes.
+    var stacksFoot: Bool
+
+    static let signOffHeight: CGFloat = 26
+
+    var readingHeight: CGFloat { blocks.reduce(0) { $0 + $1.height + $1.gapAfter } }
+    var footHeight: CGFloat {
+        stacksFoot ? Self.signOffHeight + 6 + aside.height : max(Self.signOffHeight, aside.height)
+    }
+    /// The sign-off row was always outside the tip's bounds; only the part of
+    /// the foot that stands taller than it counts against them.
+    var heightAgainstBounds: CGFloat { readingHeight + max(0, footHeight - Self.signOffHeight) }
 }
 
 /// A turn of visual paper between two complete Pages. It deliberately has no
@@ -5576,8 +5597,26 @@ private enum FolioInkRole: Equatable {
     case body
     case handwritten
     case underlined
+    /// The reader's own words, in their hand and ink. Laid out wherever the
+    /// Book's prose may go; only the hand changes.
+    case readerHand
+    /// The reader's own words that the Book has underlined.
+    case readerUnderlined
     case provenance
     case privacy
+
+    /// The role whose place on the leaf this one takes: the reader's writing
+    /// sits where prose or a marked line would, so the region plans don't
+    /// need to know whose hand it is.
+    var layoutRole: FolioInkRole {
+        switch self {
+        case .readerHand: return .body
+        case .readerUnderlined: return .underlined
+        default: return self
+        }
+    }
+
+    var isReaders: Bool { self == .readerHand || self == .readerUnderlined }
 
     var textStyle: UIFont.TextStyle {
         switch self {
@@ -5594,30 +5633,16 @@ private enum FolioInkRole: Equatable {
         case .title: return 25
         case .deck: return 17
         case .body: return 17.5
+        // A hand sits smaller on its line than print does; these match the
+        // serif's apparent size rather than its nominal one.
+        case .readerHand: return 19
+        case .readerUnderlined: return 17.5
         case .handwritten, .underlined: return 16
         case .provenance, .privacy: return 13
         }
-    /// The reader's own words, in their hand and ink. Laid out wherever the
-    /// Book's prose may go; only the hand changes.
-    case readerHand
-    /// The reader's own words that the Book has underlined.
-    case readerUnderlined
     }
 
     var lineSpacing: CGFloat {
-    /// The role whose place on the leaf this one takes: the reader's writing
-    /// sits where prose or a marked line would, so the region plans don't
-    /// need to know whose hand it is.
-    var layoutRole: FolioInkRole {
-        switch self {
-        case .readerHand: return .body
-        case .readerUnderlined: return .underlined
-        default: return self
-        }
-    }
-
-    var isReaders: Bool { self == .readerHand || self == .readerUnderlined }
-
         switch self {
         case .title: return 2
         case .deck: return 3
@@ -5633,10 +5658,6 @@ private enum FolioInkRole: Equatable {
         case .deck: return 12
         case .body, .readerHand: return 11
         case .handwritten: return 13
-        // A hand sits smaller on its line than print does; these match the
-        // serif's apparent size rather than its nominal one.
-        case .readerHand: return 19
-        case .readerUnderlined: return 17.5
         case .underlined, .readerUnderlined: return 10
         case .provenance, .privacy: return 8
         }
@@ -5696,6 +5717,8 @@ private enum FolioInkRole: Equatable {
                 return BookHand.book.font(fixedSize: pointSize)
             }
             return .system(size: pointSize, weight: .regular, design: .serif).italic()
+        case .readerHand, .readerUnderlined:
+            return BookHand.reader.font(fixedSize: pointSize)
         case .underlined:
             return .system(size: pointSize, weight: .semibold, design: .serif)
         case .provenance, .privacy:
@@ -5717,8 +5740,6 @@ private enum FolioTypography {
             return .monospacedSystemFont(ofSize: size, weight: .semibold)
         case (.field, .specimenLabel):
             return .systemFont(ofSize: size, weight: .semibold)
-        case .readerHand, .readerUnderlined:
-            return BookHand.reader.font(fixedSize: pointSize)
         default:
             return serifFont(size: size, weight: .semibold)
         }
@@ -6807,10 +6828,9 @@ private enum PagesRisingFolioPaginator {
             textCandidates = interleafTexts.filter { candidate in
                 guard candidate.kind == .writingTip else { return true }
                 guard let lesson = InterleafWritingCraft.lesson(forTextID: candidate.id) else { return false }
-                let blocks = writingTipBlocks(
+                return writingTipLayout(
                     lesson, metrics: metrics, composition: writingTipComposition, width: writingTipBounds.width
-                )
-                return blocks.reduce(0) { $0 + $1.height + $1.gapAfter } <= writingTipBounds.height
+                ).heightAgainstBounds <= writingTipBounds.height
             }
         } else {
             textCandidates = interleafTexts
@@ -6884,20 +6904,10 @@ private enum PagesRisingFolioPaginator {
         }
         composition.decorationBudget = kind.carriesMarginalia
             ? (metrics.contentSizeCategory.isAccessibilityCategory ? 1 : recipe.density.markBudget) : 0
-        // A sentence tip has the Book's own handwriting in the margin of it, and
-        // that note must not lose its slot to a drawing: the aside goes first,
-        // a small stamp may keep it company, and a large plate stays out of the
-        // sentence being looked at.
-        if case .quotation(let tip) = kind, tip.kind == .writingTip,
-           let lesson = InterleafWritingCraft.lesson(forTextID: tip.id) {
-            let accessible = metrics.contentSizeCategory.isAccessibilityCategory
-            recipe.primaryAsset = nil
-            if accessible {
-                recipe.secondaryAsset = nil
-                recipe.companionAssets = []
-            }
-            recipe.handwrittenSnippet = lesson.marginalia
-            composition.decorationBudget = accessible ? 1 : max(2, composition.decorationBudget)
+        // A sentence tip prints its own handwritten aside, measured with the
+        // rest of it. The margin library adds no second note beside it.
+        if case .quotation(let tip) = kind, tip.kind == .writingTip {
+            recipe.handwrittenSnippet = nil
         }
         // Keep the cabinet's composed marks as the honest fallback for a
         // library photograph that cannot be fetched or rendered. The visible
@@ -6908,11 +6918,11 @@ private enum PagesRisingFolioPaginator {
         case .quotation(let quotation) where quotation.kind == .writingTip
             && InterleafWritingCraft.lesson(forTextID: quotation.id) != nil:
             let lesson = InterleafWritingCraft.lesson(forTextID: quotation.id)!
-            let blocks = writingTipBlocks(
+            let tip = writingTipLayout(
                 lesson, metrics: metrics, composition: composition, width: writingTipBounds.width
             )
             var y = writingTipBounds.minY
-            for (index, block) in blocks.enumerated() {
+            for (index, block) in tip.blocks.enumerated() {
                 fragments.append(FolioFragment(
                     id: "\(boundaryID)::tip-\(index)",
                     content: .text(block.text),
@@ -6932,12 +6942,26 @@ private enum PagesRisingFolioPaginator {
                 content: .text(kind.quoteAttribution),
                 role: .provenance,
                 textRange: -1...(-1),
-                measuredHeight: 26,
+                measuredHeight: FolioWritingTipLayout.signOffHeight,
                 pointSize: 11,
                 spacingAfter: 0,
-                alignment: .trailing,
+                alignment: .leading,
                 placement: CGRect(x: writingTipBounds.minX, y: y,
-                                  width: writingTipBounds.width, height: 26)
+                                  width: tip.signOffWidth, height: FolioWritingTipLayout.signOffHeight)
+            ))
+            fragments.append(FolioFragment(
+                id: "\(boundaryID)::tip-aside",
+                content: .text(tip.aside.text),
+                role: .handwritten,
+                textRange: -1...(-1),
+                measuredHeight: tip.aside.height,
+                pointSize: tip.aside.pointSize,
+                spacingAfter: 0,
+                alignment: tip.aside.alignment,
+                placement: CGRect(
+                    x: tip.stacksFoot ? writingTipBounds.minX : writingTipBounds.maxX - tip.asideWidth,
+                    y: tip.stacksFoot ? y + FolioWritingTipLayout.signOffHeight + 6 : y,
+                    width: tip.asideWidth, height: tip.aside.height)
             ))
         case .quotation(let quotation):
             let text = quotation.text
@@ -7314,11 +7338,39 @@ private enum PagesRisingFolioPaginator {
                         blockID: block.id
                     )
                 if block.role == .title, consumed == 0 {
+                    // A title sized to fill the whole box leaves its own
+                    // attribution nowhere to sit, and a short deck then
+                    // splits across leaves. Hold back what the deck needs.
+                    var deckReserve: CGFloat = 0
+                    if let nextTextBlock = blocks.dropFirst(blockPosition + 1).first(where: {
+                        $0.text?.nonEmpty != nil
+                    }), nextTextBlock.role == .deck, let nextText = nextTextBlock.text?.nonEmpty {
+                        let nextFont = nextTextBlock.role.uiFont(
+                            category: metrics.contentSizeCategory,
+                            composition: composition
+                        )
+                        let wholeDeck = measuredTextHeight(
+                            nextText,
+                            role: nextTextBlock.role,
+                            font: nextFont,
+                            width: fragmentWidth(
+                                for: nextTextBlock.role,
+                                region: cursors[regionIndex].region,
+                                composition: composition,
+                                metrics: metrics
+                            ),
+                            composition: composition,
+                            alignment: nextTextBlock.preferredAlignment ?? alignment
+                        ) + composition.spacingAfter(for: nextTextBlock.role)
+                        if wholeDeck <= nextFont.lineHeight * 6 {
+                            deckReserve = min(wholeDeck, available * 0.4)
+                        }
+                    }
                     font = titleFontFittingWholeBlock(
                         String(characters),
                         baseFont: font,
                         width: width,
-                        height: available,
+                        height: max(1, available - deckReserve),
                         composition: composition,
                         alignment: alignment
                     )
@@ -7339,9 +7391,31 @@ private enum PagesRisingFolioPaginator {
                             category: metrics.contentSizeCategory,
                             composition: composition
                         )
-                        let nextMinimum = CGFloat(max(1, nextTextBlock.minimumFragmentLines))
+                        var nextMinimum = CGFloat(max(1, nextTextBlock.minimumFragmentLines))
                             * (nextFont.lineHeight + composition.lineSpacing(for: nextTextBlock.role))
                             + composition.spacingAfter(for: nextTextBlock.role)
+                        // A short attribution or deck is a single thought: it
+                        // may not be split across leaves ("…Saint-Exupéry, The"
+                        // / "Little Prince"). When the whole of it is only a
+                        // few lines, the box must hold all of it or give way.
+                        if let nextText = nextTextBlock.text?.nonEmpty {
+                            let nextWholeHeight = measuredTextHeight(
+                                nextText,
+                                role: nextTextBlock.role,
+                                font: nextFont,
+                                width: fragmentWidth(
+                                    for: nextTextBlock.role,
+                                    region: cursors[regionIndex].region,
+                                    composition: composition,
+                                    metrics: metrics
+                                ),
+                                composition: composition,
+                                alignment: nextTextBlock.preferredAlignment ?? alignment
+                            ) + composition.spacingAfter(for: nextTextBlock.role)
+                            if nextWholeHeight <= nextFont.lineHeight * 6 {
+                                nextMinimum = max(nextMinimum, nextWholeHeight)
+                            }
+                        }
                         if available - titleHeight < nextMinimum {
                             composition.regionPattern = .continuous
                             regions = FolioLeafRegionPlanner.regions(
@@ -7884,6 +7958,11 @@ private enum PagesRisingFolioPaginator {
                 )
                 mediaAfterParagraph[target, default: []].append(item)
             }
+            // The Book's question is set the way the Book would mark it: it
+            // underlines your sentence, then writes its wondering in the margin.
+            // Anywhere else, a paragraph the reader wrote is in their hand.
+            let isBookAsk = surface.payload.metadata["bookAsks"] == "true"
+            let readerWords = ReaderWords.decoded(surface.payload.metadata)
             for (paragraphIndex, paragraph) in bodyParagraphs.enumerated() {
                 let role: FolioInkRole = isBookAsk
                     ? (paragraphIndex == 0 ? .readerUnderlined : (paragraphIndex == 1 ? .handwritten : .body))
@@ -7961,11 +8040,6 @@ private enum PagesRisingFolioPaginator {
                 role: role,
                 font: font,
                 width: width,
-            // The Book's question is set the way the Book would mark it: it
-            // underlines your sentence, then writes its wondering in the margin.
-            // Anywhere else, a paragraph the reader wrote is in their hand.
-            let isBookAsk = surface.payload.metadata["bookAsks"] == "true"
-            let readerWords = ReaderWords.decoded(surface.payload.metadata)
                 composition: composition,
                 alignment: alignment
             ) <= height {
@@ -8088,16 +8162,16 @@ private enum PagesRisingFolioPaginator {
     /// three: a label in the Book's accent ink, the sentence itself held up in
     /// quotation marks like any other quoted line, and then what the Book has
     /// to say about it in ordinary reading type.
-    private static func writingTipBlocks(
+    private static func writingTipLayout(
         _ lesson: InterleafWritingCraft.Lesson,
         metrics: FolioLayoutMetrics,
         composition: FolioLeafComposition,
         width: CGFloat
-    ) -> [FolioWritingTipBlock] {
+    ) -> FolioWritingTipLayout {
         let accessible = metrics.contentSizeCategory.isAccessibilityCategory
         func block(
             _ text: String, _ role: FolioInkRole, _ alignment: FolioParagraphAlignment,
-            pointSize: CGFloat? = nil, gapAfter: CGFloat
+            width: CGFloat, pointSize: CGFloat? = nil, gapAfter: CGFloat
         ) -> FolioWritingTipBlock {
             let base = role.uiFont(category: metrics.contentSizeCategory, composition: composition)
             let font = pointSize.map { base.withSize($0) } ?? base
@@ -8110,12 +8184,20 @@ private enum PagesRisingFolioPaginator {
                 gapAfter: gapAfter
             )
         }
-        return [
-            block(lesson.label, .underlined, .leading, gapAfter: 18),
+        let signOffWidth: CGFloat = accessible ? width : min(150, width * 0.5)
+        let asideWidth = accessible ? width : max(1, width - signOffWidth - 10)
+        let reading: [FolioWritingTipBlock] = [
+            block(lesson.label, .underlined, .leading, width: width, gapAfter: 14),
             block(lesson.quotedExample, .body, accessible ? .leading : .centered,
-                  pointSize: accessible ? 18 : 20, gapAfter: 18),
-            block(lesson.body, .body, .leading, gapAfter: 14)
+                  width: width, pointSize: accessible ? 18 : 20, gapAfter: 14),
+            block(lesson.explanation + " " + lesson.why, .body, .leading, width: width, gapAfter: 14)
         ]
+        let aside = block(lesson.aside, .handwritten, accessible ? .leading : .trailing,
+                          width: asideWidth, gapAfter: 0)
+        return FolioWritingTipLayout(
+            blocks: reading, aside: aside, signOffWidth: signOffWidth,
+            asideWidth: asideWidth, stacksFoot: accessible
+        )
     }
 
     private static func measuredTextHeight(
@@ -8603,7 +8685,8 @@ private struct FolioLeafPage: View {
             // open paper remain fully opaque.
             FolioLeafMarginaliaMarks(
                 leaf: leaf,
-                accent: visualStyle.accent,
+                // The Book's margin hand carries its mood most plainly.
+                accent: moodLettering.map { $0.inked(visualStyle.accent, lean: $0.handLean) } ?? visualStyle.accent,
                 handwrittenNote: leaf.decorativeMarginNote,
                 interactionStore: interactionStore,
                 isVisible: isInkVisible && canRecordPhotoVisibility,
@@ -8751,6 +8834,11 @@ private struct FolioLeafPage: View {
         .shadow(color: .black.opacity(0.26), radius: 10, x: 1, y: 7)
         .environment(\.bookLeafInkArrival, interactionStore.inkArrival(for: leaf))
         .environment(\.bookLeafInkEnabled, leaf.inkEmergenceID != nil)
+        .environment(\.folioWordContext, FolioWordContext(
+            leafKey: leaf.surface.payload.metadata["keptPageID"]?.nonEmpty ?? leaf.surface.id,
+            pageID: leaf.surface.payload.metadata["keptPageID"]?.nonEmpty,
+            openPage: onOpenInterleafSource
+        ))
         .onPreferenceChange(FolioControlSubmissionKey.self) { controlSubmission = $0 }
         .onPreferenceChange(FolioControlPaginationKey.self) { starts in
             guard leaf.interactionKind == .pageControls, isInkVisible, canRecordPhotoVisibility,
@@ -9142,13 +9230,28 @@ private struct FolioLeafPage: View {
         .accessibilityHint("Shows this piece of the leaf at a larger size")
     }
 
+    /// The Book's mood, shown only in its ink (see `BookMoodLettering`).
+    private var moodLettering: BookMoodLettering? { BookMoodInk.shared.lettering }
+
     private func color(for role: FolioInkRole) -> Color {
+        let plain = plainColor(for: role)
+        guard let mood = moodLettering else { return plain }
+        switch role {
+        case .body, .deck, .provenance: return mood.inked(plain, lean: mood.printLean)
+        case .handwritten, .underlined: return mood.inked(plain, lean: mood.handLean)
+        // Titles keep the Page's own colours, and the reader's hand is theirs.
+        case .title, .privacy, .readerHand, .readerUnderlined: return plain
+        }
+    }
+
+    private func plainColor(for role: FolioInkRole) -> Color {
         switch role {
         case .title:
             return leaf.composition.titleUsesAccent ? visualStyle.accent : BookPalette.ink
         case .deck: return BookPalette.ink.opacity(0.84)
         case .body: return BookPalette.ink.opacity(0.94)
         case .handwritten, .underlined: return visualStyle.accent.opacity(0.92)
+        case .readerHand, .readerUnderlined: return BookHand.readerInkColor
         case .provenance: return BookPalette.ink.opacity(0.68)
         case .privacy: return visualStyle.accent
         }
@@ -9158,6 +9261,7 @@ private struct FolioLeafPage: View {
         switch role {
         case .handwritten: return "Written in the margin: \(text)"
         case .underlined: return "I underlined: \(text)"
+        case .readerUnderlined: return "You wrote, and I underlined: \(text)"
         case .privacy: return "Privacy: \(text)"
         default: return text
         }
@@ -9231,7 +9335,6 @@ private struct FolioLeafPage: View {
         .contentShape(Rectangle())
         .accessibilityHidden(true)
     }
-        case .readerHand, .readerUnderlined: return BookHand.readerInkColor
 
     /// Loose leaves keep only their ordinary turning strip below the ink.
     private var interstitialFooter: some View {
@@ -9241,7 +9344,6 @@ private struct FolioLeafPage: View {
             .padding(.top, FolioLeafMeasure.interstitialFooterTopPadding)
     }
 
-        case .readerUnderlined: return "You wrote, and I underlined: \(text)"
     /// The way into the Page itself.
     ///
     /// A leaf can set prose and take a written answer. It cannot show the
@@ -9901,11 +10003,171 @@ final class FolioWrappingLabel: UILabel {
         super.didMoveToWindow()
         pigment.remove()
         inkSignature = ""
+        if window == nil { LooseWordPerch.shared.withdraw(from: self) }
         setNeedsLayout()
+    }
+
+    // MARK: The reader's words, touchable
+
+    /// Set on labels that carry the reader's own hand. Nil leaves the label
+    /// as it always was: ink, not a control.
+    var wordContext: FolioWordContext? {
+        didSet {
+            let touchable = wordContext != nil
+            guard touchable != isUserInteractionEnabled || (touchable && wordTap.view == nil) else { return }
+            isUserInteractionEnabled = touchable
+            if touchable, wordTap.view == nil { addGestureRecognizer(wordTap) }
+            wordTap.isEnabled = touchable
+        }
+    }
+    /// Today's loose word in this block, if it has one.
+    var loose: LooseWords.Pick?
+    var looseIsCaught = false
+    /// The loose word's ink, so a chase can lift it off the line and put it back.
+    var looseInk: UIColor = .black
+
+    private lazy var wordTap = UITapGestureRecognizer(target: self, action: #selector(tappedWord(_:)))
+    private var chasing = false
+    private var wordRanges: [NSRange] = []
+    private var wordRangesSource = ""
+    private var perchSignature = ""
+
+    private struct TouchedWord {
+        let range: NSRange
+        let rect: CGRect
+        let word: String
+    }
+
+    /// Only a real word of theirs starts a tap. Anywhere else the touch belongs
+    /// to the leaf and the pager, exactly as before.
+    override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
+        guard recognizer === wordTap else { return super.gestureRecognizerShouldBegin(recognizer) }
+        return wordContext != nil && !chasing && touchedWord(at: recognizer.location(in: self)) != nil
+    }
+
+    /// A TextKit copy of the label's own layout. UILabel centres its text in
+    /// any spare height, so the offset is returned with it. The storage is
+    /// returned too: it owns the layout manager.
+    private func textLayout() -> (NSTextStorage, NSLayoutManager, NSTextContainer, CGFloat)? {
+        guard let text = attributedText, text.length > 0, bounds.width > 1 else { return nil }
+        let storage = NSTextStorage(attributedString: text)
+        let manager = NSLayoutManager()
+        let container = NSTextContainer(size: CGSize(width: bounds.width, height: .greatestFiniteMagnitude))
+        container.lineFragmentPadding = 0
+        container.lineBreakMode = lineBreakMode
+        manager.addTextContainer(container)
+        storage.addLayoutManager(manager)
+        manager.ensureLayout(for: container)
+        let used = manager.usedRect(for: container)
+        return (storage, manager, container, max(0, (bounds.height - used.height) / 2))
+    }
+
+    private func rect(for range: NSRange) -> CGRect? {
+        guard let (storage, manager, container, dy) = textLayout(), NSMaxRange(range) <= storage.length else { return nil }
+        let glyphs = manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        return manager.boundingRect(forGlyphRange: glyphs, in: container).offsetBy(dx: 0, dy: dy)
+    }
+
+    private func touchedWord(at point: CGPoint) -> TouchedWord? {
+        guard let (storage, manager, container, dy) = textLayout() else { return nil }
+        let local = CGPoint(x: point.x, y: point.y - dy)
+        guard manager.usedRect(for: container).insetBy(dx: -8, dy: -8).contains(local) else { return nil }
+        let string = storage.string as NSString
+        if wordRangesSource != storage.string {
+            wordRangesSource = storage.string
+            var ranges: [NSRange] = []
+            string.enumerateSubstrings(in: NSRange(location: 0, length: string.length), options: [.byWords, .substringNotRequired]) { _, range, _, _ in
+                ranges.append(range)
+            }
+            wordRanges = ranges
+        }
+        let glyph = manager.glyphIndex(for: local, in: container)
+        let character = manager.characterIndexForGlyph(at: glyph)
+        guard let range = wordRanges.first(where: { NSLocationInRange(character, $0) }) else { return nil }
+        let glyphs = manager.glyphRange(forCharacterRange: range, actualCharacterRange: nil)
+        let box = manager.boundingRect(forGlyphRange: glyphs, in: container).offsetBy(dx: 0, dy: dy)
+        guard box.insetBy(dx: -8, dy: -6).contains(point) else { return nil }
+        let word = string.substring(with: range)
+        guard WordsOfYours.key(word) != nil else { return nil }
+        return TouchedWord(range: range, rect: box, word: word)
+    }
+
+    @objc private func tappedWord(_ recognizer: UITapGestureRecognizer) {
+        guard let context = wordContext, !chasing, let hit = touchedWord(at: recognizer.location(in: self)) else { return }
+        if let loose, !looseIsCaught, NSIntersectionRange(loose.range, hit.range).length > 0 {
+            startChase(hit, context: context)
+            return
+        }
+        BookFeedback.play(.select)
+        WordCardPresenter.present(word: hit.word, from: self, rect: hit.rect, context: context, justCaught: false)
+    }
+
+    private func setInk(of range: NSRange, _ ink: UIColor) {
+        guard let current = attributedText, NSMaxRange(range) <= current.length else { return }
+        let inked = NSMutableAttributedString(attributedString: current)
+        inked.addAttribute(.foregroundColor, value: ink, range: range)
+        attributedText = inked
+    }
+
+    private func startChase(_ hit: TouchedWord, context: FolioWordContext) {
+        let dayID = BookDay.id(for: Date())
+        guard let window, !UIAccessibility.isReduceMotionEnabled, !UIAccessibility.isVoiceOverRunning,
+              let current = attributedText else {
+            caught(hit, context: context, dayID: dayID)
+            return
+        }
+        chasing = true
+        LooseWordPerch.shared.withdraw(from: self)
+        let runner = UILabel()
+        runner.attributedText = current.attributedSubstring(from: hit.range)
+        runner.sizeToFit()
+        let home = convert(hit.rect, to: window)
+        let start = CGRect(x: home.midX - runner.bounds.width / 2, y: home.midY - runner.bounds.height / 2,
+                           width: runner.bounds.width, height: runner.bounds.height)
+        let arena = nearestViewController?.view.map { $0.convert($0.bounds, to: window) } ?? window.bounds
+        let glint = current.attribute(.foregroundColor, at: hit.range.location, effectiveRange: nil) as? UIColor ?? looseInk
+        setInk(of: hit.range, .clear)
+        let chase = LooseWordChaseView(bounds: window.bounds, word: runner, home: start)
+        window.addSubview(chase)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        chase.run(across: arena, seed: "\(dayID)|\(context.leafKey)|\(hit.word)".stableHash, caught: { [weak self] _ in
+            self?.caught(hit, context: context, dayID: dayID)
+        }, escaped: { [weak self] in
+            guard let self else { return }
+            self.chasing = false
+            self.setInk(of: hit.range, glint)
+            self.perchSignature = ""
+            self.setNeedsLayout()
+        })
+    }
+
+    private func caught(_ hit: TouchedWord, context: FolioWordContext, dayID: String) {
+        chasing = false
+        looseIsCaught = true
+        CaughtWords.shared.record(hit.word, leafKey: context.leafKey, dayID: dayID)
+        LooseWordPerch.shared.withdraw(from: self)
+        // It's pressed into the dictionary now; the line keeps only its print.
+        setInk(of: hit.range, looseInk.withAlphaComponent(0.32))
+        WordCardPresenter.present(word: hit.word, from: self, rect: hit.rect, context: context, justCaught: true)
+    }
+
+    /// Tell the Pixie where today's loose word sits, so she can land on it.
+    private func offerLoosePerch() {
+        guard let loose, !looseIsCaught, !chasing, wordContext != nil, let window else {
+            perchSignature = ""
+            LooseWordPerch.shared.withdraw(from: self)
+            return
+        }
+        let origin = convert(CGPoint.zero, to: window)
+        let signature = "\(loose.range)|\(bounds.size)|\(origin)"
+        guard signature != perchSignature, let rect = rect(for: loose.range) else { return }
+        perchSignature = signature
+        LooseWordPerch.shared.offer(convert(rect, to: window), from: self)
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        offerLoosePerch()
         guard revealsInk else {
             pigment.remove()
             drawsLiveInk = true
@@ -9973,6 +10235,7 @@ private struct FolioWrappedText: UIViewRepresentable {
     @Environment(\.bookLeafInkEnabled) private var inkEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.folioWordContext) private var wordContext
     let text: String
     let role: FolioInkRole
     let pointSize: CGFloat
@@ -9995,6 +10258,8 @@ private struct FolioWrappedText: UIViewRepresentable {
         let alignment: FolioParagraphAlignment
         let accent: Color
         let isOpeningFragment: Bool
+        let loose: LooseWords.Pick?
+        let looseCaught: Bool
         let colorScheme: ColorScheme
         let contrast: ColorSchemeContrast
         let legibilityWeight: LegibilityWeight?
@@ -10060,9 +10325,23 @@ private struct FolioWrappedText: UIViewRepresentable {
     }
 
     func updateUIView(_ label: FolioWrappingLabel, context: Context) {
+        // Only the reader's own hand is touchable, and only on a leaf that
+        // said where it is.
+        let words = role.isReaders ? wordContext : nil
+        let dayID = words == nil ? "" : BookDay.id(for: Date())
+        var loose = words.flatMap { LooseWords.pick(in: text, leafKey: $0.leafKey, dayID: dayID) }
+        #if DEBUG
+        // `--smoke-loose-word`: let one loose today wherever there's a word to loose.
+        if loose == nil, let words, ProcessInfo.processInfo.arguments.contains("--smoke-loose-word") {
+            loose = (0..<80).lazy.compactMap { LooseWords.pick(in: text, leafKey: words.leafKey, dayID: "smoke-\($0)") }.first
+        }
+        #endif
+        let looseCaught = words.map { loose != nil && CaughtWords.shared.isCaught(on: $0.leafKey, dayID: dayID) } ?? false
+        label.wordContext = words
         let configuration = TextConfiguration(
             text: text, role: role, pointSize: pointSize, composition: composition,
             color: color, alignment: alignment, accent: accent, isOpeningFragment: isOpeningFragment,
+            loose: loose, looseCaught: looseCaught,
             colorScheme: context.environment.colorScheme,
             contrast: context.environment.colorSchemeContrast,
             legibilityWeight: context.environment.legibilityWeight
@@ -10083,6 +10362,10 @@ private struct FolioWrappedText: UIViewRepresentable {
             if role == .underlined {
                 attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
                 attributes[.underlineColor] = UIColor(color)
+            } else if role == .readerUnderlined {
+                // Their words, the Book's pen: the rule is in the Book's accent.
+                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+                attributes[.underlineColor] = UIColor(accent)
             }
 
             let inked = NSMutableAttributedString(string: text, attributes: attributes)
@@ -10090,6 +10373,15 @@ private struct FolioWrappedText: UIViewRepresentable {
                accentRange.location + accentRange.length <= inked.length {
                 inked.addAttribute(.foregroundColor, value: UIColor(accent), range: accentRange)
             }
+            // Today's loose word glints gold among the reader's ink; once it's
+            // been caught only a faint print of it stays on the line.
+            label.looseInk = UIColor(color)
+            if let loose, NSMaxRange(loose.range) <= inked.length {
+                let ink = looseCaught ? UIColor(color).withAlphaComponent(0.32) : UIColor(BookPalette.gold)
+                inked.addAttribute(.foregroundColor, value: ink, range: loose.range)
+            }
+            label.loose = loose
+            label.looseIsCaught = looseCaught
             label.attributedText = inked
             label.inkSeed = "\(composition.seed)|\(text)"
             context.coordinator.configuration = configuration
@@ -10165,10 +10457,6 @@ private struct FolioStoryChoicesLeafPanel: View {
                 Text("Touch one. The other two will sulk and shut.")
                     .font(.system(size: 13, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.62))
-            } else if role == .readerUnderlined {
-                // Their words, the Book's pen: the rule is in the Book's accent.
-                attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-                attributes[.underlineColor] = UIColor(accent)
             }
 
             ForEach(actions) { action in
@@ -10184,12 +10472,13 @@ private struct FolioStoryChoicesLeafPanel: View {
                                 .font(.system(size: 15, weight: .bold, design: .serif))
                                 .foregroundStyle(BookPalette.ink)
                                 .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                             if let detail = action.detail?.nonEmpty {
                                 Text(detail)
                                     .font(.system(size: 12.5, design: .serif))
                                     .foregroundStyle(BookPalette.ink.opacity(0.65))
-                                    .lineLimit(3)
                                     .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                         Spacer(minLength: 4)
@@ -10242,6 +10531,9 @@ private struct FolioGenerationRequestLeaf: View {
                 .font(.system(size: compact ? 17 : 24, weight: .semibold, design: .serif))
                 .multilineTextAlignment(.center)
                 .foregroundStyle(BookPalette.ink)
+                // Wraps rather than truncates: the body below is fixed-size too,
+                // so without this the title was the one squeezed to "anot…".
+                .fixedSize(horizontal: false, vertical: true)
 
             Text(isBusy
                 ? "Gemma is writing privately on this device. The new leaf will slip in behind this one."
@@ -10289,6 +10581,7 @@ private struct FolioConversationLeafPanel: View {
             Text("Talk to me.")
                 .font(.system(size: compact ? 17 : 24, weight: .semibold, design: .serif))
                 .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
             if !compact {
                 Text("About anything. Tell me about your day, argue with me, or ask what I remember.")
                     .font(.system(size: 15, design: .serif))
@@ -10302,10 +10595,11 @@ private struct FolioConversationLeafPanel: View {
                         HStack(spacing: 8) {
                             Image(systemName: "text.bubble")
                                 .font(.system(size: 12, weight: .semibold))
+                            // A starter is a whole sentence; it wraps rather than ending in "…".
                             Text(line)
                                 .font(.system(size: compact ? 12 : 14, weight: .semibold))
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.8)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 11)
@@ -11253,32 +11547,15 @@ private struct FolioLeafMarginaliaMarks: View {
                     width: noteWidth,
                     height: noteHeight
                 )
-                // A busy leaf can still hold a short aside lower down,
-                // flush with the foot of the plate field.
-                let lowerHeights: [CGFloat] = [noteHeight, min(noteHeight, 66)]
-                var lowerFrames: [CGRect] = []
-                for height in lowerHeights {
-                    for step in 0..<4 {
-                        lowerFrames.append(CGRect(
-                            x: noteFrame.minX,
-                            y: plateField.maxY - height - CGFloat(step) * 10,
-                            width: noteWidth,
-                            height: height
-                        ))
-                    }
-                }
-                let besideHero = CGRect(
-                    x: heroFrame.maxX + 8,
-                    y: heroFrame.maxY - noteHeight,
-                    width: noteWidth,
-                    height: noteHeight
-                )
                 appendFirstAvailable(
                     id: "plate-handwriting",
                     content: .handwriting(plateHandwriting),
                     opacity: 1,
                     rotation: rotation(salt: 83),
-                    frames: [besideHero, noteFrame] + lowerFrames
+                    frames: [
+                        CGRect(x: heroFrame.maxX + 8, y: heroFrame.maxY - noteHeight, width: noteWidth, height: noteHeight),
+                        noteFrame
+                    ]
                 )
             }
             appendCompanions(in: [plateField])

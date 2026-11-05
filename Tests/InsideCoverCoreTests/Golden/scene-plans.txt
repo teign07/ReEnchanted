@@ -261,15 +261,18 @@ business stairs-giggle
 day 2026-09-01
 form drama · motion bargain · pressure debt · scale full
 transformation complication
-earned 247-419 words
+earned 334-567 words
 anchor mug#0.0
   disturbance air#0.0  [keptFiction]
   witness     call#0.0  [writtenLine]
   witness     card#0.0  [writtenLine]
+  disturbance crow-toll#0.0  [keptFiction]
   witness     fuel#0.0  [writtenLine]
+  disturbance ledger-keeper#0.0  [keptFiction]
   witness     moody#0.0  [writtenLine]
   anchor      mug#0.0  [writtenLine]
   witness     rain#0.0  [writtenLine]
+  disturbance sprite#0.0  [keptFiction]
   line        mug#0.0+call#0.0  [acrossTheDay]
   cross       moody#0.0+air#0.0  [diner]
 world intersecting · extra-umbrella

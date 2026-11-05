@@ -239,6 +239,19 @@ final class BraidKeptMaterialTests: XCTestCase {
         }
     }
 
+    /// A day of five quotes kept and none written on used to size as a
+    /// "thin" night: two seats for five keeps.
+    func testSilentKeepsCountTowardTheNightsSize() {
+        let quotes = (0..<5).map { index in
+            BookPage(id: "quote-\(index)", type: .quotes, createdAt: date("2026-10-02T1\(index):00:00Z"),
+                     promptText: "\u{201C}Line number \(index) of somebody else's that the reader liked enough to keep.\u{201D} \u{2014} A Poet",
+                     userInput: "", sourceID: "quotes-page", origin: .generated)
+        }
+        let reading = BraidPromptBuilder.taleReading(for: day(quotes))
+        XCTAssertNotEqual(reading.scale, .glimpse)
+        XCTAssertGreaterThanOrEqual(reading.scale.livedBeatAllowance, 3)
+    }
+
     private func quotePage() -> BookPage {
         BookPage(
             id: "quote", type: .quotes, createdAt: date("2026-10-02T10:00:00Z"),

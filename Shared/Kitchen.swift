@@ -9,6 +9,15 @@ import Foundation
 // kept Page says so, never because a second ledger does.
 // Plan: docs/kitchen-recipe-system.md.
 
+extension String {
+    /// Ambrose signs with initials, and a wrapped line must not strand them:
+    /// "— A." at the end of one line and "T." on the next. The sign-off is
+    /// bound with no-break spaces so it moves down as one piece.
+    var keepingKitchenSignOffTogether: String {
+        replacingOccurrences(of: " — A. T.", with: " —\u{00A0}A.\u{00A0}T.")
+    }
+}
+
 /// Which shelf a recipe sits on in the Kitchen.
 enum KitchenShelf: String, Codable, CaseIterable, Equatable {
     /// Somebody's own kitchen, set down faithfully: Gayle O'Brien's binder.
@@ -117,7 +126,7 @@ struct KitchenRecipe: Codable, Identifiable, Equatable {
     var printed: String {
         var parts: [String] = []
         if let credit = credit?.nonEmpty { parts.append("From \(credit).") }
-        parts.append(line)
+        parts.append(line.keepingKitchenSignOffTogether)
         var need = "You'll need"
         if let makes = makes?.nonEmpty { need += " (makes \(makes))" }
         parts.append(need + ":\n" + ingredients.map { "• \($0)" }.joined(separator: "\n"))
@@ -372,7 +381,7 @@ enum KitchenOffering {
     /// Ambrose's line over a recipe he's putting down again. He doesn't nag.
     /// He puts it in front of you.
     static func reofferLine(since: Date, now: Date, calendar: Calendar = .current) -> String {
-        "I gave you this on \(KitchenLedger.dayWords(since, relativeTo: now, calendar: calendar)). Here it is again. — A. T."
+        "I gave you this on \(KitchenLedger.dayWords(since, relativeTo: now, calendar: calendar)). Here it is again. — A. T.".keepingKitchenSignOffTogether
     }
 }
 
@@ -480,7 +489,7 @@ extension KitchenOffering {
             score: score ?? defaultScore,
             reason: reasonLine,
             prompt: recipe.title,
-            detail: recipe.line,
+            detail: recipe.line.keepingKitchenSignOffTogether,
             payload: BookPagePayload(headline: recipe.title, body: body, metadata: metadata)
         )
     }
@@ -657,7 +666,7 @@ enum KitchenRoom {
             let entries = recipes.filter { $0.shelf == shelf }.map { recipe -> KitchenShelfEntry in
                 let mine = workings.filter { $0.recipeID == recipe.id }
                 return KitchenShelfEntry(
-                    id: recipe.id, title: recipe.title, credit: recipe.credit, line: recipe.line,
+                    id: recipe.id, title: recipe.title, credit: recipe.credit, line: recipe.line.keepingKitchenSignOffTogether,
                     madeLine: madeLine(for: mine, now: now, calendar: calendar),
                     notes: mine.reversed().compactMap(\.note), recipe: recipe, rescued: nil)
             }

@@ -807,10 +807,6 @@ struct ContentView: View {
     @AppStorage("lastAutomaticRealWorldContextRefreshAt") var lastAutomaticRealWorldContextRefreshAt = 0.0
     @AppStorage("lastAutomaticRealWorldContextAttemptAt") var lastAutomaticRealWorldContextAttemptAt = 0.0
     @AppStorage("lastMeaningfulRealWorldMovementAt") var lastMeaningfulRealWorldMovementAt = 0.0
-    @AppStorage(PublicMarginsAPI.incomingOptInKey) var publicMarginsIncomingOptIn = false
-    @AppStorage(PublicMarginsAPI.outgoingOptInKey) var publicMarginsOutgoingOptIn = false
-    @AppStorage("lastPublicMarginsRefreshSlot") var lastPublicMarginsRefreshSlot = ""
-    @State var publicMarginsSnapshot: PublicMarginsSnapshot?
     @AppStorage("beliefScore") var beliefScore = 30
     /// Whether the Book has yet named where Belief comes from. It says so once,
     /// at the first moment the reader turns Belief into fiction.
@@ -1353,7 +1349,6 @@ struct ContentView: View {
         inputs.pocket = decodedPocketLedger()
         inputs.chosenQuill = decodedChosenQuill()
         inputs.people = vault.data.people ?? PeopleLedger()
-        inputs.publicMargins = PublicMarginsAPI.isAvailable && publicMarginsIncomingOptIn ? publicMarginsSnapshot : nil
         inputs.calendarEvents = calendarEvents
         inputs.calendarIntegrationEnabled = bookCalendarEnabled
         inputs.calendarAccessProblem = bookCalendarEnabled ? CalendarDoorway.accessProblem : nil
@@ -3301,9 +3296,7 @@ struct ContentView: View {
             .sheet(isPresented: callbacks.view.$isSourceSettingsPresented) {
                 SourceSettingsSheet(
                     sources: BookPageSourceRegistry.sources,
-                    preferences: callbacks.view.decodedSourcePreferenceLedger(),
-                    publicMarginsIncomingOptIn: callbacks.view.$publicMarginsIncomingOptIn,
-                    publicMarginsOutgoingOptIn: callbacks.view.$publicMarginsOutgoingOptIn
+                    preferences: callbacks.view.decodedSourcePreferenceLedger()
                 ) { sourceID, isEnabled in
                     callbacks.view.setSourceEnabled(sourceID: sourceID, isEnabled: isEnabled)
                 }
@@ -4343,7 +4336,7 @@ struct ContentView: View {
            let overnight = OvernightScribe.adoptDraft() {
             generation.preparedStoryPageSurface = overnight
             surfaceRefreshDate = Date()
-            statusMessage = "I wrote a Story Page while you slept."
+            statusMessage = "I wrote a vignette while you slept."
         }
         let overnightConnections = OvernightScribe.adoptConnectionDrafts()
         if !overnightConnections.isEmpty {
@@ -12414,11 +12407,8 @@ struct ContentView: View {
     /// names.
     var atlasShelf: some View {
         AtlasMapView(
-            layers: AtlasProjection.layers(from: AtlasSources(
-                anchors: anchorLedger,
-                days: days,
-                now: Date()
-            )),
+            anchors: anchorLedger,
+            days: days,
             readerLatitude: lastAnchorReadingLatitude,
             readerLongitude: lastAnchorReadingLongitude
         )
@@ -12787,7 +12777,7 @@ struct ContentView: View {
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
                             .dictationInput(text: $usdaKey)
-                        Text("Fuel pages get rough calorie and macro estimates, penciled in moments after you keep them. Entries never leave the device except as anonymous food-name lookups.")
+                        Text("Fuel pages get rough calorie and macro estimates, inked in moments after you keep them. Entries never leave the device except as anonymous food-name lookups.")
                             .font(.caption2)
                             .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
@@ -12799,7 +12789,7 @@ struct ContentView: View {
                                 Text("Let my interests visit the public web")
                                     .font(.caption.weight(.bold))
                                     .foregroundStyle(MaterialInk.text.opacity(0.86))
-                                Text("Off by default. When open, the Book may send an interest you wrote and a broad home-place description to DuckDuckGo or another public research source. Names, Pages, health notes, and precise location stay behind.")
+                                Text("Off by default. When open, the Book may send a short interest topic and a town from nearby Maps results to public research sources. Private Pages and home descriptions stay here. Contact details, street addresses, and known private names are filtered from queries.")
                                     .font(.caption2)
                                     .foregroundStyle(MaterialInk.text.opacity(0.55))
                                     .fixedSize(horizontal: false, vertical: true)
@@ -17046,7 +17036,10 @@ struct ContentView: View {
         now: Date
     ) -> [ContestedQuestion] {
         var questions = (vault.data.contestedQuestions ?? []).map {
-            ContestedQuestionEngine.resting($0, now: now)
+            ContestedQuestionEngine.revoiced(
+                ContestedQuestionEngine.resting($0, now: now),
+                entities: NarrativePackRegistry.entities
+            )
         }
 
         // A mature room's refusal is the physical evidence that can embarrass
@@ -18625,7 +18618,7 @@ struct ContentView: View {
         intoPagesRisingAfter folioParent: SurfacePage? = nil
     ) async {
         guard !localBrainTelemetry.isWorking else {
-            statusMessage = "The Story Page heard the result. Let the current ink dry, then continue the thread."
+            statusMessage = "The vignette heard the result. Let the current ink dry, then continue the thread."
             return
         }
 
@@ -18656,17 +18649,17 @@ struct ContentView: View {
             )
             presentGeneratedSurface(prepared, after: folioParent)
             statusMessage = folioParent == nil
-                ? "What happened has become the next Story Page."
-                : "The result wriggled under the Story Page. Turn the leaf."
+                ? "What happened has become the next vignette."
+                : "The result wriggled under the vignette. Turn the leaf."
         } catch {
             presentGeneratedSurface(localBrainIssueSurface(
                 type: returnsToAcademy ? .academyClass : .narrativeOS,
-                title: returnsToAcademy ? "Academy Return" : "Story Page",
+                title: returnsToAcademy ? "Academy Return" : "Vignette",
                 action: returnsToAcademy ? "return the fieldwork to the class" : "fold the mechanic result back into the story"
             ), after: folioParent)
             statusMessage = returnsToAcademy
                 ? "The class couldn't receive the fieldwork yet."
-                : "The Story Page couldn't take that in yet."
+                : "The vignette couldn't take that in yet."
         }
     }
 
@@ -18761,7 +18754,7 @@ struct ContentView: View {
                 ? "Bring the result back to \(metadata["academyReturn_sessionLeader"] ?? "the room")."
                 : "The thread continues from \(completedSurface.prompt).",
             payload: BookPagePayload(
-                headline: returnsToAcademy ? "Fieldwork Return" : "Story Page Return",
+                headline: returnsToAcademy ? "Fieldwork Return" : "The Vignette Goes On",
                 body: continuation.bookPreviewSentenceLimit(2),
                 metadata: returnMetadata
             )
@@ -18819,7 +18812,7 @@ struct ContentView: View {
             showGenerated(tale.map { TaleBinding.written(surface, tale: $0) } ?? surface)
         case .narrativeOS:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
-            statusMessage = "I'm writing the Story Page..."
+            statusMessage = "I'm writing a vignette..."
             let succeeded = await prepareStoryPageIfPossible(force: true, draftOverride: reservation.surface)
             if !succeeded, let kind = reservation.kind {
                 refundBeliefForGeneration(kind)
@@ -18829,8 +18822,8 @@ struct ContentView: View {
                 : nil
             showGenerated(preparedStory ?? localBrainIssueSurface(
                 type: surface.type,
-                title: "Story Page",
-                action: "write a Story Page"
+                title: "Vignette",
+                action: "write a vignette"
             ))
         case .gossip, .bookAside:
             guard let reservation = reserveBeliefForGeneration(surface) else { return }
@@ -19308,14 +19301,14 @@ struct ContentView: View {
             surfaceRefreshDate = Date()
             generation.storyPageRecovery.recordSuccess()
             localBrainTelemetry.clearError()
-            statusMessage = "A Story Page has dried. It'll turn up when there's room on the desk."
+            statusMessage = "A vignette has dried. It'll turn up when there's room on the desk."
             return true
         } catch {
             appLog.error("Prepared Story Page failed: \(error.localizedDescription, privacy: .private)")
             localBrainTelemetry.recordError("story page: \(error.localizedDescription)")
             generation.preparedStoryPageSurface = nil
             generation.storyPageRecovery.recordFailure()
-            statusMessage = "The Story Page didn't finish drying. I'll try again later."
+            statusMessage = "The vignette didn't finish drying. I'll try again later."
             return false
         }
     }
@@ -19620,15 +19613,10 @@ struct ContentView: View {
     }
 
     func letterResearchQueries(for surface: SurfacePage) -> [String] {
-        let query = surface.payload.metadata["researchQuery"]?.nonEmpty
         let interest = surface.payload.metadata["unwrittenInterest"]?.nonEmpty ?? "ordinary wonder"
-        let home = surface.payload.metadata["homeContext"]?.nonEmpty ?? "local home"
-        return [
-            query,
-            "\(interest) \(home)",
-            "\(interest) local history ecology culture",
-            "\(home) local history folklore nature"
-        ].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty }
+        // Rebuild from allowed fields even for an older prepared surface whose
+        // researchQuery/homeContext metadata may contain private Page prose.
+        return PublicWebResearch.letterQueries(interest: interest, inputs: sourceInputs)
     }
 
     func markAutomaticIlluminatedSurfaceKept(_ surface: SurfacePage) {
@@ -20292,12 +20280,15 @@ struct ContentView: View {
                     didRequestWeatherLocation = true
                 }
             }
-            let authoredEventIDs = Set(braidInputs.monthlyIssueAuthoringManifests.map { "\($0.eventPackID):\($0.eventID)" })
-            let resolvedWorldEvents = braidInputs
-                .resolvingWorldEvents(for: braidDay, now: Date())
-                .activeWorldEvents.filter { !authoredEventIDs.contains("\($0.packID):\($0.id)") }
             // Monthly canon enters through committed, frozen passages below.
-            // A live phase packet can describe scenes the Reader has not reached.
+            // A live phase packet can describe scenes the Reader has not reached,
+            // so only those events' public pulses go in, beside the paper's prints.
+            let braidWorld = SceneWorldCanon.braidWorldEvents(
+                braidInputs.resolvingWorldEvents(for: braidDay, now: Date()).activeWorldEvents,
+                authored: braidInputs.monthlyIssueAuthoringManifests
+            )
+            let resolvedWorldEvents = braidWorld.live
+            let printHistory = vault.data.bleedPrintHistory ?? []
             // Everything below is immutable local evidence. The context builder
             // includes the four-year Relational Loom pass, so doing it inline
             // here used to hold the main actor for nearly a second. Keep the
@@ -20337,6 +20328,7 @@ struct ContentView: View {
                     learnedNotes: learnedNotes,
                     nowPlaying: nowPlaying,
                     activeWorldEvents: resolvedWorldEvents,
+                    bleedPrintHistory: printHistory,
                     // Business the Cast is halfway through, as a source of
                     // world beats. Explicit rather than quietly default-empty.
                     castUndertakings: undertakings,
@@ -20357,6 +20349,7 @@ struct ContentView: View {
                     grimoire: contextGrimoire
                 )
             }.value
+            braidContext.pulseWorldEvents = braidWorld.pulseOnly
             braidContext.authoredStoryReceipts = authoredMatter
             braidContext.trashedScenes = BookSulk.trashed(from: vault.data.authoredContentReceipts ?? .empty, now: braidMoment)
             braidContext.radioNarrativeEcho = RadioStationRegistry.narrativeEcho(
@@ -20876,6 +20869,25 @@ struct ContentView: View {
             appLog.info("Smoke: folio region specimen presented: \(regionSpecimen, privacy: .public)")
         }
 
+        // The reader's newest kept Page, laid on the desk as a leaf, so tapping their
+        // words can be tried on a simulator (pair with `--perf-seed-archive`).
+        // `--smoke-close-today` just puts away the Book Today that arrives at
+        // launch, so the desk itself can be looked at.
+        if ProcessInfo.processInfo.arguments.contains("--smoke-close-today") {
+            try? await Task.sleep(for: .seconds(6))
+            activeBookDivision = nil
+        }
+        if ProcessInfo.processInfo.arguments.contains("--smoke-open-kept-page") {
+            // The Book Today arrives on its own at launch; put it away first.
+            try? await Task.sleep(for: .seconds(6))
+            activeBookDivision = nil
+            try? await Task.sleep(for: .seconds(1))
+            if let page = days.last(where: { !$0.pages.isEmpty })?.pages.last {
+                surfacedPages = [keptSurface(for: page)]
+                appLog.info("Smoke: kept page laid on the desk \(page.id, privacy: .public)")
+            }
+        }
+
         if ProcessInfo.processInfo.arguments.contains("--smoke-glow-menu") {
             let deadline = Date().addingTimeInterval(8)
             while !canOpenGlowMenu, Date() < deadline, !Task.isCancelled {
@@ -21028,7 +21040,7 @@ struct ContentView: View {
             return nil
         }
         let requested = arguments[flagIndex + 1]
-        return ["field", "story", "weather", "letter", "archive"].contains(requested)
+        return ["field", "story", "weather", "letter", "archive", "quote"].contains(requested)
             ? requested
             : nil
     }
@@ -21136,6 +21148,33 @@ struct ContentView: View {
                 dialect: .correspondence,
                 pattern: .letterWithPostscript,
                 metadata: ["letterProse": prose]
+            )
+        case "quote":
+            let line = "What makes the desert beautiful is that somewhere it hides a well."
+            let attribution = "Antoine de Saint-Exupéry, The Little Prince"
+            return SurfacePage(
+                id: "folio-region-smoke-quote",
+                type: .quotes,
+                sourceID: "folio-region-smoke",
+                intent: .importReference,
+                renderStyle: .quoteCard,
+                score: 66,
+                reason: "A line worth keeping near the desk: on wonder, attention, and this one precious life.",
+                prompt: line,
+                detail: attribution,
+                payload: BookPagePayload(
+                    headline: "Wonder",
+                    body: attribution,
+                    metadata: commonMetadata.merging([
+                        "folioTitle": line,
+                        "quote": line,
+                        "quoteAuthor": "Antoine de Saint-Exupéry",
+                        "quoteSource": "The Little Prince",
+                        "quoteTheme": "Wonder",
+                        "surfaceLabel": "Quotes",
+                        "privacy": "bundled local text"
+                    ]) { _, newest in newest }
+                )
             )
         case "archive":
             return surface(
@@ -22066,17 +22105,6 @@ struct ContentView: View {
 
         if bookCalendarEnabled {
             calendarEvents = await CalendarDoorway.upcomingEvents(now: now)
-        }
-        if PublicMarginsAPI.isAvailable,
-           publicMarginsIncomingOptIn,
-           lastPublicMarginsRefreshSlot != refreshSlot {
-            do {
-                publicMarginsSnapshot = try await PublicMarginsAPI.fetchSnapshot()
-                lastPublicMarginsRefreshSlot = refreshSlot
-            } catch {
-                // A public doorway may be quiet or offline. The private Book
-                // remains untouched, and the next ordinary refresh can retry.
-            }
         }
         if didGrantLocationContextAccess {
             _ = await refreshRealWorldContext(
@@ -23120,22 +23148,128 @@ private struct GazetteerDoorView: View {
 /// The Atlas: the reader's own places, drawn as a chart rather than as a map.
 ///
 /// The reference is the endpaper map in the front of a fantasy novel, not
-/// Maps.app. Apple's tiles cannot be recoloured, so the ground is desaturated
-/// and a parchment wash laid over it, points of interest are suppressed
-/// entirely, and the only things on it are the Book's own marks.
+/// Maps.app. On the leaf it's a still plate, ruled and labelled like a printed
+/// chart. Touching it unfolds the live map across the whole screen, where it
+/// pans and pinches with nothing else competing for the finger.
 ///
-/// It pans. That is not un-booklike: an endpaper map is the most beloved object
-/// in the genre, and the whole pleasure of one is following a coast with a
-/// finger. What would break the illusion is Apple's furniture, which is why
-/// none of it is here.
+/// The live map used to sit inside the scrolling division sheet with a
+/// saturation filter and a multiply wash over it. The sheet, the scroll view
+/// and the map all wanted the same drag, and both effects made every frame of
+/// map movement be drawn twice, which is the lag and the misread touches the
+/// reader felt.
 private struct AtlasMapView: View {
-    let layers: [AtlasLayer]
+    let anchors: [AnchorRecord]
+    let days: [BookDay]
     /// Where the reader last was. The chart opens here rather than on an
     /// aerial view of their country: somebody opening the Atlas wants to see
     /// where they are.
     var readerLatitude: Double?
     var readerLongitude: Double?
 
+    /// Worked out once when the leaf opens, not on every redraw of the Book.
+    @State private var layers: [AtlasLayer]?
+    @State private var isUnfolded = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let layers {
+                if layers.isEmpty {
+                    EmptyBookCard(
+                        title: "Nothing to draw yet",
+                        message: "Name somewhere, and I'll start the chart. It fills in as you go. That's the only way a map like this was ever made."
+                    )
+                } else {
+                    plate(layers)
+                    Text(Self.caption(layers))
+                        .font(.system(size: 13, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(red: 0.92, green: 0.86, blue: 0.73))
+                    .frame(height: 280)
+            }
+        }
+        .task(id: "\(anchors.count)-\(days.count)") {
+            layers = AtlasProjection.layers(from: AtlasSources(anchors: anchors, days: days, now: Date()))
+        }
+        .fullScreenCover(isPresented: $isUnfolded) {
+            AtlasGlass(layers: layers ?? [], readerLatitude: readerLatitude, readerLongitude: readerLongitude)
+        }
+    }
+
+    private func plate(_ layers: [AtlasLayer]) -> some View {
+        let shown = layers.filter(\.isOnByDefault)
+        let marks = AtlasProjection.marks(in: shown, showing: Set(shown.map(\.id)))
+        let opening = AtlasProjection.opening(marks: marks, readerLatitude: readerLatitude, readerLongitude: readerLongitude)
+            ?? AtlasProjection.span(of: AtlasProjection.marks(in: layers, showing: Set(layers.map(\.id))))
+        return Group {
+            if let opening {
+                MapPlateView(
+                    spec: MapPlateSpec(
+                        id: "atlas-\(marks.map(\.id).joined(separator: ",").stableHash)-\(Int(opening.latitude * 1_000))-\(Int(opening.longitude * 1_000))",
+                        latitude: opening.latitude,
+                        longitude: opening.longitude,
+                        latitudeSpan: opening.latitudeSpan * 1.6,
+                        longitudeSpan: opening.longitudeSpan * 1.6,
+                        marks: marks.map {
+                            MapPlateMark(latitude: $0.latitude, longitude: $0.longitude, glyph: $0.glyph, isPrimary: $0.layer == .places)
+                        },
+                        showsLabels: true,
+                        isLoosened: false
+                    ),
+                    title: "The Atlas",
+                    plateHeight: 280
+                )
+            }
+        }
+        .overlay(alignment: .bottomLeading) {
+            Label("Unfold", systemImage: "arrow.up.left.and.arrow.down.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.parchmentEdge)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.92), in: Capsule())
+                .overlay { Capsule().stroke(BookPalette.parchmentEdge.opacity(0.5), lineWidth: 1) }
+                .padding(12)
+                .allowsHitTesting(false)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            BookFeedback.play(.openPage, fill: true)
+            isUnfolded = true
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("The Atlas, a chart of your places")
+        .accessibilityHint("Unfolds the chart to the whole screen")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// What's on the chart, said once, under it.
+    static func caption(_ layers: [AtlasLayer]) -> String {
+        let places = layers.first { $0.id == .places }?.marks.count ?? 0
+        let pages = layers.first { $0.id == .kept }?.marks.count ?? 0
+        let named: String
+        switch places {
+        case 0: named = "No places named yet"
+        case 1: named = "One place you've named"
+        default: named = "\(GrimoireVoice.spelledCount(places)) places you've named"
+        }
+        let kept = pages == 0 ? "" : pages == 1
+            ? ", and one Page that remembers where you kept it"
+            : ", and \(pages) Pages that remember where you kept them"
+        return "\(named)\(kept). Touch the chart and I'll unfold it."
+    }
+}
+
+/// The chart unfolded across the whole screen.
+private struct AtlasGlass: View {
+    let layers: [AtlasLayer]
+    var readerLatitude: Double?
+    var readerLongitude: Double?
+
+    @Environment(\.dismiss) private var dismiss
     @State private var showing: Set<AtlasLayerID> = []
     @State private var opened: AtlasMark?
     @State private var camera: MapCameraPosition = .automatic
@@ -23146,122 +23280,135 @@ private struct AtlasMapView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if layers.isEmpty {
-                EmptyBookCard(
-                    title: "Nothing to draw yet",
-                    message: "Name somewhere, and I'll start the chart. It fills in as you go. That's the only way a map like this was ever made."
-                )
-            } else {
-                chart
-                legend
-                if let opened {
-                    markCard(opened)
-                }
-            }
-        }
-        .onAppear(perform: frameIfNeeded)
-    }
-
-    private var chart: some View {
         Map(position: $camera) {
             ForEach(marks) { mark in
                 Annotation(mark.title, coordinate: .init(latitude: mark.latitude, longitude: mark.longitude)) {
-                    Button {
-                        BookFeedback.play(.tap)
-                        opened = (opened?.id == mark.id) ? nil : mark
-                    } label: {
-                        Image(systemName: mark.glyph)
-                            .font(.system(size: mark.layer == .places ? 15 : 9, weight: .semibold))
-                            .foregroundStyle(BookPalette.parchmentEdge)
-                            .padding(4)
-                            .background(
-                                Circle().fill(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.92))
-                            )
-                            .overlay(Circle().stroke(BookPalette.gold.opacity(0.7), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
+                    pin(mark)
                 }
             }
         }
-        // Points of interest stay. They were excluded here on the grounds that
-        // they were Apple's furniture, and that was wrong: a trail, a bookshop
-        // or a bakery the reader has never noticed is a possible adventure,
-        // which is the entire business of this app. Traffic goes — that really
-        // is furniture.
-        //
-        // The parchment treatment is therefore lighter than it wants to be.
-        // A chart nobody can read the labels on is a texture, not a map.
-        .mapStyle(.standard(pointsOfInterest: .all, showsTraffic: false))
-        .saturation(0.62)
-        .overlay {
-            Color(red: 0.90, green: 0.83, blue: 0.68)
-                .blendMode(.multiply)
-                .opacity(0.30)
-                .allowsHitTesting(false)
+        // Muted, not filtered. A filter over a live map is redrawn on every
+        // frame it moves; Apple's own muted style costs nothing. Points of
+        // interest stay: a bakery the reader has never noticed is a possible
+        // adventure, which is the entire business of this app.
+        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .all, showsTraffic: false))
+        .mapControls {
+            MapCompass()
+            MapScaleView()
         }
-        .frame(height: 380)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(BookPalette.parchmentEdge.opacity(0.55), lineWidth: 1.5)
-                .allowsHitTesting(false)
-        }
+        .safeAreaInset(edge: .top) { header }
+        .safeAreaInset(edge: .bottom) { footer }
+        .onAppear(perform: frameIfNeeded)
     }
 
-    private var legend: some View {
+    private func pin(_ mark: AtlasMark) -> some View {
+        let isOpen = opened?.id == mark.id
+        let size: CGFloat = mark.layer == .places ? 16 : 10
+        return Image(systemName: mark.glyph)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(isOpen ? Color(red: 0.96, green: 0.92, blue: 0.82) : BookPalette.parchmentEdge)
+            .padding(5)
+            .background(Circle().fill(isOpen ? BookPalette.parchmentEdge : Color(red: 0.96, green: 0.92, blue: 0.82)))
+            .overlay(Circle().stroke(BookPalette.gold.opacity(0.8), lineWidth: 1))
+            // A fingertip, not a pin's head, decides what a touch can reach.
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
+            .onTapGesture {
+                BookFeedback.play(.tap)
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                    opened = isOpen ? nil : mark
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(mark.title)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(layers) { layer in
-                Button {
-                    BookFeedback.play(.tap)
-                    if showing.contains(layer.id) {
-                        showing.remove(layer.id)
-                        if let opened, opened.layer == layer.id { self.opened = nil }
-                    } else {
-                        showing.insert(layer.id)
-                    }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Image(systemName: showing.contains(layer.id) ? layer.glyph : "circle")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(MaterialInk.gilt.opacity(showing.contains(layer.id) ? 1 : 0.35))
-
-                            .frame(width: 18)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(layer.title)
-                                .font(.system(size: 13, weight: .semibold, design: .serif))
-                                .foregroundStyle(MaterialInk.gilt.opacity(showing.contains(layer.id) ? 1 : 0.55))
-                            Text(layer.note)
-                                .font(.system(size: 11, design: .serif))
-                                .italic()
-                                .foregroundStyle(MaterialInk.gilt.opacity(0.55))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
+            HStack(alignment: .firstTextBaseline) {
+                Text("The Atlas")
+                    .font(.system(.title3, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink)
+                Spacer()
+                Button("Done") {
+                    BookFeedback.play(.dismissPage)
+                    dismiss()
                 }
-                .buttonStyle(.plain)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(BookPalette.parchmentEdge)
+            }
+            if layers.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(layers) { layer in
+                            layerChip(layer)
+                        }
+                    }
+                }
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.95))
     }
 
-    private func markCard(_ mark: AtlasMark) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(mark.title)
-                .font(.system(size: 15, weight: .semibold, design: .serif))
-                .foregroundStyle(BookPalette.ink.opacity(0.92))
-            ForEach(mark.detail, id: \.self) { line in
-                Text(line)
-                    .font(.system(size: 12, design: .serif))
-                    .foregroundStyle(BookPalette.ink.opacity(0.74))
-                    .fixedSize(horizontal: false, vertical: true)
+    private func layerChip(_ layer: AtlasLayer) -> some View {
+        let isOn = showing.contains(layer.id)
+        return Button {
+            BookFeedback.play(.tap)
+            if isOn {
+                showing.remove(layer.id)
+                if opened?.layer == layer.id { opened = nil }
+            } else {
+                showing.insert(layer.id)
             }
+        } label: {
+            Label(layer.title, systemImage: isOn ? layer.glyph : "circle")
+                .font(.system(size: 13, weight: .semibold, design: .serif))
+                .foregroundStyle(BookPalette.parchmentEdge.opacity(isOn ? 1 : 0.55))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(BookPalette.gold.opacity(isOn ? 0.22 : 0.06), in: Capsule())
+                .overlay { Capsule().stroke(BookPalette.parchmentEdge.opacity(isOn ? 0.5 : 0.25), lineWidth: 1) }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: true)
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
+        .accessibilityValue(isOn ? "On the chart" : "Off the chart")
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        if let opened {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(opened.title)
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.92))
+                ForEach(opened.detail, id: \.self) { line in
+                    Text(line)
+                        .font(.system(size: 13, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: true)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .accessibilityElement(children: .combine)
+        } else if let note = layers.first(where: { showing.contains($0.id) })?.note {
+            Text("\(note) Touch a mark and I'll tell you about it.")
+                .font(.system(size: 13, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(red: 0.96, green: 0.92, blue: 0.82).opacity(0.92), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+                .allowsHitTesting(false)
+        }
     }
 
     /// Open on everything the default layers hold, once.
@@ -23294,10 +23441,11 @@ struct MapPlateView: View {
     let spec: MapPlateSpec
     let title: String
 
+    /// The quiet leaf's plates are small; the Atlas draws a bigger one.
+    var plateHeight: CGFloat = 190
+
     @State private var image: UIImage?
     @State private var pointsForMarks: [(point: CGPoint, mark: MapPlateMark)] = []
-
-    private let plateHeight: CGFloat = 190
 
     var body: some View {
         GeometryReader { geometry in

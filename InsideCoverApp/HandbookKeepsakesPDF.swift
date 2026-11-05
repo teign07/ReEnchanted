@@ -554,14 +554,15 @@ extension MonthlyEditionPDFWriter {
 
         let font = UIFont.fbSerif(ofSize: 10.6, weight: .medium)
         let heights = q.items.map { kHeight("\($0)", font: font, width: leaf.contentWidth - 20, lineSpacing: 1.8) }
-        let fixed = heights.reduce(0, +) + CGFloat(q.items.count) * 8
+        let fixed = heights.reduce(0, +) + CGFloat(q.items.count) * 14
         let lines = max(1, min(3, Int((leaf.bottom - leaf.y - fixed) / CGFloat(q.items.count) / 17)))
         for (index, text) in q.items.enumerated() {
             kText("\(index + 1)", font: .fbSerif(ofSize: 12, weight: .bold), color: style.palette.accent, in: CGRect(x: leaf.left, y: leaf.y - 1, width: 16, height: 14))
             kText(text, font: font, color: ink.withAlphaComponent(0.92), in: CGRect(x: leaf.left + 20, y: leaf.y, width: leaf.contentWidth - 20, height: heights[index] + 2), lineSpacing: 1.8)
             leaf.y += heights[index] + 3
-            hbRules(from: leaf.y - 14, to: leaf.y + CGFloat(lines) * 17, left: leaf.left + 20, right: leaf.right, spacing: 17, style: style)
-            leaf.y += CGFloat(lines) * 17 + 5
+            // The writing space starts under the question, never over its last line.
+            hbRules(from: leaf.y + 1, to: leaf.y + CGFloat(lines) * 17 + 6, left: leaf.left + 20, right: leaf.right, spacing: 17, style: style)
+            leaf.y += CGFloat(lines) * 17 + 11
         }
     }
 

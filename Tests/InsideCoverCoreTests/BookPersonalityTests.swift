@@ -328,7 +328,7 @@ final class BookPersonalityTests: XCTestCase {
         XCTAssertTrue(BookMaterialMark.dogEar.explanation.contains("favourite Page"))
         XCTAssertTrue(BookMaterialMark.keepingWatch.explanation.contains("unfinished promise"))
         XCTAssertTrue(BookMaterialMark.revision.explanation.contains("too certain"))
-        XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, Index, or eraser"))
+        XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, Index, or ink"))
         XCTAssertTrue(BookMaterialMark.greyScar.explanation.contains("Routine gets into books too"))
     }
 

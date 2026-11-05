@@ -77,7 +77,7 @@ final class LetsChatLiveState {
             // A second try goes straight back through reading; keep saying so.
             guard !hasRetried else { return }
             let woke = current == LetsChatStatusCopy.line(for: .waking)
-            advance(receipt: woke ? "My pencil's awake." : nil, to: LetsChatStatusCopy.line(for: .reading))
+            advance(receipt: woke ? "My ink's awake." : nil, to: LetsChatStatusCopy.line(for: .reading))
         case .retrying:
             hasRetried = true
             text = ""
@@ -186,7 +186,7 @@ struct LetsChatBookMark: View {
 }
 
 /// The reply in progress: what the Book has done, what it is doing now with a
-/// moving pencil and ink line, and then the words themselves as they arrive.
+/// scribble of ink rising and an ink line, and then the words as they arrive.
 struct LetsChatLiveBubble: View {
     let live: LetsChatLiveState
     let reduceMotion: Bool
@@ -257,7 +257,7 @@ struct LetsChatLiveBubble: View {
             LetsChatBookMark()
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Image(systemName: "pencil.and.scribble")
+                    Image(systemName: "scribble.variable")
                         .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion)
                     Text(live.current)
                         .font(.system(.callout, design: .serif).italic())

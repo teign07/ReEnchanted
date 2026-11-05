@@ -301,6 +301,193 @@ final class WonderBraidTests: XCTestCase {
     ])
     XCTAssertEqual(kept, ["I drew this out of the clock, and what you bring to each part of it. 16 crossings. The pins enjoy being handled."])
     XCTAssertEqual(WonderBraid.bookLines(from: ["Open the map.", "Pinch it."]), [])
+    XCTAssertEqual(WonderBraid.bookLines(from: MarginsAtlasPageSourceAdapter.handlingLine.components(separatedBy: ". ")), [],
+                   "how to handle a map is not story")
+  }
+
+  /// Three long sentences of a kept scene used to come to more than sixty
+  /// words, and the whole scene was dropped from the night it was kept on.
+  func testALongSceneCarriesTheSentencesThatFit() {
+    let long = "The corridor outside the map room had decided overnight that it was two corridors, and it was not taking questions about which."
+    let longer = "Wicker stood at the fork with a lantern and a list, reading the doors their own names back to them until one of them blushed."
+    let last = "Nobody has seen the third door since, though several people have heard it apologising."
+    let kept = WonderBraid.bookLines(from: [long, longer, last])
+    XCTAssertEqual(kept, ["\(long) \(longer)"])
+    XCTAssertTrue(kept[0].split(separator: " ").count <= 60)
+  }
+
+  // MARK: - Pages kept in silence
+
+  func testAKeptQuotationIsCreditedAndQuotedWhole() throws {
+    let line = try XCTUnwrap(WonderBraid.keptLine(
+      ["\u{201C}Hope is the thing with feathers that perches in the soul.\u{201D}", "\u{2014} Emily Dickinson"]))
+    XCTAssertTrue(line.contains("Emily Dickinson's"), line)
+    XCTAssertTrue(line.hasSuffix("\u{201C}Hope is the thing with feathers that perches in the soul.\u{201D}"), line)
+    XCTAssertFalse(line.contains("the Book"), line)
+
+    let proverb = try XCTUnwrap(WonderBraid.keptLine(
+      ["\u{201C}Keep a green bough in your heart and the singing bird will come.\u{201D}", "\u{2014} Chinese proverb"]))
+    XCTAssertFalse(proverb.contains("proverb's"), "a proverb is not somebody to credit")
+    XCTAssertFalse(proverb.contains("\u{2014}"), proverb)
+  }
+
+  /// A kept quotation is somebody else's words: the scrub neither contracts
+  /// them nor drops them for naming "your heart".
+  func testTheScrubLeavesAKeptQuotationAlone() throws {
+    let line = try XCTUnwrap(WonderBraid.keptLine(
+      ["\u{201C}Keep a green bough in your heart and I will come.\u{201D}"]))
+    let prose = "You did not finish the washing.\n\n\(line)"
+    let scrub = BraidTellingScrub.scrubbed(prose, readerMaterial: "You did not finish the washing.",
+                                           isHardNight: false, verbatim: [line])
+    XCTAssertTrue(scrub.text.contains(line), scrub.text)
+    XCTAssertTrue(scrub.text.contains("didn't finish"), "the Book's own sentences are still contracted")
+  }
+
+  func testAPageKeptInSilenceReachesTheTelling() async throws {
+    let line = try XCTUnwrap(WonderBraid.keptLine(["\u{201C}Attention is the rarest and purest form of generosity.\u{201D}", "\u{2014} Simone Weil"]))
+    var input = WonderBraid.Input(details: [], dateKey: "2026-10-03")
+    input.keptLines = [line]
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let output = try await WonderBraid.write(input, tell: fakeTeller())
+    XCTAssertEqual(output?.prose, line, "a night of one kept quotation is that quotation, not an empty page")
+  }
+
+  // MARK: - Forms
+
+  func testEachFormHasAShape() {
+    XCTAssertEqual(WonderBraid.Shape(form: "sliceOfLife"), .ordered)
+    XCTAssertEqual(WonderBraid.Shape(form: "comedy"), .ordered)
+    XCTAssertEqual(WonderBraid.Shape(form: "mosaic"), .mosaic)
+    XCTAssertEqual(WonderBraid.Shape(form: "portrait"), .led)
+    XCTAssertEqual(WonderBraid.Shape(form: "drama"), .led)
+    XCTAssertEqual(WonderBraid.Shape(form: "returnForm"), .returning)
+    XCTAssertEqual(WonderBraid.Shape(form: "vigil"), .watching)
+    XCTAssertEqual(WonderBraid.Shape(form: "something new"), .ordered)
+  }
+
+  /// A shape changes the order, never the material.
+  func testAShapeMovesDetailsAndKeepsEveryOne() {
+    let details = ["You walked the long way home.", "You chose to give Wicker the key.", "9 days ago: You lost the same key on the stairs."]
+    let led = WonderBraid.arranged(details, shape: .led, lead: details[1])
+    XCTAssertEqual(led.first, details[1])
+    XCTAssertEqual(Set(led), Set(details))
+    let returning = WonderBraid.arranged(details, shape: .returning, lead: nil)
+    XCTAssertEqual(returning.first, details[2], "then, and now")
+    XCTAssertEqual(Set(returning), Set(details))
+    XCTAssertEqual(WonderBraid.arranged(details, shape: .ordered, lead: details[1]), details)
+  }
+
+  /// The strands braid: a kept scene sits beside the moment of the day it
+  /// shares a thing with, instead of always after the first paragraph.
+  func testAKeptSceneSitsBesideTheMomentItShares() {
+    let paragraphs = ["You bought bread on the way back.", "You fixed the gate latch after lunch.", "You read until late."]
+    let scene = "The gate to the east garden has refused every latch the groundskeeper offered it."
+    let woven = WonderBraid.interleaved([scene], into: paragraphs)
+    XCTAssertEqual(woven, [paragraphs[0], paragraphs[1], scene, paragraphs[2]])
+    let unrelated = WonderBraid.interleaved(["The Index climbed out of its alphabet."], into: paragraphs)
+    XCTAssertEqual(unrelated[1], "The Index climbed out of its alphabet.", "with nothing shared it sits where kept words always sat")
+  }
+
+  func testAMosaicKeepsEachMomentApart() async throws {
+    var input = WonderBraid.Input(
+      details: ["You found a red button in the coat pocket.", "You heard the radiator knock twice before dawn.", "You wrote the grocery list on an envelope."],
+      dateKey: "2026-10-16")
+    input.delivered = []
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    var ordered = input
+    input.form = "mosaic"
+    let mosaicWritten = try await WonderBraid.write(input, tell: fakeTeller())
+    let mosaic = try XCTUnwrap(mosaicWritten)
+    let plainWritten = try await WonderBraid.write(ordered, tell: fakeTeller())
+    let plain = try XCTUnwrap(plainWritten)
+    XCTAssertGreaterThanOrEqual(mosaic.paragraphs.count, plain.paragraphs.count)
+    for detail in input.details { XCTAssertTrue(mosaic.prose.contains(detail.dropLast()), detail) }
+    ordered.form = "vigil"
+    let vigilWritten = try await WonderBraid.write(ordered, tell: fakeTeller())
+    let vigil = try XCTUnwrap(vigilWritten)
+    XCTAssertLessThanOrEqual(vigil.lineIDs.count, 1, "a vigil keeps one small odd thing at most")
+  }
+
+  // MARK: - A thread from night to night
+
+  private func beat(_ kind: BraidPromptBuilder.ContinuityKind, prior: String? = nil, now: String = "the pen") -> BraidPromptBuilder.ContinuityBeat {
+    BraidPromptBuilder.ContinuityBeat(kind: kind, threadID: "moth", sourceBraidPageID: prior == nil ? nil : "braid-1",
+      sourceTitle: nil, priorAnchor: prior, currentAnchor: now, priorLine: nil, elapsedDays: prior == nil ? nil : 1,
+      evidencePageIDs: [], reason: nil)
+  }
+
+  func testAThreadOpensContinuesAndEndsInTheHousesOwnWords() throws {
+    let opening = try XCTUnwrap(WonderBraid.continuity(for: beat(.fictionOpening)))
+    XCTAssertTrue(opening.opening.contains("paper moth"), opening.opening)
+    let going = try XCTUnwrap(WonderBraid.continuity(for: beat(.fictionContinuation, prior: "the bakery")))
+    XCTAssertEqual(going.opening, "The business of the paper moth and the bakery isn't finished.")
+    let ending = try XCTUnwrap(WonderBraid.continuity(for: beat(.fictionResolution, prior: "the bakery")))
+    XCTAssertTrue(ending.ending)
+    XCTAssertNil(WonderBraid.continuity(for: beat(.fictionOpening, now: "the month")), "a month is not a thing to carry")
+    XCTAssertNil(WonderBraid.continuity(for: beat(.evidenceRhyme)), "a rhyme in the reader's life is the callback's job")
+    XCTAssertNil(WonderBraid.continuity(for: nil))
+  }
+
+  /// Only a telling that holds the thread records it for tomorrow, so the
+  /// plain fallback must hold it too.
+  func testAThreadTheModelFumblesIsStillCarried() async throws {
+    for kind in [BraidPromptBuilder.ContinuityKind.fictionOpening, .fictionContinuation, .fictionResolution] {
+      let carried = beat(kind, prior: kind == .fictionOpening ? nil : "the bakery")
+      var input = WonderBraid.Input(details: ["You left the pen on the windowsill overnight."], dateKey: "2026-10-12")
+      input.continuity = WonderBraid.continuity(for: carried)
+      input.tale = "A bell has been ringing under the floor of the reading room."
+      input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+      // The fake model's tail names no pen, so every attempt is refused.
+      let outputWritten = try await WonderBraid.write(input, tell: fakeTeller())
+      let output = try XCTUnwrap(outputWritten)
+      XCTAssertTrue(output.carriedContinuity)
+      XCTAssertFalse(output.prose.contains("bell"), "the thread stands in for the house's news")
+      XCTAssertTrue(BraidOutputAudit.carriesContinuity(carried, in: output.prose), "\(kind): \(output.prose)")
+      XCTAssertFalse(output.prose.contains(" is mixed up"), "no \"the flowers is\"")
+    }
+  }
+
+  /// The reader's own "Frost on the car roof" holds the roof runner's words.
+  /// On a night the thread's paragraph never ran, that must not record a
+  /// thread for tomorrow to continue.
+  func testAThreadIsRecordedOnlyWhenItsParagraphRan() {
+    var context = BraidPromptBuilder.Context.empty
+    context.continuityBeat = BraidPromptBuilder.ContinuityBeat(kind: .fictionOpening, threadID: "roof", sourceBraidPageID: nil,
+      sourceTitle: nil, priorAnchor: nil, currentAnchor: "the frost", priorLine: nil, elapsedDays: nil, evidencePageIDs: [], reason: nil)
+    let prose = "The car roof\n\nFrost on the car roof in the shape of a map of somewhere that doesn't exist."
+    let told = BookPage(type: .bookOfYou, promptText: "", userInput: prose, tags: ["braid", "braid-wonder"])
+    XCTAssertEqual(BookOfYouResidue.extract(from: told, context: context).fictionThreadID, "roof", "the plain braid's words still count")
+    var untold = told
+    untold.tags.append(BookOfYouResidue.continuityUntoldTag)
+    XCTAssertNil(BookOfYouResidue.extract(from: untold, context: context).fictionThreadID)
+  }
+
+  func testTheMonthsNewsIsNeverDisplacedByAThread() async throws {
+    var input = WonderBraid.Input(details: ["You left the pen on the windowsill overnight."], dateKey: "2026-10-12")
+    input.continuity = WonderBraid.continuity(for: beat(.fictionOpening))
+    input.tale = "The East Stacks are shut and the Count is somewhere in them."
+    input.taleIsHouseCanon = false
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let outputWritten = try await WonderBraid.write(input, tell: fakeTeller())
+    let output = try XCTUnwrap(outputWritten)
+    XCTAssertFalse(output.carriedContinuity)
+    XCTAssertTrue(output.prose.contains("East Stacks"))
+  }
+
+  func testAGoodThreadSentenceIsKept() async throws {
+    var input = WonderBraid.Input(details: ["You left the pen on the windowsill overnight."], dateKey: "2026-10-12")
+    let carried = beat(.fictionOpening)
+    input.continuity = WonderBraid.continuity(for: carried)
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let opening = try XCTUnwrap(input.continuity?.opening)
+    let teller: WonderBraid.Teller = { system, user, a, b, c in
+      if user.contains(opening) { return opening + " It chewed a careful hole in the pen and left the important parts." }
+      return try await self.fakeTeller()(system, user, a, b, c)
+    }
+    let outputWritten = try await WonderBraid.write(input, tell: teller)
+    let output = try XCTUnwrap(outputWritten)
+    XCTAssertTrue(output.prose.contains("careful hole in the pen"), output.prose)
+    XCTAssertTrue(BraidOutputAudit.carriesContinuity(carried, in: output.prose))
   }
 
   // MARK: - The whole telling, with a fake model

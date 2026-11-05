@@ -10,6 +10,10 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
+# Covers the app carries that the website does not show yet (bj, 2026-11-01:
+# November goes public with A Place at the Table only). Their plates are not
+# exported and the deploy keeps any copy off the site (see NEVER_PUBLISH).
+WEB_HELD = {'the-guest-november-2026'}
 source = (ROOT / 'Shared/MonthlyEdition.swift').read_text()
 catalogue = source.split('enum PublicationCoverCatalogue {', 1)[1]
 plates = {}
@@ -30,6 +34,7 @@ for body in re.findall(r'\.init\((.*?)\n        \)', schedule, re.S):
                         subtitle=field('subtitle'), monthLine=field('monthLine'), **plate))
 if not entries or len(entries) != schedule.count('.init('):
     raise ValueError('Cover catalogue changed shape; update exporter before publishing.')
+entries = [entry for entry in entries if entry['id'] not in WEB_HELD]
 fallback = dict(plates['labyrinthOfStories'], subtitle='The month is still gathering ink.', monthLine='Working field book')
 destination = ROOT / 'LandingPage/assets/book/covers'
 destination.mkdir(parents=True, exist_ok=True)

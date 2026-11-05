@@ -370,7 +370,7 @@ enum BookTodayProjector {
             switch business.kind {
             case .ribbonDispute: return "my ribbon's started something"
             case .indexDispute: return "my Index is sulking alphabetically"
-            case .eraserVindication: return "my eraser wants a crown"
+            case .eraserVindication: return "my paper drank a wrong guess back"
             }
         }
         if interior.currentDispute != nil { return "an argument is loose in my margins" }
@@ -397,7 +397,7 @@ enum BookTodayProjector {
             .nonEmpty
             ?? "the question with too many fingerprints"
         var lines = [
-            "“\(subject)” is loose in the margins again. Nobody has won the pencil.",
+            "“\(subject)” is loose in the margins again. Nobody has won the margin.",
             "The footnotes have taken sides over “\(subject)” I'm counting who's shouting loudest.",
             "“\(subject)” has \(question.positions.count) different answers arguing over it."
         ]
@@ -422,7 +422,7 @@ enum BookTodayProjector {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nonEmpty {
             lines.append(
-                "New ink reached “\(subject)” \(evidence.bookPreviewSentenceLimit(1)) My earlier pencil is looking nervous."
+                "New ink reached “\(subject)” \(evidence.bookPreviewSentenceLimit(1)) My earlier ink is looking nervous."
             )
         }
 
@@ -1429,7 +1429,7 @@ enum BookTodayCensusProjector {
             symbol: "pencil.line",
             lines: [
                 "You have corrected my reading \(relationship.softenedReadingCount) \(word(relationship.softenedReadingCount, one: "time", many: "times")), and the corrections stayed.",
-                "I have \(relationship.softenedReadingCount) pencil \(word(relationship.softenedReadingCount, one: "mark", many: "marks")) where you taught me better."
+                "I've got \(relationship.softenedReadingCount) faint ink \(word(relationship.softenedReadingCount, one: "mark", many: "marks")) where you taught me better."
             ]
         )
 
@@ -1792,18 +1792,28 @@ enum BookTodayDoorstep {
         let slot = TheBleedEditionBuilder.slotID(for: kind, day: day)
         let arrived = kind == .morning ? "The morning paper's come." : "The evening paper's in."
         // Already printed: the front page it actually ran.
-        if let prepared = inputs.preparedBleedEditionSurface, prepared.payload.metadata["bleedSlotID"] == slot,
-           let front = TheBleedEditionBuilder.decodedBriefs(prepared.payload.metadata["bleedPrintedColumns"] ?? "")
-            .first(where: { $0.id == "front-page" }) {
-            return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title,
-                         line: "\(arrived) You're on the front page again.")
+        if let prepared = inputs.preparedBleedEditionSurface, prepared.payload.metadata["bleedSlotID"] == slot {
+            let printed = TheBleedEditionBuilder.decodedBriefs(prepared.payload.metadata["bleedPrintedColumns"] ?? "")
+            if let front = printed.first(where: { $0.id == "front-page" }) {
+                let line = BleedLeadDesk.subject(ofStory: front.storyID ?? "") == nil ? "You're on the front page again."
+                    : printed.contains(where: { $0.id == BleedLeadDesk.noteID }) ? "Something big got the front page. You're in the box underneath."
+                    : "Something big got the front page."
+                return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title,
+                             line: "\(arrived) \(line)")
+            }
         }
         let history = inputs.bleedPrintHistory.filter { $0.slotID != slot }
-        guard let front = BleedDayDesk.frontPage(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar, history: history) else {
+        let dayFront = BleedDayDesk.frontPage(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar, history: history)
+        let lead = BleedLeadDesk.front(kind: kind, day: day, inputs: inputs, now: now, calendar: calendar, history: history,
+                                       dayFront: dayFront, academy: BleedNewsroom.academyBriefs(inputs: inputs, history: history, now: now, limit: 8))
+        guard let front = lead.front.first else {
             return .init(kind: kind, kicker: "From the Academy", headline: "The Academy Has the Front Page",
                          line: "\(arrived) Yesterday was quiet, so Penny gave the front to the Academy.")
         }
-        let line = front.title == BleedDayDesk.unfiledHeadline
+        let line = BleedLeadDesk.subject(ofStory: front.storyID ?? "") != nil
+            ? (lead.front.count > 1 ? "\(arrived) Something big got the front page. You're in the box underneath."
+                                    : "\(arrived) Something big got the front page.")
+            : front.title == BleedDayDesk.unfiledHeadline
             ? "\(arrived) Penny's holding the column for you."
             : "\(arrived) You're on the front page."
         return .init(kind: kind, kicker: front.byline.components(separatedBy: " · ").first ?? "", headline: front.title, line: line)

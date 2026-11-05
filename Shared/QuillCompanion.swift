@@ -521,7 +521,7 @@ enum QuillChoosing {
             case ("inquiry", false):
                 lines += ["Are you sure about \"{word}\"? I inked it anyway. But are you?"]
             case ("inquiry", true):
-                lines += ["You asked the page a question. I answered it in the gutter, where answers keep."]
+                lines += ["You asked the page a question. I answered it in the margin, where answers keep."]
             case ("ornament", false):
                 lines += ["I gave \"{word}\" a flourish. It had earned one."]
             default:

@@ -66,13 +66,13 @@ final class GrimoireWiringTests: XCTestCase {
         kept.sensoryFolio = SensoryFolio(
             schemaVersion: SensoryFolio.currentSchemaVersion,
             observations: [
-                SensoryObservation(dimension: .modality, value: "photograph", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .modality, value: "photo", confidence: 1, extractorID: "test"),
                 SensoryObservation(dimension: .subject, value: "harbour", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .palette, value: "slate-dark", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .brightness, value: "dim", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .composition, value: "wide", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .voiceCadence, value: "rapid-paused", confidence: 1, extractorID: "test"),
-                SensoryObservation(dimension: .voiceEnergy, value: "low", confidence: 1, extractorID: "test")
+                SensoryObservation(dimension: .palette, value: "muted", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .brightness, value: "low light", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .composition, value: "landscape, people-0", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .voiceCadence, value: "short bursts", confidence: 1, extractorID: "test"),
+                SensoryObservation(dimension: .voiceEnergy, value: "hushed", confidence: 1, extractorID: "test")
             ],
             vectors: []
         )

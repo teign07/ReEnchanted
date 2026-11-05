@@ -2011,14 +2011,15 @@ enum BoundVolumePublicationMatterBuilder {
         }
 
         let crossings = storyConsequences
-            .filter { $0.createdAt >= startDate && $0.createdAt <= endDate && !$0.editionLines.isEmpty }
+            .filter { $0.createdAt >= startDate && $0.createdAt <= endDate
+                && $0.editionLines.contains { !PrintHygiene.isStoryScaffold($0) } }
             .sorted {
                 if $0.significance == $1.significance { return $0.createdAt < $1.createdAt }
                 return $0.significance > $1.significance
             }
             .prefix(10)
             .flatMap { receipt in
-                receipt.editionLines.prefix(2).enumerated().map { offset, line in
+                receipt.editionLines.filter { !PrintHygiene.isStoryScaffold($0) }.prefix(2).enumerated().map { offset, line in
                     item(
                         id: "volume-crossing-\(receipt.id)-\(offset)",
                         title: receipt.significance == .rupture ? "The Hedge Changed Its Mind" : "Across the Hedge",
@@ -2858,12 +2859,24 @@ enum MonthlyEditionBuilder {
                     note: "Everything else the month kept: weather, anchors, enchantments, classes, questions, and every other margin. Nothing here was left out.",
                     pages: boundPages.filter { page in
                         !EditionCurator.isScrapbookPage(page)
-                            && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment].contains(page.type)
+                            // How to read the Book is for the app; on paper it's an instruction manual.
+                            && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment, .helpTips].contains(page.type)
                     },
                     limit: nil,
                     placement: .backMatter
                 )
-            ]
+            ].map { section in
+                // A Page kept before the app learned to name things can still
+                // carry a line of ids ("penny-blackletter|wicker-eddies").
+                var section = section
+                for index in section.items.indices {
+                    section.items[index].body = section.items[index].body
+                        .components(separatedBy: "\n")
+                        .filter { !PrintHygiene.containsSlugList($0) }
+                        .joined(separator: "\n")
+                }
+                return section
+            }
 
         // The event summary may point at a Page already bound in Letters,
         // Souvenirs, or the archive. Keep the summary, but bind that Page's
@@ -2971,7 +2984,7 @@ enum MonthlyEditionBuilder {
         from receipts: [StoryConsequenceReceipt]
     ) -> MonthlyEditionSection {
         let meaningful = receipts
-            .filter { !$0.editionLines.isEmpty }
+            .filter { $0.editionLines.contains { !PrintHygiene.isStoryScaffold($0) } }
             .sorted { left, right in
                 if left.significance == right.significance {
                     return left.createdAt > right.createdAt
@@ -3003,7 +3016,7 @@ enum MonthlyEditionBuilder {
                 id: "edition-\(receipt.id)",
                 kind: .continuity,
                 title: title,
-                body: receipt.editionLines.joined(separator: "\n"),
+                body: receipt.editionLines.filter { !PrintHygiene.isStoryScaffold($0) }.joined(separator: "\n"),
                 date: receipt.createdAt,
                 pageType: receipt.sourcePageType,
                 sourceID: "fictional-consequence-compiler",
@@ -3045,8 +3058,8 @@ enum MonthlyEditionBuilder {
                 body += "\n\nI was wrong. I kept it here so you can see me be wrong."
             } else {
                 body += "\n\n\(stats.inHits) times out of \(stats.inCount)."
-                if let falsifier = row.falsifier, !falsifier.line.isEmpty {
-                    body += " \(falsifier.line)"
+                if let promise = GrimoireVoice.currentPromise(row: row, ledger: grimoire) {
+                    body += " \(promise)"
                 }
             }
             return MonthlyEditionItem(
@@ -3527,7 +3540,7 @@ enum MonthlyEditionBuilder {
         return MonthlyEditionSection(
             id: "fuel-and-inner-weather",
             title: "Fuel & Inner Weather",
-            note: "An opt-in private summary of body, fuel, mood, and energy patterns. No raw logs, no medical claims.",
+            note: "An opt-in private summary of body, fuel, mood, and energy patterns. No raw logs. " + FacultyFiction.short,
             items: items
         )
     }
@@ -3913,6 +3926,7 @@ enum MonthlyEditionBuilder {
         guard trimmed.count >= 12 else { return false }
         let lowered = trimmed.lowercased()
         if lowered.hasPrefix("research note for") { return false }
+        if PrintHygiene.isMachineText(trimmed) { return false }
         if lowered == "faculty:" || lowered.hasPrefix("faculty: dr.") { return false }
         if lowered.contains("focus:") && lowered.contains("faculty:") { return false }
         return true
@@ -6199,5 +6213,178 @@ extension AnnualEdition {
             return smaller
         }
         return changed ? copy : nil
+    }
+}
+
+// MARK: - Print hygiene
+
+/// What the app keeps for itself and must never reach paper: a page's own
+/// metadata header, a prepared Wonder Compass form, an enchantment's field
+/// labels, the Book's internal slugs, and in-app directions to a leaf the
+/// printed book doesn't have.
+enum PrintHygiene {
+    /// Field labels the app writes into a Page's text for its own use.
+    private static let fieldLabels = [
+        "tags:", "location:", "place kind:", "time limit:", "energy:", "who is with me:", "budget:",
+        "special needs/considerations:", "enchantment:", "subject:", "destination:", "delight:", "definition:"
+    ]
+
+    /// True when the text is the app's bookkeeping rather than anybody's words.
+    static func isMachineText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”'‘’").union(.whitespacesAndNewlines))
+        let lowered = trimmed.lowercased()
+        if lowered.hasPrefix("tags:") || lowered.hasPrefix("wonder compass run") { return true }
+        if lowered.contains("north (notice)") || lowered.contains("east (embark)") { return true }
+        if containsSlugList(trimmed) { return true }
+        let lines = lowered.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let labelled = lines.filter { line in fieldLabels.contains { line.hasPrefix($0) } }.count
+        // One labelled line in a long answer is the reader's; a form is mostly labels.
+        if labelled >= 2 || (labelled == 1 && lines.count == 1) { return true }
+        return false
+    }
+
+    /// A consequence line that is the story planner's scaffolding: its progress
+    /// template with a recipe's own name dropped in ("The corrected delivery
+    /// moves Misdelivered Object one visible step").
+    static func isStoryScaffold(_ line: String) -> Bool {
+        if line.localizedCaseInsensitiveContains("one visible step") { return true }
+        return recipeNames.contains { line.contains($0) }
+    }
+
+    private static let recipeNames: [String] = StoryFormRegistry.recipes.map(\.name).filter { $0.split(separator: " ").count >= 2 }
+
+    /// "penny-blackletter|wicker-eddies" and other ids the reader never typed.
+    static func containsSlugList(_ text: String) -> Bool {
+        text.range(of: #"[a-z]+(-[a-z0-9]+)+\|[a-z]+(-[a-z0-9]+)+"#, options: .regularExpression) != nil
+    }
+
+    /// Prose with the app's labelled sentences and in-app directions taken out.
+    /// A sentence that opens on a field label ("Subject: Blue Bottle …") or that
+    /// sends the reader to a leaf of the app is dropped whole; numbering left
+    /// dangling at the end of a list is dropped with it.
+    static func scrubbedProse(_ text: String) -> String {
+        // Line by line, so a poem keeps its breaks; a line nothing was taken
+        // from is left exactly as it was written.
+        let lines = text.components(separatedBy: "\n").compactMap { line -> String? in
+            guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { return line }
+            let all = sentences(in: line)
+            let kept = all.filter { sentence in
+                let lowered = sentence.trimmingCharacters(in: .whitespaces).lowercased()
+                if fieldLabels.contains(where: { lowered.hasPrefix($0) }) { return false }
+                if appDirections.contains(where: { lowered.contains($0) }) { return false }
+                if lowered.range(of: #"^\d+\.?$"#, options: .regularExpression) != nil { return false }
+                // "…tied to this container: 1." A clock ("3:15.") has no space after its colon.
+                if lowered.range(of: #":\s+\d{1,2}\.?$"#, options: .regularExpression) != nil { return false }
+                return true
+            }
+            if kept.count == all.count { return line }
+            return kept.isEmpty ? nil : kept.joined(separator: " ")
+        }
+        return lines.joined(separator: "\n")
+            .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Directions to leaves of the app. On paper they point at nothing.
+    private static let appDirections = ["through capture", "in the glow menu", "tap the "]
+
+    private static func sentences(in paragraph: String) -> [String] {
+        var out: [String] = []
+        paragraph.enumerateSubstrings(in: paragraph.startIndex..., options: .bySentences) { sentence, _, _, _ in
+            if let sentence = sentence?.trimmingCharacters(in: .whitespacesAndNewlines), !sentence.isEmpty { out.append(sentence) }
+        }
+        return out.isEmpty ? [paragraph] : out
+    }
+
+    /// A prepared Wonder Compass run, set for paper: the four directions and
+    /// the rest, without the form it was prepared from (place kind, energy,
+    /// budget and company stay in the app). Nil when the text isn't a run.
+    static func compassRunCard(_ text: String) -> String? {
+        guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("Wonder Compass Run") else { return nil }
+        let headings: [(marker: String, label: String)] = [
+            ("NORTH (NOTICE)", "North"), ("EAST (EMBARK)", "East"), ("SOUTH (SENSE)", "South"),
+            ("WEST (WRITE)", "West"), ("CENTER (REST)", "Centre")
+        ]
+        var sections: [String: [String]] = [:]
+        var current: String?
+        for raw in text.components(separatedBy: .newlines) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if let heading = headings.first(where: { $0.marker == line.uppercased() }) {
+                current = heading.label
+                continue
+            }
+            guard let current, !line.isEmpty else { continue }
+            var value = line
+            for label in ["Destination:", "Delight:"] where value.hasPrefix(label) {
+                value = String(value.dropFirst(label.count)).trimmingCharacters(in: .whitespaces)
+            }
+            // The definition is the form explaining itself.
+            if value.isEmpty || line.hasPrefix("Definition:") { continue }
+            sections[current, default: []].append(value)
+        }
+        let lines = headings.compactMap { heading -> String? in
+            guard let values = sections[heading.label], !values.isEmpty else { return nil }
+            return "\(heading.label) · \(values.joined(separator: " · "))"
+        }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+}
+
+// MARK: - Edition prose gate
+
+/// Whether a leaf the on-device model wrote is good enough to print in place
+/// of the Book's own. The model is small: left alone it counts the wrong
+/// pages ("Sixteen pages for you" in a 183-page book), reaches for stock
+/// atmosphere ("dust motes dancing"), or writes four sentences and stops.
+/// A leaf that fails keeps the deterministic text the edition already holds.
+enum EditionProseGate {
+    private static let stock = [
+        "dust motes", "air feels thick", "tapestry of", "testament to", "a symphony of",
+        "the weight of it all", "ain't", "in the grand scheme"
+    ]
+    private static let counted = #"\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty)\s+pages\b"#
+
+    static func accepts(_ text: String?, minimumWords: Int, material: [String]) -> Bool {
+        guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return false }
+        let lowered = text.lowercased()
+        guard lowered.split(whereSeparator: \.isWhitespace).count >= minimumWords else { return false }
+        if stock.contains(where: { lowered.contains($0) }) { return false }
+        if lowered.range(of: counted, options: .regularExpression) != nil { return false }
+        if PrintHygiene.containsSlugList(text) { return false }
+        // It has to be about this month: two of the month's own words, at least.
+        let source = Set(words(in: material.joined(separator: " ")))
+        return Set(words(in: text)).intersection(source).count >= 2
+    }
+
+    private static func words(in text: String) -> [String] {
+        text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count >= 5 }
+            .filter { !["there", "their", "which", "about", "would", "could", "these", "those", "month", "pages", "where", "while"].contains($0) }
+    }
+}
+
+// MARK: - The doctors are made up
+
+/// Dr. Vellum and Dr. Inkrest read the reader's body, food and mood notes.
+/// They're characters, so wherever they speak about those things the Book
+/// says so, in its own voice: once on the leaf in the app, once at the back
+/// of a printed book.
+enum FacultyFiction {
+    /// Under a leaf in the app.
+    static let short = "Dr. Vellum and Dr. Inkrest are made up. I made them up, like the rest of my Labyrinth. Nothing they say is medical advice. If your body or your mind needs real help, ask a real doctor."
+
+    /// At the back of a printed book.
+    static let colophon = "One more true thing. Dr. Vellum and Dr. Inkrest are made up. I made them up, the same as the stairs that change their minds. They're good at noticing, but they can't examine you, and nothing either of them says in here is medical advice. If your body hurts, or your head stays heavy for a long time, tell a real doctor. Real doctors have waiting rooms. Mine only have margins."
+
+    /// Leaves where the doctors read the reader's health notes.
+    static func applies(to type: BookPageType, text: String) -> Bool {
+        switch type {
+        case .inkrestOfficeHours, .supportGuild: return true
+        case .facultyResearch, .body, .fuel, .mood: return mentionsDoctors(text)
+        default: return false
+        }
+    }
+
+    static func mentionsDoctors(_ text: String) -> Bool {
+        text.localizedCaseInsensitiveContains("vellum") || text.localizedCaseInsensitiveContains("inkrest")
     }
 }

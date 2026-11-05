@@ -249,7 +249,7 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
 
     var texture: String {
         switch self {
-        case .triumph: return "A rare bright fracture. The Story Page gets more permission than it asked for."
+        case .triumph: return "A rare bright fracture. The vignette gets more permission than it asked for."
         case .favor: return "Belief catches. The page can move with a little extra warmth."
         case .hesitate: return "The thread holds, but the margin asks for a softer landing."
         case .cost: return "The page turns, but something in the ink keeps score."
@@ -2316,6 +2316,26 @@ enum MeaningfulPassageSelector {
         /// selection. Nil decodes as the former reader-words behavior.
         var evidenceKind: EvidenceKind? = nil
 
+        /// A line fit to be set as a plate: somebody's words, not a photograph's
+        /// description or the app's own bookkeeping.
+        var isPrintableQuote: Bool {
+            switch evidenceKind ?? .readerWords {
+            case .readerPhotograph, .readerVoiceRecording: return false
+            default:
+                let text = excerpt.trimmingCharacters(in: .whitespacesAndNewlines)
+                return text.count >= 12 && !PrintHygiene.isMachineText(text)
+            }
+        }
+
+        /// The small line under a plate: whose words, and off which Page.
+        var printCaption: String {
+            switch evidenceKind ?? .readerWords {
+            case .readerSpokenWords: return "Said aloud \u{00B7} \(pageType.shortTitle)"
+            case .keptBookPage: return "Kept \u{00B7} \(pageType.shortTitle)"
+            default: return "In your own words \u{00B7} \(pageType.shortTitle)"
+            }
+        }
+
         var promptEvidenceLine: String {
             switch evidenceKind ?? .readerWords {
             case .readerWords:
@@ -2963,7 +2983,7 @@ enum StoryScenePacketBuilder {
         )
         let title = recipePick?.recipe.id == "souvenir-door"
             ? "Story Spark: A Sentence Opens"
-            : "Story Page: \(playableThreadTitle)"
+            : "Vignette: \(playableThreadTitle)"
         let intent = directorIntent(
             primaryThread: primaryThread,
             primaryEntity: primaryEntity,
@@ -3051,10 +3071,31 @@ enum StoryScenePacketBuilder {
         if let memory = memories.first {
             return StoryGrounding(kind: .entityMemory, sourceID: memory.id, text: memory.summary)
         }
-        if let signal = realSignals.first(where: { !$0.hasPrefix("CURRENT ARC:") && !$0.hasPrefix("The player is bound") }) {
+        // The talisman's lean is an instruction for the story, not something
+        // that happened; handed over as grounding it became the scene's subject.
+        if let signal = realSignals.first(where: {
+            !$0.hasPrefix("CURRENT ARC:") && !$0.hasPrefix("The player is bound") && !TalismanAscendancy.isLean($0)
+        }) {
             return StoryGrounding(kind: .realSignal, sourceID: "world-signal", text: signal)
         }
         return timeAndSeasonGrounding(now: now)
+    }
+
+    /// The one concrete noun a templated premise can stand on: "your keys",
+    /// "the parking lot". It used to be the literal words "one familiar
+    /// detail", which reached the brief as "A small item tied to one familiar
+    /// detail arrives... and insists it belongs to Misdelivered Object."
+    static func vignetteThing(for grounding: StoryGrounding, recipe: StoryRecipe) -> String {
+        guard recipe.resolvedGroundingUse != .worldLed, grounding.kind != .timeAndSeason else {
+            return "a cup of tea gone cold"
+        }
+        let fragment = BraidScenePlan.fragment(of: grounding.sceneMaterial, fromEnd: false)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !fragment.isEmpty, fragment.split(separator: " ").count <= 5 else { return "a cup of tea gone cold" }
+        let lowered = fragment.prefix(1).lowercased() + fragment.dropFirst()
+        let hasDeterminer = ["the ", "a ", "an ", "your ", "my ", "his ", "her ", "their ", "our ", "some "]
+            .contains { lowered.hasPrefix($0) }
+        return hasDeterminer ? lowered : "the \(lowered)"
     }
 
     private static func timeAndSeasonGrounding(now: Date) -> StoryGrounding {
@@ -3063,7 +3104,8 @@ enum StoryScenePacketBuilder {
         let dayPart = hour < 6 ? "before dawn" : hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 22 ? "evening" : "late night"
         let month = calendar.component(.month, from: now)
         let season = [12, 1, 2].contains(month) ? "winter" : [3, 4, 5].contains(month) ? "spring" : [6, 7, 8].contains(month) ? "summer" : "autumn"
-        return StoryGrounding(kind: .timeAndSeason, sourceID: "clock-season", text: "It's a \(season) \(dayPart) in the player's real day.")
+        let article = season == "autumn" ? "an" : "a"
+        return StoryGrounding(kind: .timeAndSeason, sourceID: "clock-season", text: "It's \(article) \(season) \(dayPart) in the player's real day.")
     }
 
     /// World-led recipes take the day's air, never its ink: real weather if
@@ -3088,6 +3130,9 @@ enum StoryScenePacketBuilder {
             if requirements.contains(.character) && characters.isEmpty { return false }
             if requirements.contains(.secondCharacter) && characters.count < 2 { return false }
             if requirements.contains(.activeThread) && thread == nil { return false }
+            // Declared on a dozen recipes and never checked, so their premises
+            // were filled with "one familiar detail" on days with nothing kept.
+            if requirements.contains(.groundedSource) && grounding.kind == .timeAndSeason { return false }
             if requirements.contains(.keptPage) && grounding.kind != .keptPage { return false }
             if requirements.contains(.souvenirDoor) && grounding.kind != .souvenirDoor { return false }
             if requirements.contains(.nothingPressure) && !hasNothingPressure { return false }
@@ -3208,7 +3253,8 @@ enum StoryScenePacketBuilder {
             "grounding": recipeGrounding,
             "thread": threadLabel,
             "form": form.name,
-            "quill": quillName ?? "your quill"
+            "quill": quillName ?? "your quill",
+            "thing": vignetteThing(for: grounding, recipe: recipe)
         ]
         func fill(_ template: String) -> String {
             values.reduce(template) { result, pair in result.replacingOccurrences(of: "{{\(pair.key)}}", with: pair.value) }
@@ -3232,7 +3278,7 @@ enum StoryScenePacketBuilder {
             guard ids.contains(lead.id) else { return false }
             return companion.map { ids.contains($0.id) } ?? true
         } ?? relationships.first
-        let decisions = recipe.decisions?.map { authored in
+        let decisions = (recipe.decisions ?? VignettePlanBuilder.parts(for: recipe)?.decisions)?.map { authored in
             StoryRecipeDecisionTemplate(
                 role: authored.role,
                 actionTemplate: fill(authored.actionTemplate),
@@ -3249,14 +3295,28 @@ enum StoryScenePacketBuilder {
             decisions: decisions,
             baseValues: values
         )
+        let premise = fill(recipe.premiseTemplate)
+        let tone = fill(recipe.toneDirective)
+        let vignette = VignettePlanBuilder.plan(
+            recipe: recipe,
+            premise: premise,
+            tone: tone,
+            lead: lead,
+            companion: companion,
+            grounding: grounding,
+            thing: values["thing"] ?? "",
+            decisions: decisions,
+            slotKey: slotKey
+        )
         return StorySceneBlueprint(
             recipeID: recipe.id, recipeName: recipe.name, recipePackID: packID, sceneMode: recipe.sceneMode,
             leadID: lead.id, leadName: lead.name, companionID: companion?.id, companionName: companion?.name,
-            premise: fill(recipe.premiseTemplate), grounding: grounding, beats: StoryVignetteBeats.snackSized(recipe.beats.map(fill)),
-            groundingDirective: fill(recipe.groundingDirective), toneDirective: fill(recipe.toneDirective),
+            premise: premise, grounding: grounding, beats: StoryVignetteBeats.snackSized(recipe.beats.map(fill)),
+            groundingDirective: fill(recipe.groundingDirective), toneDirective: tone,
             choiceDirective: fill(recipe.choiceDirective), continuationDirective: fill(recipe.continuationDirective),
             turn: turn, dramaticContract: dramaticContract,
-            groundingUse: recipe.resolvedGroundingUse, decisions: decisions
+            groundingUse: recipe.resolvedGroundingUse, decisions: decisions,
+            vignette: vignette
         )
     }
 
@@ -5443,7 +5503,7 @@ enum GossipSimulationBuilder {
         case .takeAction:
             return [
                 "\(actor.name) left a fresh memory in the margins.",
-                "\(thread.title) remains available for a future Story Page."
+                "\(thread.title) is still there for a future vignette."
             ] + talismanLines
         case .investBelief:
             return [
@@ -9815,6 +9875,11 @@ struct StoryRecipe: Identifiable, Codable, Equatable {
     /// is the Book writing a scene only this kind of person would be handed:
     /// which is the payoff of naming them in the first place.
     var requiredRoleIDs: [String] = []
+    /// The recipe's own room, and the things that can happen in it: the
+    /// vignette skeleton deals two per scene (see `VignettePlanBuilder`).
+    /// Optional for reader packs; bundled recipes keep theirs in the catalogue.
+    var place: String? = nil
+    var happenings: [String]? = nil
     var groundingDirective: String
     var toneDirective: String
     var choiceDirective: String
@@ -9844,6 +9909,8 @@ struct StorySceneBlueprint: Codable, Equatable {
     var dramaticContract: StoryDramaticContract? = nil
     var groundingUse: StoryGroundingUse? = nil
     var decisions: [StoryRecipeDecisionTemplate]? = nil
+    /// What happens in the scene, decided before Gemma writes it.
+    var vignette: VignettePlan? = nil
 }
 
 struct StoryGenre: Identifiable, Codable, Equatable {
@@ -10663,7 +10730,7 @@ enum StoryFormRegistry {
     static let recipeTemplateTokens: Set<String> = [
         "lead", "companion", "grounding", "thread", "form", "quill",
         "leadGoal", "leadFault", "leadBelief", "companionGoal", "companionFault", "companionBelief",
-        "relationshipPressure", "turnWant", "turnObstacle", "turnStatement"
+        "relationshipPressure", "turnWant", "turnObstacle", "turnStatement", "thing"
     ]
 
     /// Bundled recipes are fixed at build time, so the regex sweep behind their

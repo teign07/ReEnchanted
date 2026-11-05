@@ -200,7 +200,7 @@ final class GrimoireFolioTests: XCTestCase {
         let body = try XCTUnwrap(GrimoireVoice.folio(ledger: ledger, calendar: calendar))
         XCTAssertTrue(body.contains("Wrong about this one:"), body)
         XCTAssertTrue(body.contains("it stopped happening"), body)
-        XCTAssertTrue(body.contains("The pencil is fond of them"), body)
+        XCTAssertTrue(body.contains("The ink is fond of them"), body)
     }
 
     func testABookThatHasOnlyEverBeenWrongStillHasAFolio() throws {
@@ -216,8 +216,8 @@ final class GrimoireFolioTests: XCTestCase {
         let body = try XCTUnwrap(GrimoireVoice.folio(ledger: ledger, calendar: calendar))
         XCTAssertTrue(body.contains("Still betting on this one:"), body)
         XCTAssertTrue(
-            body.contains("gets crossed out")
-                || body.contains("the pencil comes out")
+            body.contains("cross it out")
+                || body.contains("the ink sinks back")
                 || body.contains("I was wrong"),
             body
         )
@@ -274,7 +274,7 @@ final class GrimoireFolioTests: XCTestCase {
         var ledger = livedLedger()
         ledger.lastTending = GrimoireTendingMark(
             at: Date(), found: 2, crossedOut: 1,
-            line: "The pencil got at the harbour one and crossed it out",
+            line: "The ink got at the harbour one and crossed it out",
             shownAt: nil
         )
         let residue = try XCTUnwrap(ledger.quietLeafResidue)
@@ -319,7 +319,7 @@ final class GrimoireFolioTests: XCTestCase {
         ))
         // The Book owing a correction is more interesting than the Book being
         // pleased with itself.
-        XCTAssertTrue(line.contains("crossed it out"), line)
+        XCTAssertTrue(line.contains("crossed out the one about"), line)
     }
 
     /// Only settled rules are offered to an answer. A half-formed thing is not

@@ -56,7 +56,8 @@ extension MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor
     ) {
         for leaf in leaves {
-            if (cursor.pageIndex + 1).isMultiple(of: 2) {
+            // On paper a ruin leaf starts on a recto so its back is its own.
+            if settingForPrint, (cursor.pageIndex + 1).isMultiple(of: 2) {
                 context.beginPage()
                 cursor.reset()
                 cursor.pageIndex += 1

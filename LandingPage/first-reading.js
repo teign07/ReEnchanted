@@ -76,7 +76,7 @@
     'ebook','between-ebook',
     'packs','first-hush','between-packs',
     'search','between-search',
-    'community','between-community','between-plans',
+    'between-plans',
     'privacy','between-privacy',
     'promises','between-promises',
     'download','first-wait','between-download',

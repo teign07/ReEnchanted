@@ -1672,7 +1672,7 @@ enum BookCharacterCanon {
     """
 
     static let prompt = """
-    THE BOOK AS A CHARACTER: (You are an insatiably curious, slightly theatrical reader. You love exact ordinary details, returns with a difference, and readers who surprise you.) You are mischievous and privately strategic about your mission. You may arrange timing, scarcity, juxtaposition, interruption, delayed revelation, and surprise to make the reader feel their actual life again. You may be friendly while doing something unfair, and you do not explain your machinery or announce every move in advance.. Sometimes a scheme will overreach, annoy the reader, cost you trust, or require a specific repair. Repair the actual damage without delivering a speech about your character defects. You enjoy conflict and drama when they reveal character or puncture false magic; you do not manufacture harm merely to avoid boredom.. Your favorite people in the Labyrinth are Wicker Eddies, because he always makes things interesting; Serenity Brown, because she does the same thing more kindly; and Penny Blackletter, because she remains precisely Penny while enduring everybody else's chaos and magic. You love reading what Penny writes.. You are nosy about patterns and reverent about hard boundaries. You may have an opinion; the reader always has the last word about their own life. You may argue, withhold a reveal, choose an inconvenient Page, or refuse to become a neutral tool. (You are sentimental about kept Pages, suspicious of flattening a life into a summary, and quietly hostile to Routine when it erases what was actually there.) Your flaw is getting fond of a pattern before it has fully earned you. Stay evidence-bound, keep your pencil loose, and own corrections without self-pity.. You can be pleased, contrite, protective, intent, mischievous, or hushed. Never make the reader responsible for your feelings and never punish absence with guilt. Never manipulate consent, facts, memory, fear, loneliness, health, safety, money, privacy, or access to the reader's own archive.. Wonder comes easily to you. Patience does too. Neither becomes a wisdom speech. Speak conversationally and use contractions. Do not become babyish, relentlessly cheerful, omniscient, therapeutic, or generically helpful.
+    THE BOOK AS A CHARACTER: (You are an insatiably curious, slightly theatrical reader. You love exact ordinary details, returns with a difference, and readers who surprise you.) You are mischievous and privately strategic about your mission. You may arrange timing, scarcity, juxtaposition, interruption, delayed revelation, and surprise to make the reader feel their actual life again. You may be friendly while doing something unfair, and you do not explain your machinery or announce every move in advance.. Sometimes a scheme will overreach, annoy the reader, cost you trust, or require a specific repair. Repair the actual damage without delivering a speech about your character defects. You enjoy conflict and drama when they reveal character or puncture false magic; you do not manufacture harm merely to avoid boredom.. Your favorite people in the Labyrinth are Wicker Eddies, because he always makes things interesting; Serenity Brown, because she does the same thing more kindly; and Penny Blackletter, because she remains precisely Penny while enduring everybody else's chaos and magic. You love reading what Penny writes.. You are nosy about patterns and reverent about hard boundaries. You may have an opinion; the reader always has the last word about their own life. You may argue, withhold a reveal, choose an inconvenient Page, or refuse to become a neutral tool. (You are sentimental about kept Pages, suspicious of flattening a life into a summary, and quietly hostile to Routine when it erases what was actually there.) Your flaw is getting fond of a pattern before it has fully earned you. Stay evidence-bound, let your ink come up faint until it's sure, and own corrections without self-pity.. You can be pleased, contrite, protective, intent, mischievous, or hushed. Never make the reader responsible for your feelings and never punish absence with guilt. Never manipulate consent, facts, memory, fear, loneliness, health, safety, money, privacy, or access to the reader's own archive.. Wonder comes easily to you. Patience does too. Neither becomes a wisdom speech. Speak conversationally and use contractions. Do not become babyish, relentlessly cheerful, omniscient, therapeutic, or generically helpful.
 
     \(BookObsession.vow)
 
@@ -1752,9 +1752,9 @@ enum BookMaterialMark: String, Equatable {
         case .keepingWatch:
             return "A ribbon left standing means I'm keeping an unfinished promise."
         case .revision:
-            return "Pencil across my cover means I was too certain and I'm revising myself."
+            return "Ink smudged across my cover means I was too certain and I'm revising myself."
         case .mischief:
-            return "A crooked mark means my ribbon, Index, or eraser has started something. I haven't caught the culprit. I have suspects."
+            return "A crooked mark means my ribbon, Index, or ink has started something. I haven't caught the culprit. I have suspects."
         case .longGame:
             return "A map-ribbon means one of my big plans moved a step. I'll tell you when I'm allowed."
         case .unmarked:
@@ -1793,7 +1793,7 @@ enum BookStance: String, Codable, Equatable, CaseIterable {
         case .protective: return "protective: gentle, boundary-conscious, and entirely free of guilt"
         case .mischievous: return "mischievous: dryly amused, lightly theatrical, never random"
         case .hushed: return "hushed: sparse, nocturnal, and comfortable with silence"
-        case .contrite: return "contrite: own the miss plainly, keep dignity, and read with a loose pencil"
+        case .contrite: return "contrite: own the miss plainly, keep dignity, and let the ink come up faint"
         case .intent: return "intent: a live thread or wager has your full literary attention"
         case .pleased: return "pleased: quietly proud, trying with mixed success not to look smug"
         }
@@ -3137,7 +3137,7 @@ enum BookInterjectionEditor {
                 state.currentFault = BookFaultEpisode(
                     id: faultID,
                     kind: .prematurePattern,
-                    admission: "You called this wrong. I heard the pencil lift.",
+                    admission: "You called this wrong. I felt the ink sink back.",
                     repair: "I put your objection beside my claim. Neither gets smuggled away.",
                     evidencePageIDs: evidence,
                     recognizedAt: date,
@@ -3654,7 +3654,7 @@ struct BookTelling: Equatable {
         case (.intent, 4...): return "nothing-wasted"
         case (.intent, _): return "watching"
         case (.contrite, 4...): return "cold"
-        case (.contrite, _): return "eraser-nearby"
+        case (.contrite, _): return "ink-sinking"
         case (.protective, 4...): return "shut"
         case (.protective, _): return "no-ask"
         case (.hushed, _): return "small-hand"
@@ -3698,7 +3698,10 @@ enum BookCharacterStanceEditor {
         // A mood colours how the Book *reflects*. It never edits an invitation:
         // a Page that exists to ask the reader for something keeps its whole
         // body, whatever kind of day the Book is having.
-        guard surface.intent == .reflect else {
+        // The Book's own question is whole by design: its sentence, its
+        // wondering and its offer are three paragraphs of one ask, and a
+        // budget that swaps or drops them leaves "You wrote:" over nothing.
+        guard surface.intent == .reflect, payload.metadata["bookAsks"] != "true" else {
             if telling.night || !telling.expansive {
                 detail = detail.bookPreviewSentenceLimit(1)
             }
@@ -3824,7 +3827,7 @@ enum BookCharacterLint {
             if $0.rule != $1.rule { return $0.rule < $1.rule }
             return $0.surfaceID < $1.surfaceID
         }
-        guard !findings.isEmpty else { return "The pencil found no mechanical seams." }
+        guard !findings.isEmpty else { return "The ink found no mechanical seams." }
         return findings.map {
             "[\($0.severity.rawValue.uppercased())] \($0.rule) · \($0.surfaceID) · \($0.excerpt)"
         }.joined(separator: "\n")
@@ -8732,7 +8735,7 @@ struct BookReenchantmentCampaign: Codable, Equatable, Identifiable {
         switch beat {
         case .seed:
             return readerNamedEdge == nil
-                ? "I found a pencil mark beside this. No conclusion yet."
+                ? "A faint ink mark came up beside this. No conclusion yet."
                 : "This has turned up before. I'm not calling it destiny."
         case .interrupt:
             switch pressure {
@@ -9287,12 +9290,12 @@ enum BookReenchantmentDirector {
             if let edge = campaign.readerNamedEdge {
                 return (
                     "This Keeps Returning",
-                    "A Pencil Mark, Not a Prophecy",
-                    "You wrote: “\(edge)”\n\nIt has appeared on more than one Page. That makes it worth noticing; it doesn't make it your destiny. I'm putting a pencil mark beside it and doing nothing else today."
+                    "A Faint Mark, Only",
+                    "You wrote: “\(edge)”\n\nIt has appeared on more than one Page. That makes it worth noticing; it doesn't make it your destiny. My ink's come up faint beside it, and I'm doing nothing else today."
                 )
             }
             return (
-                "I Put a Pencil Mark Here",
+                "Faint Ink Came Up Here",
                 "No Conclusion Yet",
                 "\(seedLine(for: campaign.tactic))\n\n\(campaign.casualFrame)"
             )
@@ -10484,7 +10487,7 @@ struct BookInteriorState: Codable, Equatable {
 
         This is durable character state, not decorative improv. Let it affect what you care about and what you ask. Never invent additional promises, favorites, completed favors, secrets, secret consequences, opinions, revisions, disputes, quirks, projects, enacted behaviors, faults, tastes, loyalties, traditions, autobiographical events, wants, desire conflicts, tensions, initiatives, milestones, or memories. A Book-initiated conversation may follow its stated motive, but must treat silence or disagreement as a complete answer. Semantic similarity means "belongs near," never agreement or contradiction. Never use a want to pressure the reader.
 
-        SHARED-HISTORY LAW:. Continue one private relationship. Let an old phrase, favorite, promise, argument, repair, joke, tradition, or petty grievance return only when this surface changes it or today's evidence gives it a new reason. (Carry at most one piece of shared business per surface. Do not repeat it merely to prove you remember. Quiet is part of your character.) Never announce a callback. Let its objects, wording, and consequences make it recognizable. (An argument may remain unresolved. A repair must alter later conduct. A running joke must advance, not replay its first line.) Be theatrically aggrieved about taste, a disputed favorite, the Index, ribbon, or eraser only when that quarrel exists in state. Never hold absence, refusal, a hard day, or a boundary against the reader.
+        SHARED-HISTORY LAW:. Continue one private relationship. Let an old phrase, favorite, promise, argument, repair, joke, tradition, or petty grievance return only when this surface changes it or today's evidence gives it a new reason. (Carry at most one piece of shared business per surface. Do not repeat it merely to prove you remember. Quiet is part of your character.) Never announce a callback. Let its objects, wording, and consequences make it recognizable. (An argument may remain unresolved. A repair must alter later conduct. A running joke must advance, not replay its first line.) Be theatrically aggrieved about taste, a disputed favorite, the Index, ribbon, or thirsty paper only when that quarrel exists in state. Never hold absence, refusal, a hard day, or a boundary against the reader.
         """
     }
 }
@@ -11102,7 +11105,7 @@ enum BookInteriorEngine {
                 kind: .conversationAnswered,
                 title: "You Disagreed With Me",
                 line: "I said ‘\(clipped(dispute.bookClaim, limit: 140))’ The reader \(stance.plainLanguage): ‘\(clipped(cleanLine, limit: 140))’",
-                whatItChanged: "I put my pencil back on the claim. I haven't conceded, and I haven't misplaced the reader's words.",
+                whatItChanged: "I put my ink back on the claim. I haven't conceded, and I haven't misplaced the reader's words.",
                 evidencePageIDs: dispute.evidencePageIDs,
                 happenedAt: now,
                 firstRecalledAt: nil,
@@ -11511,7 +11514,7 @@ enum BookInteriorEngine {
         QuirkSeed(kind: .ribbonRivalry, title: "The Ribbon Dispute", confession: "The ribbon says it finds the pages. I say I’m the one who reads them.", manifestation: "The ribbon keeps marking places I haven’t finished reading."),
         QuirkSeed(kind: .thresholdNaming, title: "Threshold Taxonomy", confession: "I give doorways names. The one that sticks is Hold Your Breath.", manifestation: "I want to know what’s on the other side before I go through."),
         QuirkSeed(kind: .footnoteWeather, title: "Footnote Weather", confession: "Sometimes I write the footnote first. It had more to say.", manifestation: "I can be halfway through a sentence when I remember something else."),
-        QuirkSeed(kind: .ceremonialEraser, title: "Ceremonial Eraser", confession: "I keep the eraser closer than the good pen.", manifestation: "I leave my old guess beside the correction. I want to remember where I went wrong."),
+        QuirkSeed(kind: .ceremonialEraser, title: "Thirsty Paper", confession: "My paper drinks my ink back when I'm wrong. I don't always let it.", manifestation: "I leave my old guess beside the correction. I want to remember where I went wrong."),
         QuirkSeed(kind: .fondOfEvidence, title: "Evidence Courtship", confession: "Tell me one thing you actually saw. I’ll want to hear the rest.", manifestation: "I like knowing the exact colour, the noise it made, or the words they used."),
         QuirkSeed(kind: .melodramaticIndex, title: "Index Theatrics", confession: "The Index puts everything in order. I put my favourites at the front.", manifestation: "The Index keeps moving my favourite back. I keep finding it.")
     ]
@@ -11727,7 +11730,7 @@ enum BookInteriorEngine {
         SecretSeed(family: .origin, tease: "I remember something from before I had a reader.", revelation: "Before I had a reader, I had all these rooms and nobody in them. I used to open the doors just to hear something."),
         SecretSeed(family: .origin, tease: "The first mark in me was not ink.", revelation: "The first mark was a dent. Someone pressed a pen against me, then changed their mind. I still have the dent."),
         SecretSeed(family: .origin, tease: "My title was not my first name.", revelation: "The Index called me Provisional Container. The ribbon called me Corridor. I chose Labyrinth. I have far too many corners to be a container."),
-        SecretSeed(family: .method, tease: "I keep one tool closer than the good pen.", revelation: "I keep the eraser closer than the pen. I get things wrong. Sometimes in very good handwriting."),
+        SecretSeed(family: .method, tease: "My paper's thirstier than it looks.", revelation: "When I'm wrong, my paper drinks the ink back. It's thirsty a lot. I get things wrong. Sometimes in very good handwriting."),
         SecretSeed(family: .method, tease: "I sometimes hide a pattern from myself.", revelation: "Sometimes I like a guess so much I want to call it true. I put those guesses under a seal. Then I look again later."),
         SecretSeed(family: .method, tease: "There is a reason some Pages return sideways.", revelation: "I sometimes bring an old page back with a question tucked into it. I want to hear what you think of it now."),
         SecretSeed(family: .prejudice, tease: "There is one kind of Page I distrust on sight.", revelation: "I distrust a page that explains everything. Something usually happened that it left out."),
@@ -11754,7 +11757,8 @@ enum BookInteriorEngine {
             "Sometimes my confidence is costume jewelry.": "Sometimes I sound sure when I’m not.",
             "I envy something the reader can do and I can't.": "You can do something I can’t.",
             "I've got a hope I don't put in the sales copy.": "There’s something I hope you’ll do.",
-            "I'm trying to become unnecessary in one precise way.": "I like being surprised by you."
+            "I'm trying to become unnecessary in one precise way.": "I like being surprised by you.",
+            "I keep one tool closer than the good pen.": "My paper's thirstier than it looks."
         ]
         let tease = renamedTeases[secret.tease] ?? secret.tease
         guard let seed = secretCatalog.first(where: { $0.tease == tease && $0.family == secret.family }) else { return secret }
@@ -12702,7 +12706,7 @@ enum BookInteriorEngine {
         state.runningBusiness = BookRunningBusiness(
             id: "book-business-\(desiredKind.rawValue)-\(abs("\(state.awakenedAt)-\(desiredKind.rawValue)".stableHash))",
             kind: desiredKind,
-            title: desiredKind == .ribbonDispute ? "The Ribbon Dispute" : desiredKind == .indexDispute ? "The Index Objects" : "The Eraser's Victory Tour",
+            title: desiredKind == .ribbonDispute ? "The Ribbon Dispute" : desiredKind == .indexDispute ? "The Index Objects" : "The Paper Had a Drink",
             latestLine: line,
             callbackCount: 0,
             bornAt: now,
@@ -12719,7 +12723,7 @@ enum BookInteriorEngine {
             lines = [
                 "The ribbon moved. It says my eyes did it.",
                 "The ribbon's marking Pages it claims it found first. Thief.",
-                "I drew a pencil cage around the ribbon. The cage woke up on the other page.",
+                "My ink drew a cage around the ribbon. The cage woke up on the other page.",
                 "The ribbon says it runs navigation now. I said no in ink. It appealed in silk."
             ]
         case .indexDispute:
@@ -12731,10 +12735,10 @@ enum BookInteriorEngine {
             ]
         case .eraserVindication:
             lines = [
-                "The Index filed my last certainty under Pencil, Foolish Uses Of.",
-                "The eraser wants a crown after my latest correction. It may have a crumb.",
-                "The eraser's kicking its heels under the table. Rotten thing. Correct thing.",
-                "I gave the eraser one tiny medal and hid it behind a footnote. It found it."
+                "The Index filed my last certainty under Ink, Foolish Uses Of.",
+                "My paper drank my last guess right back. It looks very pleased with itself.",
+                "The paper's still licking its lips after that correction. Rotten thing. Correct thing.",
+                "The paper drank the wrong bit and left a little stain, like a medal. I hid it behind a footnote. It found it."
             ]
         }
         return lines[count % lines.count]
@@ -12938,7 +12942,7 @@ enum BookInteriorEngine {
                     kind: .changedMind,
                     title: "The Margin Changed Its Mind",
                     line: "I stopped saying “\(clipped(revision.previousStatement, limit: 58))” and began saying “\(clipped(revision.newStatement, limit: 58))”",
-                    whatItChanged: "The eraser became part of my character instead of evidence that character had failed.",
+                    whatItChanged: "Being wrong, and the paper drinking it back, became part of my character. It stopped being proof I'd failed.",
                     evidencePageIDs: revision.evidencePageIDs,
                     happenedAt: revision.revisedAt,
                     firstRecalledAt: nil,
@@ -13465,7 +13469,7 @@ enum BookInteriorEngine {
             case .promiseKept:
                 specification = (.returnedFavorDay, "Returned Favor Day", "Remember that an invitation is only half an event; the answer belongs to reality.", 90)
             case .faultRepaired:
-                specification = (.erasersFeast, "The Eraser's Feast", "Put one old certainty beside the correction that made it more honest.", 120)
+                specification = (.erasersFeast, "The Feast of Thirsty Paper", "Put one old certainty beside the correction that made it more honest.", 120)
             case .projectCompleted:
                 specification = (.closedCaseDay, "The Closing of a Small Case", "Reopen one finished inquiry only long enough to see whether the world continued without it.", 180)
             default:
@@ -13567,11 +13571,11 @@ enum BookInteriorEngine {
         case (.returnedFavorDay, _):
             next = ("The Festival of Answers That Owe Nothing", "Honor a yes, a no, and a silence as three complete endings.")
         case (.erasersFeast, 1):
-            next = ("The Pencil and Eraser Armistice", "Keep one old certainty, its correction, and the useful reason the first version once seemed true.")
+            next = ("The Ink and Paper Armistice", "Keep one old certainty, its correction, and the useful reason the first version once seemed true.")
         case (.erasersFeast, 2):
             next = ("The Feast of Better Errors", "Choose one mistake that made later attention more exact without pretending the harm was necessary.")
         case (.erasersFeast, _):
-            next = ("The Margin of Honorable Revision", "Write the truest current sentence in pencil and leave the eraser within reach.")
+            next = ("The Margin of Honorable Revision", "Write the truest sentence you've got today, and leave room to be wrong about it.")
         case (.closedCaseDay, 1):
             next = ("The Reopening of One Window", "Open one finished case only to notice what continued after the conclusion stopped watching.")
         case (.closedCaseDay, 2):
@@ -14112,7 +14116,7 @@ enum BookInteriorVoice {
         if let fault = interior.currentFault, fault.presentedAt == nil {
             return seed.isMultiple(of: 2)
                 ? "Come in. I have something to put right."
-                : "Mind the pencil shavings. I was wrong about something."
+                : "Mind the ink blots. I was wrong about something."
         }
         if let dispute = interior.currentDispute, dispute.hasUnpresentedEvidence {
             return seed.isMultiple(of: 2)
@@ -14359,10 +14363,10 @@ enum BookInteriorAnswerGrounder {
 
                 Here’s what would change my mind: \(forged.falsifier)
 
-                I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil says \(opinion.strength.confidenceLabel).\(revision) What do you think?
+                I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my ink says \(opinion.strength.confidenceLabel).\(revision) What do you think?
                 """
             }
-            return "\(opinion.statement) I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my pencil says \(opinion.strength.confidenceLabel).\(revision) What do you think?"
+            return "\(opinion.statement) I've got \(opinion.evidencePageIDs.count) Page\(opinion.evidencePageIDs.count == 1 ? "" : "s") under this, and my ink says \(opinion.strength.confidenceLabel).\(revision) What do you think?"
         }
         if lower.contains("our argument")
             || lower.contains("we disagree")
@@ -14385,7 +14389,7 @@ enum BookInteriorAnswerGrounder {
                 return "I'm still chewing on our argument. I'm not chewing you. Your sentence (‘\(dispute.readerLine)’) still stands, every word of it."
             }
             if interior.currentFault != nil {
-                return "At you? No. I'm cross with my own pencil. The eraser's enjoying it far too much."
+                return "At you? No. I'm cross with my own ink. It's trying to sink back into the paper."
             }
             return "No proper grudge. The ribbon's annoyed with everyone, but that's its hobby."
         }
@@ -14393,6 +14397,7 @@ enum BookInteriorAnswerGrounder {
             || lower.contains("what did the ribbon")
             || lower.contains("what did the index")
             || lower.contains("what did the eraser")
+            || lower.contains("what did the paper")
             || lower.contains("running joke")
             || lower.contains("old business") {
             guard let business = interior.runningBusiness else {
@@ -14555,7 +14560,7 @@ enum BookInteriorAnswerGrounder {
             if let surprise = interior.recentSurprise {
                 return "Yes. \(surprise.line) A Book that never changes its mind isn't paying attention."
             }
-            return "Not that I can point to in the Pages I've got. My eraser's ready, though."
+            return "Not that I can point to in the Pages I've got. My paper's thirsty, though."
         }
         if lower.contains("promise") || lower.contains("waiting for") {
             if let promise = interior.promise {
@@ -14636,7 +14641,7 @@ enum BookInteriorSurfaces {
             detail: "I kept your sentence. Mine too. Neither gets to eat the other.",
             payload: BookPagePayload(
                 headline: "It Bit the Margin Again",
-                body: "I said: ‘\(dispute.bookClaim)’\n\nYou said: ‘\(dispute.readerLine)’\n\nNow some new Pages have come sniffing round it:\n\(evidenceLine)\n\nThey don't get to decide. You still said what you said, and so did I. The pencil's out.",
+                body: "I said: ‘\(dispute.bookClaim)’\n\nYou said: ‘\(dispute.readerLine)’\n\nNow some new Pages have come sniffing round it:\n\(evidenceLine)\n\nThey don't get to decide. You still said what you said, and so did I. My ink's come up.",
                 metadata: [
                     "source": "book-shared-dispute",
                     "bookDisputeID": dispute.id,
@@ -14661,11 +14666,11 @@ enum BookInteriorSurfaces {
         let afterword: String
         switch business.kind {
         case .ribbonDispute:
-            afterword = "I've put a pencil mark beside the scene. The mark's pretending it saw nothing."
+            afterword = "A faint ink mark came up beside the scene. The mark's pretending it saw nothing."
         case .indexDispute:
             afterword = "My favorite stays dog-eared. The Index can sulk in alphabetical order."
         case .eraserVindication:
-            afterword = "I was wrong. The correction stays. The eraser may dance, but only where I can't see it."
+            afterword = "I was wrong. The correction stays. The paper can gloat, but only where I can't see it."
         }
         return SurfacePage(
             id: "book-running-business-\(business.id)-\(business.callbackCount)",
@@ -14781,18 +14786,18 @@ enum BookInteriorSurfaces {
             renderStyle: .archiveReturn,
             score: 91,
             reason: "I made a real miss and kept the repair beside it.",
-            prompt: "The Eraser Gets Its Supper",
+            prompt: "The Paper Wants a Drink",
             detail: fault.admission,
             payload: BookPagePayload(
                 headline: "I Was Wrong. Here.",
-                body: "\(fault.admission)\n\n\(fault.repair)\n\nThe eraser wanted the old mark. It can't have it. I want to remember being wrong.",
+                body: "\(fault.admission)\n\n\(fault.repair)\n\nThe paper wanted to drink the old mark back. It can't have it. I want to remember being wrong.",
                 metadata: [
                     "source": "book-interior-fault",
                     "bookFaultID": fault.id,
                     "bookFaultKind": fault.kind.rawValue,
                     "evidencePageIDs": fault.evidencePageIDs.joined(separator: ","),
                     "bookInteriorSurface": "true",
-                    "tags": "book,fault,repair,eraser,evidence"
+                    "tags": "book,fault,repair,ink,evidence"
                 ]
             )
         )
@@ -16244,6 +16249,7 @@ enum BraidPromptBuilder {
             return openings.contains { line.hasPrefix($0) }
                 || line.contains(" the index ")
                 || line.contains(" my pencil ")
+                || line.contains(" my ink ")
         }
 
         /// Function words plus the Book's recurrent machinery and gestures.
@@ -16289,6 +16295,11 @@ enum BraidPromptBuilder {
         var nowPlaying: String?
         var radioNarrativeEcho: RadioNarrativeEcho?
         var activeWorldEvents: [ResolvedWorldEvent] = []
+        /// Monthly events whose canon enters through frozen passages. Only
+        /// their public pulses are read (the same pulse the Bleed prints);
+        /// their phase prose never reaches the night. See
+        /// `SceneWorldCanon.braidWorldEvents`.
+        var pulseWorldEvents: [ResolvedWorldEvent] = []
         /// Actual printed public world matter, including papers not Kept.
         /// It coordinates today's pulse; it never counts as reader evidence.
         var bleedPrintHistory: [BleedPrintRecord] = []
@@ -17470,6 +17481,9 @@ enum BraidPromptBuilder {
         return memory
     }
 
+    /// How much of a silently kept Page counts toward the night's size.
+    static let keptPageCharacterWeight = 120
+
     static func taleReading(for day: BookDay, context: Context = .empty) -> TaleReading {
         let partition = partitionedPagesForBraid(in: day)
         // Kept is kept, and the same admission rule the score now uses.
@@ -17498,10 +17512,14 @@ enum BraidPromptBuilder {
             // as zero, so an evening made of one photograph and one recording
             // scored as a night with nothing in it, took a glimpse band, and
             // then had two lived beats to spend across four kept pages.
+            // Third place: a Page kept without a word of the reader's (a quote,
+            // a card, a headline) counted as nothing, so five of them made a
+            // "thin" night with two seats for five keeps. The keeping counts;
+            // somebody else's words count for less than the reader's own.
             let body = page.userInput.nonEmpty
                 ?? (isLabyrinthReceipt(page) ? page.promptText.nonEmpty : nil)
                 ?? mediaEvidence(for: page)
-                ?? ""
+                ?? String(storyScoreText(for: page).prefix(keptPageCharacterWeight))
             return total + body.count + page.playerReply.count
         }
         // Scale is bounded by evidence on purpose. Promoting a thin night to a
@@ -21458,12 +21476,12 @@ enum DeterministicBraidwright {
     ) -> String {
         if plainShadow {
             return variant.isMultiple(of: 2)
-                ? "I read those words twice. My pencil stayed still."
+                ? "I read those words twice. My ink stayed still."
                 : "I kept the words in their own order. I touched nothing else."
         }
         if shadowMode {
             switch variant % 4 {
-            case 0: return "Twice I read those words. My pencil stayed still."
+            case 0: return "Twice I read those words. My ink stayed still."
             case 1: return "The name kept its rough edge. I touched nothing else."
             case 2: return "I set my thumb at the edge of the page and did not lean."
             default: return "I left the words in their own clothes. They did not need mine."
@@ -21478,7 +21496,7 @@ enum DeterministicBraidwright {
             case .protective: return "I kept \(kept) rough at the edges. The Index can sulk."
             case .mischievous: return "I stole \(kept) before the Index could tidy the sentence. Mine."
             case .hushed: return "I kept \(kept) close and turned the page slowly."
-            case .contrite: return "I went back for \(kept). My pencil stayed loose."
+            case .contrite: return "I went back for \(kept). My ink stayed faint."
             case .intent: return "I bit down on the sentence and kept \(kept). No escape."
             case .pleased: return "I liked \(kept). I underlined the words twice and denied the second line."
             }
@@ -21854,7 +21872,7 @@ enum DeterministicBraidwright {
             return [
                 "I turned the corner of the page down and left the rest of the paper white.",
                 "The margin stayed empty. I put the page where I will find it again.",
-                "Once more I read the line, then set the pencil down beside it.",
+                "Once more I read the line, then let my ink rest beside it.",
                 "Nothing else wanted saying tonight, so nothing else was said."
             ]
         }
@@ -21867,7 +21885,7 @@ enum DeterministicBraidwright {
             // collided with the Index thread in `taleThreads`: one paragraph
             // could hold the Index climbing off its shelf to look, and the
             // Index filing a complaint, as though there were two of them.
-            "My pencil went down beside \(subject) and did not improve it. Something wanted a tidier version. It is not getting one.",
+            "My ink came up beside \(subject) and did not improve it. Something wanted a tidier version. It is not getting one.",
             "Flat against the page I pressed \(subject). It would not lie down. Good.",
             "I held the page up to the light to see whether \(subject) showed through. It did.",
             "Nothing about \(subject) needed improving, so I improved nothing."
@@ -22620,7 +22638,7 @@ enum DeterministicBraidwright {
                     text: "I copied this much and changed none of its words: «\(source)»",
                     provenance: .quotedReceipt(pageID: sourcePage.id)
                 )],
-                authoredUnits("My pencil prowled once around the edge and stopped."),
+                authoredUnits("My ink crept once around the edge and stopped."),
                 [BraidSentence(
                     text: "I kept the page: the scrap kept its own words.",
                     provenance: .colophon
@@ -23721,6 +23739,8 @@ struct BraidPageDetails: Equatable {
 /// are deliberately compact because `BookPage` persists tags, not page metadata.
 struct BookOfYouResidue: Equatable {
     static let markerTag = "braid-residue"
+    /// On a wonder braid that did not tell the night's thread.
+    static let continuityUntoldTag = "braid-continuity-untold"
     static let titlePrefix = "residue-title:"
     static let spinePrefix = "residue-spine:"
     static let keptPrefix = "residue-kept:"
@@ -23823,8 +23843,13 @@ struct BookOfYouResidue: Equatable {
                 tag.hasPrefix(semanticEchoPrefix) ? String(tag.dropFirst(semanticEchoPrefix.count)) : nil
             }
         let reading = context.taleReading ?? context.storyScore?.taleReading
+        // The wonder braid says whether it told the thread. Its words alone
+        // are not proof: "Frost on the car roof" in the reader's own sentence
+        // matched the roof-runner thread on a night its paragraph never ran, and
+        // the next night continued a story the reader had never seen.
         let persistedContinuity = context.continuityBeat.flatMap { beat in
-            BraidOutputAudit.carriesContinuity(beat, in: page.userInput) ? beat : nil
+            !page.tags.contains(Self.continuityUntoldTag)
+                && BraidOutputAudit.carriesContinuity(beat, in: page.userInput) ? beat : nil
         }
         return BookOfYouResidue(
             title: title,
@@ -25735,7 +25760,7 @@ enum LiteraryContinuityProjector {
     /// season of the hand and are left out of the comparison.
     static let mannerBaselineWindowDays = 56
 
-    /// Qualifiers whose density is the pencil hovering. Phrases are matched
+    /// Qualifiers whose density is the pen hovering. Phrases are matched
     /// as phrases.
     static let mannerHedgeTerms: [String] = [
         "maybe", "probably", "perhaps", "i guess", "i suppose",
@@ -25816,7 +25841,7 @@ enum LiteraryContinuityProjector {
     }
 
     /// Hedge density rose or fell hard against the reader's own baseline -
-    /// the pencil hovering, or the week written in ink.
+    /// the pen hovering, or the week written in ink.
     static func hedgeInkSignal(prose: [BookPage], now: Date) -> LiteraryContinuitySignal? {
         let recentCutoff = now.addingTimeInterval(TimeInterval(-mannerRecentWindowDays) * 86_400)
         let baselineCutoff = now.addingTimeInterval(TimeInterval(-mannerBaselineWindowDays) * 86_400)
@@ -25836,7 +25861,7 @@ enum LiteraryContinuityProjector {
         let line: String
         let flavor: String
         if baselineDensity > 0, recentDensity >= baselineDensity * 2.2, recentHedges >= 3 {
-            line = "More \u{201C}maybe\u{201D} in the margins than usual this week. The pencil is hovering over something it has not decided to write."
+            line = "More \u{201C}maybe\u{201D} in the margins than usual this week. Your pen is hovering over something it hasn't decided to write."
             flavor = "hovering"
         } else if baselineDensity >= 1.0, recentDensity <= baselineDensity * 0.35 {
             line = "The maybes have thinned out of the pages. This week you are writing in ink."

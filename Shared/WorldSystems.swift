@@ -5546,7 +5546,14 @@ enum TalismanAscendancy {
     static func influenceLine(for talisman: NarrativeWorldEntity) -> String {
         let chapter = AcademyChapterRegistry.chapter(forTalismanID: talisman.id)
         let bias = chapter?.storyBias ?? talisman.goals.first ?? "Let its philosophy color the scene."
-        return "The \(chapter?.name ?? "ascendant") talisman \(talisman.name) holds the most Belief right now. \(bias)"
+        return "The \(chapter?.name ?? "ascendant") talisman \(talisman.name) \(leanMarker) \(bias)"
+    }
+
+    static let leanMarker = "holds the most Belief right now."
+
+    /// True for an `influenceLine`: a steer for the story, never its material.
+    static func isLean(_ signal: String) -> Bool {
+        signal.contains(leanMarker)
     }
 }
 
@@ -7943,7 +7950,7 @@ enum PactTerritoryRegistry {
                       blurb: "Body, Fuel, Center, Weather, where I tend the animal of you.",
                       pageTypes: [.body, .fuel, .rest, .weather]),
         PactTerritory(id: "shelf-story", front: .shelf, name: "The Story Shelf",
-                      blurb: "Story Pages, Gossip, The Bleed, my own noticing.",
+                      blurb: "Vignettes, Gossip, The Bleed, my own noticing.",
                       pageTypes: [.narrativeOS, .gossip, .theBleed, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]),
         PactTerritory(id: "shelf-connection", front: .shelf, name: "The Connection Shelf",
                       blurb: "Letters, Cast illustrations, the Support Guild, Office Hours, Fae Bargains: pages with another hand in them.",
@@ -11956,7 +11963,7 @@ enum BookOpenVoiceComposer {
     /// The asides for each of the Book's moods.
     private static func stanceQuip(_ stance: BookStance) -> String? {
         switch stance {
-        case .contrite: return "The eraser's asked for a seat at the editors' table. Fair."
+        case .contrite: return "My paper's asked for a seat at the editors' table. It's thirsty. Fair."
         case .protective: return "I've shut one window and left six open."
         case .mischievous: return "The index has filed an objection. It was alphabetized beautifully."
         case .hushed: return "Even the footnotes have taken their shoes off."
@@ -12184,7 +12191,7 @@ enum BeliefGenerationKind: String, Codable, CaseIterable, Equatable {
 
     var title: String {
         switch self {
-        case .storyPage: return "Story Page"
+        case .storyPage: return "Vignette"
         case .letter: return "Letter"
         case .note: return "Note"
         case .faeParley: return "Fae Parley"

@@ -3869,7 +3869,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         XCTAssertTrue(learningNotice.payload.body.contains("You've been rearranging me."), learningNotice.payload.body)
         XCTAssertTrue(learningNotice.payload.body.contains("My short version:"))
         XCTAssertTrue(learningNotice.payload.body.contains("changed what I put in your way"), learningNotice.payload.body)
-        XCTAssertTrue(learningNotice.payload.body.contains("The eraser is hungry."))
+        XCTAssertTrue(learningNotice.payload.body.contains("My paper's thirsty."))
         XCTAssertFalse(BookVoice.containsDrainedRegister(learningNotice.payload.body))
         XCTAssertTrue(learningNotice.payload.metadata["learningInsights"]?.contains("Souvenir") == true)
         XCTAssertTrue(learningNotice.payload.metadata["learningSummary"]?.contains("Souvenir") == true)

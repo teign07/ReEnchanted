@@ -7,7 +7,7 @@ import Foundation
 /// would prove it wrong, never by softening the sentence into mush. A Book that
 /// says "this may perhaps suggest" has not noticed anything.
 ///
-/// Things around the Book have moods — the pencil, the ink, the margin — but
+/// Things around the Book have moods — the ink, the ribbon, the margin — but
 /// one per line at most. Any more and it stops being a Book and starts being a
 /// cartoon.
 enum GrimoireVoice {
@@ -77,33 +77,38 @@ enum GrimoireVoice {
         let salt = UInt64(stats.inHits)
 
         switch row.shape {
+        // Every clause is a whole little sentence ("it was raining", "you
+        // used the word “lantern”"), so it only ever goes where a sentence
+        // can go: after "When", after "First", or standing on its own. A
+        // label is a name for days like that ("rainy days", "Wicker's
+        // objections") and may be plural, so it never has to agree with a verb.
         case .conditional:
             guard let outcome else { return "" }
             return ReflectiveProse.pick([
                 "When \(condition.conditionClause), \(outcome.outcomeClause). It keeps going that way.",
                 "\(opening(condition.conditionClause)), and \(outcome.outcomeClause). Those two travel together.",
                 "I've started expecting this. When \(condition.conditionClause), \(outcome.outcomeClause).",
-                "Here is one of your own rules: when \(condition.conditionClause), \(outcome.outcomeClause)."
+                "Here's one of your own rules: when \(condition.conditionClause), \(outcome.outcomeClause)."
             ], seed: seed(row), salt: salt)
 
         case .sequential:
             guard let outcome else { return "" }
             return ReflectiveProse.pick([
-                "\(opening(condition.conditionClause)) comes first. Then, inside a few days, \(outcome.outcomeClause).",
-                "\(opening(condition.conditionClause)) goes ahead, and \(outcome.outcomeClause) follows a day or three later.",
-                "One leads and one follows. First \(condition.conditionClause). Then \(outcome.outcomeClause)."
+                "First \(condition.conditionClause). Then, a few days later, \(outcome.outcomeClause).",
+                "\(opening(condition.conditionClause)). A day or three later, \(outcome.outcomeClause).",
+                "One goes first and one follows. First \(condition.conditionClause). Then \(outcome.outcomeClause)."
             ], seed: seed(row), salt: salt)
 
         case .sibling:
             guard let outcome else { return "" }
             // A comparison is only worth making out loud if it names what lost.
             guard let rival = row.rivalID.flatMap({ ledger.ref($0) }) else {
-                return "Of the two, it's \(condition.label) that does it: \(outcome.outcomeClause)."
+                return "With \(condition.label), \(outcome.outcomeClause). That's the one."
             }
             return ReflectiveProse.pick([
-                "Of the two, it's \(condition.label) that does it: \(outcome.outcomeClause). \(opening(rival.label)) doesn't.",
-                "\(opening(condition.label)) does this and \(rival.label) doesn't: \(outcome.outcomeClause).",
-                "Not both. \(opening(condition.label)) is the one where \(outcome.outcomeClause). \(opening(rival.label)) leaves it alone."
+                "With \(condition.label), \(outcome.outcomeClause). With \(rival.label), that hardly ever happened.",
+                "I compared \(condition.label) and \(rival.label). With \(condition.label), \(outcome.outcomeClause). With \(rival.label), not so much.",
+                "Two of them, and only one works. With \(condition.label), \(outcome.outcomeClause). With \(rival.label), it mostly didn't."
             ], seed: seed(row), salt: salt)
 
         case .seasonal:
@@ -115,14 +120,14 @@ enum GrimoireVoice {
             let kept = season?.present ?? stats.seasonsPresent
             let missed = season?.missed ?? stats.seasonsMissed
             if missed == 1 {
-                return "\(opening(condition.label)) belongs to your \(name). Every \(name) but one."
+                return "Every \(name) but one, you come back to \(condition.label)."
             }
             if missed > 1 {
-                return "\(opening(condition.label)) is a \(name) thing for you. \(spelled(kept).capitalized(firstOnly: true)), with \(missed) \(name)s that went quiet."
+                return "\(opening(condition.label)): that's one of your \(name) things. \(spelled(kept).capitalized(firstOnly: true)), with \(missed) \(name)s that went quiet."
             }
             return ReflectiveProse.pick([
-                "\(opening(condition.label)) is one of your \(name) things. \(kept) \(name)s running.",
-                "Every \(name), \(condition.label) comes back to you. \(kept) of them now.",
+                "\(opening(condition.label)): that's one of your \(name) things. \(kept) \(name)s in a row.",
+                "Every \(name), you come back to \(condition.label). \(kept) of them now.",
                 "You keep an appointment you never made: \(condition.label), every \(name)."
             ], seed: seed(row), salt: UInt64(kept))
 
@@ -132,9 +137,9 @@ enum GrimoireVoice {
             let months = max(1, (standing?.typicalGap ?? 30) / 30)
             let away = months == 1 ? "about a month" : "about \(spelledCount(months).lowercased()) months"
             return ReflectiveProse.pick([
-                "\(opening(condition.label)) goes away and comes back. \(spelledCount(times)) times now, gone \(away) each time.",
+                "You go away from \(condition.label) and come back. \(spelledCount(times)) times now, gone \(away) each time.",
                 "You put \(condition.label) down for \(away), and then you pick it up again. \(spelledCount(times)) times.",
-                "\(opening(condition.label)) isn't finished with you. It leaves for \(away) and returns. \(spelledCount(times)) times so far."
+                "You're not finished with \(condition.label). You leave it for \(away) and come back. \(spelledCount(times)) times so far."
             ], seed: seed(row), salt: UInt64(times))
         }
     }
@@ -155,11 +160,21 @@ enum GrimoireVoice {
             guard stats.seasonsMissed > 0 else { return "\(kept.capitalized(firstOnly: true)), no misses." }
             return "\(kept.capitalized(firstOnly: true)). \(counted(stats.seasonsMissed, "year", "years").capitalized(firstOnly: true)) missed."
         }
-        let there = "\(stats.inHits) of \(stats.inCount)"
-        let elsewhere = "\(stats.outHits) of \(stats.outCount)"
-        var line = "\(there) times. On the other days, \(elsewhere)."
+        // Say what was counted. "5 of 6 times. On the other days, 31 of 68"
+        // left the reader to guess which six and which sixty-eight.
+        var line: String
+        switch row.shape {
+        case .returnInterval:
+            line = "I've seen it on \(counted(stats.inHits, "day", "days")) so far."
+        case .sequential:
+            line = "I counted. It came a few days later \(stats.inHits) times out of \(stats.inCount). "
+                + "After other days, \(stats.outHits) out of \(stats.outCount)."
+        default:
+            line = "I counted. It happened on \(stats.inHits) of those \(stats.inCount) days, "
+                + "and on \(stats.outHits) of the other \(stats.outCount)."
+        }
         if stats.distinctYears > 1 {
-            line += " Across \(counted(stats.distinctYears, "year", "years"))."
+            line += " That's across \(counted(stats.distinctYears, "year", "years"))."
         }
         return line
     }
@@ -208,31 +223,44 @@ enum GrimoireVoice {
         stats: GrimoireStats,
         ledger: GrimoireLedger
     ) -> String {
-        let chances = max(3, min(8, stats.inCount / 2))
+        promise(row: row, chances: max(3, min(8, stats.inCount / 2)), ledger: ledger)
+    }
+
+    /// The promise as it reads today, for a bet already made.
+    ///
+    /// What the Book committed to is the number — how many more chances, and
+    /// how low the rate may fall — and that never changes. The words it
+    /// committed them in are allowed to get clearer, so an old bet is said
+    /// again from its own number rather than read back from the stored line.
+    static func currentPromise(row: GrimoireCorrespondence, ledger: GrimoireLedger) -> String? {
+        guard let falsifier = row.falsifier else { return nil }
+        return promise(row: row, chances: falsifier.opportunitiesRequired, ledger: ledger)
+    }
+
+    static func promise(row: GrimoireCorrespondence, chances: Int, ledger: GrimoireLedger) -> String {
+        let more = chances <= 10 ? spelledCount(chances).lowercased() : "\(chances)"
         guard let condition = ledger.ref(row.conditionID) else {
-            return "Give me \(chances) more chances. If it stops, this gets crossed out."
+            return "Give me \(more) more chances. If it stops, I'll cross it out."
         }
         if row.shape == .seasonal {
             let season = row.season
                 ?? ledger.seasonalStanding(of: ledger.days(of: condition.id))?.season
                 ?? 0
-            return "If \(seasonName(season)) comes round with no sign of it, this gets crossed out."
+            return "If \(seasonName(season)) comes round with no sign of it, I'll cross it out."
         }
-        // The outcome is referred to, never embedded. `outcomeClause` is a
-        // finished past-tense statement — "you wrote the word lantern" — and
-        // dropping it where a noun belongs produces "if you wrote the word
-        // lantern stops following". A label can be plural, too, so it never
-        // becomes the subject of a verb either. The condition sits in place
-        // fine: it is written as a clause on purpose.
+        // Neither half is named again. The rule is the sentence just above,
+        // and "days like that" points back at it: the old "3 more turns of
+        // author" named the condition by a label that only made sense as a
+        // filing word, and "turns" never said it meant days.
         guard row.outcomeID != nil else {
-            return "\(chances) more times. If it stops holding, this gets crossed out."
+            return "I'll watch for it \(more) more times. If it stops coming back, I'll cross it out."
         }
         return ReflectiveProse.pick([
-            "\(chances) more turns of \(condition.label). If it mostly stops following, this gets crossed out.",
-            "Watch it with me. \(chances) more turns of \(condition.label). If it stops, the pencil comes out and this goes.",
-            "\(chances) more chances. If it stops, I was wrong, and I will say so out loud.",
+            "I'll watch the next \(more) days like that. If it stops happening, the ink sinks back into the paper and this goes.",
+            "Watch it with me. \(opening(more)) more days like that, and I'll know. If it stops, I'll cross it out.",
+            "Give it \(more) more days like that. If it stops, I was wrong, and I will say so out loud.",
             // The Book knowing its own telling is not evidence.
-            "\(chances) more turns of \(condition.label). I won't count the week after I told you — those days heard me. If it stops after that, this gets crossed out."
+            "\(opening(more)) more days like that. I won't count the week after I told you, because those days heard me. If it stops after that, I'll cross it out."
         ], seed: seed(row), salt: UInt64(chances))
     }
 
@@ -257,7 +285,7 @@ enum GrimoireVoice {
         let because = reason.map { " Then \($0)." } ?? ""
         return ReflectiveProse.pick([
             "\(said)\(because) I was wrong. It's crossed out, and the crossing-out stays.",
-            "\(said)\(because) The pencil is back out. I'd rather be corrected than tidy.",
+            "\(said)\(because) The ink's come back up to fix it. I'd rather be corrected than tidy.",
             "\(said)\(because) Not true after all. I'm leaving the line where it was so you can see me change my mind."
         ], seed: seed(row), salt: UInt64(row.revisions.count))
     }
@@ -285,7 +313,7 @@ enum GrimoireVoice {
             claim(row: row, stats: stats, ledger: ledger, calendar: calendar),
             evidence(row: row, stats: stats, ledger: ledger, calendar: calendar),
             drift(row: row, stats: stats),
-            row.falsifier?.line ?? promise(row: row, stats: stats, ledger: ledger)
+            currentPromise(row: row, ledger: ledger) ?? promise(row: row, stats: stats, ledger: ledger)
         ]
         return lines.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " ")
     }
@@ -328,12 +356,12 @@ enum GrimoireVoice {
            let row = ledger.row(id),
            let condition = ledger.ref(row.conditionID) {
             // One clause, no full stop: `residue` attaches the timing to it.
-            return "The pencil got at the \(condition.label) one and crossed it out"
+            return "The ink crossed out the one about \(condition.label)"
         }
         if let id = found.first,
            let row = ledger.row(id),
            let condition = ledger.ref(row.conditionID) {
-            return "\(opening(condition.label)) kept turning up, so the pencil started a tally"
+            return "\(opening(condition.label)) kept turning up, so the ink started a tally"
         }
         return nil
     }
@@ -345,7 +373,7 @@ enum GrimoireVoice {
     ///
     /// The absence is the *timing*, never the subject. "While you were out, I
     /// was working" puts the reader's leaving at the front of the sentence and
-    /// makes it something to answer for. The pencil does the acting; the reader
+    /// makes it something to answer for. The ink does the acting; the reader
     /// simply comes back and finds the room has carried on.
     static func residue(_ mark: GrimoireTendingMark) -> String? {
         guard mark.isWorthMentioning else { return nil }
@@ -356,7 +384,7 @@ enum GrimoireVoice {
                 : "\(spelledCount(mark.crossedOut)) got crossed out while you were out."
         }
         return mark.found == 1
-            ? "The pencil started a tally while you were out."
+            ? "The ink started a tally while you were out."
             : "\(spelledCount(mark.found)) new tallies, started while you were out."
     }
 
@@ -393,14 +421,14 @@ enum GrimoireVoice {
         case .sibling:
             guard let outcome else { return "" }
             guard let rival = row.rivalID.flatMap({ ledger.ref($0) }) else {
-                return "Of the two, it's \(condition.label) that brings \(outcome.outcomeClause)."
+                return "With \(condition.label), \(outcome.outcomeClause)."
             }
-            return "\(opening(condition.label)), not \(rival.label): \(outcome.outcomeClause)."
+            return "With \(condition.label), \(outcome.outcomeClause). With \(rival.label), not so much."
         case .seasonal:
             let season = ledger.seasonalStanding(of: ledger.days(of: condition.id), calendar: calendar)
             return "\(opening(condition.label)), every \(seasonName(season?.season ?? 0))."
         case .returnInterval:
-            return "\(opening(condition.label)) goes quiet, and comes back."
+            return "You put \(condition.label) down, and then you come back to it."
         }
     }
 
@@ -424,6 +452,10 @@ enum GrimoireVoice {
             .split(separator: " ").first.map(String.init) ?? ""
         if row.shape == .seasonal {
             return "\(claim) \(counted(stats.seasonsPresent, "year so far", "years so far").capitalized(firstOnly: true))."
+        }
+        if row.shape == .returnInterval {
+            // Its counts are days and comebacks, not hits out of chances.
+            return "\(claim) I've seen it on \(counted(stats.inHits, "day", "days")) since \(month)."
         }
         let held = settled
             ? "I've been sure since \(month)"
@@ -488,7 +520,7 @@ enum GrimoireVoice {
         if let bet = betting.first(where: { fresh($0) }),
            let line = law(row: bet, ledger: ledger, calendar: calendar, settled: false) {
             var block = ["Still betting on this one:", "• \(line)"]
-            if let promise = bet.falsifier?.line { block.append(promise) }
+            if let promise = currentPromise(row: bet, ledger: ledger) { block.append(promise) }
             parts.append(block.joined(separator: "\n"))
         }
 
@@ -537,8 +569,8 @@ enum GrimoireVoice {
             parts.append(block.joined(separator: "\n"))
         }
 
-        // Not a moral. The pencil having an opinion is the whole of it.
-        parts.append("The crossings-out stay where they are. The pencil is fond of them.")
+        // Not a moral. The ink having an opinion is the whole of it.
+        parts.append("The crossings-out stay where they are. The ink is fond of them.")
         return parts.joined(separator: "\n\n")
     }
 

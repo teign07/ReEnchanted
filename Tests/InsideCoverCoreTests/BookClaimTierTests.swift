@@ -204,7 +204,7 @@ final class BookClaimTierTests: XCTestCase {
         // The claim is sized down, not hedged with a vague qualifier.
         let body = surface?.payload.body ?? ""
         XCTAssertTrue(
-            body.localizedCaseInsensitiveContains("line is pencil, not ink"),
+            body.localizedCaseInsensitiveContains("ink's still faint"),
             "glimmer body should own its smallness: \(body)"
         )
         let readerCopy = [surface?.reason, surface?.prompt, surface?.detail, surface?.payload.headline, body]

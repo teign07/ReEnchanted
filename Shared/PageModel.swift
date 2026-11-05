@@ -141,7 +141,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .illuminatedPhoto:
             return "Illuminated Photos"
         case .narrativeOS:
-            return "The Story Stirred"
+            return "A Vignette from the Labyrinth"
         case .gossip:
             return "Someone Has Been Talking"
         case .bookAside:
@@ -274,7 +274,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .illuminatedPhoto:
             return "Illuminated"
         case .narrativeOS:
-            return "Story"
+            return "Vignette"
         case .gossip:
             return "Gossip"
         case .bookAside:
@@ -819,118 +819,6 @@ enum BookPageIntent: String, Codable, Equatable {
     case simulate
 }
 
-// MARK: - Public Margins
-
-/// The Public Margins are deliberately not an account or a sync service. The
-/// two permissions are separate doors, both closed by default, and neither one
-/// is allowed to imply the other.
-struct PublicMarginsPreferences: Codable, Equatable {
-    var acceptsIncomingPages = false
-    var offersOutgoingContributions = false
-}
-
-enum PublicMarginsContributionKind: String, Codable, CaseIterable, Equatable {
-    case souvenir
-    case spark
-    case choice
-    case detail
-}
-
-struct PublicMarginsBroadcast: Codable, Identifiable, Equatable {
-    var id: String
-    var text: String
-    var authorName: String
-    var authorUsername: String
-    var authorAvatarURL: String?
-    var permalink: String
-    var createdAt: String
-}
-
-struct PublicMarginsSouvenir: Codable, Identifiable, Equatable {
-    var id: String
-    var text: String
-    var kind: PublicMarginsContributionKind
-    var createdAt: String
-}
-
-struct PublicMarginsTally: Codable, Identifiable, Equatable {
-    var id: String { choiceID }
-    var choiceID: String
-    var label: String
-    var count: Int
-}
-
-struct PublicMarginsChoiceOption: Codable, Identifiable, Equatable {
-    var id: String
-    var label: String
-    var count: Int
-}
-
-struct PublicMarginsChoicePoll: Codable, Identifiable, Equatable {
-    var id: String
-    var question: String
-    var options: [PublicMarginsChoiceOption]
-}
-
-struct PublicMarginsSnapshot: Codable, Equatable {
-    var generatedAt: String
-    var contributionCount: Int
-    var broadcasts: [PublicMarginsBroadcast]
-    var creatorPosts: [PublicMarginsBroadcast]
-    var souvenirs: [PublicMarginsSouvenir]
-    var tallies: [PublicMarginsTally]
-    var choicePoll: PublicMarginsChoicePoll? = nil
-}
-
-struct PublicMarginsContributionRequest: Codable, Equatable {
-    var requestID: String
-    var eventID: String
-    var kind: PublicMarginsContributionKind
-    var text: String?
-    var category: String?
-    var choiceID: String?
-    var confirmedAt: String
-    var consent: Consent
-
-    struct Consent: Codable, Equatable {
-        var publicDisplay: Bool
-        var moderation: Bool
-    }
-}
-
-struct PublicMarginsContributionReceipt: Codable, Equatable {
-    var id: String
-    var status: String
-    var deletionToken: String
-}
-
-enum PublicMarginsText {
-    static let maximumCharacters = 220
-
-    /// Produces the exact one-sentence preview used for an explicit public
-    /// contribution. It never reads or appends archive context.
-    static func preparedSentence(from rawValue: String) -> String? {
-        let collapsed = rawValue
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !collapsed.isEmpty, collapsed.count <= maximumCharacters else { return nil }
-        guard URLDetector.containsURL(in: collapsed) == false else { return nil }
-        return collapsed
-    }
-
-    private enum URLDetector {
-        static func containsURL(in value: String) -> Bool {
-            let lowercased = value.lowercased()
-            return lowercased.contains("://")
-                || lowercased.contains("www.")
-                || lowercased.contains("x.com/")
-                || lowercased.contains("twitter.com/")
-        }
-    }
-}
-
 enum BookPageRenderStyle: String, Codable, Equatable {
     case promptCard
     case gentleTranslation
@@ -1159,8 +1047,8 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "narrative-os",
             type: .narrativeOS,
-            title: "Story Page",
-            shortTitle: "Story",
+            title: "Vignette",
+            shortTitle: "Vignette",
             symbolName: "point.3.connected.trianglepath.dotted",
             origin: .simulated,
             privacy: .privateLocal,
@@ -1660,30 +1548,6 @@ enum BookPageSourceRegistry {
             note: "Lines from poets, scientists, and quiet noticers on wonder, attention, and this one precious life."
         ),
         BookPageSource(
-            id: "public-margins-creators",
-            type: .quotes,
-            title: "Elsewhere, Someone Noticed",
-            shortTitle: "Elsewhere",
-            symbolName: "person.2.wave.2",
-            origin: .imported,
-            privacy: .publicReference,
-            isActive: false,
-            cadence: "dormant",
-            note: "A retired X adapter retained only for reversibility. Outside voices should return through durable, editorially reviewed sources rather than a social feed."
-        ),
-        BookPageSource(
-            id: "public-margins-community",
-            type: .quotes,
-            title: "From the Public Margins",
-            shortTitle: "Public Margins",
-            symbolName: "text.bubble.fill",
-            origin: .imported,
-            privacy: .publicReference,
-            isActive: true,
-            cadence: "occasionally, only when the Public Margins doorway is open",
-            note: "A moderated one-sentence souvenir offered deliberately by another reader."
-        ),
-        BookPageSource(
             id: "affirmations-page",
             type: .affirmations,
             title: "I Believe",
@@ -1861,7 +1725,7 @@ enum BookPageSourceRegistry {
             privacy: .publicReference,
             isActive: true,
             cadence: "helpful rotation",
-            note: "The habits I have acquired, the promises I keep, and what the eraser is allowed to correct."
+            note: "The habits I've picked up, the promises I keep, and what my ink's allowed to take back."
         ),
         BookPageSource(
             id: "labyrinth-welcome",
@@ -2315,11 +2179,11 @@ enum BookObservationStatus: String, Codable, Equatable {
         case .confirmed:
             return "Yes. Those Pages were touching. The ink is strutting."
         case .notQuite, .questioned:
-            return "Crooked reading. I lifted the pencil. I'll watch for a truer shape."
+            return "Crooked reading. I let the ink sink back. I'll watch for a truer shape."
         case .doNotRead, .forbidden:
-            return "That path is shut. I won't read you that way again. The pencil is chewing a different corner."
+            return "That path is shut. I won't read you that way again. The ink is pooling in a different corner."
         case .asked:
-            return "The question is still open. The pencil is waiting. It hates waiting."
+            return "The question is still open. The ink is waiting under the paper. It hates waiting."
         }
     }
 }

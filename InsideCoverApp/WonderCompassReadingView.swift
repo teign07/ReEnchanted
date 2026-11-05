@@ -570,6 +570,66 @@ struct WonderCompassMedallion: View {
     }
 }
 
+// MARK: - Compass Core desk
+
+/// "The Compass Run with all its parts laid out on the desk": the class page's
+/// own picture of the five parts, set under its paragraph so the opened Page has
+/// something to hold besides one block of prose. The words repeat the paragraph's
+/// order on purpose, so the rose is the paragraph shown, not a second lesson.
+struct CompassCoreDeskView: View {
+    static let snippetID = "labyrinth-class-compass-core"
+
+    private struct Part: Identifiable {
+        let direction: WonderCompassDirection
+        let verb: String
+        let move: String
+        var id: String { direction.rawValue }
+    }
+
+    private let parts: [Part] = [
+        Part(direction: .north, verb: "Wonder", move: "Ask about one thing nobody has explained to you."),
+        Part(direction: .east, verb: "Plan", move: "Make a tiny plan you can start before you change your mind."),
+        Part(direction: .south, verb: "Play", move: "Play one game with your senses."),
+        Part(direction: .west, verb: "Write", move: "Bring one sentence home."),
+        Part(direction: .center, verb: "Rest", move: "Stop. That part counts too."),
+    ]
+
+    var body: some View {
+        FolioControlStack(spacing: 14) {
+            WonderCompassRose(direction: nil)
+                .frame(width: 84, height: 84)
+                .frame(maxWidth: .infinity)
+            WonderCompassRule(tint: BookPalette.gold, short: true)
+            FolioControlStack(alignment: .leading, spacing: 8) {
+                ForEach(parts) { part in
+                    HStack(alignment: .center, spacing: 12) {
+                        WonderCompassMedallion(direction: part.direction, size: 32)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("\(part.direction.rawValue.capitalized) · \(part.verb)")
+                                .font(.custom("Baskerville-SemiBold", size: 17, relativeTo: .headline))
+                                .foregroundStyle(part.direction.ink)
+                            Text(part.move)
+                                .font(.custom("Baskerville-Italic", size: 15, relativeTo: .callout))
+                                .foregroundStyle(BookPalette.ink.opacity(0.78))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(part.direction.ink.opacity(0.08))
+                    )
+                    .accessibilityElement(children: .combine)
+                }
+            }
+        }
+        .padding(.top, 6)
+    }
+}
+
 // MARK: - Certificate
 
 /// A permission slip the reader is meant to sign, set like one: a bordered
@@ -651,11 +711,16 @@ private struct WonderCompassCertificate: View {
             Text(label)
                 .font(.custom("Baskerville-SemiBold", size: 16, relativeTo: .callout))
                 .foregroundStyle(BookPalette.ink.opacity(0.8))
+            // The reader signs; a line the Book fills in (the date) is in its hand.
             Group {
                 if let text {
                     TextField(placeholder, text: text)
+                        .font(BookHand.reader.font(19))
+                        .foregroundStyle(BookHand.readerInkColor)
                 } else {
                     Text(value ?? "")
+                        .font(BookHand.book.font(19))
+                        .foregroundStyle(BookPalette.teal)
                 }
             }
             .padding(.bottom, 2)
@@ -709,16 +774,11 @@ private struct WonderCompassSouvenirLines: View {
                 }
             Text("Keep the page to keep your sentence.")
                 .font(.system(.caption2, design: .serif).italic())
-            // The reader signs; a line the Book fills in (the date) is in its hand.
                 .foregroundStyle(BookPalette.ink.opacity(0.5))
                 .padding(.top, 12)
         }
-                        .font(BookHand.reader.font(19))
-                        .foregroundStyle(BookHand.readerInkColor)
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-                        .font(BookHand.book.font(19))
-                        .foregroundStyle(BookPalette.teal)
         .background(
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(BookPalette.page.opacity(0.7))

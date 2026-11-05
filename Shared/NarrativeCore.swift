@@ -2491,7 +2491,7 @@ enum StoryConsequenceRegistry {
                     atom("pageTag", value: "sentence-opened"),
                     atom("futureRecipeBoost", amount: 2, recipeID: "souvenir-door"),
                     atom("sceneBiasDelta", target: "threshold", amount: 1),
-                    atom("monthlyEditionLine", value: "A kept sentence started something small in the Story Pages.")
+                    atom("monthlyEditionLine", value: "A kept sentence started something small in a vignette.")
                 ],
                 memoryTemplate: "{{leadName}} remembers that one kept sentence became a story."
             ),

@@ -61,6 +61,7 @@ struct InsideCoverApp: App {
     init() {
         // Before anything reads the disk: a confirmed moving copy takes its place.
         BookMovingCopy.finishPendingRestore()
+        guard !BookMovingCopy.recoveryIsRequired else { return }
         #if DEBUG && targetEnvironment(simulator)
         BookMovingCopy.runRoundTripIfRequested()
         #endif
@@ -186,6 +187,14 @@ struct InsideCoverApp: App {
     var body: some Scene {
         WindowGroup {
             Group {
+                if BookMovingCopy.recoveryIsRequired {
+                    VStack(spacing: 18) {
+                        Text("The move stopped.").font(.title2)
+                        Text("I kept the old Book. Close me completely, then open me again so I can put it back.")
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(32)
+                } else {
                 #if DEBUG
                 if ProcessInfo.processInfo.arguments.contains("--smoke-edition-reader") {
                     EditionReaderSmokeView()
@@ -197,6 +206,7 @@ struct InsideCoverApp: App {
                 #else
                 LockedBookRoot()
                 #endif
+                }
             }
                 // The whole Book is a night-palette surface (nightPanel/nightText
                 // everywhere). Pin the color scheme so any text that inherits the
@@ -206,6 +216,7 @@ struct InsideCoverApp: App {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {
+                guard !BookMovingCopy.recoveryIsRequired else { return }
                 WeatherBell.scheduleNext()
             }
         }

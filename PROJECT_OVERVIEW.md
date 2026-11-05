@@ -2686,7 +2686,7 @@ Support Guild, Dr. Inkrest's Office Hours, Fae Bargain, Book Fae, Pact Dispatch,
 Pact Errand, Festival, Today's Sky, Radio, Book Jump, Two Readings, Cast Bond,
 Glow Invitation, Weekly Issue, Bindery, Weather, Enchantment, Welcome, First Door Origin,
 Local Brain Awake, First Door Apprenticeship, Academy Class, Elective, Game Page,
-Word Negotiation, Pack Page, Calendar, Public Margins, Quote, Quip, Quotes,
+Word Negotiation, Pack Page, Calendar, Quote, Quip, Quotes,
 Believings, About You, Tarot, Wonder Compass, Lore,
 Help Tips, Illustration, Illuminated Photo, Story Page, Margins Atlas,
 Gossip, Cast Member, Outer Stacks Anchor, Location
@@ -8588,29 +8588,15 @@ than ending in an informational card. Bound Year status is refreshed from the
 Worker when the ledger opens; a scheduled end remains visibly standing through
 the period already paid for and never exposes a duplicate subscribe button.
 
-## Public Margins
+## Public Margins (removed)
 
-Public Margins is the intentionally tiny public edge of an otherwise private
-Book. It is not an account, social graph, shared archive, or ambient feed. Two
-independent preferences—**receive the public margin** and **offer something to
-it**—default off, so reading never implies permission to publish and publishing
-never opts the reader into incoming material.
-
-Outgoing contribution is always a separate, exact-text act. The app prepares
-either one short sentence (collapsed to plain text, capped, and rejected if it
-contains a URL) or one controlled poll choice, previews exactly what will leave,
-and asks for final confirmation. The request envelope contains a random request
-ID, public event/kind fields, the confirmed text or choice, and explicit consent
-flags—no account or device identifier, archive/Page ID, location, health data,
-photos, contacts, Calendar, Belief, or model context.
-
-The narrow Cloudflare Worker in `docs/public-margins-backend/` encrypts accepted
-text at rest, validates fixed choices, fails closed on sentence safety checks,
-and returns a one-time deletion token whose hash alone is stored. Anonymous
-tallies count contributions, not people. Its former X/creator shelf remains
-dormant in source for reversibility but is disabled in production and ignored by
-the app's current adapters. The shared margin currently centers a rotating quiet
-choice rather than importing a general social feed.
+Public Margins, an opt-in community window of one-sentence souvenirs and a
+quiet poll, was removed on 2026-11-01: the app's doorway, its Page sources and
+models, the website's section, and the privacy and terms passages. It had been
+closed for launch and never held a contribution. Git history keeps the code if
+a community feature ever returns; it would need its own design and red-team
+pass (choice submissions skipped moderation, and the rate limit trusted a
+client header).
 
 ## Privacy And Data Boundaries
 
@@ -8640,8 +8626,6 @@ Network-facing or external data paths are specific:
   Reddit, and the default Shelf path remains DuckDuckGo/open-web fallback,
 - system EventKit writes (Reminders/Calendar) only on explicit user action,
 - local notification scheduling via UserNotifications,
-- Public Margins only after its dedicated incoming/outgoing opt-ins and an
-  exact contribution confirmation, through the narrow envelope described above,
 - package resolution/build tooling during development,
 - StoreKit or dev unlock paths for packs when implemented.
 

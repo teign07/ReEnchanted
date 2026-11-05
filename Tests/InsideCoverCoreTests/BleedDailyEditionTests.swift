@@ -374,3 +374,354 @@ final class BleedDailyEditionTests: XCTestCase {
             inputs: inputs(days: [bookDay(10, 15, [kept])]), history: [], now: date(10, 16, 7), calendar: calendar))
     }
 }
+
+// MARK: - Real headlines, a real lead, and the numbers
+
+extension BleedDailyEditionTests {
+    /// A day as the phone braided it without the tagger: the braid titled from
+    /// the first four words, and a plain sentence the Reader wrote.
+    private func untaggedBraid(title: String) -> BookDay {
+        bookDay(10, 15, [
+            BookPage(id: "hangout", type: .souvenir, createdAt: date(10, 15, 9), promptText: "One true sentence",
+                     userInput: "Sunday hangout days are my favorite."),
+            BookPage(id: "braid", type: .bookOfYou, createdAt: date(10, 15, 22), promptText: "Tonight",
+                     userInput: "\(title)\n\nThe afternoon went long and nobody minded.")
+        ])
+    }
+
+    func testTheFallbackFragmentRefusesPronounsAndVerbs() {
+        XCTAssertNil(BraidScenePlan.printableFallback(["You", "like", "being", "called"]))
+        XCTAssertNil(BraidScenePlan.printableFallback(["Me", "also", "watching", "YouTube"]))
+        XCTAssertNil(BraidScenePlan.printableFallback(["You", "like"]))
+        XCTAssertNil(BraidScenePlan.printableFallback(["Like"]))
+        XCTAssertEqual(BraidScenePlan.printableFallback(["Risk"]), "Risk")
+        XCTAssertEqual(BraidScenePlan.printableFallback(["Brass", "lamp", "by", "window"]), "Brass lamp by window")
+    }
+
+    func testOnlyAThingIsAPrintableHeadline() {
+        XCTAssertFalse(BleedDayDesk.isPrintableHeadline("You Like"))
+        XCTAssertFalse(BleedDayDesk.isPrintableHeadline("You Also Watching YouTube"))
+        XCTAssertFalse(BleedDayDesk.isPrintableHeadline("A Quiet Night"))
+        XCTAssertFalse(BleedDayDesk.isPrintableHeadline("Moth"))
+        XCTAssertTrue(BleedDayDesk.isPrintableHeadline("The Lampshade Tenant"))
+    }
+
+    func testABraidTitledFromThePronounNeverLeads() throws {
+        for title in ["You like", "You also watching YouTube", "Me also watching YouTube"] {
+            let page = try XCTUnwrap(BleedDayDesk.frontPage(kind: .morning, day: bookDay(10, 16, []),
+                inputs: inputs(days: [untaggedBraid(title: title)]), now: date(10, 16, 7), calendar: calendar))
+            XCTAssertFalse(page.title.lowercased().contains(title.lowercased()), page.title)
+            // The Reader's own whole sentence leads instead, the way a paper quotes a witness.
+            XCTAssertEqual(page.title, "“Sunday hangout days are my favorite,” says Wren")
+            XCTAssertTrue(page.byline.hasPrefix("In their own words"), page.byline)
+        }
+    }
+
+    func testTheLastResortHeadingIsNeverAHeadline() throws {
+        let day = bookDay(10, 15, [BookPage(id: "fine", type: .souvenir, createdAt: date(10, 15, 9),
+                                            promptText: "One true sentence", userInput: "Fine.")])
+        let page = try XCTUnwrap(BleedDayDesk.frontPage(kind: .morning, day: bookDay(10, 16, []),
+            inputs: inputs(days: [day]), now: date(10, 16, 7), calendar: calendar))
+        XCTAssertFalse(page.title.localizedCaseInsensitiveContains("small things"), page.title)
+        XCTAssertEqual(page.dayStrength, 0)
+    }
+
+    // MARK: The lead
+
+    private func greyThreat(hoursLeft: Double, now: Date) -> GreyPageThreatLedger {
+        GreyPageThreatLedger(threats: [GreyPageThreat(
+            id: "grey-page-moth", pageID: "moth", pageTitle: "One true sentence", pageExcerpt: moth,
+            markedAt: now.addingTimeInterval(-86_400), deadline: now.addingTimeInterval(hoursLeft * 3_600),
+            status: .fading, resolvedAt: nil, rescueLine: nil)], lastMarkedAt: now.addingTimeInterval(-86_400))
+    }
+
+    private func argument(movedAt: Date, embarrassed: Bool = false) -> ContestedQuestion {
+        ContestedQuestion(
+            id: "heron", question: "Who frightened the heron off the canal?", aboutMovementIDs: [],
+            positions: [
+                ContestedPosition(id: "a", holderID: "penny-blackletter", holderName: "Penny", claim: "The bell did it.",
+                                  groundedInIDs: [], confidence: 60, silence: .none, formedAt: movedAt),
+                ContestedPosition(id: "b", holderID: "wicker", holderName: "Wicker", claim: "Nobody did. It was bored.",
+                                  groundedInIDs: [], confidence: 30, silence: .none, formedAt: movedAt)
+            ],
+            bookPosition: "A private guess about the bell.", bookBackedHolderID: "penny-blackletter",
+            status: .open, openedAt: movedAt, lastMovedAt: movedAt,
+            embarrassedHolderID: embarrassed ? "penny-blackletter" : nil)
+    }
+
+    private func pool(_ inputs: BookSourceInputs, kind: BleedEditionKind = .morning, hour: Int = 7) -> [BleedColumnBrief] {
+        BleedNewsroom.briefs(kind: kind, day: bookDay(10, 16, []), inputs: inputs, interest: nil,
+                             now: date(10, 16, hour), calendar: calendar, authored: [])
+    }
+
+    func testAGreyPageBeatsYourDayAndYourDayGoesInTheBox() throws {
+        var inputs = inputs(days: [yesterday()])
+        inputs.greyPageThreats = greyThreat(hoursLeft: 31, now: date(10, 16, 7))
+        let briefs = pool(inputs)
+        let lead = try XCTUnwrap(briefs.first)
+        XCTAssertEqual(lead.id, "front-page")
+        XCTAssertEqual(lead.title, "Thursday's Page Has Gone Grey")
+        XCTAssertTrue(lead.byline.hasPrefix("Grey Page Watch"), lead.byline)
+        XCTAssertTrue(lead.composedBody.contains("31 hours"), lead.composedBody)
+        // The Reader's excerpt is never copied into the paper.
+        XCTAssertFalse(lead.composedBody.contains("lampshade"), lead.composedBody)
+        XCTAssertEqual(BleedLeadDesk.subject(ofStory: lead.storyID ?? ""), "grey-page:grey-page-moth")
+        let note = try XCTUnwrap(briefs.dropFirst().first)
+        XCTAssertEqual(note.id, BleedLeadDesk.noteID)
+        XCTAssertTrue(note.composedBody.contains("“\(moth)”"), note.composedBody)
+        XCTAssertEqual(BleedPrintDesign.piece(title: note.title, byline: note.byline), .note)
+        // The month's front pages still find a lead that wasn't the day.
+        XCTAssertNotNil(BleedFrontPageRecord.from(columns: briefs, kind: .morning, issueNumber: 3, printedAt: date(10, 16, 7)))
+    }
+
+    func testAStrongDayBeatsTheAcademyArgumentAndALeftoverDayDoesNot() throws {
+        var strong = inputs(days: [yesterday()])
+        strong.contestedQuestions = [argument(movedAt: date(10, 16, 6))]
+        XCTAssertEqual(pool(strong).first?.title, "The Moth Kept the Light On")
+
+        let leftovers = bookDay(10, 15, [BookPage(id: "fine", type: .souvenir, createdAt: date(10, 15, 9),
+                                                  promptText: "One true sentence", userInput: "Fine.")])
+        var weak = inputs(days: [leftovers])
+        weak.contestedQuestions = [argument(movedAt: date(10, 16, 6))]
+        let lead = try XCTUnwrap(pool(weak).first)
+        XCTAssertEqual(lead.title, "Who Frightened the Heron off the Canal?")
+        // An argument is written as a feature: its facts are the packet, its own telling the fallback.
+        let told = lead.fallbackBody ?? ""
+        XCTAssertTrue(told.contains("Wicker says: Nobody did."), told)
+        XCTAssertFalse(told.contains("private guess"), told)
+        XCTAssertFalse(lead.packet.contains("private guess"), lead.packet)
+        XCTAssertFalse(pool(weak).contains { $0.storyID == "academy-question:heron" })
+    }
+
+    func testTheBookCaughtOutLeadsAsACorrection() throws {
+        var inputs = inputs(days: [])
+        inputs.contestedQuestions = [argument(movedAt: date(10, 16, 6), embarrassed: true)]
+        let lead = try XCTUnwrap(pool(inputs).first)
+        XCTAssertEqual(lead.title, "The Book Was Wrong About the Heron")
+        XCTAssertTrue(lead.byline.hasPrefix("The Book stands corrected"), lead.byline)
+    }
+
+    func testNoStoryLeadsTwoPapersRunning() throws {
+        var inputs = inputs(days: [yesterday()])
+        let now = date(10, 16, 7)
+        inputs.greyPageThreats = greyThreat(hoursLeft: 31, now: now)
+        inputs.bleedPrintHistory = [BleedPrintRecord(slotID: "evening-15", printedAt: date(10, 15, 18), items: [
+            .init(storyID: "front-page:2026-10-15:evening:grey-page:grey-page-moth", revision: "x",
+                  title: "Thursday's Page Has Gone Grey", body: "", sourcePageIDs: [])
+        ])]
+        let lead = try XCTUnwrap(pool(inputs).first)
+        XCTAssertNil(BleedLeadDesk.subject(ofStory: lead.storyID ?? ""), lead.title)
+        XCTAssertEqual(lead.title, "The Moth Kept the Light On")
+    }
+
+    // MARK: The numbers
+
+    func testAShelfThatChangedHandsIsFoundFromTheLastSnapshot() throws {
+        var war = PactWarState()
+        war.adjust("moss-clasp", "shelf-care", by: 40)
+        war.adjust("ember-seal", "shelf-care", by: 25)
+        war.adjust("tide-glass", "shelf-story", by: 12)
+        war.adjust("dusk-thorn", "shelf-story", by: 10)
+        let history = [BleedPrintRecord(slotID: "evening-15", printedAt: date(10, 15, 18), items: [
+            .init(storyID: BleedDataDesk.warID, revision: "x", title: "The Pact War Report", body: "", sourcePageIDs: [],
+                  snapshot: ["pact:shelf-care": "ember-seal", "pact:shelf-story": "tide-glass"])
+        ])]
+        let flips = BleedDataDesk.flips(war: war, history: history)
+        XCTAssertEqual(flips.map(\.territory), ["shelf-care"])
+        XCTAssertEqual(flips.first?.to, "moss-clasp")
+        // No snapshot, no claim.
+        XCTAssertTrue(BleedDataDesk.flips(war: war, history: []).isEmpty)
+
+        var inputs = BookSourceInputs.empty
+        inputs.pactWar = war
+        let report = try XCTUnwrap(BleedDataDesk.pactWarReport(inputs: inputs, now: date(10, 16, 7), calendar: calendar, history: history))
+        XCTAssertTrue(report.composedBody.hasPrefix("TERRITORY · HELD BY · CONTROL"), report.composedBody)
+        XCTAssertTrue(report.composedBody.contains("Care Shelf · Moss Clasp · 40 (+15)"), report.composedBody)
+        XCTAssertTrue(report.composedBody.contains("Changed hands since the last paper: The Moss Clasp took the Care Shelf from the Ember Seal."),
+                      report.composedBody)
+        XCTAssertTrue(report.composedBody.contains("Closest fight: the Story Shelf, where the Tide Glass leads the Dusk Thorn by 2."), report.composedBody)
+        XCTAssertEqual(report.snapshot?["pact:shelf-care"], "moss-clasp")
+        XCTAssertEqual(BleedPrintDesign.piece(title: report.title, byline: report.byline), .warReport)
+        XCTAssertNil(BleedDataDesk.pactWarReport(inputs: .empty, now: date(10, 16, 7), calendar: calendar, history: []))
+    }
+
+    func testOddsAreChalkedLikeABookmakersAndYesterdaysBetsSettle() throws {
+        XCTAssertEqual(BleedDataDesk.formatted(BleedDataDesk.price(for: 0.5)), "Evens")
+        XCTAssertEqual(BleedDataDesk.formatted(BleedDataDesk.price(for: 0.25)), "3–1")
+        XCTAssertEqual(BleedDataDesk.formatted(BleedDataDesk.price(for: 0.09)), "10–1")
+        XCTAssertEqual(BleedDataDesk.formatted(BleedDataDesk.price(for: 0.67)), "1–2")
+
+        let now = date(10, 16, 7)
+        let stages = (0..<5).map { CastUndertakingStage(id: "s\($0)", line: "Step \($0).", trace: "", tags: []) }
+        let zara = CastUndertaking(id: "zara-maps", actorID: "zara", title: "The Lost Map", pursuit: "Find it", why: "Because",
+                                   stages: stages, stageIndex: 2, status: .active, startedAt: date(10, 1),
+                                   lastAdvancedAt: date(10, 15, 20), nextEligibleAt: now.addingTimeInterval(3_600), ladderID: "test")
+        var inputs = BookSourceInputs.empty
+        inputs.castUndertakings = [zara]
+        let deadline = Int(date(10, 15, 23).timeIntervalSince1970)
+        let history = [BleedPrintRecord(slotID: "evening-15", printedAt: date(10, 15, 18), items: [
+            .init(storyID: BleedDataDesk.oddsID, revision: "x", title: "Story Odds", body: "", sourcePageIDs: [],
+                  snapshot: ["odds:u:zara-maps": "1|3|1|\(deadline)"])
+        ])]
+        let odds = try XCTUnwrap(BleedDataDesk.storyOdds(inputs: inputs, now: now, calendar: calendar, history: history))
+        XCTAssertTrue(odds.composedBody.contains("Settled: the last paper gave"), odds.composedBody)
+        XCTAssertTrue(odds.composedBody.contains("3–1 on the next step. It came in."), odds.composedBody)
+        XCTAssertTrue(odds.composedBody.contains("reach the next step of the Lost Map by"), odds.composedBody)
+        XCTAssertNotNil(odds.snapshot?["odds:u:zara-maps"])
+        XCTAssertEqual(BleedPrintDesign.piece(title: odds.title, byline: odds.byline), .odds)
+        // The paper never guesses a pronoun for a Cast member.
+        XCTAssertFalse(odds.composedBody.contains(" She ") || odds.composedBody.contains(" He "), odds.composedBody)
+    }
+
+    func testTheWordMarketTradesWordsNotStopWordsOrSadOnes() throws {
+        func diary(_ m: Int, _ d: Int, _ text: String) -> BookDay {
+            bookDay(m, d, [BookPage(id: "d-\(m)-\(d)", type: .diary, createdAt: date(m, d, 9), promptText: "Diary", userInput: text)])
+        }
+        // Last week the hospital came up every day; this week moss did.
+        // A verb going quiet isn't a word leaving the market: it trades in things.
+        let lastWeek = (6...9).map { diary(10, $0, "Really long day. Had to stop at the hospital again. Really.") }
+        let thisWeek = (12...15).map { diary(10, $0, "Moss on the wall by the gate. Really green moss.") }
+        let older = [diary(9, 20, "Kettle and a quiet porch.")]
+        let market = try XCTUnwrap(BleedDataDesk.wordMarket(day: bookDay(10, 16, []), inputs: inputs(days: older + lastWeek + thisWeek),
+                                                            now: date(10, 16, 7), calendar: calendar, history: []))
+        XCTAssertTrue(market.composedBody.contains("MOSS ▲ · 4 days running"), market.composedBody)
+        XCTAssertFalse(market.composedBody.contains("HOSPITAL"), market.composedBody)
+        XCTAssertFalse(market.composedBody.contains("REALLY"), market.composedBody)
+        XCTAssertFalse(market.composedBody.contains("STOP"), market.composedBody)
+        XCTAssertTrue(market.composedBody.contains("Moss keeps coming back") || market.composedBody.contains("Moss is up again"),
+                      market.composedBody)
+        XCTAssertEqual(BleedPrintDesign.piece(title: market.title, byline: market.byline), .market)
+        // Fewer than three kept days: no market.
+        XCTAssertNil(BleedDataDesk.wordMarket(day: bookDay(10, 16, []), inputs: inputs(days: Array(thisWeek.prefix(2))),
+                                              now: date(10, 16, 7), calendar: calendar, history: []))
+    }
+
+    func testAHardDayPrintsNoLeadStoryAndNoNumbers() {
+        var hardDay = yesterday()
+        hardDay.pages.append(BookPage(id: "hard", type: .diary, createdAt: date(10, 15, 12), promptText: "Diary",
+                                      userInput: "An honest line.", tags: ["distress"]))
+        var inputs = inputs(days: [hardDay])
+        inputs.greyPageThreats = greyThreat(hoursLeft: 31, now: date(10, 16, 7))
+        var war = PactWarState()
+        war.adjust("moss-clasp", "shelf-care", by: 40)
+        inputs.pactWar = war
+        let briefs = pool(inputs)
+        XCTAssertEqual(briefs.first?.title, "Thursday, Kept")
+        XCTAssertFalse(briefs.contains { BleedDataDesk.ids.contains($0.id) || $0.id == BleedLeadDesk.noteID || $0.id == BleedFeatureDesk.id })
+    }
+
+    func testAPrintRecordFromBeforeSnapshotsStillDecodes() throws {
+        let old = #"{"slotID":"s","printedAt":0,"items":[{"storyID":"a","revision":"r","title":"t","body":"b","sourcePageIDs":[]}]}"#
+        let record = try XCTUnwrap(BleedPrintRecord.decode(old))
+        XCTAssertNil(record.items.first?.snapshot)
+        XCTAssertNil(BleedNewsroom.lastSnapshot("pact:", in: [record]))
+    }
+}
+
+// MARK: - Follow-ups, features and mergers
+
+extension BleedDailyEditionTests {
+    private func settledThreat(_ status: GreyPageThreatStatus, resolvedAt: Date, line: String? = nil) -> GreyPageThreatLedger {
+        GreyPageThreatLedger(threats: [GreyPageThreat(
+            id: "grey-page-moth", pageID: "moth", pageTitle: "One true sentence", pageExcerpt: moth,
+            markedAt: resolvedAt.addingTimeInterval(-3 * 86_400), deadline: resolvedAt.addingTimeInterval(3_600),
+            status: status, resolvedAt: resolvedAt, rescueLine: line)])
+    }
+
+    private func briefs(_ inputs: BookSourceInputs) -> [BleedColumnBrief] {
+        BleedNewsroom.briefs(kind: .morning, day: bookDay(10, 16, []), inputs: inputs, interest: nil,
+                             now: date(10, 16, 7), calendar: calendar, authored: [])
+    }
+
+    func testTheNextPaperReportsThatTheGreyPageHeld() throws {
+        var inputs = inputs(days: [yesterday()])
+        inputs.greyPageThreats = settledThreat(.rescued, resolvedAt: date(10, 16, 1), line: "The moth moved to the window by morning.")
+        let lead = try XCTUnwrap(briefs(inputs).first)
+        XCTAssertEqual(lead.title, "Thursday's Page Held")
+        XCTAssertTrue(lead.composedBody.contains("“The moth moved to the window by morning.”"), lead.composedBody)
+        // The rescue line is the Reader's writing: the press remembers the page, not a copy.
+        XCTAssertEqual(lead.sourcePageIDs, ["moth"])
+        // Reported once: a paper printed after the rescue already carried it.
+        inputs.bleedPrintHistory = [BleedPrintRecord(slotID: "earlier", printedAt: date(10, 16, 2), items: [])]
+        XCTAssertNotEqual(briefs(inputs).first?.title, "Thursday's Page Held")
+    }
+
+    func testAFadedPageIsReportedPlainlyAndNeverOverAStrongDay() throws {
+        var strong = inputs(days: [yesterday()])
+        strong.greyPageThreats = settledThreat(.erased, resolvedAt: date(10, 16, 1))
+        XCTAssertEqual(briefs(strong).first?.title, "The Moth Kept the Light On")
+        var quiet = inputs(days: [])
+        quiet.greyPageThreats = settledThreat(.erased, resolvedAt: date(10, 16, 1))
+        let lead = try XCTUnwrap(briefs(quiet).first)
+        XCTAssertEqual(lead.title, "The Grey Page Has Faded")
+        XCTAssertTrue(lead.composedBody.contains("Nothing was deleted."), lead.composedBody)
+    }
+
+    func testTheFeatureTakesTurnsAndNeverRunsTheSameSubjectTwice() throws {
+        var inputs = BookSourceInputs.empty
+        let opened = date(10, 6)
+        inputs.contestedQuestions = [ContestedQuestion(
+            id: "bench", question: "Who repainted the bench?", aboutMovementIDs: [],
+            positions: [
+                ContestedPosition(id: "a", holderID: "penny-blackletter", holderName: "Penny", claim: "The paint is fresh.",
+                                  groundedInIDs: [], confidence: 60, silence: .none, formedAt: opened),
+                ContestedPosition(id: "b", holderID: "wicker", holderName: "Wicker", claim: "It was always blue.",
+                                  groundedInIDs: [], confidence: 40, silence: .none, formedAt: opened),
+                ContestedPosition(id: "c", holderID: "other", holderName: "Other", claim: "A secret not for print.",
+                                  groundedInIDs: [], confidence: 80, silence: .notTheirBusiness, formedAt: opened)
+            ],
+            bookPosition: "A private guess.", bookBackedHolderID: "penny-blackletter",
+            status: .open, openedAt: opened, lastMovedAt: opened)]
+        let incidents = (1...3).map { PlaceIncident(id: "i\($0)", line: "The lamps went out for the \($0) time.",
+                                                     participantIDs: [], tags: ["dark"], occurredAt: date(10, $0 + 1)) }
+        inputs.placeStates = ["location-great-hall": PlaceState(id: "location-great-hall", incidents: incidents,
+                                                                 slowChange: "The rug is wearing to the boards.")]
+        func feature(_ day: Int, _ kind: BleedEditionKind, history: [BleedPrintRecord] = []) -> BleedColumnBrief? {
+            BleedFeatureDesk.feature(kind: kind, inputs: inputs, now: date(10, day, kind == .morning ? 7 : 18),
+                                     calendar: calendar, history: history, lead: nil)
+        }
+        let first = try XCTUnwrap(feature(16, .morning))
+        let second = try XCTUnwrap(feature(16, .evening))
+        XCTAssertNotEqual(first.storyID, second.storyID)
+        let fight = try XCTUnwrap([first, second].first { $0.title == "The Long Argument" })
+        XCTAssertTrue(fight.fallbackBody?.contains("argued for 10 days") == true, fight.fallbackBody ?? "")
+        XCTAssertFalse(fight.packet.contains("secret not for print") || fight.packet.contains("private guess"), fight.packet)
+        let place = try XCTUnwrap([first, second].first { $0.storyID == "feature:place:location-great-hall" })
+        XCTAssertTrue(place.title.hasPrefix("A History of"), place.title)
+        XCTAssertTrue(place.fallbackBody?.contains("The rug is wearing to the boards.") == true)
+        // Whatever ran in the last paper stands down for this one.
+        let ran = BleedPrintRecord(slotID: "last", printedAt: date(10, 16, 7), items: [
+            .init(storyID: first.storyID!, revision: "x", title: first.title, body: "", sourcePageIDs: [])
+        ])
+        XCTAssertNotEqual(feature(16, .morning, history: [ran])?.storyID, first.storyID)
+    }
+
+    func testStandingCorrespondencesTradeAsMergers() throws {
+        var grimoire = Calendar(identifier: .gregorian)
+        grimoire.timeZone = TimeZone(identifier: "UTC")!
+        let days = (0..<61).map { index -> BookDay in
+            let date = grimoire.date(byAdding: .hour, value: 20, to: GrimoireDay.date(for: index, calendar: grimoire))!
+            let rainy = index % 3 == 0
+            return BookDay(id: BookDay.id(for: date, calendar: grimoire), date: grimoire.startOfDay(for: date), pages: [BookPage(
+                id: "page-\(index)", type: .diary, createdAt: date, promptText: "p",
+                userInput: rainy ? "The lantern outside was swinging in the wet." : "Bread, errands, the usual list.",
+                origin: .userAuthored,
+                context: BookPageContextSnapshot(at: date, calendar: grimoire, weatherTags: rainy ? ["rain"] : ["clear"]))])
+        }
+        var ledger = GrimoireLedger()
+        ledger.ingest(GrimoireProjection.observations(from: GrimoireSlice(days: days, calendar: grimoire)))
+        let now = GrimoireDay.date(for: 62, calendar: grimoire)
+        var passes = 0
+        while !ledger.sweep(now: now, budget: 2_000, calendar: grimoire).finished, passes < 200 { passes += 1 }
+        XCTAssertTrue(BleedDataDesk.mergers(ledger).isEmpty, "nothing is a merger until it stands")
+        for row in ledger.rows.values where row.isAlive {
+            ledger.markSpoken(row.id, now: now, calendar: grimoire)
+            ledger.rows[row.id]?.state = .standing
+        }
+        let merger = try XCTUnwrap(BleedDataDesk.mergers(ledger).first)
+        XCTAssertTrue(merger.clause.hasPrefix("When "), merger.clause)
+        // The Reader pushed back: it doesn't trade.
+        for id in ledger.rows.keys { ledger.rows[id]?.readerStatus = .notQuite }
+        XCTAssertTrue(BleedDataDesk.mergers(ledger).isEmpty)
+    }
+}

@@ -553,265 +553,48 @@ private enum AtlasGraphMetadataCodec {
     }
 }
 
-private struct MarginsAtlasGraphView: View {
-    let variant: MarginsAtlasVariant
-    let graph: NarrativeGraphData
-    @Binding var selectedNodeID: String?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+// MARK: - Margins Atlas maps
 
-    // Pinch-to-zoom + pan over the graph. The layout is dense with many nodes,
-    // so the reader needs to magnify into a region to separate overlapping
-    // labels. `zoom`/`pan` are the live transform; `lastZoom`/`lastPan` commit
-    // each gesture so the next one continues from where the last left off.
-    @State private var zoom: CGFloat = 1
-    @State private var lastZoom: CGFloat = 1
-    @State private var pan: CGSize = .zero
-    @State private var lastPan: CGSize = .zero
-    @State private var traceProgress = 1.0
+/// Where every name on a Margins Atlas map sits, worked out once per map and
+/// screen size.
+///
+/// The layout is a hundred-and-twenty-pass force simulation over every pair of
+/// names. It used to run inside `body`, so every frame of a pinch or a drag
+/// worked the whole map out again from scratch, which is why handling it
+/// lagged. Now a pinch only moves the glass over a drawing that's already done.
+private final class MarginsAtlasLayoutCache: @unchecked Sendable {
+    static let shared = MarginsAtlasLayoutCache()
+    private var entries: [String: [String: CGPoint]] = [:]
+    private let lock = NSLock()
 
-    private let minZoom: CGFloat = 1
-    private let maxZoom: CGFloat = 4
-
-    private var isTransformed: Bool {
-        abs(zoom - 1) > 0.01 || abs(pan.width) > 0.5 || abs(pan.height) > 0.5
-    }
-
-    private var selectedEdges: [GraphEdge] {
-        guard let selectedNodeID else { return graph.edges }
-        return graph.edges.filter { $0.sourceID == selectedNodeID || $0.targetID == selectedNodeID }
-    }
-
-    private var connectedIDs: Set<String> {
-        guard selectedNodeID != nil else { return Set(graph.nodes.map(\.id)) }
-        return Set(selectedEdges.flatMap { [$0.sourceID, $0.targetID] })
-    }
-
-    var body: some View {
-        GeometryReader { proxy in
-            let size = CGSize(width: max(1, proxy.size.width), height: max(1, proxy.size.height))
-            let positions = GraphLayoutEngine.layout(
-                data: graph,
-                width: size.width,
-                height: size.height,
-                seed: "margins-atlas-\(variant.rawValue)"
-            )
-
-            ZStack {
-                atlasBackground
-
-                graphContent(positions: positions, size: size)
-                    .scaleEffect(zoom)
-                    .offset(pan)
-                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: zoom)
-                    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.86), value: pan)
-            }
-            .contentShape(Rectangle())
-            .gesture(panGesture(viewport: size).simultaneously(with: zoomGesture))
-            .overlay(alignment: .bottomTrailing) {
-                if isTransformed {
-                    resetButton
-                        .padding(8)
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .accessibilityElement(children: .contain)
-        .onChange(of: selectedNodeID) { _, selectedID in
-            guard !reduceMotion, selectedID != nil else {
-                traceProgress = 1
-                return
-            }
-            traceProgress = 0
-            withAnimation(.easeInOut(duration: 0.44)) {
-                traceProgress = 1
-            }
-        }
-    }
-
-    private func graphContent(positions: [String: CodablePoint], size: CGSize) -> some View {
-        ZStack {
-            Canvas { context, _ in
-                for edge in graph.edges {
-                    guard let source = positions[edge.sourceID],
-                          let target = positions[edge.targetID] else { continue }
-                    let isLit = selectedNodeID == nil || selectedEdges.contains(where: { $0.id == edge.id })
-                    var path = Path()
-                    path.move(to: CGPoint(x: source.x, y: source.y))
-                    path.addLine(to: CGPoint(x: target.x, y: target.y))
-                    context.stroke(
-                        isLit && selectedNodeID != nil ? path.trimmedPath(from: 0, to: traceProgress) : path,
-                        with: .color(edgeColor(edge).opacity(isLit ? 0.78 : 0.13)),
-                        lineWidth: max(1.2, 1.4 + edge.strength * 5.8)
-                    )
-                }
-            }
-            .allowsHitTesting(false)
-
-            ForEach(graph.nodes) { node in
-                if let point = positions[node.id] {
-                    AtlasNodeButton(
-                        node: node,
-                        variant: variant,
-                        isSelected: selectedNodeID == node.id,
-                        isDimmed: selectedNodeID != nil && !connectedIDs.contains(node.id)
-                    ) {
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
-                            selectedNodeID = selectedNodeID == node.id ? nil : node.id
-                        }
-                    }
-                    .position(x: point.x, y: point.y)
-                }
-            }
-        }
-        .frame(width: size.width, height: size.height)
-    }
-
-    private var zoomGesture: some Gesture {
-        MagnificationGesture()
-            .onChanged { value in
-                zoom = min(maxZoom, max(minZoom, lastZoom * value))
-            }
-            .onEnded { _ in
-                lastZoom = zoom
-                if zoom <= minZoom + 0.01 { resetPan() }
-            }
-    }
-
-    private func panGesture(viewport: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                let proposed = CGSize(
-                    width: lastPan.width + value.translation.width,
-                    height: lastPan.height + value.translation.height
-                )
-                pan = clampedPan(proposed, viewport: viewport)
-            }
-            .onEnded { value in
-                let proposed = CGSize(
-                    width: lastPan.width + value.translation.width,
-                    height: lastPan.height + value.translation.height
-                )
-                pan = clampedPan(proposed, viewport: viewport)
-                lastPan = pan
-            }
-    }
-
-    /// Keeps the scaled graph from being dragged entirely off-screen: panning is
-    /// bounded by how much larger the zoomed content is than the viewport.
-    private func clampedPan(_ proposed: CGSize, viewport: CGSize) -> CGSize {
-        let maxX = max(0, (viewport.width * zoom - viewport.width) / 2)
-        let maxY = max(0, (viewport.height * zoom - viewport.height) / 2)
-        return CGSize(
-            width: min(maxX, max(-maxX, proposed.width)),
-            height: min(maxY, max(-maxY, proposed.height))
-        )
-    }
-
-    private func resetPan() {
-        pan = .zero
-        lastPan = .zero
-    }
-
-    private var resetButton: some View {
-        Button {
-            BookFeedback.play(.select)
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) {
-                zoom = 1
-                lastZoom = 1
-                resetPan()
-            }
-        } label: {
-            Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(BookPalette.ink)
-                .padding(9)
-                .background(BookPalette.nightPanel.opacity(0.86), in: Circle())
-                .overlay { Circle().stroke(LeafInk.gold.opacity(0.4), lineWidth: 1) }
-        }
-        .buttonStyle(.bookPress())
-        .accessibilityLabel("Reset zoom")
-    }
-
-    private var atlasBackground: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    BookPalette.nightPanel,
-                    Color(red: 0.15, green: 0.20, blue: 0.22),
-                    Color(red: 0.22, green: 0.18, blue: 0.25)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            ForEach(0..<36, id: \.self) { index in
-                Circle()
-                    .fill(LeafInk.gold.opacity(index.isMultiple(of: 5) ? 0.22 : 0.10))
-                    .frame(width: CGFloat(1 + (index % 3)), height: CGFloat(1 + (index % 3)))
-                    .position(
-                        x: CGFloat((index * 47 + abs(variant.rawValue.stableHash % 31)) % 320),
-                        y: CGFloat((index * 83 + abs(variant.rawValue.stableHash % 53)) % 390)
-                    )
-                    .allowsHitTesting(false)
-            }
-        }
-    }
-
-    private func edgeColor(_ edge: GraphEdge) -> Color {
-        if edge.warmth < -0.18 {
-            return Color(red: 0.82, green: 0.25, blue: 0.33)
-        }
-        if edge.warmth > 0.18 {
-            return Color(red: 0.96, green: 0.69, blue: 0.28)
-        }
-        if variant == .company { return LeafInk.gold }
-        return variant == .constellation ? BookPalette.teal : BookPalette.violet
+    func positions(for graph: NarrativeGraphData, variant: MarginsAtlasVariant, size: CGSize) -> [String: CGPoint] {
+        let width = max(1, size.width.rounded())
+        let height = max(1, size.height.rounded())
+        let signature = graph.nodes.map(\.id).joined(separator: ",") + "|" + graph.edges.map(\.id).joined(separator: ",")
+        let key = "\(variant.rawValue)-\(signature.stableHash)-\(Int(width))x\(Int(height))"
+        lock.lock()
+        if let cached = entries[key] { lock.unlock(); return cached }
+        lock.unlock()
+        let laid = GraphLayoutEngine.layout(
+            data: graph, width: Double(width), height: Double(height),
+            seed: "margins-atlas-\(variant.rawValue)"
+        ).mapValues { CGPoint(x: $0.x, y: $0.y) }
+        lock.lock()
+        if entries.count > 24 { entries.removeAll() }
+        entries[key] = laid
+        lock.unlock()
+        return laid
     }
 }
 
-private struct AtlasNodeButton: View {
-    let node: GraphNode
-    let variant: MarginsAtlasVariant
-    let isSelected: Bool
-    let isDimmed: Bool
-    let action: () -> Void
-
-    private var diameter: CGFloat {
-        let base = variant == .constellation ? 22 : (variant == .company ? 20 : 18)
-        return CGFloat(base) + CGFloat(min(34, max(0, node.weight))) * 0.52
+/// How each name on a map looks: its size and its colour.
+private enum MarginsAtlasInk {
+    static func diameter(_ node: GraphNode, variant: MarginsAtlasVariant) -> CGFloat {
+        let base: CGFloat = variant == .constellation ? 22 : (variant == .company ? 20 : 18)
+        return base + CGFloat(min(34, max(0, node.weight))) * 0.52
     }
 
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                ZStack {
-                    Circle()
-                        .fill(nodeColor.opacity(isDimmed ? 0.28 : 0.88))
-                    Circle()
-                        .stroke(BookPalette.paper.opacity(isSelected ? 0.86 : 0.42), lineWidth: isSelected ? 3 : 1.4)
-                    if variant == .constellation {
-                        Circle()
-                            .fill(BookPalette.paper.opacity(isDimmed ? 0.12 : 0.72))
-                            .frame(width: max(4, diameter * 0.18), height: max(4, diameter * 0.18))
-                    }
-                }
-                .frame(width: diameter, height: diameter)
-                .shadow(color: nodeColor.opacity(isDimmed ? 0 : 0.38), radius: isSelected ? 12 : 7, x: 0, y: 0)
-
-                Text(node.label)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(BookPalette.paper.opacity(isDimmed ? 0.35 : 0.92))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.62)
-                    .frame(width: 96)
-            }
-        }
-        .buttonStyle(.bookPress())
-        .opacity(isDimmed ? 0.45 : 1)
-        .accessibilityLabel("\(node.label), \(node.kindLabel)")
-    }
-
-    private var nodeColor: Color {
+    static func color(_ node: GraphNode, variant: MarginsAtlasVariant) -> Color {
         if variant == .company {
             switch node.kindLabel {
             case LifeKnowledgeNodeKind.reader.rawValue: return LeafInk.gold
@@ -824,120 +607,477 @@ private struct AtlasNodeButton: View {
             }
         }
         switch node.chapterID {
-        case "emberheart":
-            return Color(red: 0.90, green: 0.25, blue: 0.20)
-        case "mossbloom":
-            return Color(red: 0.40, green: 0.66, blue: 0.36)
-        case "tidecrest":
-            return Color(red: 0.24, green: 0.58, blue: 0.78)
-        case "riddlewind":
-            return Color(red: 0.78, green: 0.54, blue: 0.22)
-        case "duskthorn":
-            return Color(red: 0.52, green: 0.34, blue: 0.62)
+        case "emberheart": return Color(red: 0.90, green: 0.25, blue: 0.20)
+        case "mossbloom": return Color(red: 0.40, green: 0.66, blue: 0.36)
+        case "tidecrest": return Color(red: 0.24, green: 0.58, blue: 0.78)
+        case "riddlewind": return Color(red: 0.78, green: 0.54, blue: 0.22)
+        case "duskthorn": return Color(red: 0.52, green: 0.34, blue: 0.62)
         default:
+            if node.kindLabel == "word" { return LeafInk.gold }
             return variant == .constellation ? BookPalette.teal : BookPalette.violet
+        }
+    }
+
+    static func edgeColor(_ edge: GraphEdge, variant: MarginsAtlasVariant) -> Color {
+        if edge.warmth < -0.18 { return Color(red: 0.82, green: 0.25, blue: 0.33) }
+        if edge.warmth > 0.18 { return Color(red: 0.96, green: 0.69, blue: 0.28) }
+        if variant == .company { return LeafInk.gold }
+        return variant == .constellation ? BookPalette.teal : BookPalette.violet
+    }
+}
+
+/// The whole map in one Canvas: night paper, stars, lines, dots and names.
+///
+/// One drawing instead of a button per name. A pinch redraws one Canvas, not
+/// fifty views with shadows, and nothing about a name's label can catch a tap
+/// meant for its neighbour.
+private struct MarginsAtlasDrawing: View, Animatable {
+    let variant: MarginsAtlasVariant
+    let graph: NarrativeGraphData
+    let positions: [String: CGPoint]
+    var scale: CGFloat = 1
+    var offset: CGSize = .zero
+    var selectedNodeID: String?
+    /// How far the selected name's lines have been drawn in, 0...1.
+    var traceProgress: Double = 1
+
+    var animatableData: Double {
+        get { traceProgress }
+        set { traceProgress = newValue }
+    }
+
+    /// Where a point of the laid-out map lands on the glass.
+    static func screen(_ point: CGPoint, scale: CGFloat, offset: CGSize) -> CGPoint {
+        CGPoint(x: point.x * scale + offset.width, y: point.y * scale + offset.height)
+    }
+
+    /// Dots grow a little as the reader zooms in, but much less than the map
+    /// does, so zooming in pulls crowded names apart.
+    static func dotScale(_ scale: CGFloat) -> CGFloat {
+        min(1.6, max(0.85, scale.squareRoot()))
+    }
+
+    var body: some View {
+        Canvas { context, size in
+            drawPaper(in: &context, size: size)
+            let lit = litEdges
+            let connected = connectedIDs(lit)
+            for edge in graph.edges {
+                guard let source = positions[edge.sourceID], let target = positions[edge.targetID] else { continue }
+                let isLit = selectedNodeID == nil || lit.contains(edge.id)
+                var path = Path()
+                path.move(to: Self.screen(source, scale: scale, offset: offset))
+                path.addLine(to: Self.screen(target, scale: scale, offset: offset))
+                context.stroke(
+                    isLit && selectedNodeID != nil ? path.trimmedPath(from: 0, to: traceProgress) : path,
+                    with: .color(MarginsAtlasInk.edgeColor(edge, variant: variant).opacity(isLit ? 0.78 : 0.12)),
+                    lineWidth: max(1.2, 1.4 + edge.strength * 5.8)
+                )
+            }
+            var placedLabels: [CGRect] = []
+            // Heaviest first, so when names crowd, the bigger ones keep theirs.
+            let ordered = graph.nodes.sorted { left, right in
+                let leftForced = left.id == selectedNodeID || (selectedNodeID != nil && connected.contains(left.id))
+                let rightForced = right.id == selectedNodeID || (selectedNodeID != nil && connected.contains(right.id))
+                if leftForced != rightForced { return leftForced }
+                return left.weight == right.weight ? left.id < right.id : left.weight > right.weight
+            }
+            for node in ordered {
+                guard let laid = positions[node.id] else { continue }
+                let point = Self.screen(laid, scale: scale, offset: offset)
+                let diameter = MarginsAtlasInk.diameter(node, variant: variant) * Self.dotScale(scale)
+                let isSelected = node.id == selectedNodeID
+                let isDimmed = selectedNodeID != nil && !connected.contains(node.id)
+                let color = MarginsAtlasInk.color(node, variant: variant)
+                let dot = CGRect(x: point.x - diameter / 2, y: point.y - diameter / 2, width: diameter, height: diameter)
+                if !isDimmed {
+                    context.fill(Path(ellipseIn: dot.insetBy(dx: -diameter * 0.35, dy: -diameter * 0.35)),
+                                 with: .color(color.opacity(isSelected ? 0.32 : 0.14)))
+                }
+                context.fill(Path(ellipseIn: dot), with: .color(color.opacity(isDimmed ? 0.28 : 0.9)))
+                context.stroke(Path(ellipseIn: dot), with: .color(BookPalette.paper.opacity(isSelected ? 0.9 : 0.42)),
+                               lineWidth: isSelected ? 3 : 1.4)
+
+                // A name prints if it fits without covering another one. The
+                // chosen name and everything tied to it always print.
+                let forced = isSelected || (selectedNodeID != nil && connected.contains(node.id))
+                let label = context.resolve(
+                    Text(node.label)
+                        .font(.system(size: forced ? 12 : 11, weight: .bold))
+                        .foregroundStyle(BookPalette.paper.opacity(isDimmed ? 0.3 : 0.94))
+                )
+                let measured = label.measure(in: CGSize(width: 140, height: 40))
+                let labelRect = CGRect(
+                    x: point.x - measured.width / 2, y: point.y + diameter / 2 + 3,
+                    width: measured.width, height: measured.height
+                )
+                guard forced || !placedLabels.contains(where: { $0.insetBy(dx: -3, dy: -1).intersects(labelRect) }) else { continue }
+                guard forced || labelRect.intersects(CGRect(origin: .zero, size: size)) else { continue }
+                placedLabels.append(labelRect)
+                context.draw(label, in: labelRect)
+            }
+        }
+    }
+
+    private var litEdges: Set<String> {
+        guard let selectedNodeID else { return [] }
+        return Set(graph.edges.filter { $0.sourceID == selectedNodeID || $0.targetID == selectedNodeID }.map(\.id))
+    }
+
+    private func connectedIDs(_ lit: Set<String>) -> Set<String> {
+        guard let selectedNodeID else { return [] }
+        var ids: Set<String> = [selectedNodeID]
+        for edge in graph.edges where lit.contains(edge.id) {
+            ids.insert(edge.sourceID)
+            ids.insert(edge.targetID)
+        }
+        return ids
+    }
+
+    private func drawPaper(in context: inout GraphicsContext, size: CGSize) {
+        let rect = CGRect(origin: .zero, size: size)
+        context.fill(Path(rect), with: .linearGradient(
+            Gradient(colors: [
+                BookPalette.nightPanel,
+                Color(red: 0.15, green: 0.20, blue: 0.22),
+                Color(red: 0.22, green: 0.18, blue: 0.25)
+            ]),
+            startPoint: .zero, endPoint: CGPoint(x: size.width, y: size.height)
+        ))
+        // Stars that drift with the map, slower than it, the way a sky would.
+        let seed = abs(variant.rawValue.stableHash)
+        for index in 0..<48 {
+            let x = CGFloat((index * 47 + seed % 31) % 400) / 400 * size.width
+            let y = CGFloat((index * 83 + seed % 53) % 500) / 500 * size.height
+            let drift = CGPoint(
+                x: (x + offset.width * 0.15).truncatingRemainder(dividingBy: max(1, size.width)),
+                y: (y + offset.height * 0.15).truncatingRemainder(dividingBy: max(1, size.height))
+            )
+            let radius = CGFloat(1 + index % 3) / 2
+            context.fill(
+                Path(ellipseIn: CGRect(x: (drift.x + size.width).truncatingRemainder(dividingBy: max(1, size.width)) - radius,
+                                       y: (drift.y + size.height).truncatingRemainder(dividingBy: max(1, size.height)) - radius,
+                                       width: radius * 2, height: radius * 2)),
+                with: .color(LeafInk.gold.opacity(index.isMultiple(of: 5) ? 0.22 : 0.10))
+            )
         }
     }
 }
 
+/// The map as it sits on the leaf: a still drawing. Touching it unfolds it to
+/// the whole screen. Nothing on the leaf pinches or drags, because the leaf
+/// itself turns under a finger, and a map that fights the page for every touch
+/// gets them all wrong.
+private struct MarginsAtlasPlate: View {
+    let variant: MarginsAtlasVariant
+    let graph: NarrativeGraphData
+    let onUnfold: () -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            MarginsAtlasDrawing(
+                variant: variant,
+                graph: graph,
+                positions: MarginsAtlasLayoutCache.shared.positions(for: graph, variant: variant, size: proxy.size)
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(LeafInk.gold.opacity(0.24), lineWidth: 1)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Label("Unfold", systemImage: "arrow.up.left.and.arrow.down.right")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(BookPalette.nightText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay { Capsule().stroke(LeafInk.gold.opacity(0.32), lineWidth: 1) }
+                .padding(10)
+                .allowsHitTesting(false)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            BookFeedback.play(.openPage, fill: true)
+            onUnfold()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(variant.title), a map of \(graph.nodes.count) names")
+        .accessibilityHint("Unfolds the map to the whole screen")
+        .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// What the Book says about the name the reader touched.
 private struct MarginsAtlasNodeCard: View {
     let node: GraphNode
     let graph: NarrativeGraphData
     let variant: MarginsAtlasVariant
 
-    private var touchedEdges: [GraphEdge] {
-        graph.edges.filter { $0.sourceID == node.id || $0.targetID == node.id }
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(node.label, systemImage: variant == .loom ? "link" : (variant == .company ? "person.2.fill" : "sparkle"))
-                .font(.headline.weight(.bold))
+        let lines = MarginsAtlasVoice.lines(variant: variant, node: node, graph: graph)
+        VStack(alignment: .leading, spacing: 6) {
+            Text(node.label)
+                .font(.system(.headline, design: .serif).weight(.bold))
                 .foregroundStyle(BookPalette.ink)
-
-            Text(variant == .company
-                ? node.kindLabel.capitalized
-                : "\(node.kindLabel.capitalized). Glow \(Int(node.weight.rounded()))")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(BookPalette.ink.opacity(0.58))
-
-            if touchedEdges.isEmpty {
-                Text("No lit thread touches this point yet.")
-                    .font(.callout)
+            Text(MarginsAtlasVoice.kindLine(variant: variant, node: node))
+                .font(.system(.caption, design: .serif).italic())
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+            if lines.isEmpty {
+                Text("Nothing's tied to this one yet.")
+                    .font(.system(.callout, design: .serif))
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
             } else {
-                Text(touchedEdges.prefix(4).map(\.label).joined(separator: ", "))
-                    .font(.callout)
-                    .foregroundStyle(BookPalette.ink.opacity(0.76))
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(MarginsAtlasVoice.heading(variant: variant, node: node))
+                    .font(.system(.callout, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .padding(.top, 2)
+                ForEach(lines, id: \.self) { line in
+                    Text(line)
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.76))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
         .padding(14)
-        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(BookPalette.ink.opacity(0.14), lineWidth: 1)
         }
+        .accessibilityElement(children: .combine)
     }
 }
 
+/// The map unfolded across the whole screen: pinch around your fingers, drag
+/// it about, touch a name to light its lines. A touch picks the nearest dot,
+/// not whichever label happens to overlap it.
 private struct MarginsAtlasFullScreenView: View {
     let variant: MarginsAtlasVariant
     let graph: NarrativeGraphData
     @Binding var selectedNodeID: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    /// The glass where the current gesture started.
+    @State private var pinchStart: (scale: CGFloat, offset: CGSize)?
+    @State private var dragStart: CGSize?
+    /// A drag that outlived a pinch would jump: its translation was building
+    /// up the whole time the two fingers were zooming.
+    @State private var dragSpoiled = false
+    @State private var traceProgress = 1.0
+
+    private let scaleRange: ClosedRange<CGFloat> = 0.7...6
 
     private var selectedNode: GraphNode? {
         graph.nodes.first { $0.id == selectedNodeID }
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                BookPalette.nightPanel.ignoresSafeArea()
-
-                MarginsAtlasGraphView(
-                    variant: variant,
-                    graph: graph,
-                    selectedNodeID: $selectedNodeID
-                )
-                .ignoresSafeArea(edges: .bottom)
-
-                VStack {
-                    Spacer()
-
-                    Group {
-                        if let selectedNode {
-                            MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: variant)
-                        } else {
-                            Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I'll draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(BookPalette.nightText.opacity(0.86))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
-                                }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 16)
-                }
+        GeometryReader { proxy in
+            let size = proxy.size
+            let positions = MarginsAtlasLayoutCache.shared.positions(for: graph, variant: variant, size: size)
+            MarginsAtlasDrawing(
+                variant: variant,
+                graph: graph,
+                positions: positions,
+                scale: scale,
+                offset: offset,
+                selectedNodeID: selectedNodeID,
+                traceProgress: traceProgress
+            )
+            .contentShape(Rectangle())
+            .gesture(drag(size: size).simultaneously(with: pinch(size: size)))
+            .onTapGesture(coordinateSpace: .local) { location in
+                touch(at: location, positions: positions)
             }
-            .navigationTitle(variant.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") {
-                        BookFeedback.play(.dismissPage)
-                        dismiss()
+            .overlay(alignment: .trailing) {
+                zoomButtons(size: size)
+                    .padding(.trailing, 12)
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+        .background(BookPalette.nightPanel.ignoresSafeArea())
+        .safeAreaInset(edge: .top) { header }
+        .overlay(alignment: .bottom) { footer }
+        .statusBarHidden(false)
+    }
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(variant.title)
+                .font(.system(.title3, design: .serif).weight(.semibold))
+                .foregroundStyle(BookPalette.nightText)
+            Spacer()
+            Button("Done") {
+                BookFeedback.play(.dismissPage)
+                dismiss()
+            }
+            .font(.body.weight(.semibold))
+            .foregroundStyle(LeafInk.gold)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(BookPalette.nightPanel.opacity(0.92))
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        Group {
+            if let selectedNode {
+                MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: variant)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                Text(graph.nodes.isEmpty
+                     ? "No lines yet. Keep Pages or name people, and I'll draw a line the moment two things touch."
+                     : "Touch a name and I'll light up what it's tied to. Pinch to look closer. More names come out when you do.")
+                    .font(.system(.footnote, design: .serif).weight(.semibold))
+                    .foregroundStyle(BookPalette.nightText.opacity(0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(BookPalette.lampGold.opacity(0.22), lineWidth: 1)
                     }
+                    .allowsHitTesting(false)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
+        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: selectedNodeID)
+    }
+
+    private func zoomButtons(size: CGSize) -> some View {
+        VStack(spacing: 10) {
+            zoomButton("plus.magnifyingglass", label: "Closer") { zoom(by: 1.6, size: size) }
+            zoomButton("minus.magnifyingglass", label: "Further") { zoom(by: 1 / 1.6, size: size) }
+            zoomButton("arrow.down.right.and.arrow.up.left", label: "The whole map") {
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                    scale = 1
+                    offset = .zero
                 }
             }
         }
+    }
+
+    private func zoomButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
+        Button {
+            BookFeedback.play(.select)
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(BookPalette.nightText)
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay { Circle().stroke(LeafInk.gold.opacity(0.32), lineWidth: 1) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    // MARK: Handling
+
+    private func touch(at location: CGPoint, positions: [String: CGPoint]) {
+        var nearest: (id: String, distance: CGFloat)?
+        for node in graph.nodes {
+            guard let laid = positions[node.id] else { continue }
+            let point = MarginsAtlasDrawing.screen(laid, scale: scale, offset: offset)
+            let distance = hypot(point.x - location.x, point.y - location.y)
+            // Generous, but only around the dot: a fingertip is about this big.
+            let reach = max(26, MarginsAtlasInk.diameter(node, variant: variant) * MarginsAtlasDrawing.dotScale(scale) / 2 + 12)
+            guard distance <= reach else { continue }
+            if nearest == nil || distance < nearest!.distance { nearest = (node.id, distance) }
+        }
+        let chosen = nearest?.id
+        guard chosen != selectedNodeID else {
+            if chosen != nil {
+                BookFeedback.play(.select)
+                selectedNodeID = nil
+            }
+            return
+        }
+        BookFeedback.play(.select)
+        selectedNodeID = chosen
+        guard chosen != nil, !reduceMotion else {
+            traceProgress = 1
+            return
+        }
+        traceProgress = 0
+        withAnimation(.easeInOut(duration: 0.44)) { traceProgress = 1 }
+    }
+
+    private func pinch(size: CGSize) -> some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                if pinchStart == nil {
+                    pinchStart = (scale, offset)
+                    dragSpoiled = dragStart != nil
+                }
+                guard let start = pinchStart else { return }
+                let next = min(scaleRange.upperBound, max(scaleRange.lowerBound, start.scale * value.magnification))
+                // Zoom around the fingers: the point under them stays under them.
+                let anchor = value.startLocation
+                let ratio = next / start.scale
+                scale = next
+                offset = CGSize(
+                    width: anchor.x - (anchor.x - start.offset.width) * ratio,
+                    height: anchor.y - (anchor.y - start.offset.height) * ratio
+                )
+            }
+            .onEnded { _ in
+                pinchStart = nil
+                settle(size: size)
+            }
+    }
+
+    private func drag(size: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 6)
+            .onChanged { value in
+                guard pinchStart == nil, !dragSpoiled else { return }
+                if dragStart == nil { dragStart = offset }
+                guard let start = dragStart else { return }
+                offset = CGSize(width: start.width + value.translation.width, height: start.height + value.translation.height)
+            }
+            .onEnded { _ in
+                dragStart = nil
+                dragSpoiled = false
+                settle(size: size)
+            }
+    }
+
+    private func zoom(by factor: CGFloat, size: CGSize) {
+        let next = min(scaleRange.upperBound, max(scaleRange.lowerBound, scale * factor))
+        let anchor = CGPoint(x: size.width / 2, y: size.height / 2)
+        let ratio = next / scale
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            scale = next
+            offset = CGSize(
+                width: anchor.x - (anchor.x - offset.width) * ratio,
+                height: anchor.y - (anchor.y - offset.height) * ratio
+            )
+        }
+        settle(size: size)
+    }
+
+    /// Never let the whole map slide off the glass.
+    private func settle(size: CGSize) {
+        let margin = min(size.width, size.height) * 0.35
+        let minX = size.width - size.width * scale - margin
+        let minY = size.height - size.height * scale - margin
+        let clamped = CGSize(
+            width: min(margin, max(min(minX, margin), offset.width)),
+            height: min(margin, max(min(minY, margin), offset.height))
+        )
+        guard clamped != offset else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.88)) { offset = clamped }
     }
 }
 
@@ -1653,8 +1793,6 @@ struct CapturePageSheet: View {
     @FolioPageState("inventoryUnspokenSentence") private var inventoryUnspokenSentence = ""
     @FolioPageState("isWritingUnspokenSentence") private var isWritingUnspokenSentence = false
     @FolioPageState("isGamePagePresented", presentation: true) private var isGamePagePresented = false
-    @AppStorage(PublicMarginsAPI.outgoingOptInKey) private var publicMarginsOutgoingOptIn = false
-    @FolioPageState("isPublicMarginsContributionPresented", presentation: true) private var isPublicMarginsContributionPresented = false
     @FolioPageState("gameResultSurface") private var gameResultSurface: SurfacePage?
     @FolioPageState("lastGameResult") private var lastGameResult: SentenceRunnerResult?
     @FolioPageState("isBraidingGameRun") private var isBraidingGameRun = false
@@ -2407,6 +2545,9 @@ struct CapturePageSheet: View {
             }
             if metadata["wagerMoment"] == "opened" {
                 return "Keep this verdict"
+            }
+            if metadata["bookAsks"] == "true" {
+                return "Keep my answer"
             }
             return "Keep this noticing"
         }
@@ -3597,14 +3738,6 @@ struct CapturePageSheet: View {
             .animation(isEndLeaf || reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.72), value: isCommittingKeep)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isTuckingPage)
             .animation(BookMotion.result(reduceMotion), value: pageOwnedScribeLabel)
-            .sheet(isPresented: pagePresentation($isPublicMarginsContributionPresented)) {
-                PublicMarginsContributionSheet(
-                    eventID: "page-souvenir",
-                    initialSentence: publicMarginsSuggestedSentence
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
             #if canImport(PhotosUI)
             .onChange(of: selectedPhotoItem) { _, newValue in
                 guard ownsPagePresentation, let newValue else { return }
@@ -4691,6 +4824,44 @@ struct CapturePageSheet: View {
         surface.payload.metadata["placeholder"]?.nonEmpty ?? surface.type.marginAsk.placeholder
     }
 
+    /// The reader's own writing on a kept Page, carried on its surface, so the
+    /// unfolded Page sets it in their hand just as its leaf does.
+    private var readerWordsOnPage: [String] {
+        ReaderWords.decoded(surface.payload.metadata)
+    }
+
+    /// A Page's body: print for the Book, the reader's hand for paragraphs
+    /// that are theirs. A Page with none of their writing is one Text, as before.
+    @ViewBuilder
+    private func pageBody(_ body: String) -> some View {
+        let words = readerWordsOnPage
+        if words.isEmpty {
+            Text(body)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            let paragraphs = body.components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            FolioControlStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                    if ReaderWords.isReaders(paragraph, among: words) {
+                        Text(paragraph)
+                            .font(BookHand.reader.font(19))
+                            .foregroundStyle(BookHand.readerInkColor)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text(paragraph)
+                            .font(.system(.body, design: .serif))
+                            .foregroundStyle(BookPalette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
     private var journalAuthorLead: String? {
         if let lead = surface.payload.metadata["journalAuthorLead"]?.nonEmpty {
             return lead
@@ -4725,10 +4896,18 @@ struct CapturePageSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let authorLead {
-                Text(authorLead)
-                    .font(.system(.body, design: .serif).italic())
-                    .foregroundStyle(openPageSecondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
+                // On a kept journal Page the lead is what the reader wrote.
+                if ReaderWords.isReaders(authorLead, among: readerWordsOnPage) {
+                    Text(authorLead)
+                        .font(BookHand.reader.font(19))
+                        .foregroundStyle(BookHand.readerInkColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(authorLead)
+                        .font(.system(.body, design: .serif).italic())
+                        .foregroundStyle(openPageSecondaryText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             // The question, set into the page rather than boxed on it: a rule
@@ -4759,6 +4938,7 @@ struct CapturePageSheet: View {
         // A short note stays beside the reply it invites. Hiding it leaves
         // only the sender and the writing box when the reader unfolds it.
         !isOpenedNotePage
+            && surface.payload.metadata["bookAsks"] != "true"
             && surface.payload.metadata["leafReadingComplete"] == "true"
             && surface.leafPresentation == .readingWithActivity
     }
@@ -4820,7 +5000,8 @@ struct CapturePageSheet: View {
 
             if surface.type == .diary {
                 journalPageOpening
-            } else if !isEndLeaf && showsLeafReading && !isOpenedNotePage {
+            } else if !isEndLeaf && showsLeafReading && !isOpenedNotePage
+                        && surface.payload.metadata["bookAsks"] != "true" {
                 Text(surface.prompt)
                     .font(.system(
                         surface.payload.metadata["bookCharacterCadence"] == "small-hand" ? .title3 :
@@ -5087,6 +5268,10 @@ struct CapturePageSheet: View {
                 AnyView(inkrestOfficeHoursView)
             }
 
+            if FacultyFiction.applies(to: surface.type, text: surface.payload.headline + " " + surface.payload.body) {
+                AnyView(facultyFictionNote)
+            }
+
             if surface.type == .faeBargain {
                 AnyView(faeBargainView)
             }
@@ -5178,14 +5363,6 @@ struct CapturePageSheet: View {
                 marginNoteEditor(minHeight: 118)
             } else if surface.isStoryPlayablePage && !isLocalBrainIssuePage {
                 storyMarginNoteField
-            }
-
-            if PublicMarginsAPI.isAvailable,
-               publicMarginsOutgoingOptIn,
-               surface.privacy != .publicReference,
-               surface.type != .note,
-               surface.type != .tarot {
-                publicMarginsExportControl
             }
         }
     }
@@ -5930,46 +6107,17 @@ struct CapturePageSheet: View {
     private var marginsAtlasView: some View {
         let graph = atlasGraph
         return FolioControlStack(alignment: .leading, spacing: 12) {
-            MarginsAtlasGraphView(
-                variant: atlasVariant,
-                graph: graph,
-                selectedNodeID: $selectedAtlasNodeID
-            )
-            .frame(height: 390)
-            .background(BookPalette.nightPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(LeafInk.gold.opacity(0.24), lineWidth: 1)
-            }
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    BookFeedback.play(.select)
-                    isAtlasFullScreenPresented = true
-                } label: {
-                    Label("Open full screen", systemImage: "arrow.up.left.and.arrow.down.right")
-                        .labelStyle(.iconOnly)
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BookPalette.ink)
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay {
-                            Circle()
-                                .stroke(LeafInk.gold.opacity(0.32), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .folioControlUnbroken()
-                .padding(10)
-                .accessibilityLabel("Open \(atlasVariant.title) full screen")
-            }
-
-            if let selectedNode = graph.nodes.first(where: { $0.id == selectedAtlasNodeID }) {
-                MarginsAtlasNodeCard(node: selectedNode, graph: graph, variant: atlasVariant)
-            } else {
-                Text(graph.nodes.isEmpty ? "No lines yet. Keep Pages or name people, and I'll draw a line when two things are actually connected." : "Tap a name to see its lines. Pinch to zoom. Drag to move around the map.")
+            if graph.nodes.isEmpty {
+                Text("No lines yet. Keep Pages or name people, and I'll draw a line the moment two things touch.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(openPageSecondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+            } else {
+                MarginsAtlasPlate(variant: atlasVariant, graph: graph) {
+                    isAtlasFullScreenPresented = true
+                }
+                .frame(height: 320)
+                .folioControlUnbroken()
             }
         }
     }
@@ -8061,6 +8209,18 @@ struct CapturePageSheet: View {
         }
     }
 
+    /// Under any leaf where Dr. Vellum or Dr. Inkrest reads the reader's body,
+    /// food or mood: they're made up, said once, small, in the Book's voice.
+    private var facultyFictionNote: some View {
+        Text(FacultyFiction.short)
+            .font(.system(.footnote, design: .serif).italic())
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 6)
+    }
+
     private var inkrestOfficeHoursView: some View {
         FolioControlStack(alignment: .leading, spacing: 14) {
             hourPageCallout(
@@ -8658,7 +8818,7 @@ struct CapturePageSheet: View {
             detail: spell.detail,
             payload: BookPagePayload(
                 headline: "Enchantment Page: \(spell.title)",
-                body: "\(spell.detail)\n\nChoose a photo. The Story Page will continue from the illuminated result.",
+                body: "\(spell.detail)\n\nChoose a photo. The vignette will continue from the illuminated result.",
                 metadata: [
                     "source": "enchantment",
                     "enchantmentID": spell.id,
@@ -8807,6 +8967,8 @@ struct CapturePageSheet: View {
                     writingAskView
                 } else if surface.payload.metadata["firstReading"] == "true" {
                     firstReadingOpeningView
+                } else if surface.payload.metadata["bookAsks"] == "true" {
+                    bookAsksOpeningView
                 } else {
                     bookNoticesOpeningView
                 }
@@ -8867,12 +9029,16 @@ struct CapturePageSheet: View {
                         }
                     }
                 } else {
-                    Text(taleToldBody ?? surface.payload.metadata["taleFallbackBody"] ?? surface.payload.body)
-                        .font(.system(.body, design: .serif))
-                        .foregroundStyle(BookPalette.ink)
-                        .fixedSize(horizontal: false, vertical: true)
+                    pageBody(taleToldBody ?? surface.payload.metadata["taleFallbackBody"] ?? surface.payload.body)
                         .task(id: surface.id) { await tellTaleWithGemmaIfPossible() }
                         .bookPageArrival(moment: isOpenedLetterPage ? .letter : nil, identity: surface.id)
+                    if surface.type == .lore,
+                       surface.payload.metadata["snippetID"] == CompassCoreDeskView.snippetID {
+                        CompassCoreDeskView()
+                    }
+                    if surface.type == .lore, let neighbours = loreShelfNeighbours, !neighbours.isEmpty {
+                        loreShelfNeighboursSection(neighbours)
+                    }
                 }
             }
 
@@ -9354,7 +9520,7 @@ struct CapturePageSheet: View {
         case .established:
             strength = "It keeps happening. I'm keeping the line."
         default:
-            strength = "I've only seen it once. The line is pencil, not ink."
+            strength = "I've only seen it once. The ink's still faint."
         }
 
         return FolioControlStack(alignment: .leading, spacing: 14) {
@@ -9722,6 +9888,102 @@ struct CapturePageSheet: View {
         .opacity(didRevealCeremony ? 1 : 0.01)
         .offset(y: didRevealCeremony ? 0 : 8)
         .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// The Book's one pointed question. Your own sentence is pinned to the
+    /// paper with the snagging word marked, and the Book's wondering sits in
+    /// the margin beside it. The writing box below is the answer.
+    private var bookAsksOpeningView: some View {
+        let metadata = surface.payload.metadata
+        let paragraphs = surface.payload.body
+            .components(separatedBy: "\n\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let sentence = metadata["bookAsksSentence"]?.nonEmpty
+            ?? paragraphs.first?.trimmingCharacters(in: CharacterSet(charactersIn: "\u{201C}\u{201D}\""))
+            ?? ""
+        let word = metadata["bookAsksWord"]?.nonEmpty
+        let probe = paragraphs.count > 1 ? paragraphs[1] : ""
+        let invitation = paragraphs.dropFirst(2).joined(separator: "\n\n")
+
+        return FolioControlStack(alignment: .leading, spacing: 18) {
+            ceremonyHeader(
+                title: surface.payload.headline,
+                subtitle: surface.prompt.nonEmpty,
+                symbol: "text.magnifyingglass",
+                tint: BookPalette.teal
+            )
+
+            if !sentence.isEmpty {
+                FolioControlStack(alignment: .leading, spacing: 9) {
+                    Text("You wrote")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .tracking(1.4)
+                        .foregroundStyle(BookPalette.teal)
+                    Text(bookAsksMarkedSentence(sentence, word: word))
+                        .font(.system(.title3, design: .serif))
+                        .lineSpacing(5)
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityLabel("You wrote: \(sentence). The word \(word ?? "") caught my eye.")
+                }
+                .padding(.vertical, 14)
+                .padding(.leading, 18)
+                .padding(.trailing, 14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(LeafInk.gold.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(LeafInk.gold.opacity(0.78))
+                        .frame(width: 3)
+                        .padding(.vertical, 8)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(LeafInk.gold.opacity(0.26), lineWidth: 1)
+                }
+            }
+
+            if !probe.isEmpty {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: "pencil.tip")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                        .frame(width: 28)
+                        .padding(.top, 2)
+                    Text(probe)
+                        .font(BookHand.book.font(21, relativeTo: .title3))
+                        .lineSpacing(5)
+                        .foregroundStyle(BookPalette.teal.opacity(0.94))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            if !invitation.isEmpty {
+                Text(invitation)
+                    .font(.system(.callout, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.66))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// The reader's sentence with the word that snagged the Book marked the
+    /// way a pencil would: a gold wash and an underline, once, where it first
+    /// stands as a whole word.
+    private func bookAsksMarkedSentence(_ sentence: String, word: String?) -> AttributedString {
+        var marked = AttributedString("\u{201C}\(sentence)\u{201D}")
+        guard let word, !word.isEmpty,
+              let range = marked.range(of: word, options: [.caseInsensitive]) else { return marked }
+        marked[range].backgroundColor = LeafInk.gold.opacity(0.34)
+        marked[range].underlineStyle = .single
+        marked[range].font = .system(.title3, design: .serif, weight: .bold)
+        return marked
     }
 
     private var writingAskView: some View {
@@ -10530,6 +10792,60 @@ struct CapturePageSheet: View {
         guard let practice = surface.payload.metadata["practice"]?.trimmingCharacters(in: .whitespacesAndNewlines),
               !practice.isEmpty else { return nil }
         return practice
+    }
+
+    /// The lore pages nearest this one. A lore Page is a paragraph and a dare, so
+    /// without these the opened leaf ends a third of the way down.
+    private var loreShelfNeighbours: [ReferenceSnippet]? {
+        guard let snippetID = surface.payload.metadata["snippetID"],
+              let snippet = BookReferenceCatalog.enchantifyLore.first(where: { $0.id == snippetID }) else { return nil }
+        return BookReferenceCatalog.shelfNeighbours(of: snippet)
+    }
+
+    private func loreShelfNeighboursSection(_ neighbours: [ReferenceSnippet]) -> some View {
+        FolioControlStack(alignment: .leading, spacing: 8) {
+            WonderCompassRule(tint: BookPalette.violet.opacity(0.7))
+                .padding(.vertical, 4)
+            Text("Nearby on my shelves")
+                .font(.caption.weight(.bold))
+                .textCase(.uppercase)
+                .kerning(0.6)
+                .foregroundStyle(BookPalette.violet)
+            ForEach(neighbours) { neighbour in
+                Button {
+                    BookFeedback.play(.openPage)
+                    let next = EnchantifyLorePageSourceAdapter().shelfSurface(for: neighbour)
+                    DispatchQueue.main.async { onNavigateToSurface(next) }
+                } label: {
+                    HStack(spacing: 10) {
+                        FolioControlStack(alignment: .leading, spacing: 1) {
+                            Text(neighbour.title)
+                                .font(.custom("Baskerville-SemiBold", size: 17, relativeTo: .headline))
+                                .foregroundStyle(BookPalette.ink)
+                            Text(neighbour.prompt)
+                                .font(.custom("Baskerville-Italic", size: 15, relativeTo: .callout))
+                                .foregroundStyle(BookPalette.ink.opacity(0.72))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.violet.opacity(0.7))
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(BookPalette.violet.opacity(0.08))
+                    )
+                }
+                .buttonStyle(.bookPress())
+                .folioControlUnbroken()
+                .accessibilityHint("Opens this page")
+            }
+        }
+        .padding(.top, 6)
     }
 
     // MARK: Center Page: the interactive Rest practice (Wonder Compass, Chapter 10).
@@ -12700,36 +13016,6 @@ struct CapturePageSheet: View {
         .foregroundStyle(BookPalette.teal)
     }
 
-    private var publicMarginsSuggestedSentence: String {
-        let possibilities = [text, preparedInput, surface.detail]
-        return possibilities.lazy.compactMap(PublicMarginsText.preparedSentence(from:)).first ?? ""
-    }
-
-    private var publicMarginsExportControl: some View {
-        Button {
-            BookFeedback.play(.tap)
-            isPublicMarginsContributionPresented = true
-        } label: {
-            FolioControlStack(alignment: .leading, spacing: 4) {
-                Label("Leave something in the Public Margins", systemImage: "text.bubble.fill")
-                    .font(.subheadline.weight(.bold))
-                Text("Offer one sentence or answer today's quiet question. Each gets its own confirmation.")
-                    .font(.caption)
-                    .opacity(0.72)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(12)
-            .background(BookPalette.teal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(BookPalette.teal.opacity(0.32), lineWidth: 1)
-            }
-        }
-        .buttonStyle(.plain)
-        .folioControlUnbroken()
-        .foregroundStyle(BookPalette.teal)
-    }
-
     private var articleLinkList: some View {
         FolioControlStack(alignment: .leading, spacing: 10) {
             Text("Letters on the public shelf")
@@ -14769,7 +15055,7 @@ struct CapturePageSheet: View {
             appLog.error("Enchantment cast failed: \(error.localizedDescription, privacy: .private)")
             await MainActor.run {
                 BookFeedback.play(.error)
-                enchantmentMessage = "\(spell.title) didn't finish. The local brain dropped its pencil, and your Belief was returned."
+                enchantmentMessage = "\(spell.title) didn't finish. My ink sank back halfway, and your Belief was returned."
             }
         }
     }
@@ -15629,7 +15915,14 @@ struct CapturePageSheet: View {
         if currentCompassStep == .write {
             return !preparedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+        if isKeepableRecipePage { return true }
         return isPreparedPage || !preparedInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// A recipe Page that can be kept as it is. The one that asks the reader to
+    /// write somebody's recipe down still needs the writing.
+    private var isKeepableRecipePage: Bool {
+        surface.type == .recipe && !KitchenOffering.isRescue(surface)
     }
 
     private var canSubmitCompassRun: Bool {
@@ -16097,6 +16390,13 @@ struct CapturePageSheet: View {
             guard !trimmed.isEmpty else {
                 return surface.payload.body
             }
+            return "\(surface.payload.body)\n\nMargin note: \(trimmed)"
+        }
+        // A recipe is complete as it stands: some readers want the recipe and
+        // none of the "did you make it" or margin around it. Keep binds the
+        // whole recipe, with a margin note when there is one.
+        if isKeepableRecipePage {
+            guard !trimmed.isEmpty else { return surface.payload.body }
             return "\(surface.payload.body)\n\nMargin note: \(trimmed)"
         }
         guard surface.type == .mood, !selectedWeather.isEmpty else {
@@ -17084,7 +17384,7 @@ struct CapturePageSheet: View {
         } catch {
             appLog.error("Let’s Chat failed: \(error.localizedDescription, privacy: .public)")
             // Give the reader their sentence back; they should not have to
-            // type it twice because the Book dropped its pencil.
+            // type it twice because the Book's ink sank back.
             askPrompt = prompt
             askLive.finish()
             askTheBookMessage = "That one slipped away from me. Your words are still in the box. Try again?"
@@ -17493,9 +17793,9 @@ struct StoryPageChoiceMechanic: Equatable {
         case .none:
             return ""
         case .beliefDice:
-            return "Cast my little bones before the Story Page writes the consequence."
+            return "Cast my little bones before the vignette writes what happens."
         case .compassRun:
-            return "Complete a real Compass Run, then the Story Page continues from it."
+            return "Complete a real Compass Run, then the vignette continues from it."
         case .enchantment:
             return spell?.detail ?? "Complete the chosen Enchantment with real proof."
         }
@@ -17715,285 +18015,6 @@ private enum SentenceRunnerPoem {
             : "The Loom kept the path, not the score."
         let lock = lockedLines.last.map { ["", "The run locked one line before it could scatter:", "“\($0)”"] } ?? []
         return ([opening, ""] + lines + lock + ["", closing]).joined(separator: "\n")
-    }
-}
-
-private struct PublicMarginsContributionSheet: View {
-    let eventID: String
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var sentence: String
-    @State private var isSending = false
-    @State private var receipt: PublicMarginsContributionReceipt?
-    @State private var message = ""
-    @State private var choicePoll: PublicMarginsChoicePoll?
-    @State private var selectedChoiceID: String?
-    @State private var isSendingChoice = false
-    @State private var choiceReceipt: PublicMarginsContributionReceipt?
-    @State private var choiceMessage = ""
-
-    init(eventID: String, initialSentence: String) {
-        self.eventID = eventID
-        _sentence = State(initialValue: initialSentence)
-    }
-
-    private var preparedSentence: String? {
-        PublicMarginsText.preparedSentence(from: sentence)
-    }
-
-    private var selectedChoice: PublicMarginsChoiceOption? {
-        choicePoll?.options.first { $0.id == selectedChoiceID }
-    }
-
-    private var hasReceipt: Bool {
-        receipt != nil || choiceReceipt != nil
-    }
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                BookBackground(isQuiet: true)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Label("One sentence, beyond the cover", systemImage: "text.bubble.fill")
-                            .font(.system(.title2, design: .serif, weight: .bold))
-                            .foregroundStyle(BookPalette.ink)
-
-                        Text("A sentence that passes automatic safety and privacy checks may appear publicly on reenchanted.app and in other readers' Books.")
-                            .font(.subheadline)
-                            .foregroundStyle(BookPalette.ink.opacity(0.72))
-
-                        TextEditor(text: $sentence)
-                            .font(.body)
-                            .foregroundStyle(BookPalette.ink)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 110)
-                            .padding(10)
-                            .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(BookPalette.ink.opacity(0.16), lineWidth: 1)
-                            }
-
-                        HStack {
-                            Text("\(sentence.count)/\(PublicMarginsText.maximumCharacters)")
-                            Spacer()
-                            Text(preparedSentence == nil ? "One sentence, with no links" : "Ready for exact preview")
-                        }
-                        .font(.caption)
-                        .foregroundStyle(preparedSentence == nil ? BookPalette.violet : BookPalette.teal)
-
-                        if let preparedSentence {
-                            VStack(alignment: .leading, spacing: 7) {
-                                Text("Exactly what will be public")
-                                    .font(.caption.weight(.bold))
-                                    .textCase(.uppercase)
-                                Text("“\(preparedSentence)”")
-                                    .font(.system(.body, design: .serif))
-                                    .textSelection(.enabled)
-                            }
-                            .foregroundStyle(BookPalette.ink)
-                            .padding(14)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(BookPalette.lampGold.opacity(0.13), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-
-                        Text("Nothing else leaves this page: not its page ID, surrounding writing, archive, photos, location, health, Calendar, Belief, or Book of You. A private deletion receipt stays on this device.")
-                            .font(.caption)
-                            .foregroundStyle(BookPalette.ink.opacity(0.64))
-
-                        if let receipt {
-                            Label(
-                                receipt.status == "approved"
-                                    ? "Placed in the Public Margins."
-                                    : "Received, but the automatic safety check didn't publish it.",
-                                systemImage: receipt.status == "approved" ? "checkmark.seal.fill" : "shield.lefthalf.filled"
-                            )
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(receipt.status == "approved" ? BookPalette.teal : BookPalette.violet)
-                        } else {
-                            Button {
-                                Task { await send(preparedSentence) }
-                            } label: {
-                                Label(isSending ? "Placing the sentence..." : "Yes: make exactly this sentence public", systemImage: "arrow.up.right.circle.fill")
-                                    .font(.subheadline.weight(.bold))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(BookPalette.teal.opacity(0.18), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(BookPalette.teal)
-                            .disabled(preparedSentence == nil || isSending)
-                        }
-
-                        if !message.isEmpty {
-                            Text(message)
-                                .font(.caption)
-                                .foregroundStyle(BookPalette.violet)
-                        }
-
-                        Divider().overlay(BookPalette.ink.opacity(0.12))
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            Label("One quiet choice", systemImage: "checklist")
-                                .font(.system(.title3, design: .serif, weight: .bold))
-                                .foregroundStyle(BookPalette.ink)
-
-                            if let poll = choicePoll {
-                                Text(poll.question)
-                                    .font(.system(.headline, design: .serif, weight: .semibold))
-                                    .foregroundStyle(BookPalette.ink)
-
-                                if let choiceReceipt {
-                                    Label(
-                                        choiceReceipt.status == "approved"
-                                            ? "Counted anonymously."
-                                            : "This choice wasn't published.",
-                                        systemImage: choiceReceipt.status == "approved" ? "checkmark.circle.fill" : "shield.lefthalf.filled"
-                                    )
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(choiceReceipt.status == "approved" ? BookPalette.teal : BookPalette.violet)
-                                } else {
-                                    ForEach(poll.options) { option in
-                                        Button {
-                                            BookFeedback.play(.select)
-                                            selectedChoiceID = option.id
-                                        } label: {
-                                            HStack(spacing: 10) {
-                                                Image(systemName: selectedChoiceID == option.id ? "checkmark.circle.fill" : "circle")
-                                                Text(option.label)
-                                                    .font(.subheadline.weight(.semibold))
-                                                Spacer(minLength: 8)
-                                            }
-                                            .foregroundStyle(selectedChoiceID == option.id ? BookPalette.teal : BookPalette.ink)
-                                            .padding(11)
-                                            .background(
-                                                (selectedChoiceID == option.id ? BookPalette.teal : BookPalette.paper).opacity(0.12),
-                                                in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-
-                                    if let selectedChoice {
-                                        VStack(alignment: .leading, spacing: 5) {
-                                            Text("Exactly what will be counted")
-                                                .font(.caption.weight(.bold))
-                                                .textCase(.uppercase)
-                                            Text("\(poll.question): \(selectedChoice.label)")
-                                                .font(.system(.callout, design: .serif))
-                                        }
-                                        .foregroundStyle(BookPalette.ink)
-                                        .padding(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(BookPalette.lampGold.opacity(0.13), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-
-                                        Button {
-                                            Task { await sendChoice(poll: poll, choice: selectedChoice) }
-                                        } label: {
-                                            Label(
-                                                isSendingChoice ? "Counting the choice..." : "Yes: count exactly this choice",
-                                                systemImage: "checkmark.circle.fill"
-                                            )
-                                            .font(.subheadline.weight(.bold))
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 12)
-                                            .background(BookPalette.teal.opacity(0.18), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundStyle(BookPalette.teal)
-                                        .disabled(isSendingChoice)
-                                    }
-                                }
-                            } else {
-                                Text("The quiet question couldn't be fetched. Nothing was sent.")
-                                    .font(.caption)
-                                    .foregroundStyle(BookPalette.ink.opacity(0.64))
-                            }
-
-                            if !choiceMessage.isEmpty {
-                                Text(choiceMessage)
-                                    .font(.caption)
-                                    .foregroundStyle(BookPalette.violet)
-                            }
-
-                            Text("The public count receives only the selected answer: no sentence, Page, account, or device identifier.")
-                                .font(.caption)
-                                .foregroundStyle(BookPalette.ink.opacity(0.64))
-                        }
-                    }
-                    .padding(20)
-                    .frame(maxWidth: 680)
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .navigationTitle("Public Margins")
-            .navigationBarTitleDisplayMode(.inline)
-            .task { await loadChoicePoll() }
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(hasReceipt ? "Done" : "Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-
-    @MainActor
-    private func send(_ exactSentence: String?) async {
-        guard let exactSentence, !isSending else { return }
-        isSending = true
-        message = ""
-        defer { isSending = false }
-        do {
-            receipt = try await PublicMarginsAPI.submit(PublicMarginsContributionRequest(
-                requestID: UUID().uuidString,
-                eventID: eventID,
-                kind: .souvenir,
-                text: exactSentence,
-                category: nil,
-                choiceID: nil,
-                confirmedAt: ISO8601DateFormatter().string(from: Date()),
-                consent: .init(publicDisplay: true, moderation: true)
-            ))
-            BookFeedback.play(.braidComplete)
-        } catch {
-            message = error.localizedDescription
-            BookFeedback.play(.error)
-        }
-    }
-
-    @MainActor
-    private func loadChoicePoll() async {
-        guard choicePoll == nil else { return }
-        do {
-            choicePoll = (try await PublicMarginsAPI.fetchSnapshot()).choicePoll
-        } catch {
-            choiceMessage = "The Public Margins didn't answer. Nothing was sent."
-        }
-    }
-
-    @MainActor
-    private func sendChoice(poll: PublicMarginsChoicePoll, choice: PublicMarginsChoiceOption) async {
-        guard !isSendingChoice, choiceReceipt == nil else { return }
-        isSendingChoice = true
-        choiceMessage = ""
-        defer { isSendingChoice = false }
-        do {
-            choiceReceipt = try await PublicMarginsAPI.submit(PublicMarginsContributionRequest(
-                requestID: UUID().uuidString,
-                eventID: poll.id,
-                kind: .choice,
-                text: nil,
-                category: "quiet-choice",
-                choiceID: choice.id,
-                confirmedAt: ISO8601DateFormatter().string(from: Date()),
-                consent: .init(publicDisplay: true, moderation: true)
-            ))
-            BookFeedback.play(.braidComplete)
-        } catch {
-            choiceMessage = error.localizedDescription
-            BookFeedback.play(.error)
-        }
     }
 }
 
@@ -18835,6 +18856,12 @@ enum StoryRecipeValidator {
         guard let blueprint = draft.blueprint else {
             return StoryRecipeValidation(score: score, failures: failures)
         }
+        // A vignette is checked against its own plan: the old length, sentence
+        // and dialogue floors were written for the 340-520 word brief.
+        if let plan = StoryPagePromptBuilder.vignettePlan(for: draft) {
+            let missed = VignetteTellingCheck.failures(in: prose.scene, plan: plan)
+            return StoryRecipeValidation(score: score - 20 * missed.count, failures: failures + missed)
+        }
         let scene = prose.scene.lowercased()
         // Only a deliberately remembered Page must remain recognizable.
         // Echo recipes are allowed to transform one detail, while world-led
@@ -19168,6 +19195,7 @@ enum StoryPageResultPromptBuilder {
     """
 
     static func instructions(for context: StoryPageResultContext) -> String {
+        if vignettePlan(for: context) != nil { return VignetteBrief.consequenceSystem }
         guard context.draft.surface.type == .anchor else { return instructions }
         return """
         You are the living Book inside ReEnchanted, telling the consequence of a Reader's choice in an Outer Stacks room grown from a real place.
@@ -19179,9 +19207,30 @@ enum StoryPageResultPromptBuilder {
         """
     }
 
+    /// The first consequence of a planned vignette is told from the same
+    /// skeleton; mechanic returns and later turns keep the full brief, which
+    /// carries the dice, the ledger and the thread memory they need.
+    static func vignettePlan(for context: StoryPageResultContext) -> VignettePlan? {
+        guard context.previousTurns.isEmpty, context.inkbonesResolution == nil,
+              context.selectedChoice.mechanic.kind == .none else { return nil }
+        return StoryPagePromptBuilder.vignettePlan(for: context.draft)
+    }
+
     static func prompt(for context: StoryPageResultContext) -> String {
         if context.draft.surface.type == .anchor {
             return anchorResultPrompt(for: context)
+        }
+        if let plan = vignettePlan(for: context) {
+            let effect = context.dramaticEffect
+            return VignetteBrief.consequence(
+                for: plan,
+                scene: context.draft.scene,
+                choice: context.selectedChoice.title,
+                gain: effect?.visibleGain?.nonEmpty,
+                cost: effect?.visibleCost?.nonEmpty,
+                reactor: effect?.requiredReactorName.nonEmpty,
+                landing: context.committedLanding?.nonEmpty ?? effect?.changedFact.nonEmpty ?? context.selectedChoice.effectLine
+            )
         }
         if context.draft.blueprint != nil {
             return compactResultPrompt(for: context)
@@ -19385,9 +19434,24 @@ enum StoryPagePromptBuilder {
     Never write filler: no generic wisdom, no abstract emotional summary, no "tapestry", "echoes", "journey", "profound", or "quiet magic".
     """
 
+    /// A vignette with a plan gets the skeleton's own short system line; the
+    /// house rules above were written for the old whole-packet brief.
+    static func instructions(for draft: StoryPageSceneDraft) -> String {
+        vignettePlan(for: draft) == nil ? instructions : VignetteBrief.system
+    }
+
+    static func vignettePlan(for draft: StoryPageSceneDraft) -> VignettePlan? {
+        guard draft.surface.type != .bookFae, draft.surface.type != .academyClass,
+              draft.continuationContext == nil else { return nil }
+        return draft.blueprint?.vignette
+    }
+
     static func prompt(for draft: StoryPageSceneDraft, nowPlaying: String? = nil, radioNarrativeEcho: RadioNarrativeEcho? = nil) -> String {
         if draft.surface.type == .academyClass {
             return academyLessonPrompt(for: draft)
+        }
+        if let plan = vignettePlan(for: draft) {
+            return VignetteBrief.prompt(for: plan)
         }
         if draft.surface.type != .bookFae, draft.blueprint != nil {
             return compactVignettePrompt(for: draft)
@@ -20491,7 +20555,8 @@ struct StoryPageSceneDraft: Equatable {
                 turn: resolvedTurn,
                 dramaticContract: dramaticContract,
                 groundingUse: StoryGroundingUse(rawValue: metadata["storyRecipeGroundingUse"] ?? ""),
-                decisions: decisions
+                decisions: decisions,
+                vignette: VignettePlan.decode(metadata: metadata[VignettePlan.metadataKey])
             )
         } else {
             blueprint = nil
@@ -20681,6 +20746,27 @@ struct StoryPageSceneDraft: Equatable {
                     tint: BookPalette.gold
                 )
             ]
+        }
+        // A vignette's buttons are its recipe's decisions: the skeleton set the
+        // scene up for exactly these three, so Gemma no longer rewrites them.
+        if blueprint?.vignette != nil, let decisions = blueprint?.decisions, decisions.count == 3 {
+            let looks: [StoryChoiceRole: (id: String, symbol: String, tint: Color, landing: String)] = [
+                .sliceOfLife: ("sliceoflife", "leaf", BookPalette.violet, "slice-of-life"),
+                .progressArc: ("progressarc", "point.3.connected.trianglepath.dotted", BookPalette.teal, "progress-arc"),
+                .surprise: ("surprise", "sparkles", BookPalette.gold, "surprise")
+            ]
+            return StoryChoiceRole.allCases.compactMap { role in
+                guard let decision = decisions.first(where: { $0.role == role }), let look = looks[role] else { return nil }
+                let gain = decision.gainTemplate.prefix(1).uppercased() + decision.gainTemplate.dropFirst()
+                return StoryPageChoiceDraft(
+                    id: look.id,
+                    title: decision.actionTemplate,
+                    prompt: "\(gain), but \(decision.costTemplate).",
+                    effectLine: turnLandings[look.landing]?.nonEmpty ?? "\(gain), but \(decision.costTemplate).",
+                    symbolName: look.symbol,
+                    tint: look.tint
+                )
+            }
         }
         return [
             StoryPageChoiceDraft(
@@ -20980,6 +21066,11 @@ struct BleedNewspaperView: View {
             }
         case .stopPress: box(article, label: "STOP PRESS", style: .slug)
         case .service, .timetable: box(article, label: BleedDayDesk.titleCased(article.title).uppercased(), style: .tinted)
+        case .note: box(article, label: "CORRESPONDENT'S NOTE", style: .tinted)
+        case .warReport, .odds, .market, .ledger: box(article, label: article.title.uppercased(), style: .ruled)
+        case .oracle: box(article, label: article.title.uppercased(), style: .tinted)
+        case .intercept: box(article, label: "INTERCEPTED · 97.3", style: .slug)
+        case .competition: box(article, label: BleedDayDesk.titleCased(article.title).uppercased(), style: .coupon)
         case .weekBound: weekBound(article)
         case .letters: letters(article)
         case .readerLetter, .whispers: quoted(article, readerInk: piece(article) == .readerLetter)
@@ -21238,8 +21329,19 @@ struct BleedNewspaperView: View {
                     Image(systemName: "scissors").font(.caption).foregroundStyle(accent).accessibilityHidden(true)
                 }
             }
+            let stackAll = BleedPrintDesign.stacksEveryRow(article.body)
             ForEach(Array(article.body.components(separatedBy: "\n").enumerated()), id: \.offset) { _, line in
-                boxLine(line, color: text, puzzle: piece(article) == .puzzle)
+                if piece(article) == .competition, line.hasPrefix(BleedCaptionDesk.pictureMark) {
+                    // The competition's picture, bundled art or a month's downloaded marginalia.
+                    BookMarginaliaImage(assetName: String(line.dropFirst(BleedCaptionDesk.pictureMark.count)))
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity, maxHeight: 220)
+                        .accessibilityLabel("The picture to caption")
+                } else if piece(article).isTable, line.contains(" · ") {
+                    tableRow(line, color: text, stackAll: stackAll)
+                } else {
+                    boxLine(line, color: text, puzzle: piece(article) == .puzzle)
+                }
             }
         }
         .padding(12)
@@ -21257,6 +21359,56 @@ struct BleedNewspaperView: View {
                               style: StrokeStyle(lineWidth: style == .coupon ? 1 : 0.7, dash: style == .coupon ? [4, 3] : []))
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// A row of a data table: the first cell reads as the row's name, the rest
+    /// line up at the right in figures of one width. A header row is all capitals.
+    private func tableRow(_ line: String, color: Color, stackAll: Bool = false) -> some View {
+        let cells = line.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }
+        let header = line == line.uppercased() && cells.count > 2
+        // A short name with a note beside it (the Word Market): the note takes the room and wraps.
+        let ticker = cells.count == 2 && (cells.first?.count ?? 0) <= 24
+        // A label over a sentence ("NEW ON THE MAP · the Wrong Castle, through…"): stacked, never squeezed.
+        // When most of a table stacks, all of it does, so one short row doesn't sit sideways.
+        let stacked = cells.count == 2 && ((cells.last?.count ?? 0) > 44 || stackAll)
+        return Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(cells.first ?? "")
+                        .font(.system(size: 10, weight: .bold, design: .serif)).tracking(1)
+                        .foregroundStyle(accent)
+                    Text(cells.dropFirst().joined(separator: " · "))
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(color)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 2)
+                .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(0.15)).frame(height: 0.5) }
+            } else {
+                tableCells(cells, header: header, ticker: ticker, color: color)
+            }
+        }
+    }
+
+    private func tableCells(_ cells: [String], header: Bool, ticker: Bool, color: Color) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(cells.first ?? "")
+                .fixedSize(horizontal: ticker, vertical: false)
+                .frame(maxWidth: ticker ? nil : .infinity, alignment: .leading)
+            ForEach(Array(cells.dropFirst().enumerated()), id: \.offset) { index, cell in
+                Text(cell)
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .frame(minWidth: index == 0 && cells.count > 2 ? 78 : 36,
+                           maxWidth: ticker ? .infinity : nil, alignment: .trailing)
+            }
+        }
+        .font(header ? .system(size: 9, weight: .bold, design: .serif) : .system(.callout, design: .serif))
+        .tracking(header ? 1.2 : 0)
+        .foregroundStyle(header ? accent : color)
+        .padding(.vertical, 2)
+        .overlay(alignment: .bottom) { Rectangle().fill(ink.opacity(header ? 0.6 : 0.15)).frame(height: 0.5) }
     }
 
     @ViewBuilder

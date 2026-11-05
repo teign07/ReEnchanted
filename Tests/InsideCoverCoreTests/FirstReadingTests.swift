@@ -123,7 +123,7 @@ final class FirstReadingTests: XCTestCase {
         XCTAssertEqual(reflection?.threadWord, "rain")
         XCTAssertEqual(reflection?.threadCount, 2)
         let body = FirstReading.body(for: reflection!)
-        XCTAssertTrue(body.contains("I've circled it in pencil"))
+        XCTAssertTrue(body.contains("My ink's circled it, faintly"))
         XCTAssertTrue(body.contains("It seems pleased"))
         XCTAssertFalse(body.contains("Books should be careful with certainty"))
     }
@@ -135,7 +135,7 @@ final class FirstReadingTests: XCTestCase {
             souvenir("The candle guttered near midnight.", on: 1)
         ], now: date(1, hour: 20))
         XCTAssertNil(reflection?.threadWord)
-        XCTAssertFalse(FirstReading.body(for: reflection!).contains("pencil"))
+        XCTAssertFalse(FirstReading.body(for: reflection!).contains("circled"))
     }
 
     func testFirstReadingSoundsSpokenWithoutApologizingForReading() throws {

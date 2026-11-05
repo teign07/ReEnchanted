@@ -4554,26 +4554,16 @@ struct SourceSettingsSheet: View {
     let onSet: (String, Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @Binding var publicMarginsIncomingOptIn: Bool
-    @Binding var publicMarginsOutgoingOptIn: Bool
     @State private var preferences: [String: Bool]
-    @State private var publicMarginsReceiptCount: Int
-    @State private var isWithdrawingPublicMargins = false
-    @State private var publicMarginsWithdrawalMessage = ""
 
     init(
         sources: [BookPageSource],
         preferences: [String: Bool],
-        publicMarginsIncomingOptIn: Binding<Bool>,
-        publicMarginsOutgoingOptIn: Binding<Bool>,
         onSet: @escaping (String, Bool) -> Void
     ) {
         self.sources = sources
         self.onSet = onSet
-        _publicMarginsIncomingOptIn = publicMarginsIncomingOptIn
-        _publicMarginsOutgoingOptIn = publicMarginsOutgoingOptIn
         _preferences = State(initialValue: preferences)
-        _publicMarginsReceiptCount = State(initialValue: PublicMarginsAPI.storedDeletionReceiptCount)
     }
 
     var body: some View {
@@ -4583,11 +4573,7 @@ struct SourceSettingsSheet: View {
 
                 ScrollView {
                     VStack(spacing: 12) {
-                        if PublicMarginsAPI.isAvailable || publicMarginsReceiptCount > 0 {
-                            publicMarginsDoorways
-                        }
-
-                        ForEach(visibleSources) { source in
+                        ForEach(sources) { source in
                             SourceToggleRow(
                                 source: source,
                                 isEnabled: preferences[source.id] ?? source.isActive,
@@ -4616,96 +4602,6 @@ struct SourceSettingsSheet: View {
                 }
             }
         }
-    }
-
-    private var visibleSources: [BookPageSource] {
-        guard !PublicMarginsAPI.isAvailable else { return sources }
-        return sources.filter { !$0.id.hasPrefix("public-margins") }
-    }
-
-    private var publicMarginsDoorways: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("The Public Margins", systemImage: "person.3.sequence.fill")
-                .font(.headline)
-                .foregroundStyle(BookPalette.ink)
-
-            if PublicMarginsAPI.isAvailable {
-                Text("Two separate switches. Both start off. Turning one on never turns on the other.")
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.66))
-
-                Toggle(isOn: $publicMarginsIncomingOptIn) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Bring the Public Margins into my Book")
-                            .font(.subheadline.weight(.semibold))
-                        Text("Fetch automatically screened community souvenirs. No social feed or reader identity comes with them.")
-                            .font(.caption)
-                            .foregroundStyle(BookPalette.ink.opacity(0.60))
-                    }
-                }
-                .tint(BookPalette.teal)
-                .bookToggleSound(publicMarginsIncomingOptIn)
-
-                Divider().overlay(BookPalette.ink.opacity(0.10))
-
-                Toggle(isOn: $publicMarginsOutgoingOptIn) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Offer me ways to add to the Public Margins")
-                            .font(.subheadline.weight(.semibold))
-                        Text("Shows invitations only. Every sentence and quiet choice still requires its own exact public confirmation.")
-                            .font(.caption)
-                            .foregroundStyle(BookPalette.ink.opacity(0.60))
-                    }
-                }
-                .tint(BookPalette.lampGold)
-                .bookToggleSound(publicMarginsOutgoingOptIn)
-            } else {
-                Text("Shut for now. Your Book stays yours. Anything you already sent can still come back.")
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.66))
-            }
-
-            if publicMarginsReceiptCount > 0 {
-                Divider().overlay(BookPalette.ink.opacity(0.10))
-                Button(role: .destructive) {
-                    Task { await withdrawPublicMarginsContributions() }
-                } label: {
-                    Label(
-                        isWithdrawingPublicMargins
-                            ? "Withdrawing..."
-                            : "Withdraw \(publicMarginsReceiptCount) public sentence\(publicMarginsReceiptCount == 1 ? "" : "s")",
-                        systemImage: "arrow.uturn.backward.circle"
-                    )
-                    .font(.caption.weight(.bold))
-                }
-                .disabled(isWithdrawingPublicMargins)
-            }
-
-            if !publicMarginsWithdrawalMessage.isEmpty {
-                Text(publicMarginsWithdrawalMessage)
-                    .font(.caption)
-                    .foregroundStyle(BookPalette.ink.opacity(0.64))
-            }
-        }
-        .padding(16)
-        .background(BookPalette.page.opacity(0.88), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(BookPalette.teal.opacity(0.28), lineWidth: 1)
-        }
-    }
-
-    @MainActor
-    private func withdrawPublicMarginsContributions() async {
-        guard !isWithdrawingPublicMargins else { return }
-        isWithdrawingPublicMargins = true
-        let before = publicMarginsReceiptCount
-        let deleted = await PublicMarginsAPI.withdrawAllStoredContributions()
-        publicMarginsReceiptCount = PublicMarginsAPI.storedDeletionReceiptCount
-        isWithdrawingPublicMargins = false
-        publicMarginsWithdrawalMessage = deleted == before
-            ? "Those public sentences have been withdrawn."
-            : "Withdrew \(deleted). \(publicMarginsReceiptCount) could not be reached yet; their private deletion receipts remain on this device."
     }
 }
 
@@ -6388,7 +6284,7 @@ private final class StallTolerantClock {
 
 /// The Book's recurring visual signature. It is always the same closed,
 /// midnight-blue volume; lived state changes only the physical evidence around
-/// it: a dog-ear, a guarded ribbon, a sealed leaf, or a pencil correction.
+/// it: a dog-ear, a guarded ribbon, a sealed leaf, or an ink correction.
 /// That keeps the Book recognizable without turning it into a face or mascot.
 struct BookPresenceSilhouette: View {
     let stance: BookStance
@@ -6443,7 +6339,7 @@ struct BookPresenceSilhouette: View {
         case .protective: disposition = "keeping my covers close"
         case .mischievous: disposition = "sitting crooked and hiding something"
         case .hushed: disposition = "resting quietly"
-        case .contrite: disposition = "holding a correction in pencil"
+        case .contrite: disposition = "holding a correction in faint ink"
         case .intent: disposition = "holding my place with care"
         case .pleased: disposition = "settled and quietly pleased"
         }
@@ -6454,8 +6350,8 @@ struct BookPresenceSilhouette: View {
         case .sealedLeaf: evidence = " A sealed leaf is showing."
         case .dogEar: evidence = " One of my corners is dog-eared."
         case .keepingWatch: evidence = " My ribbon's keeping an unfinished promise."
-        case .revision: evidence = " A pencil correction crosses my cover."
-        case .mischief: evidence = " A crooked pencil mark has escaped across my cover."
+        case .revision: evidence = " An ink correction has come up across my cover."
+        case .mischief: evidence = " A crooked ink mark has escaped across my cover."
         case .longGame: evidence = " My ribbon marks a longer piece of business."
         case .unmarked: evidence = ""
         }
@@ -9415,13 +9311,21 @@ struct BookPixieLayer: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
+        // Today's loose word on the open leaf, if there is one. Read in the body
+        // itself so a new word wakes her; the leaf reports it in window space,
+        // and she lives in her own.
+        let looseWord = LooseWordPerch.shared.rect
+        return GeometryReader { proxy in
             let size = proxy.size
             // Everything her frames need, read here on the main thread once per
             // update: the summons, a startle, what she carries. Her drawing then
             // touches nothing but this value, so it can run off the main thread.
+            let origin = proxy.frame(in: .global).origin
+            let loose = looseWord.map {
+                BookPixiePerch(id: "loose-word", kind: .accentWord, rect: $0.offsetBy(dx: -origin.x, dy: -origin.y))
+            }
             let flight = PixieFlight(
-                perches: perches,
+                perches: perches + (loose.map { [$0] } ?? []),
                 bookRect: bookRect,
                 fleeCorner: fleeCorner,
                 startledAt: activeFlight?.startedAt ?? pokedAt,
@@ -9834,6 +9738,15 @@ struct PixieFlight {
     /// One perch at a time, held for a good while. Better perches win: she will
     /// leave a marginal scribble for an accent word without hesitating.
     private func currentPerch(time: TimeInterval, size: CGSize) -> BookPixiePerch? {
+        // A loose word is the best thing on the leaf. She goes back to it every
+        // other visit and keeps her rounds of the furniture in between, so the
+        // word has a visitor rather than a guard.
+        if let word = perches.first(where: { $0.id == "loose-word" }) {
+            let slot = Int(floor(time / Self.perchPeriod))
+            let furniture = furniturePerches()
+            if slot.isMultiple(of: 2) || furniture.isEmpty { return word }
+            return furniture[abs(slot / 2) % furniture.count]
+        }
         let available = perches.isEmpty ? furniturePerches() : perches
         guard !available.isEmpty else { return nil }
         let ranked = available.sorted { $0.kind.rawValue > $1.kind.rawValue }

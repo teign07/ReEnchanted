@@ -271,7 +271,7 @@ struct ChapterBindingFormView: View {
             .tint(BookPalette.teal)
             .disabled(chosenChapter == nil || isAcceptingBinding)
 
-            Text("The binding is real: your Chapter tints how Story Pages meet you, and its talisman warms with your Belief. I chose from your kept pages and the Belief you spent. There was no quiz.")
+            Text("The binding is real: your Chapter tints how vignettes meet you, and its talisman warms with your Belief. I chose from your kept pages and the Belief you spent. There was no quiz.")
                 .font(.caption)
                 .foregroundStyle(BookPalette.ink.opacity(0.58))
                 .fixedSize(horizontal: false, vertical: true)

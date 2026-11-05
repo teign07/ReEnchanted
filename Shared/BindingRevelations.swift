@@ -563,12 +563,16 @@ enum EditionConnections {
             if family == "hour", revealed.contains(.hourOfHonesty) { continue }
             let evidence = connection.evidencePageIDs.compactMap { id -> BindingRevelations.Evidence? in
                 guard let page = byID[id] else { return nil }
-                let text = page.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { return nil }
+                // The reader's own words, never the header or form the app wrote on the Page.
+                guard let text = page.readerAuthoredTexts
+                    .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+                    .first(where: { !$0.isEmpty && !PrintHygiene.isMachineText($0) }) else { return nil }
                 let words = text.split(separator: " ")
                 let excerpt = words.count > 22 ? words.prefix(22).joined(separator: " ") + "…" : text
                 return BindingRevelations.Evidence(date: page.createdAt, excerpt: excerpt)
             }
+            // A reading with nothing of theirs to show for it doesn't bind.
+            guard !evidence.isEmpty else { continue }
             out.append(EditionConnection(id: connection.id, title: connection.headline, reading: connection.line,
                                          evidence: Array(evidence.prefix(3)), strength: connection.strength))
         }

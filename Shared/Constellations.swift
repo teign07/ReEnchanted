@@ -49,7 +49,10 @@ struct Constellation: Identifiable, Codable, Equatable {
     var tags: [String]
 
     var sightingCount: Int { sightingDayIDs.count }
-    var displayName: String { name ?? subjectName }
+    var displayName: String {
+        // Names minted before the doubled-article fix still say "The The …".
+        (name ?? subjectName).replacingOccurrences(of: "The The ", with: "The ")
+    }
     var isAlive: Bool { phase != .faded }
     var isNamed: Bool { name != nil && (phase == .named || phase == .woven) }
 
@@ -231,7 +234,10 @@ enum ConstellationKeeper {
             ]
         }
         let template = templates[stableIndex(for: "\(seed)-name", count: templates.count)]
-        return String(format: template, subjectName)
+        // "The %@ Lamp" around "The Body Page" is "The Body Page Lamp", not "The The …".
+        var subject = subjectName
+        if template.hasPrefix("The %@"), subject.lowercased().hasPrefix("the ") { subject = String(subject.dropFirst(4)) }
+        return String(format: template, subject)
     }
 
     static func namedConstellations(_ constellations: [Constellation]) -> [Constellation] {
@@ -447,6 +453,10 @@ struct BookWager: Identifiable, Codable, Equatable {
     /// a word coming back, and it can open before `opensAt`, which is only its
     /// deadline. Optional so every older wager still opens.
     var test: Noticing.Test? = nil
+    /// Set on a bet about the days ahead (`BookBets`): tomorrow, against the
+    /// Curse, or a dare. Settled by the same day-by-day facts the grimoire
+    /// counts. Optional so every older wager still opens.
+    var bet: FeatureBet? = nil
 
     var isSealed: Bool { status == .sealed }
 
@@ -488,7 +498,8 @@ enum SealedMarginEngine {
         now: Date,
         calendar: Calendar = .current
     ) -> [BookWager] {
-        let sealedCount = existing.filter(\.isSealed).count
+        // Bets about the days ahead keep their own count (`BookBets`).
+        let sealedCount = existing.filter { $0.isSealed && $0.bet == nil }.count
         guard sealedCount < maximumSealed else { return [] }
         let blockedSubjects = Set(existing.compactMap { wager -> String? in
             if wager.isSealed { return wager.subjectID }
@@ -518,7 +529,7 @@ enum SealedMarginEngine {
                     subjectID: signal.subjectID,
                     subjectName: signal.subjectName,
                     kind: .pattern,
-                    prediction: "\(signal.subjectName) will return to a kept page within \(windowDays) days. Patterns this warm rarely cool on their own.",
+                    prediction: "I bet you write about \(signal.subjectName) again in the next \(windowDays) days. It keeps coming round, and I don't think it's finished with you.",
                     sealedAt: now,
                     opensAt: opensAt,
                     status: .sealed,
@@ -532,7 +543,7 @@ enum SealedMarginEngine {
                     subjectID: signal.subjectID,
                     subjectName: signal.subjectName,
                     kind: .absence,
-                    prediction: "\(signal.subjectName) has gone quiet, but quiet is not gone. It will appear again within \(absenceWindowDays) days. I'm betting it comes back.",
+                    prediction: "You haven't written about \(signal.subjectName) for a while. I don't think it's gone. I think it's hiding. I bet it comes back in the next \(absenceWindowDays) days.",
                     sealedAt: now,
                     opensAt: opensAt,
                     status: .sealed,
@@ -554,8 +565,16 @@ enum SealedMarginEngine {
         now: Date,
         calendar: Calendar = .current
     ) -> [BookWager] {
-        wagers.map { wager in
+        // Projected once, and only over the days a sealed bet can still see.
+        let betStart = wagers.filter { $0.isSealed && $0.bet != nil }.map(\.sealedAt).min()
+        let betDays = betStart.map { start in
+            BookBets.featureDays(days.filter { $0.date >= calendar.startOfDay(for: start) }, calendar: calendar)
+        } ?? [:]
+        return wagers.map { wager in
             guard wager.isSealed else { return wager }
+            if wager.bet != nil {
+                return BookBets.resolved(wager, featureDays: betDays, now: now, calendar: calendar)
+            }
             if wager.test != nil {
                 let outcome = CrossingWagers.outcome(of: wager, days: days, calendar: calendar)
                 guard outcome != nil || now >= wager.opensAt else { return wager }
@@ -571,8 +590,8 @@ enum SealedMarginEngine {
             resolved.status = appeared ? .right : .wrong
             resolved.resolvedAt = now
             resolved.resolutionLine = appeared
-                ? "I was right, which pleases me more than it should. \(wager.subjectName) came back, as patterns of attention tend to do."
-                : "I was wrong, and I am writing that down rather than pretending otherwise. \(wager.subjectName) stayed quiet. Either the season changed, or I mistook habit for current. Both are worth knowing."
+                ? "I was right! You wrote about \(wager.subjectName) again. I knew it."
+                : "I was wrong. You didn't write about \(wager.subjectName) once. I'm writing that down, so I don't forget I got it wrong."
             return resolved
         }
     }
@@ -601,6 +620,328 @@ enum SealedMarginEngine {
         wagers.filter { wager in
             guard let resolvedAt = wager.resolvedAt, !wager.isSealed else { return false }
             return calendar.isDate(resolvedAt, inSameDayAs: day)
+        }
+    }
+}
+
+// MARK: - Bets on the days ahead
+//
+// The sealed margin's other bets. A pattern wager bets that a word comes back;
+// these bet on the same day-by-day facts the grimoire already counts, so they
+// can be settled honestly by the days themselves. Somebody always takes the
+// other side, because a bet with nobody on the other side is just a guess:
+// one of the Cast, the Curse, or the reader.
+
+struct FeatureBet: Codable, Equatable {
+    enum Kind: String, Codable, Equatable, CaseIterable {
+        /// Tomorrow is a kind of day the Book already knows about. One of the
+        /// Cast bets it goes the other way.
+        case tomorrow
+        /// Something the reader used to do has gone quiet. The Curse bets it's
+        /// gone for good; the Book bets it isn't.
+        case curse
+        /// A word the reader keeps reaching for. The reader bets they can go
+        /// without it; the Book bets they can't.
+        case dare
+    }
+
+    var kind: Kind
+    /// The grimoire feature that settles it.
+    var featureID: String
+    /// Grimoire day indices, both ends included.
+    var fromDay: Int
+    var untilDay: Int
+    /// Who took the other side: one of the Cast, "the Curse", or "you".
+    var opponent: String
+    /// What the other side put up, when there is anything.
+    var stake: String? = nil
+    /// The finished statement that settles it ("you talked to me out loud"),
+    /// kept so the opening reads in the same words as the sealing.
+    var clause: String
+    /// A dare counts only the days the reader wrote.
+    var writingDaysNeeded: Int? = nil
+}
+
+enum BookBets {
+    /// One bet sealed at a time, and a few days' rest after each.
+    static let restDays = 3
+    static let curseWindowDays = 7
+    static let dareWritingDays = 3
+    static let dareDeadlineDays = 21
+
+    /// The Cast who'll take the other side of a tomorrow bet, and what each
+    /// puts up. Small things, the kind a child would bet.
+    static let takers: [(name: String, stake: String)] = [
+        ("Wicker Eddies", "a button"),
+        ("Pippa Pilcrow", "a pencil stub"),
+        ("Serenity Brown", "three acorns"),
+        ("Ambrose Trencher", "a jam tart")
+    ]
+
+    /// Reader verdicts that take a rule off the table.
+    private static let untrusted: Set<BookObservationStatus> = [.notQuite, .doNotRead, .questioned, .forbidden]
+
+    /// Feature families a bet against the Curse never picks: things the Book
+    /// arranged (doing what it asked isn't the reader coming back), feelings
+    /// the reader reported, and the bare fact of writing.
+    private static let curseSkips: Set<String> = [
+        "writing", "ink", "readerState", "working", "workingInitiator", "workingEpisode",
+        "workingOutcome", "talisman", "errandOutcome", "asideReply", "jumpBook", "jumpOutcome"
+    ]
+
+    // MARK: Making a bet
+
+    /// At most one new bet, taking turns between the kinds so the reader
+    /// meets all three. Returns only the new bet; the caller appends it.
+    static func mint(
+        grimoire: GrimoireLedger,
+        existing: [BookWager],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [BookWager] {
+        let bets = existing.filter { $0.bet != nil }
+        guard !bets.contains(where: \.isSealed) else { return [] }
+        if let last = bets.map(\.sealedAt).max(),
+           now.timeIntervalSince(last) < Double(restDays) * 86_400 { return [] }
+        let kinds = FeatureBet.Kind.allCases
+        for offset in kinds.indices {
+            let kind = kinds[(bets.count + offset) % kinds.count]
+            let made: BookWager?
+            switch kind {
+            case .tomorrow: made = tomorrowBet(grimoire: grimoire, now: now, calendar: calendar)
+            case .curse: made = curseBet(grimoire: grimoire, now: now, calendar: calendar)
+            case .dare: made = dare(grimoire: grimoire, now: now, calendar: calendar)
+            }
+            if let made { return [made] }
+        }
+        return []
+    }
+
+    /// Tomorrow is a weekend, a full moon or a writer's birthday, and the Book
+    /// knows what the reader does on days like that.
+    static func tomorrowBet(grimoire: GrimoireLedger, now: Date, calendar: Calendar = .current) -> BookWager? {
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)),
+              let after = calendar.date(byAdding: .day, value: 1, to: tomorrow) else { return nil }
+        let slice = GrimoireSlice(days: [], calendar: calendar)
+        let day = BookDay(id: BookDay.id(for: tomorrow, calendar: calendar), date: tomorrow, pages: [])
+        // Only what the calendar already knows about tomorrow. The season is
+        // left out: it would be the same bet every day for three months.
+        let known = Set((
+            DayShapeProjector.temporalFeatures(at: tomorrow, in: slice).filter { $0.domain == "weekPart" }
+                + MoonProjector.features(forDay: day, in: slice)
+                + AlmanacProjector.features(forDay: day, in: slice)
+        ).map(\.id))
+        let candidates = grimoire.standing
+            .filter { $0.shape == .conditional && known.contains($0.conditionID) }
+            .filter { $0.readerStatus.map { !untrusted.contains($0) } ?? true }
+            .sorted { $0.strengthPeak != $1.strengthPeak ? $0.strengthPeak > $1.strengthPeak : $0.id < $1.id }
+        for row in candidates {
+            guard let condition = grimoire.ref(row.conditionID), condition.sensitivity == .ordinary,
+                  let outcomeID = row.outcomeID, let outcome = grimoire.ref(outcomeID),
+                  outcome.sensitivity == .ordinary, outcome.provenance == .readerAuthored,
+                  let stats = grimoire.currentStats(for: row, calendar: calendar) else { continue }
+            let index = GrimoireDay.index(for: tomorrow, calendar: calendar)
+            let taker = takers[abs(index) % takers.count]
+            return BookWager(
+                id: "bet-tomorrow-\(BookDay.id(for: now, calendar: calendar))",
+                subjectID: outcome.id,
+                subjectName: outcome.label,
+                kind: .pattern,
+                prediction: "Tomorrow's one of your \(condition.label). On days like that, \(outcome.outcomeClause), "
+                    + "\(stats.inHits) times out of \(stats.inCount). \(taker.name) bet me \(taker.stake) it won't happen this time. "
+                    + "I bet it will.",
+                sealedAt: now,
+                opensAt: after.addingTimeInterval(86_400),
+                status: .sealed,
+                basisSignalID: row.id,
+                basisLine: "I already know something about tomorrow.",
+                bet: FeatureBet(
+                    kind: .tomorrow, featureID: outcome.id, fromDay: index, untilDay: index,
+                    opponent: taker.name, stake: taker.stake, clause: outcome.outcomeClause
+                )
+            )
+        }
+        return nil
+    }
+
+    /// Something the reader used to do every few days has gone quiet for
+    /// weeks. That's the Curse's whole trick, so the Curse bets on it.
+    static func curseBet(grimoire: GrimoireLedger, now: Date, calendar: Calendar = .current) -> BookWager? {
+        let today = GrimoireDay.index(for: now, calendar: calendar)
+        var best: (ref: LoomFeatureRef, gap: Int, count: Int)?
+        for ref in grimoire.featureRefs
+        where ref.provenance == .readerAuthored && ref.sensitivity == .ordinary
+            && ref.role != .conditionOnly && !curseSkips.contains(ref.domain) {
+            let days = grimoire.days(of: ref.id)
+            guard days.count >= 6, let first = days.firstDay, let last = days.lastDay else { continue }
+            let gap = today - last
+            let usualGap = max(1, (last - first) / (days.count - 1))
+            guard (14...60).contains(gap), usualGap <= 7, gap >= usualGap * 3 else { continue }
+            // The steadiest habit wins; ties go to the id, so the same archive
+            // always makes the same bet.
+            if let current = best, current.count > days.count || (current.count == days.count && current.ref.id < ref.id) { continue }
+            best = (ref, gap, days.count)
+        }
+        guard let best,
+              let until = calendar.date(byAdding: .day, value: curseWindowDays + 1, to: calendar.startOfDay(for: now))
+        else { return nil }
+        let window = GrimoireVoice.spelledCount(curseWindowDays).lowercased()
+        return BookWager(
+            id: "bet-curse-\(BookDay.id(for: now, calendar: calendar))",
+            subjectID: best.ref.id,
+            subjectName: best.ref.label,
+            kind: .absence,
+            prediction: "The last time \(best.ref.outcomeClause) was \(best.gap) days ago. The Curse thinks that's gone for good. "
+                + "That's what the Curse does: it makes things stop so quietly you don't notice. "
+                + "I bet the Curse is wrong. I bet it happens again in the next \(window) days.",
+            sealedAt: now,
+            opensAt: until,
+            status: .sealed,
+            basisSignalID: best.ref.id,
+            basisLine: "The Curse and I have a bet on.",
+            bet: FeatureBet(
+                kind: .curse, featureID: best.ref.id, fromDay: today, untilDay: today + curseWindowDays,
+                opponent: "the Curse", clause: best.ref.outcomeClause
+            )
+        )
+    }
+
+    /// A word the reader reaches for nearly every time they write. The Book
+    /// bets they can't go without it.
+    static func dare(grimoire: GrimoireLedger, now: Date, calendar: Calendar = .current) -> BookWager? {
+        let today = GrimoireDay.index(for: now, calendar: calendar)
+        let recent = Array(grimoire.days(of: "writing:kept").days.filter { $0 > today - 30 && $0 <= today }.suffix(14))
+        guard recent.count >= 6 else { return nil }
+        var best: (word: String, id: String, hits: Int)?
+        for ref in grimoire.featureRefs where ref.domain == "word" {
+            let word = String(ref.id.dropFirst("word:".count))
+            guard word.count >= 4, !BleedDataDesk.tenderWords.contains(word) else { continue }
+            let days = grimoire.days(of: ref.id)
+            let hits = recent.filter { days.contains($0) }.count
+            guard hits >= 4, Double(hits) / Double(recent.count) >= 0.4 else { continue }
+            if let current = best, current.hits > hits || (current.hits == hits && current.word < word) { continue }
+            best = (word, ref.id, hits)
+        }
+        guard let best,
+              let until = calendar.date(byAdding: .day, value: dareDeadlineDays + 1, to: calendar.startOfDay(for: now))
+        else { return nil }
+        let needed = GrimoireVoice.spelledCount(dareWritingDays).lowercased()
+        return BookWager(
+            id: "bet-dare-\(BookDay.id(for: now, calendar: calendar))",
+            subjectID: best.id,
+            subjectName: "the word “\(best.word)”",
+            kind: .pattern,
+            prediction: "I bet the word “\(best.word)” turns up again in the next \(needed) days you write. "
+                + "It's been in \(best.hits) of your last \(recent.count) days of writing. Bet you can't keep it out. Go on. Prove me wrong.",
+            sealedAt: now,
+            opensAt: until,
+            status: .sealed,
+            basisSignalID: best.id,
+            basisLine: "There's a word you keep reaching for.",
+            // From tomorrow: today's writing may already have it in.
+            bet: FeatureBet(
+                kind: .dare, featureID: best.id, fromDay: today + 1, untilDay: today + dareDeadlineDays,
+                opponent: "you", clause: "you used the word “\(best.word)”", writingDaysNeeded: dareWritingDays
+            )
+        )
+    }
+
+    // MARK: Settling a bet
+
+    /// Which grimoire features each day carried, by grimoire day index.
+    static func featureDays(_ days: [BookDay], calendar: Calendar = .current) -> [Int: Set<String>] {
+        var found: [Int: Set<String>] = [:]
+        for observation in GrimoireProjection.observations(from: GrimoireSlice(days: days, calendar: calendar)) {
+            found[observation.day, default: []].formUnion(observation.features.map(\.id))
+        }
+        return found
+    }
+
+    /// Opens a bet once the days have settled it. `.right` means the Book won.
+    static func resolved(
+        _ wager: BookWager,
+        featureDays: [Int: Set<String>],
+        now: Date,
+        calendar: Calendar = .current
+    ) -> BookWager {
+        guard let bet = wager.bet, wager.isSealed, bet.untilDay >= bet.fromDay else { return wager }
+        let today = GrimoireDay.index(for: now, calendar: calendar)
+        func carried(_ day: Int, _ id: String) -> Bool { featureDays[day]?.contains(id) == true }
+        let lastSeen = min(bet.untilDay, today)
+        let won: Bool
+        let line: String
+        switch bet.kind {
+        case .tomorrow, .curse:
+            let happened = lastSeen >= bet.fromDay && (bet.fromDay...lastSeen).contains { carried($0, bet.featureID) }
+            guard happened || today > bet.untilDay else { return wager }
+            won = happened
+            line = settledLine(bet, bookWon: happened)
+        case .dare:
+            let needed = bet.writingDaysNeeded ?? dareWritingDays
+            let writing = lastSeen >= bet.fromDay
+                ? (bet.fromDay...lastSeen).filter { carried($0, "writing:kept") }.prefix(needed)
+                : []
+            if writing.contains(where: { carried($0, bet.featureID) }) {
+                won = true
+                line = settledLine(bet, bookWon: true)
+            } else if writing.count == needed, let last = writing.last, last < today {
+                // The last day it counts has to be over: the word could still
+                // turn up tonight.
+                won = false
+                line = settledLine(bet, bookWon: false)
+            } else if today > bet.untilDay {
+                won = false
+                line = "You didn't write on \(GrimoireVoice.spelledCount(needed).lowercased()) days before the seal's date, "
+                    + "so nobody won. A draw goes to you."
+            } else {
+                return wager
+            }
+        }
+        var resolved = wager
+        resolved.status = won ? .right : .wrong
+        resolved.resolvedAt = now
+        resolved.resolutionLine = line
+        return resolved
+    }
+
+    static func settledLine(_ bet: FeatureBet, bookWon: Bool) -> String {
+        let happened = GrimoireVoice.opening(bet.clause)
+        switch bet.kind {
+        case .tomorrow:
+            let stake = bet.stake ?? "the bet"
+            return bookWon
+                ? "\(happened) again, just like I said. I won \(stake) off \(bet.opponent)."
+                : "It didn't happen. \(bet.opponent) won \(stake) off me and hasn't stopped grinning."
+        case .curse:
+            return bookWon
+                ? "\(happened) again. The Curse lost this one, and I watched it lose."
+                : "It didn't happen. The Curse won this round. It doesn't get to keep it. I'll bet against it again."
+        case .dare:
+            let word = bet.clause.replacingOccurrences(of: "you used the word ", with: "")
+            return bookWon
+                ? "You used \(word) again. I knew you couldn't help it. The word's very pleased with itself."
+                : "\(GrimoireVoice.spelledCount(bet.writingDaysNeeded ?? dareWritingDays)) days of writing and not one \(word). "
+                    + "You won. I lost, and I'm glad. The word's sulking."
+        }
+    }
+
+    /// The name on the sealed Page.
+    static func headline(_ bet: FeatureBet) -> String {
+        switch bet.kind {
+        case .tomorrow: return "A Bet With \(bet.opponent)"
+        case .curse: return "A Bet Against the Curse"
+        case .dare: return "I Dare You"
+        }
+    }
+
+    /// When the seal comes off, said the way the bet works.
+    static func openingLine(_ bet: FeatureBet) -> String? {
+        switch bet.kind {
+        case .tomorrow: return "The seal opens when tomorrow's over."
+        case .curse: return nil
+        case .dare:
+            let needed = GrimoireVoice.spelledCount(bet.writingDaysNeeded ?? dareWritingDays).lowercased()
+            return "The seal opens after your next \(needed) days of writing."
         }
     }
 }

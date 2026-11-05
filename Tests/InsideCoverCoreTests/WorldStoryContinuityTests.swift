@@ -89,6 +89,33 @@ final class WorldStoryContinuityTests: XCTestCase {
         XCTAssertFalse(lived.worldBeat?.fact.contains("Today's paper") == true)
     }
 
+    /// The phone keeps an authored month's live phase prose out of the braid
+    /// (it can describe scenes the Reader has not reached). That used to take
+    /// the event's public pulses with it, so the night could never tell the
+    /// same day the paper printed.
+    func testAnAuthoredMonthLendsTheBraidItsPulseAndNotItsPhase() throws {
+        let event = try event()
+        let world = SceneWorldCanon.braidWorldEvents([event], authored: try pack().authoringManifests ?? [])
+        XCTAssertTrue(world.live.isEmpty, "the authored event's phase stays out")
+        XCTAssertEqual(world.pulseOnly.map(\.id), [event.id])
+
+        var inputs = BookSourceInputs.empty
+        inputs.activeWorldEvents = [event]
+        let morning = try XCTUnwrap(BleedNewsroom.monthlyBrief(kind: .morning, day: day(), inputs: inputs,
+            history: [], now: date(), calendar: calendar))
+        var context = BraidPromptBuilder.Context()
+        context.activeWorldEvents = world.live
+        context.pulseWorldEvents = world.pulseOnly
+        context.bleedPrintHistory = [record(morning)]
+        context.worldStoryCutoff = date(10, 22)
+        let lived = BraidScenePlanBuilder.plan(for: day(lived: true), context: context, calendar: calendar)
+        XCTAssertEqual(lived.worldBeat?.id, morning.worldFactID, lived.summary)
+        XCTAssertEqual(lived.worldBeat?.fact, morning.composedBody)
+        let phaseProse = SceneWorldCanon.liveFacts(undertakings: [], worldEvents: [event])
+            .filter { !$0.id.contains(":pulse:") }.map(\.text)
+        XCTAssertFalse(phaseProse.contains { lived.brief().contains($0) }, "no phase prose reaches the night")
+    }
+
     func testContextFactoryCarriesPressMemoryWithoutTreatingItAsReaderEvidence() throws {
         var inputs = BookSourceInputs.empty
         inputs.activeWorldEvents = [try event()]

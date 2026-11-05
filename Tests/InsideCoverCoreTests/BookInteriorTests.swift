@@ -2430,7 +2430,7 @@ final class BookInteriorTests: XCTestCase {
         XCTAssertTrue(surface.payload.body.contains(opinion.statement))
         XCTAssertTrue(surface.payload.body.contains("summaries can be honest too"))
         XCTAssertTrue(surface.payload.body.contains("They don't get to decide"))
-        XCTAssertTrue(surface.payload.body.contains("The pencil's out"))
+        XCTAssertTrue(surface.payload.body.contains("My ink's come up"))
 
         let opened = BookInteriorEngine.recordingSurfaceOpened(
             evolved,

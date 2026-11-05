@@ -794,8 +794,14 @@ enum BraidScenePlanBuilder {
     /// of them, then whatever from the day." The richest bench night handed
     /// Gemma six world sentences beside six of the reader's, and it recited
     /// them in a row. Monthly passages and monthly world events claim these
-    /// slots first; the day's kept fiction and the house's own business share
-    /// whatever is left.
+    /// slots first; the house's own business takes what is left.
+    ///
+    /// Kept fiction is not counted here (bj, 2026-11-01). A Letter, a Story
+    /// scene or a gossip Page the reader kept is their keep, not the world
+    /// arriving uninvited, and the shared cap cut one on ten nights of a
+    /// simulated October. It has the score's own allowance by scale instead
+    /// (`fictionBeatAllowance`), and the wonder braid carries it word for word,
+    /// so Gemma is never handed it to recite.
     static let worldItemLimit = 2
 
     static func plan(
@@ -858,13 +864,12 @@ enum BraidScenePlanBuilder {
         }
 
         // Monthly story passages the reader completed own the world strand
-        // first. Whatever they leave is shared by the world beat and the day's
-        // kept fiction, lead fiction first.
+        // first; the world beat takes what they leave. The day's kept fiction
+        // has its own room: as many Pages as the score seated for this scale.
         let authored = Array(
             MonthlyIssueBraidMatter.ordered(prepared.authoredStoryReceipts).prefix(worldItemLimit)
         )
-        let worldSlotsTaken = authored.isEmpty ? 1 : authored.count
-        let fictionRoom = max(0, worldItemLimit - worldSlotsTaken)
+        let fictionRoom = reading.scale.fictionBeatAllowance
         // A kept fiction that shares a thing with the reader's day ("the air
         // in the long room would not give the diner a vote", on a night with
         // lunch at Moody's Diner) is the crossing worth keeping, so it goes
@@ -941,7 +946,7 @@ enum BraidScenePlanBuilder {
             .filter { $0.type == .theBleed }
             .compactMap { BleedPrintRecord.decode($0.metadata?[BleedPrintRecord.metadataKey]) }
         let dailyPulse = SceneWorldCanon.dailyPulse(
-            on: day.date, worldEvents: context.activeWorldEvents, recentDays: worldArchive,
+            on: day.date, worldEvents: context.activeWorldEvents + context.pulseWorldEvents, recentDays: worldArchive,
             printed: storyPrintHistory, through: context.worldStoryCutoff, calendar: calendar
         )
         let liveWorld = SceneWorldCanon.dailyLiveFacts(
@@ -3582,6 +3587,19 @@ enum SceneWorldCanon {
         "\(event.packID):\(event.id):\(calendar.component(.year, from: event.startedAt))"
     }
 
+    /// The night's world events, split for the braid. A monthly event with an
+    /// authoring manifest enters through its committed, frozen passages, so its
+    /// live phase prose stays out: it can describe scenes the Reader has not
+    /// reached. Its pulses are public (the Bleed prints them), and without
+    /// them the braid could never tell the same day the paper did.
+    static func braidWorldEvents(
+        _ events: [ResolvedWorldEvent], authored manifests: [MonthlyIssueAuthoringManifest]
+    ) -> (live: [ResolvedWorldEvent], pulseOnly: [ResolvedWorldEvent]) {
+        let authoredIDs = Set(manifests.map { "\($0.eventPackID):\($0.eventID)" })
+        let isAuthored = { (event: ResolvedWorldEvent) in authoredIDs.contains("\(event.packID):\(event.id)") }
+        return (events.filter { !isAuthored($0) }, events.filter(isAuthored))
+    }
+
     /// A single editorial choice shared by the newspaper and nightly telling.
     /// No new world clock or incident ledger: dates/phase remain event-owned,
     /// and actual printed/kept receipts freeze a choice once a reader saw it.
@@ -4068,16 +4086,20 @@ extension BraidScenePlan {
     /// Where the fragment is taken from varies against the shape memory, so a
     /// run of nights does not all open on the first four words.
     func title() -> String {
+        // A night the reader wrote nothing on is the world's, and the world
+        // is allowed to name it. So is a night whose words make no title.
+        let world = (worldBeat ?? quietDayBeats.first).map { Self.fragment(of: $0.fact, fromEnd: false) }
         guard let source = anchor?.text.nonEmpty ?? livedEvidence.first?.text.nonEmpty else {
-            // A night the reader wrote nothing on is the world's, and the world
-            // is allowed to name it.
-            let world = worldBeat ?? quietDayBeats.first
-            return world.map { Self.fragment(of: $0.fact, fromEnd: false) } ?? "A Quiet Night"
+            return world ?? Self.quietTitle
         }
         // Alternate the cut so consecutive nights are not all built the same way.
         let fromEnd = shape.recentTitleShapes.count.isMultiple(of: 2)
-        return Self.fragment(of: source, fromEnd: fromEnd)
+        let own = Self.fragment(of: source, fromEnd: fromEnd)
+        return own != Self.quietTitle ? own : world ?? Self.quietTitle
     }
+
+    /// The title a night gets when nothing in it makes one.
+    static let quietTitle = "A Quiet Night"
 
     /// The reader's own noun phrase, with the determiner they wrote.
     ///
@@ -4098,6 +4120,8 @@ extension BraidScenePlan {
         #if canImport(NaturalLanguage)
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         tagger.string = text
+        // One sentence is too short for the tagger to be sure it's English.
+        tagger.setLanguage(.english, range: text.startIndex..<text.endIndex)
         var runs: [[String]] = []
         var current: [String] = []
         var pendingDeterminer: String?
@@ -4164,7 +4188,7 @@ extension BraidScenePlan {
             .split(whereSeparator: \.isWhitespace)
             .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?\"'")) }
             .filter { !$0.isEmpty }
-        guard !words.isEmpty else { return "A Quiet Night" }
+        guard !words.isEmpty else { return quietTitle }
         let useful = words.filter { word in
             let lower = word.lowercased()
             return lower.count > 2
@@ -4174,8 +4198,23 @@ extension BraidScenePlan {
         }
         let sourceWords = useful.isEmpty ? words : useful
         let chosen = fromEnd ? sourceWords.suffix(4) : sourceWords.prefix(4)
-        let joined = chosen.joined(separator: " ")
-        return joined.prefix(1).uppercased() + joined.dropFirst()
+        return printableFallback(Array(chosen)) ?? quietTitle
+    }
+
+    /// Without the tagger (its assets missing on a phone), the fallback is just
+    /// four of the reader's words, and it titled nights "You like" and "You also
+    /// watching YouTube". A slice that starts on a pronoun, or ends on a verb or
+    /// a filler word, is refused, and the night is named by something else.
+    static func printableFallback(_ words: [String]) -> String? {
+        let lowered = words.map { $0.lowercased().trimmingCharacters(in: .punctuationCharacters) }
+        guard let head = lowered.first, let tail = lowered.last,
+              !WeeklyTaleBuilder.fragmentPronouns.contains(head),
+              !WeeklyTaleBuilder.fragmentStopEnds.contains(tail),
+              !tail.hasSuffix("ing"), !WeeklyTaleBuilder.isPastVerb(tail) else { return nil }
+        let joined = words.joined(separator: " ")
+        // Judged as it will print: alone, lowercase "risk" tags as a verb.
+        let title = joined.prefix(1).uppercased() + joined.dropFirst()
+        return WeeklyTaleBuilder.hasConcreteNoun(title) ? title : nil
     }
 
     /// Nouns that name nothing in particular, so a phrase built on one is not a
@@ -4234,6 +4273,30 @@ enum BraidTellingScrub {
         ("I am", "I'm"), ("you are", "you're"), ("it is", "it's"), ("that is", "that's"),
         ("I will", "I'll")
     ]
+
+    /// `verbatim` is quoted matter carried whole (a line the reader kept):
+    /// somebody else's words, so neither the drops nor the contractions touch it.
+    static func scrubbed(_ prose: String, readerMaterial: String, isHardNight: Bool, verbatim: [String] = []) -> Result {
+        guard !verbatim.isEmpty else { return scrubbed(prose, readerMaterial: readerMaterial, isHardNight: isHardNight) }
+        // Each quotation stands in as a mark with no sentence ending or words in
+        // it while the scrub runs, then goes back exactly as it was.
+        let quotations = verbatim.flatMap(quotedSpans).filter { prose.contains($0) }
+        var held = prose
+        for (index, quotation) in quotations.enumerated() {
+            held = held.replacingOccurrences(of: quotation, with: "\u{E000}\(index)\u{E001}")
+        }
+        var result = scrubbed(held, readerMaterial: readerMaterial, isHardNight: isHardNight)
+        for (index, quotation) in quotations.enumerated() {
+            result.text = result.text.replacingOccurrences(of: "\u{E000}\(index)\u{E001}", with: quotation)
+        }
+        return result
+    }
+
+    private static func quotedSpans(_ line: String) -> [String] {
+        let regex = try! NSRegularExpression(pattern: "\u{201C}[^\u{201D}]*\u{201D}")
+        let ns = line as NSString
+        return regex.matches(in: line, range: NSRange(location: 0, length: ns.length)).map { ns.substring(with: $0.range) }
+    }
 
     static func scrubbed(_ prose: String, readerMaterial: String, isHardNight: Bool) -> Result {
         let material = readerMaterial.lowercased()

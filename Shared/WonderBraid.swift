@@ -693,6 +693,9 @@ enum WonderBraid {
         var weather: String?
         /// Words the Book wrote on kept Pages, carried whole (never the reader's).
         var bookLines: [String] = []
+        /// Pages the reader kept without writing on, quoted and credited
+        /// (`keptThingLines`). Never turned to face the reader.
+        var keptLines: [String] = []
         /// Library lines used in the last weeks.
         var resting: Set<String> = []
         /// What the month's installed packs add to, and take out of, the library.
@@ -700,6 +703,22 @@ enum WonderBraid {
         var retiring: Set<String> = []
         /// A difficult day keeps the true words without object mischief.
         var isHardNight = false
+        /// The planner's story form (`BraidPromptBuilder.StoryForm.rawValue`).
+        /// It sets the shape of the night: which material leads and how the
+        /// strands sit beside each other. See `arranged`.
+        var form = "sliceOfLife"
+        /// The detail the page is about, as it appears in `details`. Portrait,
+        /// romance and drama nights open on it.
+        var leadDetail: String?
+        /// How many reader paragraphs before the rest ride in the last one.
+        var beatLimit = 4
+        /// A thread of the house's own business carried from night to night
+        /// (`continuity(for:)`). It takes the tale's place when the tale is
+        /// house canon; monthly news keeps its place first.
+        var continuity: Continuity?
+        /// Whether the tale is the house's own small business (not the month's
+        /// news or a Cast errand), which a continuity thread may stand in for.
+        var taleIsHouseCanon = true
         /// How the model is waited on. It can be busy (a margin reply from the keep
         /// that prompted a re-braid is still being written) or briefly short of
         /// room; neither is a reason to assemble the night without it.
@@ -749,27 +768,67 @@ enum WonderBraid {
         var jobsFellBack: Int
         var thin: Bool
         var weather: WeatherMode
+        var carriedContinuity = false
         var prose: String { paragraphs.joined(separator: "\n\n") }
+    }
+
+    /// The shape a story form gives a night. Every form tells the same
+    /// material; what changes is what leads and how the strands sit together.
+    enum Shape: Equatable {
+        /// In the order it happened (slice of life, comedy).
+        case ordered
+        /// Moments side by side, each its own short paragraph (mosaic).
+        case mosaic
+        /// The page's own detail first (portrait, romance, drama).
+        case led
+        /// The earlier page first, then tonight (return).
+        case returning
+        /// Staying with it: one small odd thing at most, no sky play (vigil).
+        case watching
+
+        init(form: String) {
+            switch form {
+            case "mosaic": self = .mosaic
+            case "portrait", "romance", "drama": self = .led
+            case "returnForm": self = .returning
+            case "vigil": self = .watching
+            default: self = .ordered
+            }
+        }
     }
 
     /// The telling, or nil when the night is not for this path (nothing to
     /// braid, or Gemma failed so badly there is nothing honest to keep).
     static func write(_ input: Input, tell: Teller) async throws -> Output? {
-        let beats = Self.beats(
-            details: prepared(input.details), dateKey: input.dateKey, resting: input.resting,
+        let shape = Shape(form: input.form)
+        var beats = Self.beats(
+            details: prepared(arranged(input.details, shape: shape, lead: input.leadDetail)),
+            dateKey: input.dateKey, resting: input.resting, limit: input.beatLimit,
             library: input.isHardNight ? [] : library(delivered: input.delivered, retiring: input.retiring)
         )
-        guard !beats.isEmpty || !input.bookLines.isEmpty || input.tale?.isEmpty == false
-                || input.business?.isEmpty == false else { return nil }
+        if shape == .watching, let first = beats.firstIndex(where: { !$0.lines.isEmpty }) {
+            // A vigil keeps one small odd thing. More would be the night fidgeting.
+            for index in beats.indices where index != first {
+                beats[index].lines = []
+                beats[index].lineIDs = []
+            }
+        }
+        guard !beats.isEmpty || !input.bookLines.isEmpty || !input.keptLines.isEmpty || input.tale?.isEmpty == false
+                || input.business?.isEmpty == false || input.continuity != nil else { return nil }
         var paragraphs: [String] = []
         var fellBack = 0
         // A true detail with no seed is told as it is: there is nothing for
         // Gemma to add, and asking only risks it changing the reader's words.
-        // Runs of them are set as one paragraph, the way a tale is, not a list.
+        // Runs of them are set as one paragraph, the way a tale is, not a list;
+        // a mosaic keeps each moment apart.
         var plain: [String] = []
         func flushPlain() {
             guard !plain.isEmpty else { return }
-            paragraphs.append(contentsOf: Self.paragraphs(of: plain))
+            if shape == .mosaic {
+                paragraphs.append(contentsOf: plain.flatMap { Self.paragraphs(of: [$0]) })
+            } else {
+                paragraphs.append(contentsOf: Self.paragraphs(of: plain))
+            }
             plain = []
         }
 
@@ -802,19 +861,33 @@ enum WonderBraid {
         if !beats.isEmpty, beats.allSatisfy({ $0.lines.isEmpty }) {
             _ = try await readerParagraph(beat: beats[0], tale: nil, tell: tell, patience: input.patience)
         }
+        // The Book's kept scenes and Cast letters sit beside the moment of the
+        // day they share a thing with, so the strands braid instead of queueing.
+        // What they kept in silence closes their part of the night, as kept; a
+        // mosaic sets each beside its moment too.
+        let braided = shape == .mosaic ? input.bookLines + input.keptLines : input.bookLines
+        paragraphs = interleaved(braided, into: paragraphs)
+        if shape != .mosaic, !input.keptLines.isEmpty {
+            paragraphs.append(input.keptLines.joined(separator: " "))
+        }
         // Fictional news has its own provenance and its own paragraph. Asking
         // the model to mingle it into a true detail made both less trustworthy.
-        if let tale = input.tale?.trimmingCharacters(in: .whitespacesAndNewlines), !tale.isEmpty {
+        // A thread of the house's business carried from earlier nights takes
+        // the place of the house's news; the month's news is never displaced.
+        var carriedContinuity = false
+        let tale = input.tale?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        if let continuity = input.continuity, tale == nil || input.taleIsHouseCanon, !input.isHardNight {
+            paragraphs.append(await continuityParagraph(continuity, tell: tell, patience: input.patience))
+            carriedContinuity = true
+        } else if let tale {
             paragraphs.append(tale)
-        }
-        // The Book's own words from kept Pages, whole, after the first paragraph.
-        if !input.bookLines.isEmpty {
-            paragraphs.insert(input.bookLines.joined(separator: " "), at: min(1, paragraphs.count))
         }
         // A small number of entries is not a hole that needs filling with
         // invented activity. The Reader's moment sets the size of the telling.
         let thin = beats.count <= 2
-        let weatherMode = input.weather == nil || input.isHardNight ? WeatherMode.skip : Self.weatherMode(dateKey: input.dateKey)
+        let weatherMode: WeatherMode = input.weather == nil || input.isHardNight ? .skip
+            : shape == .watching ? (Self.weatherMode(dateKey: input.dateKey) == .skip ? .skip : .mention)
+            : Self.weatherMode(dateKey: input.dateKey)
         var weatherBeat: String?
         if let weather = input.weather {
             switch weatherMode {
@@ -848,8 +921,150 @@ enum WonderBraid {
             lineIDs: beats.flatMap(\.lineIDs),
             jobsFellBack: fellBack,
             thin: thin,
-            weather: weatherMode
+            weather: weatherMode,
+            carriedContinuity: carriedContinuity
         )
+    }
+
+    /// The reader's details in the order the shape tells them. Only the order
+    /// changes; every detail is still there, word for word.
+    static func arranged(_ details: [String], shape: Shape, lead: String?) -> [String] {
+        switch shape {
+        case .led:
+            guard let lead, let index = details.firstIndex(of: lead), index > 0 else { return details }
+            var moved = details
+            moved.insert(moved.remove(at: index), at: 0)
+            return moved
+        case .returning:
+            // "9 days ago: …", "From an earlier page: …" go first: then, and now.
+            let earlier = details.filter(isCallback)
+            return earlier + details.filter { !isCallback($0) }
+        case .ordered, .mosaic, .watching:
+            return details
+        }
+    }
+
+    private static func isCallback(_ detail: String) -> Bool {
+        detail.range(of: #"^(\d+|One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|Eleven|Twelve) days? ago: |^From an earlier page: "#,
+                     options: .regularExpression) != nil
+    }
+
+    /// Each line goes after the paragraph it shares the most words with; one
+    /// that shares none takes the next free place, starting after the first
+    /// paragraph, which is where the Book's kept words always sat.
+    static func interleaved(_ lines: [String], into paragraphs: [String]) -> [String] {
+        guard !lines.isEmpty else { return paragraphs }
+        guard !paragraphs.isEmpty else { return lines }
+        var after: [Int: [String]] = [:]
+        var taken = Set<Int>()
+        var next = 0
+        for line in lines {
+            let words = contentWords(line)
+            let best = paragraphs.indices
+                .filter { !taken.contains($0) }
+                .map { ($0, contentWords(paragraphs[$0]).intersection(words).count) }
+                .filter { $0.1 > 0 }
+                .max { $0.1 < $1.1 }?.0
+            var slot = best ?? min(next, paragraphs.count - 1)
+            if best == nil {
+                while taken.contains(slot), slot < paragraphs.count - 1 { slot += 1 }
+                next = slot + 1
+            }
+            taken.insert(slot)
+            after[slot, default: []].append(line)
+        }
+        return paragraphs.indices.flatMap { [paragraphs[$0]] + (after[$0] ?? []) }
+    }
+
+    // MARK: - A thread carried from night to night
+
+    /// A piece of the house's own business kept going across nights: begun
+    /// with an ordinary thing from one day, carried on with the next, and
+    /// ended. `BraidOutputAudit.carriesContinuity` checks the telling holds it,
+    /// and only then does the braid record it for tomorrow.
+    struct Continuity: Equatable {
+        /// The sentence the paragraph begins with, exactly.
+        var opening: String
+        /// Tonight's ordinary thing ("the pen"), from the reader's day.
+        var anchor: String
+        var ending: Bool
+    }
+
+    /// House threads by the words the continuity check looks for.
+    static let threadSubjects: [String: String] = [
+        "stacks": "turned shelves", "door": "corridor door", "index": "Index", "frost": "frost on the window",
+        "echo": "other room", "ribbon": "ribbon", "lamps": "lamps", "birds": "roof birds",
+        "rain": "dark patch on the floor", "doors": "lying doors", "moth": "paper moth", "stairs": "sideways step",
+        "pocket": "back-cover pocket", "bell": "bell under the floor", "dust": "dust circle", "roof": "roof runner"
+    ]
+
+    static func continuity(for beat: BraidPromptBuilder.ContinuityBeat?) -> Continuity? {
+        guard let beat, let thread = beat.threadID, let subject = threadSubjects[thread] else { return nil }
+        let anchor = beat.currentAnchor.trimmingCharacters(in: .whitespacesAndNewlines)
+        let anchorWords = thingWords(anchor).subtracting(["month", "day", "week", "time", "thing", "things", "places", "place", "way"])
+        guard !anchorWords.isEmpty, anchorWords.isDisjoint(with: weak) else { return nil }
+        switch beat.kind {
+        case .fictionOpening:
+            guard let fact = SceneWorldCanon.facts.first(where: { $0.threadID == thread }) else { return nil }
+            return Continuity(opening: fact.text, anchor: anchor, ending: false)
+        case .fictionContinuation:
+            guard let prior = beat.priorAnchor?.nonEmpty else { return nil }
+            return Continuity(opening: "The business of the \(subject) and \(prior) isn't finished.", anchor: anchor, ending: false)
+        case .fictionResolution:
+            guard let prior = beat.priorAnchor?.nonEmpty else { return nil }
+            return Continuity(opening: "The business of the \(subject) and \(prior) came to an end tonight.", anchor: anchor, ending: true)
+        case .evidenceRhyme:
+            // A rhyme in the reader's own life is the earlier-page callback's job.
+            return nil
+        }
+    }
+
+    /// An ordinary thing's own words: "pen" and "cup" are short, but they are
+    /// exactly what a thread hangs on.
+    private static func thingWords(_ text: String) -> Set<String> {
+        Set(lowercasedTokens(text).filter { $0.count >= 3 && !stopWords.contains($0) })
+    }
+
+    static func continuityPrompt(_ continuity: Continuity) -> String {
+        "Begin with this sentence exactly: \"\(continuity.opening)\"\n"
+            + "Then add one short sentence about what \(continuity.anchor) had to do with it"
+            + (continuity.ending ? ", and how it ended things, a little crookedly." : ".")
+            + " \(continuity.anchor.prefix(1).uppercased() + continuity.anchor.dropFirst()) is only an ordinary thing here; nobody did anything new."
+            + " Add no other objects or people. Past tense. One paragraph."
+    }
+
+    private static func continuityParagraph(_ continuity: Continuity, tell: Teller, patience: Patience) async -> String {
+        let anchorWords = thingWords(continuity.anchor)
+        // The tagger can leave a full stop on a word ("parts."), which would make
+        // the same noun look new; both sides are compared without it.
+        func clean(_ words: Set<String>) -> Set<String> {
+            Set(words.map { stem($0.trimmingCharacters(in: .punctuationCharacters)) })
+        }
+        let allowed = clean(nouns(in: continuity.opening).union(nouns(in: continuity.anchor)))
+            .union(["thing", "way", "night", "time", "end", "business", "while", "bit"].map(stem))
+        for _ in 0..<4 {
+            guard let raw = try? await ask(tell, bookSystem, continuityPrompt(continuity), 0.70, 0.90, 110,
+                                           waits: patience.optionalWaits, pauseSeconds: patience.pauseSeconds) else { continue }
+            let text = firstParagraph(raw)
+            let whole = normalized(text), source = normalized(continuity.opening)
+            guard whole.hasPrefix(source) else { continue }
+            let tail = String(text.dropFirst(min(text.count, continuity.opening.count))).trimmingCharacters(in: .whitespacesAndNewlines)
+            let tailWords = tail.split(whereSeparator: \.isWhitespace).count
+            guard (4...35).contains(tailWords), sentences(tail).count <= 2,
+                  !thingWords(tail).isDisjoint(with: anchorWords),
+                  clean(nouns(in: tail)).isSubset(of: allowed),
+                  !has(stockPattern, in: text), !has(youVerbPattern, in: text), !has(inventedReaderPattern, in: text)
+            else { continue }
+            return text
+        }
+        // Without Gemma the thread still moves, plainly, said a few ways so a
+        // month of them doesn't read as a stamp. None puts a verb on the thing
+        // ("the flowers is").
+        let thing = continuity.anchor.prefix(1).uppercased() + continuity.anchor.dropFirst()
+        let ways = continuity.ending
+            ? ["\(thing) had the last word.", "It ended at \(continuity.anchor), of all places.", "It finished with \(continuity.anchor), which nobody saw coming."]
+            : ["It's got \(continuity.anchor) mixed up in it now.", "Now it's after \(continuity.anchor) too.", "It had a go at \(continuity.anchor) next."]
+        return continuity.opening + " " + ways[Int(stableHash(continuity.opening + continuity.anchor) % UInt64(ways.count))]
     }
 
     private static func readerParagraph(beat: Beat, tale: String?, tell: Teller, patience: Patience) async throws -> String? {
@@ -978,34 +1193,130 @@ enum WonderBraid {
             .filter { $0.kind == .keptFiction }
         var order: [String] = []
         for item in evidence where !order.contains(item.pageID) { order.append(item.pageID) }
-        var bookSentences: [String] = []
-        var credited: [String] = []
-        for pageID in order {
+        // One line a Page, so a second kept scene or letter is its own strand
+        // and not squeezed out by the first one's sentences.
+        return order.prefix(4).compactMap { pageID in
             // Cleaned like the reader's details: a poem's lines joined, a form label dropped.
             let sentences = prepared(evidence.filter { $0.pageID == pageID }.map(\.text)).flatMap(Self.sentences)
             if let page = day.capturedPages.first(where: { $0.id == pageID }), let voice = castVoice(of: page) {
-                if let line = attributedLine(name: voice.name, isLetter: voice.isLetter, sentences: sentences) { credited.append(line) }
-            } else {
-                bookSentences.append(contentsOf: sentences)
+                return attributedLine(name: voice.name, isLetter: voice.isLetter, sentences: sentences)
             }
+            return bookLines(from: sentences, limit: order.count > 1 ? 2 : 3, wordBudget: order.count > 1 ? 45 : 60).first
         }
-        return bookLines(from: bookSentences) + credited.prefix(2)
     }
 
-    static func bookLines(from sentences: [String], limit: Int = 3) -> [String] {
+    /// The Book's scene, cut at a whole sentence. Three long sentences used to
+    /// come to more than sixty words and the scene was dropped altogether, so
+    /// a kept Story chapter vanished from the night it was kept on; now the
+    /// sentences that fit are carried and the rest stay on their Page.
+    static func bookLines(from sentences: [String], limit: Int = 3, wordBudget: Int = 60) -> [String] {
         let imperative = try! NSRegularExpression(
-            pattern: "^(open|tap|pinch|drag|swipe|press|write|try|look|pick|choose|bring|notice|find|take|go|come|read|ask|tell|keep|add|return|carry|leave)\\b",
+            pattern: "^(open|tap|touch|unfold|pinch|drag|swipe|press|write|try|look|pick|choose|bring|notice|find|take|go|come|read|ask|tell|keep|add|return|carry|leave)\\b",
             options: [.caseInsensitive]
         )
         var kept: [String] = []
+        var words = 0
         for sentence in sentences {
             let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, !has(imperative, in: trimmed) else { continue }
+            let count = trimmed.split(whereSeparator: \.isWhitespace).count
+            if words + count > wordBudget {
+                // Past the opening, a sentence that doesn't fit ends the excerpt:
+                // skipping it would join two sentences that never met.
+                guard kept.isEmpty else { break }
+                continue
+            }
+            // An opening "It" or "She" would point at a sentence that was skipped.
+            if kept.isEmpty, opensOnPronoun(trimmed), trimmed != sentences.first?.trimmingCharacters(in: .whitespacesAndNewlines) { continue }
             kept.append(trimmed)
+            words += count
             if kept.count == limit { break }
         }
-        let joined = kept.joined(separator: " ")
-        return joined.split(whereSeparator: \.isWhitespace).count > 60 ? [] : (kept.isEmpty ? [] : [joined])
+        return kept.isEmpty ? [] : [kept.joined(separator: " ")]
+    }
+
+    /// What a portrait, romance or drama night opens on, as it appears among
+    /// the reader's details: the reader's choice in a story on a drama night,
+    /// otherwise the detail the page is about.
+    static func leadDetail(plan: BraidScenePlan) -> String? {
+        let placed = plan.placements.compactMap { plan.evidence(for: $0.evidenceID) }
+        let lead = plan.form == "drama"
+            ? placed.first { $0.kind == .fictionChoice } ?? plan.anchorEvidenceID.flatMap(plan.evidence(for:))
+            : plan.anchorEvidenceID.flatMap(plan.evidence(for:))
+        guard let lead, lead.isAboutTheReadersLife else { return nil }
+        return BraidSceneWriter.secondPerson(lead.text)
+    }
+
+    /// Reader paragraphs a night of this scale may hold before the rest ride
+    /// in the last one.
+    static func beatLimit(scale: String) -> Int {
+        switch scale {
+        case "glimpse": return 3
+        case "full": return 6
+        default: return 4
+        }
+    }
+
+    // MARK: - Pages kept in silence
+
+    /// Pages the reader kept without writing on them. The keeping is theirs and
+    /// the words are not, so each is quoted whole and credited, never turned to
+    /// face the reader or ruled on. One line a Page, three Pages a night.
+    static func keptThingLines(plan: BraidScenePlan, day: BookDay) -> [String] {
+        let evidence = plan.placements
+            .compactMap { plan.evidence(for: $0.evidenceID) }
+            .filter { $0.kind == .keptThing && !$0.isUnclearedShadow }
+        var order: [String] = []
+        for item in evidence where !order.contains(item.pageID) { order.append(item.pageID) }
+        return order.prefix(3).compactMap { pageID in
+            let page = day.capturedPages.first { $0.id == pageID }
+            let whole = page.map { DeterministicBraidwright.strippedScaffolding(BraidPromptBuilder.storyScoreText(for: $0)) }
+            return keptLine(evidence.filter { $0.pageID == pageID }.map(\.text), whole: whole)
+        }
+    }
+
+    /// "“Hope is the thing with feathers…” — Emily Dickinson" as the Book says
+    /// it: the quotation verbatim, inside its marks, after who wrote it.
+    static func keptLine(_ sentences: [String], whole: String? = nil) -> String? {
+        let attribution = try! NSRegularExpression(pattern: #"\s*[—–]+\s*([^—–\n]+?)\s*$"#)
+        func author(in text: String) -> (name: String, range: Range<String.Index>)? {
+            let ns = text as NSString
+            guard let match = attribution.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+                  let range = Range(match.range, in: text), let name = Range(match.range(at: 1), in: text) else { return nil }
+            return (String(text[name]).trimmingCharacters(in: .punctuationCharacters.union(.whitespaces)), range)
+        }
+        var body = sentences.joined(separator: " ")
+        if let found = author(in: body) { body.removeSubrange(found.range) }
+        let marks = CharacterSet(charactersIn: "\u{201C}\u{201D}\"").union(.whitespacesAndNewlines)
+        body = body.trimmingCharacters(in: marks)
+        guard !body.isEmpty else { return nil }
+        let words = body.split(whereSeparator: \.isWhitespace)
+        if words.count > 40 {
+            // Two long sentences of a kept letter: the first is enough.
+            guard let first = Self.sentences(body).first, first.split(whereSeparator: \.isWhitespace).count <= 40 else { return nil }
+            body = first.trimmingCharacters(in: marks)
+        }
+        // A proverb or "Anonymous" is not somebody to credit by name.
+        let name = (whole.flatMap(author(in:)) ?? sentences.last.flatMap(author(in:)))?.name
+        let credited = name.flatMap { name -> String? in
+            guard let first = name.first, first.isUppercase, name.split(separator: " ").count <= 4,
+                  name.range(of: #"\b(proverb|anonymous|unknown|saying)\b"#, options: [.regularExpression, .caseInsensitive]) == nil
+            else { return nil }
+            return name
+        }
+        let quoted = "\u{201C}\(body)\u{201D}"
+        let ways: [String]
+        if let credited {
+            ways = ["You kept a line of \(credited)'s: \(quoted)",
+                    "You kept \(credited)'s sentence today: \(quoted)",
+                    "I'm holding a line of \(credited)'s because you kept it: \(quoted)"]
+        } else {
+            // Says only that it was kept. Whether anyone wrote on it is the Page's business.
+            ways = ["You kept a page that said: \(quoted)",
+                    "You kept this one: \(quoted)",
+                    "I'm holding this because you kept it: \(quoted)"]
+        }
+        return ways[Int(stableHash(normalized(body)) % UInt64(ways.count))]
     }
 }
 

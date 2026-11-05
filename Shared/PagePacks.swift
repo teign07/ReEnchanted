@@ -685,10 +685,10 @@ enum PageArchetypePackRegistry {
                 PageArchetype(
                     id: "the-nothing-stirs",
                     title: "I Suspect the Rut",
-                    headline: "A Hunch, with an Eraser",
+                    headline: "A Hunch, in Faint Ink",
                     detail: "The margins look a little too smooth. I might be wrong.",
                     reason: "I have enough current evidence to risk one gentle warning about Routine.",
-                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Don't overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, I'll erase the warning.",
+                    bodyTemplate: "I may be wrong, but the margins have begun to look too smooth. That can mean Routine is rubbing the texture off ordinary days, or only that life is busy. Don't overhaul anything for me. Catch one true detail tonight: the object nearest your hand, the sound beyond the room, the exact color of the light. If the day still has texture, my paper can drink the warning back.",
                     score: 48,
                     cadenceHours: 24,
                     activeHours: [21, 22, 23],
@@ -1552,8 +1552,8 @@ enum MarginTutorCatalog {
         ),
         MarginTutorNote(
             id: "story-page",
-            title: "Story Pages",
-            text: "This scene is made from your real day, and the choices are real forks. Slice of Life stays with the day. Progress Arc pushes the story on. Surprise goes somewhere you didn't expect. Pick one. The Cast remember what you chose for weeks."
+            title: "Vignettes",
+            text: "A vignette is one small scene in the Labyrinth. Sometimes it starts from something you kept, and sometimes the Labyrinth is busy with its own business. It always stops at a fork. Slice of Life stays small. Progress Arc pushes the story on. Surprise goes somewhere you didn't expect. Pick one. The Cast remember what you chose for weeks."
         ),
         MarginTutorNote(
             id: "monthly-story-page",

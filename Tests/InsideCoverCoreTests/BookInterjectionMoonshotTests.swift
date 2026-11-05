@@ -192,7 +192,7 @@ final class BookInterjectionMoonshotTests: XCTestCase {
 
     func testTheWholeInteriorCanBecomeAConversationSubject() {
         let tradition = BookPrivateTradition(
-            id: "eraser-feast", kind: .erasersFeast, title: "The Eraser's Feast",
+            id: "eraser-feast", kind: .erasersFeast, title: "The Feast of Thirsty Paper",
             observance: "We leave one mistake uncorrected until dusk.",
             originMemoryID: "memory-one", evidencePageIDs: ["page-one"],
             foundedAt: now.addingTimeInterval(-40 * 86_400), cadenceDays: 30,

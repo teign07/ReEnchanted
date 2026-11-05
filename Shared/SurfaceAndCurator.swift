@@ -3211,7 +3211,16 @@ extension SurfacePage {
         }
     }
 
-    var leafRequiresUnfoldingToKeep: Bool { leafPresentation == .activityPreview }
+    /// Most activities are not finished by keeping their teaser. A recipe is:
+    /// some readers want the recipe and nothing of the cooking, the tallying or
+    /// the margin around it, and Keep binds the whole recipe either way. Only
+    /// the Page that asks the reader to write somebody's recipe down needs its
+    /// opened form, because the writing is the Page.
+    var leafRequiresUnfoldingToKeep: Bool {
+        guard leafPresentation == .activityPreview else { return false }
+        if type == .recipe, !KitchenOffering.isRescue(self) { return false }
+        return true
+    }
 
     /// A real excerpt, followed by an honest account of what unfolds.
     /// Archive and generation paths always retain the complete source text.

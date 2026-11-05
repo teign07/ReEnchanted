@@ -197,7 +197,7 @@ extension ReadersSheet {
         }
 
         if !closestBonds.isEmpty {
-            let names = closestBonds.map(\.entityID).joined(separator: ", ")
+            let names = closestBonds.map { Self.bondName($0.entityID) }.joined(separator: "; ")
             lines.append("Closest in the Labyrinth: \(names).")
         }
 
@@ -280,7 +280,7 @@ extension ReadersSheet {
             company.append("People you brought into the Book: \(namedPeople.joined(separator: ", ")).")
         }
         if !closestBonds.isEmpty {
-            company.append("The Labyrinth keeps pulling you toward: \(closestBonds.map(\.entityID).joined(separator: ", ")).")
+            company.append("The Labyrinth keeps pulling you toward: \(closestBonds.map { Self.bondName($0.entityID) }.joined(separator: "; ")).")
         }
         if !company.isEmpty {
             sections.append(FrontMatterSection(
@@ -328,5 +328,24 @@ extension ReadersSheet {
         let correction = "WRONG?\nWrite the correction below. I will keep it with these front pages."
 
         return ([opening] + sections + [correction]).joined(separator: "\n\n")
+    }
+}
+
+extension ReadersSheet {
+    /// A bond is stored as "penny-blackletter|wicker-eddies"; the sheet says
+    /// "Penny Blackletter and Wicker Eddies". A reader's own Cast member is
+    /// named as they named it, never by its id.
+    static func bondName(_ id: String) -> String {
+        let names = Dictionary(NarrativePackRegistry.entities.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+        let people = id.split(separator: "|").map { part -> String in
+            let slug = String(part)
+            if let name = names[slug] { return name }
+            var words = slug.split(separator: "-").map(String.init)
+            if words.first == "user", words.dropFirst().first == "cast" { words.removeFirst(2) }
+            if words.first == "quill" { words.removeFirst() }
+            while let last = words.last, last.allSatisfy(\.isNumber) { words.removeLast() }
+            return words.map { $0.capitalized }.joined(separator: " ")
+        }
+        return people.filter { !$0.isEmpty }.joined(separator: " and ")
     }
 }

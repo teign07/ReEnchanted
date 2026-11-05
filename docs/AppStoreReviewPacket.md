@@ -27,9 +27,10 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 - Export compliance: `ITSAppUsesNonExemptEncryption = NO` (build setting).
   The app uses HTTPS and Apple's CryptoKit (SHA-256, AES-GCM for gift links),
   both OS-provided standard encryption.
-- User-generated content: **none shown**. Public Margins is closed
-  (`PublicMarginsAPI.isAvailable = false`): no community text is fetched or
-  displayed, and nothing can be offered. Every Book stays its reader's own.
+- User-generated content: **none shown**. There is no community feature
+  (Public Margins was removed from the app on 2026-11-01): no other reader's
+  text is fetched or displayed, and nothing can be offered. Every Book stays
+  its reader's own.
 
 ## Things a reviewer will trip on, and the answers
 
@@ -102,7 +103,6 @@ private Body Pages; the app offers no diagnosis or medical advice.
 
 - Fresh install launches; works with every permission denied.
 - Fresh install that never downloads the model can write, keep, and read Pages.
-- Doorways sheet shows no Public Margins section on a fresh install.
 - Bookshop quotes, checks out, and returns a receipt in the build's checkout mode.
 - No "(dev)" labels in Release (the `Scrivener's Counter (dev)` till is
   Debug-only).

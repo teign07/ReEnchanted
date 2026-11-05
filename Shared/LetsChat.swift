@@ -580,7 +580,7 @@ enum LetsChatStatusCopy {
 
     static func line(for stage: LetsChatStage) -> String {
         switch stage {
-        case .waking: return "I'm waking my pencil up. This is the slow part."
+        case .waking: return "I'm waking my ink up. This is the slow part."
         case .reading: return "I'm reading what we said."
         case .retrying: return "That came out like an echo. I'm writing it again."
         }

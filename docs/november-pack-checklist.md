@@ -135,6 +135,9 @@ See [guest-cast-implementation.md](guest-cast-implementation.md).
   readers' kitchens").
 - ✅ **Ambrose's chalkboard menu**, one sentence about the weather, in the Academy timetable box.
 - ⬜ **Undertakings** (§8) feed the paper's Academy reports for free.
+- ✅ **Serenity Reads the Cards** is automatic: it reads the month's 8 big story scenes, their rooms
+  and Cast, and the phases' pulses. Checked by `BleedAlmanacTests` (every pack in `ContentPacks/`).
+  Nothing to write.
 
 ## 5. Radio
 

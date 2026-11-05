@@ -106,7 +106,9 @@ final class BleedNewsroomTests: XCTestCase {
         var completed = business()
         completed.status = .concluded
         inputs.castUndertakings = [completed]
-        XCTAssertTrue(briefs(inputs).contains { $0.id == "academy-report" })
+        // Finished business is big news: with no day to report, it leads the paper.
+        XCTAssertTrue(briefs(inputs).contains { $0.id == "academy-report"
+            || ($0.id == "front-page" && $0.undertakingID == completed.id) })
     }
 
     func testDisputedAccountsStayAttributedAndSilentPositionsStayPrivate() throws {
@@ -122,8 +124,19 @@ final class BleedNewsroomTests: XCTestCase {
             ], bookPosition: "The Book has a private guess.", status: .complicated,
             openedAt: date(), lastMovedAt: date(), contradictingEvidence: "The old photograph already shows blue paint."
         )]
-        let report = try XCTUnwrap(briefs(inputs).first { $0.id == "academy-report" })
-        XCTAssertTrue(report.fallbackBody?.contains("Penny's account:") == true)
+        // A question that moved leads the paper when there's no day to report; the
+        // lead keeps the same laws as the report it replaces.
+        let lead = try XCTUnwrap(briefs(inputs).first { $0.id == "front-page" })
+        let told = lead.fallbackBody ?? ""
+        XCTAssertTrue(told.contains("Penny says: The blue paint is fresh."), told)
+        XCTAssertTrue(told.contains("Then the evidence turned up. The old photograph already shows blue paint."))
+        for text in [told, lead.packet] {
+            XCTAssertFalse(text.contains("secret not for publication"))
+            XCTAssertFalse(text.contains("private guess"))
+        }
+        let report = try XCTUnwrap(BleedNewsroom.academyBriefs(inputs: inputs, history: [], now: date(10, 8), limit: 8)
+            .first { $0.id == "academy-report" })
+        XCTAssertTrue(report.fallbackBody?.contains("Penny says: The blue paint is fresh.") == true)
         XCTAssertTrue(report.fallbackBody?.contains("Later evidence:") == true)
         XCTAssertFalse(report.packet.contains("secret not for publication"))
         XCTAssertFalse(report.packet.contains("private guess"))
@@ -276,9 +289,9 @@ final class BleedNewsroomTests: XCTestCase {
             CalendarEventSignal(id: "overnight", title: "Night train", startsAt: date(10, 23), endsAt: date(11, 7), isAllDay: false)
         ]
         let strip = TheBleedEditionBuilder.almanacColumn(kind: .evening, inputs: inputs, now: date(10, 18), calendar: calendar)
-        XCTAssertTrue(strip.contains("All day - Festival"))
-        XCTAssertTrue(strip.contains("All day - Holiday"))
-        XCTAssertTrue(strip.contains("Continuing - Night train"))
+        XCTAssertTrue(strip.contains("All day: Festival"))
+        XCTAssertTrue(strip.contains("All day: Holiday"))
+        XCTAssertTrue(strip.contains("Still going: Night train"))
         XCTAssertFalse(strip.contains("Already over"))
     }
 

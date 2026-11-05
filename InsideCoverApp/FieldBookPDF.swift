@@ -680,6 +680,13 @@ final class MarginaliaDealer {
     /// story's margin notes. Any month's pack works the same way, by the delivered file names
     /// (`reenchanted-managed-<pack>-2026-11-<pack>.seasonal.<name>.png`). A reissued drawing
     /// (`.v2.`) replaces the first of its name.
+    /// The month's own seasonal drawings, for patterns (the endpapers).
+    static func seasonalArt(month: Int) -> [UIImage] {
+        let all = installedArt(marker: ".seasonal.")
+        let chosen = all.filter { $0.month == month }
+        return (chosen.isEmpty ? all : chosen).sorted { $0.name < $1.name }.compactMap { EditionPlates.load($0.path) }
+    }
+
     private static func installedArt(marker: String) -> [(name: String, path: String, month: Int?)] {
         guard let directory = MonthlyIssueDeliveryPolicy.managedContentDirectory(),
               let files = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return [] }
@@ -2442,15 +2449,30 @@ extension MonthlyEditionPDFWriter {
             drawTracked(caption, at: CGPoint(x: leaf.left, y: leaf.y), font: smallCaps(7.4), color: style.palette.accent, tracking: 2,
                         width: leaf.contentWidth, alignment: .center)
         }
-        drawAlmanacSpread(edition, book: book, monthNumber: monthNumber, calendar: calendar, style: style, context: context, cursor: &cursor)
-        drawLabyrinthSpread(edition, book: book, mapPlates: mapPlates, monthNumber: monthNumber, style: style, context: context, cursor: &cursor)
-        drawCastSketchbook(book, edition: edition, style: style, context: context, cursor: &cursor)
+        ContentsFolios.part("The Almanac", cursor: &cursor) {
+            drawAlmanacSpread(edition, book: book, monthNumber: monthNumber, calendar: calendar, style: style, context: context, cursor: &$0)
+        }
+        ContentsFolios.part("The Labyrinth", cursor: &cursor) {
+            drawLabyrinthSpread(edition, book: book, mapPlates: mapPlates, monthNumber: monthNumber, style: style, context: context, cursor: &$0)
+        }
+        ContentsFolios.part("The Cast", cursor: &cursor) {
+            drawCastSketchbook(book, edition: edition, style: style, context: context, cursor: &$0)
+        }
         let chapters = book.taleChapters
         let tale = Dictionary(uniqueKeysWithValues: chapters.map { ($0.contentID, $0.number) })
-        drawDays(start: edition.startDate, book: book, monthNumber: monthNumber, calendar: calendar,
-                 style: style, marginalia: marginalia, tale: chapters.isEmpty ? nil : tale, context: context, cursor: &cursor)
-        drawMonthsTale(chapters, readerSentences: book.readerSentences, monthNumber: monthNumber, calendar: calendar,
-                       style: style, context: context, cursor: &cursor)
+        ContentsFolios.part("The Days", cursor: &cursor) {
+            drawDays(start: edition.startDate, book: book, monthNumber: monthNumber, calendar: calendar,
+                     style: style, marginalia: marginalia, tale: chapters.isEmpty ? nil : tale, context: context, cursor: &$0)
+        }
+        ContentsFolios.part("The Month's Tale", cursor: &cursor) {
+            drawMonthsTale(chapters, readerSentences: book.readerSentences, monthNumber: monthNumber, calendar: calendar,
+                           style: style, context: context, cursor: &$0)
+        }
+        // The Field Book sets its leaves on cursors of its own and finishes its
+        // last one (a botanical fills what the tale leaves). The main cursor
+        // still holds an older place on that leaf: what follows starts fresh,
+        // never on top of the tale's last chapter.
+        cursor.y = cursor.bottom
     }
 
     // MARK: The Month's Tale
@@ -4194,6 +4216,14 @@ enum EditionPlates {
     static func scene(_ contentID: String, month: Int?) -> UIImage? { image(slot: "scene.\(contentID)", month: month) }
     static func cast(_ slug: String, month: Int?) -> UIImage? { image(slot: "cast.\(slug)", month: month) }
     static func frontispiece(month: Int?) -> UIImage? { image(slot: "frontispiece", month: month) }
+    /// A pack's endpaper art (`<pack>.plate.endpaper.opening` / `.closing`), a whole spread wide.
+    static func endpaper(closing: Bool, month: Int?) -> UIImage? {
+        image(slot: closing ? "endpaper.closing" : "endpaper.opening", month: month)
+            ?? (closing ? image(slot: "endpaper.opening", month: month) : nil)
+    }
+    /// The back of the case and its spine, when a pack paints them.
+    static func coverBack(month: Int?) -> UIImage? { image(slot: "cover.back", month: month) }
+    static func coverSpine(month: Int?) -> UIImage? { image(slot: "cover.spine", month: month) }
 
     /// The month's general plates, for chapter plates and the margins.
     static func general(month: Int?) -> [UIImage] {
@@ -4878,5 +4908,142 @@ extension MonthlyEditionPDFWriter {
         drawBotanical(month: month, seed: seed,
                       in: CGRect(x: alignRight ? leaf.right - 130 : leaf.left, y: leaf.bottom - height, width: 130, height: height),
                       alignRight: alignRight, rotation: alignRight ? -0.06 : 0.06)
+    }
+}
+
+// MARK: - Endpapers
+
+/// The patterned leaves a special edition opens and closes on. A
+/// print-on-demand house won't paste down an endpaper, so the book prints its
+/// own: straight after the cover and again at the very end. A pack can paint
+/// them (`endpaper.opening`, `endpaper.closing`, each a whole spread wide);
+/// otherwise they're set from the month's own seasonal drawings in a lattice
+/// of gold arches on the dark of the cover. The closing leaf is the same paper
+/// after the month has happened to it: the ink got out.
+extension MonthlyEditionPDFWriter {
+    enum EndpaperHalf { case left, right, whole }
+
+    static func drawEndpaper(closing: Bool, half: EndpaperHalf, monthNumber: Int, style: EditionStyle, bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        if let art = EditionPlates.endpaper(closing: closing, month: monthNumber) {
+            // Spread-wide art: each page shows its own half, filled edge to edge.
+            let spread = CGSize(width: bounds.width * (half == .whole ? 1 : 2), height: bounds.height)
+            let scale = max(spread.width / art.size.width, spread.height / art.size.height)
+            let size = CGSize(width: art.size.width * scale, height: art.size.height * scale)
+            let originX = bounds.minX + (spread.width - size.width) / 2 - (half == .right ? bounds.width : 0)
+            cg.saveGState()
+            cg.clip(to: bounds)
+            art.draw(in: CGRect(x: originX, y: bounds.minY + (bounds.height - size.height) / 2, width: size.width, height: size.height))
+            cg.restoreGState()
+            return
+        }
+        // The pattern is set once as a flat picture and placed whole: drawn
+        // directly, every drawing in it went into the PDF at full size, and two
+        // leaves of endpaper outweighed the rest of the book.
+        let pointsToPixels: CGFloat = settingForPrint ? 300.0 / 72.0 : 200.0 / 72.0
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = pointsToPixels
+        format.opaque = true
+        let local = CGRect(origin: .zero, size: bounds.size)
+        let picture = UIGraphicsImageRenderer(size: bounds.size, format: format).image { _ in
+            drawEndpaperPattern(closing: closing, half: half, monthNumber: monthNumber, style: style, bounds: local)
+        }
+        if let jpeg = picture.jpegData(compressionQuality: 0.86), let flat = UIImage(data: jpeg) {
+            flat.draw(in: bounds)
+        } else {
+            picture.draw(in: bounds)
+        }
+    }
+
+    private static func drawEndpaperPattern(closing: Bool, half: EndpaperHalf, monthNumber: Int, style: EditionStyle, bounds: CGRect) {
+        guard let cg = UIGraphicsGetCurrentContext() else { return }
+        let ground = UIColor(red: 0.075, green: 0.09, blue: 0.15, alpha: 1)
+        ground.setFill()
+        cg.fill(bounds)
+        let gold = style.palette.gold
+        let motifs = MarginaliaDealer.seasonalArt(month: monthNumber)
+        let columns = 3
+        let rows = 4
+        let cell = CGSize(width: bounds.width / CGFloat(columns), height: bounds.height / CGFloat(rows))
+        // Offset by half a column on the right page so the pattern runs on across the gutter.
+        let shift: CGFloat = half == .right ? cell.width / 2 : 0
+        var index = half == .right ? 5 : 0
+        for row in 0..<rows {
+            for column in -1...columns {
+                let x = bounds.minX + CGFloat(column) * cell.width + shift + (row.isMultiple(of: 2) ? 0 : cell.width / 2)
+                let frame = CGRect(x: x, y: bounds.minY + CGFloat(row) * cell.height, width: cell.width, height: cell.height)
+                guard frame.maxX > bounds.minX, frame.minX < bounds.maxX else { continue }
+                // A pointed arch with a lamp-post column either side.
+                let arch = UIBezierPath()
+                let inset = frame.insetBy(dx: cell.width * 0.12, dy: cell.height * 0.08)
+                arch.move(to: CGPoint(x: inset.minX, y: inset.maxY))
+                arch.addLine(to: CGPoint(x: inset.minX, y: inset.minY + inset.height * 0.32))
+                arch.addQuadCurve(to: CGPoint(x: inset.midX, y: inset.minY), controlPoint: CGPoint(x: inset.minX, y: inset.minY + inset.height * 0.04))
+                arch.addQuadCurve(to: CGPoint(x: inset.maxX, y: inset.minY + inset.height * 0.32), controlPoint: CGPoint(x: inset.maxX, y: inset.minY + inset.height * 0.04))
+                arch.addLine(to: CGPoint(x: inset.maxX, y: inset.maxY))
+                gold.withAlphaComponent(0.55).setStroke()
+                arch.lineWidth = 0.7
+                arch.stroke()
+                // A four-point star where the arches meet.
+                let star = CGPoint(x: frame.minX, y: frame.minY + cell.height * 0.2)
+                let spark = UIBezierPath()
+                for (dx, dy) in [(0.0, -5.0), (1.2, -1.2), (5.0, 0.0), (1.2, 1.2), (0.0, 5.0), (-1.2, 1.2), (-5.0, 0.0), (-1.2, -1.2)] {
+                    let point = CGPoint(x: star.x + dx, y: star.y + dy)
+                    if spark.isEmpty { spark.move(to: point) } else { spark.addLine(to: point) }
+                }
+                spark.close()
+                gold.withAlphaComponent(0.7).setFill()
+                spark.fill()
+                // The month's drawing inside the arch.
+                if !motifs.isEmpty {
+                    let motif = motifs[index % motifs.count]
+                    index += 1
+                    let box = inset.insetBy(dx: inset.width * 0.18, dy: inset.height * 0.26)
+                    let fit = min(box.width / motif.size.width, box.height / motif.size.height)
+                    let size = CGSize(width: motif.size.width * fit, height: motif.size.height * fit)
+                    cg.saveGState()
+                    cg.setAlpha(0.92)
+                    motif.draw(in: CGRect(x: box.midX - size.width / 2, y: box.midY - size.height / 2 + inset.height * 0.06,
+                                          width: size.width, height: size.height))
+                    cg.restoreGState()
+                }
+            }
+        }
+        if closing {
+            // The ink got out: one ribbon of it, crossing the paper.
+            let ribbon = UIBezierPath()
+            let w = bounds.width, h = bounds.height
+            let startX = half == .right ? bounds.minX - w * 0.1 : bounds.minX + w * 0.35
+            ribbon.move(to: CGPoint(x: startX, y: bounds.maxY + 10))
+            ribbon.addCurve(to: CGPoint(x: startX + w * 0.45, y: bounds.minY + h * 0.45),
+                            controlPoint1: CGPoint(x: startX + w * 0.35, y: bounds.minY + h * 0.85),
+                            controlPoint2: CGPoint(x: startX - w * 0.05, y: bounds.minY + h * 0.6))
+            ribbon.addCurve(to: CGPoint(x: startX + w * 0.9, y: bounds.minY - 10),
+                            controlPoint1: CGPoint(x: startX + w * 0.8, y: bounds.minY + h * 0.32),
+                            controlPoint2: CGPoint(x: startX + w * 0.55, y: bounds.minY + h * 0.12))
+            cg.saveGState()
+            cg.setLineCap(.round)
+            gold.withAlphaComponent(0.6).setStroke()
+            ribbon.lineWidth = 16
+            ribbon.stroke()
+            UIColor(white: 0.02, alpha: 1).setStroke()
+            ribbon.lineWidth = 13
+            ribbon.stroke()
+            cg.restoreGState()
+        }
+    }
+
+    /// One endpaper leaf, begun and drawn. Screen books take one; a printed
+    /// book takes two, so the pattern faces itself across the first opening.
+    static func drawEndpaperLeaves(closing: Bool, count: Int, monthNumber: Int, style: EditionStyle,
+                                   context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor) {
+        for page in 0..<count {
+            context.beginPage()
+            cursor.reset()
+            cursor.pageIndex += 1
+            let half: EndpaperHalf = count == 1 ? .whole : (page == 0 ? .left : .right)
+            drawEndpaper(closing: closing, half: half, monthNumber: monthNumber, style: style, bounds: cursor.bounds)
+        }
+        cursor.y = cursor.bottom
     }
 }

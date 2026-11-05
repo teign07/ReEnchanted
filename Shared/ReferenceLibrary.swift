@@ -883,7 +883,7 @@ enum SelfKnowledgePackRegistry {
             }
             return "I'll let this tint future pages when wonder needs a familiar spark."
         case .values:
-            return "I'll give this belief weight when Story Pages choose what matters."
+            return "I'll give this belief weight when vignettes choose what matters."
         case .story:
             return "I'll carry this as story-shape, not a box: a pattern to notice, not a verdict."
         }
@@ -938,7 +938,7 @@ enum SelfKnowledgePackRegistry {
         ,question("lost-interest", "What did you once love that's gone quiet?", "I might remember it. I won't make you take it up again.", "A craft. A game. A subject. A place. A version of going out...", .story, .storyOnly, ["interest", "return", "memory"], 50)
         ,question("desired-surprise", "What kind of surprise almost always works on you?", "Surprise comes in flavours. I want to know yours.", "A strange fact. A beautiful place. A joke. A message. A tiny challenge...", .delight, .privateContext, ["surprise", "wonder-affinity", "curation"], 49)
         ,question("current-question", "What are you quietly trying to understand lately?", "It doesn't have to be a goal. Questions can just colour the margins.", "A relationship. A decision. A craft. My own attention. Something unnamed...", .story, .storyOnly, ["question", "current-season", "story-seed"], 48)
-        ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. I own an eraser.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
+        ,question("life-chapter", "If this stretch of life had a chapter title, what would it be?", "Working title only. My paper can always drink it back.", "The Rebuilding. Too Many Tabs. Learning the Coastline. Intermission...", .story, .storyOnly, ["current-season", "story", "state-not-identity"], 47)
         ,question("thing-not-to-optimize", "What part of life do you refuse to optimize?", "Excellent. Efficiency has been getting above itself.", "Cooking. Friendship. Reading. Wandering. The way I make coffee...", .values, .storyOnly, ["values", "dehabituation", "protection"], 46)
         ,question("favorite-object", "What object would you save for sentimental reasons?", "It'll tell me things usefulness never could.", "A letter. A chipped bowl. A coat. A tool. Something ridiculous...", .story, .storyOnly, ["object", "memory", "story-seed"], 45)
         // The Book keeps the whole world's calendar and would rather not miss
@@ -2436,7 +2436,7 @@ enum QuoteLibraryRegistry {
 ///
 /// Gifts are handed over with no strings. Pacts have two halves: the reader's
 /// on top, the Book's underneath (always something it can do in its own world,
-/// its spine, drawer, pencil and index), and a signed pact comes back once as
+/// its spine, drawer, ink and index), and a signed pact comes back once as
 /// a call-in (`PactCallIn`). The chips always include an honest hedge, because
 /// a believing extracted is worth nothing to either of us.
 enum AffirmationLibraryRegistry {
@@ -2621,7 +2621,7 @@ enum AffirmationLibraryRegistry {
 
         // ── Pacts: words, keeping, thanks ──
         pact("one-sentence-today", "Give today one true sentence before it goes.", "And I'll keep the line under it clear, so it's got room.", callIn: "I kept a clear line for your sentence. Did that day get one? If it didn't, today can have it instead.", "Words", ["write", "souvenir", "words", "evening"], signs: ["I'll write one.", "I might.", "We'll see."], weight: 3),
-        pact("thank-a-thing", "Thank something that's never been thanked: the bus, the bin, the stairs.", "And I'll thank my pencil. It's done all my writing and never had a word.", callIn: "I thanked my pencil. Its tip went soft. Did you thank something that's never been thanked? What did it do?", "Kindness", ["kindness", "folklore", "play", "ordinary"], signs: ["I will.", "I'll try.", "We'll see."], weight: 3),
+        pact("thank-a-thing", "Thank something that's never been thanked: the bus, the bin, the stairs.", "And I'll thank my ink. It's done all my writing and never had a word.", callIn: "I thanked my ink. It went a shade darker. Did you thank something that's never been thanked? What did it do?", "Kindness", ["kindness", "folklore", "play", "ordinary"], signs: ["I will.", "I'll try.", "We'll see."], weight: 3),
         pact("pocket-souvenir", "Bring home one tiny proof of today: a leaf, a ticket, a strange stone.", "And I'll clear a space in my drawer for it. The drawer's already nosing about.", callIn: "The space in my drawer's still empty and it keeps asking. Did you bring something home? What is it?", "Keeping", ["souvenir", "memory", "keep", "play"], signs: ["I will.", "If I see one.", "We'll see."], weight: 2),
 
         // ── Pacts: the body & rest ──
@@ -2714,6 +2714,42 @@ enum BookReferenceCatalog {
         LorePackRegistry.snippets(
             coreSnippets: bundledLibrary.enchantifyLore.isEmpty ? fallbackEnchantifyLore : bundledLibrary.enchantifyLore
         )
+    }
+
+    /// The lore pages that sit nearest `snippet` on the shelf, so an opened lore
+    /// Page always has somewhere to go next. Every lore entry is one paragraph and
+    /// a dare, which left the full page mostly blank; this is what fills it, for
+    /// all of them rather than one hand-built page at a time.
+    ///
+    /// Nearness is shared tags weighted by how rare the tag is (a tag on every
+    /// page says nothing), plus a small pull toward the same kind of page (class,
+    /// talisman, club...). Deterministic, so the same page shows the same
+    /// neighbours; ties break by id. Never returns `snippet` itself.
+    static func shelfNeighbours(of snippet: ReferenceSnippet, limit: Int = 3) -> [ReferenceSnippet] {
+        let pool = enchantifyLore
+        guard limit > 0, pool.count > 1 else { return [] }
+        var tagCounts: [String: Int] = [:]
+        for entry in pool { for tag in Set(entry.tags) { tagCounts[tag, default: 0] += 1 } }
+        let mine = Set(snippet.tags)
+        let kind = shelfKind(of: snippet.id)
+        var scored: [(entry: ReferenceSnippet, score: Double)] = []
+        for entry in pool where entry.id != snippet.id {
+            var score: Double = shelfKind(of: entry.id) == kind ? 0.15 : 0
+            for tag in mine.intersection(entry.tags) {
+                score += 1.0 / Double(tagCounts[tag] ?? 1)
+            }
+            scored.append((entry, score))
+        }
+        scored.sort { left, right in
+            if left.score != right.score { return left.score > right.score }
+            return left.entry.id < right.entry.id
+        }
+        return scored.prefix(limit).map { $0.entry }
+    }
+
+    /// "labyrinth-class-compass-core" -> "labyrinth-class".
+    private static func shelfKind(of id: String) -> String {
+        id.split(separator: "-").prefix(2).joined(separator: "-")
     }
 
     static var lorePacks: [LorePack] {
@@ -6339,13 +6375,18 @@ enum Gazetteer {
     static func kindLine(for anchor: AnchorRecord) -> String? {
         guard let place = anchor.place else { return nil }
         let category = place.category.nonEmpty
+        // "an art gallery", not "a art gallery".
+        let kind = category.map { name -> String in
+            let lower = name.lowercased()
+            return ("aeiou".contains(lower.first ?? "x") ? "an " : "a ") + lower
+        }
         guard place.usesRealNameInStory else {
-            return category.map { "A \($0)." }
+            return kind.map { $0.prefix(1).uppercased() + $0.dropFirst() + "." }
         }
         let town = place.locality.nonEmpty
-        switch (category, town) {
-        case let (category?, town?): return "\(place.name) — a \(category) in \(town)."
-        case let (category?, nil): return "\(place.name) — a \(category)."
+        switch (kind, town) {
+        case let (kind?, town?): return "\(place.name) — \(kind) in \(town)."
+        case let (kind?, nil): return "\(place.name) — \(kind)."
         case let (nil, town?): return "\(place.name), in \(town)."
         case (nil, nil): return "\(place.name)."
         }

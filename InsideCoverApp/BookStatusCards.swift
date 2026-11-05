@@ -417,7 +417,7 @@ struct StoryFieldStatusCard: View {
     }
 
     private var title: String {
-        hasPreparedPage ? "Story Page ready" : "Story Field"
+        hasPreparedPage ? "Vignette ready" : "Story Field"
     }
 
     private var statusText: String {
@@ -494,7 +494,7 @@ struct StoryFieldStatusCard: View {
                 if isPreparing {
                     ScribeInkMeter(accent: BookPalette.violet, reduceMotion: true)
                         .frame(width: 98)
-                        .accessibilityLabel("The Story Page is taking ink")
+                        .accessibilityLabel("The vignette is taking ink")
                 } else {
                     Text(bookGlowText)
                         .font(.caption.monospacedDigit().weight(.bold))
@@ -554,12 +554,12 @@ struct StoryFieldStatusCard: View {
 
     private var statusBody: String {
         if hasPreparedPage {
-            return "The next Story Page has enough weight to open."
+            return "The next vignette has enough weight to open."
         }
         if surface != nil {
-            return "I've chosen what the next Story Page will be about."
+            return "I've chosen what the next vignette will be about."
         }
-        return "I haven't laid a Story Page in the margin yet."
+        return "I haven't laid a vignette in the margin yet."
     }
 
     private func metadataList(_ key: String) -> [String] {

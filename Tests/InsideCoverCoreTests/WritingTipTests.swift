@@ -28,10 +28,9 @@ final class WritingTipTests: XCTestCase {
     }
 
     func testTipAsidesStayOutOfTheGeneralMarginaliaPool() {
-        let pool = Set(IlluminationMarginaliaLibrary.availableSnippets.map(\.id))
+        let pool = Set(IlluminationMarginaliaLibrary.availableSnippets.map(\.text))
         for lesson in InterleafWritingCraft.lessons {
-            XCTAssertFalse(pool.contains(lesson.textID), lesson.id)
-            XCTAssertEqual(lesson.marginalia.text, lesson.aside)
+            XCTAssertFalse(pool.contains(lesson.aside), lesson.id)
         }
     }
 }

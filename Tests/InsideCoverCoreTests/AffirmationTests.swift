@@ -131,6 +131,14 @@ extension AffirmationTests {
         }
     }
 
+    /// Books don't own pencils. The Book writes in its own ink; pencils
+    /// belong to the Cast.
+    func testTheBookNeverHoldsAPencil() {
+        for (id, line) in shelfLines where line.lowercased().contains("my pencil") {
+            XCTFail("\(id): the Book has no pencil in \(line)")
+        }
+    }
+
     func testCallInsAreContracted() {
         let uncontracted = ["you are ", "you have ", "i am ", "i will ", "it is ", "does not ", "do not ", "is not ", "i have ", "that is ", "there is ", "did not "]
         for entry in AffirmationLibraryRegistry.allAffirmations {

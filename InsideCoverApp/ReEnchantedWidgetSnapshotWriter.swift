@@ -142,7 +142,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         if let fault = interior.currentFault, fault.presentedAt == nil {
             return ReEnchantedWidgetBookInterior(
                 title: "I Was Wrong. Here.",
-                line: "My eraser's awake and kicking its heels. There's a correction inside.",
+                line: "My paper's thirsty. There's a correction inside.",
                 symbolName: "eraser.fill",
                 urlPath: "today"
             )

@@ -128,12 +128,12 @@ final class BeliefEconomyOneWayTests: XCTestCase {
     func testTheFirstFictionSpendNamesWhereBeliefComesFrom() {
         let first = BeliefEconomyPolicy.generationSpendLine(for: .storyPage, isFirstSpend: true)
         XCTAssertTrue(first.contains("your own noticing"))
-        XCTAssertTrue(first.contains("Story Page"))
+        XCTAssertTrue(first.contains("Vignette"))
     }
 
     func testLaterSpendsDoNotRepeatTheLesson() {
         let later = BeliefEconomyPolicy.generationSpendLine(for: .storyPage, isFirstSpend: false)
         XCTAssertFalse(later.contains("your own noticing"))
-        XCTAssertTrue(later.contains("Story Page"))
+        XCTAssertTrue(later.contains("Vignette"))
     }
 }

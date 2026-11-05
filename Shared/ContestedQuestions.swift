@@ -47,7 +47,8 @@ enum ContestedQuestionStatus: String, Codable, Equatable {
 /// friction. The Book holds a provisional opinion, and later physical evidence
 /// is allowed to embarrass it.
 struct ContestedQuestion: Codable, Equatable, Identifiable {
-    static let currentVersion = 1
+    /// 2: readings come from each person's own lens and name the topic.
+    static let currentVersion = 2
     static let minimumPositions = 3
     static let maximumPositions = 5
     /// One live argument at a time. A society with four simultaneous scandals is
@@ -113,8 +114,9 @@ enum ContestedQuestionEngine {
             position(for: entityLike(subject.actorID, in: entities), claim: stage.line,
                      grounded: [subject.id], seed: seed, now: now, isSubject: true)
         ]
+        let topic = subject.title.lowercased()
         positions += chosen.map {
-            position(for: $0, claim: nil, grounded: [subject.id], seed: seed, now: now, isSubject: false)
+            position(for: $0, claim: nil, grounded: [subject.id], seed: seed, now: now, isSubject: false, topic: topic)
         }
 
         let place = places.values.first { $0.mayActInsteadOfHost }
@@ -229,6 +231,34 @@ enum ContestedQuestionEngine {
         return result
     }
 
+    /// The stock readings older questions were saved with, which said the same
+    /// thing for every person and every topic.
+    private static let stockReadingEndings = [
+        " thinks it was deliberate, and says so in those words.",
+        " thinks the whole thing is being misread, and that several events have been collapsed into one.",
+        " thinks nobody did it: that the situation is doing it to itself.",
+        " thinks the answer is boring and everyone is enjoying the mystery too much.",
+        ", which convinces nobody but them."
+    ]
+
+    /// A question saved before version 2 gets its stock readings re-voiced once,
+    /// through each person's own lens. Authored claims are left exactly as they are.
+    static func revoiced(_ question: ContestedQuestion, entities: [NarrativeWorldEntity]) -> ContestedQuestion {
+        guard question.version < ContestedQuestion.currentVersion else { return question }
+        var result = question
+        result.version = ContestedQuestion.currentVersion
+        let topic = question.question.range(of: "going on with ").map {
+            question.question[$0.upperBound...].trimmingCharacters(in: CharacterSet(charactersIn: "?. "))
+        } ?? "it"
+        for index in result.positions.indices where result.positions[index].isSpeaking {
+            let claim = result.positions[index].claim
+            guard stockReadingEndings.contains(where: { claim.hasSuffix($0) }),
+                  let entity = entities.first(where: { $0.id == result.positions[index].holderID }) else { continue }
+            result.positions[index].claim = reading(for: entity, seed: question.id, topic: topic.isEmpty ? "it" : topic)
+        }
+        return result
+    }
+
     static func resting(_ question: ContestedQuestion, now: Date, afterDays: Double = 21) -> ContestedQuestion {
         guard question.isLive,
               now.timeIntervalSince(question.lastMovedAt) > afterDays * 86_400 else { return question }
@@ -269,7 +299,8 @@ enum ContestedQuestionEngine {
         grounded: [String],
         seed: String,
         now: Date,
-        isSubject: Bool
+        isSubject: Bool,
+        topic: String = "it"
     ) -> ContestedPosition {
         let silence = silenceReason(for: entity, seed: seed, isSubject: isSubject)
         return ContestedPosition(
@@ -277,7 +308,7 @@ enum ContestedQuestionEngine {
             holderID: entity.id,
             holderName: entity.name,
             claim: silence == .none
-                ? (claim ?? reading(for: entity, seed: seed))
+                ? (claim ?? reading(for: entity, seed: seed, topic: topic))
                 : withheld(for: entity, reason: silence),
             groundedInIDs: grounded,
             confidence: 40 + abs("\(seed)|\(entity.id)|confidence".stableHash) % 50,
@@ -313,16 +344,73 @@ enum ContestedQuestionEngine {
         }
     }
 
-    private static func reading(for entity: NarrativeWorldEntity, seed: String) -> String {
+    /// How each of the Cast reads any question, from their own belief and fault:
+    /// `{n}` is their name, `{t}` the thing in question. Two each, so the same
+    /// person doesn't say the same thing about every argument.
+    static let readings: [String: [String]] = [
+        "professor-thaddeus-mook": ["{n} insists {t} is a matter of definition, and has issued a written decree about it.",
+                                    "{n} says {t} only looks mysterious to people who haven't looked it up."],
+        "pippa-pilcrow": ["{n} says {t} is obviously trying to become something else, and would like to help.",
+                          "{n} thinks {t} is the most fun the Academy's had all week, and hopes nobody solves it."],
+        "penny-blackletter": ["{n} says there's a receipt for {t} somewhere, and intends to find it.",
+                              "{n} thinks one honest detail would settle {t}. Nobody's brought one yet."],
+        "dr-inkrest": ["{n} thinks {t} is about somebody who's tired, and says the room should go easier on them.",
+                       "{n} says {t} deserves a chair and a lamp before it deserves a verdict."],
+        "dr-vellum": ["{n} says {t} wants an experiment more than an argument, and has offered to run one.",
+                      "{n} thinks {t} has a simple cause that nobody's bothered to measure."],
+        "headmistress-thorne": ["{n} says {t} is being handled, and declines to say by whom.",
+                                "{n} thinks {t} is prettier left alone, and says so in the voice that ends conversations."],
+        "orion-blackthorn": ["{n} thinks {t} needs a better system around it, and has already drawn one.",
+                             "{n} says {t} is a building problem pretending to be a mystery."],
+        "zara-finch": ["{n} says to watch who keeps coming back to {t}, because that's where the answer is.",
+                       "{n} reckons {t} comes down to who can be trusted with a key."],
+        "wicker-eddies": ["{n} thinks {t} is a fake, and wants it on the record that Wicker said so first.",
+                          "{n} says {t} won't survive one good question, and has several ready."],
+        "serenity-brown": ["{n} says {t} is lovely, and everyone's being far too serious about it.",
+                           "{n} thinks {t} wants celebrating before anybody explains it."],
+        "finn-bridges": ["{n} says the only way to settle {t} is to go and do the thing.",
+                         "{n} reckons whoever's behind {t} hasn't earned an opinion yet."],
+        "lysander-mosswood": ["{n} thinks {t} makes sense if you walk up to it slowly.",
+                              "{n} says {t} will explain itself to anyone patient enough to follow it."],
+        "damien-nights": ["{n} says there's more to {t} than anyone's admitting, and then says nothing else.",
+                          "{n} suspects {t} is cover for something quieter."],
+        "melisande-blackwood": ["{n} says somebody knows exactly what {t} is, and it isn't anyone in this argument.",
+                                "{n} thinks {t} is a move in a game the rest of the Academy hasn't noticed."],
+        "min-seo-kim": ["{n} says whoever's in the middle of {t} could use a friend more than a theory.",
+                        "{n} thinks {t} would be easier if somebody just asked."],
+        "gwendolyn-mythwright": ["{n} says {t} should be written down properly before anyone decides what it means.",
+                                 "{n} believes {t} is improbable, which is usually a sign it's true."],
+        "lydia-boggle": ["{n} thinks {t} is a household matter, and would clear up with a good tidy.",
+                         "{n} says {t} is what happens when nobody puts things back."],
+        "ambrose-trencher": ["{n} says {t} would make more sense on a full stomach.",
+                             "{n} thinks somebody behind {t} is hungry and won't say so."],
+        "soren-ng": ["{n} says {t} has a pattern, points at where it goes, and won't finish the line.",
+                     "{n} thinks {t} is a map of something, and the interesting bit is what's been left off it."],
+        "professor-kyle-momort": ["{n} says {t} needs one step, taken now, and the whole thing will move.",
+                                  "{n} reckons the arguing over {t} is good for everyone. No conflict, no story."],
+        "professor-eleanor-euphony": ["{n} says {t} sounds wrong, and she means that exactly.",
+                                      "{n} thinks the answer to {t} is in a smell or a sound nobody's noticed."],
+        "professor-vivian-villanelle": ["{n} says {t} should be written down exactly before anyone tells it again.",
+                                        "{n} thinks {t} has been told so many ways that nobody can see it any more."],
+        "professor-cedric-stonebrook": ["{n} says {t} will settle if everyone sits down for a minute.",
+                                        "{n} thinks {t} isn't urgent, and says so very slowly."],
+        "professor-luna-wispwood": ["{n} thinks {t} is something ordinary trying to get the Academy's attention.",
+                                    "{n} says {t} is the best accident of the term, and wants to see it happen again."],
+        "professor-permancer": ["{n} says nobody should go near {t} until he's checked how to get back out.",
+                                "{n} thinks {t} opened something, and wants to know who's going to close it."]
+    ]
+
+    static func reading(for entity: NarrativeWorldEntity, seed: String, topic: String = "it") -> String {
         let lens = entity.beliefs.first ?? entity.traits.first ?? "the obvious explanation"
-        let frames = [
-            "\(entity.name) thinks it was deliberate, and says so in those words.",
-            "\(entity.name) thinks the whole thing is being misread, and that several events have been collapsed into one.",
-            "\(entity.name) thinks nobody did it: that the situation is doing it to itself.",
-            "\(entity.name) thinks the answer is boring and everyone is enjoying the mystery too much.",
-            "\(entity.name) reads it through \(lens), which convinces nobody but them."
+        let frames = readings[entity.id] ?? [
+            "{n} thinks {t} was deliberate, and says so in those words.",
+            "{n} thinks {t} is being misread, and that several things have been squashed into one.",
+            "{n} thinks nobody did {t}, and the situation is doing it to itself.",
+            "{n} reads {t} through \(lens), which convinces nobody but {n}."
         ]
         return frames[abs("\(seed)|\(entity.id)|frame".stableHash) % frames.count]
+            .replacingOccurrences(of: "{n}", with: entity.name)
+            .replacingOccurrences(of: "{t}", with: topic)
     }
 
     private static func question(for undertaking: CastUndertaking, stage: CastUndertakingStage) -> String {

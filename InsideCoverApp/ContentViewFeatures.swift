@@ -1583,6 +1583,8 @@ extension ContentView {
         var inputs = sourceInputs
         inputs.bookInterior = base
         let updated = BookInteriorEngine.reconciled(base, inputs: inputs, now: now)
+        // The mood shows in the leaves' ink; this only redraws them when it steps.
+        BookMoodInk.shared.update(interior: updated, now: now)
         let reconciledMoment = MagicMomentGovernor.reconcilingLivedEvidence(
             vault.data.magicMoment ?? MagicMomentState(),
             evidence: updated.longGame?.evidence ?? [],
@@ -1677,7 +1679,7 @@ extension ContentView {
         }
         vault.data.bookInterior = updated
         vault.save()
-        return "Good. I've put your words beside mine. I'm not conceding yet. The pencil's back out."
+        return "Good. I've put your words beside mine. I'm not conceding yet. My ink's come back up."
     }
 
     func saveElectives(_ list: [UnwrittenElective]) {
@@ -2415,6 +2417,7 @@ extension ContentView {
             constellations: vault.data.constellations ?? [],
             wagers: vault.data.wagers ?? [],
             themes: vault.data.themes ?? [],
+            grimoire: vault.data.grimoire ?? GrimoireLedger(),
             now: now
         )
         ConstellationTendRequest.generation &+= 1
@@ -4875,7 +4878,7 @@ extension ContentView {
     /// is seed-deterministic, so only the first binding of a given line pays.
     @MainActor
     private func illuminatedPlates(for edition: MonthlyEdition) async -> [MonthlyEditionPDFWriter.IlluminatedPlate] {
-        let selections = (edition.passageCompass ?? []).prefix(4)
+        let selections = (edition.passageCompass ?? []).filter(\.isPrintableQuote).prefix(4)
         guard !selections.isEmpty else { return [] }
 
         var plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = []
@@ -4894,7 +4897,7 @@ extension ContentView {
             )
             if let url, let image = UIImage(contentsOfFile: url.path) {
                 plates.append(
-                    .init(image: image, caption: selection.reason.nonEmpty ?? edition.monthName)
+                    .init(image: image, caption: selection.printCaption)
                 )
             }
             await Task.yield()
@@ -4912,7 +4915,7 @@ extension ContentView {
         var picks: [Pick] = []
         for offset in 0..<4 where picks.count < limit {
             for chapter in annual.chapters where picks.count < limit {
-                let selections = chapter.passageCompass ?? []
+                let selections = (chapter.passageCompass ?? []).filter(\.isPrintableQuote)
                 guard selections.indices.contains(offset) else { continue }
                 picks.append((chapter, selections[offset]))
             }
@@ -4932,7 +4935,7 @@ extension ContentView {
                 seed: abs(quote.stableHash) &+ index
             )
             if let url, let image = UIImage(contentsOfFile: url.path) {
-                plates.append(.init(image: image, caption: pick.selection.reason.nonEmpty ?? pick.chapter.monthName))
+                plates.append(.init(image: image, caption: "\(pick.selection.printCaption) \u{00B7} \(pick.chapter.monthName)"))
             }
             await Task.yield()
         }
@@ -5909,7 +5912,28 @@ extension ContentView {
         }
 
         colophonBindingNote = "The month's words are stored. Setting the pages and plates…"
-        return checkpoint.payload
+        // A leaf the model wrote prints only if it's about this month and
+        // reads like a book; otherwise the Book's own leaf stays.
+        var bound = checkpoint.payload
+        let material = monthlyGateMaterial(for: edition)
+        if !EditionProseGate.accepts(bound.foreword, minimumWords: 40, material: material) {
+            bound.foreword = edition.foreword
+        }
+        if !EditionProseGate.accepts(bound.closing, minimumWords: 40, material: material) {
+            bound.closing = edition.closing
+        }
+        if !EditionProseGate.accepts(bound.bindingStory, minimumWords: 90, material: material) {
+            bound.bindingStory = nil
+        }
+        return bound
+    }
+
+    /// The month's own words, for checking a model-written leaf is about them.
+    private func monthlyGateMaterial(for edition: MonthlyEdition) -> [String] {
+        (edition.passageCompass ?? []).map(\.excerpt)
+            + edition.memorySpinePromptLines
+            + [edition.theme?.name ?? "", edition.theme?.line ?? ""]
+            + (edition.dayBook?.days.flatMap(\.words) ?? [])
     }
 
     @MainActor
@@ -7041,6 +7065,11 @@ extension ContentView {
             let openTale = isCurrentDay ? retellInputs.openTale : nil
             let relationship = BookRelationshipLedger.snapshot(inputs: retellInputs)
             let retellDate = braidDay.date
+            // The same split as the nightly braid: an authored monthly event
+            // lends its public pulse, never its live phase prose.
+            let retellWorld = SceneWorldCanon.braidWorldEvents(
+                retellInputs.activeWorldEvents, authored: retellInputs.monthlyIssueAuthoringManifests
+            )
             var context = await Task.detached(priority: .userInitiated) {
                 LocalModelManager.braidContext(
                     for: weavableDay,
@@ -7048,7 +7077,8 @@ extension ContentView {
                     themes: themes,
                     entityBeliefOffsets: beliefOffsets,
                     learnedNotes: learnedNotes,
-                    activeWorldEvents: retellInputs.activeWorldEvents,
+                    activeWorldEvents: retellWorld.live,
+                    bleedPrintHistory: retellInputs.bleedPrintHistory,
                     castUndertakings: undertakings,
                     readerLexicon: lexicon,
                     readerLearning: learning,
@@ -7073,6 +7103,7 @@ extension ContentView {
                 priorPage: priorPage,
                 choice: choice
             )
+            context.pulseWorldEvents = retellWorld.pulseOnly
             context.authoredStoryReceipts = authoredMatter
 
             var retold = try await braider.braid(day: weavableDay, context: context)
@@ -15512,6 +15543,8 @@ struct ConstellationTendRequest: @unchecked Sendable {
     var constellations: [Constellation]
     var wagers: [BookWager]
     var themes: [BookTheme]
+    /// What the Book has worked out, for bets about the days ahead.
+    var grimoire: GrimoireLedger
     var now: Date
 
     /// The new ledgers, or nil when nothing would change.
@@ -15538,6 +15571,7 @@ struct ConstellationTendRequest: @unchecked Sendable {
         )
         var tendedWagers = SealedMarginEngine.resolved(wagers, against: days, now: now)
         tendedWagers += SealedMarginEngine.mintWagers(from: digest, existing: tendedWagers, now: now)
+        tendedWagers += BookBets.mint(grimoire: grimoire, existing: tendedWagers, now: now)
 
         let calendar = Calendar.current
         let monthKey = BookThemeEngine.monthKey(for: now, calendar: calendar)

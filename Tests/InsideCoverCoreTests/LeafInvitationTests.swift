@@ -162,6 +162,14 @@ final class LeafPresentationContractTests: XCTestCase {
         }
     }
 
+    func testARecipeCanBeKeptWithoutUnfoldingItButTheRescuePageCannot() {
+        let recipe = page(.recipe)
+        XCTAssertEqual(recipe.leafPresentation, .activityPreview)
+        XCTAssertFalse(recipe.leafRequiresUnfoldingToKeep, "a reader may want only the recipe")
+        let rescue = page(.recipe, metadata: [KitchenOffering.rescueKey: "true"])
+        XCTAssertTrue(rescue.leafRequiresUnfoldingToKeep, "writing it down is the Page")
+    }
+
     func testPreviewNeverReplacesTheAuthoritativeStoryOrItsChoices() {
         let body = (1...240).map { "word\($0)" }.joined(separator: " ")
         let story = page(.narrativeOS, body: body, metadata: ["storyChoiceSliceOfLifeTitle": "Stay and listen"])

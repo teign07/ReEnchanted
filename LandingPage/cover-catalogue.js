@@ -48,6 +48,18 @@ window.PublicCoverCatalogue={
       "parchmentTitle": false
     },
     {
+      "year": 2026,
+      "month": 11,
+      "subtitle": "The Guest Who Came on All Souls",
+      "monthLine": "Issue No. 2",
+      "id": "a-place-at-the-table-november-2026",
+      "title": "A Place at the Table",
+      "assetName": "OfficialCoverPlaceAtTheTableNovember2026",
+      "includesMatter": true,
+      "src": "./assets/book/covers/a-place-at-the-table-november-2026.webp",
+      "parchmentTitle": false
+    },
+    {
       "year": 2027,
       "month": 9,
       "subtitle": "The words got out.",

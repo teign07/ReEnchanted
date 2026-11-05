@@ -880,7 +880,7 @@ window.PublicFeastAlmanac={
    },
    "commonName": "Walpurgisnacht",
    "academyTitle": "The Night of the Bonfires",
-   "blurb": "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two doors in it and everyone only ever remembers the one: I've been trying to get people to notice this door for centuries.",
+   "blurb": "Walpurgisnacht. Enormous bonfires across northern Europe tonight and as much noise as anybody can make, on the old understanding that this is when the witches gather on the Brocken and the racket is what moves them along. It sits exactly six months from Halloween. The year has two spooky nights in it and everyone only ever remembers the one. I've been trying to get people to notice this one for centuries.",
    "invitationTitle": "The Night of the Bonfires",
    "invitation": "Make some noise tonight to see something off. Winter, a mood, a month. Tell me what you were shouting at.",
    "accent": "violet",

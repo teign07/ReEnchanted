@@ -55,6 +55,8 @@ NEVER_PUBLISH=(
                   # <link> and <script> tags in index.html are commented out to
                   # match. Re-enable both together, never one alone, or the
                   # hero's "Fall through the cover" button 404s.
+  "assets/book/covers/the-guest-november-2026.webp"
+                  # Held by bj (2026-11-01); also skipped by sync-web-covers.py.
 )
 
 CHECK_ONLY=0

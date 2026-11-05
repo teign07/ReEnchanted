@@ -35,7 +35,9 @@ enum BookInkTiming {
     static let absorptionDuration = 1.65
     /// Long enough for each sentence's puddle to run the length of its line
     /// and dry; the old stain-and-gather needed only a second.
-    static let arrivalDuration = 1.35 * debugSlowdown
+    /// The Book's mood stretches or quickens this (`BookMoodInk.tempo`); every
+    /// stagger below is a share of it, so the shape of an arrival holds.
+    static var arrivalDuration: Double { 1.35 * debugSlowdown * BookMoodInk.tempo }
     #if DEBUG
     /// `--pigment-slow` stretches the leaf clock for frame-by-frame review.
     private static let debugSlowdown = ProcessInfo.processInfo.arguments.contains("--pigment-slow") ? 8.0 : 1.0
@@ -43,8 +45,8 @@ enum BookInkTiming {
     private static let debugSlowdown = 1.0
     #endif
     // Preserve the stagger and wet/dry proportions as the leaf clock shortens.
-    static let regionalDelaySpan = arrivalDuration * 0.40
-    static let regionalPhaseDuration = arrivalDuration * 0.56
+    static var regionalDelaySpan: Double { arrivalDuration * 0.40 }
+    static var regionalPhaseDuration: Double { arrivalDuration * 0.56 }
 
     /// Neighbouring sentences occupy different start bands, in a shuffled
     /// order. Random offsets alone can bunch a whole paragraph together.

@@ -182,7 +182,7 @@ final class KitchenTests: XCTestCase {
         XCTAssertEqual(reoffered, [11, 18], "put down again a few times, spaced out, never every morning")
         XCTAssertEqual(offer(on: date(11, 11), workings: owed)?.recipe.id, "stone-soup")
         XCTAssertEqual(KitchenOffering.reofferLine(since: date(11, 7), now: date(11, 11), calendar: calendar),
-                       "I gave you this on the 7th. Here it is again. — A. T.")
+                       "I gave you this on the 7th. Here it is again. — A. T.".keepingKitchenSignOffTogether)
         let madeSince = KitchenLedger.workings(in: days([kept("stone-soup", .notYet, on: date(11, 7)),
                                                          kept("stone-soup", .made, on: date(11, 9))]))
         XCTAssertNotEqual(offer(on: date(11, 11), workings: madeSince)?.reason, .reoffer(owedSince: date(11, 7)))

@@ -674,7 +674,7 @@ enum WorldEventTouchKind: String, Codable, Equatable, CaseIterable {
         case .classAnswered: return "class"
         case .compassRunCompleted: return "Compass run"
         case .enchantmentCompleted: return "enchantment"
-        case .storyChoiceMade: return "Story Page"
+        case .storyChoiceMade: return "vignette"
         case .bleedEditionKept: return "Bleed issue"
         case .wordRuled: return "word ruling"
         }

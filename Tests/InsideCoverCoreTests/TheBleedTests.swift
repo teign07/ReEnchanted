@@ -247,7 +247,7 @@ final class TheBleedTests: XCTestCase {
         let evening = TheBleedEditionBuilder.almanacColumn(kind: .evening, inputs: inputs, now: date(10, hour: 18), calendar: calendar)
         XCTAssertTrue(evening.contains("Ferry to town"))
         XCTAssertFalse(evening.contains("Harbor walk"))
-        XCTAssertTrue(evening.hasPrefix("Tomorrow"))
+        XCTAssertFalse(evening.hasPrefix("Tomorrow:"))
     }
 
     func testAlmanacDoesNotMistakeAClosedDoorwayForAnEmptyDay() {
@@ -322,7 +322,7 @@ final class TheBleedTests: XCTestCase {
         let refreshed = TheBleedEditionBuilder.refreshingWeatherBriefs(staleBriefs, kind: .morning, inputs: inputs)
         let weather = try XCTUnwrap(refreshed.first { $0.id == "weather-desk" })
 
-        XCTAssertTrue(weather.composedBody.contains("Current: Rain, 64 F"))
+        XCTAssertTrue(weather.composedBody.contains("Out the window: rain, 64 F."), weather.composedBody)
         XCTAssertFalse(weather.composedBody.contains("Academy's own translation"))
     }
 
@@ -353,7 +353,7 @@ final class TheBleedTests: XCTestCase {
         let refreshed = TheBleedEditionBuilder.refreshingWeatherBriefs(briefs, kind: .evening, inputs: inputs)
         let weather = try XCTUnwrap(refreshed.first { $0.id == "weather-desk" })
 
-        XCTAssertTrue(weather.composedBody.contains("Current: Fog, 55 F"))
+        XCTAssertTrue(weather.composedBody.contains("Out the window: fog, 55 F."), weather.composedBody)
         XCTAssertFalse(weather.composedBody.contains("The world is speaking in pencil."))
     }
 

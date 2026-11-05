@@ -1121,22 +1121,24 @@ final class BraidScenePlanTests: XCTestCase {
     // MARK: - One or two pieces of the world
 
     /// bj: "we only need one or two world events for the braid, not all of
-    /// them." Counted across monthly passages, the world beat, quiet-day
-    /// beats and the day's kept fiction.
+    /// them." Counted across monthly passages, the world beat and quiet-day
+    /// beats: the world the Book brings. Kept fiction is the reader's own keep
+    /// and has its own allowance (bj, 2026-11-01), checked below.
     func testNoNightCarriesMoreThanTwoPiecesOfTheWorld() {
         for night in BraidBench.corpus() {
             let plan = BraidScenePlanBuilder.plan(for: night.day, context: night.context)
+            let world = (plan.worldBeat == nil ? 0 : 1)
+                + plan.quietDayBeats.count
+                + (plan.authoredStoryReceipts?.count ?? 0)
+            XCTAssertLessThanOrEqual(world, BraidScenePlanBuilder.worldItemLimit, "\(night.name)\n\(plan.summary)")
             let fiction = Set(
                 plan.placements
                     .compactMap { plan.evidence(for: $0.evidenceID) }
                     .filter { $0.kind == .keptFiction }
                     .map(\.pageID)
             )
-            let world = fiction.count
-                + (plan.worldBeat == nil ? 0 : 1)
-                + plan.quietDayBeats.count
-                + (plan.authoredStoryReceipts?.count ?? 0)
-            XCTAssertLessThanOrEqual(world, BraidScenePlanBuilder.worldItemLimit, "\(night.name)\n\(plan.summary)")
+            let scale = BraidPromptBuilder.BraidScale(rawValue: plan.scale) ?? .full
+            XCTAssertLessThanOrEqual(fiction.count, scale.fictionBeatAllowance, "\(night.name)\n\(plan.summary)")
         }
     }
 

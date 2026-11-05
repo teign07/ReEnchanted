@@ -76,7 +76,7 @@ final class MannerSignalsTests: XCTestCase {
         )
         XCTAssertEqual(signal.kind, .manner)
         XCTAssertTrue(signal.tags.contains("hovering"))
-        XCTAssertTrue(signal.line.contains("pencil is hovering"))
+        XCTAssertTrue(signal.line.contains("pen is hovering"))
     }
 
     func testHedgeSignalNoticesWritingInInk() throws {

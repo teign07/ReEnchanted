@@ -654,9 +654,15 @@ enum HandbookKeepsakesBuilder {
     private static func plainWords(from pages: [BookPage], limit: Int, minPages: Int, seed: String) -> [String] {
         WeeklyCuration.refrain(from: pages, limit: limit * 3, minPages: minPages, seed: seed)
             .filter { $0.first?.isLowercase == true }
+            // "didn" is what's left of "didn't" once the apostrophe splits it.
+            .filter { !contractionStems.contains(String($0)) }
             .prefix(limit)
             .map { String($0) }
     }
+
+    private static let contractionStems: Set<String> = [
+        "didn", "doesn", "isn", "wasn", "couldn", "wouldn", "shouldn", "aren", "weren", "hasn", "haven", "hadn", "don", "ain", "won", "mustn", "needn"
+    ]
 
     static func questions(pages: [BookPage], seed: String) -> HandbookKeepsakes.Questions? {
         let generic = questionBank

@@ -33,8 +33,7 @@ enum ReaderAtlas {
         conditionMap(
             ink: ink(in: days, calendar: calendar),
             conditionKind: "hour",
-            conditions: { $0.dayPart.map { [$0] } ?? [] },
-            edgeLabel: { "written in the \($0)" }
+            conditions: { $0.dayPart.map { [$0] } ?? [] }
         )
     }
 
@@ -43,8 +42,7 @@ enum ReaderAtlas {
         conditionMap(
             ink: ink(in: days, calendar: calendar),
             conditionKind: "sky",
-            conditions: { $0.skies },
-            edgeLabel: { "written under \($0)" }
+            conditions: { $0.skies }
         )
     }
 
@@ -53,8 +51,7 @@ enum ReaderAtlas {
         conditionMap(
             ink: ink(in: days, calendar: calendar),
             conditionKind: "place",
-            conditions: { $0.place.map { [$0] } ?? [] },
-            edgeLabel: { "written at \($0)" }
+            conditions: { $0.place.map { [$0] } ?? [] }
         )
     }
 
@@ -94,13 +91,106 @@ enum ReaderAtlas {
                 // keeps bringing back together is drawn warmer. The Book is not
                 // claiming to know how they feel about it.
                 warmth: min(0.6, Double(count) / 5.0),
-                label: count > 2 ? "keeps arriving together" : "arrived together"
+                label: pagesLabel(count) + " together"
             ))
         }
         let usedWords: Set<String> = Set(edges.flatMap { [$0.sourceID, $0.targetID] })
         let nodes: [GraphNode] = wordNodes(recurring, keeping: usedWords)
         guard nodes.count >= 3 else { return .empty }
         return NarrativeGraphData(nodes: nodes, edges: edges)
+    }
+
+    // MARK: - The surprise
+
+    /// A word has to have come back this often before the Book calls it loyal.
+    static let surpriseMinimumPages = 3
+
+    /// The one line on a map the reader wouldn't have guessed: a word that has
+    /// only ever turned up at one time of day, in one weather, at one place, or
+    /// two words that keep turning up together. Nil when nothing on the map is
+    /// that clean, because "mostly" isn't a surprise.
+    static func surprise(
+        for variant: MarginsAtlasVariant,
+        days: [BookDay],
+        calendar: Calendar = .current
+    ) -> String? {
+        let ink = ink(in: days, calendar: calendar)
+        let recurring = recurringWords(in: ink).filter {
+            $0.value >= surpriseMinimumPages && !BleedDataDesk.tenderWords.contains($0.key)
+        }
+        guard !recurring.isEmpty else { return nil }
+
+        if variant == .lexicon {
+            var pairs: [String: Int] = [:]
+            for page in ink {
+                let words = Set(page.words.filter { recurring[$0] != nil }).sorted()
+                for (index, left) in words.enumerated() {
+                    for right in words.dropFirst(index + 1) { pairs["\(left)|\(right)", default: 0] += 1 }
+                }
+            }
+            guard let best = pairs.filter({ $0.value >= surpriseMinimumPages })
+                .max(by: { $0.value == $1.value ? $0.key > $1.key : $0.value < $1.value }) else { return nil }
+            let ends = best.key.split(separator: "|").map(String.init)
+            guard ends.count == 2 else { return nil }
+            return "“\(ends[0])” and “\(ends[1])” have turned up together on \(best.value) of your Pages. "
+                + "I think they're friends."
+        }
+
+        let conditions: (Ink) -> [String]
+        switch variant {
+        case .hours: conditions = { $0.dayPart.map { [$0] } ?? [] }
+        case .skies: conditions = { $0.skies }
+        case .places: conditions = { $0.place.map { [$0] } ?? [] }
+        default: return nil
+        }
+        // Loyal: every Page the word is on carries one and the same condition.
+        var loyal: (word: String, condition: String, pages: Int)?
+        for (word, pages) in recurring {
+            let carrying = ink.filter { $0.words.contains(word) }
+            let found = Set(carrying.flatMap(conditions))
+            guard found.count == 1, let only = found.first,
+                  carrying.allSatisfy({ conditions($0).contains(only) }) else { continue }
+            if let current = loyal, current.pages > pages || (current.pages == pages && current.word < word) { continue }
+            loyal = (word, only, pages)
+        }
+        guard let loyal else { return nil }
+        let count = GrimoireVoice.spelledCount(loyal.pages)
+        switch variant {
+        case .hours:
+            let when = hourPhrase(loyal.condition)
+            return "“\(loyal.word)” has only ever turned up \(when). \(count) Pages, and never once at any other time. "
+                + "It must be \(withArticle(loyal.condition)) word."
+        case .skies:
+            return "You only ever write “\(loyal.word)” \(skyPhrase(loyal.condition)). \(count) Pages out of \(count.lowercased()). "
+                + "I think the word likes the weather."
+        default:
+            return "“\(loyal.word)” only ever shows up when you're at \(loyal.condition). \(count) Pages. I think it lives there."
+        }
+    }
+
+    // MARK: - Saying the conditions
+
+    /// "in the evening", "at night".
+    static func hourPhrase(_ part: String) -> String {
+        part == "night" ? "at night" : "in the \(part)"
+    }
+
+    /// A weather tag as days: "on rainy days", "on clear days".
+    static func skyPhrase(_ tag: String) -> String {
+        let word = tag.lowercased().replacingOccurrences(of: "-", with: " ")
+        let adjectives = [
+            "rain": "rainy", "drizzle": "drizzly", "shower": "showery", "showers": "showery",
+            "snow": "snowy", "sleet": "sleety", "fog": "foggy", "mist": "misty", "haze": "hazy",
+            "wind": "windy", "storm": "stormy", "thunderstorm": "stormy", "thunder": "thundery",
+            "cloud": "cloudy", "clouds": "cloudy", "sun": "sunny", "sunshine": "sunny",
+            "bright": "sunny", "ice": "icy", "frost": "frosty"
+        ]
+        return "on \(adjectives[word] ?? word) days"
+    }
+
+    private static func withArticle(_ word: String) -> String {
+        guard let first = word.first else { return word }
+        return ("aeiou".contains(first) ? "an " : "a ") + word
     }
 
     // MARK: - The reader's ink
@@ -158,8 +248,7 @@ enum ReaderAtlas {
     private static func conditionMap(
         ink: [Ink],
         conditionKind: String,
-        conditions: (Ink) -> [String],
-        edgeLabel: (String) -> String
+        conditions: (Ink) -> [String]
     ) -> NarrativeGraphData {
         let recurring = recurringWords(in: ink)
         guard !recurring.isEmpty else { return .empty }
@@ -189,7 +278,9 @@ enum ReaderAtlas {
                     targetID: "word-\(word)",
                     strength: strength(count),
                     warmth: min(0.6, Double(count) / 5.0),
-                    label: edgeLabel(condition)
+                    // A line says how many Pages it stands for, so the
+                    // reader can check it from either end.
+                    label: pagesLabel(count)
                 ))
             }
         }
@@ -243,6 +334,11 @@ enum ReaderAtlas {
             chapterID: nil,
             kindLabel: "word"
         )
+    }
+
+    /// "on 4 Pages": how many of the reader's own Pages one line stands for.
+    static func pagesLabel(_ count: Int) -> String {
+        count == 1 ? "on 1 Page" : "on \(count) Pages"
     }
 
     private static func strength(_ count: Int) -> Double {

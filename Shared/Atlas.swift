@@ -206,13 +206,21 @@ enum PlacesAtlasLayer: AtlasLayerSource {
         let entries = Gazetteer.entries(anchors: sources.anchors, days: sources.days)
         var byID: [String: GazetteerEntry] = [:]
         for entry in entries { byID[entry.id] = entry }
+        // The one thing the Book noticed about each place (an anniversary, a
+        // place gone quiet, the weather it always has) leads its card. It's
+        // the line a reader didn't already know.
+        var noticed: [String: String] = [:]
+        for leaf in Gazetteer.quietLeaves(anchors: sources.anchors, days: sources.days, now: sources.now, calendar: sources.calendar) {
+            noticed[leaf.anchorID] = leaf.line
+        }
 
         return sources.anchors.map { anchor in
             let entry = byID[anchor.id]
             var detail: [String] = []
+            if let line = noticed[anchor.id] { detail.append(line) }
             // Veiling is the Gazetteer's decision and is not re-made here.
             if let kind = entry?.kindLine { detail.append(kind) }
-            if let made = entry?.madeLine { detail.append(made) }
+            if let made = entry?.madeLine, made != noticed[anchor.id] { detail.append(made) }
             if let returns = entry?.returnsLine { detail.append(returns) }
             detail.append(contentsOf: entry?.happenings ?? [])
             return AtlasMark(
@@ -253,7 +261,7 @@ enum KeptPagesAtlasLayer: AtlasLayerSource {
                     layer: layer,
                     latitude: latitude,
                     longitude: longitude,
-                    title: page.type.shortTitle,
+                    title: "\("aeiou".contains(page.type.shortTitle.lowercased().first ?? "x") ? "An" : "A") \(page.type.shortTitle) Page",
                     subtitle: page.context?.placeKind.map(SpellCastMemory.humanisedPlace),
                     glyph: "circle.fill",
                     detail: [written].compactMap { $0 },

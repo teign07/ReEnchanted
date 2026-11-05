@@ -595,8 +595,12 @@ enum EditionProofHarness {
             let fieldDays = FieldBookFixture.yearKeepsakes(days: try FieldBookFixture.augment(
                 days: days, directory: directory, calendar: calendar), calendar: calendar, months: 10...10)
             var lines: [String] = []
-            for (kind, hour) in [(BleedEditionKind.morning, 7), (BleedEditionKind.evening, 18)] {
-                let now = SyntheticReaderYear.date(2026, 10, 19, hour: hour)
+            // The evening paper remembers what the morning printed, so its numbers rotate.
+            var printed: [BleedPrintRecord] = []
+            // Sunday's morning paper too, for the weekend section; then Monday's two.
+            for (kind, date, hour, label) in [(BleedEditionKind.morning, 18, 7, "weekend"), (.morning, 19, 7, "morning"),
+                                              (.evening, 19, 18, "evening")] {
+                let now = SyntheticReaderYear.date(2026, 10, date, hour: hour)
                 let start = calendar.startOfDay(for: now)
                 var today = fieldDays.first { calendar.isDate($0.date, inSameDayAs: now) }
                     ?? BookDay(id: BookDay.id(for: now, calendar: calendar), date: start, pages: [])
@@ -639,6 +643,55 @@ enum EditionProofHarness {
                 inputs.selfFacts = [SelfFact(id: "name", questionID: "onboarding-name", question: "Your name?", answer: reader,
                                              bookTranslation: reader, sensitivity: .identity, usePermission: .quoteAllowed,
                                              tags: ["name"], createdAt: now, updatedAt: now)]
+                // The paper's numbers: a war on the shelves and business under way.
+                var war = PactWarState()
+                for (talisman, territory, control) in [("moss-clasp", "shelf-care", 41), ("ember-seal", "shelf-care", 33),
+                                                       ("tide-glass", "shelf-story", 22), ("dusk-thorn", "shelf-story", 20),
+                                                       ("ember-seal", "shelf-reflection", 55), ("wind-cipher", "integ-calendar", 18)] {
+                    war.adjust(talisman, territory, by: control)
+                }
+                war.log = [PactActionRecord(id: "push", talismanID: "dusk-thorn", territoryID: "shelf-story", kind: .challenge,
+                                            at: now.addingTimeInterval(-5 * 3600), line: "The Dusk Thorn challenges for the Story Shelf.")]
+                inputs.pactWar = war
+                inputs.castUndertakings = CastUndertakingRegistry.coreLadders.prefix(3).enumerated().map { index, ladder in
+                    CastUndertaking(id: "proof-\(ladder.id)", actorID: ladder.actorID, title: ladder.title, pursuit: ladder.pursuit,
+                                    why: ladder.why, stages: ladder.stages, stageIndex: 1 + index % 2, status: index == 2 ? .stalled : .active,
+                                    startedAt: start.addingTimeInterval(-9 * 86_400), lastAdvancedAt: start.addingTimeInterval(-3 * 86_400),
+                                    nextEligibleAt: now.addingTimeInterval(Double(index * 30) * 3600), ladderID: ladder.id)
+                }
+                inputs.bleedPrintHistory = printed
+                // The Academy's week, for the weekend section: an argument, what people did, and
+                // business the Reader has met.
+                if label == "weekend" {
+                    inputs.contestedQuestions = [ContestedQuestion(
+                        id: "proof-bench", question: "Who repainted the bench by the Walled Garden?", aboutMovementIDs: [],
+                        positions: [ContestedPosition(id: "w", holderID: "wicker-eddies", holderName: "Wicker", claim: "It was always blue.",
+                                                      groundedInIDs: [], confidence: 60, silence: .none, formedAt: now),
+                                    ContestedPosition(id: "p", holderID: "penny-blackletter", holderName: "Penny", claim: "The paint is fresh.",
+                                                      groundedInIDs: [], confidence: 40, silence: .none, formedAt: now)],
+                        bookPosition: "A private guess.", status: .open, openedAt: now.addingTimeInterval(-3 * 86_400),
+                        lastMovedAt: now.addingTimeInterval(-86_400))]
+                    for (days, (id, actor, target, act, line)) in zip([3.0, 2.0, 1.0], [
+                        ("a1", "pippa-pilcrow", "zara-finch", CastAct.include, "Pippa brought Zara into the business of the stolen stamp."),
+                        ("a2", "zara-finch", "pippa-pilcrow", .defend, "Zara took Pippa's side out loud, in front of Mook."),
+                        ("a3", "wicker-eddies", "thaddeus-mook", .correctInPublic, "Wicker corrected Mook in front of everybody, about a comma.")]) {
+                        inputs.castActs.record(CastActRecord(id: id, actorID: actor, actorName: BleedDayDesk.castName(actor), targetID: target,
+                                                             targetName: BleedDayDesk.castName(target), act: act, line: line,
+                                                             occurredAt: now.addingTimeInterval(-days * 86_400), tags: []))
+                    }
+                    inputs.undertakingSerial.rememberedStoryBeats = inputs.castUndertakings.flatMap { undertaking in
+                        undertaking.stages.prefix(undertaking.stageIndex + 1).map {
+                            UndertakingSerial.storyBeatKey(actorID: undertaking.actorID, stageID: $0.id)
+                        }
+                    }
+                }
+                // In the morning a page has gone grey, so the day goes in the box under it.
+                if label == "morning", let old = inputs.days.first?.pages.first {
+                    inputs.greyPageThreats = GreyPageThreatLedger(threats: [GreyPageThreat(
+                        id: "grey-page-proof", pageID: old.id, pageTitle: old.promptText.nonEmpty ?? "A kept page",
+                        pageExcerpt: "", markedAt: now.addingTimeInterval(-86_400), deadline: now.addingTimeInterval(31 * 3600),
+                        status: .fading, resolvedAt: nil, rescueLine: nil)])
+                }
                 guard let surface = TheBleedEditionBuilder.announcementSurface(
                     for: today, inputs: inputs, now: now, calendar: calendar, settingTheType: true) else {
                     throw ProofError("no \(kind.rawValue) announcement")
@@ -649,11 +702,15 @@ enum EditionProofHarness {
                     .filter { !$0.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 let body = TheBleedEditionBuilder.compositedBody(kind: kind, issueNumber: inputs.bleedIssueNumber,
                                                                 columns: columns, now: now, calendar: calendar)
+                let pressed = TheBleedEditionBuilder.preparedCopy(of: surface, body: body, interestSources: "", columns: columns, printedAt: now)
+                if let record = BleedPrintRecord.decode(pressed.payload.metadata[BleedPrintRecord.metadataKey]) {
+                    printed = BleedPrintRecord.remembering(record, in: printed)
+                }
                 let plates = TheBleedEditionBuilder.decodedPlateAssets(
-                    surface.payload.metadata[TheBleedEditionBuilder.plateAssetsMetadataKey] ?? "")
-                try body.write(to: directory.appendingPathComponent("bleed-\(kind.rawValue).txt"), atomically: true, encoding: .utf8)
+                    pressed.payload.metadata[TheBleedEditionBuilder.plateAssetsMetadataKey] ?? "")
+                try body.write(to: directory.appendingPathComponent("bleed-\(label).txt"), atomically: true, encoding: .utf8)
                 try BleedPDFWriter.write(headline: surface.payload.headline, body: body, mediaAssets: plates,
-                                         to: directory.appendingPathComponent("bleed-\(kind.rawValue).pdf"))
+                                         to: directory.appendingPathComponent("bleed-\(label).pdf"))
                 // The in-app paper, rendered the way the leaf shows it.
                 if let paper = BleedReadingCopy.parse(body) {
                     let front = plates.first { $0.metadata["bleedFrontPlate"] == "true" }
@@ -670,10 +727,10 @@ enum EditionProofHarness {
                     }
                     let png = Thread.isMainThread ? render() : DispatchQueue.main.sync(execute: render)
                     if let png {
-                        try png.write(to: directory.appendingPathComponent("bleed-\(kind.rawValue)-leaf.png"))
+                        try png.write(to: directory.appendingPathComponent("bleed-\(label)-leaf.png"))
                     }
                 }
-                lines.append("\(kind.rawValue): \(columns.map(\.brief.id).joined(separator: ","))")
+                lines.append("\(label): \(columns.map(\.brief.id).joined(separator: ","))")
             }
             return lines.joined(separator: " | ")
         }
@@ -727,8 +784,10 @@ enum EditionProofHarness {
                         // Practical strips and the evening answer are meant to recur in kind, not in words.
                         guard let story = column.brief.storyID,
                               !["weather-desk", "almanac", "stop-press", "academy-day"].contains(column.brief.id) else { continue }
-                        if let first = seenStories[story] { problems.append("\(label): \(story) already printed \(first)") }
-                        seenStories[story] = label
+                        // A number column recurs by design; the same table twice is the repeat.
+                        let key = BleedIssueCurator.desk(column.brief) == .data ? "\(story)|\(column.brief.revision ?? "")" : story
+                        if let first = seenStories[key] { problems.append("\(label): \(story) already printed \(first)") }
+                        seenStories[key] = label
                     }
                     // The Reader's own sentences: each printed once across the fortnight.
                     for line in body.components(separatedBy: "\n") where line.hasPrefix("“") {

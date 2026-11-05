@@ -372,6 +372,7 @@ enum BoundDayBookBuilder {
             if day.hasWorldSide || day.hasYourSide { days.append(day) } else { quiet.append(cursor) }
         }
         guard !days.isEmpty else { return nil }
+        foldRepeatedKeeps(in: &days)
         // The most made-over scrapbook pages print full size; the rest go small
         // onto the gallery leaf. Ties go to the earlier page.
         let spanDays = (calendar.dateComponents([.day], from: first, to: last).day ?? 0) + 1
@@ -397,6 +398,51 @@ enum BoundDayBookBuilder {
             ),
             quietDates: quiet
         )
+    }
+
+    /// The same letter delivered twice, the same class card on two days, a
+    /// sealed guess re-sealed with only its count of days changed: the book
+    /// sets each once, on the first day it came. A folded copy still counts
+    /// as printed, so the archive doesn't set it at the back instead.
+    static func foldRepeatedKeeps(in days: inout [BoundDay]) {
+        var seen = Set<String>()
+        for index in days.indices {
+            var folded: [String] = []
+            days[index].keeps.removeAll { keep in
+                let key = "\(keep.kind.rawValue)|\(repeatKey(keep.title))|\(repeatKey(keep.body))"
+                if seen.insert(key).inserted { return false }
+                // A reply the reader wrote on the second copy is theirs: keep that one.
+                if keep.readerReply != nil { return false }
+                folded.append(keep.id)
+                return true
+            }
+            days[index].wordSourceIDs.append(contentsOf: folded)
+        }
+    }
+
+    /// Letters and words only: dates and counts differ between two copies of one thing.
+    static func repeatKey(_ text: String) -> String {
+        text.lowercased().split(whereSeparator: { !$0.isLetter }).joined(separator: " ")
+    }
+
+    /// A scene read after a missed one opens with the missed scene's public
+    /// report. The book prints that report as its own chapter, so the later
+    /// scene doesn't open on it a second time.
+    static func strippingReportPrefaces(_ scenes: [BoundDayScene]) -> [BoundDayScene] {
+        let reports = Set(scenes.filter(\.isReport).flatMap { scene in
+            scene.body.components(separatedBy: "\n\n").map(normalised).filter { !$0.isEmpty }
+        })
+        guard !reports.isEmpty else { return scenes }
+        return scenes.map { scene in
+            guard !scene.isReport else { return scene }
+            var paragraphs = scene.body.components(separatedBy: "\n\n")
+            while paragraphs.count > 1, let first = paragraphs.first, reports.contains(normalised(first)) {
+                paragraphs.removeFirst()
+            }
+            var trimmed = scene
+            trimmed.body = paragraphs.joined(separator: "\n\n")
+            return trimmed
+        }
     }
 
     // MARK: Scenes the reader read
@@ -444,7 +490,12 @@ enum BoundDayBookBuilder {
                 byBody[key] = candidate
             }
         }
-        return byBody.values.sorted { ($0.readAt, $0.id) < ($1.readAt, $1.id) }
+        let ordered = byBody.values.sorted { ($0.readAt, $0.id) < ($1.readAt, $1.id) }
+        return strippingReportPrefaces(ordered).map { scene in
+            var scene = scene
+            scene.body = PrintHygiene.scrubbedProse(scene.body)
+            return scene
+        }
     }
 
     /// What the dial played, by the day it played, from receipts frozen then.
@@ -566,7 +617,13 @@ enum BoundDayBookBuilder {
             scenes: scenes,
             clippings: clippings.map(MonthlyEditionBuilder.pageItem),
             castLines: Array(lines),
-            braids: braids.map(MonthlyEditionBuilder.pageItem),
+            braids: braids.map { page in
+                // A braid binds whole; only a labelled field or an in-app
+                // direction that slipped into it is left out.
+                var item = MonthlyEditionBuilder.pageItem(page)
+                item.body = PrintHygiene.scrubbedProse(item.body)
+                return item
+            },
             photos: photoPages.map { page in
                 var item = MonthlyEditionBuilder.pageItem(page)
                 item.kind = .image
@@ -596,6 +653,15 @@ enum BoundDayBookBuilder {
         if title.count > 70 || title.lowercased() == "prompt" { title = item.title }
         var body = item.body.trimmingCharacters(in: .whitespacesAndNewlines)
         if body.isEmpty { body = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines) }
+        if kind == .lore {
+            // A prepared Wonder Compass run is printed as its directions, never
+            // as the form it was prepared from; any other form stays in the app.
+            if let card = PrintHygiene.compassRunCard(body) {
+                body = card
+            } else if PrintHygiene.isMachineText(body) {
+                return nil
+            }
+        }
         guard !body.isEmpty || kind == .plate else { return nil }
         // A quotation arrives already dressed ("“…” — Author", sometimes twice).
         // Keep the bare words and the attribution apart; the page sets the marks once.
@@ -1199,10 +1265,12 @@ enum WeeklyTaleBuilder {
         return "In which there was " + noun
     }
 
-    private static let fragmentPronouns: Set<String> = [
+    /// Shared with the braid's title and the Bleed's headline desk: a thing starts
+    /// with a thing and ends on one.
+    static let fragmentPronouns: Set<String> = [
         "i", "you", "we", "he", "she", "they", "it", "me", "us", "him", "her", "them", "my", "our", "this", "that", "these", "those"
     ]
-    private static let fragmentStopEnds: Set<String> = [
+    static let fragmentStopEnds: Set<String> = [
         "like", "likes", "love", "loves", "hate", "want", "wants", "need", "needs", "feel", "feels", "think", "know", "see",
         "get", "go", "have", "has", "am", "is", "are", "be", "been", "do", "does", "can", "will", "would", "could", "should",
         "just", "really", "very", "so", "too", "also", "still", "and", "or", "but", "of", "to", "with", "for", "the", "a", "an"
@@ -1265,7 +1333,7 @@ enum WeeklyTaleBuilder {
     }
 
     /// A noun that is a thing, not "it", "this" or "something".
-    private static func hasConcreteNoun(_ text: String) -> Bool {
+    static func hasConcreteNoun(_ text: String) -> Bool {
         let vague: Set<String> = ["it", "this", "that", "thing", "things", "something", "anything", "nothing", "everything", "stuff", "lot", "bit", "way", "day", "time"]
         // Without the tagger's assets (a simulator, a fresh install) every tag
         // comes back nil; a book must not lose its titles to a missing download.
@@ -1276,6 +1344,8 @@ enum WeeklyTaleBuilder {
         var tagged = false
         let tagger = NLTagger(tagSchemes: [.lexicalClass])
         tagger.string = text
+        // A headline is too short for the tagger to be sure it's English.
+        tagger.setLanguage(.english, range: text.startIndex..<text.endIndex)
         tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .word, scheme: .lexicalClass,
                              options: [.omitWhitespace, .omitPunctuation]) { tag, range in
             if tag != nil, tag != .otherWord { tagged = true }
@@ -1296,7 +1366,7 @@ enum WeeklyTaleBuilder {
         "threw", "blew", "flew", "drew", "wore", "tore", "swore", "shook", "stuck", "spun", "dug", "lit", "fed", "led", "was", "were", "had", "did"
     ]
 
-    private static func isPastVerb(_ word: String) -> Bool {
+    static func isPastVerb(_ word: String) -> Bool {
         let w = word.lowercased().trimmingCharacters(in: .punctuationCharacters)
         guard w.count >= 3 else { return false }
         if irregularPast.contains(w) { return true }

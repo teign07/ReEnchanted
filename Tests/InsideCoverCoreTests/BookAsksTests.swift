@@ -182,4 +182,50 @@ final class BookAsksTests: XCTestCase {
             inputs: inputs(archive: archive), now: date(11)
         ).isEmpty)
     }
+
+    // MARK: - The Page stays whole
+
+    /// The Book's mood trims reflective Pages. This one is a question, and a
+    /// mood that swapped its first two paragraphs and cut the rest once left
+    /// the reader a sentence and "You wrote:" with nothing under it.
+    func testNoMoodCutsTheQuestion() throws {
+        let hedge = souvenir("I will still love Amanda and the cats in 10 years time", on: 10)
+        let today = BookDay(id: "today", date: date(11), pages: [])
+        let surfaced = try XCTUnwrap(adapter.candidates(
+            for: today, context: CuratorContext.make(for: today),
+            inputs: inputs(archive: matureArchive(hedgePage: hedge)), now: date(11)
+        ).first)
+
+        for stance in BookStance.allCases {
+            for intensity in 1...5 {
+                let told = BookCharacterStanceEditor.voicing(
+                    surfaced, telling: BookTelling(stance: stance, intensity: intensity)
+                )
+                XCTAssertEqual(
+                    told.payload.body, surfaced.payload.body,
+                    "\(stance) at \(intensity) cut the question"
+                )
+            }
+        }
+    }
+
+    func testBodyIsThreeStandAloneParagraphs() {
+        let question = BookAsks.Question(sourcePageID: "p1", hedgeWord: "still", sentence: "I will still love the cats")
+        let paragraphs = BookAsks.body(for: question).components(separatedBy: "\n\n")
+        XCTAssertEqual(paragraphs.count, 3)
+        XCTAssertEqual(paragraphs.first, "\u{201C}I will still love the cats\u{201D}")
+        XCTAssertFalse(paragraphs.contains { $0.hasSuffix(":") }, "no lead-in paragraph to strand")
+    }
+
+    func testPageCarriesItsOwnAnswerPlaceholderAndSentence() throws {
+        let hedge = souvenir("The kettle sang again this morning.", on: 10)
+        let today = BookDay(id: "today", date: date(11), pages: [])
+        let surfaced = try XCTUnwrap(adapter.candidates(
+            for: today, context: CuratorContext.make(for: today),
+            inputs: inputs(archive: matureArchive(hedgePage: hedge)), now: date(11)
+        ).first)
+        XCTAssertEqual(surfaced.payload.metadata["bookAsksSentence"], "The kettle sang again this morning")
+        XCTAssertNotEqual(surfaced.payload.metadata["placeholder"], "Did I get this right?")
+        XCTAssertFalse(surfaced.detail.contains("kettle"), "the deck must not repeat the quote the body opens with")
+    }
 }

@@ -256,8 +256,10 @@ enum MonthlyEditionPDFWriter {
             let dateFormatter = DateFormatter()
             dateFormatter.locale = Locale(identifier: "en_US_POSIX")
             dateFormatter.dateFormat = "MMMM yyyy"
+            // The reader's own chapter number. The story's issue number is the
+            // story's; inside, every page says "Chapter", and so does the cover.
             let coverSubline = [
-                official.monthLine,
+                "Chapter \(edition.chapterNumber)",
                 dateFormatter.string(from: edition.startDate)
             ]
                 .compactMap { $0 }
@@ -367,9 +369,9 @@ enum MonthlyEditionPDFWriter {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
         let style = EditionStyle.style(for: edition)
         let margins = UIEdgeInsets(top: 60, left: 120, bottom: 64, right: 58)
-        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
 
-        try renderer.writePDF(to: url) { context in
+        try ContentsFolios.settle {
+        try UIGraphicsPDFRenderer(bounds: pageBounds).writePDF(to: url) { context in
             renderInterior(
                 edition,
                 plates: plates,
@@ -381,6 +383,53 @@ enum MonthlyEditionPDFWriter {
                 margins: margins,
                 designSize: pageBounds.size
             )
+        }
+        }
+    }
+
+    /// Where each part of the book begins, so the Contents can say so. A book
+    /// is laid out once to learn its folios, then set again with them in the
+    /// Contents; a Contents that changes length moves everything after it, so
+    /// the setting repeats (at most three times) until the folios hold still.
+    /// True while a book is set for the press. A printed book needs a blank
+    /// verso here and there so a leaf meant to be torn out or opened as a
+    /// spread lands on the right side; a screen book is read a page at a time
+    /// and has no use for the blank.
+    static var settingForPrint = false
+
+    enum ContentsFolios {
+        static var recorded: [String: Int] = [:]
+        static var known: [String: Int] = [:]
+
+        static func mark(_ title: String, page: Int) {
+            let key = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty, recorded[key] == nil else { return }
+            recorded[key] = page
+        }
+
+        /// Runs a part and records its first page, if it drew one. Most parts
+        /// open a leaf of their own; a section may share the current leaf when
+        /// there's room (the rule `drawSection` uses), and then it starts there.
+        static func part(_ title: String, cursor: inout PDFCursor, mayShareLeaf: Bool = false,
+                         _ draw: (inout PDFCursor) -> Void) {
+            let before = cursor.pageIndex
+            let shares = mayShareLeaf && cursor.y > cursor.margins.top + 1 && cursor.bottom - cursor.y > 260
+            draw(&cursor)
+            guard cursor.pageIndex > before || shares else { return }
+            mark(title, page: shares ? before : before + 1)
+        }
+
+        /// Sets the book until its Contents and its folios agree.
+        static func settle(_ render: () throws -> Void) rethrows {
+            known = [:]
+            for _ in 0..<3 {
+                recorded = [:]
+                try render()
+                if recorded == known { break }
+                known = recorded
+            }
+            known = [:]
+            recorded = [:]
         }
     }
 
@@ -430,6 +479,11 @@ enum MonthlyEditionPDFWriter {
         withDesignSpace(designSize: designSize, pageBounds: pageBounds) {
             drawCover(edition, style: style, bounds: designRect)
         }
+        let monthNumber = Calendar.current.component(.month, from: edition.startDate)
+        if hasEndpapers(edition) {
+            drawEndpaperLeaves(closing: false, count: settingForPrint ? 2 : 1, monthNumber: monthNumber,
+                               style: style, context: context, cursor: &cursor)
+        }
 
         // The endpaper. A true endpaper is a hardback's paste-down and Lulu
         // will not give us one, so this is the closest honest thing: the chart
@@ -450,6 +504,7 @@ enum MonthlyEditionPDFWriter {
 
         if let bindingStory = edition.bindingStory?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty {
             beginComposedPage(context, style: style, cursor: &cursor)
+            ContentsFolios.mark("The Month, Bound", page: cursor.pageIndex)
             drawBindingStory(bindingStory, edition: edition, style: style, context: context, cursor: &cursor)
         }
 
@@ -497,7 +552,9 @@ enum MonthlyEditionPDFWriter {
                     cursor: &cursor
                 )
             }
-            if !matter.crossingItems.isEmpty {
+            // A day-by-day book prints these consequences in What the Story
+            // Changed; a cabinet of the same lines up front was a leaf of repeats.
+            if !matter.crossingItems.isEmpty && edition.dayBook == nil {
                 drawVolumeCabinet(
                     title: "Things That Crossed the Hedge",
                     note: "Real choices that left a consequence in the Labyrinth. The ordinary world did this first.",
@@ -520,7 +577,9 @@ enum MonthlyEditionPDFWriter {
 
         // What the reader wrote at the press, in their hand, before the days.
         if let account = edition.bindingAccount {
-            drawBindingAccount(account, edition: edition, style: style, context: context, cursor: &cursor)
+            ContentsFolios.part("Your Account", cursor: &cursor) {
+                drawBindingAccount(account, edition: edition, style: style, context: context, cursor: &$0)
+            }
         }
 
         // The Field Book: the almanac, the charts, the Cast, and the days. It
@@ -544,21 +603,28 @@ enum MonthlyEditionPDFWriter {
             if !printedInDays.isEmpty {
                 let before = section.items.count
                 section.items.removeAll { printedInDays.contains($0.id) }
+                // The month's authored scenes are set whole in the Month's Tale;
+                // their turn-by-turn Pages would tell the same story again.
+                if edition.dayBook?.scenes.isEmpty == false {
+                    section.items.removeAll { $0.tags.contains("authored-story-scene") }
+                }
                 if section.items.isEmpty, before > 0 { continue }
             }
             if section.id == "what-the-cast-did" {
                 drawCastDivider(edition.castLead, style: style, context: context, cursor: &cursor)
             }
-            drawSection(
-                section,
-                style: style,
-                marginalia: marginalia,
-                marginaliaIndex: &marginaliaIndex,
-                specimenMonth: specimenMonth(for: edition),
-                specimenYear: specimenYear(for: edition),
-                context: context,
-                cursor: &cursor
-            )
+            ContentsFolios.part(section.title, cursor: &cursor, mayShareLeaf: true) {
+                drawSection(
+                    section,
+                    style: style,
+                    marginalia: marginalia,
+                    marginaliaIndex: &marginaliaIndex,
+                    specimenMonth: specimenMonth(for: edition),
+                    specimenYear: specimenYear(for: edition),
+                    context: context,
+                    cursor: &$0
+                )
+            }
             if section.id == "world-events" {
                 drawEditionPlayLeaves(
                     afterWorldEventLeaves,
@@ -610,14 +676,18 @@ enum MonthlyEditionPDFWriter {
         if edition.dayBook != nil, let frontPages = edition.frontPages {
             let bare = DateFormatter()
             bare.dateFormat = "MMMM"
-            drawFrontPages(frontPages, monthName: bare.string(from: edition.startDate), style: style,
-                           context: context, cursor: &cursor)
+            ContentsFolios.part("The Month's Front Pages", cursor: &cursor) {
+                drawFrontPages(frontPages, monthName: bare.string(from: edition.startDate), style: style,
+                               context: context, cursor: &$0)
+            }
         }
         if edition.dayBook != nil, let connections = edition.connections, !connections.isEmpty {
             let bare = DateFormatter()
             bare.dateFormat = "MMMM"
-            drawConnections(connections, span: "the whole of \(bare.string(from: edition.startDate))", style: style,
-                            context: context, cursor: &cursor)
+            ContentsFolios.part("What I Worked Out About You", cursor: &cursor) {
+                drawConnections(connections, span: "the whole of \(bare.string(from: edition.startDate))", style: style,
+                                context: context, cursor: &$0)
+            }
         }
         if let handbook = edition.handbook, !handbook.isEmpty {
             drawHandbook(
@@ -637,7 +707,9 @@ enum MonthlyEditionPDFWriter {
             constellations: edition.constellations,
             theme: edition.theme
         )
-        drawClosing(closing, edition: edition, style: style, context: context, cursor: &cursor)
+        ContentsFolios.part("In Closing", cursor: &cursor) {
+            drawClosing(closing, edition: edition, style: style, context: context, cursor: &$0)
+        }
 
         drawEditionPlayAnswerKeys(playLeaves, style: style, context: context, cursor: &cursor)
         // The flattened annual press adapter still owes the Reader the last
@@ -649,6 +721,16 @@ enum MonthlyEditionPDFWriter {
             cursor: &cursor
         )
         drawColophon(edition, style: style, context: context, cursor: &cursor)
+        if hasEndpapers(edition) {
+            drawEndpaperLeaves(closing: true, count: settingForPrint ? 2 : 1, monthNumber: monthNumber,
+                               style: style, context: context, cursor: &cursor)
+        }
+    }
+
+    /// A month told day by day is the special edition: it opens and closes on
+    /// printed endpapers. Weeklies and the older flattened books do not.
+    static func hasEndpapers(_ edition: MonthlyEdition) -> Bool {
+        edition.dayBook != nil && edition.publicationKind != .weekly
     }
 
     /// The sections the day-by-day volume carries in its days instead.
@@ -852,6 +934,8 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
+        settingForPrint = true
+        defer { settingForPrint = false }
         if edition.publicationKind == .weekly {
             guard spec.coverTreatment == .saddleStitch,
                   let matter = edition.weeklyPublication else {
@@ -874,17 +958,19 @@ enum MonthlyEditionPDFWriter {
         let style = EditionStyle.style(for: edition)
         let m = spec.interiorMarginsPoints
         let margins = UIEdgeInsets(top: m.top, left: m.left, bottom: m.bottom, right: m.right)
-        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-
-        let data = renderer.pdfData { context in
-            renderInterior(
-                edition,
-                into: context,
-                style: style,
-                pageBounds: pageBounds,
-                margins: margins,
-                designSize: CGSize(width: 612, height: 792)
-            )
+        var data = Data()
+        ContentsFolios.settle {
+            // A fresh renderer each pass: a second pdfData from one renderer comes back empty.
+            data = UIGraphicsPDFRenderer(bounds: pageBounds).pdfData { context in
+                renderInterior(
+                    edition,
+                    into: context,
+                    style: style,
+                    pageBounds: pageBounds,
+                    margins: margins,
+                    designSize: CGSize(width: 612, height: 792)
+                )
+            }
         }
 
         guard let document = PDFDocument(data: data) else {
@@ -908,7 +994,8 @@ enum MonthlyEditionPDFWriter {
                                            monthNumber: Calendar.current.component(.month, from: edition.startDate),
                                            seed: "\(edition.monthName)-\(edition.chapterNumber)",
                                            folio: (document.pageCount + 1, addressSeed(for: edition))) {
-                    document.insert(leaf, at: document.pageCount)
+                    // Filler goes before the closing endpapers: the book ends on its pattern.
+                    document.insert(leaf, at: document.pageCount - (hasEndpapers(edition) ? 2 : 0))
                 }
             }
         }
@@ -1007,6 +1094,25 @@ enum MonthlyEditionPDFWriter {
         }
     }
 
+    /// A month's pack may paint the back of the case (`cover.back`) and its
+    /// spine (`cover.spine`, title and all), the way a special edition's case
+    /// is designed as one object. Returns false when it didn't, so the Book's
+    /// own panel is drawn instead. Weeklies keep their own backs.
+    @discardableResult
+    private static func drawPackCoverArt(_ edition: MonthlyEdition, back: CGRect? = nil, spine: CGRect? = nil) -> Bool {
+        guard edition.publicationKind != .weekly, let rect = back ?? spine,
+              let cg = UIGraphicsGetCurrentContext() else { return false }
+        let month = Calendar.current.component(.month, from: edition.startDate)
+        guard let art = back != nil ? EditionPlates.coverBack(month: month) : EditionPlates.coverSpine(month: month) else { return false }
+        let scale = max(rect.width / art.size.width, rect.height / art.size.height)
+        let size = CGSize(width: art.size.width * scale, height: art.size.height * scale)
+        cg.saveGState()
+        cg.clip(to: rect)
+        art.draw(in: CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2, width: size.width, height: size.height))
+        cg.restoreGState()
+        return true
+    }
+
     private static func drawPhysicalCoverPanels(
         _ edition: MonthlyEdition,
         spec: PrintSpec,
@@ -1043,10 +1149,10 @@ enum MonthlyEditionPDFWriter {
             drawVolumeCoverType(copy, artwork: artwork, rect: frontRect)
             if edition.publicationKind == .weekly, let matter = edition.weeklyPublication {
                 drawWeeklyIssueBackCover(matter, style: style, rect: backRect)
-            } else {
+            } else if !drawPackCoverArt(edition, back: backRect) {
                 drawCoverBackPanel(edition, style: style, rect: backRect)
             }
-            if spineRect.width >= 10 {
+            if spineRect.width >= 10, !drawPackCoverArt(edition, spine: spineRect) {
                 drawSpineTitle(edition, style: style, rect: spineRect)
             }
             return
@@ -1064,8 +1170,10 @@ enum MonthlyEditionPDFWriter {
             withDesignSpaceMapped(designSize: CGSize(width: 612, height: 792), into: frontRect) {
                 drawCover(edition, style: style, bounds: CGRect(x: 0, y: 0, width: 612, height: 792))
             }
-            drawCoverBackPanel(edition, style: style, rect: backRect)
-            if spineRect.width >= 10 {
+            if !drawPackCoverArt(edition, back: backRect) {
+                drawCoverBackPanel(edition, style: style, rect: backRect)
+            }
+            if spineRect.width >= 10, !drawPackCoverArt(edition, spine: spineRect) {
                 drawSpineTitle(edition, style: style, rect: spineRect)
             }
         case .linenWrap:
@@ -1440,6 +1548,8 @@ enum MonthlyEditionPDFWriter {
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
+        settingForPrint = true
+        defer { settingForPrint = false }
         MarginaliaDealer.reset()
         let fullBleed = PrintGeometry.fullBleedTrimInches(spec: spec)
         let pageBounds = CGRect(
@@ -3960,26 +4070,62 @@ enum MonthlyEditionPDFWriter {
             entries.append((section.title, section.note))
         }
         entries += (edition.playLeaves ?? []).map { ($0.definition.contentsListing, "") }
+        // The back half of the book: the month at a glance and the Handbook.
+        if edition.dayBook != nil, edition.frontPages != nil {
+            entries.append(("The Month's Front Pages", "Every morning's front page, one headline a day."))
+        }
+        if edition.dayBook != nil, !(edition.connections ?? []).isEmpty {
+            entries.append(("What I Worked Out About You", "Threads I'd only write down once I could count them both ways."))
+        }
+        if let handbook = edition.handbook, !handbook.isEmpty {
+            entries += [
+                ("The Month at a Glance", "The month in pixels, photographs, superlatives and stamps."),
+                ("The Handbook", "The term's coursework: what each room taught, and the seats kept open for you."),
+                ("Files Kept by the Book", "The Cast, as I keep them."),
+                ("The Lore Shelf", "Things set down for you, because of what ran through your month."),
+                ("The Spellbook", "Every enchantment, and a line for each you cast."),
+                ("Pages to Ruin", "Fold them, tear them, tape them, draw on them."),
+                ("The Workbook", "Puzzles made of your own words, the Examination, and your Report Card."),
+                ("Keepsakes", "Questions to ask out loud, a letter to next year, bookmarks to cut.")
+            ]
+        }
+        entries.append(("In Closing", ""))
+        // Once the book has been laid out, list only what was printed, in the
+        // order it was printed, each with the page it starts on.
+        let folios = ContentsFolios.known
+        if !folios.isEmpty {
+            entries = entries.filter { folios[$0.title] != nil }
+                .sorted { (folios[$0.title] ?? 0) < (folios[$1.title] ?? 0) }
+        }
 
         let titleFont = UIFont.fbSerif(ofSize: 13.5, weight: .semibold)
         let noteFont = UIFont.serifItalicFont(ofSize: 10)
+        // Room at the right of each title for its page number, in every pass,
+        // so learning the numbers never changes how the list wraps.
+        let folioRoom: CGFloat = 44
         for entry in entries {
-            let needed = FieldText.height(entry.title, font: titleFont, width: cursor.contentWidth,
+            let needed = FieldText.height(entry.title, font: titleFont, width: cursor.contentWidth - folioRoom,
                                           lineSpacing: 3, paragraphSpacing: 0, justified: false)
                 + FieldText.height(entry.note, font: noteFont, width: cursor.contentWidth,
                                    lineSpacing: 3, paragraphSpacing: 0, justified: false) + 16
             // Keep a normal listing and its note together. Unusually long text
             // can itself flow across leaves; no text is drawn below the margin.
             if cursor.y + needed > cursor.bottom { nextPage() }
-            for (text, font, color, gap) in [
-                (entry.title, titleFont, style.palette.ink, CGFloat(2)),
-                (entry.note, noteFont, style.palette.ink.withAlphaComponent(0.6), CGFloat(10))
+            if let folio = folios[entry.title] {
+                let number = "\(folio)" as NSString
+                let attributes: [NSAttributedString.Key: Any] = [.font: titleFont, .foregroundColor: style.palette.accent]
+                let width = number.size(withAttributes: attributes).width
+                number.draw(at: CGPoint(x: cursor.left + cursor.contentWidth - width, y: cursor.y), withAttributes: attributes)
+            }
+            for (text, font, color, gap, width) in [
+                (entry.title, titleFont, style.palette.ink, CGFloat(2), cursor.contentWidth - folioRoom),
+                (entry.note, noteFont, style.palette.ink.withAlphaComponent(0.6), CGFloat(10), cursor.contentWidth - folioRoom)
             ] {
                 var rest = FieldMarked(parsing: text)
                 while !rest.isEmpty {
                     if cursor.bottom - cursor.y < font.lineHeight + 6 { nextPage() }
                     let flow = FieldText.flow(rest, font: font, color: color,
-                                              in: CGRect(x: cursor.left, y: cursor.y, width: cursor.contentWidth,
+                                              in: CGRect(x: cursor.left, y: cursor.y, width: width,
                                                          height: cursor.bottom - cursor.y),
                                               lineSpacing: 3, paragraphSpacing: 0, justified: false)
                     cursor.y += flow.usedHeight
@@ -4006,7 +4152,7 @@ enum MonthlyEditionPDFWriter {
             let nextPageNumber = cursor.pageIndex + 1
             let needsRecto = leaf.definition.footprint.hasBlankReverse
             let needsLeftVerso = leaf.definition.footprint.isFacingSpread
-            if (needsRecto && nextPageNumber.isMultiple(of: 2))
+            if settingForPrint, (needsRecto && nextPageNumber.isMultiple(of: 2))
                 || (needsLeftVerso && !nextPageNumber.isMultiple(of: 2)) {
                 context.beginPage()
                 cursor.reset()
@@ -4017,6 +4163,7 @@ enum MonthlyEditionPDFWriter {
             }
 
             let pageCount = leaf.definition.footprint.pageCount
+            ContentsFolios.mark(leaf.definition.contentsListing, page: cursor.pageIndex + 1)
             for part in 0..<pageCount {
                 context.beginPage()
                 cursor.reset()
@@ -4994,7 +5141,7 @@ enum MonthlyEditionPDFWriter {
         drawOrnamentRow(style, centerY: cursor.y, in: cursor.bounds, color: style.palette.accent)
         cursor.y += 26
         drawCentered(
-            edition.chapterHeading,
+            runningHead(edition),
             font: .serifItalicFont(ofSize: 12),
             color: style.palette.ink.withAlphaComponent(0.8),
             y: cursor.y,
@@ -5067,6 +5214,31 @@ enum MonthlyEditionPDFWriter {
             y: cursor.y,
             in: cursor.bounds
         )
+        // Where the doctors read the reader's body and mood, the book says
+        // they're made up before it closes.
+        if mentionsFacultyDoctors(edition) {
+            cursor.y += 34
+            let width = min(cursor.contentWidth, 340)
+            drawCenteredWrapped(
+                FacultyFiction.colophon,
+                font: .serifItalicFont(ofSize: 9),
+                color: style.palette.ink.withAlphaComponent(0.6),
+                rect: CGRect(x: cursor.bounds.midX - width / 2, y: cursor.y, width: width,
+                             height: max(60, cursor.bottom - cursor.y))
+            )
+        }
+    }
+
+    static func mentionsFacultyDoctors(_ edition: MonthlyEdition) -> Bool {
+        var texts: [String] = []
+        for item in edition.sections.flatMap(\.items) { texts.append("\(item.title) \(item.body)") }
+        for item in edition.publicationMatter?.almanacItems ?? [] { texts.append(item.body) }
+        for day in edition.dayBook?.days ?? [] {
+            for keep in day.keeps { texts.append("\(keep.title) \(keep.body) \(keep.speakerName ?? "")") }
+            for entry in day.entries { texts.append(entry.text) }
+        }
+        for file in edition.handbook?.dossiers ?? [] { texts.append(file.name) }
+        return texts.contains(where: FacultyFiction.mentionsDoctors)
     }
 
     // MARK: Marginalia material
@@ -5716,8 +5888,16 @@ enum MonthlyEditionPDFWriter {
             .font: UIFont.systemFont(ofSize: 8, weight: .semibold),
             .foregroundColor: style.palette.ink.withAlphaComponent(0.45)
         ]
-        let head = edition.chapterHeading.uppercased()
+        let head = runningHead(edition).uppercased()
         (head as NSString).draw(at: CGPoint(x: cursor.left, y: 30), withAttributes: attributes)
+    }
+
+    /// The line across the top of a leaf: short enough to read at a glance.
+    /// The Book's name for the reader belongs on the title and the colophon,
+    /// not repeated in small capitals over every page.
+    static func runningHead(_ edition: MonthlyEdition) -> String {
+        if edition.isInscriptionEdition { return edition.chapterHeading }
+        return "The Book of You \u{00B7} Chapter \(edition.chapterNumber) \u{00B7} \(edition.monthName)"
     }
 
     private static func drawAccentRule(_ style: EditionStyle, cursor: inout PDFCursor) {
@@ -6235,8 +6415,33 @@ enum BleedPDFWriter {
                         flowAttributed(bodyText(parts.dropFirst().joined(separator: "\n\n"), palette: palette),
                                        leading: bodyLeading, state: &state, next: next)
                     }
-                case .puzzle, .classifieds, .assignment, .stopPress, .service, .timetable, .weekBound:
+                case .puzzle, .classifieds, .assignment, .stopPress, .service, .timetable, .weekBound,
+                     .note, .warReport, .odds, .market, .oracle, .ledger, .intercept:
                     boxed(article, piece: kindOfPiece, palette: palette, state: &state, next: next)
+                case .competition:
+                    header(article, palette: palette, state: &state, next: next)
+                    var lines = article.body.components(separatedBy: "\n")
+                    // The picture to caption, set into the column like a plate.
+                    if let index = lines.firstIndex(where: { $0.hasPrefix(BleedCaptionDesk.pictureMark) }) {
+                        let name = String(lines.remove(at: index).dropFirst(BleedCaptionDesk.pictureMark.count))
+                        let image = name.hasPrefix("/") ? UIImage(contentsOfFile: MonthlyIssueMediaPath.resolving(name)) : UIImage(named: name)
+                        if let image, image.size.width > 0, image.size.height > 0 {
+                            let aspect = image.size.width / image.size.height
+                            let height = min(170, state.rect.width / aspect)
+                            let width = height * aspect
+                            if state.remaining < height + 30 { next(&state) }
+                            let frame = CGRect(x: state.rect.minX + (state.rect.width - width) / 2, y: state.y, width: width, height: height)
+                            if let cg = UIGraphicsGetCurrentContext() {
+                                cg.saveGState()
+                                cg.setBlendMode(.multiply)
+                                image.draw(in: frame)
+                                cg.restoreGState()
+                            }
+                            state.y += height + 8
+                        }
+                    }
+                    flowAttributed(tableBody(lines.joined(separator: "\n"), width: state.rect.width, palette: palette),
+                                   leading: bodyLeading, state: &state, next: next)
                 case .letters:
                     let first = letterBlocks(article.body, palette: palette).first
                     header(article, palette: palette, state: &state,
@@ -6571,10 +6776,16 @@ enum BleedPDFWriter {
         case .classifieds: label = "CLASSIFIED ADVERTISEMENTS"; titleColor = palette.ink
         case .assignment: label = "YOUR ASSIGNMENT"; titleColor = palette.accent; dashed = true
         case .stopPress: label = "STOP PRESS"; titleColor = palette.paper; fill = palette.accent; textColor = palette.paper
+        case .intercept: label = "INTERCEPTED · 97.3"; titleColor = palette.paper; fill = palette.ink; textColor = palette.paper
         case .weekBound: label = article.title.uppercased(); titleColor = palette.accent
+        case .note: label = "CORRESPONDENT'S NOTE"; titleColor = palette.accent; fill = palette.accentPale
+        case .warReport, .odds, .market, .ledger: label = article.title.uppercased(); titleColor = palette.accent
+        case .oracle: label = article.title.uppercased(); titleColor = palette.accent; fill = palette.accentPale
         default: label = article.title.uppercased(); titleColor = palette.accent; fill = palette.accentPale
         }
-        let text = piece == .weekBound
+        let text = piece.isTable
+            ? tableBody(article.body, width: inner, palette: palette)
+            : piece == .weekBound
             ? weekBody(article.body, palette: palette)
             : piece == .classifieds
             ? styled(article.body, font: .fbSerif(ofSize: 8.6, weight: .regular), color: textColor)
@@ -6731,6 +6942,58 @@ enum BleedPDFWriter {
             } else {
                 out.append(bodyText(line, palette: palette, justified: false))
             }
+        }
+        return out
+    }
+
+    /// A data table: cells separated by " · " set on tab stops, the figures to the
+    /// right, a header row in small capitals. A question with its price (the odds)
+    /// wraps as a sentence with the price in bold at the end.
+    private static func tableBody(_ text: String, width: CGFloat, palette: Palette) -> NSAttributedString {
+        let out = NSMutableAttributedString()
+        let stackAll = BleedPrintDesign.stacksEveryRow(text)
+        for (index, line) in text.components(separatedBy: "\n").enumerated() {
+            if index > 0 { out.append(NSAttributedString(string: "\n")) }
+            let cells = line.components(separatedBy: " · ").map { $0.trimmingCharacters(in: .whitespaces) }
+            guard cells.count > 1 else {
+                out.append(bodyText(line, palette: palette, justified: false))
+                continue
+            }
+            let style = paragraph(leading: 12.5)
+            style.paragraphSpacing = 2
+            // A label over a sentence: the label in small capitals, the sentence beneath it.
+            if cells.count == 2, cells[1].count > 44 || stackAll {
+                style.paragraphSpacing = 5
+                out.append(NSAttributedString(string: cells[0] + "\n", attributes: [
+                    .font: smallCaps(6.6), .foregroundColor: palette.accent, .kern: 0.6, .paragraphStyle: style
+                ]))
+                out.append(NSAttributedString(string: cells[1], attributes: [
+                    .font: UIFont.fbSerif(ofSize: 9, weight: .regular), .foregroundColor: palette.ink, .paragraphStyle: style
+                ]))
+                continue
+            }
+            if cells.count == 2, cells[0].count > 30 {
+                style.paragraphSpacing = 5
+                out.append(NSAttributedString(string: cells[0] + "  ", attributes: [
+                    .font: UIFont.fbSerif(ofSize: 9, weight: .regular), .foregroundColor: palette.ink, .paragraphStyle: style
+                ]))
+                out.append(NSAttributedString(string: cells[1], attributes: [
+                    .font: UIFont.fbSerif(ofSize: 9, weight: .bold), .foregroundColor: palette.accent, .paragraphStyle: style
+                ]))
+                continue
+            }
+            // A column is narrow: the name, then who holds it, then the figure at the right edge.
+            let stops: [NSTextTab] = cells.count >= 3
+                ? [NSTextTab(textAlignment: .left, location: width * 0.48), NSTextTab(textAlignment: .right, location: width - 1)]
+                : [NSTextTab(textAlignment: .left, location: width * 0.42)]
+            style.tabStops = stops
+            // A note that wraps stays in its own column rather than falling back under the name.
+            if cells.count == 2 { style.headIndent = width * 0.42 }
+            let header = line == line.uppercased() && cells.count > 2
+            out.append(NSAttributedString(string: cells.joined(separator: "\t"), attributes: [
+                .font: header ? smallCaps(6.6) : UIFont.fbSerif(ofSize: 8.4, weight: .regular),
+                .foregroundColor: header ? palette.accent : palette.ink, .kern: header ? 0.5 : 0, .paragraphStyle: style
+            ]))
         }
         return out
     }

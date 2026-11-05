@@ -25,11 +25,12 @@ enum BookMovingCopy {
     static let contentType = UTType.appleArchive
 
     private static let format = "reenchanted-moving-copy"
-    private static let formatVersion = 1
+    private static let formatVersion = 2
     private static let pendingFileName = "PendingBookMovingCopy.aar"
     private static let pendingKey = "bookMovingCopyPending"
     static let restoredAtKey = "bookMovingCopyRestoredAt"
     static let restoreFailureKey = "bookMovingCopyRestoreFailure"
+    private(set) static var recoveryIsRequired = false
 
     /// Owned by iOS, not by the Book. Reading/copying it can fail on a device;
     /// restoring must also leave the destination container's identity intact.
@@ -45,6 +46,7 @@ enum BookMovingCopy {
         var bundleID: String
         var appGroup: String
         var exportedAt: Date
+        var inventory: [String: UInt64]? = nil
     }
 
     enum CopyError: LocalizedError {
@@ -66,6 +68,10 @@ enum BookMovingCopy {
     }
     private static var documents: URL? {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+    }
+    private static var recoveryURL: URL {
+        fileManager.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("BookMovingCopyRecovery", isDirectory: true)
     }
 
     // MARK: Export
@@ -95,7 +101,8 @@ enum BookMovingCopy {
         try writePlist(InsideCoverStore.defaults.persistentDomain(forName: InsideCoverStore.appGroup) ?? [:],
                        to: staging.appendingPathComponent("defaults-group.plist"))
         let manifest = Manifest(format: format, version: formatVersion, bundleID: bundleID,
-                                appGroup: InsideCoverStore.appGroup, exportedAt: Date())
+                                appGroup: InsideCoverStore.appGroup, exportedAt: Date(),
+                                inventory: try inventory(at: staging))
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         try encoder.encode(manifest).write(to: staging.appendingPathComponent("manifest.json"))
@@ -234,6 +241,17 @@ enum BookMovingCopy {
     /// any store reads the disk. A failure leaves this phone's Book as it was
     /// and records why, so the next launch is never a half-moved Book.
     static func finishPendingRestore() {
+        // Recover before any store opens, even if the process stopped after the
+        // pending flag or archive disappeared. A failed rollback keeps the Book
+        // closed instead of letting stores write over a partial replacement.
+        recoveryIsRequired = false
+        do {
+            try BookMovingCopyTransaction.recover(at: recoveryURL, restoreContext: restorePreferences)
+        } catch {
+            recoveryIsRequired = true
+            UserDefaults.standard.set(error.localizedDescription, forKey: restoreFailureKey)
+            return
+        }
         guard UserDefaults.standard.bool(forKey: pendingKey),
               let container = InsideCoverStore.containerURL else { return }
         let pending = container.appendingPathComponent(pendingFileName)
@@ -250,13 +268,48 @@ enum BookMovingCopy {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let manifest = try decoder.decode(Manifest.self, from: Data(contentsOf: unpacked.appendingPathComponent("manifest.json")))
-            guard manifest.format == format, manifest.version <= formatVersion else { throw CopyError.notAMovingCopy }
+            guard manifest.format == format, (1...formatVersion).contains(manifest.version),
+                  manifest.appGroup == InsideCoverStore.appGroup,
+                  manifest.bundleID.range(of: #"^[A-Za-z0-9][A-Za-z0-9.-]{0,254}$"#, options: .regularExpression) != nil else {
+                throw CopyError.notAMovingCopy
+            }
+            for folder in ["container", "support", "documents"] {
+                try BookMovingCopyTransaction.validateFolder(unpacked.appendingPathComponent(folder, isDirectory: true))
+            }
+            if let expected = manifest.inventory {
+                guard try inventory(at: unpacked) == expected else { throw CopyError.notAMovingCopy }
+            } else if manifest.version >= 2 {
+                throw CopyError.notAMovingCopy
+            }
             try place(unpacked, manifest: manifest, container: container)
             UserDefaults.standard.set(Date(), forKey: restoredAtKey)
             UserDefaults.standard.removeObject(forKey: restoreFailureKey)
         } catch {
+            recoveryIsRequired = fileManager.fileExists(atPath: recoveryURL.path)
             UserDefaults.standard.set(error.localizedDescription, forKey: restoreFailureKey)
         }
+    }
+
+    /// The inventory catches missing or truncated files in new moving copies;
+    /// version-one copies still require all three roots and valid preferences.
+    private static func inventory(at root: URL) throws -> [String: UInt64] {
+        var result: [String: UInt64] = [:]
+        func visit(_ directory: URL, prefix: String) throws {
+            for item in try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]) {
+                let relative = prefix + item.lastPathComponent
+                if relative == "manifest.json" { continue }
+                let values = try item.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+                guard values.isSymbolicLink != true else { throw CopyError.notAMovingCopy }
+                if values.isDirectory == true {
+                    try visit(item, prefix: relative + "/")
+                } else {
+                    guard values.isRegularFile == true, let size = values.fileSize else { throw CopyError.notAMovingCopy }
+                    result[relative] = UInt64(size)
+                }
+            }
+        }
+        try visit(root, prefix: "")
+        return result
     }
 
     #if DEBUG && targetEnvironment(simulator)
@@ -357,8 +410,10 @@ enum BookMovingCopy {
             throw CopyError.notAMovingCopy
         }
 
-        try replaceContents(of: container, with: unpacked.appendingPathComponent("container", isDirectory: true),
-                            keeping: containerKept)
+        var replacements = [BookMovingCopyTransaction.Replacement(
+            source: unpacked.appendingPathComponent("container", isDirectory: true),
+            destination: container, keeping: containerKept
+        )]
         if let applicationSupport {
             // The Book's own support folder is named for the bundle ID it was made
             // under; it moves in under today's name. Paths stored inside the Book
@@ -372,27 +427,58 @@ enum BookMovingCopy {
                     try fileManager.moveItem(at: old, to: renamed)
                 }
             }
-            try replaceContents(of: applicationSupport, with: support,
-                                keeping: ["\(bundleID)/\(LocalModelManager.modelsDirectoryName)"])
+            replacements.append(.init(source: support, destination: applicationSupport,
+                                      keeping: ["\(bundleID)/\(LocalModelManager.modelsDirectoryName)"]))
         }
         if let documents {
-            try replaceContents(of: documents, with: unpacked.appendingPathComponent("documents", isDirectory: true), keeping: [])
+            replacements.append(.init(source: unpacked.appendingPathComponent("documents", isDirectory: true),
+                                      destination: documents))
         }
+        let original = SavedPreferences(
+            standard: try PropertyListSerialization.data(fromPropertyList: UserDefaults.standard.persistentDomain(forName: bundleID) ?? [:], format: .binary, options: 0),
+            group: try PropertyListSerialization.data(fromPropertyList: InsideCoverStore.defaults.persistentDomain(forName: InsideCoverStore.appGroup) ?? [:], format: .binary, options: 0)
+        )
+        try BookMovingCopyTransaction.perform(replacements, recoveryURL: recoveryURL,
+            context: JSONEncoder().encode(original), commit: {
+                try setPreferences(standard: standard, group: group)
+            }, restoreContext: restorePreferences)
+    }
+
+    private struct SavedPreferences: Codable {
+        var standard: Data
+        var group: Data
+    }
+
+    private static func restorePreferences(_ context: Data) throws {
+        let saved = try JSONDecoder().decode(SavedPreferences.self, from: context)
+        guard let standard = try PropertyListSerialization.propertyList(from: saved.standard, format: nil) as? [String: Any],
+              let group = try PropertyListSerialization.propertyList(from: saved.group, format: nil) as? [String: Any] else {
+            throw CopyError.notAMovingCopy
+        }
+        try setPreferences(standard: standard, group: group)
+    }
+
+    private static func setPreferences(standard: [String: Any], group: [String: Any]) throws {
         UserDefaults.standard.setPersistentDomain(standard, forName: bundleID)
         InsideCoverStore.defaults.setPersistentDomain(group, forName: InsideCoverStore.appGroup)
+        // This explicit disk transaction must finish before its journal commits.
+        let standardSaved = UserDefaults.standard.synchronize()
+        let groupSaved = InsideCoverStore.defaults.synchronize()
+        guard standardSaved && groupSaved else { throw CopyError.unavailable("The Book's settings") }
     }
 
     /// Empties `destination` except the `keeping` paths, then moves the copy's
     /// items in. Emptying first matters: a fresh install's own database journal
     /// left beside a restored database would be replayed into it.
     private static func replaceContents(of destination: URL, with source: URL, keeping: [String]) throws {
+        try BookMovingCopyTransaction.validateFolder(source)
         try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
         try clear(destination, relativeTo: "", keeping: keeping)
         try moveContents(of: source, into: destination)
     }
 
     private static func clear(_ directory: URL, relativeTo prefix: String, keeping: [String]) throws {
-        for item in (try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [] {
+        for item in try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
             let relative = prefix.isEmpty ? item.lastPathComponent : "\(prefix)/\(item.lastPathComponent)"
             if keeping.contains(relative) { continue }
             if keeping.contains(where: { $0.hasPrefix(relative + "/") }) {
@@ -404,7 +490,7 @@ enum BookMovingCopy {
     }
 
     private static func moveContents(of source: URL, into destination: URL) throws {
-        for item in (try? fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey])) ?? [] {
+        for item in try fileManager.contentsOfDirectory(at: source, includingPropertiesForKeys: [.isDirectoryKey]) {
             let target = destination.appendingPathComponent(item.lastPathComponent)
             var isDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: target.path, isDirectory: &isDirectory) {

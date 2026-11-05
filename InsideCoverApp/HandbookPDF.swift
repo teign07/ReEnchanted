@@ -100,10 +100,14 @@ extension MonthlyEditionPDFWriter {
         PrintPageMap.reset()
         // The month given back comes first: what the reader kept, said and collected.
         if let keepsakes = handbook.keepsakes {
-            drawKeepsakesFront(keepsakes, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
+            ContentsFolios.part("The Month at a Glance", cursor: &cursor) {
+                drawKeepsakesFront(keepsakes, style: style, context: context, cursor: &$0, monthNumber: monthNumber)
+            }
         }
         if showsContents {
-            drawCourseContents(handbook, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
+            ContentsFolios.part("The Handbook", cursor: &cursor) {
+                drawCourseContents(handbook, style: style, context: context, cursor: &$0, monthNumber: monthNumber)
+            }
         }
         drawTranscript(handbook.transcript ?? [], style: style, context: context, cursor: &cursor)
         for lesson in handbook.lessons {
@@ -114,26 +118,38 @@ extension MonthlyEditionPDFWriter {
             }
         }
         drawOpenSeats(handbook.openSeats ?? [], style: style, context: context, cursor: &cursor)
-        drawDossiers(handbook.dossiers, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
+        ContentsFolios.part("Files Kept by the Book", cursor: &cursor) {
+            drawDossiers(handbook.dossiers, style: style, context: context, cursor: &$0, monthNumber: monthNumber)
+        }
         // The Wonder Compass is a guide in another voice ("You've been grinding
         // for six months"); its chapters stay in the app, not in the Book's lore.
-        drawLoreShelf(handbook.lore, head: "The Lore Shelf", kicker: "Set down for you",
-                      style: style, context: context, cursor: &cursor)
+        ContentsFolios.part("The Lore Shelf", cursor: &cursor) {
+            drawLoreShelf(handbook.lore, head: "The Lore Shelf", kicker: "Set down for you",
+                          style: style, context: context, cursor: &$0)
+        }
         drawBestiary(handbook.bestiary, style: style, context: context, cursor: &cursor)
-        drawSpellSheets(handbook.spells, style: style, context: context, cursor: &cursor)
+        ContentsFolios.part("The Spellbook", cursor: &cursor) {
+            drawSpellSheets(handbook.spells, style: style, context: context, cursor: &$0)
+        }
         if let count = handbook.ruinCount, count > 0 {
             let leaves = RuinPlan.leaves(
                 count: count, seed: cursor.addressSeed ?? cursor.seed,
                 from: RuinLibrary.available(month: monthNumber)
             )
-            drawRuinLeaves(leaves, style: style, context: context, cursor: &cursor)
+            ContentsFolios.part("Pages to Ruin", cursor: &cursor) {
+                drawRuinLeaves(leaves, style: style, context: context, cursor: &$0)
+            }
         }
         if let workbook = handbook.workbook {
-            drawWorkbook(workbook, readerName: readerName, termLabel: termLabel, style: style, context: context, cursor: &cursor)
+            ContentsFolios.part("The Workbook", cursor: &cursor) {
+                drawWorkbook(workbook, readerName: readerName, termLabel: termLabel, style: style, context: context, cursor: &$0)
+            }
         }
         // Questions, a time capsule and a leaf to cut up go last, so nothing else is lost to scissors.
         if let keepsakes = handbook.keepsakes {
-            drawKeepsakesBack(keepsakes, style: style, context: context, cursor: &cursor, monthNumber: monthNumber)
+            ContentsFolios.part("Keepsakes", cursor: &cursor) {
+                drawKeepsakesBack(keepsakes, style: style, context: context, cursor: &$0, monthNumber: monthNumber)
+            }
         }
     }
 
@@ -623,9 +639,31 @@ extension MonthlyEditionPDFWriter {
         context: UIGraphicsPDFRendererContext, cursor: inout PDFCursor, monthNumber: Int
     ) {
         let ink = style.palette.ink
+        // A short file shares its leaf with the next one; a pressed plant only
+        // fills what's left of a leaf once nothing else is coming to it.
+        func pressPlant(on leaf: PDFCursor, seed: String) {
+            guard leaf.bottom - leaf.y > 130,
+                  let plant = FieldBotanicals.image(month: monthNumber, seed: seed) else { return }
+            let w = min(96, plant.size.width * plant.scale / 150 * 72)
+            let h = w * plant.size.height / plant.size.width
+            plant.draw(in: CGRect(x: leaf.right - w, y: leaf.bottom - h, width: w, height: h))
+        }
+        var open: (leaf: PDFCursor, slug: String)? = nil
         for (index, person) in dossiers.enumerated() {
-            var leaf = fieldLeaf(&cursor, style: style, context: context,
+            var leaf: PDFCursor
+            if let current = open, current.leaf.bottom - current.leaf.y > 330 {
+                leaf = current.leaf
+                leaf.y += 14
+                style.palette.gold.withAlphaComponent(0.7).setStroke()
+                let rule = UIBezierPath()
+                rule.move(to: CGPoint(x: leaf.left, y: leaf.y)); rule.addLine(to: CGPoint(x: leaf.right, y: leaf.y))
+                rule.lineWidth = 0.6; rule.stroke()
+                leaf.y += 22
+            } else {
+                if let current = open { pressPlant(on: current.leaf, seed: "hb-dossier-\(current.slug)") }
+                leaf = fieldLeaf(&cursor, style: style, context: context,
                                  headLeft: index == 0 ? "The Faculty & the Cast" : "The Cast", headRight: person.name)
+            }
             drawEyebrow("A file kept by the Book", style: style, leaf: &leaf)
             let portraitBox = CGRect(x: leaf.right - 84, y: leaf.y, width: 84, height: 108)
             hbPortrait(slug: person.slug, in: portraitBox, style: style)
@@ -684,14 +722,10 @@ extension MonthlyEditionPDFWriter {
                     leaf.y += flow.usedHeight + 10
                 }
             }
-            // A short last leaf gets a pressed plant rather than bare paper.
-            if leaf.bottom - leaf.y > 130,
-               let plant = FieldBotanicals.image(month: monthNumber, seed: "hb-dossier-\(person.slug)") {
-                let w = min(96, plant.size.width * plant.scale / 150 * 72)
-                let h = w * plant.size.height / plant.size.width
-                plant.draw(in: CGRect(x: leaf.right - w, y: leaf.bottom - h, width: w, height: h))
-            }
+            open = (leaf, person.slug)
         }
+        // A short last leaf gets a pressed plant rather than bare paper.
+        if let current = open { pressPlant(on: current.leaf, seed: "hb-dossier-\(current.slug)") }
     }
 
     // MARK: Lore shelf

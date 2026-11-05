@@ -187,7 +187,7 @@ handle it by email at hello@reenchanted.app.
 | | |
 |---|---|
 | Monetization | Free app, free monthly stories; printed books + Bound Year via Stripe (physical goods, no IAP) |
-| Public Margins | Closed for launch (`PublicMarginsAPI.isAvailable = false`) |
+| Public Margins | Removed from the app, website and terms (2026-11-01) |
 | Privacy | `PrivacyInfo.xcprivacy`, inventory and public policy updated 2026-10-11 |
 | Export compliance | `ITSAppUsesNonExemptEncryption = NO` |
 | Worker | Deployed: memberships, options, orders, webhooks, monthly shelf |

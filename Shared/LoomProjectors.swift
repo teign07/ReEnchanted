@@ -156,7 +156,7 @@ enum GrimoireProjection {
                     // is a spreadsheet cell; "evening and clear" is a day.
                     label: "\(left.label) and \(right.label)",
                     conditionClause: "\(left.conditionClause) and \(right.conditionClause)",
-                    outcomeClause: "those circumstances arrived together",
+                    outcomeClause: "those two came together",
                     symbolName: "point.3.connected.trianglepath.dotted",
                     // A blend is a circumstance the reader was inside, never a
                     // thing they produced.
@@ -260,33 +260,61 @@ private func humanised(_ token: String) -> String {
         .trimmingCharacters(in: .whitespaces)
 }
 
+/// A word with its "a" or "an". The projectors only hand it ordinary nouns, so
+/// the first letter is enough.
+private func withArticle(_ noun: String) -> String {
+    guard let first = noun.lowercased().first else { return noun }
+    return ("aeiou".contains(first) ? "an " : "a ") + noun
+}
+
+/// A token as words. Apple's place categories arrive camel-cased
+/// ("nationalPark") and `humanised` only knows about hyphens, which is how
+/// "you went to a nationalPark" was possible.
+private func spacedWords(_ token: String) -> String {
+    var out = ""
+    for character in token {
+        if character == "-" || character == "_" {
+            out.append(" ")
+        } else if character.isUppercase, let last = out.last, !last.isWhitespace {
+            out.append(" ")
+            out.append(contentsOf: character.lowercased())
+        } else {
+            out.append(character)
+        }
+    }
+    return out.split(separator: " ").joined(separator: " ")
+}
+
 /// Weather tags arrive as bare nouns and bare adjectives in the same list —
 /// "rain" beside "clear" — and both were being dropped into "it was ___".
 /// "It was clear" is a sentence. "It was rain" is not, and the reader meets
 /// these clauses in the middle of a claim the Book is asking them to check.
-private func weatherClauses(_ tag: String) -> (condition: String, outcome: String) {
+///
+/// The label is what the Book calls days like that, so it has to work as the
+/// thing a sentence is about: "Rainy days kept turning up."
+private func weatherClauses(_ tag: String) -> (label: String, condition: String, outcome: String) {
     let word = humanised(tag).lowercased()
-    let known: [String: (String, String)] = [
-        "rain": ("it was raining", "rain came"),
-        "drizzle": ("it was drizzling", "drizzle came"),
-        "shower": ("it was showering", "showers came"),
-        "showers": ("it was showering", "showers came"),
-        "snow": ("it was snowing", "snow came"),
-        "sleet": ("it was sleeting", "sleet came"),
-        "hail": ("it was hailing", "hail came"),
-        "fog": ("it was foggy", "fog came"),
-        "mist": ("it was misty", "mist came"),
-        "haze": ("it was hazy", "haze came"),
-        "wind": ("it was windy", "wind came"),
-        "storm": ("there was a storm", "a storm came"),
-        "thunderstorm": ("there was a thunderstorm", "a thunderstorm came"),
-        "thunder": ("there was thunder", "thunder came"),
-        "cloud": ("it was cloudy", "clouds came"),
-        "clouds": ("it was cloudy", "clouds came"),
-        "sun": ("it was sunny", "the sun came out"),
-        "sunshine": ("it was sunny", "the sun came out"),
-        "ice": ("it was icy", "ice came"),
-        "frost": ("it was frosty", "frost came")
+    let known: [String: (String, String, String)] = [
+        "rain": ("rainy days", "it was raining", "the rain came"),
+        "drizzle": ("drizzly days", "it was drizzling", "the drizzle came"),
+        "shower": ("showery days", "it was showering", "the showers came"),
+        "showers": ("showery days", "it was showering", "the showers came"),
+        "snow": ("snowy days", "it was snowing", "the snow came"),
+        "sleet": ("sleety days", "it was sleeting", "the sleet came"),
+        "hail": ("hail days", "it was hailing", "the hail came"),
+        "fog": ("foggy days", "it was foggy", "the fog came"),
+        "mist": ("misty days", "it was misty", "the mist came"),
+        "haze": ("hazy days", "it was hazy", "the haze came"),
+        "wind": ("windy days", "it was windy", "the wind came"),
+        "storm": ("stormy days", "there was a storm", "a storm came"),
+        "thunderstorm": ("thunderstorm days", "there was a thunderstorm", "a thunderstorm came"),
+        "thunder": ("thundery days", "there was thunder", "the thunder came"),
+        "cloud": ("cloudy days", "it was cloudy", "the clouds came"),
+        "clouds": ("cloudy days", "it was cloudy", "the clouds came"),
+        "sun": ("sunny days", "it was sunny", "the sun came out"),
+        "sunshine": ("sunny days", "it was sunny", "the sun came out"),
+        "ice": ("icy days", "it was icy", "the ice came"),
+        "frost": ("frosty days", "it was frosty", "the frost came")
     ]
     if let found = known[word] { return found }
     // Anything that already reads as a description of the day is left alone:
@@ -295,16 +323,186 @@ private func weatherClauses(_ tag: String) -> (condition: String, outcome: Strin
         || word.hasSuffix("ed") || word.hasSuffix("cast") || word.hasSuffix("m")
         || ["clear", "cold", "hot", "damp", "dry", "grey", "gray", "fair", "mild",
             "crisp", "bright", "dark", "wet", "cool"].contains(word)
-    if looksLikeADescription { return ("it was \(word)", "the sky was \(word)") }
+    if looksLikeADescription { return ("\(word) days", "it was \(word)", "the sky was \(word)") }
     // An unrecognised noun. "There was fogbow" is odd but it is a sentence,
     // which is more than the old line managed.
-    return ("there was \(word)", "\(word) came")
+    return ("days with \(word)", "there was \(word)", "\(word) came")
 }
 
-private func band(_ value: Int, low: Int, high: Int) -> String {
-    if value <= low { return "low" }
-    if value >= high { return "high" }
-    return "middling"
+/// A name that starts a sentence in its own right ("The Ember Seal"), tucked
+/// into the middle of one: "the Ember Seal asked you for something".
+private func midSentence(_ name: String) -> String {
+    for article in ["The ", "A ", "An "] where name.hasPrefix(article) {
+        return article.lowercased() + name.dropFirst(article.count)
+    }
+    return name
+}
+
+/// An Anchor's id is a slug ("user-anchor-the-kitchen-1a2b3c4d"), and no slug
+/// reaches prose. The reader's own name for it is inside, so it comes back out;
+/// anything that is already words is left alone.
+private func anchorName(_ id: String) -> String {
+    if id.contains(" ") { return id }
+    guard id.hasPrefix("user-anchor-") else { return "one of your Anchors" }
+    var parts = id.dropFirst("user-anchor-".count).split(separator: "-").map(String.init)
+    if let last = parts.last, last.count == 8, last.allSatisfy(\.isHexDigit) { parts.removeLast() }
+    return parts.isEmpty ? "one of your Anchors" : parts.joined(separator: " ")
+}
+
+/// Apple's place categories in the words a child would use for them.
+/// Anything not listed is just spaced out: "nationalPark" is "national park".
+private func placeKindWords(_ kind: String) -> String {
+    let plain: [String: String] = [
+        "atm": "cash machine", "evCharger": "car charger", "fitnessCenter": "gym",
+        "foodMarket": "food shop", "gasStation": "petrol station", "movieTheater": "cinema",
+        "publicTransport": "train or bus stop", "restroom": "toilet", "store": "shop",
+        "nightlife": "place to go out at night", "carRental": "car hire place"
+    ]
+    return plain[kind] ?? spacedWords(kind).lowercased()
+}
+
+/// Bundled story genres and forms by id. Read once: the registry's own
+/// accessors go to disk for the reader's packs, and these are asked per Page.
+private let storyGenreNames: [String: String] = Dictionary(
+    StoryFormRegistry.bundledPacks.flatMap(\.genres).map { ($0.id.lowercased(), $0.name) },
+    uniquingKeysWith: { first, _ in first }
+)
+private let storyFormNames: [String: String] = Dictionary(
+    StoryFormRegistry.bundledPacks.flatMap(\.forms).map { ($0.id.lowercased(), $0.name) },
+    uniquingKeysWith: { first, _ in first }
+)
+
+/// "cozy mystery", ready to sit after "a". A genre whose name already ends in
+/// "story" loses it, so nothing reads "a kindly ghost story story".
+private func genreName(_ token: String) -> String {
+    var name = (storyGenreNames[token] ?? spacedWords(token)).lowercased()
+    if name.hasSuffix(" story") { name.removeLast(" story".count) }
+    return name
+}
+
+/// "the Small Mystery", ready to sit after "shaped like".
+private func formName(_ token: String) -> String {
+    if let name = storyFormNames[token] { return midSentence(name) }
+    return withArticle(spacedWords(token))
+}
+
+/// What a Working is called mid-sentence, one at a time and as a habit.
+/// The recipe id is a filing label ("book-stolen-opening") and was reaching
+/// the page as "a book stolen opening was set".
+private func errand(_ working: BookWorking) -> (one: String, many: String) {
+    switch working.recipeID {
+    case "book-stolen-opening": return ("an opening I stole in your day", "the openings I steal in your day")
+    case "wicker-case-against-routine": return ("one of Wicker's objections", "Wicker's objections")
+    case "serenity-small-detour": return ("one of Serenity's detours", "Serenity's detours")
+    case "trencher-table-kept-open": return ("one of Trencher's open tables", "Trencher's open tables")
+    default:
+        // A recipe nobody has named here yet. Its id is the only thing that
+        // tells two of them apart, so it is said as words.
+        let name = spacedWords(working.recipeID).lowercased()
+        return (withArticle(name), "\(name)s")
+    }
+}
+
+/// A Compass run by what it was like, not by the mode's menu name ("Budget
+/// Agent", "Gamifier"), which means nothing in a sentence about the reader.
+private func compassRun(_ mode: WonderConciergeMode?, token: String) -> (label: String, clause: String) {
+    switch mode {
+    case .closeToHome?: return ("close-to-home Compass runs", "you went on a Compass run close to home")
+    case .budget?: return ("Compass runs that cost next to nothing", "you went on a Compass run that cost next to nothing")
+    case .obscure?: return ("odd-corner Compass runs", "you went on a Compass run to an odd forgotten corner")
+    case .vibe?: return ("Compass runs that matched your mood", "you went on a Compass run that matched your mood")
+    case .scavenger?: return ("treasure-hunt Compass runs", "you went on a Compass run that was a treasure hunt")
+    case .recovery?: return ("resting Compass runs", "you went on a Compass run where resting counted")
+    case nil:
+        let name = spacedWords(token).lowercased()
+        return ("\(name) Compass runs", "you went on \(withArticle(name)) Compass run")
+    }
+}
+
+private func compassPlace(_ place: CompassPlaceContext?, token: String) -> (label: String, clause: String) {
+    switch place {
+    case .current?: return ("Compass runs right where you were", "your Compass run stayed right where you were")
+    case .home?: return ("Compass runs at home", "your Compass run stayed at home")
+    case .work?: return ("Compass runs at work", "your Compass run happened at work")
+    case .cafe?: return ("Compass runs to a cafe", "your Compass run took you to a cafe")
+    case .harbor?: return ("Compass runs to the harbour", "your Compass run took you to the harbour")
+    case .park?: return ("Compass runs to a park", "your Compass run took you to a park")
+    case .store?: return ("Compass runs to a shop", "your Compass run took you to a shop")
+    case .library?: return ("Compass runs to a library", "your Compass run took you to a library")
+    case .transit?: return ("Compass runs on a train or bus", "your Compass run took you on a train or bus")
+    case .waterfront?: return ("Compass runs down to the water", "your Compass run took you down to the water")
+    case .trail?: return ("Compass runs along a trail", "your Compass run took you along a trail")
+    case .neighborhood?: return ("Compass runs round your own streets", "your Compass run went round your own streets")
+    case .indoors?: return ("Compass runs indoors", "your Compass run stayed indoors")
+    case .other?: return ("Compass runs somewhere else", "your Compass run went somewhere else")
+    case nil:
+        let name = spacedWords(token).lowercased()
+        return ("Compass runs to \(name)", "your Compass run went to \(name)")
+    }
+}
+
+/// What the reader's photographs and voice were like, said the way a child
+/// would say it about a picture or a voice. Returns nil for a value it can't
+/// say plainly: a quality nobody can read is not worth counting out loud.
+private func sensoryWords(
+    _ dimension: SensoryObservation.Dimension,
+    value: String
+) -> (label: String, clause: String)? {
+    switch dimension {
+    case .modality:
+        switch value {
+        case "words": return ("written Pages", "your Page was written in words")
+        case "photo": return ("photo Pages", "your Page had a photo on it")
+        case "voice": return ("spoken Pages", "your Page was said out loud")
+        case "place": return ("place Pages", "your Page was about a place")
+        case "weather": return ("weather Pages", "your Page was about the weather")
+        default: return nil
+        }
+    case .subject:
+        // My eye names what it sees in a picture with one word, and I say it
+        // as that word rather than pretending to know "a dog" from "dogs".
+        return ("“\(value)” in your photos", "I spotted “\(value)” in your photo")
+    case .palette:
+        return ("\(value) photos", "your photo came out \(value)")
+    case .brightness:
+        let light = value.contains("light") ? value : "\(value) light"
+        return ("photos in \(light)", "your photo was taken in \(light)")
+    case .composition:
+        // Stored as "landscape, people-0".
+        let parts = value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        let shapes = ["landscape": "wide", "portrait": "tall", "square": "square"]
+        guard let shape = parts.first.flatMap({ shapes[$0] }),
+              let people = parts.dropFirst().first(where: { $0.hasPrefix("people-") })
+                .flatMap({ Int($0.dropFirst("people-".count)) }) else { return nil }
+        let who = people == 0 ? "nobody" : (people == 1 ? "one person" : "\(people) people")
+        return ("\(shape) photos with \(who) in them", "your photo was \(shape) with \(who) in it")
+    case .voiceCadence:
+        let how = [
+            "sparse fragments": "in little bits", "short bursts": "in quick bursts",
+            "long-paused phrases": "with long stops in between", "continuous flow": "without stopping",
+            "measured phrases": "slowly and steadily"
+        ][value]
+        guard let how else { return nil }
+        return ("talking to me \(how)", "you talked to me \(how)")
+    case .voiceEnergy:
+        let how = [
+            "hushed": "quietly", "high contrast": "loud and soft by turns",
+            "varied": "up and down", "even": "evenly"
+        ][value]
+        guard let how else { return nil }
+        return ("talking to me \(how)", "you talked to me \(how)")
+    default:
+        return nil
+    }
+}
+
+/// The composite body score, as something a child would say about a body.
+/// It folds sleep, movement and energy together, so it can say "tired" and
+/// nothing about why.
+private func bodyWords(_ value: Int) -> (id: String, state: String) {
+    if value <= 33 { return ("low", "tired") }
+    if value >= 67 { return ("high", "full of beans") }
+    return ("middling", "doing all right")
 }
 
 // MARK: - The world around the Page
@@ -324,26 +522,29 @@ enum WorldConditionsProjector: LoomProjector {
         var out: [LoomFeatureRef] = []
         if ["morning", "afternoon", "evening", "night"].contains(context.dayPart) {
             let part = context.dayPart
+            let when = part == "night" ? "at night" : "in the \(part)"
             out.append(LoomFeatureRef(
-                id: "hour:\(part)", domain: "hour", label: part,
-                conditionClause: "it was \(part)", outcomeClause: "you came at \(part)",
+                id: "hour:\(part)", domain: "hour", label: "\(part)s",
+                conditionClause: "it was \(part)", outcomeClause: "you came to me \(when)",
                 symbolName: "clock", role: .conditionOnly, rank: 15
             ))
         }
         for tag in context.weatherTags.prefix(3) {
+            let weather = weatherClauses(tag)
             out.append(LoomFeatureRef(
-                id: "weather:\(tag)", domain: "weather", label: humanised(tag),
-                conditionClause: weatherClauses(tag).condition,
-                outcomeClause: weatherClauses(tag).outcome,
+                id: "weather:\(tag)", domain: "weather", label: weather.label,
+                conditionClause: weather.condition,
+                outcomeClause: weather.outcome,
                 symbolName: "cloud", role: .conditionOnly, rank: 10
             ))
         }
         let placeLabel = context.locationLabel?.nonEmpty ?? context.nearbyAnchorID?.nonEmpty
         if let place = placeLabel {
+            let name = context.locationLabel?.nonEmpty.map(humanised) ?? anchorName(place)
             out.append(LoomFeatureRef(
-                id: "place:\(place.lowercased())", domain: "place", label: humanised(place),
-                conditionClause: "you were at \(humanised(place))",
-                outcomeClause: "you went to \(humanised(place))",
+                id: "place:\(place.lowercased())", domain: "place", label: name,
+                conditionClause: "you were at \(name)",
+                outcomeClause: "you went to \(name)",
                 symbolName: "mappin", role: .either, rank: 25
             ))
         }
@@ -352,10 +553,11 @@ enum WorldConditionsProjector: LoomProjector {
         // differently at anchor-7f3a", and only a taxonomy can say "you write
         // differently near water".
         if let kind = context.placeKind?.nonEmpty {
+            let place = withArticle(placeKindWords(kind))
             out.append(LoomFeatureRef(
-                id: "place-kind:\(kind)", domain: "placeKind", label: humanised(kind),
-                conditionClause: "you were somewhere that is a \(humanised(kind))",
-                outcomeClause: "you went to a \(humanised(kind))",
+                id: "place-kind:\(kind)", domain: "placeKind", label: place,
+                conditionClause: "you were at \(place)",
+                outcomeClause: "you went to \(place)",
                 symbolName: "mappin.and.ellipse", role: .either, rank: 24
             ))
         }
@@ -399,8 +601,8 @@ enum DayShapeProjector: LoomProjector {
         let weekday = slice.calendar.component(.weekday, from: date)
         let part = (weekday == 1 || weekday == 7) ? "the weekend" : "a weekday"
         out.append(LoomFeatureRef(
-            id: "week:\(part)", domain: "weekPart", label: part,
-            conditionClause: "it was \(part)", outcomeClause: "it fell on \(part)",
+            id: "week:\(part)", domain: "weekPart", label: part == "the weekend" ? "weekends" : "weekdays",
+            conditionClause: "it was \(part)", outcomeClause: "it was \(part)",
             symbolName: "calendar", role: .conditionOnly, rank: 20
         ))
         let index = GrimoireDay.index(for: date, calendar: slice.calendar)
@@ -416,9 +618,9 @@ enum DayShapeProjector: LoomProjector {
     private static func writingFeature(_ wrote: Bool) -> LoomFeatureRef {
         LoomFeatureRef(
             id: wrote ? "writing:kept" : "writing:quiet",
-            domain: "writing", label: wrote ? "wrote something" : "wrote nothing",
-            conditionClause: wrote ? "you had written" : "you had written nothing",
-            outcomeClause: wrote ? "you wrote something" : "you wrote nothing",
+            domain: "writing", label: wrote ? "days you wrote" : "days you didn't write",
+            conditionClause: wrote ? "you wrote something" : "you didn't write anything",
+            outcomeClause: wrote ? "you wrote something" : "you didn't write anything",
             symbolName: "pencil", role: .either, provenance: .readerAuthored, rank: 68
         )
     }
@@ -438,36 +640,39 @@ enum KeptPageProjector: LoomProjector {
     static func features(forPage page: BookPage, in slice: GrimoireSlice) -> [LoomFeatureRef] {
         var out: [LoomFeatureRef] = [
             LoomFeatureRef(
-                id: "kept:\(page.type.rawValue)", domain: "pageKind", label: page.type.shortTitle,
-                conditionClause: "a \(page.type.shortTitle) Page was in your hands",
-                outcomeClause: "you kept a \(page.type.shortTitle) Page",
+                id: "kept:\(page.type.rawValue)", domain: "pageKind", label: "\(page.type.shortTitle) Pages",
+                conditionClause: "you kept \(withArticle(page.type.shortTitle)) Page",
+                outcomeClause: "you kept \(withArticle(page.type.shortTitle)) Page",
                 symbolName: page.type.symbolName, role: .outcomeOnly,
                 provenance: .readerAuthored, rank: 70
             )
         ]
         if page.hasReaderPhotograph {
             out.append(LoomFeatureRef(
-                id: "media:photograph", domain: "media", label: "a photograph",
-                conditionClause: "you had taken a photograph",
-                outcomeClause: "you kept a photograph",
+                id: "media:photograph", domain: "media", label: "photos",
+                conditionClause: "you took a photo",
+                outcomeClause: "you kept a photo",
                 symbolName: "camera", role: .either, provenance: .readerAuthored, rank: 72
             ))
         }
         if page.hasReaderAudioRecording {
             out.append(LoomFeatureRef(
-                id: "media:voice", domain: "media", label: "your voice",
-                conditionClause: "you had spoken to me",
-                outcomeClause: "you spoke to me",
+                id: "media:voice", domain: "media", label: "talking to me out loud",
+                conditionClause: "you talked to me out loud",
+                outcomeClause: "you talked to me out loud",
                 symbolName: "waveform", role: .either, provenance: .readerAuthored, rank: 72
             ))
         }
         if let text = page.readerAuthoredTextForAnalysis {
             let words = text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).count
             let weight = words >= 90 ? "heavy" : (words >= 30 ? "steady" : "light")
+            // The ink is mine, and it notices how far it got to go.
+            let ink = weight == "heavy" ? ("lots of ink", "lots of my ink")
+                : (weight == "steady" ? ("some ink", "a fair bit of my ink") : ("a drop of ink", "only a drop of my ink"))
             out.append(LoomFeatureRef(
-                id: "ink:\(weight)", domain: "ink", label: "\(weight) ink",
-                conditionClause: "the ink had run \(weight)",
-                outcomeClause: "the ink ran \(weight)",
+                id: "ink:\(weight)", domain: "ink", label: ink.0,
+                conditionClause: "you used \(ink.1)",
+                outcomeClause: "you used \(ink.1)",
                 symbolName: "drop", role: .outcomeOnly, provenance: .readerAuthored, rank: 69
             ))
         }
@@ -509,9 +714,9 @@ enum ReaderWordsProjector: LoomProjector {
             guard word.count >= 3, !ignored.contains(word), !seen.contains(word) else { continue }
             seen.insert(word)
             out.append(LoomFeatureRef(
-                id: "word:\(word)", domain: "word", label: "“\(word)”",
-                conditionClause: "you had used the word \(word)",
-                outcomeClause: "you used the word \(word)",
+                id: "word:\(word)", domain: "word", label: "the word “\(word)”",
+                conditionClause: "you used the word “\(word)”",
+                outcomeClause: "you used the word “\(word)”",
                 symbolName: "text.quote", role: .either, provenance: .readerAuthored, rank: 60
             ))
         }
@@ -535,42 +740,47 @@ enum StoryTagProjector: LoomProjector {
                 guard tag.hasPrefix(prefix) else { return nil }
                 return String(tag.dropFirst(prefix.count)).nonEmpty
             }
+            /// The same token with its capitals, which a squashed choice id
+            /// needs to find its word boundaries again.
+            func original(after prefix: String) -> String {
+                String(raw.dropFirst(prefix.count))
+            }
             if let token = value(after: "sender:") ?? value(after: "entity:") {
-                let name = humanised(token)
+                let name = BleedDayDesk.castName(token)
                 return LoomFeatureRef(
                     id: "cast:\(token)", domain: "cast", label: name,
-                    conditionClause: "\(name) was about",
-                    outcomeClause: "\(name) came to you",
+                    conditionClause: "\(name) was around",
+                    outcomeClause: "\(name) came to see you",
                     symbolName: "person.crop.rectangle.stack",
                     role: .either, provenance: .systemEvent, rank: 60
                 )
             }
             if let token = value(after: "choice:") {
-                let name = humanised(token)
+                let name = "“\(BookPage.humanizedChoice(original(after: "choice:")))”"
                 return LoomFeatureRef(
                     id: "choice:\(token)", domain: "choice", label: name,
-                    conditionClause: "\(name) was the path taken",
-                    outcomeClause: "you chose \(name)",
+                    conditionClause: "you picked \(name)",
+                    outcomeClause: "you picked \(name)",
                     symbolName: "arrow.triangle.branch",
                     role: .either, provenance: .systemEvent, rank: 75
                 )
             }
             if let token = value(after: "genre:") {
-                let name = humanised(token)
+                let name = genreName(token)
                 return LoomFeatureRef(
-                    id: "genre:\(token)", domain: "genre", label: name,
-                    conditionClause: "the story wore the shape of \(name)",
-                    outcomeClause: "you took a \(name) story",
+                    id: "genre:\(token)", domain: "genre", label: "\(name) stories",
+                    conditionClause: "the story was \(withArticle(name))",
+                    outcomeClause: "you picked \(withArticle(name)) story",
                     symbolName: "books.vertical",
                     role: .either, provenance: .systemEvent, rank: 75
                 )
             }
             if let token = value(after: "form:") {
-                let name = humanised(token)
+                let name = formName(token)
                 return LoomFeatureRef(
-                    id: "story-form:\(token)", domain: "storyForm", label: name,
-                    conditionClause: "the story took the form \(name)",
-                    outcomeClause: "you took a story shaped like \(name)",
+                    id: "story-form:\(token)", domain: "storyForm", label: "stories shaped like \(name)",
+                    conditionClause: "the story was shaped like \(name)",
+                    outcomeClause: "you picked a story shaped like \(name)",
                     symbolName: "text.book.closed",
                     role: .either, provenance: .systemEvent, rank: 75
                 )
@@ -612,21 +822,23 @@ enum InnerWeatherProjector: LoomProjector {
         guard let context = page.context else { return [] }
         var out: [LoomFeatureRef] = []
         if let score = context.bodyScore {
-            let level = band(score, low: 33, high: 67)
+            let body = bodyWords(score)
             out.append(LoomFeatureRef(
-                id: "body:\(level)", domain: "body", label: "\(level) body signal",
-                conditionClause: "your body was reading \(level)",
-                outcomeClause: "your body read \(level)",
+                id: "body:\(body.id)", domain: "body", label: "days your body was \(body.state)",
+                conditionClause: "your body was \(body.state)",
+                outcomeClause: "your body was \(body.state)",
                 symbolName: "heart", role: .conditionOnly,
                 sensitivity: .innerState, rank: 30
             ))
         }
         if let hours = context.sleepHours {
             let level = hours < 6 ? "short" : (hours > 8 ? "long" : "ordinary")
+            let night = level == "short" ? ("short nights", "less than six hours")
+                : (level == "long" ? ("long sleeps", "more than eight hours") : ("ordinary nights", "an ordinary amount"))
             out.append(LoomFeatureRef(
-                id: "sleep:\(level)", domain: "sleep", label: "\(level) sleep",
-                conditionClause: "the night before had been \(level)",
-                outcomeClause: "you slept \(level)",
+                id: "sleep:\(level)", domain: "sleep", label: night.0,
+                conditionClause: "you'd slept \(night.1) the night before",
+                outcomeClause: "you slept \(night.1)",
                 symbolName: "moon.zzz", role: .conditionOnly,
                 sensitivity: .innerState, rank: 28
             ))
@@ -654,7 +866,7 @@ enum FaeEncounterProjector: LoomProjector {
             let name = kind?.name ?? humanised(token)
             return LoomFeatureRef(
                 id: "fae:\(stable)", domain: "fae", label: name,
-                conditionClause: "\(name) was about", outcomeClause: "\(name) came to you",
+                conditionClause: "\(name) was around", outcomeClause: "\(name) came to see you",
                 symbolName: "sparkles", role: .either,
                 provenance: .systemEvent, rank: 58
             )
@@ -672,8 +884,8 @@ enum FaeEncounterProjector: LoomProjector {
                seen.insert("met:\(kind.rawValue)").inserted {
                 out.append(LoomFeatureRef(
                     id: "fae:\(kind.rawValue)", domain: "fae", label: kind.name,
-                    conditionClause: "\(kind.name) was about",
-                    outcomeClause: "\(kind.name) came to you",
+                    conditionClause: "\(kind.name) was around",
+                    outcomeClause: "\(kind.name) came to see you",
                     symbolName: "sparkles", role: .either,
                     provenance: .systemEvent, rank: 58
                 ))
@@ -683,9 +895,9 @@ enum FaeEncounterProjector: LoomProjector {
                seen.insert("kept:\(kind.rawValue)").inserted {
                 out.append(LoomFeatureRef(
                     id: "fae-kept:\(kind.rawValue)", domain: "faeKept",
-                    label: "a bargain with \(kind.name)",
-                    conditionClause: "you had kept a bargain with \(kind.name)",
-                    outcomeClause: "you kept your side with \(kind.name)",
+                    label: "bargains with \(kind.name)",
+                    conditionClause: "you kept your side of a bargain with \(kind.name)",
+                    outcomeClause: "you kept your side of a bargain with \(kind.name)",
                     symbolName: "hand.raised.fill", role: .outcomeOnly,
                     provenance: .readerAuthored, rank: 71
                 ))
@@ -739,24 +951,27 @@ enum WorkingProjector: LoomProjector {
         func initiator(_ working: BookWorking) -> LoomFeatureRef? {
             let name = working.initiatorName.trimmingCharacters(in: .whitespaces)
             guard !name.isEmpty, seen.insert("by:\(working.initiatorID)").inserted else { return nil }
+            // I'm the one talking, so I never call myself the Book.
+            let mine = working.initiatorKind == .book
             return LoomFeatureRef(
-                id: "working-by:\(working.initiatorID)", domain: "workingInitiator", label: name,
-                conditionClause: "\(name) had set you something",
-                outcomeClause: "\(name) set you something",
+                id: "working-by:\(working.initiatorID)", domain: "workingInitiator",
+                label: mine ? "the things I set you myself" : name,
+                conditionClause: mine ? "I set you something myself" : "\(name) set you something",
+                outcomeClause: mine ? "I set you something myself" : "\(name) set you something",
                 symbolName: "person.wave.2", role: .conditionOnly,
                 provenance: .systemEvent, rank: 59
             )
         }
 
         for working in slice.workings {
-            let recipe = humanised(working.recipeID)
+            let recipe = errand(working)
 
             if GrimoireDay.index(for: working.createdAt, calendar: slice.calendar) == index {
                 if seen.insert("set:\(working.recipeID)").inserted {
                     out.append(LoomFeatureRef(
-                        id: "working:\(working.recipeID)", domain: "working", label: recipe,
-                        conditionClause: "a \(recipe) was set",
-                        outcomeClause: "you took on a \(recipe)",
+                        id: "working:\(working.recipeID)", domain: "working", label: recipe.many,
+                        conditionClause: "\(recipe.one) was waiting for you",
+                        outcomeClause: "you took on \(recipe.one)",
                         symbolName: "wand.and.stars", role: .either,
                         provenance: .systemEvent, rank: 62
                     ))
@@ -769,10 +984,10 @@ enum WorkingProjector: LoomProjector {
             switch working.status {
             case .returned:
                 ending = working.returnedAt.map {
-                    ($0, "returned", "coming back from it", "you came back from it", true)
+                    ($0, "returned", "coming back to tell me", "you came back and told me how it went", true)
                 }
             case .elapsed:
-                ending = (working.endsAt, "lapsed", "letting it lapse", "you let it lapse", false)
+                ending = (working.endsAt, "lapsed", "letting it run out", "you let it run out", false)
             case .cancelled:
                 ending = (working.endsAt, "dropped", "putting it down", "you put it down", false)
             case .prepared, .arranged:
@@ -784,9 +999,9 @@ enum WorkingProjector: LoomProjector {
             if seen.insert("episode:\(working.recipeID)").inserted {
                 out.append(LoomFeatureRef(
                     id: "working-episode:\(working.recipeID)", domain: "workingEpisode",
-                    label: recipe,
-                    conditionClause: "the working that ended was a \(recipe)",
-                    outcomeClause: "a \(recipe) ran its course",
+                    label: recipe.many,
+                    conditionClause: "\(recipe.one) came to an end",
+                    outcomeClause: "\(recipe.one) came to an end",
                     symbolName: "wand.and.stars", role: .either,
                     provenance: .systemEvent, rank: 61
                 ))
@@ -796,7 +1011,7 @@ enum WorkingProjector: LoomProjector {
                 out.append(LoomFeatureRef(
                     id: "working-outcome:\(ending.id)", domain: "workingOutcome",
                     label: ending.label,
-                    conditionClause: "you had finished by \(ending.label)",
+                    conditionClause: ending.clause,
                     outcomeClause: ending.clause,
                     symbolName: ending.reader ? "arrow.uturn.backward" : "hourglass",
                     role: .outcomeOnly,
@@ -831,11 +1046,11 @@ enum CompassRunProjector: LoomProjector {
             if tag.hasPrefix(prefix), let token = String(tag.dropFirst(prefix.count)).nonEmpty {
                 let mode = WonderConciergeMode.allCases.first { $0.rawValue.lowercased() == token }
                 let stable = mode?.rawValue ?? token
-                let name = mode?.title ?? humanised(token)
+                let run = compassRun(mode, token: token)
                 return LoomFeatureRef(
-                    id: "compass:\(stable)", domain: "compass", label: name,
-                    conditionClause: "you had been out on a \(name) run",
-                    outcomeClause: "you went out on a \(name) run",
+                    id: "compass:\(stable)", domain: "compass", label: run.label,
+                    conditionClause: run.clause,
+                    outcomeClause: run.clause,
                     symbolName: "location.north.circle", role: .either,
                     provenance: .readerAuthored, rank: 40
                 )
@@ -843,11 +1058,11 @@ enum CompassRunProjector: LoomProjector {
             if tag.hasPrefix("compass-place:"), let token = String(tag.dropFirst(14)).nonEmpty {
                 let place = CompassPlaceContext.allCases.first { $0.rawValue.lowercased() == token }
                 let stable = place?.rawValue ?? token
-                let name = place?.title.lowercased() ?? humanised(token)
+                let run = compassPlace(place, token: token)
                 return LoomFeatureRef(
-                    id: "compass-place:\(stable)", domain: "compassPlace", label: name,
-                    conditionClause: "the Compass run stayed \(name)",
-                    outcomeClause: "you took the Compass \(name)",
+                    id: "compass-place:\(stable)", domain: "compassPlace", label: run.label,
+                    conditionClause: run.clause,
+                    outcomeClause: run.clause,
                     symbolName: "mappin.and.ellipse", role: .either,
                     provenance: .readerAuthored, rank: 35
                 )
@@ -868,17 +1083,19 @@ enum DaybookProjector: LoomProjector {
         guard entry.carriesEvidence else { return [] }
         var out: [LoomFeatureRef] = []
         for tag in entry.weatherTags.prefix(3) {
+            let weather = weatherClauses(tag)
             out.append(LoomFeatureRef(
-                id: "weather:\(tag)", domain: "weather", label: humanised(tag),
-                conditionClause: weatherClauses(tag).condition,
-                outcomeClause: weatherClauses(tag).outcome,
+                id: "weather:\(tag)", domain: "weather", label: weather.label,
+                conditionClause: weather.condition,
+                outcomeClause: weather.outcome,
                 symbolName: "cloud", role: .conditionOnly, rank: 10
             ))
         }
         if let place = entry.placeLabel?.nonEmpty ?? entry.nearbyAnchorID?.nonEmpty {
+            let name = entry.placeLabel?.nonEmpty.map(humanised) ?? anchorName(place)
             out.append(LoomFeatureRef(
-                id: "place:\(place.lowercased())", domain: "place", label: humanised(place),
-                conditionClause: "you were at \(humanised(place))", outcomeClause: "you went to \(humanised(place))",
+                id: "place:\(place.lowercased())", domain: "place", label: name,
+                conditionClause: "you were at \(name)", outcomeClause: "you went to \(name)",
                 symbolName: "mappin", role: .either, rank: 25
             ))
             if isWaterPlace(place) { out.append(waterFeature()) }
@@ -888,27 +1105,34 @@ enum DaybookProjector: LoomProjector {
             // asking whether the dark half of the year changes the reader, not
             // counting minutes at them.
             let band = minutes >= 13 * 60 ? "long" : (minutes <= 9 * 60 ? "short" : "even")
+            // The sun keeps hours like anybody else.
+            let sun = band == "long" ? ("days the sun stays up late", "the sun stayed up late")
+                : (band == "short" ? ("days the sun goes to bed early", "the sun went to bed early")
+                    : ("days the sun keeps ordinary hours", "the sun kept ordinary hours"))
             out.append(LoomFeatureRef(
-                id: "daylight:\(band)", domain: "daylight", label: "\(band) light",
-                conditionClause: "the day had \(band) light",
-                outcomeClause: "the light ran \(band)",
+                id: "daylight:\(band)", domain: "daylight", label: sun.0,
+                conditionClause: sun.1,
+                outcomeClause: sun.1,
                 symbolName: "sun.horizon", role: .conditionOnly, rank: 12
             ))
         }
         if let travelled = entry.travelled {
             out.append(LoomFeatureRef(
                 id: travelled ? "travel:moved" : "travel:stayed",
-                domain: "travel", label: travelled ? "a travelled day" : "a stayed-put day",
-                conditionClause: travelled ? "you had travelled" : "you had stayed close",
-                outcomeClause: travelled ? "you travelled" : "you stayed close",
+                domain: "travel", label: travelled ? "travelling days" : "days you stayed close to home",
+                conditionClause: travelled ? "you travelled" : "you stayed close to home",
+                outcomeClause: travelled ? "you travelled" : "you stayed close to home",
                 symbolName: "figure.walk", role: .either, rank: 32
             ))
         }
         if let events = entry.calendarEventCount {
             let load = events == 0 ? "open" : (events >= 4 ? "crowded" : "occupied")
+            let diary = load == "open" ? ("empty-calendar days", "your calendar was empty")
+                : (load == "crowded" ? ("packed days", "your calendar was packed")
+                    : ("days with a few things on", "your calendar had a few things on it"))
             out.append(LoomFeatureRef(
-                id: "calendar-load:\(load)", domain: "calendarLoad", label: "a \(load) calendar",
-                conditionClause: "the calendar was \(load)", outcomeClause: "the calendar was \(load)",
+                id: "calendar-load:\(load)", domain: "calendarLoad", label: diary.0,
+                conditionClause: diary.1, outcomeClause: diary.1,
                 symbolName: "calendar", role: .conditionOnly, rank: 18
             ))
         }
@@ -940,8 +1164,8 @@ enum ReaderStateProjector: LoomProjector {
         if let aliveness, aliveness >= 7 {
             out.append(LoomFeatureRef(
                 id: "reader-state:alive", domain: "readerState", label: "feeling more alive",
-                conditionClause: "you had reported feeling more alive",
-                outcomeClause: "you said you felt more alive",
+                conditionClause: "you told me you felt more alive",
+                outcomeClause: "you told me you felt more alive",
                 symbolName: "sparkles", role: .outcomeOnly,
                 sensitivity: .readerReported, provenance: .readerAuthored, rank: 82
             ))
@@ -949,9 +1173,9 @@ enum ReaderStateProjector: LoomProjector {
         }
         if let wonder, wonder >= 7 {
             out.append(LoomFeatureRef(
-                id: "reader-state:wonder", domain: "readerState", label: "a strong wonder report",
-                conditionClause: "you had reported strong wonder",
-                outcomeClause: "you reported strong wonder",
+                id: "reader-state:wonder", domain: "readerState", label: "lots of wonder",
+                conditionClause: "you told me you felt lots of wonder",
+                outcomeClause: "you told me you felt lots of wonder",
                 symbolName: "eyes", role: .outcomeOnly,
                 sensitivity: .readerReported, provenance: .readerAuthored, rank: 82
             ))
@@ -960,8 +1184,8 @@ enum ReaderStateProjector: LoomProjector {
         if let hiddenMagic, hiddenMagic >= 7 {
             out.append(LoomFeatureRef(
                 id: "reader-state:hidden-magic", domain: "readerState", label: "magic feeling close",
-                conditionClause: "you had said magic felt close",
-                outcomeClause: "you said magic felt close",
+                conditionClause: "you told me magic felt close",
+                outcomeClause: "you told me magic felt close",
                 symbolName: "wand.and.stars", role: .outcomeOnly,
                 sensitivity: .readerReported, provenance: .readerAuthored, rank: 82
             ))
@@ -973,9 +1197,9 @@ enum ReaderStateProjector: LoomProjector {
 
     private static func brightMomentFeature() -> LoomFeatureRef {
         LoomFeatureRef(
-            id: "reader-state:bright-moment", domain: "readerState", label: "a bright moment",
-            conditionClause: "you had called the moment bright",
-            outcomeClause: "you reported a bright moment",
+            id: "reader-state:bright-moment", domain: "readerState", label: "bright moments",
+            conditionClause: "you told me about a bright moment",
+            outcomeClause: "you told me about a bright moment",
             symbolName: "sun.max", role: .outcomeOnly,
             sensitivity: .readerReported, provenance: .readerAuthored, rank: 84
         )
@@ -984,8 +1208,8 @@ enum ReaderStateProjector: LoomProjector {
 
 private func waterFeature() -> LoomFeatureRef {
     LoomFeatureRef(
-        id: "place-kind:water", domain: "placeKind", label: "water nearby",
-        conditionClause: "water was nearby", outcomeClause: "you went near water",
+        id: "place-kind:water", domain: "placeKind", label: "water",
+        conditionClause: "you were near water", outcomeClause: "you went near water",
         symbolName: "water.waves", role: .either, rank: 22
     )
 }
@@ -1028,18 +1252,18 @@ enum SensoryProjector: LoomProjector {
                 || page.hasReaderAudioRecording else { return [] }
         let folio = page.resolvedSensoryFolio
         var out: [LoomFeatureRef] = []
-        for (dimension, domain, prefix, symbol) in lanes {
+        for (dimension, domain, _, symbol) in lanes {
             for value in folio.values(for: dimension) {
                 let token = value.lowercased()
                     .replacingOccurrences(of: " ", with: "-")
                     .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
                 guard !token.isEmpty else { continue }
-                let readable = humanised(token).lowercased()
+                guard let words = sensoryWords(dimension, value: value.lowercased()) else { continue }
                 out.append(LoomFeatureRef(
                     id: "\(domain):\(token)", domain: domain,
-                    label: "\(prefix) \(readable)",
-                    conditionClause: "the Page carried \(readable) \(prefix.lowercased())",
-                    outcomeClause: "your \(prefix.lowercased()) leaned \(readable)",
+                    label: words.label,
+                    conditionClause: words.clause,
+                    outcomeClause: words.clause,
                     symbolName: symbol, role: .either,
                     provenance: .readerAuthored, rank: 85
                 ))
@@ -1071,8 +1295,8 @@ enum MeaningProjector: LoomProjector {
             guard !token.isEmpty else { return nil }
             return LoomFeatureRef(
                 id: "meaning:\(token)", domain: "meaning", label: signal.subjectName,
-                conditionClause: "the thread called \(signal.subjectName) was in the margin",
-                outcomeClause: "your Pages returned to \(signal.subjectName)",
+                conditionClause: "you were writing about \(signal.subjectName)",
+                outcomeClause: "you wrote about \(signal.subjectName) again",
                 symbolName: "point.3.connected.trianglepath.dotted",
                 role: .either, provenance: .readerAuthored, rank: 52
             )
@@ -1099,10 +1323,18 @@ enum MoonProjector: LoomProjector {
         case ..<0.85: band = "half"
         default: band = "full"
         }
+        // The moon is somebody, and it has moods.
+        let moon: (label: String, clause: String)
+        switch band {
+        case "dark": moon = ("nights the moon hides", "the moon was hiding")
+        case "thin": moon = ("thin-moon nights", "the moon was a thin little slice")
+        case "half": moon = ("half-moon nights", "the moon was only half there")
+        default: moon = ("full-moon nights", "the moon was big and round")
+        }
         return [LoomFeatureRef(
-            id: "moon:\(band)", domain: "moon", label: "a \(band) moon",
-            conditionClause: "the moon was \(band)",
-            outcomeClause: "the moon ran \(band)",
+            id: "moon:\(band)", domain: "moon", label: moon.label,
+            conditionClause: moon.clause,
+            outcomeClause: moon.clause,
             symbolName: phase.symbolName, role: .conditionOnly,
             provenance: .observedContext, rank: 11
         )]
@@ -1135,21 +1367,22 @@ enum PactErrandProjector: LoomProjector {
             switch errand.status {
             case .delivered:
                 ending = errand.deliveredAt.map {
-                    ($0, "paid", "paying an errand", "you paid what a talisman asked", true)
+                    ($0, "paid", "doing what a talisman asked", "you did what a talisman asked", true)
                 }
             case .lapsed:
-                ending = (errand.deadline, "lapsed", "letting an errand lapse", "you let a talisman's ask lapse", false)
+                ending = (errand.deadline, "lapsed", "letting a talisman's ask run out", "you let a talisman's ask run out", false)
             case .owed:
                 ending = nil
             }
             guard let ending,
                   GrimoireDay.index(for: ending.day, calendar: slice.calendar) == index else { continue }
 
-            let talisman = humanised(errand.talismanID)
+            let talisman = AcademyChapterRegistry.chapter(forTalismanID: errand.talismanID)
+                .map { midSentence($0.talismanName) } ?? "a talisman"
             if seen.insert("by:\(errand.talismanID)").inserted {
                 out.append(LoomFeatureRef(
                     id: "talisman:\(errand.talismanID)", domain: "talisman", label: talisman,
-                    conditionClause: "\(talisman) had asked you for something",
+                    conditionClause: "\(talisman) asked you for something",
                     outcomeClause: "\(talisman) asked you for something",
                     symbolName: "seal", role: .conditionOnly,
                     provenance: .systemEvent, rank: 57
@@ -1158,7 +1391,7 @@ enum PactErrandProjector: LoomProjector {
             if seen.insert("outcome:\(ending.id)").inserted {
                 out.append(LoomFeatureRef(
                     id: "errand-outcome:\(ending.id)", domain: "errandOutcome", label: ending.label,
-                    conditionClause: "you had finished by \(ending.label)",
+                    conditionClause: ending.clause,
                     outcomeClause: ending.clause,
                     symbolName: ending.reader ? "checkmark.seal" : "hourglass",
                     role: .outcomeOnly,
@@ -1197,8 +1430,8 @@ enum AsideReplyProjector: LoomProjector {
             guard GrimoireDay.index(for: answeredAt, calendar: slice.calendar) == index else { continue }
             guard seen.insert("answered").inserted else { continue }
             out.append(LoomFeatureRef(
-                id: "aside:answered", domain: "asideReply", label: "answering me",
-                conditionClause: "you had answered me",
+                id: "aside:answered", domain: "asideReply", label: "answering me back",
+                conditionClause: "you answered me back",
                 outcomeClause: "you answered me back",
                 symbolName: "bubble.left.and.bubble.right",
                 role: .either, provenance: .readerAuthored, rank: 66
@@ -1224,9 +1457,9 @@ enum PocketProjector: LoomProjector {
             GrimoireDay.index(for: $0.foundAt, calendar: slice.calendar) == index
         }) else { return [] }
         return [LoomFeatureRef(
-            id: "pocket:kept", domain: "pocket", label: "something for the Pocket",
-            conditionClause: "you had put something in my Pocket",
-            outcomeClause: "you pressed something into my Pocket",
+            id: "pocket:kept", domain: "pocket", label: "things for my Pocket",
+            conditionClause: "you put something in my Pocket",
+            outcomeClause: "you put something in my Pocket",
             symbolName: "bag", role: .either,
             provenance: .readerAuthored, rank: 72
         )]
@@ -1256,8 +1489,8 @@ enum BookJumpProjector: LoomProjector {
             if seen.insert("book:\(jump.bookID)").inserted {
                 out.append(LoomFeatureRef(
                     id: "jump-book:\(jump.bookID)", domain: "jumpBook", label: jump.title,
-                    conditionClause: "you had been inside \(jump.title)",
-                    outcomeClause: "you went into \(jump.title)",
+                    conditionClause: "you jumped into \(jump.title)",
+                    outcomeClause: "you jumped into \(jump.title)",
                     symbolName: "book.closed", role: .either,
                     provenance: .systemEvent, rank: 63
                 ))
@@ -1269,8 +1502,8 @@ enum BookJumpProjector: LoomProjector {
                     id: "jump-outcome:\(key)", domain: "jumpOutcome",
                     label: carried ? "coming back with something" : "coming back empty-handed",
                     conditionClause: carried
-                        ? "you had come back carrying something"
-                        : "you had come back empty-handed",
+                        ? "you came back carrying something"
+                        : "you came back empty-handed",
                     outcomeClause: carried
                         ? "you came back carrying something"
                         : "you came back empty-handed",
@@ -1303,10 +1536,10 @@ enum ObservanceProjector: LoomProjector {
             guard let kept = tradition.lastObservedAt,
                   GrimoireDay.index(for: kept, calendar: slice.calendar) == index,
                   seen.insert(tradition.kind.rawValue).inserted else { continue }
-            let name = humanised(tradition.title)
+            let name = tradition.title
             out.append(LoomFeatureRef(
                 id: "observance:\(tradition.kind.rawValue)", domain: "observance", label: name,
-                conditionClause: "you had kept \(name)",
+                conditionClause: "you kept \(name)",
                 outcomeClause: "you kept \(name)",
                 symbolName: "calendar.badge.checkmark",
                 role: .either, provenance: .readerAuthored, rank: 76
@@ -1330,10 +1563,28 @@ enum AlmanacProjector: LoomProjector {
         let celebrations = LiteraryAlmanac.celebrations(on: day.date, calendar: slice.calendar)
         guard let strongest = celebrations.max(by: { $0.priority < $1.priority }) else { return [] }
         let kind = strongest.kind.rawValue
+        // The kind is the Book's filing word ("author", "inWorld"), never a
+        // thing to say. Each one gets what the day actually was.
+        let days: [String: (label: String, clause: String)] = [
+            "author": ("writers' birthdays", "it was a famous writer's birthday"),
+            "publication": ("book birthdays", "it was a famous book's birthday"),
+            "occult": ("old magicians' days", "it was a day the old magicians wrote something down"),
+            "inWorld": ("storybook holidays", "it was a holiday from inside a story"),
+            "labyrinth": ("Labyrinth feast days", "it was a feast day in the Labyrinth"),
+            "window": ("special sky hours", "the sun made a special hour that day"),
+            "first": ("first-of-the-year days", "the weather did something for the first time this year"),
+            "family": ("big holidays", "it was a holiday everybody keeps"),
+            "birthday": ("birthdays", "it was somebody's birthday"),
+            "sabbat": ("old festival days", "it was one of the old festivals on the wheel of the year"),
+            "esbat": ("witches' moon nights", "it was a witches' moon night"),
+            "shower": ("shooting-star nights", "there were shooting stars that night"),
+            "eclipse": ("eclipses", "there was an eclipse")
+        ]
+        let day = days[kind] ?? ("\(spacedWords(kind)) days", "the almanac marked the day")
         return [LoomFeatureRef(
-            id: "almanac:\(kind)", domain: "almanac", label: humanised(kind),
-            conditionClause: "the almanac had a \(humanised(kind)) on it",
-            outcomeClause: "the day was a \(humanised(kind))",
+            id: "almanac:\(kind)", domain: "almanac", label: day.label,
+            conditionClause: day.clause,
+            outcomeClause: day.clause,
             symbolName: strongest.symbolName, role: .conditionOnly,
             provenance: .observedContext, rank: 14
         )]
@@ -1371,12 +1622,19 @@ enum WorldEventProjector: LoomProjector {
             // building up" is a claim; "the world was in phase-3b" is noise.
             guard let role = event.phase.role else { continue }
             let phase = role.rawValue
+            let world: (label: String, clause: String)
+            switch role {
+            case .setup: world = ("the start of something in the world", "something in the world was just starting")
+            case .buildup: world = ("something building up in the world", "something in the world was building up")
+            case .climax: world = ("the world's big moments", "something in the world was at its big moment")
+            case .aftermath: world = ("the world settling down", "the world was settling down after something big")
+            }
             if seen.insert("phase:\(phase)").inserted {
                 out.append(LoomFeatureRef(
                     id: "world-event-phase:\(phase)", domain: "worldEventPhase",
-                    label: "a world event \(humanised(phase))",
-                    conditionClause: "the world was \(humanised(phase))",
-                    outcomeClause: "the world was \(humanised(phase))",
+                    label: world.label,
+                    conditionClause: world.clause,
+                    outcomeClause: world.clause,
                     symbolName: "clock.arrow.circlepath", role: .conditionOnly,
                     provenance: .systemEvent, rank: 23
                 ))

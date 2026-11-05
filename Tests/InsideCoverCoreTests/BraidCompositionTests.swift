@@ -11,13 +11,13 @@ final class BraidCompositionTests: XCTestCase {
 
   func testQuotedReaderWordsAreNotSplitAtTheirOwnFullStop() {
     let split = DeterministicBraidwright.splitSentences(
-      "I copied this much and changed none of its words: «My sister called about the funeral. She sounded tired.» My pencil stayed still."
+      "I copied this much and changed none of its words: «My sister called about the funeral. She sounded tired.» My ink stayed still."
     )
 
     guard split.count == 2 else { return XCTFail("Expected 2 sentences, got \(split)") }
     XCTAssertTrue(split[0].hasSuffix("»"), split[0])
     XCTAssertTrue(split[0].contains("She sounded tired."), split[0])
-    XCTAssertEqual(split[1], "My pencil stayed still.")
+    XCTAssertEqual(split[1], "My ink stayed still.")
   }
 
   func testCastTitlesDoNotEndASentence() {

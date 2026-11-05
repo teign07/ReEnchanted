@@ -113,17 +113,26 @@ final class BraidMonthLabTests: XCTestCase {
       var context = BraidPromptBuilder.Context.empty
       // As on the phone, which hands the planner the reader's whole archive.
       context.recentDays = Array(days[..<index])
+      // The phone's context builder reads earlier braids' residue back, which
+      // is how a thread opened one night is continued the next.
+      context.memoryDigest = BindingMemorySpine.digest(days: context.recentDays, now: dayEnd, limit: 6)
       context.authoredStoryReceipts = MonthlyIssueBraidMatter.ordered(
         receipts.filter { $0.recordedAt >= dayStart && $0.recordedAt <= dayEnd })
       let liveDay = calendar.component(.day, from: day.date) - 1
       if (0..<event.calendar.durationDays).contains(liveDay) {
         let progress = Double(liveDay) / Double(event.calendar.durationDays)
         let phase = try XCTUnwrap(event.phases.last { $0.startsAtProgress <= progress })
-        context.activeWorldEvents = [ResolvedWorldEvent(
+        let resolved = [ResolvedWorldEvent(
           id: event.id, packID: pack.id, title: event.title, subtitle: event.subtitle, phase: phase,
           startedAt: dayStart.addingTimeInterval(-Double(liveDay) * 86_400),
           endsAt: dayStart.addingTimeInterval(Double(event.calendar.durationDays - liveDay) * 86_400),
           progress: progress, playerTouchCount: 0, playerTouchCounts: nil, outcome: nil, effects: [], packet: event.packet)]
+        // Split as the phone splits it: an authored event lends its pulse only.
+        // The baseline is the phone before 2026-11-01, which dropped the
+        // authored event altogether, pulse and all.
+        let world = SceneWorldCanon.braidWorldEvents(resolved, authored: pack.authoringManifests ?? [])
+        context.activeWorldEvents = world.live
+        context.pulseWorldEvents = Self.isBaseline ? [] : world.pulseOnly
       }
 
       var made: Night?
@@ -153,6 +162,33 @@ final class BraidMonthLabTests: XCTestCase {
   }
 
   private struct Refused: Error, CustomStringConvertible { var description: String }
+
+  /// `BRAID_MONTH_BASELINE=1`: the wonder braid as the phone ran it before
+  /// 2026-11-01, for measuring that day's fixes against the same days and
+  /// the same Gemma. Pages kept without writing never reached the telling,
+  /// a kept scene over sixty words was dropped whole, and an authored month
+  /// lent the night no pulse.
+  private static var isBaseline: Bool { ProcessInfo.processInfo.environment["BRAID_MONTH_BASELINE"] == "1" }
+
+  private static func legacyBookLines(plan: BraidScenePlan, day: BookDay) -> [String] {
+    let evidence = plan.placements.compactMap { plan.evidence(for: $0.evidenceID) }.filter { $0.kind == .keptFiction }
+    var order: [String] = []
+    for item in evidence where !order.contains(item.pageID) { order.append(item.pageID) }
+    var bookSentences: [String] = []
+    var credited: [String] = []
+    for pageID in order {
+      let sentences = WonderBraid.prepared(evidence.filter { $0.pageID == pageID }.map(\.text)).flatMap(WonderBraid.sentences)
+      if let page = day.capturedPages.first(where: { $0.id == pageID }), let voice = WonderBraid.castVoice(of: page) {
+        if let line = WonderBraid.attributedLine(name: voice.name, isLetter: voice.isLetter, sentences: sentences) { credited.append(line) }
+      } else {
+        bookSentences.append(contentsOf: sentences)
+      }
+    }
+    // The old cut: three sentences, and nothing at all past sixty words.
+    let whole = WonderBraid.bookLines(from: bookSentences, wordBudget: .max)
+    let carried = whole.filter { $0.split(whereSeparator: \.isWhitespace).count <= 60 }
+    return carried + credited.prefix(2)
+  }
 
   /// `BraidInstructions.nightlyBookOfYou`, read from the app's source as the Mac lab does.
   private static func nightlyInstructions() throws -> String {
@@ -191,9 +227,15 @@ final class BraidMonthLabTests: XCTestCase {
         business: scenePlan.bookBusiness?.text,
         weather: WonderBraid.weatherLine(weather: weatherWord, place: nil,
                                          moonPhaseName: MoonPhaseCalendar.phase(on: day.date).name),
-        bookLines: WonderBraid.bookLines(plan: scenePlan, day: day),
+        bookLines: Self.isBaseline ? Self.legacyBookLines(plan: scenePlan, day: day) : WonderBraid.bookLines(plan: scenePlan, day: day),
+        keptLines: Self.isBaseline ? [] : WonderBraid.keptThingLines(plan: scenePlan, day: day),
         resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date),
-        isHardNight: scenePlan.isHardNight)
+        isHardNight: scenePlan.isHardNight,
+        form: Self.isBaseline ? "sliceOfLife" : scenePlan.form,
+        leadDetail: WonderBraid.leadDetail(plan: scenePlan),
+        beatLimit: Self.isBaseline ? 4 : WonderBraid.beatLimit(scale: scenePlan.scale),
+        continuity: Self.isBaseline ? nil : WonderBraid.continuity(for: context.continuityBeat),
+        taleIsHouseCanon: scenePlan.worldBeat.map { $0.source != .worldEvent && $0.source != .undertaking } ?? true)
       if let output = try await WonderBraid.write(input, tell: { system, user, temperature, topP, maxTokens in
         try await tell(system, user, temperature, topP, maxTokens).0
       }), !output.prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -208,7 +250,7 @@ final class BraidMonthLabTests: XCTestCase {
     if let wonder {
       let scrub = BraidTellingScrub.scrubbed(
         wonder.prose, readerMaterial: ([scenePlan.title()] + scenePlan.readerDayNarration).joined(separator: " "),
-        isHardNight: scenePlan.isHardNight)
+        isHardNight: scenePlan.isHardNight, verbatim: WonderBraid.keptThingLines(plan: scenePlan, day: day))
       scrubbed = !scrub.dropped.isEmpty
       prose = scrub.text
     } else {
@@ -235,6 +277,7 @@ final class BraidMonthLabTests: XCTestCase {
       tags.append("braid-wonder")
       tags += wonder.lineIDs.map { WonderBraidHistory.tagPrefix + $0 }
       if wonder.jobsFellBack > 0 { tags.append("braid-wonder-fallback") }
+      if !wonder.carriedContinuity { tags.append(BookOfYouResidue.continuityUntoldTag) }
     }
     let claims = scenePlan.provenanceClaimsCarried(in: prose)
     tags += claims.flatMap { claim in claim.sourceIDs.map { "braid-claim:\(claim.realm.rawValue):\($0)" } }
@@ -254,6 +297,9 @@ final class BraidMonthLabTests: XCTestCase {
     // into the night after its first paragraph.
     var bound = BookPage(type: .bookOfYou, createdAt: day.date, promptText: "", userInput: tellingText, tags: tags)
     bound = MonthlyIssueBraidMatter.binding(scenePlan.authoredStoryReceipts ?? [], into: bound)
+    // As on the phone: the residue tomorrow reads (a thread is recorded only
+    // when the telling carried it).
+    bound = BraidPageDetails.annotated(bound, context: context)
     return Night(day: day.id, path: wonder == nil ? (scenePlan.isHardNight ? "plain-hard" : "plain") : "wonder",
                  title: scenePlan.title(), body: bound.userInput, tags: bound.tags,
                  words: prose.split(whereSeparator: \.isWhitespace).count,

@@ -27,7 +27,6 @@ truth for hosts is `grep -rhoE 'https://[a-zA-Z0-9.-]+' Shared InsideCoverApp`.
 | `eutils.ncbi.nlm.nih.gov`, `pubmed`, `api.openalex.org`, `api.semanticscholar.org`, `doi.org` | Faculty research / public findings | Topic queries, no reader text | No |
 | `www.gutenberg.org` | Public-domain text fetches | Book identifiers | No |
 | `oauth.reddit.com`, `www.reddit.com` | Only if `RedditInstalledAppClientID` is set (it is **empty**) | — | — |
-| `community-api.reenchanted.app` (Public Margins) | **Closed for launch** (`PublicMarginsAPI.isAvailable = false`). Only a reader who sent something earlier can withdraw it | Deletion receipt | — |
 | Apple speech / Journaling Suggestions | Reader taps dictation or the suggestions picker | Governed by Apple | No |
 
 HealthKit data never leaves the device **except** when the reader turns on
@@ -63,7 +62,5 @@ nothing in the label and avoids an argument.
 ## Before each submission
 
 - No new host in the grep above without a row here.
-- `PublicMarginsAPI.isAvailable` still `false`, or this doc and the privacy
-  policy updated together.
 - `RedditInstalledAppClientID` still empty.
 - `LandingPage/privacy.html` agrees with this table.
