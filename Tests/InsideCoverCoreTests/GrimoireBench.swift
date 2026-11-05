@@ -16,7 +16,7 @@ final class GrimoireBench: XCTestCase {
         return calendar
     }()
 
-    /// Deterministic, so a slow run is a real regression and not bad luck.
+    /// Deterministic archive contents keep the measured workload the same.
     private struct Dice {
         var state: UInt64
         mutating func next(_ bound: Int) -> Int {
@@ -77,6 +77,15 @@ final class GrimoireBench: XCTestCase {
         return CFAbsoluteTimeGetCurrent() - start
     }
 
+    /// Reads do not mutate the ledger, so measure the same work five times.
+    /// A single scheduling pause on a shared runner must not fail the budget;
+    /// the median still fails when the read is consistently too expensive.
+    private func medianReadSeconds(_ work: () -> Void) -> Double {
+        let samples = (0..<5).map { _ in seconds(work) }.sorted()
+        print("  · desk read samples (ms): " + samples.map { String(format: "%.3f", $0 * 1000) }.joined(separator: ", "))
+        return samples[samples.count / 2]
+    }
+
     func testFourYearsOfBookStaysWithinBudget() throws {
         let archive = fourYearArchive()
         var ledger = GrimoireLedger()
@@ -106,7 +115,7 @@ final class GrimoireBench: XCTestCase {
 
         // The path the desk actually takes: read standing rows, compute nothing.
         var spoken: [GrimoireCorrespondence] = []
-        let read = seconds {
+        let read = medianReadSeconds {
             spoken = ledger.speakable(limit: 3, now: GrimoireDay.date(for: 1_462, calendar: self.calendar),
                                       calendar: self.calendar)
         }
@@ -136,7 +145,7 @@ final class GrimoireBench: XCTestCase {
           ingest one day       \(String(format: "%.3f", ingestOne * 1000)) ms
           sweep to completion  \(String(format: "%.1f", sweepAll * 1000)) ms over \(sweeps) chunks
           longest chunk        \(String(format: "%.1f", longestChunk * 1000)) ms
-          desk read            \(String(format: "%.3f", read * 1000)) ms
+          desk read (median)   \(String(format: "%.3f", read * 1000)) ms
           on disk              \(size / 1024) KB
         ───────────────────────────────────────────────────────
 
@@ -218,7 +227,7 @@ final class GrimoireBench: XCTestCase {
                 if report.finished || sweeps > 4_000 { break }
             }
         }
-        let read = seconds {
+        let read = medianReadSeconds {
             _ = ledger.speakable(
                 limit: 3, now: GrimoireDay.date(for: 1_462, calendar: self.calendar),
                 calendar: self.calendar
@@ -238,7 +247,7 @@ final class GrimoireBench: XCTestCase {
           ingest archive       \(String(format: "%.1f", ingesting * 1000)) ms
           sweep to completion  \(String(format: "%.1f", sweeping * 1000)) ms over \(sweeps) chunks
           longest chunk        \(String(format: "%.1f", longestChunk * 1000)) ms
-          desk read            \(String(format: "%.3f", read * 1000)) ms
+          desk read (median)   \(String(format: "%.3f", read * 1000)) ms
           on disk              \(size / 1024) KB
         ───────────────────────────────────────────────────────
 
@@ -257,7 +266,7 @@ final class GrimoireBench: XCTestCase {
         ledger.ingest(fourYearArchive())
         XCTAssertGreaterThan(ledger.pendingSweepCount, 0, "expected a backlog to read against")
         let pendingBeforeRead = ledger.pendingSweepCount
-        let read = seconds {
+        let read = medianReadSeconds {
             _ = ledger.speakable(limit: 3, now: GrimoireDay.date(for: 1_461, calendar: self.calendar),
                                  calendar: self.calendar)
         }
