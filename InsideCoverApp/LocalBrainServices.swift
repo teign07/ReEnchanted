@@ -59,7 +59,7 @@ enum LocalBrainPublicationStageBoundary {
 }
 
 #if NATIVE_LOCAL_BRAIN && canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
-enum LocalBrainGateError: LocalizedError {
+enum LocalBrainGateError: LocalizedError, Equatable {
     case busy
     case inactive
     case insufficientMemory
@@ -252,9 +252,10 @@ actor LocalBrainModelCache {
     }
 
     private func release(reason: String) {
-        guard let warm else { return }
+        // Do not hold a local copy of Warm across clearCache: that copy also
+        // owns the weights we are trying to return to the system.
+        guard let label = warm?.label else { return }
         evictionGeneration &+= 1
-        let label = warm.label
         self.warm = nil
         warmPath = nil
         lastUsedAt = .distantPast
@@ -297,6 +298,106 @@ actor LocalBrainMemoryProbe {
     }
 }
 
+/// Checks the actual generation boundaries, including prefill before any text
+/// can reach the reader. The flag survives cancellation and cache cleanup, so
+/// an interrupted stream never publishes its partial result as a finished page.
+final class LocalBrainGenerationMemoryGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var budget = LocalBrainMemoryBudget()
+    private let label: String
+    private let boundsPrefill: Bool
+
+    init(label: String) {
+        self.label = label
+        boundsPrefill = LocalModelManager.isIPhone15ClassHardware
+    }
+
+    func requireNotStopped() throws {
+        lock.lock()
+        let stopped = budget.stopped
+        lock.unlock()
+        if stopped { throw LocalBrainGateError.insufficientMemory }
+    }
+
+    func check(stage: String, minimumBytes: UInt64 = LocalBrainMemoryBudget.stopHeadroom) throws {
+        try requireNotStopped()
+        #if canImport(UIKit)
+        guard !LocalBrainForeground.shared.isLeaving else { throw LocalBrainGateError.inactive }
+        var available = AppMemoryLedger.availableBytes()
+        if available < minimumBytes {
+            Memory.clearCache()
+            available = AppMemoryLedger.availableBytes()
+        }
+        lock.lock()
+        let wasStopped = budget.stopped
+        let mayContinue = budget.observe(availableBytes: available, minimumBytes: minimumBytes)
+        lock.unlock()
+        if !mayContinue {
+            if !wasStopped {
+                AppMemoryLedger.record("\(label)-stopped-low-memory-\(stage); required: \(minimumBytes)")
+            }
+            throw LocalBrainGateError.insufficientMemory
+        }
+        #endif
+    }
+
+    /// MLX checks cancellation between prefill chunks and between tokens.
+    /// Cancel that producer task here, not just the consumer waiting for text.
+    func cancelProducerIfNeeded(stage: String) {
+        do {
+            #if canImport(UIKit)
+            guard !LocalBrainForeground.shared.isLeaving else {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return
+            }
+            #endif
+            try check(stage: stage)
+        } catch {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+    }
+
+    func prefillProgress(processed: Int, total: Int) {
+        #if canImport(UIKit)
+        guard !LocalBrainForeground.shared.isLeaving else {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return
+        }
+        #endif
+        if boundsPrefill && !Task.isCancelled {
+            // The library otherwise queues every chunk with asyncEval before
+            // its final wait. Settle each small chunk on a 6 GB phone so those
+            // temporary activations cannot accumulate across the whole prompt.
+            StreamOrDevice.default.stream.synchronize()
+        }
+        cancelProducerIfNeeded(stage: "prefill-\(processed)-of-\(total)")
+    }
+
+    var components: GenerationComponents {
+        GenerationComponents(
+            logitProcessorFactory: { LocalBrainMemoryLogitProcessor(guarding: self) },
+            parameterValidator: { _ in
+                try self.check(stage: "before-prefill", minimumBytes: LocalBrainMemoryBudget.prefillHeadroom)
+            }
+        )
+    }
+}
+
+/// This processor leaves the distribution alone. It checks once per token,
+/// including tokens the tokenizer has not yet emitted as visible text.
+private struct LocalBrainMemoryLogitProcessor: LogitProcessor {
+    let guarding: LocalBrainGenerationMemoryGuard
+
+    mutating func prompt(_ prompt: MLXArray) {}
+
+    func process(logits: MLXArray) -> MLXArray {
+        guarding.cancelProducerIfNeeded(stage: "decode")
+        return logits
+    }
+
+    mutating func didSample(token: MLXArray) {}
+}
+
 /// A model container may stay warm between calls, but generation state must
 /// not. `ChatSession` retains its KV cache for conversational continuation, so
 /// every Book generation explicitly saves its result outside the session,
@@ -306,14 +407,17 @@ enum LocalBrainGenerationLifecycle {
     static func saving<Result>(
         _ operation: () async throws -> Result,
         thenRefreshing session: ChatSession,
-        label: String
+        label: String,
+        guarding memoryGuard: LocalBrainGenerationMemoryGuard? = nil
     ) async throws -> Result {
         do {
             let savedResult = try await operation()
+            try memoryGuard?.check(stage: "completed")
             await refresh(session: session, label: label)
             return savedResult
         } catch {
             await refresh(session: session, label: label)
+            try memoryGuard?.requireNotStopped()
             throw error
         }
     }
@@ -393,10 +497,12 @@ enum LocalModelInstallValidator {
 
     private static func validateTextModel(in directory: URL) async throws {
         try await LocalBrainExecution.withDevice {
+            let memoryGuard = LocalBrainGenerationMemoryGuard(label: "install-text-validation")
             let container = try await LLMModelFactory.shared.loadContainer(
                 from: directory,
                 using: TokenizersLoader()
             )
+            try memoryGuard.check(stage: "model-ready", minimumBytes: LocalBrainMemoryBudget.prefillHeadroom)
             let session = ChatSession(
                 container,
                 instructions: "Reply with one short word.",
@@ -404,15 +510,19 @@ enum LocalModelInstallValidator {
                     maxTokens: 1,
                     maxKVSize: 128,
                     temperature: 0,
-                    prefill: PrefillParameters(stepSize: 64)
-                )
+                    prefill: PrefillParameters(stepSize: 64, progress: { processed, total in
+                        memoryGuard.prefillProgress(processed: processed, total: total)
+                    })
+                ),
+                components: memoryGuard.components
             )
             _ = try await LocalBrainGenerationLifecycle.saving(
                 {
                     try await session.respond(to: "Ready?")
                 },
                 thenRefreshing: session,
-                label: "install-text-validation"
+                label: "install-text-validation",
+                guarding: memoryGuard
             )
         }
     }
@@ -551,14 +661,12 @@ actor LocalBrainInferenceGate {
     static let shared = LocalBrainInferenceGate()
 
     private let cacheLimit = 8 * 1024 * 1024
-    /// What MLX may hold when iOS will not say how much room the process has
-    /// (a zero reading). Like every limit here it covers the weights as well
-    /// as a turn's working memory, so it sits above any checkpoint we ship;
-    /// see `budget(forAvailable:)` for why that matters.
+    /// Non-iOS fallback, where the process-allowance API is unavailable.
+    /// On iOS a zero reading is exhaustion and must never admit a load.
     private let fallbackMemoryLimit = 4_096 * 1024 * 1024
     /// Headroom left to the rest of the app (UI, images, audio, the archive)
     /// so a generation never spends the last of the process's allowance.
-    private let reservedHeadroom: UInt64 = 320 * 1024 * 1024
+    private let reservedHeadroom = LocalBrainMemoryBudget.prefillHeadroom
     /// Below this, no amount of trimming makes a generation safe to start.
     private let minimumWorkableMemory: UInt64 = 420 * 1024 * 1024
     /// What a cold E2B run needs, now set from the run itself rather than from
@@ -623,6 +731,40 @@ actor LocalBrainInferenceGate {
         operation: () async throws -> T
     ) async throws -> T {
         try Task.checkCancellation()
+        // Claim ownership before the first suspension. A second caller used
+        // to reach requireMemoryBudget and unload our model before enter()
+        // finally told it the brain was busy.
+        guard !isRunning else { throw LocalBrainGateError.busy }
+        isRunning = true
+        defer { leave() }
+        do {
+            let result = try await perform(
+                label: label, promptCharacters: promptCharacters, presentation: presentation,
+                carriesImage: carriesImage, modelDirectory: modelDirectory, operation: operation
+            )
+            // Schedule while we still own the gate. An unstructured cleanup
+            // task could otherwise schedule an eviction AFTER the next run
+            // had cancelled the old timer and started using the warm model.
+            await LocalBrainModelCache.shared.scheduleIdleEviction(after: Self.flowGapSeconds)
+            return result
+        } catch {
+            if let gateError = error as? LocalBrainGateError, gateError != .busy {
+                await LocalBrainModelCache.shared.unload()
+            } else {
+                await LocalBrainModelCache.shared.scheduleIdleEviction(after: Self.flowGapSeconds)
+            }
+            throw error
+        }
+    }
+
+    private func perform<T>(
+        label: String,
+        promptCharacters: Int,
+        presentation: LocalBrainPresentation,
+        carriesImage: Bool,
+        modelDirectory: URL?,
+        operation: () async throws -> T
+    ) async throws -> T {
         #if canImport(UIKit)
         // CPU time to finish saving and releasing after a reader swipes away;
         // the GPU itself is gone the moment the app leaves (see
@@ -635,26 +777,6 @@ actor LocalBrainInferenceGate {
 
         try await requireForegroundGPU()
         await LocalBrainModelCache.shared.cancelScheduledEviction()
-        // Cancelling above happens before we know this run will be allowed to
-        // start, and the defer that reschedules sits below both throw points.
-        // A refused run therefore used to cancel the pending dump and put
-        // nothing in its place, leaving warm weights resident with nothing
-        // scheduled to release them — the exact state in which iOS cannot raise
-        // a keyboard. `runLocalBrainIdleEvictionClock` used to catch this at 180
-        // seconds, but it is `#if DEBUG`, so the release build a reader actually
-        // holds had no backstop at all.
-        var didEnterGate = false
-        defer {
-            if !didEnterGate {
-                Task {
-                    await LocalBrainModelCache.shared.scheduleIdleEviction(after: Self.flowGapSeconds)
-                }
-            }
-        }
-        let availableAtStart = AppMemoryLedger.availableBytes()
-        let budget = try await requireMemoryBudget(
-            label: label, carriesImage: carriesImage, modelDirectory: modelDirectory
-        )
         let waitsForPaperArrival: Bool
         switch presentation {
         case .live:
@@ -670,13 +792,23 @@ actor LocalBrainInferenceGate {
             promptCharacters: promptCharacters,
             waitsForPaperArrival: waitsForPaperArrival
         )
-        didEnterGate = true
         #if canImport(UIKit)
         await LocalBrainForeground.shared.holdScreenAwake()
         defer {
             Task { @MainActor in LocalBrainForeground.shared.releaseScreen() }
         }
         #endif
+
+        // UI arrival can allocate images and surfaces. Read the allowance
+        // after that work, immediately before the model is allowed to load.
+        Memory.cacheLimit = cacheLimit
+        Memory.clearCache()
+        let budget = try await requireMemoryBudget(
+            label: label, carriesImage: carriesImage, modelDirectory: modelDirectory
+        )
+        try Task.checkCancellation()
+        try await requireForegroundGPU()
+        let availableAtStart = AppMemoryLedger.availableBytes()
 
         // Sample the floor for as long as this run owns the gate. The task is
         // cancelled by the defer below, so it cannot outlive the generation.
@@ -708,23 +840,6 @@ actor LocalBrainInferenceGate {
             if presentation == .readingRoom {
                 postOnMain(name: .localBrainDidRest, object: nil)
             }
-            leave()
-            // Every generation now runs the same cycle: load, generate, dump,
-            // audit, optimise. This is the dump, and it applies to all of them
-            // because they all come through this gate.
-            //
-            // The wait is a flow gap, not an idle timeout. A run that hands
-            // straight to another — the caption pass to the Enchantment's
-            // writer — cancels it on the way in, so the warm handoff that costs
-            // 72,302,592 instead of 2,680,621,192 still happens. What it will
-            // not do is hold weights across a pause where the reader is using
-            // the app, because with E2B resident the device has around 330 MB
-            // free and iOS cannot raise a keyboard in that. A reader tapped into
-            // Let's Chat and got no keys until the model was released.
-            let holdSeconds = Self.flowGapSeconds
-            Task {
-                await LocalBrainModelCache.shared.scheduleIdleEviction(after: holdSeconds)
-            }
         }
         try Task.checkCancellation()
         return try await operation()
@@ -737,9 +852,9 @@ actor LocalBrainInferenceGate {
         label: String, carriesImage: Bool = false, modelDirectory: URL? = nil
     ) async throws -> Int {
         var available = AppMemoryLedger.availableBytes()
-        // A zero reading means the platform would not tell us. Fall back to the
-        // fixed ceiling rather than refusing all work.
+        #if !canImport(UIKit)
         guard available > 0 else { return fallbackMemoryLimit }
+        #endif
 
         // Installation validates before writing the active marker. Admission
         // must inspect the checkpoint being tested, not the previous marker.
@@ -757,6 +872,7 @@ actor LocalBrainInferenceGate {
             kind: neededKind,
             path: activeModelPath
         )
+        available = AppMemoryLedger.availableBytes()
 
         // The weights this call needs are already resident, so what it has to
         // find room for is one turn's activations and KV cache, not a whole
@@ -784,6 +900,9 @@ actor LocalBrainInferenceGate {
             // The probe reports each run's true floor, so this can be confirmed
             // or raised from a measurement rather than left at a guess.
             let warmRequirement = reservedHeadroom + surcharge
+            if available < warmRequirement {
+                available = await reclaimAppMemory(label: label, current: available)
+            }
             if available >= warmRequirement {
                 AppMemoryLedger.record("\(label)-admitted-warm")
                 return budget(forAvailable: available)
@@ -837,7 +956,9 @@ actor LocalBrainInferenceGate {
         AppMemoryLedger.record(
             "\(label)-reclaim; before: \(current); after: \(after); recovered: \(after > current ? after - current : 0)"
         )
-        return max(after, current)
+        // A failed reclaim can leave LESS room. Never admit using the older,
+        // more optimistic reading: this is a live allowance, not a watermark.
+        return after
     }
 
     /// The limit MLX works under for this run.
@@ -882,11 +1003,6 @@ actor LocalBrainInferenceGate {
         promptCharacters: Int,
         waitsForPaperArrival: Bool
     ) async throws {
-        if isRunning {
-            await postWorkStateImmediately(isWorking: true, label: "busy", promptCharacters: 0, queuedCount: 0)
-            throw LocalBrainGateError.busy
-        }
-        isRunning = true
         // Do not race the model against the UI's resource pause. Posting on the
         // main actor synchronously lets the home background stop its display
         // clocks before Gemma claims the GPU.
@@ -896,20 +1012,13 @@ actor LocalBrainInferenceGate {
             promptCharacters: promptCharacters,
             queuedCount: 0
         )
-        do {
-            if waitsForPaperArrival {
-                // Let the writing scrap enter the view tree before Gemma
-                // claims the GPU. A cancelled entrance must stay cancelled.
-                try await Task.sleep(for: .milliseconds(560))
-            }
-            try Task.checkCancellation()
-            // The reader may have locked the phone during the paper's entrance.
-            // Do not hand a backgrounded app a fresh model load or prefill.
-            try await requireForegroundGPU()
-        } catch {
-            leave()
-            throw error
+        if waitsForPaperArrival {
+            // Let the writing scrap enter the view tree before Gemma
+            // claims the GPU. A cancelled entrance must stay cancelled.
+            try await Task.sleep(for: .milliseconds(560))
         }
+        try Task.checkCancellation()
+        try await requireForegroundGPU()
     }
 
     private func leave() {
@@ -1332,25 +1441,41 @@ struct MLXBookBraider: Braider {
             leadDetail: WonderBraid.leadDetail(plan: scenePlan),
             beatLimit: WonderBraid.beatLimit(scale: scenePlan.scale),
             continuity: WonderBraid.continuity(for: context.continuityBeat),
-            taleIsHouseCanon: scenePlan.worldBeat.map { $0.source != .worldEvent && $0.source != .undertaking } ?? true
-        )
-        let tell: WonderBraid.Teller = { system, user, temperature, topP, maxTokens in
-            try await MLXLocalTextGenerator.run(
-                prompt: user,
-                instructions: system,
-                maxTokens: maxTokens,
-                label: "braid-wonder",
-                tags: ["braid", "book-of-you", "braid-wonder"],
-                temperature: temperature,
-                topP: topP,
-                maxKVSize: 2_048,
-                readerFacingBraidPreview: false,
-                masksWornImages: true
+            taleIsHouseCanon: scenePlan.worldBeat.map { $0.source != .worldEvent && $0.source != .undertaking } ?? true,
+            turn: WonderBraid.turn(
+                plan: scenePlan, details: details, dateKey: WonderBraidHistory.dateKey(for: day),
+                resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date)
             )
+        )
+        var terminalGateError: LocalBrainGateError?
+        let tell: WonderBraid.Teller = { system, user, temperature, topP, maxTokens in
+            if let terminalGateError { throw WonderBraid.ModelUnavailable(underlying: terminalGateError) }
+            do {
+                return try await MLXLocalTextGenerator.run(
+                    prompt: user,
+                    instructions: system,
+                    maxTokens: maxTokens,
+                    label: "braid-wonder",
+                    tags: ["braid", "book-of-you", "braid-wonder"],
+                    temperature: temperature,
+                    topP: topP,
+                    maxKVSize: 2_048,
+                    readerFacingBraidPreview: false,
+                    masksWornImages: true
+                )
+            } catch let error as LocalBrainGateError where error != .busy {
+                // Busy can resolve while we wait. Memory exhaustion must unwind
+                // the whole telling; repeatedly reloading only repeats its peak.
+                terminalGateError = error
+                throw WonderBraid.ModelUnavailable(underlying: error)
+            }
         }
         let output: WonderBraid.Output?
         do {
             output = try await WonderBraid.write(input, tell: tell)
+            // Optional weather/continuity jobs may swallow an unavailable model.
+            // A pressure stop must still preserve the previous official Page.
+            if let terminalGateError { throw terminalGateError }
         } catch let unavailable as WonderBraid.ModelUnavailable {
             appLog.error("Wonder braid could not reach Gemma: \(unavailable.localizedDescription, privacy: .public)")
             throw unavailable.underlying
@@ -1540,7 +1665,7 @@ enum MLXLocalTextGenerator {
             ? min(maxTokens, iPhone15OutputCeiling)
             : maxTokens
         let responsivePrefillStep = LocalModelManager.deviceSupportsLocalBrainGPU
-            ? (LocalModelManager.isIPhone15ClassHardware ? 128 : 256)
+            ? (LocalModelManager.isIPhone15ClassHardware ? 64 : 256)
             : 32
 
         let response = try await LocalBrainInferenceGate.shared.run(
@@ -1550,6 +1675,7 @@ enum MLXLocalTextGenerator {
         ) {
             try await LocalBrainExecution.withDevice {
                 try Task.checkCancellation()
+                let memoryGuard = LocalBrainGenerationMemoryGuard(label: label)
                 // Say so when the weights have to come back from storage: it is
                 // the longest wait in a reply, and only happens cold.
                 if let onStage,
@@ -1560,13 +1686,14 @@ enum MLXLocalTextGenerator {
                 AppMemoryLedger.record("\(label)-model-load-start")
                 let container = try await LocalBrainModelCache.shared.llm(for: modelDirectory)
                 try Task.checkCancellation()
+                try memoryGuard.check(stage: "model-ready", minimumBytes: LocalBrainMemoryBudget.prefillHeadroom)
                 AppMemoryLedger.record("\(label)-model-load-ready")
                 appLog.info("Local brain \(label, privacy: .public) model ready in \(Date().timeIntervalSince(modelLoadStartedAt), privacy: .public) seconds")
                 onStage?(.reading)
-                var components = GenerationComponents()
+                var components = memoryGuard.components
                 if masksWornImages {
                     let tokens = await WornImageMask.tokens(for: container, sparing: prompt)
-                    components.logitProcessorFactory = { WornImageMask(tokens) }
+                    components = components.appendingLogitProcessor { WornImageMask(tokens) }
                 }
                 let session = ChatSession(
                     container,
@@ -1576,7 +1703,9 @@ enum MLXLocalTextGenerator {
                         maxKVSize: maxKVSize,
                         temperature: temperature,
                         topP: topP,
-                        prefill: PrefillParameters(stepSize: responsivePrefillStep)
+                        prefill: PrefillParameters(stepSize: responsivePrefillStep, progress: { processed, total in
+                            memoryGuard.prefillProgress(processed: processed, total: total)
+                        })
                     ),
                     components: components
                 )
@@ -1687,7 +1816,8 @@ enum MLXLocalTextGenerator {
                         return output.trimmingCharacters(in: .whitespacesAndNewlines)
                     },
                     thenRefreshing: session,
-                    label: label
+                    label: label,
+                    guarding: memoryGuard
                 )
             }
         }
@@ -1977,6 +2107,7 @@ struct MLXSerenityTarotReadingWriter {
             guard let card = TarotDeck.card(id: drawn.cardID) else { return nil }
             return """
             \(drawn.position.title): \(card.name)\(drawn.isReversed ? " (reversed)" : "")
+            Position question: \(drawn.position.prompt)
             Keywords: \(card.keywords.joined(separator: ", "))
             Light: \(card.lightMeaning)
             Worn edge: \(card.shadowMeaning)
@@ -2006,10 +2137,26 @@ struct MLXSerenityTarotReadingWriter {
             The reader did not invite archive context. Read only the cards and their own notes.
             """
         }
+        let readingStructure = reading.spread == .hereHiddenPossible
+            ? """
+            Write 3 short titled passages in this order:
+            WHAT’S HERE
+            WHAT’S HIDING
+            WHAT’S POSSIBLE
+            Let the middle passage supply a supported surprise or a question worth another look. Let the last offer room for choice or pleasure. Do not manufacture a problem or claim to uncover a fact the reader has not supplied.
+            """
+            : """
+            Write 4 short titled passages in this order:
+            THE PICTURE TOGETHER
+            THE HOPEFUL EDGE
+            THE THORN IN IT
+            SOMETHING YOU COULD TRY
+            """
         let prompt = """
         Give Serenity Brown's bounded Tarot reading.
 
         Spread: \(reading.spread.title)
+        Spread intentions: \(reading.spread.readingDirective)
         Held lightly: \(reading.question.isEmpty ? "No question was supplied." : reading.question)
         Reader's first look: \(reading.firstLook.isEmpty ? "Not written yet." : reading.firstLook)
 
@@ -2020,11 +2167,7 @@ struct MLXSerenityTarotReadingWriter {
         \(cards)
         \(archiveSection)
 
-        Write 4 short titled passages in this order:
-        THE PICTURE TOGETHER
-        THE HOPEFUL EDGE
-        THE THORN IN IT
-        SOMETHING YOU COULD TRY
+        \(readingStructure)
 
         End with one unheaded sentence that returns authority to the reader.
         When archive Pages were supplied, mention no more than two by their visible titles and only when the connection is supported by their excerpt. Never imply you searched anything beyond the receipt.
@@ -2374,7 +2517,10 @@ struct MLXStoryPageWriter: StoryPageWriting {
         func finished(_ prose: StoryPageProse) -> StoryPageProse {
             guard isVignette else { return prose }
             var cleaned = prose
-            cleaned.scene = VignetteTellingCheck.cleaned(prose.scene)
+            cleaned.scene = VignetteTellingCheck.cleaned(
+                prose.scene,
+                keptWords: StoryPagePromptBuilder.vignettePlan(for: draft)?.keptWords
+            )
             return cleaned
         }
 
@@ -3131,7 +3277,9 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
             carriesImage: true
         ) {
             try await LocalBrainExecution.withDevice {
+                let memoryGuard = LocalBrainGenerationMemoryGuard(label: "photo-illumination")
                 let container = try await LocalBrainModelCache.shared.vlm(for: modelDirectory)
+                try memoryGuard.check(stage: "model-ready", minimumBytes: LocalBrainMemoryBudget.prefillHeadroom)
                 let session = ChatSession(
                     container,
                     instructions: """
@@ -3143,8 +3291,11 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                         maxKVSize: 1_024,
                         temperature: 0.28,
                         topP: 0.82,
-                        prefill: PrefillParameters(stepSize: 128)
-                    )
+                        prefill: PrefillParameters(stepSize: 128, progress: { processed, total in
+                            memoryGuard.prefillProgress(processed: processed, total: total)
+                        })
+                    ),
+                    components: memoryGuard.components
                     // No `processing:` override on purpose. Gemma4Processor
                     // overwrites `resize` with its own configured size, so a
                     // value here is silently discarded, and if a future
@@ -3161,7 +3312,8 @@ struct VLMPhotoIlluminationAnalyzer: PhotoIlluminationAnalyzing {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     },
                     thenRefreshing: session,
-                    label: "photo-illumination"
+                    label: "photo-illumination",
+                    guarding: memoryGuard
                 )
             }
         }
@@ -6508,7 +6660,22 @@ struct BleedColumnWriter {
         if brief.id == "interest-desk", brief.newsHeadline == nil {
             return ""
         }
-        let packet = brief.packet.replacingOccurrences(of: "{{CLIPPINGS}}", with: clippings)
+        var packet = brief.packet.replacingOccurrences(of: "{{CLIPPINGS}}", with: clippings)
+        // The Cast the paper asked each answer on their own first: a small model
+        // writes one person far better than four at once. Their words are then
+        // quoted exactly; anyone who didn't answer is reported by their lean.
+        if let jobs = brief.voiceJobs, !jobs.isEmpty {
+            var words: [String: String] = [:]
+            for job in jobs {
+                if let said = await LocalBrainProse.write(
+                    prompt: job.prompt, instructions: job.instructions, maxTokens: 90,
+                    sourceID: "the-bleed", tags: ["bleed", brief.id, "voice", job.voice.id]
+                ), let usable = BleedVoices.usable(said) {
+                    words[job.voice.id] = usable
+                }
+            }
+            packet = packet.replacingOccurrences(of: BleedVoices.placeholder, with: BleedVoices.answered(jobs, words: words))
+        }
         let castIDs = brief.id == "reader-echo" ? Set<String>() : Set(["penny-blackletter"] + (brief.castIDs ?? []))
         // A feature has one writer and nobody speaking: a short who's-who, not the
         // fiction sheets, whose sample lines the small model prints verbatim.
@@ -6633,6 +6800,8 @@ struct BleedColumnWriter {
             a new denial, or the reader being present. The newspaper must add no incident beyond its source.
             Only for COLUMN KIND front-page or feature: the writer's own jokes, comparisons and opinions
             are allowed when they are plainly the writer's and add no event, speech, motive or outcome.
+            Words listed under VOICES are supplied opinions: quoting them exactly is supported. Fail a quote that
+            changes them or puts new words in anyone's mouth, and fail a voice whose words state a new event, fact or sighting.
             Describing a person through their supplied canon is fine if it doesn't change their stated position.
             Only for COLUMN KIND interest-desk: reject a topic definition, background overview or generic
             speculation even if factually accurate. The column must report the selected article's concrete
@@ -6693,7 +6862,8 @@ struct BleedColumnWriter {
             Begin inside the story, on its strangest concrete detail. Never announce the story or the paper.
             Tell it as a story: who is involved, what they're after, what just happened, and where it stands now.
             Make each named person vivid from the who's who: what they care about, and why their view is so like them.
-            Report a person's view as their view, in your words. Use quotation marks only for words the facts quote.
+            When the facts list VOICES, quote every voice's words exactly as given, each with their name, woven into the story.
+            Never add to their words or put new words in anyone's mouth. Use quotation marks only for words the facts quote.
             Add two short asides in brackets, each reacting to one specific fact with a raised eyebrow.
             A comparison may only use things already in this story. Let a very short sentence land the most absurd fact.
             Plain everyday words, the kind the facts use. Penny's opinions are plainly hers.

@@ -1,0 +1,236 @@
+{
+  "date": "2026-11-06",
+  "conversion": {
+    "tool": "sips",
+    "format": "JPEG",
+    "quality": 72,
+    "profile": "sRGB IEC61966-2.1",
+    "pixels": [
+      1024,
+      1536
+    ],
+    "resized": false
+  },
+  "generationPrompts": "prompts.json",
+  "images": [
+    {
+      "slug": "breakfast-has-not-been-approved",
+      "asset": "InterleafBreakfastHasNotBeenApproved",
+      "title": "Breakfast has not been approved",
+      "tags": [
+        "breakfast",
+        "food",
+        "great-hall",
+        "dictionary",
+        "punctuation",
+        "order",
+        "play",
+        "professor-thaddeus-mook",
+        "pippa-pilcrow",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/breakfast-has-not-been-approved.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafBreakfastHasNotBeenApproved.imageset/InterleafBreakfastHasNotBeenApproved.jpg",
+      "sourceBytes": 3830602,
+      "jpegBytes": 689794,
+      "sourceSHA256": "85756a452c94b24e90166634c85acaa72da75b9bfa2631b38be406a684a79605",
+      "jpegSHA256": "dd6adcd47b39e74d446f3f58593e8b4dc1c87e69e24a82c72dd3e65d89011c80",
+      "prompt": "Use case: illustration-story. Make ONE finished portrait interleaf illustration for ReEnchanted, 2:3 vertical composition, a single continuous scene, not a sheet or grid. This is newly authored incidental Academy life, not a new plot event.\nREFERENCE ROLES: image 1 is Mook's identity reference; image 2 Pippa's identity reference; image 3 the established book-art style. Preserve the recognizable faces, ages, clothes and character, but create a new candid scene and composition. Do not reproduce their dossier layouts.\nSCENE: 'Breakfast has not been approved.' Breakfast table in the Academy Great Hall in cool pearly early morning. Professor Thaddeus Mook, the thin elderly silver-haired pedant with small round glasses, high oxblood embroidered collar, red pencil behind his ear, pauses with his plain boiled egg and toast. His enormous dictionary lies chained and padlocked beside the plate. He has quietly, absolutely seriously lowered an inverted clear drinking glass over one tiny black living question mark on the tablecloth. One finger still pins the rim. His mouth is a single stern line. Behind his shoulder, hand-sized Pippa Pilcrow hovers sideways on her interrobang, wild black hair, torn-paper wings, striped stockings, red-brown rags, trying with visible effort not to laugh. The real joke is that two little commas are escaping through the open salt cellar behind Mook's back. Treat this as observable everyday behavior, with dry affection, no slapstick grimacing. Mook remains formidable.\nCOMPOSITION: intimate seated three-quarter waist-up view, egg, glass and Mook's face form a clear triangle. Pippa is small, not another human-sized student. Cool daylight, warm egg yolk, small oxblood accents; plenty of pale tablecloth and breathing room. One readable central incident, a second discovery in the salt cellar. Finely observed hands and faces.\nSTYLE: match the uploaded ReEnchanted art: exacting fine brown ink and graphite, beautiful irregular crosshatching, transparent muted watercolor washes, tactile old ivory paper, sharp expressive drawing. Feral, peculiar, intelligent, never childish. Keep the paper luminous rather than uniformly brown. Fine lines and imperfect handmade edges, no glossy digital painting. Let the central illustration softly break into mostly unmarked paper at its edges; no heavy frame, no scrapbook clutter. One tiny handwritten marginal note at the lower edge, verbatim: 'It was a question.' No other titles or readable writing. No logos, watermarks, anime, plastic skin, caricature, sparkles, generic fantasy glamour, or gratuitous faces on objects.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterMook.imageset/LabyrinthCharacterMook.jpg",
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterPilcrow.imageset/LabyrinthCharacterPilcrow.jpg",
+        "InsideCoverApp/Assets.xcassets/InterleafWindowAfterEveryoneLeaves.imageset/InterleafWindowAfterEveryoneLeaves.jpg"
+      ]
+    },
+    {
+      "slug": "somebody-elses-handwriting",
+      "asset": "InterleafSomebodyElsesHandwriting",
+      "title": "Somebody else’s handwriting",
+      "tags": [
+        "kitchen",
+        "food",
+        "cooking",
+        "recipe",
+        "handwriting",
+        "memory",
+        "care",
+        "ambrose-trencher",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/somebody-elses-handwriting.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafSomebodyElsesHandwriting.imageset/InterleafSomebodyElsesHandwriting.jpg",
+      "sourceBytes": 3647967,
+      "jpegBytes": 645512,
+      "sourceSHA256": "a757ced7a332896c9c40f113e7cded266e69221043fa733a0fccfcd51cafc938",
+      "jpegSHA256": "93a2db78380f31426e44dd91df42f22fcce834a9c1a18a1be6f5ca36060ecbda",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: Ambrose Trencher alone at a kitchen workbench in the unglamorous blue half-hour before lunch. Broad older man, cropped iron-grey hair under a dignified hairnet, heavy salt-grey beard, dark rolled sleeves, mapped stained apron, old burns on forearms; preserve the reference identity. He bends close to a battered estate-sale cookbook propped against a plain copper pot. A small handwritten recipe slip, softened and grease-stained by somebody else's years of use, is tucked into its gutter. His work-worn fingertip carefully follows a handwritten alteration; his other hand holds the familiar wooden spoon worn concave on one side. He is squinting with concentrated tenderness and a hint of private skepticism, not smiling at the viewer. A sliced onion, two modest bowls and a heel of bread, a long mended tea towel, steam in cold window light. The stove has one small low ember-orange patch; this is not another golden banquet. Strong intimate three-quarter profile and hands, believable physical interaction, quiet close composition. Everything is ordinary; the enchantment is his care for an unknown person's handwriting. No ghosts. No title, marginalia, legible body copy or invented cookbook title. Keep the writing natural small manuscript marks; no explanatory text. Loose vignette edges into pale cream paper rather than an ornate dossier border.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterAmbroseTrencher.imageset/LabyrinthCharacterAmbroseTrencher.heic",
+        "ContentPacks/the-guest/story-art/scene.the-guest.scene.the-bowl.jpg"
+      ]
+    },
+    {
+      "slug": "an-island-in-the-tea",
+      "asset": "InterleafAnIslandInTheTea",
+      "title": "An island in the tea",
+      "tags": [
+        "tea",
+        "map",
+        "island",
+        "rain",
+        "window",
+        "discovery",
+        "play",
+        "serenity-brown",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/an-island-in-the-tea.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafAnIslandInTheTea.imageset/InterleafAnIslandInTheTea.jpg",
+      "sourceBytes": 3960303,
+      "jpegBytes": 724786,
+      "sourceSHA256": "307fe23856e0143b3ac48ad94e99b9a85c8a5de8142df0c33e3eec89d8c81886",
+      "jpegSHA256": "1a20df64ffdaa5c9b7fcb9eadd45dde340ed433c4b9536163979fcd2fe0aed2c",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: Serenity Brown, same lively freckled young woman with untidy curly brown hair, teal ribbons, teal worn coat, map charm and rumpled cream blouse as reference, sits sideways and barefoot on a wide stone windowsill on a washed-out bright rainy afternoon. Her boots are kicked underneath. She has spilled tea across her tiny hand-drawn fantasy map. Instead of distress she is leaning down very close, pencil in hand, with a crooked conspiratorial half-smile: she has begun drawing a coastline around the stain. On closer inspection a single miniature paper boat floats in the shallow brown spill ON the map, quietly casting a real small reflection. Keep the magical incident physically legible and modest. Frame from above one shoulder, showing her profile, pencil, cup on its side, beautifully specific ink coastlines and tea stain, blurred silvery window behind. The map is a made-up realm, no franchise names. Sea-glass, rainy silver, a small rust-brown tea stain, luminous white sky; very little amber. Lively diagonal pose, intimate rather than glamorous. A narrow unfinished pencil coastline extends into unpainted paper at bottom. Only one small handwritten marginal note, verbatim: 'There. An island.' No title, no other readable text, no dense scrapbook border.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterSerenityBrown.imageset/LabyrinthCharacterSerenityBrown.jpg",
+        "InsideCoverApp/Assets.xcassets/InterleafWindowAfterEveryoneLeaves.imageset/InterleafWindowAfterEveryoneLeaves.jpg"
+      ]
+    },
+    {
+      "slug": "the-card-that-wouldnt-file",
+      "asset": "InterleafTheCardThatWouldntFile",
+      "title": "The card that wouldn’t file",
+      "tags": [
+        "archive",
+        "records",
+        "catalogue",
+        "paper",
+        "bird",
+        "evidence",
+        "curiosity",
+        "penny-blackletter",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/the-card-that-wouldnt-file.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafTheCardThatWouldntFile.imageset/InterleafTheCardThatWouldntFile.jpg",
+      "sourceBytes": 3918814,
+      "jpegBytes": 727727,
+      "sourceSHA256": "d2f78fda81d8ea463788b98cae3c19be239e4b4eb7732d3f6994b92dc0d74c71",
+      "jpegSHA256": "fb411f6260524bc21b66f0dfb624f12433dbef05c5ab7445c7e7667dbb9be9e0",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: Penny Blackletter in the Academy Records room, caught doing an extremely ordinary task with one small unreasonable complication. Preserve the reference woman: dark curls pinned loosely up, round spectacles, clear intent eyes, ink-blue waistcoat and rolled cream shirt sleeves. Kneeling on one knee beside an open wooden card-catalogue drawer, she holds a single catalogue card folded into an angular little paper bird on her open palm. Her other hand holds a pencil above an unfinished card on her raised knee. She is giving the bird the steady, genuinely interested look of a good interviewer waiting for an answer; mouth slightly pursed, one eyebrow lifted. The bird has turned its beak away. This is a stubborn source, not a cute pet. The drawer behind her contains rows of completely ordinary flat cards; two cards and a dropped pencil on the stone floor show she interrupted real work. No wings on Penny, no other character. Low viewpoint at drawer height; clear silhouette of bird against her pale sleeve and face in three-quarter profile. Dry daylight, ink blue, cool gray, worn honey-colored wood. Fine linework, pale paper around the central incident. One little marginal pencil sketch of the bird flattened back into a card, crossed out. No readable text or title. No full dossier frame.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterPennyBlackletter.imageset/LabyrinthCharacterPennyBlackletter.jpg",
+        "InsideCoverApp/Assets.xcassets/InterleafWindowAfterEveryoneLeaves.imageset/InterleafWindowAfterEveryoneLeaves.jpg"
+      ]
+    },
+    {
+      "slug": "the-rain-came-in-first",
+      "asset": "InterleafTheRainCameInFirst",
+      "title": "The rain came in first",
+      "tags": [
+        "rain",
+        "weather",
+        "footsteps",
+        "outer-stacks",
+        "threshold",
+        "door",
+        "anchor",
+        "mystery",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/the-rain-came-in-first.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafTheRainCameInFirst.imageset/InterleafTheRainCameInFirst.jpg",
+      "sourceBytes": 3853197,
+      "jpegBytes": 701105,
+      "sourceSHA256": "d725c704e738589e7bb71cafa0a2aa3ccb174e22082d9847261f451c0f0534c4",
+      "jpegSHA256": "94441706180e20abe7a83cf8f14d50f5d424ab009c3ee4f466c5f38b5c1cd341",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: The Outer Stacks, the threshold where shelves remember footsteps and doors can open toward real streets. No people visible. From a very low viewpoint along worn library floorboards, a heavy old door stands six inches ajar onto a real rain-dark street and pale wet cobblestones, not a portal of stars. A crisp trail of small wet bootprints comes in through the door, crosses the otherwise dry floor, then turns into a narrow gap between two tall bookcases. The curious detail: the newest single wet footprint is just forming further along the dry floor, with no visible foot above it. A sturdy old umbrella leans against the wall still tightly tied; its brass drip tray is completely dry. The room's one warm lamp is far behind, not the dominant light. Weather gives this scene its personality: cool silver-blue reflected daylight, desaturated moss green bindings, lavender-gray rain, restrained brown ink. Let rain-dark reflections, wood grain and the empty space tell the mystery; shelves recognizable, not generic maximal fantasy clutter. A quiet, beautiful spacious composition with a strong floor-level leading line. Mostly uninterrupted scene, soft ragged ivory paper perimeter. Tiny handwritten note in lower margin, verbatim: 'The rain came in first.' No title, charts, collage or other text. No visible ghosts or invented monster.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthLocationOuterStacks.imageset/LabyrinthLocationOuterStacks.heic",
+        "InsideCoverApp/Assets.xcassets/InterleafForgottenStacks.imageset/InterleafForgottenStacks.jpg"
+      ]
+    },
+    {
+      "slug": "before-the-pens-wake",
+      "asset": "InterleafBeforeThePensWake",
+      "title": "Before the pens wake",
+      "tags": [
+        "quillquarium",
+        "pen",
+        "quill",
+        "ink",
+        "writing",
+        "morning",
+        "rest",
+        "observation",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/before-the-pens-wake.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafBeforeThePensWake.imageset/InterleafBeforeThePensWake.jpg",
+      "sourceBytes": 3324937,
+      "jpegBytes": 548982,
+      "sourceSHA256": "cfdcd1eaeb20693631ab07eb9a2332f298bebbaf08bcaa8f47cd4b26b9d57072",
+      "jpegSHA256": "d3af38c261d5b4a7d0076ea242208400cc2390f65e689a982f96b7dbe148cabd",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: A close, unexpected naturalist's view of the Quillquarium at first light. This is an AIRBORNE aquarium of living writing instruments, a room full of breathable air, not underwater. Old timber windows, distant blurred shelves and one pale cold dawn rectangle establish the same place as the reference. The focal subject is a weather-beaten pearly-gray feather quill floating horizontally, resting very gently across the backs of three small hovering brass dip-pen nibs as if sleepy little fish have chosen to shelter in its wake. One tiny obstinate fountain pen faces the wrong direction, nose almost touching the large quill's nib. Nobody is writing or doing a trick; this is simply what the pens do before students arrive. A couple of tiny ink beads hang below and cast faint shadows on the workbench. Composition: exceptionally beautiful precise macro-like pen-and-ink study integrated into a shallow glimpse of the room, long diagonal feather, brass against soft ink-blue air, ample pale unpainted upper space. Almost no orange; pearl, slate blue, brass, transparent watercolor. No cartoon eyes, no faces on pens, no glitter, no huge swarm. A small pencil study of one resting nib at bottom, otherwise no marginal collage. No titles or readable text. Preserve the source's handmade fine crosshatching and living material texture, not a photoreal product render.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthLocationQuillquarium.imageset/LabyrinthLocationQuillquarium.heic",
+        "InsideCoverApp/Assets.xcassets/InterleafWindowAfterEveryoneLeaves.imageset/InterleafWindowAfterEveryoneLeaves.jpg"
+      ]
+    },
+    {
+      "slug": "the-wrong-door",
+      "asset": "InterleafTheWrongDoor",
+      "title": "The wrong door",
+      "tags": [
+        "door",
+        "key",
+        "broom",
+        "cupboard",
+        "surprise",
+        "play",
+        "wicker-eddies",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/the-wrong-door.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafTheWrongDoor.imageset/InterleafTheWrongDoor.jpg",
+      "sourceBytes": 3566211,
+      "jpegBytes": 622205,
+      "sourceSHA256": "62e1c30c3c8259bcf3c1958bd4dcc56e406dd37d9df1723206b16eec852b0b34",
+      "jpegSHA256": "a2917cfd4f76bafe1b14aa9934fa7017a257da975734f4f815f32712779fc122",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: Wicker Eddies, reference identity preserved: tousled black curls, sharp handsome face, predatory bright eyes, dark violet-black old-fashioned coat and waistcoat, wrong-door brass key. A candid moment in a narrow Academy passage. He has just opened a small, very ordinary broom cupboard using the elaborate brass key still held between finger and thumb. Three worn household brooms lean out of the cupboard directly into his chest and face like an affronted committee. No faces or eyes on brooms. One bristled head has caught his elegant coat button; a small drift of old dust has landed on his sleeve. He is perfectly still, head inclined, looking straight at the offending broom with a small sharp assessing smile: fascinated, faintly dangerous, delighted to have met resistance. He is not a harmless buffoon and not embarrassed. Show face and exact physical contact with broom clearly; no injury. Three-quarter standing medium view, strong narrow vertical door geometry, passage in muted cold violet shadow, coppery late afternoon stripe across dusty bristles, small brass key glint. A bold, lightly drawn incident with wide pale margins and restrained background detail. One small pencilled marginal note, verbatim: 'It opened.' No title or additional text. No dossier, generic evil aura, magic effects or modern cleaning equipment.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthCharacterWickerEddies.imageset/LabyrinthCharacterWickerEddies.jpg",
+        "InsideCoverApp/Assets.xcassets/InterleafWayIntoTheStory.imageset/InterleafWayIntoTheStory.jpg"
+      ]
+    },
+    {
+      "slug": "the-book-kept-the-blanket",
+      "asset": "InterleafTheBookKeptTheBlanket",
+      "title": "The Book kept the blanket",
+      "tags": [
+        "burrow",
+        "blanket",
+        "biscuit",
+        "chair",
+        "rest",
+        "shelter",
+        "home",
+        "quiet",
+        "labyrinth"
+      ],
+      "source": "output/interleaf-illustrations-2026-11-06/the-book-kept-the-blanket.png",
+      "destination": "InsideCoverApp/Assets.xcassets/InterleafTheBookKeptTheBlanket.imageset/InterleafTheBookKeptTheBlanket.jpg",
+      "sourceBytes": 3726932,
+      "jpegBytes": 679626,
+      "sourceSHA256": "5087d9188ed376456afbf048ec1a19f70d5395f72acdf0705905c3d90fc9e42c",
+      "jpegSHA256": "8523798a6a9a912b22f23545e6b5c4448796f159b1d8ec22f7f29ced9bda5fc8",
+      "prompt": "Use case: illustration-story. Create ONE finished new ReEnchanted illustrated interleaf, portrait 2:3, a single continuous composition, never a contact sheet. References are visual style and identity anchors, not images to reproduce. House style: exquisitely fine brown ink and graphite, irregular delicate crosshatching, transparent muted watercolor, luminous aged ivory paper, convincing worn material textures, expressive observed anatomy. Match the existing illustrations' hand-drawn literary character. Specific, odd, feral, affectionate, never childish. Allow paper and light to breathe. No shiny digital fantasy painting, anime, exaggerated cartoon expressions, airbrushed skin, generic pinups, neon, decorative magic particles, watermarks or logos. Objects convey personality through placement and behavior, not added cartoon eyes. New incidental fictional moments must not reveal major plot secrets or reset monthly character changes.\nSCENE: A very intimate close-up in the Book Burrow, the Academy's low-ceilinged cozy refuge. An empty battered armchair with a soft patched wool blanket. The living Book has slipped halfway under the blanket and is holding it down by the weight of its thick dark worn leather cover; several cream pages are stubbornly poking out, a long burgundy ribbon bookmark curled across the upholstery. No face, eyes, mouth or limbs on the Book. A small plate on the arm holds two biscuits; one has a precise missing corner and a tiny trail of crumbs runs under the blanket toward the Book. Somebody's reading glasses hang over the chair arm. The empty space beside the Book is just large enough for a person to squeeze in. Suggest a small possessive companion who has taken the best warm spot. Unstaged, tactile and slightly feral, not a pristine lifestyle vignette. Low close side view from cushion height, blanket texture and book edges drawn exquisitely, background almost lost in smoky plum shadow, a small muted stove-glow catches crumbs; cream paper remains light at perimeter. This is a quiet breathing picture with a few decisive objects, no wall of shelves. No ghost person, no literal sleeping animal, no googly eyes, no title, no readable text, no labels or marginalia. Fine brown ink, sparse graphite and transparent washes consistent with both references.",
+      "references": [
+        "InsideCoverApp/Assets.xcassets/LabyrinthLocationBookBurrow.imageset/LabyrinthLocationBookBurrow.heic",
+        "InsideCoverApp/Assets.xcassets/InterleafBooksSleepingPlace.imageset/InterleafBooksSleepingPlace.jpg"
+      ]
+    }
+  ],
+  "generator": "Built-in image_gen",
+  "integration": "InterleafIllustrationLibrary.permanentScenes; year-round semantic selection and existing repeat avoidance"
+}

@@ -2,8 +2,7 @@ import XCTest
 @testable import InsideCoverCore
 
 /// The Book always speaks; the size of what it says scales with the evidence.
-/// These lock in the ladder itself and the removal of the keep-count gate that
-/// used to hold three whole page families back until the fiftieth kept page.
+/// These lock in evidence-sized claims without a content unlock counter.
 final class BookClaimTierTests: XCTestCase {
 
     // MARK: - The ladder
@@ -112,27 +111,21 @@ final class BookClaimTierTests: XCTestCase {
         XCTAssertGreaterThan(BookClaimTier.glimmer.surfaceScoreBase, 0)
     }
 
-    // MARK: - The keep-count gate is gone
+    func testReflectionCanUseTheFirstFreshFragmentWithoutWaiting() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let empty = BookDay(id: "today", date: now, pages: [])
+        let inputs = BookSourceInputs.empty
+        XCTAssertFalse(inputs.hasReflectiveMaterial(includingToday: empty))
 
-    func testMemoryTrioNoLongerWaitsOnAKeepCount() {
-        for type in [BookPageType.bookRemembered, .bookConnections, .marginsAtlas] {
-            XCTAssertFalse(
-                BookMemoryGate.locks(type, keptPageCount: 0),
-                "\(type) must be free to speak from the first day, sized to what it knows"
-            )
-        }
-    }
-
-    func testTheGateStillGovernsAskingAStrangerForMoney() {
-        XCTAssertTrue(BookMemoryGate.locks(.patreon, keptPageCount: 0))
-        XCTAssertTrue(BookMemoryGate.locks(.quip, keptPageCount: 29))
-        XCTAssertFalse(BookMemoryGate.locks(.patreon, keptPageCount: 30))
-        XCTAssertFalse(BookMemoryGate.locks(.quip, keptPageCount: 30))
-    }
-
-    func testOrdinaryPagesWereNeverGated() {
-        XCTAssertFalse(BookMemoryGate.locks(.souvenir, keptPageCount: 0))
-        XCTAssertFalse(BookMemoryGate.locks(.diary, keptPageCount: 0))
+        var today = empty
+        today.pages = [BookPage(
+            type: .diary, createdAt: now,
+            promptText: "Keep something.", userInput: "A moth on the kitchen tap."
+        )]
+        XCTAssertTrue(inputs.hasReflectiveMaterial(includingToday: today))
+        var archived = inputs
+        archived.days = [today]
+        XCTAssertTrue(archived.hasReflectiveMaterial())
     }
 
     // MARK: - The real gate is material, not a counter

@@ -80,9 +80,9 @@ final class BookTodayTests: XCTestCase {
             calendar: utcCalendar
         )
 
-        XCTAssertTrue(edition.reading.contains("one thing you've stopped seeing"))
-        XCTAssertTrue(edition.reading.contains("One glint will do"))
-        XCTAssertTrue(edition.reading.contains("I'm trying"))
+        XCTAssertTrue(edition.reading.contains("waiting ages for you to look at it"))
+        XCTAssertTrue(edition.reading.contains("One little thing will do"))
+        XCTAssertTrue(edition.reading.contains("I want"))
         XCTAssertFalse(edition.reading.contains("private test evidence"))
         XCTAssertEqual(edition.beats.last?.kind, .byNightfall)
     }

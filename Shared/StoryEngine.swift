@@ -308,6 +308,367 @@ enum StoryInkbonesBand: String, Codable, Equatable, CaseIterable {
 
 /// Structured mechanic evidence kept separately from the Story Page's prose.
 /// This prevents a raw roll summary from being mistaken for a finished result.
+/// The Inkbones as the dice of the fight against the Curse
+/// (docs/the-knock-plan.md §7). The reader's edge comes from noticing, never
+/// from being Here: an honest Grey answer counts exactly like Here, or the
+/// reader would learn to lie to the Knock.
+enum InkbonesOdds {
+    static let maximumEdge = 15
+
+    struct Part: Equatable {
+        var label: String
+        var value: Int
+    }
+
+    struct Edge: Equatable {
+        var parts: [Part]
+        var total: Int { min(InkbonesOdds.maximumEdge, parts.reduce(0) { $0 + $1.value }) }
+        /// "Knocks answered this week +6 · a rescued Page +2"
+        var line: String? {
+            let shown = parts.filter { $0.value > 0 }
+            guard !shown.isEmpty else { return nil }
+            return shown.map { "\($0.label) +\($0.value)" }.joined(separator: " · ")
+        }
+    }
+
+    static func edge(knocks: AttentionProbeLedger, threats: GreyPageThreatLedger, ribbonCount: Int, now: Date) -> Edge {
+        let week = knocks.receipts.filter { $0.answeredAt <= now && now.timeIntervalSince($0.answeredAt) < 7 * 86_400 }
+        let rescued = threats.threats.filter {
+            $0.status == .rescued && ($0.resolvedAt.map { now.timeIntervalSince($0) < 14 * 86_400 } ?? false)
+        }.count
+        return Edge(parts: [
+            Part(label: "Knocks answered this week", value: min(8, week.count)),
+            Part(label: "sentences sent back", value: min(3, week.filter { $0.sentence != nil }.count)),
+            Part(label: "Pages taken back from the grey", value: min(4, rescued * 2)),
+            Part(label: "ribbons held", value: min(3, ribbonCount))
+        ])
+    }
+
+    /// A Story throw's target with the fight's edge on it. A roll of 1–5 and
+    /// 96–100 stay pure luck (`StoryInkbonesBand.resolve`).
+    static func storyThreshold(edge: Int, belief: Int = 50, difficulty: BeliefCombatDifficulty = .standard) -> Int {
+        min(90, BeliefCombatResolver.finalThreshold(for: belief, difficulty: difficulty) + max(0, edge))
+    }
+
+    /// The Curse's throw for a night: one a night, fixed by the day, so
+    /// opening the Book again never rerolls it.
+    static func curseRoll(dayID: String) -> Int {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in "curse|\(dayID)".utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+        hash ^= hash >> 29
+        hash = hash &* 0xbf58_476d_1ce4_e5b9
+        hash ^= hash >> 32
+        return Int(hash % 100) + 1
+    }
+
+    /// One bone, one face of six, fixed by its key: the morning's way of looking.
+    static func bone(_ key: String) -> Int {
+        (curseRoll(dayID: "bone|\(key)") - 1) % 6 + 1
+    }
+
+    /// What the Curse has to throw to take a Page: on a night with no fight in
+    /// it, one throw in five; the reader's edge pushes it higher.
+    static func curseNeeds(edge: Int) -> Int { min(97, 80 + max(0, edge)) }
+}
+
+/// One Inkbones throw, by the reader or by the Curse, for the margins, the
+/// Bleed and the month's edition.
+/// The Inkbones Page (docs/the-knock-plan.md §7.6): a game that writes a
+/// reading. Bring one thing, throw five bones up to three times, keep some
+/// each time. Between throws the Curse throws back, and on a strong throw it
+/// greys one bone you kept. What you kept is the reading; the greyed bone is
+/// what the Curse is after. Every line is authored; the throws are seeded, so
+/// a kept reading replays exactly.
+struct InkbonesReading: Codable, Equatable {
+    enum Face: String, Codable, CaseIterable, Equatable {
+        case salt, thread, key, moon, ink, coin
+
+        var title: String { rawValue }
+
+        var symbolName: String {
+            switch self {
+            case .salt: return "snowflake"
+            case .thread: return "scribble.variable"
+            case .key: return "key.fill"
+            case .moon: return "moon.fill"
+            case .ink: return "drop.fill"
+            case .coin: return "circle.circle.fill"
+            }
+        }
+
+        /// One bone, two, three or more.
+        func line(count: Int) -> String {
+            switch (self, min(count, 3)) {
+            case (.salt, 1): return "Salt. Something of yours wants keeping, and you already know which."
+            case (.salt, 2): return "Two salts. Keep it close. Closer than that."
+            case (.salt, _): return "Salt everywhere. Whatever this is, it's yours, and nothing gets to take it."
+            case (.thread, 1): return "A thread. Somebody's tied to this, even if they don't know it."
+            case (.thread, 2): return "Two threads, crossed. Two people are in this, and one of them's you."
+            case (.thread, _): return "Threads all tangled up. You're more tied in than you think, and that's the good news."
+            case (.key, 1): return "A key. You're allowed something you haven't let yourself have yet."
+            case (.key, 2): return "Two keys. Two ways in, and you only need one."
+            case (.key, _): return "Keys, keys, keys. Stop asking. You're allowed."
+            case (.moon, 1): return "The moon. Part of this is still asleep. Let it sleep one more night."
+            case (.moon, 2): return "Two moons. You'll dream the answer before you think it."
+            case (.moon, _): return "All moons. Don't decide this in daylight."
+            case (.ink, 1): return "Ink. It wants saying, or at least writing down."
+            case (.ink, 2): return "Two inks. Somebody's waiting for you to write first."
+            case (.ink, _): return "All ink. Write it today. One sentence is plenty."
+            case (.coin, 1): return "A coin. It'll cost a little. It's worth about that much."
+            case (.coin, 2): return "Two coins. A fair trade's coming. Take it."
+            case (.coin, _): return "All coins. Luck's leaning your way. Lean back."
+            }
+        }
+
+        /// What the Curse is after when it greys this face.
+        var shadowLine: String {
+            switch self {
+            case .salt: return "The Curse greyed the salt. It wants you to stop keeping things. Don't let it."
+            case .thread: return "The Curse greyed a thread. It wants you on your own with this."
+            case .key: return "The Curse greyed the key. It wants you waiting for permission."
+            case .moon: return "The Curse greyed the moon. It wants you too busy to dream about it."
+            case .ink: return "The Curse greyed the ink. It wants this left unsaid."
+            case .coin: return "The Curse greyed a coin. It wants you thinking it costs too much."
+            }
+        }
+    }
+
+    struct Bone: Codable, Equatable, Identifiable {
+        var id: Int
+        var face: Face
+        var kept: Bool = false
+        var greyed: Bool = false
+    }
+
+    static let boneCount = 5
+    static let throwLimit = 3
+
+    var seed: String
+    var question: String
+    var edge: Int
+    var bones: [Bone]
+    var throwsUsed: Int
+    /// The Curse's throw after each of yours but the last.
+    var curseRolls: [Int] = []
+    var finished: Bool = false
+
+    var throwsLeft: Int { max(0, Self.throwLimit - throwsUsed) }
+    var greyedBone: Bone? { bones.first(where: \.greyed) }
+    var liveBones: [Bone] { bones.filter { !$0.greyed } }
+    /// The number the Curse has to reach to grey a bone: the fight (§7.1)
+    /// pushes it up.
+    var curseNeeds: Int { InkbonesOdds.curseNeeds(edge: edge) }
+
+    static func roll(_ key: String, sides: Int) -> Int {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in key.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
+        hash ^= hash >> 29
+        hash = hash &* 0xbf58_476d_1ce4_e5b9
+        hash ^= hash >> 32
+        return Int(hash % UInt64(sides)) + 1
+    }
+
+    static func face(seed: String, throwIndex: Int, bone: Int) -> Face {
+        Face.allCases[roll("\(seed)|throw\(throwIndex)|bone\(bone)", sides: Face.allCases.count) - 1]
+    }
+
+    /// The first throw.
+    static func begin(seed: String, question: String, edge: Int) -> InkbonesReading {
+        InkbonesReading(
+            seed: seed,
+            question: question.trimmingCharacters(in: .whitespacesAndNewlines),
+            edge: edge,
+            bones: (0..<boneCount).map { Bone(id: $0, face: face(seed: seed, throwIndex: 1, bone: $0)) },
+            throwsUsed: 1
+        )
+    }
+
+    mutating func toggleKeep(_ id: Int) {
+        guard !finished, let index = bones.firstIndex(where: { $0.id == id }), !bones[index].greyed else { return }
+        bones[index].kept.toggle()
+    }
+
+    /// The Curse throws, then every bone you didn't keep is thrown again.
+    /// Keeping all five reads them as they lie.
+    mutating func throwAgain() {
+        guard !finished, throwsLeft > 0 else { return }
+        let curse = Self.roll("\(seed)|curse\(throwsUsed)", sides: 100)
+        curseRolls.append(curse)
+        let kept = bones.filter { $0.kept && !$0.greyed }
+        if greyedBone == nil, curse >= curseNeeds, !kept.isEmpty {
+            let target = kept[Self.roll("\(seed)|grey\(throwsUsed)", sides: kept.count) - 1].id
+            if let index = bones.firstIndex(where: { $0.id == target }) {
+                bones[index].greyed = true
+                bones[index].kept = false
+            }
+        }
+        throwsUsed += 1
+        for index in bones.indices where !bones[index].kept && !bones[index].greyed {
+            bones[index].face = Self.face(seed: seed, throwIndex: throwsUsed, bone: bones[index].id)
+        }
+        if throwsLeft == 0 { finished = true }
+    }
+
+    mutating func read() { finished = true }
+
+    /// Three or more of one face among the bones the Curse didn't touch.
+    var isTriumph: Bool {
+        Dictionary(grouping: liveBones, by: \.face).values.contains { $0.count >= 3 }
+    }
+
+    /// The reading, in the order the faces first fell.
+    var lines: [String] {
+        var seen: [Face] = []
+        for bone in liveBones where !seen.contains(bone.face) { seen.append(bone.face) }
+        var lines = seen.map { face in face.line(count: liveBones.filter { $0.face == face }.count) }
+        if isTriumph { lines.insert("Three of a kind! That's a triumph. I'm writing this one big.", at: 0) }
+        if let greyed = greyedBone {
+            lines.append(greyed.face.shadowLine)
+        } else if let best = curseRolls.max() {
+            lines.append("The Curse threw \(curseRolls.count == 1 ? "a \(best)" : "\(curseRolls.map { String($0) }.joined(separator: " and "))") and touched nothing. Ha.")
+        }
+        return lines
+    }
+
+    var ask: String { "One sentence: what lands, or what misses?" }
+
+    var archiveText: String {
+        var sections = ["The Inkbones · \(question.isEmpty ? "The day" : question)"]
+        sections.append("Bones: " + bones.map { $0.greyed ? "\($0.face.title) (greyed)" : $0.face.title }.joined(separator: ", "))
+        sections.append(lines.joined(separator: "\n"))
+        return sections.joined(separator: "\n\n")
+    }
+}
+
+struct InkbonesThrowRecord: Codable, Equatable, Identifiable {
+    enum Thrower: String, Codable { case reader, curse }
+    var id: String
+    var at: Date
+    var thrower: Thrower
+    var roll: Int
+    var target: Int
+    /// What it was for: a Story choice, or the Page the Curse threw at.
+    var subject: String
+    /// A Story band (`StoryInkbonesBand.rawValue`), or "took" / "missed" for the Curse.
+    var outcome: String
+
+    static let limit = 120
+
+    static func appending(_ record: InkbonesThrowRecord, to log: [InkbonesThrowRecord]) -> [InkbonesThrowRecord] {
+        guard !log.contains(where: { $0.id == record.id }) else { return log }
+        return Array((log + [record]).suffix(limit))
+    }
+}
+
+/// A few days after a reading is kept, the Book asks whether it came true
+/// (docs/the-knock-plan.md §7.6). Once per reading, three to fourteen days on.
+enum InkbonesCameTrue {
+    enum Verdict: String, CaseIterable, Equatable {
+        case cameTrue = "true"
+        case half
+        case missed
+
+        var title: String {
+            switch self {
+            case .cameTrue: return "It came true"
+            case .half: return "Half of it"
+            case .missed: return "It missed"
+            }
+        }
+
+        var line: String {
+            switch self {
+            case .cameTrue: return "It came true. I'm writing that down twice."
+            case .half: return "Half true. Bones are like that."
+            case .missed: return "It missed. The bones were wrong, and I'm telling them off."
+            }
+        }
+    }
+
+    static let askedTag = "inkbones-came-true:"
+    static let earliest: TimeInterval = 3 * 86_400
+    static let latest: TimeInterval = 14 * 86_400
+
+    /// The kept reading most worth asking about now, newest first.
+    static func readingToAsk(in pages: [BookPage], now: Date) -> BookPage? {
+        let asked = Set(pages.flatMap(\.tags).compactMap { tag in
+            tag.hasPrefix(askedTag) ? String(tag.dropFirst(askedTag.count)) : nil
+        })
+        // Indices, not BookPages: holding whole Pages in sorts and pairs
+        // overflows small background stacks (see the passage-ranking crash).
+        var best: Int?
+        for index in pages.indices {
+            let age = now.timeIntervalSince(pages[index].createdAt)
+            guard age >= earliest, age <= latest,
+                  pages[index].tags.contains("inkbones"),
+                  pages[index].metadata?["gameID"] == "inkbones",
+                  pages[index].metadata?["inkbonesReading"] != nil,
+                  !asked.contains(pages[index].id) else { continue }
+            if let current = best, pages[current].createdAt >= pages[index].createdAt { continue }
+            best = index
+        }
+        return best.map { pages[$0] }
+    }
+
+    static func verdicts(in pages: [BookPage]) -> [Verdict] {
+        pages.flatMap(\.tags).compactMap { tag in
+            tag.hasPrefix("inkbones-verdict:") ? Verdict(rawValue: String(tag.dropFirst("inkbones-verdict:".count))) : nil
+        }
+    }
+}
+
+/// A throw inked into the margin of the Page it happened on
+/// (docs/the-knock-plan.md §7.5). Carried as a tag on the kept Page, so it
+/// needs no new field: `inkbones-mark:reader:37:favor`, or
+/// `inkbones-mark:curse:91:took` on a Page the Curse threw at.
+enum InkbonesMarginMark {
+    struct Mark: Equatable {
+        var thrower: InkbonesThrowRecord.Thrower
+        var roll: Int
+        var outcome: String
+
+        /// "37 · favoured", "the Curse · 91"
+        var label: String {
+            switch thrower {
+            case .curse:
+                return "the Curse · \(roll)"
+            case .reader:
+                let word: String
+                switch StoryInkbonesBand(rawValue: outcome) {
+                case .triumph?: word = "triumph!"
+                case .favor?: word = "favoured"
+                case .hesitate?: word = "hesitated"
+                case .cost?: word = "a cost"
+                case .sideways?: word = "sideways"
+                case nil: word = outcome
+                }
+                return "\(roll) · \(word)"
+            }
+        }
+    }
+
+    static let prefix = "inkbones-mark:"
+
+    static func tag(roll: Int, band: StoryInkbonesBand) -> String {
+        "\(prefix)reader:\(roll):\(band.rawValue)"
+    }
+
+    static func curseTag(roll: Int, took: Bool) -> String {
+        "\(prefix)curse:\(roll):\(took ? "took" : "missed")"
+    }
+
+    static func marks(in tags: [String]) -> [Mark] {
+        tags.compactMap { tag -> Mark? in
+            guard tag.hasPrefix(prefix) else { return nil }
+            let parts = tag.dropFirst(prefix.count).split(separator: ":", maxSplits: 2).map(String.init)
+            guard parts.count == 3,
+                  let thrower = InkbonesThrowRecord.Thrower(rawValue: parts[0]),
+                  let roll = Int(parts[1]), (1...100).contains(roll) else { return nil }
+            return Mark(thrower: thrower, roll: roll, outcome: parts[2])
+        }
+    }
+}
+
 struct StoryInkbonesResolution: Codable, Equatable {
     var roll: Int
     var threshold: Int
@@ -7858,280 +8219,280 @@ enum WickerDareRegistry {
             id: "tongue-out",
             title: "Shout a Word Out the Window",
             challenge: "Pick your favourite word. Open a window or a door and shout it at the whole outside like it owes you money. Then shut it, fast.",
-            proofPrompt: "Bring me the word you shouted.",
+            proofPrompt: "Bring me the word you shouted, in one sentence.",
             tags: ["wicker-dare", "immediate", "voice", "mischief", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "wrong-way-round",
             title: "Wear One Thing Wrong",
             challenge: "Put one thing on wrong and go out like that: hat backward, jumper inside out, one sock on over your trousers. If anyone asks, say ‘It's a choice.’",
-            proofPrompt: "Bring me what you wore wrong and who asked.",
+            proofPrompt: "Bring me one sentence: what you wore wrong, and who asked.",
             tags: ["wicker-dare", "style", "mischief", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "object-compliment",
             title: "Call a Stranger's Umbrella Magnificent",
             challenge: "Tell one stranger their coat, hat, bag or enormous umbrella is magnificent. Use the word ‘magnificent.’ Then walk on like you do this every day.",
-            proofPrompt: "Bring me what was magnificent and how they took it.",
+            proofPrompt: "Bring me one sentence: what was magnificent, and how it took it.",
             tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "unnecessary-flourish",
             title: "Make an Entrance",
             challenge: "Next time you walk into a room, make it an entrance. Throw the door open. Stop. Look around like you own the place and it's mildly disappointing. Don't explain.",
-            proofPrompt: "Bring me the room and who looked up.",
+            proofPrompt: "Bring me one sentence: the room, and who looked up.",
             tags: ["wicker-dare", "performance", "public", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "stranger-color",
             title: "Wear Your Loudest Colour Out",
             challenge: "Wear the colour you always say is too loud. Take it on one real trip outside: the shop, the bus, a walk. Strut like it's the quiet one.",
-            proofPrompt: "Bring me the colour and who noticed.",
+            proofPrompt: "Bring me one sentence: the colour, and who noticed.",
             tags: ["wicker-dare", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-manifesto",
             title: "Pin Up a Tiny Manifesto",
             challenge: "Write one fierce sentence about something silly you believe. GOOD SOCKS ARE A HUMAN RIGHT. Stick it up where another person will see it: your fridge, your desk, a window, a board that welcomes notes.",
-            proofPrompt: "Bring me the sentence and where it's hanging.",
+            proofPrompt: "Bring me the sentence, and where it's hanging.",
             tags: ["wicker-dare", "creative", "voice", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "ten-second-dance",
             title: "Dance Where You Might Get Caught",
             challenge: "Dance for twenty seconds somewhere you might get caught: by a window, in a parked car, down a corridor. Sitting down counts. Commit at least one elbow.",
-            proofPrompt: "Bring me where you danced and which part gave up first.",
+            proofPrompt: "Bring me one sentence: where you danced, and which part gave up first.",
             tags: ["wicker-dare", "immediate", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "read-to-the-air",
             title: "Read Four Lines Like It's Breaking News",
             challenge: "Take four lines you love outside and read them out loud like a newsreader with a huge story. A porch counts. So does a bench.",
-            proofPrompt: "Bring me the four lines.",
+            proofPrompt: "Bring me the one line that sounded best out loud.",
             tags: ["wicker-dare", "voice", "creative", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-gift",
             title: "Make Someone a Present in Five Minutes",
             challenge: "Set a timer for five minutes and make something small: a doodle, a paper frog, six good words. Give it to somebody and say, ‘I made you this.’ Don't apologise for it. They're allowed to say no thanks.",
-            proofPrompt: "Bring me what you made and who got it.",
+            proofPrompt: "Bring me one sentence: what you made, and who got it.",
             tags: ["wicker-dare", "creative", "social", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "odd-question",
             title: "Ask a Bookshop Stranger",
             challenge: "Next time you're in a bookshop, ask another browser, ‘What book do you wish everyone would read?’ Pick someone who looks free. If nobody does, ask the bookseller.",
-            proofPrompt: "Bring me the book they named.",
+            proofPrompt: "Bring me the book they named, in one sentence.",
             tags: ["wicker-dare", "social", "conversation", "outward", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "formal-portrait",
             title: "Pose Like the Building Is Yours",
             challenge: "Ask someone to take one full-length photo of you somewhere boring: a car park, a hallway, a bus stop. Pose like they just unveiled a statue of you.",
-            proofPrompt: "Bring me the photo.",
+            proofPrompt: "Bring me the photo, and one sentence about who sat for it.",
             tags: ["wicker-dare", "photo", "social", "public", "self-expression", "comfort-edge"]
         ),
         WickerDare(
             id: "visible-mending",
             title: "Mend It in Neon",
             challenge: "Patch, tape or stitch something you wear, in a colour that shows. The louder the better. Then wear it outside once. The repair gets top billing.",
-            proofPrompt: "Bring me the repair.",
+            proofPrompt: "Bring me one sentence about the repair.",
             tags: ["wicker-dare", "making", "style", "outward", "comfort-edge"]
         ),
         WickerDare(
             id: "strange-accessory",
             title: "Wear the Thing You Take Off at the Door",
             challenge: "Put on the hat, pin, scarf or too-many-rings you usually take off before anyone sees. Keep it on for one whole errand.",
-            proofPrompt: "Bring me what you wore and who clocked it.",
+            proofPrompt: "Bring me one sentence: what you wore, and who clocked it.",
             tags: ["wicker-dare", "style", "outward", "public", "comfort-edge", "self-expression"]
         ),
         WickerDare(
             id: "first-sentence-sky",
             title: "Say One True Thing at Full Volume",
             challenge: "Go outside or open a window and say one true sentence at full speaking volume. It can be tender, furious, vain, or about lunch. No whispering.",
-            proofPrompt: "Bring me the sentence.",
+            proofPrompt: "Bring me the one sentence.",
             tags: ["wicker-dare", "voice", "truth", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "micro-adventure-invite",
             title: "Invite Someone Before You Think Too Hard",
             challenge: "Ask someone to come on a twenty-minute adventure in the next two days. A walk with no destination. One pastry, split in half. A hunt for the best bench. Ask plainly. They're allowed to say no.",
-            proofPrompt: "Bring me what you suggested and what they said.",
+            proofPrompt: "Bring me one sentence: what you suggested, and what they said.",
             tags: ["wicker-dare", "social", "outward", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "route-mutiny",
             title: "Go Inside the Place You Always Walk Past",
             challenge: "Go into one safe public place you've walked past a hundred times: a shop, a gallery, a lobby, a garden, a library. Stay five minutes. You don't have to buy anything.",
-            proofPrompt: "Bring me where you went and one thing you saw.",
+            proofPrompt: "Bring me one sentence: where you went, and one thing you saw.",
             tags: ["wicker-dare", "outward", "movement", "accessible", "comfort-edge"]
         ),
         WickerDare(
             id: "kind-note",
             title: "Send the Embarrassingly Specific Compliment",
             challenge: "Pick someone and send them one exact thing you admire about them, like ‘the way you remember everyone's coffee order.’ Send it now, before you can make it sound cooler.",
-            proofPrompt: "Bring me what you sent.",
+            proofPrompt: "Bring me what you sent, in one sentence.",
             tags: ["wicker-dare", "social", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "one-minute-character",
             title: "Give Yourself a Title for the Day",
             challenge: "Pick a title for today. Keeper of Bad Ideas. Duchess of Going Anyway. Tell one person, ‘Today you can call me…’ and keep a straight face.",
-            proofPrompt: "Bring me your title and whether it stuck.",
+            proofPrompt: "Bring me one sentence: your title, and whether it stuck.",
             tags: ["wicker-dare", "voice", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "beautifully-overdressed-task",
             title: "Overdress for Toothpaste",
             challenge: "Dress too fancy for something boring. The good coat. The shoes you save. Go and buy toothpaste like somebody's filming it.",
-            proofPrompt: "Bring me the outfit and the errand.",
+            proofPrompt: "Bring me one sentence: the outfit, and the errand.",
             tags: ["wicker-dare", "ritual", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "honest-opinion",
             title: "Say What You Actually Want",
             challenge: "Next time someone asks where to eat, what to watch or what to play, skip ‘whatever.’ Say the thing you actually want, out loud, before you can be polite about it.",
-            proofPrompt: "Bring me what you picked.",
+            proofPrompt: "Bring me what you picked, in one sentence.",
             tags: ["wicker-dare", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "villainous-chore",
             title: "Be Bad at It in Public",
             challenge: "Do the thing you keep putting off because you'd be bad at it. Five minutes, where someone could see. Sketch in a café. Try three words of French on the baker. One slow lap on a skateboard. Look like a beginner.",
-            proofPrompt: "Bring me what you were bad at.",
+            proofPrompt: "Bring me one sentence about what you were bad at.",
             tags: ["wicker-dare", "making", "public", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "pocket-museum",
             title: "Carry a Mystery",
             challenge: "Put one odd thing in your pocket today: a key to nothing, a tiny toy, a stone. When you sit down with someone, put it on the table and say nothing. If they ask, tell them the truth.",
-            proofPrompt: "Bring me the object and who asked.",
+            proofPrompt: "Bring me one sentence: the object, and who asked.",
             tags: ["wicker-dare", "object", "social", "mischief", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "municipal-drama",
             title: "Take a Photo From the Floor",
             challenge: "Take one photo from somewhere ridiculous: knees on the ground, arm stretched high, peeking through a chair. Make something boring look like a film poster. Don't block anyone.",
-            proofPrompt: "Bring me the photo.",
+            proofPrompt: "Bring me the photo, and one sentence of the drama.",
             tags: ["wicker-dare", "public", "photo", "performance", "comfort-edge"]
         ),
         WickerDare(
             id: "weather-broadcast",
             title: "Report the Weather Like It's a Disaster",
             challenge: "Send someone a ten-second voice note about the weather where you are, in your most dramatic news voice. Add one true detail. Don't explain afterward.",
-            proofPrompt: "Bring me what you said.",
+            proofPrompt: "Bring me one sentence of the broadcast.",
             tags: ["wicker-dare", "voice", "social", "performance", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "temporary-crown",
             title: "Wear a Paper Crown Outside",
             challenge: "Make a crown out of scrap paper and wear it out the door for one errand. If anyone asks, say ‘It's official,’ and nothing else.",
-            proofPrompt: "Bring me who believed you.",
+            proofPrompt: "Bring me one sentence: who believed you?",
             tags: ["wicker-dare", "making", "style", "outward", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "machine-salute",
             title: "Ask What Everyone Overlooks",
             challenge: "Ask someone who works in a shop, café, library or market, ‘What's the best thing here that nobody notices?’ Wait until they're not busy. Then go and look at it.",
-            proofPrompt: "Bring me what they said.",
+            proofPrompt: "Bring me one sentence: what did it say back?",
             tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "room-renaming",
             title: "Rename a Room Out Loud",
             challenge: "Give the room you're in a better name, then use it in a real sentence: ‘Meet me in the Hall of Aggressive Lighting.’ Don't explain unless somebody asks.",
-            proofPrompt: "Bring me the new name and who heard it.",
+            proofPrompt: "Bring me one sentence: the new name, and who heard it.",
             tags: ["wicker-dare", "words", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-boundary",
             title: "Say a Small No Out Loud",
             challenge: "Next time you want to say no to something small, say it plainly. ‘Not tonight.’ ‘I want the other one.’ ‘Give me five minutes.’ Don't apologise and don't explain.",
-            proofPrompt: "Bring me what you said.",
+            proofPrompt: "Bring me the no you said, in one sentence.",
             tags: ["wicker-dare", "truth", "voice", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "friend-dares-back",
             title: "Let a Friend Dare You",
             challenge: "Ask a friend to dare you to do one small thing today. Nothing dangerous and nothing mean. Then do it.",
-            proofPrompt: "Bring me their dare and whether you did it.",
+            proofPrompt: "Bring me one sentence: their dare, and whether you did it.",
             tags: ["wicker-dare", "social", "consent", "choice", "comfort-edge"]
         ),
         WickerDare(
             id: "chapter-the-commute",
             title: "Miss One Turn on Purpose",
             challenge: "On a safe walk, skip your usual turn and take the next one instead. If you're on wheels, pick a different path in a park or building. Never do this while driving.",
-            proofPrompt: "Bring me what was down the wrong street.",
+            proofPrompt: "Bring me one sentence about what was down the wrong street.",
             tags: ["wicker-dare", "outward", "route", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "one-song-entrance",
             title: "Walk In on Your Own Soundtrack",
             challenge: "Pick entrance music for one boring place. Start the song before you go in. Headphones or humming, either works. Cross the doorway on the best part.",
-            proofPrompt: "Bring me the song and the doorway.",
+            proofPrompt: "Bring me one sentence: the song, and the doorway.",
             tags: ["wicker-dare", "style", "performance", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "absurdly-specific-toast",
             title: "Toast a Tiny Win",
             challenge: "Raise a cup, a fork or an empty hand and give a real toast to one tiny victory. ‘To the parking space that waited.’ If anyone's nearby, make them hear it.",
-            proofPrompt: "Bring me the toast.",
+            proofPrompt: "Bring me the toast. One sentence, raised.",
             tags: ["wicker-dare", "social", "joy", "consent", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "local-honor",
             title: "Give a Prize to Something Overlooked",
             challenge: "Pick one overlooked thing near you and give it an award: best window, bravest weed, most patient wall. Announce the winner out loud to one person.",
-            proofPrompt: "Bring me the winner and who heard the verdict.",
+            proofPrompt: "Bring me one sentence: the winner, and who heard the verdict.",
             tags: ["wicker-dare", "outward", "place", "social", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "ceremonial-snack",
             title: "Dessert Before the Chore",
             challenge: "Before one chore you keep making yourself earn, take ten minutes for something you actually want: a song, a patch of sun, a chapter, a ridiculous snack. Then do the chore, or find out it can wait.",
-            proofPrompt: "Bring me what you did first.",
+            proofPrompt: "Bring me one sentence about what you did first.",
             tags: ["wicker-dare", "choice", "joy", "truth", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "spy-block",
             title: "Walk One Block Like a Spy",
             challenge: "Walk one block like you're being followed. Stop to ‘tie your shoe’ and check behind you. Use a shop window as a mirror. End by slipping through a door like you've shaken them.",
-            proofPrompt: "Bring me where you lost them.",
+            proofPrompt: "Bring me one sentence: where did you lose them?",
             tags: ["wicker-dare", "outward", "movement", "performance", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "nature-documentary",
             title: "Narrate Yourself Like a Nature Documentary",
             challenge: "For two minutes, narrate what you're doing in a hushed nature-documentary voice. ‘Here, the human approaches the kettle. It doesn't suspect a thing.’ Somewhere only you can hear is fine.",
-            proofPrompt: "Bring me your best line.",
+            proofPrompt: "Bring me your best line. Just the one.",
             tags: ["wicker-dare", "immediate", "voice", "performance", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "pigeon-stare",
             title: "Lose a Staring Contest to a Pigeon",
             challenge: "Find a pigeon, a gull or a squirrel and have a proper staring contest. Don't blink first. You'll lose. Lose with honour.",
-            proofPrompt: "Bring me who won, and the look on its face.",
+            proofPrompt: "Bring me one sentence: who won, and the look on its face.",
             tags: ["wicker-dare", "outward", "imagination", "mischief", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "invent-a-holiday",
             title: "Invent a Holiday and Tell Someone",
             challenge: "Invent a holiday for today. Give it a name and one rule, and tell one person. ‘Happy Left-Sock Day. You have to hop once.’",
-            proofPrompt: "Bring me the holiday and who celebrated.",
+            proofPrompt: "Bring me one sentence: the holiday, and who celebrated.",
             tags: ["wicker-dare", "social", "voice", "imagination", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "tell-the-plant",
             title: "Give the Plant the Breaking News",
             challenge: "Tell a houseplant, a pet or a patient tree the most dramatic version of your day so far. Start with the words ‘Breaking news.’ Go on. It's been listening for ages.",
-            proofPrompt: "Bring me the headline.",
+            proofPrompt: "Bring me the headline. One sentence.",
             tags: ["wicker-dare", "immediate", "voice", "imagination", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "wrong-chair",
             title: "Eat in the Wrong Place",
             challenge: "Have your next meal somewhere you never eat: the stairs, the floor, a windowsill, the garden wall. Finish the whole thing there like it's the finest table in town.",
-            proofPrompt: "Bring me where you ate and what the view was.",
+            proofPrompt: "Bring me one sentence: where you ate, and what the view was.",
             tags: ["wicker-dare", "immediate", "mischief", "comfort-edge", "anywhere", "accessible"]
         )
     ]
@@ -8248,7 +8609,7 @@ enum WickerDareRegistry {
                 id: "local-bookstore-question-\(place.id)",
                 title: "Ask a Stranger at \(place.name)",
                 challenge: "Go to \(place.name) while it's open. Ask another browser, ‘What book do you wish everyone would read?’ Pick someone who looks free. If nobody does, ask the bookseller.",
-                proofPrompt: "Bring me the book they named.",
+                proofPrompt: "Bring me the book they named, and the shop, in one sentence.",
                 tags: ["wicker-dare", "bookstore", "social", "conversation", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8258,7 +8619,7 @@ enum WickerDareRegistry {
                 id: "local-library-poem-\(place.id)",
                 title: "Put a Poem at \(place.name)",
                 challenge: "Write a short poem and take it to \(place.name). Pin it on the public board if notes are welcome. Ask before leaving it. If the answer's no, read it quietly between the shelves and take it home.",
-                proofPrompt: "Bring me the poem and tell me where it landed.",
+                proofPrompt: "Bring me one line of the poem, and where it landed.",
                 tags: ["wicker-dare", "library", "creative", "words", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8269,7 +8630,7 @@ enum WickerDareRegistry {
                 id: "local-wild-voice-\(place.id)",
                 title: "Read Something Wild at \(place.name)",
                 challenge: "Take four lines you love to \(place.name) and read them out loud to one tree, a patch of weeds or the water. Use your real voice. Stay on the paths and touch nothing.",
-                proofPrompt: "Bring me the lines and tell me what listened.",
+                proofPrompt: "Bring me one sentence: the line, and what listened.",
                 tags: ["wicker-dare", "nature", "voice", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8280,7 +8641,7 @@ enum WickerDareRegistry {
                 id: "local-water-verdict-\(place.id)",
                 title: "Tell the Water Something at \(place.name)",
                 challenge: "Go to a safe public edge at \(place.name) and tell the water one true thing at full volume. Stay well back from the edge. Nobody's going in.",
-                proofPrompt: "Bring me what the water heard.",
+                proofPrompt: "Bring me one sentence: what did the water hear?",
                 tags: ["wicker-dare", "water", "voice", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8291,7 +8652,7 @@ enum WickerDareRegistry {
                 id: "local-secret-favorite-\(place.id)",
                 title: "Ask What Everyone Overlooks at \(place.name)",
                 challenge: "Go to \(place.name) while it's open and ask someone who works there, ‘What's the best thing here that nobody notices?’ Wait until they're not busy. You don't have to buy anything. Asking is the dare.",
-                proofPrompt: "Bring me what they said.",
+                proofPrompt: "Bring me one sentence: what did they say their secret favourite was?",
                 tags: ["wicker-dare", "social", "conversation", "public", "outward", "consent", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8302,7 +8663,7 @@ enum WickerDareRegistry {
                 id: "creative-drop-\(place.id)",
                 title: "Leave Four Lines at \(place.name)",
                 challenge: "Write four lines or draw one tiny thing and take it to \(place.name). Ask before leaving it, or use a board that's clearly for public notes. If they say no, keep it. Asking still counts.",
-                proofPrompt: "Bring me what you made and tell me where it landed.",
+                proofPrompt: "Bring me one sentence: what you made, and where it landed.",
                 tags: ["wicker-dare", "creative", "public", "outward", "comfort-edge", "real-place"],
                 place: place
             )
@@ -8311,7 +8672,7 @@ enum WickerDareRegistry {
             id: "local-curiosity-\(place.id)",
             title: "Ask What Everyone Misses at \(place.name)",
             challenge: "Go to \(place.name) while it's open and ask someone there, ‘What do people usually miss here?’ If they're busy, leave them be and ask another visitor. If nobody wants to chat, the dare is off.",
-            proofPrompt: "Bring me what they told you.",
+            proofPrompt: "Bring me one sentence: what did they tell you?",
             tags: ["wicker-dare", "public", "conversation", "outward", "comfort-edge", "real-place"],
             place: place
         )
@@ -9160,6 +9521,26 @@ enum PlayfulMissionRegistry {
     }
 
     static let attentionMissions: [PlayfulMission] = [
+        // Small assignments moved from the quip shelf. Each now has an
+        // ordinary mission invitation, a concrete return, and mission rest.
+        mission("margin-leaf-underside", "The Back of a Leaf", "Go and look at the underside of a leaf. Nobody checks the back of anything.", "What was on the underside of the leaf?", ["nature", "noticing", "outside"], allowsPhoto: true),
+        mission("margin-coolest-thing", "The Cold One", "Find something cool to the touch in the room. Rest your hand on it while you count to five.", "What did you touch, and did it stay cool?", ["body", "touch", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-oldest-paper", "Old Paper Speaks", "Find the oldest piece of paper within reach and read one line of it out loud.", "What was the paper, and what did the line say?", ["paper", "words", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-look-up", "Higher Than That", "Look up. Higher than that. Most rooms keep their best part above eye level.", "What did you find above eye level?", ["place", "noticing", "inside", "low-energy"], allowsPhoto: true),
+        mission("margin-smell-the-book", "The Back of the Book", "Smell the back of a book. Go on. Nobody is watching you.", "Which book, and what did it smell of?", ["book", "scent", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-count-doors", "Doors to Outside", "Count the doors between you and outside.", "How many doors are there?", ["threshold", "place", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-not-yours", "Somebody Put It There", "Look at the nearest thing that belongs to someone else. Work out who put it there.", "What was the thing, and who do you think put it there?", ["object", "people", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-photograph-nothing", "Nobody Photographs This", "Take one photograph of something nobody would photograph.", "What did you photograph?", ["photo", "noticing", "anywhere"], allowsPhoto: true),
+        mission("margin-fridge-breath", "The House Breathing", "Stand still near the fridge for one minute. Listen for it to start.", "What did you hear? Silence counts too.", ["home", "sound", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-doormat", "The Last Look", "Stand on the doormat and look back out. That's the last thing the house sees of you every morning.", "What can the house see from there?", ["home", "threshold", "inside", "low-energy"], allowsPhoto: true),
+        mission("margin-button", "The Button Holding On", "Find the button doing the most work on you right now. Nobody has ever thanked it and nobody is going to start.", "Which button, and what was it holding together?", ["object", "clothing", "anywhere", "low-energy"], allowsPhoto: false),
+        mission("margin-worn-path", "The Path That Won", "Follow a worn path across the grass beside the paving. Somebody voted with their feet and won.", "Where did the worn path take you?", ["place", "walk", "outside", "noticing"], allowsPhoto: true),
+        mission("margin-pocket-sound", "Who Called Your Pocket", "Listen for a sound that makes you reach for your pocket. Find out what made it.", "What was the sound, and what made it?", ["sound", "technology", "anywhere", "low-energy"], allowsPhoto: false),
+        mission("margin-walked-past-twice", "The Third Look", "Find something you walked past twice today. Look at it for ten seconds.", "What was it, and what did you see this time?", ["noticing", "route", "anywhere"], allowsPhoto: true),
+        mission("margin-whose-handwriting", "Somebody Wrote This", "Find the nearest bit of handwriting. Read one line.", "What did the line say, and whose handwriting was it?", ["people", "writing", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-hundred-years", "Still Here", "Choose something in this room that might still be here in a hundred years. Imagine where it will be.", "What did you choose, and where did you imagine it?", ["home", "time", "object", "inside", "low-energy"], allowsPhoto: true),
+        mission("margin-nameless-maker", "An Unknown Pair of Hands", "Find something made by a person whose name you don't know. Invent a name for its maker.", "What was the thing, and what name did you invent?", ["object", "people", "anywhere", "low-energy"], allowsPhoto: true),
+        mission("margin-squeaking-door", "Say It Back", "Find a door that squeaks. Open it once. Try to say the sound back to it.", "Which door, and what did you say back?", ["home", "sound", "threshold", "inside"], allowsPhoto: false),
         mission("body-heartbeat-location", "The Body Reports In", "Stand completely still until you can feel your heartbeat somewhere that isn't your chest. Where did it turn up?", "Where your heartbeat answered.", ["body", "touch", "low-energy", "inside"], allowsPhoto: false),
         mission("body-quiet-steps", "Quiet Step Audit", "Walk ten steps as quietly as you possibly can, like a burglar in your own house. What gave you away?", "The sound that gave you away.", ["body", "sound", "movement", "inside"], allowsPhoto: false),
         mission("body-warmer-hand", "Hand Weather", "Find out which of your hands is warmer right now. Then come up with a theory about why.", "The warmer hand, and your theory.", ["body", "touch", "temperature", "low-energy"], allowsPhoto: false),
@@ -9318,6 +9699,25 @@ enum PromptWhisperRegistry {
         )
     }
 
+    /// The morning's way of looking, thrown with one bone
+    /// (docs/the-knock-plan.md §7.3), like a Ninefold observation: the bone
+    /// picks how to look, the reader picks what, and one sentence joins them.
+    static let boneFaces: [(face: String, checkInID: String)] = [
+        ("a sound", "checkin-loudest-sound"),
+        ("a colour", "checkin-nearest-color"),
+        ("your body", "checkin-body-honest"),
+        ("a detail", "checkin-unreasonable-detail"),
+        ("the room", "checkin-room-mood"),
+        ("a good thing", "checkin-one-good-thing")
+    ]
+
+    static func thrownCheckIn(dayID: String) -> PromptWhisper? {
+        let face = boneFaces[InkbonesOdds.bone("morning|\(dayID)") - 1]
+        guard var whisper = checkIns.first(where: { $0.id == face.checkInID }) else { return nil }
+        whisper.title = "The bones fell on \(face.face)"
+        return whisper
+    }
+
     static func prompts(for day: BookDay, inputs: BookSourceInputs, now: Date, count: Int) -> [PromptWhisper] {
         guard count > 0 else { return [] }
         let missions = rankedMissionWhispers(for: day, inputs: inputs, now: now)
@@ -9330,6 +9730,13 @@ enum PromptWhisperRegistry {
             let whisper = promptWhisper(from: favor)
             prompts.append(whisper)
             seen.insert(whisper.id)
+        }
+
+        // The first check-in of the day is thrown, not dealt: it led the day
+        // before too, so this changes which one, not how many.
+        if prompts.count < count, let thrown = thrownCheckIn(dayID: day.id) {
+            prompts.append(thrown)
+            seen.insert(thrown.id)
         }
 
         for slot in 0..<(count * 3) {

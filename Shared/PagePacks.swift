@@ -918,7 +918,7 @@ enum PageArchetypePackRegistry {
                     id: "mook-joinery-opinion",
                     title: "Joinery With an Opinion",
                     ask: "Something in the place you live behaves differently when you're in a hurry — a door, a stair, a drawer, a lock. Mook is confident this isn't the case and would like it written down so he can say so.",
-                    proofPrompt: "What was it, and what does it do when you're late?",
+                    proofPrompt: "One sentence: what was it, and what does it do when you're late?",
                     tags: ["undertaking-door", "threshold", "objects", "anywhere", "immediate"]
                 ),
                 surface: .letter,
@@ -2008,9 +2008,25 @@ enum JSONSalvage {
 /// earned outside the page archive: anchors, favors, Belief offsets, and
 /// tutor progress. One file, one schema version, one migration story.
 
+/// One answer to a Where-Were-You Knock (docs/the-knock-plan.md). The mind
+/// wanders for about half of everyone's waking hours; that half is the
+/// Curse's take. Only the reader's own answer decides whose point a Knock is,
+/// and silence is never scored.
 enum AttentionProbeAnswer: String, Codable, CaseIterable, Equatable {
     case here
+    /// Grey: autopilot, the scroll, the fog. Older knocks only had HERE and
+    /// ELSEWHERE, so this raw value keeps their meaning.
     case elsewhere
+    /// A daydream, a plan, a memory chosen on purpose. That's travel, not the
+    /// Curse (bj, 2026-11-07: "somewhere good counts for you").
+    case somewhereGood
+    /// Answered with a sentence alone. Noticing where you were is the
+    /// counter-spell, so it counts for the reader; the Book can file the
+    /// sentence later.
+    case noted
+
+    /// Whether the Knock went to the reader rather than the Curse.
+    var countsForReader: Bool { self != .elsewhere }
 }
 
 struct AttentionProbeReceipt: Codable, Equatable, Identifiable {
@@ -2019,6 +2035,15 @@ struct AttentionProbeReceipt: Codable, Equatable, Identifiable {
     var answeredAt: Date
     var answer: AttentionProbeAnswer
     var cycle: Int
+    /// The reader's one sentence about where they were, when they gave one.
+    var sentence: String? = nil
+    /// The moment around the answer: time, day-part, how the phone was held,
+    /// the last known place and the sky. On the device only, like a kept
+    /// Page's context; this is how the Book learns the Curse's hours and haunts.
+    var context: BookPageContextSnapshot? = nil
+
+    /// How long the Knock waited for its answer.
+    var latency: TimeInterval { max(0, answeredAt.timeIntervalSince(scheduledAt)) }
 }
 
 /// An experience-sampling instrument, not a streak. Each cycle gathers a
@@ -2030,9 +2055,15 @@ struct AttentionProbeLedger: Codable, Equatable {
         var cycle: Int
         var answeredCount: Int
         var hereCount: Int
+        /// Grey: the Curse's share.
         var elsewhereCount: Int
+        var somewhereGoodCount: Int = 0
+        var notedCount: Int = 0
         var startedAt: Date
         var completedAt: Date
+
+        /// Knocks that went to the reader: here, somewhere good, or a sentence.
+        var readerCount: Int { answeredCount - elsewhereCount }
 
         var elsewhereShare: Double {
             Double(elsewhereCount) / Double(max(1, answeredCount))
@@ -2057,6 +2088,9 @@ struct AttentionProbeLedger: Codable, Equatable {
     var currentCycle: Int = 0
     var cycleStartedAt: Date? = nil
     var pausedUntil: Date? = nil
+    /// The eucatastrophe (docs/the-knock-plan.md §6): the latest time the
+    /// Knocks went rote and the Book stopped knocking.
+    var hush: KnockHush? = nil
 
     /// Varies between 30 and 50 without using process-randomized hashing.
     var currentCycleTarget: Int {
@@ -2092,6 +2126,7 @@ struct AttentionProbeLedger: Codable, Equatable {
     func shouldSchedule(now: Date) -> Bool {
         let current = reconciled(now: now)
         return current.pausedUntil == nil
+            && !(current.hush?.isQuiet(now: now) ?? false)
             && current.currentCycleAnswerCount < current.currentCycleTarget
     }
 
@@ -2108,6 +2143,8 @@ struct AttentionProbeLedger: Codable, Equatable {
                 answeredCount: samples.count,
                 hereCount: samples.filter { $0.answer == .here }.count,
                 elsewhereCount: samples.filter { $0.answer == .elsewhere }.count,
+                somewhereGoodCount: samples.filter { $0.answer == .somewhereGood }.count,
+                notedCount: samples.filter { $0.answer == .noted }.count,
                 startedAt: startedAt,
                 completedAt: completedAt
             )
@@ -2128,12 +2165,22 @@ struct AttentionProbeLedger: Codable, Equatable {
         )
     }
 
+    /// Today's score in the fight: Knocks the reader took and Knocks the Curse
+    /// took. Unanswered Knocks aren't in it; silence isn't evidence.
+    func score(on date: Date, calendar: Calendar = .current) -> (reader: Int, curse: Int) {
+        let today = receipts.filter { calendar.isDate($0.answeredAt, inSameDayAs: date) }
+        let curse = today.filter { $0.answer == .elsewhere }.count
+        return (today.count - curse, curse)
+    }
+
     mutating func record(
         id: String,
         scheduledAt: Date,
         answeredAt: Date,
         answer: AttentionProbeAnswer,
-        cycle: Int
+        cycle: Int,
+        sentence: String? = nil,
+        context: BookPageContextSnapshot? = nil
     ) {
         self = reconciled(now: answeredAt)
         guard !receipts.contains(where: { $0.id == id }) else { return }
@@ -2142,7 +2189,9 @@ struct AttentionProbeLedger: Codable, Equatable {
             scheduledAt: scheduledAt,
             answeredAt: answeredAt,
             answer: answer,
-            cycle: cycle
+            cycle: cycle,
+            sentence: sentence?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty,
+            context: context
         ))
         if receipts.count > 600 {
             receipts.removeFirst(receipts.count - 600)
@@ -2155,6 +2204,66 @@ struct AttentionProbeLedger: Codable, Equatable {
     }
 }
 
+/// The fight against the Curse, read off the Knocks (docs/the-knock-plan.md).
+/// Everything here counts answered Knocks only; silence goes to nobody.
+enum CurseFight {
+    /// About half of everyone's waking hours go elsewhere (Killingsworth &
+    /// Gilbert, 2010): the number to beat.
+    static let everyonesShare = 0.47
+
+    /// Today's score as the Book says it on the doorstep.
+    static func dayLine(reader: Int, curse: Int) -> String? {
+        guard reader + curse > 0 else { return nil }
+        let score = "You \(reader) · the Curse \(curse) today."
+        if curse == 0 { return score + " It hasn't laid a finger on you." }
+        if curse > reader { return score + " It's ahead. The next knock's yours." }
+        if curse == reader { return score + " Level. I hate level." }
+        return score + " Keep it that way."
+    }
+
+    /// The Curse's share of the Knocks answered in the last seven days.
+    static func week(_ ledger: AttentionProbeLedger, now: Date) -> (answered: Int, curse: Int) {
+        let recent = ledger.receipts.filter { $0.answeredAt <= now && now.timeIntervalSince($0.answeredAt) < 7 * 86_400 }
+        return (recent.count, recent.filter { $0.answer == .elsewhere }.count)
+    }
+
+    /// The hour the Curse wins most often, once there's enough to say so:
+    /// at least twelve answers, and three in that hour.
+    static func strongestHour(
+        _ ledger: AttentionProbeLedger,
+        calendar: Calendar = .current
+    ) -> (hour: Int, share: Double, answered: Int)? {
+        guard ledger.receipts.count >= 12 else { return nil }
+        let byHour = Dictionary(grouping: ledger.receipts) { calendar.component(.hour, from: $0.scheduledAt) }
+        let ranked = byHour.compactMap { hour, receipts -> (hour: Int, share: Double, answered: Int)? in
+            guard receipts.count >= 3 else { return nil }
+            let grey = receipts.filter { $0.answer == .elsewhere }.count
+            guard grey > 0 else { return nil }
+            return (hour, Double(grey) / Double(receipts.count), receipts.count)
+        }
+        return ranked.max { ($0.share, $0.answered, -$0.hour) < ($1.share, $1.answered, -$1.hour) }
+    }
+
+    /// "three in the afternoon": how a child says an hour.
+    static func hourPhrase(_ hour: Int) -> String {
+        let names = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
+        let name = names[hour % 12]
+        switch hour {
+        case 0: return "midnight"
+        case 12: return "noon"
+        case 1..<12: return "\(name) in the morning"
+        case 13..<18: return "\(name) in the afternoon"
+        default: return "\(name) at night"
+        }
+    }
+
+    /// What the Book has learned about when the Curse gets the reader.
+    static func hourLine(_ ledger: AttentionProbeLedger, calendar: Calendar = .current) -> String? {
+        guard let strongest = strongestHour(ledger, calendar: calendar), strongest.share >= 0.5 else { return nil }
+        return "It gets you hardest around \(hourPhrase(strongest.hour)). I'm keeping watch there."
+    }
+}
+
 struct AttentionProbeScheduleSlot: Equatable {
     var id: String
     var dayID: String
@@ -2162,13 +2271,27 @@ struct AttentionProbeScheduleSlot: Equatable {
     var cycle: Int
 }
 
-/// A long local runway for the never-graduated attention study. iOS limits
-/// pending notifications, so fifty daily study seats leave room for the Book's
-/// ordinary three-day interruption horizon without stacking another knock on
-/// any day. Opening the app refreshes the runway; completing a cycle cancels
-/// its unused seats for the scheduled rest.
+/// The Where-Were-You Knocks (docs/the-knock-plan.md). Two a day, one in each
+/// half of the waking day, so a round of thirty to fifty answers covers every
+/// hour within a couple of weeks and the Book can find the Curse's hours. One
+/// Knock a day sat at a random hour between nine and seven, so mornings and
+/// evenings were almost never seen.
+///
+/// The Knocks have their own lane in `BookInterruptionBudget`: they never take
+/// the morning or evening seat from the Book's other Knocks, so the day holds
+/// at most four interruptions. A reader who has gone quiet gets one a day
+/// until they answer again; silence is never scored, but it isn't pestered.
+///
+/// iOS holds 64 pending notifications. Twenty days of two leaves room for the
+/// Book's ordinary three-day horizon. Opening the app refreshes the runway;
+/// completing a round cancels its unused Knocks for the rest.
 enum AttentionProbeSchedule {
-    static let horizonDays = 50
+    static let horizonDays = 20
+    /// Where in the day each Knock may land, as [first hour, last hour]. The
+    /// gap between them keeps two Knocks at least two hours apart.
+    static let windows: [ClosedRange<Int>] = [8...12, 15...20]
+    /// No answer for this long means the reader has gone quiet.
+    static let quietAfter: TimeInterval = 36 * 3600
 
     static func slots(
         ledger: AttentionProbeLedger,
@@ -2178,27 +2301,143 @@ enum AttentionProbeSchedule {
     ) -> [AttentionProbeScheduleSlot] {
         let attention = ledger.reconciled(now: now)
         guard attention.shouldSchedule(now: now) else { return [] }
+        let quiet = attention.receipts.map(\.answeredAt).max()
+            .map { now.timeIntervalSince($0) > quietAfter } ?? false
+        let windows = quiet ? Array(windows.suffix(1)) : windows
+        // The counter-knock (docs/the-knock-plan.md §3): once the Curse's
+        // favourite hour is known, every other day the Knock in that half of
+        // the day lands right in it.
+        let watched = CurseFight.strongestHour(attention, calendar: calendar)
+            .flatMap { $0.share >= 0.5 ? $0.hour : nil }
 
-        return (0..<horizonDays).compactMap { offset in
+        return (0..<horizonDays).flatMap { offset -> [AttentionProbeScheduleSlot] in
             guard let date = calendar.date(byAdding: .day, value: offset, to: start) else {
-                return nil
+                return []
             }
             let dayID = BookDay.id(for: date, calendar: calendar)
-            let seed = dayID.unicodeScalars.reduce(attention.currentCycle &* 131 &+ 17) {
-                (($0 &* 33) &+ Int($1.value)) & 0x7fff_ffff
+            return windows.enumerated().compactMap { index, window in
+                // FNV-1a, finished with a multiply-shift: day ids differ only in
+                // their last characters, and a plain running hash left whole
+                // hours of the day unknocked for weeks.
+                var seed: UInt64 = 14_695_981_039_346_656_037
+                for byte in "\(attention.currentCycle)|\(dayID)|\(index)".utf8 {
+                    seed = (seed ^ UInt64(byte)) &* 1_099_511_628_211
+                }
+                seed ^= seed >> 29
+                seed = seed &* 0xbf58_476d_1ce4_e5b9
+                seed ^= seed >> 32
+                var sample = calendar.dateComponents([.year, .month, .day], from: date)
+                let eraDay = calendar.ordinality(of: .day, in: .era, for: date) ?? offset
+                let watching = watched.map { window.contains($0) && eraDay % 2 == 0 } ?? false
+                let turned = attention.hush?.isTurning(at: date) ?? false
+                sample.hour = watching ? watched! : window.lowerBound + Int(seed % UInt64(window.count))
+                sample.minute = Int((seed >> 20) % 60)
+                guard let fireAt = calendar.date(from: sample), fireAt > now else { return nil }
+                return AttentionProbeScheduleSlot(
+                    id: "attention-\(attention.currentCycle)-\(dayID)-\(window.lowerBound)" + (watching ? "-watch" : turned ? "-turn" : ""),
+                    dayID: dayID,
+                    fireAt: fireAt,
+                    cycle: attention.currentCycle
+                )
             }
-            let hour = 9 + (seed % 10)
-            let minute = (seed / 10) % 60
-            var sample = calendar.dateComponents([.year, .month, .day], from: date)
-            sample.hour = hour
-            sample.minute = minute
-            guard let fireAt = calendar.date(from: sample), fireAt > now else { return nil }
-            return AttentionProbeScheduleSlot(
-                id: "attention-\(attention.currentCycle)-\(dayID)",
-                dayID: dayID,
-                fireAt: fireAt,
-                cycle: attention.currentCycle
-            )
+        }
+    }
+}
+
+/// The eucatastrophe (docs/the-knock-plan.md §6). When the Knocks go rote,
+/// the Book stops knocking. No warning and no guilt: it goes quiet and says so
+/// when it's opened. The Reader reaching in unasked, a Page written with no
+/// prompt, is the reverse knock that wakes it. If nobody knocks, it comes
+/// back on its own after a few days, with nothing held against anyone.
+struct KnockHush: Codable, Equatable {
+    enum Waker: String, Codable, Equatable {
+        case reader
+        case time
+    }
+
+    var startedAt: Date
+    var announcedAt: Date? = nil
+    var wokenAt: Date? = nil
+    var wokenBy: Waker? = nil
+    var turnAnnouncedAt: Date? = nil
+
+    /// The longest the Book stays quiet without being knocked.
+    static let longest: TimeInterval = 6 * 86_400
+    /// How long the Knocks speak in their new voices after the turn.
+    static let turnLasts: TimeInterval = 7 * 86_400
+    /// The rest before the Book may go quiet again.
+    static let rest: TimeInterval = 60 * 86_400
+
+    func isQuiet(now: Date) -> Bool {
+        wokenAt == nil && now.timeIntervalSince(startedAt) < Self.longest
+    }
+
+    func isTurning(at date: Date) -> Bool {
+        guard let wokenAt, wokenBy == .reader else { return false }
+        return date >= wokenAt && date.timeIntervalSince(wokenAt) < Self.turnLasts
+    }
+}
+
+enum KnockHushEngine {
+    enum Event: Equatable {
+        /// The Book stopped knocking.
+        case wentQuiet
+        /// The Reader knocked back.
+        case wokenByReader
+        /// Nobody knocked; it came back anyway.
+        case cameBack
+    }
+
+    /// A reverse knock is the Reader writing to the Book while it's quiet:
+    /// nothing pinged them, so anything they write came unasked.
+    static func reverseKnocks(in pages: [BookPage], since: Date, now: Date) -> [BookPage] {
+        pages.filter {
+            $0.origin == .userAuthored && $0.createdAt > since && $0.createdAt <= now
+                && !$0.userInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    /// One step of the hush, run with the rut assessment. Hard days never
+    /// start one.
+    static func tend(
+        _ ledger: inout AttentionProbeLedger,
+        rote: Bool,
+        distressActive: Bool,
+        pages: [BookPage],
+        now: Date
+    ) -> Event? {
+        if var hush = ledger.hush, hush.wokenAt == nil {
+            if !reverseKnocks(in: pages, since: hush.startedAt, now: now).isEmpty {
+                hush.wokenAt = now
+                hush.wokenBy = .reader
+                ledger.hush = hush
+                return .wokenByReader
+            }
+            if !hush.isQuiet(now: now) {
+                hush.wokenAt = now
+                hush.wokenBy = .time
+                ledger.hush = hush
+                return .cameBack
+            }
+            return nil
+        }
+        guard rote, !distressActive else { return nil }
+        if let last = ledger.hush, now.timeIntervalSince(last.startedAt) < KnockHush.rest { return nil }
+        ledger.hush = KnockHush(startedAt: now)
+        return .wentQuiet
+    }
+
+    /// What the Book says when it's opened, once per beat.
+    static func line(for hush: KnockHush, now: Date) -> String? {
+        if hush.isQuiet(now: now) {
+            return hush.announcedAt == nil ? "I stopped knocking. I wanted to see if you'd notice." : nil
+        }
+        guard hush.turnAnnouncedAt == nil, let wokenBy = hush.wokenBy else { return nil }
+        switch wokenBy {
+        case .reader:
+            return "You knocked on me. Nobody's ever done that. The Curse had got into my knocking, and you knocked it right out."
+        case .time:
+            return "I came back on my own. I'll knock differently now."
         }
     }
 }
@@ -2353,9 +2592,14 @@ struct PlayerVaultData: Codable, Equatable {
     /// Reader facts and inferred patterns remain in their existing evidence
     /// stores rather than being duplicated here.
     var bookInterior: BookInteriorState?
-    /// The reader's one physical ribbon. It keeps an exact local Page snapshot
-    /// so a rotating desk can still riffle back to the marked words tomorrow.
+    /// The ribbon from before it had three strands. Read once into
+    /// `pageRibbons`, then cleared; see `ribbons`.
     var savedPageRibbon: SavedPageRibbon?
+    /// The ribbon's three strands, each keeping an exact local Page snapshot so
+    /// a rotating desk can still riffle back to the marked words tomorrow.
+    var pageRibbons: [SavedPageRibbon]?
+    /// Every Inkbones throw, the reader's and the Curse's, newest last.
+    var inkbonesLog: [InkbonesThrowRecord]?
     /// The Book's bounded standing authority, current autonomous Working, and
     /// attributable receipts. Optional so older Books open with the door shut.
     var bookWorkings: BookWorkingLedger?
@@ -3004,5 +3248,16 @@ enum BannerKnockNotes {
             "Careful: the cover bruises like a pear."
         ]
         return pool[abs(roll) % pool.count]
+    }
+}
+
+extension PlayerVaultData {
+    /// The ribbon's strands, an older single ribbon included.
+    var ribbons: [SavedPageRibbon] {
+        get { BookRibbons.ordered(pageRibbons ?? savedPageRibbon.map { [$0] } ?? []) }
+        set {
+            pageRibbons = BookRibbons.ordered(newValue)
+            savedPageRibbon = nil
+        }
     }
 }

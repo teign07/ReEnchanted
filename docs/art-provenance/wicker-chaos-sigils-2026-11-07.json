@@ -1,0 +1,459 @@
+{
+  "date": "2026-11-07",
+  "generator": "Built-in image_gen",
+  "method": "Spare/Hine repeated-letter monograms; vowels retained. Original Wicker intentions and glyphs.",
+  "sources": [
+    {
+      "title": "Austin Osman Spare, The Book of Pleasure (1913), Sigils. Belief with Protection",
+      "url": "https://www.brainwashed.com/nww/words/pleasure.html"
+    },
+    {
+      "title": "Phil Hine, Condensed Chaos v1.2, Sigil Magick, pp. 31-33",
+      "url": "https://samim.io/dl/condensed_chaos.pdf"
+    }
+  ],
+  "conversion": "Trim transparent exterior, fit ink within 512 x 512, add 12 transparent pixels per side, retain RGBA PNG. No repainting.",
+  "images": [
+    {
+      "id": "wrong-door",
+      "title": "The Wrong Door",
+      "intent": "I OPEN THE WRONG DOOR",
+      "design": "Tall narrow glyph, tilted double uprights sharing a single pointed arch which never quite closes; a small off-centre loop breaks the right upright; one diagonal key-bit-like cross stroke, no literal key.",
+      "tags": [
+        "door",
+        "key",
+        "threshold",
+        "possibility",
+        "escape"
+      ],
+      "letters": "IOPENTHWRGD",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Wrong Door.\nCONSTRUCTION INTENT: I OPEN THE WRONG DOOR.\nDEDUPLICATED LETTERS: IOPENTHWRGD. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Tall narrow glyph, tilted double uprights sharing a single pointed arch which never quite closes; a small off-centre loop breaks the right upright; one diagonal key-bit-like cross stroke, no literal key.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilWrongDoor",
+      "assetID": "wicker_sigil_wrong_door",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/wrong-door-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilWrongDoor.imageset/WickerSigilWrongDoor.png",
+      "pixels": [
+        356,
+        536
+      ],
+      "bytes": 67501,
+      "sourceSHA256": "79c86210c4ab68bd8dd2dbfe758d3bf536038ca5845d54681faa9a33b0a014cf",
+      "assetSHA256": "0c70f316d65afdab472f4047a09d80cda8bc3c6d0ca44da2ac65affede92575e"
+    },
+    {
+      "id": "hidden-hinge",
+      "title": "The Hidden Hinge",
+      "intent": "I FIND THE HINGE IN THE RULE",
+      "design": "Squat asymmetric angular glyph: two offset chevrons share a dog-leg spine, a blunt little loop sits exactly on the bend, one sharp bar crosses out the spine and exits sideways. A compressed monogram, not a picture of a hinge.",
+      "tags": [
+        "rule",
+        "question",
+        "doubt",
+        "hinge",
+        "change"
+      ],
+      "letters": "IFNDTHEGRUL",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Hidden Hinge.\nCONSTRUCTION INTENT: I FIND THE HINGE IN THE RULE.\nDEDUPLICATED LETTERS: IFNDTHEGRUL. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Squat asymmetric angular glyph: two offset chevrons share a dog-leg spine, a blunt little loop sits exactly on the bend, one sharp bar crosses out the spine and exits sideways. A compressed monogram, not a picture of a hinge.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilHiddenHinge",
+      "assetID": "wicker_sigil_hidden_hinge",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/hidden-hinge-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilHiddenHinge.imageset/WickerSigilHiddenHinge.png",
+      "pixels": [
+        536,
+        504
+      ],
+      "bytes": 72511,
+      "sourceSHA256": "dfbb71f7d0b4d5ae017bd3882a8dca15f3675ed84b554e3f55f8dddd160a0126",
+      "assetSHA256": "08a6eb62516b1df97878282aafae62fc4636fec568e79ad3c368567bb814bd8f"
+    },
+    {
+      "id": "borrowed-certainty",
+      "title": "Borrowed Certainty",
+      "intent": "I SEE THE TRICK BEHIND THE THRONE",
+      "design": "Almost-circular interrupted spiral crossed by a long oblique spine with two uneven short crossbars; an open three-point comb halfway up suggests a crown coming apart but is not a crown illustration. The loop doubles back on itself once, deliberately.",
+      "tags": [
+        "belief",
+        "truth",
+        "doubt",
+        "illusion",
+        "authority"
+      ],
+      "letters": "ISETHRCKBNDO",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Borrowed Certainty.\nCONSTRUCTION INTENT: I SEE THE TRICK BEHIND THE THRONE.\nDEDUPLICATED LETTERS: ISETHRCKBNDO. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Almost-circular interrupted spiral crossed by a long oblique spine with two uneven short crossbars; an open three-point comb halfway up suggests a crown coming apart but is not a crown illustration. The loop doubles back on itself once, deliberately.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilBorrowedCertainty",
+      "assetID": "wicker_sigil_borrowed_certainty",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/borrowed-certainty-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilBorrowedCertainty.imageset/WickerSigilBorrowedCertainty.png",
+      "pixels": [
+        536,
+        520
+      ],
+      "bytes": 89504,
+      "sourceSHA256": "e41d3fa118214dcea33cbf168b4dd2604457ac9f7d668c8ad9aa410dff4c2f90",
+      "assetSHA256": "c920086adba912ced507c196b1bfeced7e64ddc3e6ec592ab9c3f763281548af"
+    },
+    {
+      "id": "unbought",
+      "title": "Unbought",
+      "intent": "MY WILL IS MY OWN",
+      "design": "Very compact upright glyph: wide forked M-like shoulders on a single I spine, an eccentric open O crosses the spine, one descending Y tail turns sharply away from the loop. The silhouette is stubborn and planted, not heraldic.",
+      "tags": [
+        "will",
+        "choice",
+        "self",
+        "agency",
+        "bargain"
+      ],
+      "letters": "MYWILSON",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Unbought.\nCONSTRUCTION INTENT: MY WILL IS MY OWN.\nDEDUPLICATED LETTERS: MYWILSON. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Very compact upright glyph: wide forked M-like shoulders on a single I spine, an eccentric open O crosses the spine, one descending Y tail turns sharply away from the loop. The silhouette is stubborn and planted, not heraldic.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilUnbought",
+      "assetID": "wicker_sigil_unbought",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/unbought-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilUnbought.imageset/WickerSigilUnbought.png",
+      "pixels": [
+        446,
+        536
+      ],
+      "bytes": 60119,
+      "sourceSHA256": "d0f9c1c6cceb2a45fad738ab98b60fc4c22460b8f2da3458c6c1c120f2356520",
+      "assetSHA256": "a3845723fb80275430120fb74b5c9703ee2174727a3b927eaeb4256b786ee55f"
+    },
+    {
+      "id": "last-laugh",
+      "title": "The Last Laugh",
+      "intent": "I KEEP THE LAST LAUGH",
+      "design": "A low, quick, sideways monogram; stretched hooked L stroke sweeps under a tight A-like triangular knot, tall loop leans backwards over two short E-like ticks, ending in a needle flick. The line seems to be escaping while someone is trying to underline it. No smiling face.",
+      "tags": [
+        "laughter",
+        "mischief",
+        "play",
+        "dare",
+        "wit"
+      ],
+      "letters": "IKEPTHLASUG",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Last Laugh.\nCONSTRUCTION INTENT: I KEEP THE LAST LAUGH.\nDEDUPLICATED LETTERS: IKEPTHLASUG. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: A low, quick, sideways monogram; stretched hooked L stroke sweeps under a tight A-like triangular knot, tall loop leans backwards over two short E-like ticks, ending in a needle flick. The line seems to be escaping while someone is trying to underline it. No smiling face.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilLastLaugh",
+      "assetID": "wicker_sigil_last_laugh",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/last-laugh-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilLastLaugh.imageset/WickerSigilLastLaugh.png",
+      "pixels": [
+        536,
+        278
+      ],
+      "bytes": 51750,
+      "sourceSHA256": "acd341569733f05cc3ba8a4b8d9319a26c47525e3fa413fe782fe398f7cbc1b0",
+      "assetSHA256": "246ec978a472834dc189f419078d86ab90bb1245be207e7eaef8592db0d65392"
+    },
+    {
+      "id": "unwritten-name",
+      "title": "The Unwritten Name",
+      "intent": "THE PAGE FORGETS MY NAME",
+      "design": "Airy lean glyph with a tall broken staff, two staggered little oval apertures, a receding G-like open curl across a slanted N stroke, one short terminal line deliberately rubbed out. A slipping, evasive monogram with a lot of clear space.",
+      "tags": [
+        "name",
+        "secret",
+        "memory",
+        "forgetting",
+        "trace"
+      ],
+      "letters": "THEPAGFORSMYN",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Unwritten Name.\nCONSTRUCTION INTENT: THE PAGE FORGETS MY NAME.\nDEDUPLICATED LETTERS: THEPAGFORSMYN. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Airy lean glyph with a tall broken staff, two staggered little oval apertures, a receding G-like open curl across a slanted N stroke, one short terminal line deliberately rubbed out. A slipping, evasive monogram with a lot of clear space.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilUnwrittenName",
+      "assetID": "wicker_sigil_unwritten_name",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/unwritten-name-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilUnwrittenName.imageset/WickerSigilUnwrittenName.png",
+      "pixels": [
+        499,
+        536
+      ],
+      "bytes": 53268,
+      "sourceSHA256": "ad4f8345167754ffabb48c880a255a14bbc80de5dff8e62571d99ae5353f5cc2",
+      "assetSHA256": "4162f1278bef7b7274f5698c6403b311e0437208c3497bb643edb16668c597ff"
+    },
+    {
+      "id": "thornwave",
+      "title": "Thornwave",
+      "intent": "I HEAR THE TRUTH IN THE STATIC",
+      "design": "Wide jagged glyph built from interlocked T/H/E/R/I/A/S/C letter strokes; a short zigzag grows from an open hooked stem, crossed by three unequal narrow strokes; one crooked half-oval binds them loosely. Faintly musical but no radio tower, no waveform icon, no star.",
+      "tags": [
+        "radio",
+        "music",
+        "static",
+        "thornwave",
+        "listening",
+        "truth"
+      ],
+      "letters": "IHEARTUNSC",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Thornwave.\nCONSTRUCTION INTENT: I HEAR THE TRUTH IN THE STATIC.\nDEDUPLICATED LETTERS: IHEARTUNSC. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Wide jagged glyph built from interlocked T/H/E/R/I/A/S/C letter strokes; a short zigzag grows from an open hooked stem, crossed by three unequal narrow strokes; one crooked half-oval binds them loosely. Faintly musical but no radio tower, no waveform icon, no star.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilThornwave",
+      "assetID": "wicker_sigil_thornwave",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/thornwave-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilThornwave.imageset/WickerSigilThornwave.png",
+      "pixels": [
+        536,
+        387
+      ],
+      "bytes": 65844,
+      "sourceSHA256": "ac476827c7689b9f86306604bdb435635236d1392c3d3b7b377aa15f36d5fa33",
+      "assetSHA256": "81b11cd85ff8b712d47052fff64ec06f43dafadf73063e98b350dc48fb7b3064"
+    },
+    {
+      "id": "enough",
+      "title": "Enough",
+      "intent": "I STOP BEFORE THE SMALL THING BREAKS",
+      "design": "Small incomplete knot: a single S curve and B-like open double-lobe share a bent T spine, a diagonal M-like brace reaches toward the lower loop but stops a little short. One unmistakable gap. A spare, hesitant afterthought made by the same sharp hand. No heart, no protection shield.",
+      "tags": [
+        "restraint",
+        "care",
+        "experiment",
+        "mercy",
+        "small",
+        "choice"
+      ],
+      "letters": "ISTOPBEFRHMALNGK",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Enough.\nCONSTRUCTION INTENT: I STOP BEFORE THE SMALL THING BREAKS.\nDEDUPLICATED LETTERS: ISTOPBEFRHMALNGK. Use their overlapping strokes, not a typeset string.\nDISTINCTIVE FORM: Small incomplete knot: a single S curve and B-like open double-lobe share a bent T spine, a diagonal M-like brace reaches toward the lower loop but stops a little short. One unmistakable gap. A spare, hesitant afterthought made by the same sharp hand. No heart, no protection shield.\nKeep it visually simple enough to redraw from memory. One tiny cold-red pen correction may appear at the focal crossing, less than 3% of the glyph's area.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilEnough",
+      "assetID": "wicker_sigil_enough",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/enough-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilEnough.imageset/WickerSigilEnough.png",
+      "pixels": [
+        488,
+        536
+      ],
+      "bytes": 76156,
+      "sourceSHA256": "750d0544fcc458a3b6409a823cd67ed3966e209a34c88ebf965b8ae2098fcc55",
+      "assetSHA256": "cb610b5756485b506f4bb7cce44d82213cf7cd3356fcd28016b0a4052cdd3042"
+    },
+    {
+      "id": "colour-stays",
+      "title": "Colour Stays",
+      "intent": "I KEEP THE COLOUR THE GREY WOULD TAKE",
+      "design": "A wide open O loop suspended on a tilted K stem, a small broken W knot tucked inside its lower edge, three short unequal E bars guard one side; a single tiny rusty-red ink accent survives at the centre. One open hook reaches beyond the ring, as if the mark refuses to be flattened.",
+      "tags": [
+        "curse",
+        "grey",
+        "routine",
+        "colour",
+        "color",
+        "protection",
+        "resistance"
+      ],
+      "letters": "IKEPTHCOLURGYWDA",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Colour Stays.\nCONSTRUCTION INTENT: I KEEP THE COLOUR THE GREY WOULD TAKE.\nDEDUPLICATED LETTERS: IKEPTHCOLURGYWDA.\nDISTINCTIVE FORM: A wide open O loop suspended on a tilted K stem, a small broken W knot tucked inside its lower edge, three short unequal E bars guard one side; a single tiny rusty-red ink accent survives at the centre. One open hook reaches beyond the ring, as if the mark refuses to be flattened.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilColourStays",
+      "assetID": "wicker_sigil_colour_stays",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/colour-stays-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilColourStays.imageset/WickerSigilColourStays.png",
+      "pixels": [
+        536,
+        407
+      ],
+      "bytes": 70504,
+      "sourceSHA256": "18d2aec3877e17cea3098a05f1bbd184fc87f1b64d346c264c972d00ce38c50d",
+      "assetSHA256": "a2a32677f733316f03800b7889173e5fdbcd0b03d3fedc62618f77dd2289bc34"
+    },
+    {
+      "id": "keep-my-name",
+      "title": "Keep My Name",
+      "intent": "I HOLD MY NAME THROUGH THE GREY",
+      "design": "A narrow upright monogram: H uprights folded inward, an eccentric O loop held between them, a short angular M crown folded into a Y tail. Three sparse outward little warding ticks, not a shield or heraldic crest. The protected central loop is open but never crossed out.",
+      "tags": [
+        "curse",
+        "grey",
+        "name",
+        "identity",
+        "protection",
+        "memory"
+      ],
+      "letters": "IHOLDMYNAETRUG",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Keep My Name.\nCONSTRUCTION INTENT: I HOLD MY NAME THROUGH THE GREY.\nDEDUPLICATED LETTERS: IHOLDMYNAETRUG.\nDISTINCTIVE FORM: A narrow upright monogram: H uprights folded inward, an eccentric O loop held between them, a short angular M crown folded into a Y tail. Three sparse outward little warding ticks, not a shield or heraldic crest. The protected central loop is open but never crossed out.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilKeepMyName",
+      "assetID": "wicker_sigil_keep_my_name",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/keep-my-name-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilKeepMyName.imageset/WickerSigilKeepMyName.png",
+      "pixels": [
+        335,
+        536
+      ],
+      "bytes": 58758,
+      "sourceSHA256": "261a9fb82886ae95391070c07a4e94d803bd2fc154e64bf37725cca5e991434c",
+      "assetSHA256": "a6697be5d4bbc716c7ac11dd873c18588b7d6f51504d8251686beb85bd77fcd1"
+    },
+    {
+      "id": "way-back",
+      "title": "The Way Back",
+      "intent": "I FIND MY WAY BACK FROM THE GREY",
+      "design": "A returning asymmetrical spiral compressing the F/R/D letter curves into a single bent spine; an angular W path traverses the spiral without closing it. One long thin terminal line threads back through the opening, with a very small faded blue-grey pen tick at the crossing. No literal map or compass.",
+      "tags": [
+        "curse",
+        "grey",
+        "return",
+        "thread",
+        "guidance",
+        "protection",
+        "home"
+      ],
+      "letters": "IFNDMYWABCKROTHEG",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Way Back.\nCONSTRUCTION INTENT: I FIND MY WAY BACK FROM THE GREY.\nDEDUPLICATED LETTERS: IFNDMYWABCKROTHEG.\nDISTINCTIVE FORM: A returning asymmetrical spiral compressing the F/R/D letter curves into a single bent spine; an angular W path traverses the spiral without closing it. One long thin terminal line threads back through the opening, with a very small faded blue-grey pen tick at the crossing. No literal map or compass.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilWayBack",
+      "assetID": "wicker_sigil_way_back",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/way-back-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilWayBack.imageset/WickerSigilWayBack.png",
+      "pixels": [
+        536,
+        491
+      ],
+      "bytes": 83621,
+      "sourceSHA256": "0b376797637c41e882e0002c7ab944fe8ebdfe5e276b9acdd49646c865a66229",
+      "assetSHA256": "8cc1fdc735dc6fd4bd3d4d56cf3b213fcab7d3f8b9c3f8a68331ddacd7f0365d"
+    },
+    {
+      "id": "look-twice",
+      "title": "Look Twice",
+      "intent": "I LOOK AGAIN BEFORE I NAME THE THING",
+      "design": "Two offset broken O loops overlap along a slanting L/B spine, a small A chevron sits inside the empty central overlap, one sharp G hook refuses to join the outer loop. Read as a compressed difficult question, not an eye or glasses. Airy, observant, sly.",
+      "tags": [
+        "attention",
+        "noticing",
+        "look-again",
+        "curiosity",
+        "observation",
+        "wonder"
+      ],
+      "letters": "ILOKAGNBEFRMTH",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Look Twice.\nCONSTRUCTION INTENT: I LOOK AGAIN BEFORE I NAME THE THING.\nDEDUPLICATED LETTERS: ILOKAGNBEFRMTH.\nDISTINCTIVE FORM: Two offset broken O loops overlap along a slanting L/B spine, a small A chevron sits inside the empty central overlap, one sharp G hook refuses to join the outer loop. Read as a compressed difficult question, not an eye or glasses. Airy, observant, sly.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilLookTwice",
+      "assetID": "wicker_sigil_look_twice",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/look-twice-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilLookTwice.imageset/WickerSigilLookTwice.png",
+      "pixels": [
+        536,
+        518
+      ],
+      "bytes": 90361,
+      "sourceSHA256": "573f3a3b4c41f30df13b07af3f75e7dfab9fd3199a0c429a15f3fc3587721f1f",
+      "assetSHA256": "b2d4212ff911c4c0e2de156876cb587a4d3848287d38be53883977e696be7d27"
+    },
+    {
+      "id": "small-living-thing",
+      "title": "The Small Living Thing",
+      "intent": "I NOTICE THE SMALL LIVING THING",
+      "design": "Tiny springing monogram, a leaning N/V pair shares one stem and a tightly curled S/G loop, two unequal L-like shoots step sideways; preserve a small unfilled gap in the middle. Very restrained, like a living inflection, not a botanical picture or little creature.",
+      "tags": [
+        "attention",
+        "noticing",
+        "alive",
+        "small",
+        "ordinary",
+        "wonder",
+        "life"
+      ],
+      "letters": "INOTCEHSMALVG",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: The Small Living Thing.\nCONSTRUCTION INTENT: I NOTICE THE SMALL LIVING THING.\nDEDUPLICATED LETTERS: INOTCEHSMALVG.\nDISTINCTIVE FORM: Tiny springing monogram, a leaning N/V pair shares one stem and a tightly curled S/G loop, two unequal L-like shoots step sideways; preserve a small unfilled gap in the middle. Very restrained, like a living inflection, not a botanical picture or little creature.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilSmallLivingThing",
+      "assetID": "wicker_sigil_small_living_thing",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/small-living-thing-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilSmallLivingThing.imageset/WickerSigilSmallLivingThing.png",
+      "pixels": [
+        469,
+        536
+      ],
+      "bytes": 72664,
+      "sourceSHA256": "a5cbb4469712b5f9eb99fb02b5b58d4eb0e3ec234acb8a5c5e5c83ce54fc771c",
+      "assetSHA256": "1cf523ca4aba53532898c59592b27ed346bd18f6b4a1ec60ff55b73be74b01ec"
+    },
+    {
+      "id": "awake-in-the-day",
+      "title": "Awake Inside the Day",
+      "intent": "I AM AWAKE INSIDE THIS DAY",
+      "design": "An upright, freshly split glyph: interlocked A/W zigzags cross a single I/T staff, a narrow D curve opens sideways instead of closing; three unequal short rays derive from the E strokes, no sun icon or eye. A clear little space around the central knot, like an aperture that has just opened.",
+      "tags": [
+        "awake",
+        "awakening",
+        "attention",
+        "noticing",
+        "day",
+        "presence",
+        "wonder"
+      ],
+      "letters": "IAMWKENSDTHY",
+      "prompt": "Use case: illustration-story. Generate ONE small original chaos-magic sigil, a cutout ink mark for the margins of ReEnchanted books. True transparent background, no paper, no solid fill rectangle, no photograph, no shadow, no border, no labels, no captions. A solitary glyph, not a sheet. The reference images show the existing ink quality and Wicker's brisk, sharp handwritten trace; do not copy their lettering or star shapes. Use near-black plum-brown quill ink with organic dry-brush breaks and tiny ink accumulations where the pen hesitated; restrained fine crosshatching only at one or two stroke overlaps. The line is confident, spiky, slightly impatient, hand-drawn by Wicker Eddies, a clever and dangerous Academy student who questions theatrical certainty and carries a key for the wrong door. His line has intention, not random occult decoration. Spare's and Hine's real monogram method informs these original glyphs: remove spaces and repeated letters, overlap/rotate/simplify the remaining Latin letterforms into a single unfamiliar coherent mark. Keep vowels. The statement of intent is for construction only: never write it out in the image. Shared strokes may represent several letters; the finished glyph must not read as a word or an ordinary capital. Flat usable ink on actual alpha, generously separated strokes that survive reduction to 45-90 pt, consistent 5-12px principal line weight at 1024 resolution, several finer pen strokes. Most of canvas empty transparent around one central glyph. No pentagram, runic alphabet, astrological signs, skull, faces, eye, stock eight-arrow chaos star, elaborate magical diagram, neon, glow, shiny metal, vector-perfect symmetry, or generic fantasy logo. Personality lies in the pen's decisions.\nTITLE FOR INTERNAL USE ONLY: Awake Inside the Day.\nCONSTRUCTION INTENT: I AM AWAKE INSIDE THIS DAY.\nDEDUPLICATED LETTERS: IAMWKENSDTHY.\nDISTINCTIVE FORM: An upright, freshly split glyph: interlocked A/W zigzags cross a single I/T staff, a narrow D curve opens sideways instead of closing; three unequal short rays derive from the E strokes, no sun icon or eye. A clear little space around the central knot, like an aperture that has just opened.\nLORE: The Curse, or Grey/Rut of Routine, flattens colour and attention; it is forgetting and autopilot, not a horned monster. These are original protective and noticing marks drawn by Wicker, not imported medieval seals. Ink strokes only, no cloud or halo. True transparent background. No readable text.",
+      "refs": [
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/AcademyWarningWickerWasHere.imageset/AcademyWarningWickerWasHere.png",
+        "/Users/bj/Projects/ReEnchanted/InsideCoverApp/Assets.xcassets/IlluminationFlourish17.imageset/IlluminationFlourish17.png"
+      ],
+      "assetName": "WickerSigilAwakeInTheDay",
+      "assetID": "wicker_sigil_awake_in_the_day",
+      "master": "output/wicker-chaos-sigils-2026-11-07/masters/awake-in-the-day-v1.png",
+      "file": "InsideCoverApp/Assets.xcassets/WickerSigilAwakeInTheDay.imageset/WickerSigilAwakeInTheDay.png",
+      "pixels": [
+        392,
+        536
+      ],
+      "bytes": 100976,
+      "sourceSHA256": "ea056b8be7bf79d61b34035f40810edd58602d10282576931cd89e832e6b15da",
+      "assetSHA256": "4fb686580cf507a37a02a0eef2106459053f71b5e3e2678c0ff6101ec7560bb8"
+    }
+  ],
+  "optimization": {
+    "losslessPixelComparison": true,
+    "beforePNGBytes": 1027767,
+    "afterPNGBytes": 1013537,
+    "maximumInkDimension": 512,
+    "transparentPadding": 12,
+    "metadataStripped": true,
+    "decodedRGBABytes": 13056960
+  }
+}

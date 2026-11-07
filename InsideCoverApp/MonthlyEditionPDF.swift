@@ -158,6 +158,41 @@ struct EditionStyle {
     }
 }
 
+// MARK: - The press room
+
+/// Where every edition is set: off the main thread, one book at a time.
+///
+/// Setting a book used to happen on the main thread, inside the very Task that
+/// was showing the binding ceremony, so the needle stopped dead for the whole
+/// press and the reader was left looking at a frozen screen. `run` sets the
+/// pages here instead and hands the thread back to the ceremony.
+///
+/// One room, not a pool. The writers keep their working state in statics
+/// (`settingForPrint`, `ContentsFolios`), so two books set at once would trade
+/// folios. A reopen that has to press a lost file on the spot uses `now`,
+/// which waits its turn rather than setting type beside a running bind.
+///
+/// Whatever goes in must be values: the closure runs on the press queue and may
+/// not touch view or vault state. Read everything it needs before the call.
+enum EditionPress {
+    private static let room = DispatchQueue(label: "app.reenchanted.edition-press", qos: .userInitiated)
+
+    static func run<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        try await withCheckedThrowingContinuation { continuation in
+            room.async {
+                continuation.resume(with: Result { try autoreleasepool { try work() } })
+            }
+        }
+    }
+
+    /// For the few callers that are synchronous by nature (reopening a kept
+    /// edition whose file iOS cleared). It still blocks its caller; it only
+    /// stops it setting a book alongside one already in the room.
+    static func now<T>(_ work: () throws -> T) rethrows -> T {
+        try room.sync { try autoreleasepool { try work() } }
+    }
+}
+
 // MARK: - PDF writer
 
 enum MonthlyEditionPDFWriter {
@@ -765,6 +800,20 @@ enum MonthlyEditionPDFWriter {
         drawInscriptionBookNote(edition, matter: matter, style: style, context: context, cursor: &cursor)
         drawPatronFrontispiece(edition, style: style, context: context, cursor: &cursor)
         drawInscriptionThread(edition, matter: matter, style: style, context: context, cursor: &cursor)
+
+        if matter.tellsArrivalOnce {
+            renderToldOnceInscription(
+                edition,
+                matter: matter,
+                plates: plates,
+                marginalia: marginalia,
+                marginaliaIndex: &marginaliaIndex,
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+            return
+        }
 
         if let opening = edition.sections.first {
             drawSection(
@@ -2225,6 +2274,18 @@ enum MonthlyEditionPDFWriter {
         drawSeasonContents(annual, plateCount: seasonPlates(annual, calendar: .current).count,
                            style: annualStyle, context: context, cursor: &cursor)
 
+        // The ribboned Pages open the volume, before anything else is read.
+        if let ribboned = annual.ribboned, !ribboned.isEmpty {
+            drawVolumeCabinet(
+                title: "Marked With a Ribbon",
+                note: "The Pages you tucked a ribbon into. They go first.",
+                items: ribboned,
+                style: annualStyle,
+                context: context,
+                cursor: &cursor
+            )
+        }
+
         if let matter = annual.publicationMatter {
             if !matter.almanacItems.isEmpty {
                 drawVolumeCabinet(
@@ -2509,6 +2570,8 @@ enum MonthlyEditionPDFWriter {
                 leftInset: index.isMultiple(of: 2) ? 2 : 24
             )
         }
+        // Clear the last scrap: its torn edge reaches past the final line.
+        cursor.y += 16
         drawText(
             "They were told to discuss the book in front of them. They were not allowed to invent a life behind it.",
             font: .serifItalicFont(ofSize: 9),
@@ -2804,6 +2867,309 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Inscription
 
+    // MARK: Inscription, told once
+
+    /// The press order for an Inscription bound with `tale`. Every answer has
+    /// one home: the tale tells the arrival, the Chapter gets its own leaf,
+    /// Zara's notes hold the small facts, and the closing is the next
+    /// appointment rather than one more summary of the book.
+    private static func renderToldOnceInscription(
+        _ edition: MonthlyEdition,
+        matter: InscriptionPublicationMatter,
+        plates: [IlluminatedPlate],
+        marginalia: [BoundMarginNote],
+        marginaliaIndex: inout Int,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        func section(_ id: String) {
+            guard let section = edition.sections.first(where: { $0.id == id }), !section.items.isEmpty else { return }
+            drawSection(
+                section,
+                style: style,
+                marginalia: marginalia,
+                marginaliaIndex: &marginaliaIndex,
+                specimenMonth: specimenMonth(for: edition),
+                specimenYear: specimenYear(for: edition),
+                context: context,
+                cursor: &cursor
+            )
+        }
+
+        drawInscriptionTale(edition, scenes: matter.tale ?? [], style: style, context: context, cursor: &cursor)
+        if let leaf = matter.pagewrightLeaf {
+            drawInscriptionPagewrightLeaf(edition, leaf: leaf, style: style, context: context, cursor: &cursor)
+        }
+        section("images")
+        drawIlluminatedPlates(plates, style: style, context: context, cursor: &cursor)
+        if let feature = matter.chapterFeature {
+            drawInscriptionChapter(edition, feature: feature, style: style, context: context, cursor: &cursor)
+        } else {
+            drawInscriptionArgument(edition, matter: matter, style: style, context: context, cursor: &cursor)
+        }
+        if let conversation = matter.bindingConversation, !conversation.isEmpty {
+            drawVolumeCastConversation(
+                conversation,
+                seed: "first-door-\(matter.arrivalLine)",
+                style: style,
+                context: context,
+                cursor: &cursor
+            )
+        }
+        section("letters")
+        if let notes = matter.zaraNotes, !notes.isEmpty {
+            drawInscriptionZaraNotes(edition, notes: notes, style: style, context: context, cursor: &cursor)
+        }
+        drawClosing(matter.closing, edition: edition, style: style, context: context, cursor: &cursor)
+        drawInscriptionColophon(edition, matter: matter, style: style, context: context, cursor: &cursor)
+    }
+
+    /// A Cast or talisman plate at the head of a leaf, aspect-fitted, with
+    /// its caption. Returns false when the asset is missing so the caller can
+    /// carry on without leaving a hole.
+    @discardableResult
+    private static func drawInscriptionHeadPlate(
+        _ assetName: String,
+        caption: String?,
+        maxHeight: CGFloat,
+        style: EditionStyle,
+        cursor: inout PDFCursor
+    ) -> Bool {
+        guard let image = UIImage(named: assetName), image.size.width > 0, image.size.height > 0 else { return false }
+        let available = CGSize(width: cursor.contentWidth - 60, height: maxHeight)
+        let scale = min(available.width / image.size.width, available.height / image.size.height)
+        let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let rect = CGRect(x: cursor.left + (cursor.contentWidth - size.width) / 2, y: cursor.y, width: size.width, height: size.height)
+        if let cg = UIGraphicsGetCurrentContext() {
+            cg.saveGState()
+            cg.setShadow(offset: CGSize(width: 0, height: 3), blur: 10, color: UIColor.black.withAlphaComponent(0.22).cgColor)
+            image.draw(in: rect)
+            cg.restoreGState()
+        }
+        cursor.y = rect.maxY + 12
+        if let caption, !caption.isEmpty {
+            drawCentered(
+                caption,
+                font: .serifItalicFont(ofSize: 10),
+                color: style.palette.ink.withAlphaComponent(0.62),
+                y: cursor.y,
+                in: cursor.bounds
+            )
+            cursor.y += 22
+        }
+        cursor.y += 10
+        return true
+    }
+
+    private static func drawInscriptionTale(
+        _ edition: MonthlyEdition,
+        scenes: [InscriptionPublicationMatter.TaleScene],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        guard !scenes.isEmpty else { return }
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        drawText("How We Met", font: .serifFont(ofSize: 28, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 5)
+        drawText(
+            "Told once, the way it happened.",
+            font: .serifItalicFont(ofSize: 10.5),
+            color: style.palette.ink.withAlphaComponent(0.62),
+            cursor: &cursor,
+            spacingAfter: 10
+        )
+        drawAccentRule(style, cursor: &cursor)
+
+        let bodyFont = UIFont.serifFont(ofSize: 12.4, weight: .regular)
+        let handSize: CGFloat = 13.5
+        for (index, scene) in scenes.enumerated() {
+            if let asset = scene.plateAssetName, UIImage(named: asset) != nil {
+                // A plate opens its scene at the head of a fresh leaf.
+                beginComposedPage(context, style: style, cursor: &cursor)
+                drawRunningHead(edition, style: style, cursor: cursor)
+                cursor.y += 8
+                drawInscriptionHeadPlate(asset, caption: scene.plateCaption, maxHeight: 300, style: style, cursor: &cursor)
+            } else if index > 0 {
+                ensureSpace(120, style: style, context: context, cursor: &cursor)
+                cursor.y += 6
+                drawOrnamentRow(style, centerY: cursor.y, in: cursor.bounds, color: style.palette.gold)
+                cursor.y += 22
+            }
+            drawText(
+                scene.heading.uppercased(),
+                font: .systemFont(ofSize: 10.5, weight: .bold),
+                color: style.palette.accent,
+                cursor: &cursor,
+                spacingAfter: 10
+            )
+            let paragraphs = scene.body.components(separatedBy: "\n\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            for paragraph in paragraphs {
+                let isReaders = scene.readerParagraph.map {
+                    $0.trimmingCharacters(in: .whitespacesAndNewlines) == paragraph
+                } ?? false
+                if isReaders {
+                    // The reader's own sentence, in their hand, set off like
+                    // writing on the page rather than quoted inside mine.
+                    let hands = [0..<paragraph.count]
+                    let font = UIFont.serifFont(ofSize: handSize, weight: .regular)
+                    let height = measuredTextHeight(paragraph, font: font, width: cursor.contentWidth - 48, hands: hands)
+                    ensureSpace(height + 30, style: style, context: context, cursor: &cursor)
+                    cursor.y += 4
+                    style.palette.gold.withAlphaComponent(0.7).setFill()
+                    UIBezierPath(rect: CGRect(x: cursor.left + 10, y: cursor.y, width: 2, height: height)).fill()
+                    drawText(paragraph, font: font, color: style.palette.ink, cursor: &cursor,
+                             spacingAfter: 16, leftInset: 26, hands: hands)
+                } else {
+                    let height = measuredTextHeight(paragraph, font: bodyFont, width: cursor.contentWidth)
+                    ensureSpace(height + 12, style: style, context: context, cursor: &cursor)
+                    drawText(paragraph, font: bodyFont, color: style.palette.ink.withAlphaComponent(0.94),
+                             cursor: &cursor, spacingAfter: 11)
+                }
+            }
+        }
+    }
+
+    /// The reader's Chapter, featured: the banner they stood under, its
+    /// talisman, its argument, and the charge it hands them for tomorrow.
+    private static func drawInscriptionChapter(
+        _ edition: MonthlyEdition,
+        feature: InscriptionPublicationMatter.ChapterFeature,
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        let bounds = cursor.bounds
+        drawRunningHead(edition, style: style, cursor: cursor)
+        cursor.y = 70
+        drawCentered(
+            feature.chosenByReader ? "THE CHAPTER YOU CHOSE" : "THE CHAPTER I PICKED FOR YOU",
+            font: .systemFont(ofSize: 10.5, weight: .bold),
+            color: style.palette.accent,
+            y: cursor.y,
+            in: bounds
+        )
+        cursor.y += 22
+        drawCentered(feature.name, font: .serifFont(ofSize: 30, weight: .bold), color: style.palette.ink, y: cursor.y, in: bounds)
+        cursor.y += 48
+        if let asset = feature.plateAssetName {
+            drawInscriptionHeadPlate(asset, caption: feature.talismanName, maxHeight: 172, style: style, cursor: &cursor)
+        }
+        let argument = "\u{201C}\(feature.argument)\u{201D}"
+        let argumentHeight = measuredTextHeight(argument, font: .serifItalicFont(ofSize: 12.5), width: cursor.contentWidth - 60) * 1.25 + 6
+        drawCenteredWrapped(
+            argument,
+            font: .serifItalicFont(ofSize: 12.5),
+            color: style.palette.ink.withAlphaComponent(0.86),
+            rect: CGRect(x: cursor.left + 30, y: cursor.y, width: cursor.contentWidth - 60, height: argumentHeight),
+            lineSpacing: 4
+        )
+        cursor.y += argumentHeight + 8
+        drawCentered(
+            feature.founder.hasPrefix("Unrecorded") ? feature.founder : "Founded by \(feature.founder)",
+            font: .serifItalicFont(ofSize: 9.5),
+            color: style.palette.ink.withAlphaComponent(0.55),
+            y: cursor.y,
+            in: bounds
+        )
+        cursor.y += 26
+        drawAccentRule(style, cursor: &cursor)
+
+        func block(_ label: String, _ text: String, font: UIFont) {
+            let height = measuredTextHeight(text, font: font, width: cursor.contentWidth)
+            ensureSpace(height + 34, style: style, context: context, cursor: &cursor)
+            drawText(label, font: .systemFont(ofSize: 9.5, weight: .bold), color: style.palette.accent, cursor: &cursor, spacingAfter: 4)
+            drawText(text, font: font, color: style.palette.ink, cursor: &cursor, spacingAfter: 10)
+        }
+        block("ITS FIRST READING OF YOUR PAGE", feature.reading, font: .serifFont(ofSize: 12, weight: .regular))
+        if let surprise = feature.surprise?.nonEmpty {
+            let curly = surprise
+                .replacingOccurrences(of: "\"Surprising thing,\"", with: "\u{201C}Surprising thing,\u{201D}")
+                .replacingOccurrences(of: " \"", with: " \u{201C}")
+                .replacingOccurrences(of: "\"", with: "\u{201D}")
+            block("WHAT ZARA SAID", curly, font: .serifItalicFont(ofSize: 11.5))
+        }
+        block("ITS QUESTION", feature.question, font: .serifFont(ofSize: 12, weight: .regular))
+        block("ITS CHARGE FOR TOMORROW", feature.charge, font: .serifFont(ofSize: 12.5, weight: .semibold))
+        drawText(
+            "A first reading is a beginning, not a verdict. The other banners are still arguing.",
+            font: .serifItalicFont(ofSize: 9.8),
+            color: style.palette.accent.withAlphaComponent(0.78),
+            cursor: &cursor,
+            spacingAfter: 8
+        )
+    }
+
+    /// The small things the reader told Zara, each kept here and nowhere
+    /// else in the book, on one card from her notebook.
+    private static func drawInscriptionZaraNotes(
+        _ edition: MonthlyEdition,
+        notes: [InscriptionPublicationMatter.NoteLine],
+        style: EditionStyle,
+        context: UIGraphicsPDFRendererContext,
+        cursor: inout PDFCursor
+    ) {
+        beginComposedPage(context, style: style, cursor: &cursor)
+        drawRunningHead(edition, style: style, cursor: cursor)
+        drawText("Zara's Notes", font: .serifFont(ofSize: 26, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 5)
+        drawText(
+            "The small things you told her. She wrote each one down very seriously.",
+            font: .serifItalicFont(ofSize: 10.5),
+            color: style.palette.ink.withAlphaComponent(0.62),
+            cursor: &cursor,
+            spacingAfter: 22
+        )
+
+        let inset: CGFloat = 26
+        let width = cursor.contentWidth - inset * 2
+        let handSize: CGFloat = 14
+        func answerFont(_ note: InscriptionPublicationMatter.NoteLine) -> UIFont {
+            note.readerWrote ? .serifFont(ofSize: handSize, weight: .regular) : .serifFont(ofSize: 12.5, weight: .semibold)
+        }
+        func hands(_ note: InscriptionPublicationMatter.NoteLine) -> [Range<Int>] {
+            note.readerWrote ? [0..<note.answer.count] : []
+        }
+        let rowHeights = notes.map { note -> CGFloat in
+            var height: CGFloat = 16 + measuredTextHeight(note.answer, font: answerFont(note), width: width, hands: hands(note))
+            if let aside = note.aside?.nonEmpty {
+                height += 6 + measuredTextHeight(aside, font: .serifItalicFont(ofSize: 10.3), width: width)
+            }
+            return height + 26
+        }
+        let cardHeight = min(cursor.bottom - cursor.y - 10, rowHeights.reduce(28, +))
+        let card = CGRect(x: cursor.left - 6, y: cursor.y, width: cursor.contentWidth + 12, height: cardHeight)
+        drawTornScrap(
+            in: card,
+            rotation: -0.006,
+            fill: blend(parchment(for: style).top, style.palette.gold, 0.06),
+            seed: "first-door-zara-notes"
+        )
+        drawTapeStrip(center: CGPoint(x: card.midX, y: card.minY + 2), length: 72, angle: 0.04, tint: style.palette.gold)
+
+        cursor.y = card.minY + 26
+        for (index, note) in notes.enumerated() {
+            ensureSpace(rowHeights[index], style: style, context: context, cursor: &cursor)
+            drawText(note.label.uppercased(), font: .systemFont(ofSize: 9.3, weight: .bold),
+                     color: style.palette.accent, cursor: &cursor, spacingAfter: 4, leftInset: inset)
+            drawText(note.answer, font: answerFont(note), color: style.palette.ink,
+                     cursor: &cursor, spacingAfter: 4, leftInset: inset, hands: hands(note))
+            if let aside = note.aside?.nonEmpty {
+                drawText(aside, font: .serifItalicFont(ofSize: 10.3), color: style.palette.ink.withAlphaComponent(0.66),
+                         cursor: &cursor, spacingAfter: 4, leftInset: inset)
+            }
+            cursor.y += 8
+            if index < notes.count - 1 {
+                style.palette.ink.withAlphaComponent(0.12).setFill()
+                UIBezierPath(rect: CGRect(x: cursor.left + inset, y: cursor.y, width: width, height: 0.6)).fill()
+                cursor.y += 12
+            }
+        }
+    }
+
     private static func drawInscriptionCover(
         _ edition: MonthlyEdition,
         matter: InscriptionPublicationMatter,
@@ -2937,6 +3303,10 @@ enum MonthlyEditionPDFWriter {
         )
     }
 
+    /// The house mark of the Inscription: an arched door with a keyhole, and
+    /// one gold thread going in at the keyhole and out over the arch. It used
+    /// to be a book with a thread of five dots across it, which on a dark
+    /// cover read as a rising line graph.
     private static func drawInscriptionBookSigil(
         in frame: CGRect,
         matter: InscriptionPublicationMatter,
@@ -2945,63 +3315,96 @@ enum MonthlyEditionPDFWriter {
         guard let cg = UIGraphicsGetCurrentContext() else { return }
         cg.saveGState()
 
-        let book = CGRect(
-            x: frame.midX - 64,
-            y: frame.midY - 46,
-            width: 128,
-            height: 92
-        )
-        let pages = UIBezierPath(roundedRect: book, cornerRadius: 7)
-        blend(style.palette.paperBottom, style.palette.accent, 0.16).setFill()
-        pages.fill()
-        style.palette.gold.withAlphaComponent(0.86).setStroke()
-        pages.lineWidth = 1.7
-        pages.stroke()
+        let doorWidth: CGFloat = 92
+        let doorHeight: CGFloat = 138
+        let door = CGRect(x: frame.midX - doorWidth / 2, y: frame.maxY - doorHeight, width: doorWidth, height: doorHeight)
+        let radius = doorWidth / 2
+        let arch = UIBezierPath()
+        arch.move(to: CGPoint(x: door.minX, y: door.maxY))
+        arch.addLine(to: CGPoint(x: door.minX, y: door.minY + radius))
+        arch.addArc(withCenter: CGPoint(x: door.midX, y: door.minY + radius), radius: radius,
+                    startAngle: .pi, endAngle: 0, clockwise: true)
+        arch.addLine(to: CGPoint(x: door.maxX, y: door.maxY))
+        arch.close()
 
-        let ink = UIBezierPath()
-        ink.move(to: CGPoint(x: book.midX, y: book.minY + 5))
-        ink.addLine(to: CGPoint(x: book.midX, y: book.maxY - 5))
-        for offset in stride(from: 20, through: 68, by: 12) {
-            let y = book.minY + CGFloat(offset)
-            ink.move(to: CGPoint(x: book.minX + 12, y: y))
-            ink.addLine(to: CGPoint(x: book.midX - 12, y: y))
-            ink.move(to: CGPoint(x: book.midX + 12, y: y))
-            ink.addLine(to: CGPoint(x: book.maxX - 12, y: y))
+        // A frame of stone around the door, then the door itself.
+        let surround = UIBezierPath()
+        let outer = radius + 9
+        surround.move(to: CGPoint(x: door.midX - outer, y: door.maxY))
+        surround.addLine(to: CGPoint(x: door.midX - outer, y: door.minY + radius))
+        surround.addArc(withCenter: CGPoint(x: door.midX, y: door.minY + radius), radius: outer,
+                        startAngle: .pi, endAngle: 0, clockwise: true)
+        surround.addLine(to: CGPoint(x: door.midX + outer, y: door.maxY))
+        style.palette.gold.withAlphaComponent(0.42).setStroke()
+        surround.lineWidth = 1
+        surround.stroke()
+
+        blend(style.palette.paperBottom, style.palette.accent, 0.18).setFill()
+        arch.fill()
+        style.palette.gold.withAlphaComponent(0.9).setStroke()
+        arch.lineWidth = 1.7
+        arch.stroke()
+
+        cg.saveGState()
+        arch.addClip()
+        let planks = UIBezierPath()
+        for offset in stride(from: doorWidth / 4, to: doorWidth, by: doorWidth / 4) {
+            planks.move(to: CGPoint(x: door.minX + offset, y: door.minY))
+            planks.addLine(to: CGPoint(x: door.minX + offset, y: door.maxY))
         }
-        style.palette.coverText.withAlphaComponent(0.44).setStroke()
-        ink.lineWidth = 0.8
-        ink.stroke()
+        style.palette.coverText.withAlphaComponent(0.22).setStroke()
+        planks.lineWidth = 0.8
+        planks.stroke()
+        cg.restoreGState()
 
-        let threadPoints = [
-            CGPoint(x: frame.minX + 14, y: frame.maxY - 22),
-            CGPoint(x: book.minX - 12, y: book.midY + 30),
-            CGPoint(x: book.midX, y: book.midY + 28),
-            CGPoint(x: book.maxX + 10, y: book.midY - 22),
-            CGPoint(x: frame.maxX - 14, y: frame.minY + 28)
-        ]
+        // The keyhole.
+        let keyhole = CGPoint(x: door.midX, y: door.minY + doorHeight * 0.6)
+        style.palette.gold.setFill()
+        UIBezierPath(ovalIn: CGRect(x: keyhole.x - 5.5, y: keyhole.y - 5.5, width: 11, height: 11)).fill()
+        let slot = UIBezierPath()
+        slot.move(to: CGPoint(x: keyhole.x - 2.4, y: keyhole.y + 2))
+        slot.addLine(to: CGPoint(x: keyhole.x + 2.4, y: keyhole.y + 2))
+        slot.addLine(to: CGPoint(x: keyhole.x + 4.2, y: keyhole.y + 15))
+        slot.addLine(to: CGPoint(x: keyhole.x - 4.2, y: keyhole.y + 15))
+        slot.close()
+        slot.fill()
+
+        // One thread: in at the keyhole, out over the arch.
         let thread = UIBezierPath()
-        thread.move(to: threadPoints[0])
-        for index in 1..<threadPoints.count {
-            let prior = threadPoints[index - 1]
-            let point = threadPoints[index]
-            thread.addCurve(
-                to: point,
-                controlPoint1: CGPoint(x: (prior.x + point.x) / 2, y: prior.y),
-                controlPoint2: CGPoint(x: (prior.x + point.x) / 2, y: point.y)
-            )
-        }
+        thread.move(to: CGPoint(x: frame.minX + 6, y: frame.maxY - 8))
+        thread.addCurve(
+            to: CGPoint(x: keyhole.x - 6, y: keyhole.y),
+            controlPoint1: CGPoint(x: frame.minX + 40, y: frame.maxY - 2),
+            controlPoint2: CGPoint(x: keyhole.x - 40, y: keyhole.y + 4)
+        )
+        let exit = CGPoint(x: door.midX + outer * 0.72, y: door.minY + radius - outer * 0.72)
+        let star = CGPoint(x: frame.maxX - 10, y: frame.minY + 6)
+        thread.move(to: exit)
+        thread.addCurve(
+            to: star,
+            controlPoint1: CGPoint(x: exit.x + 18, y: exit.y - 14),
+            controlPoint2: CGPoint(x: star.x - 30, y: star.y + 20)
+        )
         style.palette.gold.setStroke()
-        thread.lineWidth = 1.6
+        thread.lineWidth = 1.5
+        thread.lineCapStyle = .round
         thread.stroke()
 
-        let activeCount = min(5, max(1, matter.thresholdThread?.count ?? matter.signatures.count))
-        for (index, point) in threadPoints.enumerated() {
-            let dot = UIBezierPath(ovalIn: CGRect(x: point.x - 4.5, y: point.y - 4.5, width: 9, height: 9))
-            (index < activeCount ? style.palette.gold : style.palette.coverText.withAlphaComponent(0.24)).setFill()
-            dot.fill()
-            style.palette.coverText.withAlphaComponent(0.58).setStroke()
-            dot.lineWidth = 0.7
-            dot.stroke()
+        // A small four-point star where the thread ends.
+        let spark = UIBezierPath()
+        for index in 0..<8 {
+            let angle = CGFloat(index) * .pi / 4 - .pi / 2
+            let length: CGFloat = index.isMultiple(of: 2) ? 8 : 2.6
+            let point = CGPoint(x: star.x + cos(angle) * length, y: star.y + sin(angle) * length)
+            index == 0 ? spark.move(to: point) : spark.addLine(to: point)
+        }
+        spark.close()
+        style.palette.gold.setFill()
+        spark.fill()
+        for dot in [CGPoint(x: frame.minX + 28, y: frame.minY + 30), CGPoint(x: frame.maxX - 44, y: frame.maxY - 30),
+                    CGPoint(x: frame.minX + 50, y: frame.minY + 8)] {
+            style.palette.coverText.withAlphaComponent(0.5).setFill()
+            UIBezierPath(ovalIn: CGRect(x: dot.x - 1.2, y: dot.y - 1.2, width: 2.4, height: 2.4)).fill()
         }
 
         cg.restoreGState()
@@ -3066,11 +3469,23 @@ enum MonthlyEditionPDFWriter {
             }
         }
 
+        var arrivalY = max(cursor.y, 610)
+        if let feature = matter.chapterFeature {
+            let chapterY = max(cursor.y, 566)
+            drawCentered(
+                "FIRST CHAPTER \u{00B7} \(feature.name.uppercased())",
+                font: .systemFont(ofSize: 9.5, weight: .bold),
+                color: style.palette.accent.withAlphaComponent(0.86),
+                y: chapterY,
+                in: bounds
+            )
+            arrivalY = max(chapterY + 32, 610)
+        }
         drawCenteredWrapped(
             matter.arrivalLine,
             font: .serifItalicFont(ofSize: 10.5),
             color: style.palette.ink.withAlphaComponent(0.56),
-            rect: CGRect(x: 118, y: max(cursor.y, 610), width: bounds.width - 236, height: 44),
+            rect: CGRect(x: 118, y: arrivalY, width: bounds.width - 236, height: 44),
             lineSpacing: 3
         )
     }
@@ -3090,7 +3505,7 @@ enum MonthlyEditionPDFWriter {
 
         let bodyFont = UIFont.serifFont(ofSize: 12.2, weight: .regular)
         let bodyHeight = measuredTextHeight(note, font: bodyFont, width: cursor.contentWidth - 64)
-        let cardHeight = min(cursor.bottom - cursor.y - 30, max(390, bodyHeight + 118))
+        let cardHeight = min(cursor.bottom - cursor.y - 30, max(240, bodyHeight + 118))
         let card = CGRect(
             x: cursor.left - 8,
             y: cursor.y + 30,
@@ -3305,7 +3720,7 @@ enum MonthlyEditionPDFWriter {
         }
 
         drawText(
-            "There. I did not make the ordinary thing less real. I gave it somewhere strange to go.",
+            "There. I didn't make the ordinary thing less real. I gave it somewhere strange to go.",
             font: .serifItalicFont(ofSize: 10),
             color: style.palette.accent.withAlphaComponent(0.78),
             cursor: &cursor,
@@ -3445,7 +3860,7 @@ enum MonthlyEditionPDFWriter {
         )
         cursor.y += 24
         drawCenteredWrapped(
-            edition.chapterHeading,
+            matter.tellsArrivalOnce ? edition.title : edition.chapterHeading,
             font: .serifItalicFont(ofSize: 12),
             color: style.palette.ink.withAlphaComponent(0.82),
             rect: CGRect(x: 92, y: cursor.y, width: bounds.width - 184, height: 46),
@@ -4488,7 +4903,9 @@ enum MonthlyEditionPDFWriter {
         drawTapeStrip(center: CGPoint(x: labelRect.minX + 26, y: labelRect.minY + 4), length: 54, angle: -0.7, tint: style.palette.gold)
         drawTapeStrip(center: CGPoint(x: labelRect.maxX - 26, y: labelRect.minY + 4), length: 54, angle: 0.7, tint: style.palette.gold)
         style.palette.accent.setFill()
-        UIBezierPath(rect: CGRect(x: cursor.left, y: cursor.y - 4, width: 6, height: 48)).fill()
+        // The bar sits in the scrap's own margin, left of the type. Drawn at
+        // `cursor.left` it overprinted the first letter of every section title.
+        UIBezierPath(rect: CGRect(x: cursor.left - 11, y: cursor.y - 4, width: 5, height: 48)).fill()
         drawText(section.title, font: .serifFont(ofSize: 22, weight: .bold), color: style.palette.ink, cursor: &cursor, spacingAfter: 2)
         drawText(section.note, font: .serifItalicFont(ofSize: 10), color: style.palette.ink.withAlphaComponent(0.65), cursor: &cursor, spacingAfter: 26)
 
@@ -5896,7 +6313,7 @@ enum MonthlyEditionPDFWriter {
     /// The Book's name for the reader belongs on the title and the colophon,
     /// not repeated in small capitals over every page.
     static func runningHead(_ edition: MonthlyEdition) -> String {
-        if edition.isInscriptionEdition { return edition.chapterHeading }
+        if edition.isInscriptionEdition { return "The Inscription \u{00B7} \(edition.coverReaderName)" }
         return "The Book of You \u{00B7} Chapter \(edition.chapterNumber) \u{00B7} \(edition.monthName)"
     }
 

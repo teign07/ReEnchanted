@@ -774,29 +774,22 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         }
     }
 
-    func testFirstHoursCuratorHidesDeepSystemCards() {
+    func testNewReadersCanMeetEveryContentFamilyWithoutKeepingPages() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
-        let candidates = [
-            rankedCandidate(.bookConnections, score: 100),
-            rankedCandidate(.bookRemembered, score: 99),
-            rankedCandidate(.faeBargain, score: 98),
-            rankedCandidate(.marginsAtlas, score: 97),
-            rankedCandidate(.theBleed, score: 96),
-            rankedCandidate(.helpTips, score: 40),
-            rankedCandidate(.fuel, score: 39),
-            rankedCandidate(.souvenir, score: 38)
-        ]
-        let mood = CuratorMood.make(inputs: .empty, now: now)
+        var mood = CuratorMood.make(inputs: .empty, now: now)
+        XCTAssertTrue(mood.isFirstHours)
+        XCTAssertEqual(mood.keptPageCount, 0)
 
-        let pages = BookCurator.rankedPages(
-            from: candidates,
-            limit: 8,
-            mood: mood,
-            now: now
-        ).map(\.page)
-
-        XCTAssertFalse(pages.contains { [.bookConnections, .bookRemembered, .faeBargain, .marginsAtlas, .theBleed].contains($0.type) })
-        XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .fuel, .souvenir])
+        for count in [0, 1, 3, 6, 12, 29, 30] {
+            mood.keptPageCount = count
+            for type in BookPageType.allCases {
+                let page = rankedCandidate(type, score: 50)
+                XCTAssertTrue(
+                    mood.allows(page),
+                    "\(type.rawValue) must not wait for reader age or \(count) kept pages"
+                )
+            }
+        }
     }
 
     func testFreshReaderCanMeetABoundedAuthoredSceneDuringItsWindow() {
@@ -814,7 +807,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             MonthlyIssuePageMetadata.claimHistoryKey: "october-issue:2026-10-16"
         ])
 
-        XCTAssertFalse(mood.allows(ordinaryStory))
+        XCTAssertTrue(mood.allows(ordinaryStory))
         XCTAssertTrue(mood.allows(authored))
 
         let picked = [
@@ -889,23 +882,12 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
                       "the scene sat at \(reserved.firstIndex { $0.id == authored.id } ?? -1)")
     }
 
-    func testFirstHoursCuratorAllowsActiveBookJumpButHidesStart() {
+    func testFirstHoursAllowBothStartingAndContinuingABookJump() {
         let now = localDate(year: 2026, month: 6, day: 1, hour: 10)
-        let start = bookJumpCandidate(action: .start, score: 100)
-        let active = bookJumpCandidate(action: .advance, score: 99)
-        let orientation = rankedCandidate(.helpTips, score: 40)
         let mood = CuratorMood.make(inputs: .empty, now: now)
 
-        let pages = BookCurator.rankedPages(
-            from: [start, active, orientation],
-            limit: 3,
-            mood: mood,
-            now: now
-        ).map(\.page)
-
-        XCTAssertFalse(pages.contains { $0.id == start.id })
-        XCTAssertTrue(pages.contains { $0.id == active.id })
-        XCTAssertTrue(pages.contains { $0.id == orientation.id })
+        XCTAssertTrue(mood.allows(bookJumpCandidate(action: .start, score: 100)))
+        XCTAssertTrue(mood.allows(bookJumpCandidate(action: .advance, score: 99)))
     }
 
     func testFirstHoursCuratorBoostsOrientationCards() {
@@ -926,7 +908,8 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         ).map(\.page)
 
         XCTAssertEqual(pages.first?.type, .helpTips)
-        XCTAssertEqual(Set(pages.map(\.type)), [.helpTips, .lore, .mood])
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertTrue(pages.allSatisfy { mood.allows($0) })
     }
 
     func testPlayfulMissionWonderCompassGetsHigherCurationWeight() {
@@ -1791,13 +1774,11 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
     func testRepeatableReferenceCardsUseSnippetIdentity() throws {
         // A fixed ordinary date (no sabbat, shower, or full/new-moon esbat) so the
         // Almanac's festival page doesn't claim a slot and make this nondeterministic.
-        let morning = BookCurator.surfacedPages(
+        let morning = BookCurator.candidatePool(
             for: emptyDay(),
+            context: .make(for: emptyDay()),
             inputs: richInputs(),
-            now: localDate(year: 2026, month: 7, day: 7, hour: 9),
-            // The whole bench: the morning's edition, logs and sessions are owed
-            // their chairs now, and this is about identity, not placement.
-            limit: BookDeskRound.candidateBenchCapacity
+            now: localDate(year: 2026, month: 7, day: 7, hour: 9)
         )
         let lore = try XCTUnwrap(morning.first { $0.type == .lore })
         let wonder = try XCTUnwrap(morning.first { $0.type == .wonderCompass })
@@ -2774,16 +2755,17 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
 
     func testAboutYouSkipsAnsweredQuestionsFromEnabledPacks() throws {
         let day = emptyDay()
-        // The whole bench: scheduled bells and sessions now take chairs in the
-        // first dozen, and what's under test is the answered question, not
-        // where About You ranks on one morning.
-        let firstPass = BookCurator.surfacedPages(
+        // Check the actual candidate pool: question filtering and cadence do
+        // not depend on where the larger ungated catalogue ranks that morning.
+        let firstPass = BookCurator.candidatePool(
             for: day,
+            context: .make(for: day),
             inputs: richInputs(selfFacts: []),
-            now: localDate(hour: 10),
-            limit: 27
+            now: localDate(hour: 10)
         )
-        let firstQuestion = try XCTUnwrap(firstPass.first { $0.type == .aboutYou })
+        let firstQuestion = try XCTUnwrap(firstPass.first {
+            $0.type == .aboutYou && $0.payload.metadata["questionID"] != nil
+        })
         let questionID = try XCTUnwrap(firstQuestion.payload.metadata["questionID"])
         let packID = try XCTUnwrap(firstQuestion.payload.metadata["packID"])
 
@@ -2799,20 +2781,17 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
             createdAt: localDate(hour: 10),
             updatedAt: localDate(hour: 10)
         )
-        let immediateSecondPass = BookCurator.surfacedPages(
+        let immediateSecondPass = BookCurator.candidatePool(
             for: day,
+            context: .make(for: day),
             inputs: richInputs(selfFacts: [answered]),
-            now: localDate(hour: 10),
-            limit: 12
+            now: localDate(hour: 10)
         )
-        // The whole bench, not the first dozen: what's under test is that the
-        // answered question never comes back and a different one does, not
-        // where on the desk the next one ranks.
-        let laterSecondPass = BookCurator.surfacedPages(
+        let laterSecondPass = BookCurator.candidatePool(
             for: day,
+            context: .make(for: day),
             inputs: richInputs(selfFacts: [answered]),
-            now: localDate(hour: 14),
-            limit: 24
+            now: localDate(hour: 14)
         )
 
         XCTAssertFalse(immediateSecondPass.contains { $0.type == .aboutYou })
@@ -4060,6 +4039,88 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
         let stabilized = BookCurator.stabilizedDeskOrder(previous: [], rebuilt: rebuilt)
 
         XCTAssertEqual(stabilized.map(\.id), rebuilt.prefix(3).map(\.id))
+    }
+
+    func testLaunchEnrichmentUpgradesOnlyLeavesTheReaderHasNotMet() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-mood-s02", type: .mood, detail: "A richer mood."),
+            deskCard(id: "desk-quip-s02", type: .quip, detail: "A richer quip."),
+            deskCard(id: "desk-lore-s02", type: .lore, detail: "A richer letter.")
+        ]
+
+        let merged = BookCurator.upgradingUnseenLeaves(
+            previous: shown,
+            rebuilt: rebuilt,
+            frozenIDs: ["desk-quip-s01"],
+            limit: 3
+        )
+
+        // The leaf already read keeps its words; the two ahead are upgraded in
+        // place, so nothing moves.
+        XCTAssertEqual(merged.map(\.id), ["desk-quip-s01", "desk-lore-s02", "desk-mood-s02"])
+    }
+
+    func testLaunchEnrichmentNeverChangesAFullyMetDesk() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore)
+        ]
+        let rebuilt = [
+            deskCard(id: "desk-lore-s02", type: .lore, detail: "A richer letter."),
+            deskCard(id: "desk-quip-s02", type: .quip, detail: "A richer quip."),
+            deskCard(id: "desk-mood-s01", type: .mood)
+        ]
+
+        let merged = BookCurator.upgradingUnseenLeaves(
+            previous: shown,
+            rebuilt: rebuilt,
+            frozenIDs: Set(shown.map(\.id)),
+            limit: 2
+        )
+
+        XCTAssertEqual(merged, shown)
+    }
+
+    func testLaunchEnrichmentTucksMagicMomentAfterTheLeavesAlreadyMet() {
+        let shown = [
+            deskCard(id: "desk-quip-s01", type: .quip),
+            deskCard(id: "desk-lore-s01", type: .lore),
+            deskCard(id: "desk-mood-s01", type: .mood),
+            deskCard(id: "desk-weather-s01", type: .weather)
+        ]
+        let magic = SurfacePage(
+            id: "book-notice-magic",
+            type: .bookNotices,
+            sourceID: "book-notices",
+            score: 94,
+            prompt: "I have been wondering…",
+            detail: "Rain keeps returning in your photographs.",
+            payload: BookPagePayload(
+                headline: "I have been wondering…",
+                body: "Rain keeps returning in your photographs.",
+                metadata: [
+                    "magicMoment": "true",
+                    "milestone": "true",
+                    "observationKey": "context:rain-photos"
+                ]
+            )
+        )
+
+        let merged = BookCurator.upgradingUnseenLeaves(
+            previous: shown,
+            rebuilt: [magic] + shown,
+            frozenIDs: ["desk-quip-s01", "desk-lore-s01"],
+            limit: 4
+        )
+
+        XCTAssertEqual(merged.count, 4)
+        XCTAssertEqual(Array(merged.prefix(3)).map(\.id), ["desk-quip-s01", "desk-lore-s01", magic.id])
+        XCTAssertTrue(["desk-mood-s01", "desk-weather-s01"].contains(merged[3].id))
     }
 
     func testRestoringRetiredDeskSlotAfterNoCandidateRefillPreservesShiftedSurvivor() {

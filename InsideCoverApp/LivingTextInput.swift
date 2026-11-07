@@ -15,6 +15,10 @@ private struct BookInkSubmissionKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct BookInkPaceKey: EnvironmentKey {
+    static let defaultValue = 1.0
+}
+
 extension EnvironmentValues {
     var bookLeafInkEnabled: Bool {
         get { self[BookLeafInkEnabledKey.self] }
@@ -28,6 +32,13 @@ extension EnvironmentValues {
     var bookLeafInkArrival: Date? {
         get { self[BookLeafInkArrivalKey.self] }
         set { self[BookLeafInkArrivalKey.self] = newValue }
+    }
+
+    /// Stretches one surface's arrivals without touching a leaf's: the title
+    /// leaf writes slower than a Page, to fill the wait it stands in for.
+    var bookInkPace: Double {
+        get { self[BookInkPaceKey.self] }
+        set { self[BookInkPaceKey.self] = newValue }
     }
 }
 
@@ -92,6 +103,45 @@ enum BookInkTiming {
     }
 }
 
+/// When the last leaf to take ink will be dry. The launch sequence waits on it
+/// so Book Today and the post-launch chores never land on wet ink: an arrival
+/// stalled by main-thread work stutters visibly. Main thread only.
+enum BookLeafInkClock {
+    nonisolated(unsafe) private(set) static var lastArrival: Date = .distantPast
+
+    static func inked(at arrival: Date) {
+        lastArrival = max(lastArrival, arrival)
+    }
+
+    /// Leaves that come into view before this wait for it to take ink, so a
+    /// leaf does not start writing while the Book is still rising into place.
+    nonisolated(unsafe) private(set) static var holdUntil: Date = .distantPast
+
+    static func hold(until date: Date) {
+        holdUntil = max(holdUntil, date)
+    }
+
+    static func waitForHold() async {
+        let remaining = holdUntil.timeIntervalSinceNow
+        if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+    }
+
+    /// Waits for a leaf that began inking after `since` to dry. If none starts
+    /// within `startWithin`, there is nothing wet to wait for.
+    @MainActor
+    static func waitUntilDry(since: Date, startWithin: TimeInterval = 2.5, cap: TimeInterval = 5) async {
+        let deadline = Date().addingTimeInterval(cap)
+        while lastArrival < since, Date().timeIntervalSince(since) < startWithin, Date() < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
+            if Task.isCancelled { return }
+        }
+        guard lastArrival >= since else { return }
+        let dry = min(deadline, lastArrival.addingTimeInterval(BookInkTiming.arrivalDuration))
+        let remaining = dry.timeIntervalSinceNow
+        if remaining > 0 { try? await Task.sleep(for: .seconds(remaining)) }
+    }
+}
+
 /// How arriving ink finds its marks. Writing runs as a dark bead along the
 /// line in reading order; a picture seeps out from one wet point in its own
 /// colours, which separate a little at the wet edge.
@@ -118,6 +168,7 @@ private struct BookInkEmergence: ViewModifier {
     let isEligible: Bool
     @Environment(\.bookLeafInkArrival) private var arrival
     @Environment(\.bookLeafInkEnabled) private var enabled
+    @Environment(\.bookInkPace) private var pace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     @State private var progress: Double = 0
@@ -137,7 +188,7 @@ private struct BookInkEmergence: ViewModifier {
                 // Stains begin on the first leaf frame. The shader owns each
                 // mark's later gathering phase, so stagger never hides the
                 // whole animation behind a task sleep.
-                let duration = BookInkTiming.arrivalDuration
+                let duration = BookInkTiming.arrivalDuration * pace
                 let elapsed = Date().timeIntervalSince(arrival)
                 // Catch up to the leaf clock after host recreation or a late
                 // image load. Never restart an already settled illustration.

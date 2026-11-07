@@ -661,23 +661,88 @@ final class RutSelfKnowledgeTests: XCTestCase {
         )
     }
 
-    func testAttentionStudyKeepsAFiftyDayRunwayWithoutStackingDays() throws {
+    /// Two Knocks a day, one in each half of the waking day, so a round
+    /// covers every hour (docs/the-knock-plan.md). One a day at a random hour
+    /// between nine and seven almost never saw a morning or an evening.
+    func testKnocksComeTwiceADayInBothHalvesOfTheDay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let now = Date(timeIntervalSince1970: 1_783_484_800)
         let start = calendar.startOfDay(for: now)
 
-        let slots = AttentionProbeSchedule.slots(
-            ledger: .empty,
-            startingAt: start,
-            now: now,
-            calendar: calendar
-        )
+        let slots = AttentionProbeSchedule.slots(ledger: .empty, startingAt: start, now: now, calendar: calendar)
 
-        XCTAssertGreaterThanOrEqual(slots.count, AttentionProbeSchedule.horizonDays - 1)
-        XCTAssertEqual(Set(slots.map(\.dayID)).count, slots.count)
+        XCTAssertGreaterThanOrEqual(slots.count, (AttentionProbeSchedule.horizonDays - 1) * 2)
+        XCTAssertLessThanOrEqual(slots.count, 48, "iOS holds 64 pending notifications; the Book's other Knocks need room")
         XCTAssertEqual(Set(slots.map(\.id)).count, slots.count)
         XCTAssertTrue(slots.allSatisfy { $0.cycle == 0 && $0.fireAt > now })
+        for (_, day) in Dictionary(grouping: slots, by: \.dayID) {
+            XCTAssertLessThanOrEqual(day.count, 2)
+            let hours = day.map { calendar.component(.hour, from: $0.fireAt) }.sorted()
+            XCTAssertTrue(hours.allSatisfy { (8...20).contains($0) }, "\(hours)")
+            if day.count == 2 {
+                let gap = abs(day[0].fireAt.timeIntervalSince(day[1].fireAt))
+                XCTAssertGreaterThanOrEqual(gap, 2 * 3600, "two Knocks at least two hours apart")
+                XCTAssertTrue(hours[0] <= 12 && hours[1] >= 15, "\(hours)")
+            }
+        }
+        let allHours = Set(slots.map { calendar.component(.hour, from: $0.fireAt) })
+        XCTAssertGreaterThanOrEqual(allHours.count, 8, "a round should see most hours of the day")
+    }
+
+    /// A reader who has gone quiet gets one Knock a day until they answer.
+    func testAQuietReaderIsKnockedOnceADay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_783_484_800)
+        var ledger = AttentionProbeLedger.empty
+        ledger.record(id: "old", scheduledAt: now.addingTimeInterval(-3 * 86_400), answeredAt: now.addingTimeInterval(-3 * 86_400),
+                      answer: .here, cycle: 0)
+        let quiet = AttentionProbeSchedule.slots(ledger: ledger, startingAt: calendar.startOfDay(for: now), now: now, calendar: calendar)
+        XCTAssertTrue(Dictionary(grouping: quiet, by: \.dayID).values.allSatisfy { $0.count == 1 })
+
+        ledger.record(id: "fresh", scheduledAt: now.addingTimeInterval(-3600), answeredAt: now.addingTimeInterval(-3500),
+                      answer: .somewhereGood, cycle: 0)
+        let back = AttentionProbeSchedule.slots(ledger: ledger, startingAt: calendar.startOfDay(for: now), now: now, calendar: calendar)
+        XCTAssertTrue(Dictionary(grouping: back, by: \.dayID).values.contains { $0.count == 2 }, "one answer brings both back")
+    }
+
+    /// bj, 2026-11-07: somewhere good counts for the reader. Only Grey goes to
+    /// the Curse, and silence goes to nobody.
+    func testTheDaysScoreGivesSomewhereGoodAndASentenceToTheReader() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let morning = Date(timeIntervalSince1970: 1_783_500_000)
+        var ledger = AttentionProbeLedger.empty
+        for (index, answer) in [AttentionProbeAnswer.here, .somewhereGood, .noted, .elsewhere].enumerated() {
+            ledger.record(id: "k\(index)", scheduledAt: morning, answeredAt: morning.addingTimeInterval(Double(index) * 60),
+                          answer: answer, cycle: 0, sentence: answer == .noted ? "  On the bus, counting hats.  " : nil)
+        }
+        let score = ledger.score(on: morning, calendar: calendar)
+        XCTAssertEqual(score.reader, 3)
+        XCTAssertEqual(score.curse, 1)
+        XCTAssertEqual(ledger.receipts.first { $0.answer == .noted }?.sentence, "On the bus, counting hats.")
+        XCTAssertEqual(ledger.score(on: morning.addingTimeInterval(2 * 86_400), calendar: calendar).reader, 0)
+    }
+
+    /// Every Knock keeps the moment around it, and Knocks saved before the
+    /// three-way answer still open.
+    func testAKnockKeepsItsMomentAndOldKnocksStillOpen() throws {
+        let at = Date(timeIntervalSince1970: 1_783_500_000)
+        var ledger = AttentionProbeLedger.empty
+        let moment = BookPageContextSnapshot(at: at, weatherTags: ["rain"], locationLabel: "Belfast",
+                                             latitude: 54.6, longitude: -5.93, horizontalAccuracyMeters: 1_100)
+        ledger.record(id: "k", scheduledAt: at.addingTimeInterval(-90), answeredAt: at, answer: .elsewhere, cycle: 0, context: moment)
+        let data = try JSONEncoder().encode(ledger)
+        let back = try JSONDecoder().decode(AttentionProbeLedger.self, from: data)
+        XCTAssertEqual(back.receipts.first?.context?.locationLabel, "Belfast")
+        XCTAssertEqual(back.receipts.first?.latency, 90)
+
+        let old = #"{"receipts":[{"id":"o","scheduledAt":0,"answeredAt":10,"answer":"elsewhere","cycle":0}],"currentCycle":0}"#
+        let legacy = try JSONDecoder().decode(AttentionProbeLedger.self, from: Data(old.utf8))
+        XCTAssertEqual(legacy.receipts.first?.answer, .elsewhere)
+        XCTAssertNil(legacy.receipts.first?.sentence)
+        XCTAssertFalse(legacy.receipts.first?.answer.countsForReader ?? true, "an old ELSEWHERE is still the Curse's")
     }
 
     func testCompletedAttentionSeasonsProduceAnAnsweredOnlyComparison() throws {

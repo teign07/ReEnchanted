@@ -437,10 +437,11 @@ public enum SkyField {
         leafArea: Double
     ) -> Int {
         guard reading.condition.marksThePaper else { return 0 }
-        // A phone leaf carries about ten marks in moderate rain, seventeen
-        // in a downpour. Leave room to read between them. Snow keeps its density.
+        // Rain is a patter: every drop is on the paper for a second or two, so
+        // a phone leaf needs around twenty-five in moderate rain (about a dozen
+        // impacts a second) to read as rain at all. Snow keeps its density.
         let isSnow = reading.condition == .snow
-        let density = leafArea / (isSnow ? 3_100 : 6_200)
+        let density = leafArea / (isSnow ? 3_100 : 2_400)
         let scaled = density * (0.25 + reading.intensity * 0.75)
         return min(ceiling, max(isSnow ? 6 : 3, Int(scaled.rounded())))
     }
@@ -475,10 +476,11 @@ public enum SkyField {
             }
 
             // Snow hangs about far longer than rain, and dries — melts, but
-            // the paper is not that literal — more slowly.
+            // the paper is not that literal — more slowly. Rain is quick: a
+            // drop strikes, seeps in, and its damp mark is gone in a breath.
             let period = isSnow
                 ? 14 + unit(3) * 12
-                : 7 + unit(3) * 9
+                : 1.4 + unit(3) * 1.8
 
             return SkySpeck(
                 laneX: unit(1),
@@ -493,10 +495,13 @@ public enum SkyField {
 
     /// Where a speck is at time `t`.
     ///
-    /// Rain lands, beads briefly, then soaks into the fibres and dries. Snow
-    /// keeps its slower arrival and rest. Every phase is a straight function
-    /// of the cycle position, so this is a few
-    /// arithmetic operations and no branching on stored state.
+    /// Rain strikes, seeps into the fibres within a fraction of a second, and
+    /// the damp mark it leaves dries over the next second or so. Each cycle a
+    /// rain speck strikes somewhere new, so the field is a patter across the
+    /// whole leaf rather than a grid of spots blinking in place. Snow keeps its
+    /// slower arrival and rest, in one place. Every phase is a straight
+    /// function of the cycle position, so this is a few arithmetic operations
+    /// and no branching on stored state.
     public static func frame(
         for speck: SkySpeck,
         condition: SkyCondition,
@@ -505,13 +510,31 @@ public enum SkyField {
     ) -> SkySpeckFrame {
         let isSnow = condition == .snow
 
-        // Cycle position, 0...1.
-        var u = (time / speck.period + speck.offset).truncatingRemainder(dividingBy: 1)
-        if u < 0 { u += 1 }
+        // Cycle position, 0...1, and which cycle this is.
+        let phase = time / speck.period + speck.offset
+        let cycle = phase.rounded(.down)
+        let u = phase - cycle
+
+        // Rain lands somewhere new on every cycle. Two irrational steps walk
+        // the impact point across the leaf without ever settling into a grid;
+        // the first cycle lands exactly at the speck's own lane and rest.
+        let landingX: Double
+        let landingY: Double
+        if isSnow {
+            landingX = speck.laneX
+            landingY = speck.restY
+        } else {
+            let walkX = speck.laneX + cycle * 0.618_033_988
+            let walkY = speck.restY + cycle * 0.414_213_562
+            landingX = walkX - walkX.rounded(.down)
+            landingY = walkY - walkY.rounded(.down)
+        }
 
         // Snow takes longer to come down and sits far longer once it has.
-        let arriveEnd = isSnow ? 0.22 : 0.025
-        let dryStart = isSnow ? 0.84 : 0.24
+        // Rain strikes in a few hundredths of its cycle and has seeped in by
+        // `dryStart` — well under half a second for every drop.
+        let arriveEnd = isSnow ? 0.22 : 0.012
+        let dryStart = isSnow ? 0.84 : 0.14
 
         let arrival = u < arriveEnd ? u / arriveEnd : 1
 
@@ -520,7 +543,7 @@ public enum SkyField {
         // that streaked the whole height of the page would be drawing rain in
         // the room instead — and the room is deliberately a still stage.
         let approach = isSnow ? 0.20 : 0.012
-        let y = speck.restY - approach * (1 - arrival)
+        let y = landingY - approach * (1 - arrival)
 
         // Water spreads through the paper, never down its face. Smooth the
         // handoff so the bead melts into the growing damp patch.
@@ -531,7 +554,7 @@ public enum SkyField {
         // lands. Snow, being slower and lighter, is pushed much further.
         let sway = isSnow ? 0.16 : 0.008
         let gust = sin(time * 0.8 + speck.offset * 6.28) * 0.5 + 0.5
-        let x = speck.laneX + wind * sway * (1 - arrival) * (0.4 + gust * 0.6)
+        let x = landingX + wind * sway * (1 - arrival) * (0.4 + gust * 0.6)
 
         // Rain loses its bead during absorption; snow keeps its longer rest.
         let beadAlpha: Double
@@ -557,8 +580,9 @@ public enum SkyField {
             let sit = (u - arriveEnd) / max(0.0001, dryStart - arriveEnd)
             dampAlpha = isSnow ? 0.55 + sit * 0.45 : 0.18 + absorption * 0.82
         } else {
-            // Rain leaves a short dry interval before the next impact.
-            let dryEnd = isSnow ? 1.0 : 0.88
+            // Rain's mark dries fast and leaves a dry gap before the next
+            // impact, so the leaf shows strikes rather than standing spots.
+            let dryEnd = isSnow ? 1.0 : 0.62
             let dry = min(1, (u - dryStart) / (dryEnd - dryStart))
             dampAlpha = max(0, 1 - dry) * (isSnow ? 1 : 1 - dry)
         }

@@ -247,7 +247,12 @@ enum VignettePlanBuilder {
         "momort": "he",
         "villanelle": "she",
         "dr-vellum": "she",
-        "euphony": "she"
+        "euphony": "she",
+        // bj, 2026-11-06.
+        "dr-inkrest": "she",
+        "serenity-brown": "she",
+        "finn-bridges": "he",
+        "wicker-eddies": "he"
     ]
 
     private static func speaker(_ entity: NarrativeWorldEntity, habitSeed: Int) -> VignetteSpeaker {
@@ -1041,6 +1046,69 @@ enum VignetteTellingCheck {
             }
         }
         return paragraphs.joined(separator: "\n\n")
+    }
+
+    /// The reader's kept words belong to the reader. Lab (2026-11-06): even
+    /// with them handed over as "in your own handwriting", Gemma had Dr.
+    /// Inkrest say "Mara didn't text back..." as her own line in 3 of 4
+    /// remembered recipes. So a spoken repeat is dropped when the words also
+    /// appear on the page; when they only appear spoken, the first one is
+    /// turned back into the page.
+    static func cleaned(_ scene: String, keptWords: String?) -> String {
+        let scene = cleaned(scene)
+        guard let kept = keptWords, let key = keptKey(kept) else { return scene }
+        // A quote the splitter cut at its own full stops is put back together,
+        // so a dropped line can't leave "I kept checking the stairwell..."
+        // hanging on its own.
+        var paragraphs = scene.components(separatedBy: "\n\n").map { quotesRejoined(sentences(in: $0)) }
+        let carries = { (sentence: String) in normalized(sentence).contains(key) }
+        let spoken = { (sentence: String) in
+            sentence.range(of: #"\b(says|said|speaks|asks|whispers|reads|murmurs|repeats)\b"#, options: .regularExpression) != nil
+        }
+        let onThePage = paragraphs.joined().contains { carries($0) && !spoken($0) }
+        var turned = onThePage
+        for p in paragraphs.indices {
+            paragraphs[p] = paragraphs[p].compactMap { sentence in
+                guard carries(sentence), spoken(sentence) else { return sentence }
+                if turned { return nil }
+                turned = true
+                return "Your words are on the page, in your own handwriting: “\(kept)”"
+            }
+        }
+        return paragraphs.map { $0.joined(separator: " ") }
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .joined(separator: "\n\n")
+    }
+
+    /// The first sentence of the kept words, so a match never spans a full
+    /// stop the sentence splitter might cut at.
+    private static func keptKey(_ kept: String) -> String? {
+        let first = normalized(kept).components(separatedBy: ". ").first ?? ""
+        let key = String(first.prefix(28))
+        return key.count >= 12 ? key : nil
+    }
+
+    private static func quotesRejoined(_ parts: [String]) -> [String] {
+        var out: [String] = []
+        var open = false
+        for part in parts {
+            if open, let last = out.popLast() {
+                out.append(last + " " + part)
+            } else {
+                out.append(part)
+            }
+            let opens = part.filter { $0 == "“" }.count
+            let closes = part.filter { $0 == "”" }.count
+            if opens > closes { open = true } else if closes > opens { open = false }
+        }
+        return out
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: "’", with: "'")
+            .replacingOccurrences(of: "‘", with: "'")
+            .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     static func inventsReaderAct(_ text: String) -> Bool {

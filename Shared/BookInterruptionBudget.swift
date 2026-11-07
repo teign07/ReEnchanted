@@ -46,11 +46,16 @@ enum BookInterruptionBudget {
         case .morning: allowed = [.morning]
         case .evening: allowed = [.evening]
         }
+        // Where-Were-You Knocks have their own lane (docs/the-knock-plan.md):
+        // their schedule already caps them at two a day, and they must never
+        // take the morning or evening seat from the Book's other Knocks.
+        let knocks = candidates.filter { $0.kind == .attention }
         let eligible = candidates.filter {
-            ($0.kind == .attention || allowed.contains($0.window))
+            $0.kind != .attention
+                && allowed.contains($0.window)
                 && !consumed.contains("\($0.dayID)|\($0.window.rawValue)")
         }
-        let winners = Dictionary(grouping: eligible, by: { "\($0.dayID)|\($0.window.rawValue)" })
+        let seated = Dictionary(grouping: eligible, by: { "\($0.dayID)|\($0.window.rawValue)" })
             .values.compactMap { $0.sorted { a, b in
                 if a.isSpecific != b.isSpecific { return a.isSpecific && !b.isSpecific }
                 if a.priority != b.priority { return a.priority > b.priority }
@@ -61,7 +66,7 @@ enum BookInterruptionBudget {
                 default: break
                 }
                 return a.id < b.id
-            }.first }.sorted { $0.id < $1.id }
-        return BookInterruptionPlan(winners: winners)
+            }.first }
+        return BookInterruptionPlan(winners: (seated + knocks).sorted { $0.id < $1.id })
     }
 }

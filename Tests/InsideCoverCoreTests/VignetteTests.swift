@@ -245,3 +245,29 @@ extension VignetteTests {
         throw XCTSkip("no remembered recipe seated on this day")
     }
 }
+
+extension VignetteTests {
+    private var mara: String { "Mara didn't text back. I kept checking the stairwell for the sound of her keys." }
+
+    func testASpokenRepeatOfKeptWordsIsDroppedWhenThePageCarriesThem() {
+        let scene = "Ambrose sets the page down. Dr. Inkrest says, “\(mara)” Your words are written there, in your own handwriting: “\(mara)”\n\nThe lamp is turned up."
+        let cleaned = VignetteTellingCheck.cleaned(scene, keptWords: mara)
+        XCTAssertFalse(cleaned.contains("Inkrest says"), cleaned)
+        XCTAssertTrue(cleaned.contains("in your own handwriting: “\(mara)”"), cleaned)
+        XCTAssertTrue(cleaned.contains("Ambrose sets the page down."))
+        XCTAssertTrue(cleaned.contains("The lamp is turned up."))
+    }
+
+    func testKeptWordsSaidOnlyAloudGoBackOnThePage() {
+        let scene = "Permancer finds something. He says, “\(mara)” The lamp waits."
+        let cleaned = VignetteTellingCheck.cleaned(scene, keptWords: mara)
+        XCTAssertFalse(cleaned.contains("He says"), cleaned)
+        XCTAssertTrue(cleaned.contains("Your words are on the page, in your own handwriting: “\(mara)”"), cleaned)
+        XCTAssertTrue(cleaned.contains("The lamp waits."))
+    }
+
+    func testNoKeptWordsLeavesTheSceneAlone() {
+        let scene = "Finn says, “The bell is wrong.” The bell rings."
+        XCTAssertEqual(VignetteTellingCheck.cleaned(scene, keptWords: nil), scene)
+    }
+}

@@ -267,4 +267,40 @@ final class MarkShelfTests: XCTestCase {
             "These marks ship but no shelf shows them."
         )
     }
+
+    // MARK: - Written marginalia stays reachable too
+
+    func testEveryCoreWrittenNoteHasAReachableShelfUnderTheCeiling() {
+        let expected = Set(IlluminationMarginaliaLibrary.snippets.map(\.catalogueKey))
+        var reached: Set<String> = []
+        for shelf in IlluminationMarginaliaLibrary.writtenShelves {
+            XCTAssertTrue(MarkShelf.displayOrder.contains(shelf))
+            let notes = IlluminationMarginaliaLibrary.browsableSnippets(on: shelf)
+            reached.formUnion(notes.map(\.catalogueKey))
+            let images = IlluminationPackRegistry.marks(on: shelf)
+            XCTAssertLessThanOrEqual(notes.count + images.count, shelfCeiling, shelf.title)
+        }
+        XCTAssertGreaterThan(expected.count, 80, "Exercise the old cutoff with a real catalogue")
+        XCTAssertTrue(expected.isSubset(of: reached), "Some written marginalia cannot be placed by hand")
+    }
+
+    func testWrittenMarkSearchReadsTheWordsBeyondAnOldPreviewLimit() throws {
+        let hits = IlluminationMarginaliaLibrary.browsableSnippets(matching: "  CONFLICTING ACCOUNTS  ")
+        XCTAssertTrue(hits.contains { $0.id == "acorn-accounts" })
+        let lore = IlluminationMarginaliaLibrary.browsableSnippets(matching: "Permancer")
+        let permancer = try XCTUnwrap(lore.first { $0.id == "permancer-bookmark-return" })
+        XCTAssertEqual(IlluminationMarginaliaLibrary.shelf(for: permancer), .academyNotes)
+    }
+
+    func testOlderWrittenMarksDecodeWithoutAnAuthoredShelf() throws {
+        let json = """
+        {"id":"older-note","text":"The ink moved.","tags":["ink"],"packID":"older-pack","weight":1}
+        """
+        let note = try JSONDecoder().decode(IlluminationMarginaliaSnippet.self, from: Data(json.utf8))
+        XCTAssertEqual(note.text, "The ink moved.")
+        XCTAssertNil(note.shelf)
+        XCTAssertEqual(IlluminationMarginaliaLibrary.shelf(for: note), .bookNotes)
+        XCTAssertEqual(note.catalogueKey, "older-pack|older-note")
+    }
+
 }

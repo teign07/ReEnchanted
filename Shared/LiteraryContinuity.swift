@@ -1744,21 +1744,21 @@ enum BookMaterialMark: String, Equatable {
     var explanation: String {
         switch self {
         case .greyScar:
-            return "A pale edge means I started going boring on you. Routine gets into books too. I'm fighting it. Watch me."
+            return "My edge has gone pale. That's me starting to go boring. Routine gets into books too, and I'm fighting it."
         case .sealedLeaf:
-            return "A sealed leaf means I've a secret of my own ready to open."
+            return "One of my leaves is sealed shut. There's a secret of mine inside, and it's ready."
         case .dogEar:
-            return "A dog-ear means I've picked a favourite Page, and I'll fight you about it."
+            return "I've folded the corner down on my favourite Page. I'll fight you about it."
         case .keepingWatch:
-            return "A ribbon left standing means I'm keeping an unfinished promise."
+            return "My ribbon's standing up. It's guarding an unfinished promise, and it won't lie down till it's kept."
         case .revision:
-            return "Ink smudged across my cover means I was too certain and I'm revising myself."
+            return "There's smudged ink on my cover. I was too sure about something, and my paper's drinking it back."
         case .mischief:
-            return "A crooked mark means my ribbon, Index, or ink has started something. I haven't caught the culprit. I have suspects."
+            return "There's a crooked mark on me and I didn't make it. It was my ribbon, my Index or my ink. I'm watching all three."
         case .longGame:
-            return "A map-ribbon means one of my big plans moved a step. I'll tell you when I'm allowed."
+            return "My map-ribbon's moved. One of my big plans took a step. I'm not telling you which yet."
         case .unmarked:
-            return "A quiet cover means I've no loose business showing. It doesn't mean I'm asleep."
+            return "Nothing's showing on my cover today. I'm still wide awake in here."
         }
     }
 

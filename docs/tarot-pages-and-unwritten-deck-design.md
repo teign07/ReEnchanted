@@ -11,6 +11,18 @@
 The art bible below supplies the card subjects; the current app already has
 the reading system and uses Serenity Brown. The new work extends that system.
 
+**Handling update, November 6, 2026:** the existing Tarot Page now has a
+working fanned deck (tap or drag to shuffle its actual draw order), staggered
+dealing/gathering, and a two-sided card turn with a liftable corner. Shuffling
+and writing are optional. Images appear before the traditional meaning and
+local interpretation, which open under “Read the card.” The reader's first
+look comes before Serenity's optional reading; saved reader notes remain
+visible when a kept reading reopens. Existing card art, saved artifacts,
+full-screen inspection, archive-consent choices, and encounter receipts keep
+their established paths. Reduced Motion uses immediate dealing and reveals.
+Swift syntax/source checks passed; the app was not built or run for this update.
+Native motion, gesture, VoiceOver, and folio reflow review remain outstanding.
+
 ---
 
 ## 1. The decision in one page
@@ -20,7 +32,7 @@ reader's three-slot desk. It does not arrive with a card already chosen. It
 arrives as a small, unopened deck and lets the reader choose:
 
 - **One card — A Page for Now**
-- **Three cards — Root / Weather / Door**
+- **Three cards — What’s Here / What’s Hiding / What’s Possible**
 
 The deck itself is a complete, 78-card Rider–Waite–Smith-compatible tarot deck,
 not a tarot-like oracle deck. It retains the traditional names, suits, numbering,
@@ -387,15 +399,18 @@ Interpretation sequence:
 5. Optional: “Let Aurora read beside me.”
 6. “What will you keep from this?”
 
-### 7.4 Three cards: Root / Weather / Door
+### 7.4 Three cards: What’s Here / What’s Hiding / What’s Possible
 
-This should be the only three-card spread in version one.
+This is the three-card spread offered for new readings. It moves through
+recognition, discovery, and possibility. Playful questions need no invented
+problem. Previously kept Root / Weather / Door readings retain their original
+positions, names, and stored interpretations.
 
 | Position | Reader-facing question | Interpretive boundary |
 |---|---|---|
-| **Root** | What is underneath this? | context, inheritance, assumption, source—not a deterministic past |
-| **Weather** | What is moving through now? | present condition, tension, or atmosphere—not identity |
-| **Door** | Where does agency live? | opening, choice, experiment, or next honest question—not a command |
+| **What’s Here** | What have you brought to the table? | Recognize the situation, feeling, or desire already present. |
+| **What’s Hiding** | What deserves another look? | Explore an overlooked detail, contradiction, appetite, or unexpected ally; never claim secret knowledge. |
+| **What’s Possible** | What could you make room for? | Offer a choice, experiment, pleasure, or different way of seeing; no prediction or command. |
 
 This spread is distinctly ReEnchanted without renaming tarot cards. It also
 prevents the familiar Past / Present / Future spread from implying prediction.
@@ -1199,7 +1214,7 @@ Whole-deck review:
 ### Phase 0 — Lock the bible
 
 - Approve product name and in-world name.
-- Approve Root / Weather / Door.
+- Approve What’s Here / What’s Hiding / What’s Possible.
 - Approve reversals-off default.
 - Select one verified public-domain RWS reference set.
 - Choose eventual physical trim size before final crops.

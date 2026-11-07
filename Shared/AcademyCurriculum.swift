@@ -154,7 +154,7 @@ enum AcademyCurriculum {
             reading: northReading,
             practice: glintPractice(
                 "three-kept", title: "Three Kept Things",
-                invitation: "Boggle's teaching your brain what to keep. Write down three things that went well today. Little ones count. Give each one a detail you could draw.",
+                invitation: "Boggle's teaching your brain what to keep. Write one sentence about something that went well today, with a detail you could draw. Little ones count.",
                 action: "Hand in the three",
                 [("first", "First thing", "What went well, and one detail"),
                  ("second", "Second thing", "Smaller is fine"),
@@ -266,7 +266,7 @@ enum AcademyCurriculum {
             reading: northReading,
             practice: glintPractice(
                 "tug", title: "Feel for the Tug",
-                invitation: "Boggle wants your body's vote counted. Write down a Should you felt today, a Tug you felt, and which one you followed.",
+                invitation: "Boggle wants your body's vote counted. Write one sentence: the Should you felt today, the Tug, and which one you followed.",
                 action: "Count the vote",
                 [("should", "A Should", "Something that felt heavy"),
                  ("tug", "A Tug", "Something that made you lean in, even a bit"),
@@ -378,7 +378,7 @@ enum AcademyCurriculum {
             reading: northReading,
             practice: glintPractice(
                 "shadow-spark", title: "A Shadow Spark",
-                invitation: "Boggle says broken things count too. Find one worn-out or fading thing. Write what it is, what you asked it, and your best guess at the answer.",
+                invitation: "Boggle says broken things count too. Find one worn-out or fading thing. Write one sentence: what you asked it, and your best guess at the answer.",
                 action: "Bring back the shadow",
                 [("thing", "The worn-out thing", "Rust, a crack, peeling paint, a shut shop"),
                  ("question", "What you asked it", "I wonder…"),
@@ -593,7 +593,7 @@ enum AcademyCurriculum {
             reading: eastReading,
             practice: wayPractice(
                 "bag", title: "Pack the Bag",
-                invitation: "Momort wants a bag by your door. Write what goes in it: one thing that keeps you out longer, one treat, and one thing for noticing.",
+                invitation: "Momort wants a bag by your door. Write one sentence about the thing in it that'll keep you out longer.",
                 action: "Hang it by the door",
                 [("keeps", "Something that keeps you out", "Warm, dry, charged"),
                  ("treat", "The treat", "Only for going out"),
@@ -649,7 +649,7 @@ enum AcademyCurriculum {
             reading: "Joseph Campbell, The Hero with a Thousand Faces (1949)",
             practice: wayPractice(
                 "line", title: "Cross the Line",
-                invitation: "Momort wants you to feel the line. Next time you leave the house on purpose, stop on the step for three seconds. Write what was on each side.",
+                invitation: "Momort wants you to feel the line. Next time you leave the house on purpose, stop on the step for three seconds. Write one sentence about what was on each side.",
                 action: "Report from the step",
                 [("behind", "What was behind you", "The inside: the smell, the sound"),
                  ("ahead", "What was in front of you", "The outside: the air, the noise"),
@@ -677,7 +677,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 15: The Adventure of Failing",
             practice: wayPractice(
                 "flop", title: "The Thing That Went Wrong",
-                invitation: "Momort loves a plan that falls apart. Write about one that did: what you planned, what went wrong, and what you did instead.",
+                invitation: "Momort loves a plan that falls apart. Write one sentence about one that did, and what you did instead.",
                 action: "Tell Momort",
                 [("planned", "What you planned", "The trip, the visit, the treat"),
                  ("wrong", "What went wrong", "Shut, rained off, not as good as the pictures"),
@@ -761,7 +761,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 15: The Adventure of Failing",
             practice: wayPractice(
                 "count-up", title: "Count Your Trips",
-                invitation: "Momort wants the year counted. Write down a trip you took this year, the one you'd tell somebody about, and why that one.",
+                invitation: "Momort wants the year counted. Write one sentence about the trip you'd tell somebody about.",
                 action: "Stick on the star",
                 [("trip", "A trip from this year", "Even one that only got as far as the door"),
                  ("star", "The one you'd tell", "The one with the star"),
@@ -826,7 +826,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "hands", title: "Feed Your Hands",
-                invitation: "Euphony says your hands are starving. Find three things that feel different, and write down how each one felt.",
+                invitation: "Euphony says your hands are starving. Find three things that feel different. Write one sentence about the one that felt strangest.",
                 action: "Let your hands report",
                 [("rough", "Something rough", "Bark, brick, a doormat"),
                  ("smooth", "Something smooth", "A pebble, a mug, a window"),
@@ -854,7 +854,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "one-sound", title: "Turn One Sound Up",
-                invitation: "Euphony wants your ears working. Close your eyes somewhere ordinary and listen. Write the loudest sound, the quietest, and the one you'd never noticed.",
+                invitation: "Euphony wants your ears working. Close your eyes somewhere ordinary and listen. Write one sentence about the sound you'd never noticed.",
                 action: "Report what you heard",
                 [("loudest", "The loudest sound", "The one you can't miss"),
                  ("quietest", "The quietest sound", "The one underneath everything"),
@@ -882,7 +882,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "cold", title: "Hot and Cold",
-                invitation: "Euphony wants your skin listening. Touch five different things in your house. Write which felt coldest, which felt warmest, and which surprised you.",
+                invitation: "Euphony wants your skin listening. Touch five different things in your house. Write one sentence about the one that surprised you.",
                 action: "Report the temperatures",
                 [("coldest", "The coldest", "And what it's made of"),
                  ("warmest", "The warmest", "And what it's made of"),
@@ -910,7 +910,7 @@ enum AcademyCurriculum {
             reading: "Marcel Proust, Swann's Way (1913)",
             practice: resonancePractice(
                 "cake", title: "What It Brings Back",
-                invitation: "Euphony wants to know where your nose takes you. Smell one thing on purpose. Write what it was, what it brought back, and how old you were there.",
+                invitation: "Euphony wants to know where your nose takes you. Smell one thing on purpose. Write one sentence about what it brought back.",
                 action: "Tell her where it took you",
                 [("smell", "What you smelled", "Coffee, soap, an old book"),
                  ("back", "What it brought back", "A room, a person, a day"),
@@ -938,7 +938,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "ant", title: "Ant Height",
-                invitation: "Euphony wants you very close to something small. Get your eye three inches away. Write what it was, and three things you found there.",
+                invitation: "Euphony wants you very close to something small. Get your eye three inches away. Write one sentence about what you found there.",
                 action: "Report from down there",
                 [("what", "What you looked at", "Moss, bark, a crack, a crumb"),
                  ("found", "Three things you found", "Things you couldn't see standing up"),
@@ -994,7 +994,7 @@ enum AcademyCurriculum {
             reading: "Wassily Kandinsky, Concerning the Spiritual in Art (1911)",
             practice: resonancePractice(
                 "colours", title: "Hear a Colour",
-                invitation: "Euphony wants you to play at mixing your senses. Pick a sound. Write what it really is, what colour it is, and what it would taste like.",
+                invitation: "Euphony wants you to play at mixing your senses. Pick a sound. Write one sentence saying what colour it is.",
                 action: "Play it back to her",
                 [("sound", "The real sound", "A kettle, a door, a bird"),
                  ("colour", "Its colour", "Whatever comes first"),
@@ -1022,7 +1022,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "uncool", title: "Be Uncool",
-                invitation: "Euphony says nobody's looking. Do one thing you'd usually be too embarrassed to do. Write what it was, who saw, and what you found.",
+                invitation: "Euphony says nobody's looking. Do one thing you'd usually be too embarrassed to do. Write one sentence about what you found.",
                 action: "Own up",
                 [("did", "What you did", "Crouched, touched, sniffed, stared"),
                  ("saw", "Who saw", "Probably nobody"),
@@ -1050,7 +1050,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "taste", title: "Three Tastes",
-                invitation: "Euphony wants one mouthful taken slowly. Write what you ate, the three tastes you found, and which one surprised you.",
+                invitation: "Euphony wants one mouthful taken slowly. Write one sentence about the taste that surprised you.",
                 action: "Report the tasting",
                 [("food", "What you ate", "One thing, one mouthful"),
                  ("tastes", "The three tastes", "Sweet, sour, salty, bitter, something else"),
@@ -1078,7 +1078,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "song", title: "The Song From That Summer",
-                invitation: "Euphony wants you to play an old song on purpose. Write which song it was, which year it belongs to, and what came back with it.",
+                invitation: "Euphony wants you to play an old song on purpose. Write one sentence about what came back with it.",
                 action: "Tell her what came back",
                 [("song", "The song", "The one that belongs to one year"),
                  ("year", "Which year", "And where you were"),
@@ -1106,7 +1106,7 @@ enum AcademyCurriculum {
             reading: southReading,
             practice: resonancePractice(
                 "last-light", title: "The Last Light",
-                invitation: "Euphony's last lesson of the year: watch one sunset all the way down. Write one sound, one colour, and one thing you felt.",
+                invitation: "Euphony's last lesson of the year: watch one sunset all the way down. Write one sentence with one sound and one colour in it.",
                 action: "Report the last light",
                 [("sound", "One sound", "What you heard as it went"),
                  ("colour", "One colour", "The last one before dark"),
@@ -1225,7 +1225,7 @@ enum AcademyCurriculum {
             reading: westReading,
             practice: inkPractice(
                 "wires", title: "Cross the Wires",
-                invitation: "Villanelle wants your senses mixed up. Write one plain sentence about a moment, then cross the wires: describe one sense with another.",
+                invitation: "Villanelle wants your senses mixed up. Write one sentence about a moment, with one sense described by another.",
                 action: "Hand in the crossed one",
                 [("plain", "The plain sentence", "What happened, said simply"),
                  ("crossed", "The crossed one", "The fire sounded orange…")]
@@ -1360,7 +1360,7 @@ enum AcademyCurriculum {
             reading: westReading,
             practice: inkPractice(
                 "said", title: "The Sentence That Stayed",
-                invitation: "Villanelle wants the sentences you've carried. Write one somebody said to you, who said it, and where you were.",
+                invitation: "Villanelle wants the sentences you've carried. Write down one somebody said to you, and who.",
                 action: "Bind it at last",
                 [("said", "What they said", "As exactly as you remember it"),
                  ("who", "Who said it", "A name, or just who they were"),
@@ -1415,7 +1415,7 @@ enum AcademyCurriculum {
             reading: westReading,
             practice: inkPractice(
                 "unsent", title: "The Message You Didn't Send",
-                invitation: "Villanelle wants it finished. Write the message you never sent, short, then decide what to do with it.",
+                invitation: "Villanelle wants it finished. Write the message you never sent, in one sentence, then decide what to do with it.",
                 action: "Finish it",
                 [("who", "Who it's for", "Just a name, or who they are"),
                  ("message", "The message", "Short, and all the way to the end"),
@@ -1778,7 +1778,7 @@ enum AcademyCurriculum {
             reading: centerReading,
             practice: quietPractice(
                 "bench", title: "The Last Bench",
-                invitation: "Stonebrook's last lesson of the year: sit on a bench for ten minutes and let the year settle. Write where you sat, and what came and sat with you.",
+                invitation: "Stonebrook's last lesson of the year: sit on a bench for ten minutes and let the year settle. Write one sentence about what came and sat with you.",
                 action: "Go home",
                 [("where", "Where you sat", "A bench with a view of something ordinary"),
                  ("came", "What came and sat with you", "From this year")]
@@ -1851,7 +1851,7 @@ enum AcademyCurriculum {
             reading: "Fritz Heider and Marianne Simmel, \"An Experimental Study of Apparent Behavior\" (1944)",
             practice: spellPractice(
                 "triangles", title: "Who's Who",
-                invitation: "Wispwood says you already do this. Write down a thing you talk to as if it's a person, what you say to it, and what kind of character it is.",
+                invitation: "Wispwood says you already do this. Write one sentence about a thing you talk to as if it's a person, and what you say to it.",
                 action: "Introduce them",
                 [("thing", "The thing", "The printer, the car, the kettle"),
                  ("say", "What you say to it", "Out loud or in your head"),
@@ -1906,7 +1906,7 @@ enum AcademyCurriculum {
             reading: "Matsuo Bashō, the old pond (1686)",
             practice: spellPractice(
                 "haiku", title: "Three Quiet Lines",
-                invitation: "Wispwood wants one small moment in three short lines: something still, something moving, and something you can sense.",
+                invitation: "Wispwood wants one small moment caught in one sentence: something still, and something moving.",
                 action: "Say it quietly",
                 [("still", "Something still", "The first line"),
                  ("moving", "Something moving", "The second line"),
@@ -1962,7 +1962,7 @@ enum AcademyCurriculum {
             reading: "The Exeter Book riddles (about a thousand years old)",
             practice: spellPractice(
                 "riddle", title: "Make a Riddle",
-                invitation: "Wispwood wants an object to describe itself sideways. Write a riddle, its answer, and whether anybody guessed.",
+                invitation: "Wispwood wants an object to describe itself sideways. Write it as a one-sentence riddle.",
                 action: "Ask the riddle",
                 [("riddle", "The riddle", "Only true things, from a strange angle"),
                  ("answer", "The answer", "What it really is"),
@@ -2046,7 +2046,7 @@ enum AcademyCurriculum {
             reading: charactersReading,
             practice: spellPractice(
                 "roast", title: "A Friendly Roast",
-                invitation: "Wispwood's learned her lesson. Roast one object of your own, kindly. Write what it is, its weak spot, and your roast.",
+                invitation: "Wispwood's learned her lesson. Roast one object of your own, kindly. Write the roast in one sentence.",
                 action: "Roast it kindly",
                 [("thing", "The thing", "Your own, not somebody else's"),
                  ("weak", "Its weak spot", "What it always gets wrong"),
@@ -2074,7 +2074,7 @@ enum AcademyCurriculum {
             reading: charactersReading,
             practice: spellPractice(
                 "thanks", title: "Everything's Nice",
-                invitation: "Wispwood wants something thanked. Write what you thanked, what you said, and who you said something nice to afterwards.",
+                invitation: "Wispwood wants something thanked. Write one sentence: what you thanked, and what you said.",
                 action: "Say thank you",
                 [("thing", "What you thanked", "The kettle, your shoes, the door"),
                  ("said", "What you said", "Nice, and true"),
@@ -2102,7 +2102,7 @@ enum AcademyCurriculum {
             reading: charactersReading,
             practice: spellPractice(
                 "salt", title: "The Hidden Wonder",
-                invitation: "Wispwood wants the wonder hiding in a plain thing. Write the thing, the true fact you found, and who you told.",
+                invitation: "Wispwood wants the wonder hiding in a plain thing. Write one sentence with the thing and the true fact you found.",
                 action: "Tell somebody",
                 [("thing", "The thing", "Salt, glass, a leaf, your own hand"),
                  ("fact", "The amazing fact", "True, and checked"),
@@ -2195,7 +2195,7 @@ enum AcademyCurriculum {
             reading: "Melanie Green and Timothy Brock, on being carried away by stories (2000)",
             practice: jumpPractice(
                 "carried", title: "Where Did You Go?",
-                invitation: "Permancer wants to know where you went. Write what carried you away, where it took you, and what was different when you came back.",
+                invitation: "Permancer wants to know where you went. Write one sentence about what was different when you came back.",
                 action: "Report from the landing",
                 [("story", "The story", "A book, a film, a song"),
                  ("where", "Where it took you", "In your head"),
@@ -2251,7 +2251,7 @@ enum AcademyCurriculum {
             reading: "Samuel Taylor Coleridge, Biographia Literaria (1817)",
             practice: jumpPractice(
                 "believe", title: "Believe It on Purpose",
-                invitation: "Permancer wants you to believe on purpose, then come back. Write what you chose to believe, how it felt, and the moment you stopped.",
+                invitation: "Permancer wants you to believe on purpose, then come back. Write one sentence about the moment you stopped.",
                 action: "Come back out",
                 [("what", "What you believed", "The dragon, the ghost, the door"),
                  ("felt", "How it felt", "While you believed it"),
@@ -2307,7 +2307,7 @@ enum AcademyCurriculum {
             reading: "The ballad of Thomas the Rhymer; the myth of Persephone",
             practice: jumpPractice(
                 "fairy-food", title: "What Wants to Keep You",
-                invitation: "Permancer says some worlds want to keep you. Write one that's hard to come back from, what it keeps, and your bookmark for next time.",
+                invitation: "Permancer says some worlds want to keep you. Write one sentence about one that's hard to come back from.",
                 action: "Set the bookmark",
                 [("world", "What's hard to come back from", "A game, a show, a book"),
                  ("keeps", "What it keeps", "Your time, your sleep, your evening"),
@@ -2335,7 +2335,7 @@ enum AcademyCurriculum {
             reading: "Vladimir Nabokov, Lectures on Literature",
             practice: jumpPractice(
                 "reread", title: "Go Back In",
-                invitation: "Permancer wants you back inside a story you loved. Write which one, what you noticed this time, and what that says about you now.",
+                invitation: "Permancer wants you back inside a story you loved. Write one sentence about what you noticed this time.",
                 action: "Report the second visit",
                 [("story", "The story", "One you loved years ago"),
                  ("noticed", "What you noticed this time", "The thing you missed before"),
@@ -2391,7 +2391,7 @@ enum AcademyCurriculum {
             reading: fairyStories,
             practice: jumpPractice(
                 "landing", title: "Land Properly",
-                invitation: "Permancer doesn't want another pirate week. Write where you went, when you came back, and the ordinary thing you did to land.",
+                invitation: "Permancer doesn't want another pirate week. Write one sentence about the ordinary thing you did to land.",
                 action: "Put the kettle on",
                 [("where", "Where you went", "The book, film or game"),
                  ("when", "When you came back", "Check the clock"),
@@ -2475,7 +2475,7 @@ enum AcademyCurriculum {
             reading: "Italo Calvino, If on a Winter's Night a Traveller (1979)",
             practice: jumpPractice(
                 "doors", title: "Count Your Stories",
-                invitation: "Permancer's last lesson of the year: count your stories. Write the story that took you furthest, the one hardest to leave, and a kind you'll try next year.",
+                invitation: "Permancer's last lesson of the year: count your stories. Write one sentence about the one that took you furthest.",
                 action: "Mark the map",
                 [("furthest", "Furthest", "The one that took you furthest"),
                  ("hardest", "Hardest to leave", "The one that nearly kept you"),
@@ -2520,7 +2520,7 @@ enum AcademyCurriculum {
             reading: compassReading,
             practice: runPractice(
                 "full", title: "The Full Run",
-                invitation: "Stonebrook wants one whole run, all five stops. Write what you wondered, where you went and when you stopped, and your sentence.",
+                invitation: "Stonebrook wants one whole run, all five stops. Bring back your one sentence.",
                 action: "Come back through the gate",
                 [("north", "North: what you wondered", "I wonder…"),
                  ("east", "East: where you went, and your stop", "How far, how long"),
@@ -2548,7 +2548,7 @@ enum AcademyCurriculum {
             reading: compassReading + "; Chapter 17: Home",
             practice: runPractice(
                 "floor", title: "The Floor Run",
-                invitation: "Stonebrook's run with no shoes: lie down and look at the underneath of everything. Write what you wondered, what you found, and your sentence.",
+                invitation: "Stonebrook's run with no shoes: lie down and look at the underneath of everything. Bring back your one sentence.",
                 action: "Get up off the floor",
                 [("north", "North: what you wondered", "I wonder what my room looks like from down here"),
                  ("south", "South: what you found", "Under the table, under the sofa"),
@@ -2576,7 +2576,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 18: Around Town",
             practice: runPractice(
                 "oldest", title: "The Oldest Thing",
-                invitation: "Stonebrook wants you on your own street. Find the oldest thing on it. Write what it is, what it's lived through, and your sentence.",
+                invitation: "Stonebrook wants you on your own street. Find the oldest thing on it. Write one sentence about what it's lived through.",
                 action: "Say hello and come back",
                 [("what", "What it is", "A tree, a wall, a gatepost"),
                  ("lived", "What it's lived through", "Storms, years, people"),
@@ -2604,7 +2604,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 11A: The $0 Compass",
             practice: runPractice(
                 "free", title: "The Free Run",
-                invitation: "Stonebrook's run costs nothing. Write where you went, the best free thing you found, and your sentence.",
+                invitation: "Stonebrook's run costs nothing. Write one sentence about the best free thing you found.",
                 action: "Come home with your money",
                 [("where", "Where you went", "Somewhere free to go into"),
                  ("best", "The best free thing", "The view, the warmth, the smell"),
@@ -2632,7 +2632,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 11C: The Safe Compass",
             practice: runPractice(
                 "dark", title: "The Dark Run",
-                invitation: "Stonebrook's winter run is short, safe and after dark. Write your safety rules, what you heard, and your sentence.",
+                invitation: "Stonebrook's winter run is short, safe and after dark. Write one sentence about what you heard.",
                 action: "Come in out of the dark",
                 [("rules", "Your safety rules", "Lit streets, how long, who knows"),
                  ("heard", "What you heard", "Feet, windows, wind"),
@@ -2660,7 +2660,7 @@ enum AcademyCurriculum {
             reading: compassReading,
             practice: runPractice(
                 "rain", title: "The Rainy-Day Run",
-                invitation: "Stonebrook won't cancel for rain. Go out in it for ten minutes. Write where the water went, what it sounded like, and your sentence.",
+                invitation: "Stonebrook won't cancel for rain. Go out in it for ten minutes. Write one sentence about where the water went.",
                 action: "Come in and dry off",
                 [("water", "Where the water went", "Follow one stream"),
                  ("sound", "What it sounded like", "On a roof, a leaf, your hood"),
@@ -2688,7 +2688,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: runPractice(
                 "two", title: "The Run for Two",
-                invitation: "Stonebrook's run needs two people. Write who you went with, your sentence, and theirs.",
+                invitation: "Stonebrook's run needs two people. Write one sentence: your line and theirs, side by side.",
                 action: "Swap sentences",
                 [("who", "Who you went with", "A friend, a child, a neighbour"),
                  ("yours", "Your sentence", "What you noticed"),
@@ -2716,7 +2716,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 21: Wonder at Work",
             practice: runPractice(
                 "work", title: "The Ten-Minute Run",
-                invitation: "Stonebrook says ten minutes is enough. Write where you went, what it sounded like, and your sentence.",
+                invitation: "Stonebrook says ten minutes is enough. Write one sentence about what it sounded like.",
                 action: "Back to your desk",
                 [("where", "Where you went", "The stairwell, the far corridor"),
                  ("sound", "What it sounded like", "Echoes, hums, your own breath"),
@@ -2744,7 +2744,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 15: The Adventure of Failing",
             practice: runPractice(
                 "ugly", title: "The Ugly Run",
-                invitation: "Stonebrook has days when nothing sparks too. Find the ugliest or most annoying thing near you. Write what it is, what you noticed, and your sentence.",
+                invitation: "Stonebrook has days when nothing sparks too. Find the ugliest or most annoying thing near you. Write one sentence about what you noticed.",
                 action: "Count it",
                 [("thing", "The ugly thing", "The pothole, the bin, the sign"),
                  ("noticed", "What you noticed", "Up close"),
@@ -2772,7 +2772,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 22: The Four-Hour Vacation",
             practice: runPractice(
                 "four-hours", title: "The Four-Hour Run",
-                invitation: "Stonebrook's long run: one afternoon, planned like a holiday. Write where you went, the small loop inside it, and your sentence.",
+                invitation: "Stonebrook's long run: one afternoon, planned like a holiday. Write one sentence about the small loop inside it.",
                 action: "Come home slowly",
                 [("where", "Where you went", "Somewhere for one afternoon"),
                  ("loop", "The small loop inside", "The bakery, the wall, the bench"),
@@ -2800,7 +2800,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 19: Natural Wonder",
             practice: runPractice(
                 "green", title: "The Green Run",
-                invitation: "Stonebrook's summer run is somewhere green. Write where you went, what you found living there, and your sentence.",
+                invitation: "Stonebrook's summer run is somewhere green. Write one sentence about what you found living there.",
                 action: "Fold up the blanket",
                 [("where", "Where you went", "A park, a wood, a field"),
                  ("living", "What you found living there", "Plants, birds, insects"),
@@ -2828,7 +2828,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Appendix G: Your Adventure Through Wonder",
             practice: runPractice(
                 "again", title: "Run It Again",
-                invitation: "Stonebrook's last run of the year: go back to your first one. Write where it was, what changed in the place, and what changed in you.",
+                invitation: "Stonebrook's last run of the year: go back to your first one. Write one sentence about what changed in you.",
                 action: "Close the gate behind you",
                 [("where", "Where your first run was", "From last September"),
                  ("place", "What changed in the place", "Trees, shops, doors"),
@@ -2889,7 +2889,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: societyPractice(
                 "fine", title: "Instead of Fine",
-                invitation: "Zara's banned \"fine\". Write the sentence you gave instead, who you gave it to, and what they said back.",
+                invitation: "Zara's banned \"fine\". Write the one sentence you gave instead.",
                 action: "Read it to the circle",
                 [
                  ("sentence", "Your sentence", "One small true thing"),
@@ -2919,7 +2919,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "question", title: "One Good Question",
-                invitation: "Zara wants one good question. Write what somebody shared, the question you asked about it, and their answer.",
+                invitation: "Zara wants one good question. Write one sentence: the question you asked, and their answer.",
                 action: "Bring it to the circle",
                 [
                  ("shared", "What they shared", "Their sentence or story"),
@@ -2978,7 +2978,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "twice", title: "Read It Twice",
-                invitation: "Zara's rule: read it twice. Write your sentence, the word you leaned on, and any word you'd cut.",
+                invitation: "Zara's rule: read it twice. Write your sentence, with the word you leaned on underlined.",
                 action: "Read it again",
                 [
                  ("sentence", "Your sentence", "Read out loud twice"),
@@ -3008,7 +3008,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "swap", title: "The Swap",
-                invitation: "Zara wants sentences swapped. Write the sentence you read out, whose it turned out to be, and what you heard in your own when somebody else read it.",
+                invitation: "Zara wants sentences swapped. Write one sentence about what you heard in your own when somebody else read it.",
                 action: "Pass the hat",
                 [
                  ("read", "The sentence you read", "Somebody else's"),
@@ -3038,7 +3038,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "theirs", title: "Somebody Else's Wonder",
-                invitation: "Zara wants somebody else's wonder told well. Write whose it was, what they noticed, and who you told it to.",
+                invitation: "Zara wants somebody else's wonder told well. Write one sentence about what they noticed.",
                 action: "Tell it for them",
                 [
                  ("whose", "Whose it was", "A friend, a parent, a child"),
@@ -3068,7 +3068,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "mended", title: "Mending It",
-                invitation: "Zara's owning up. Write about a time sharing went wrong, what you'd say now, and the question you'd ask.",
+                invitation: "Zara's owning up. Write one sentence about what you'd say now, after a time sharing went wrong.",
                 action: "Mend it",
                 [
                  ("happened", "What happened", "Yours, or somebody else's"),
@@ -3098,7 +3098,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: societyPractice(
                 "far", title: "Send It Far",
-                invitation: "Zara wants a sentence sent far. Write who you sent it to, what you sent, and what came back.",
+                invitation: "Zara wants a sentence sent far. Write one sentence about what came back.",
                 action: "Send it",
                 [
                  ("who", "Who you sent it to", "Somebody far away"),
@@ -3128,7 +3128,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "linked", title: "Linked Lines",
-                invitation: "Zara wants a chain. Write the sentence you were given, the bit you caught from it, and the sentence you added.",
+                invitation: "Zara wants a chain. Write the sentence you added.",
                 action: "Add your line",
                 [
                  ("given", "The sentence you were given", "From whoever went before"),
@@ -3158,7 +3158,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 12A: The Shared Compass",
             practice: societyPractice(
                 "listen", title: "Just Listen",
-                invitation: "Zara wants you listening. Write whose sentence you heard best, what it was, and what you noticed when you stopped planning your own.",
+                invitation: "Zara wants you listening. Write the one sentence you heard best.",
                 action: "Report what you heard",
                 [
                  ("whose", "Whose you heard", "Somebody else's"),
@@ -3188,7 +3188,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: societyPractice(
                 "year", title: "The Year's Best",
-                invitation: "Zara's last meeting of the year: bring your best sentence. Write it, why that one, and who you read it to.",
+                invitation: "Zara's last meeting of the year: bring your best sentence. Write it here.",
                 action: "Read it to the garden",
                 [
                  ("sentence", "Your best sentence", "From the whole year"),
@@ -3249,7 +3249,7 @@ enum AcademyCurriculum {
             reading: "Pierre de Fermat, in the margin of Diophantus's Arithmetica (1637)",
             practice: guildPractice(
                 "fermat", title: "The Note in the Margin",
-                invitation: "Boggle wants one good margin note. Write the line you answered, your note, and what you hope a stranger will make of it.",
+                invitation: "Boggle wants one good margin note. Write the note.",
                 action: "File the note",
                 [
                  ("line", "The line", "Copy it out"),
@@ -3279,7 +3279,7 @@ enum AcademyCurriculum {
             reading: "Pangur Bán (Irish, ninth century)",
             practice: guildPractice(
                 "monks", title: "Leave Yourself in It",
-                invitation: "Boggle wants you in the margin. Write the book, where you were reading it, and the little note you left.",
+                invitation: "Boggle wants you in the margin. Write one sentence: the note you left, and the book.",
                 action: "File it",
                 [
                  ("book", "The book", "One of your own"),
@@ -3309,7 +3309,7 @@ enum AcademyCurriculum {
             reading: "The margins of medieval books (thirteenth and fourteenth centuries)",
             practice: guildPractice(
                 "snails", title: "Draw in the Margin",
-                invitation: "Boggle wants a doodle. Write the line you drew next to, what you drew, and why.",
+                invitation: "Boggle wants a doodle. Write one sentence about what you drew, and next to which line.",
                 action: "File the doodle",
                 [
                  ("line", "The line", "The one that made you think of it"),
@@ -3339,7 +3339,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: guildPractice(
                 "three", title: "Three Kinds of Note",
-                invitation: "Boggle files notes under three headings. Leave one of each in your own book, and copy them here.",
+                invitation: "Boggle files notes under three headings. Leave one of each in your own book, and copy your favourite here.",
                 action: "File all three",
                 [
                  ("question", "A question", "Why…?"),
@@ -3369,7 +3369,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: guildPractice(
                 "fair", title: "A Fair Argument",
-                invitation: "Boggle allows arguments, fairly. Write the line, your argument, and one thing it got right.",
+                invitation: "Boggle allows arguments, fairly. Write your argument with the line in one sentence.",
                 action: "File the argument",
                 [
                  ("line", "The line", "Exactly as it says"),
@@ -3399,7 +3399,7 @@ enum AcademyCurriculum {
             reading: "Book Traces, University of Virginia",
             practice: guildPractice(
                 "traces", title: "Somebody Was Here",
-                invitation: "Boggle wants you to find another reader. Write what you found, in which book, and how you answered it.",
+                invitation: "Boggle wants you to find another reader. Write one sentence about what you found, and how you answered it.",
                 action: "File the find",
                 [
                  ("found", "What you found", "A note, a name, a ticket, a flower"),
@@ -3429,7 +3429,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: guildPractice(
                 "slip", title: "A Slip for the Next Reader",
-                invitation: "Boggle's rule: never in library books. Write the book, the page, and the slip you left for the next reader.",
+                invitation: "Boggle's rule: never in library books. Write the slip you left for the next reader.",
                 action: "Tuck it in",
                 [
                  ("book", "The book", "A borrowed one"),
@@ -3459,7 +3459,7 @@ enum AcademyCurriculum {
             reading: "Charles Lamb, \"The Two Races of Men\" (1820)",
             practice: guildPractice(
                 "coleridge", title: "A Note for a Friend",
-                invitation: "Boggle says with permission only. Write whose book it was, where you wrote, and the note you left.",
+                invitation: "Boggle says with permission only. Write the note you left, and whose book it was.",
                 action: "Give it back",
                 [
                  ("whose", "Whose book", "And that they said yes"),
@@ -3489,7 +3489,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: guildPractice(
                 "underline", title: "One a Page",
-                invitation: "Boggle allows one underline a page. Write the book, the one line you chose, and why that one.",
+                invitation: "Boggle allows one underline a page. Write the one line you chose.",
                 action: "File the line",
                 [
                  ("book", "The book", "One of your own"),
@@ -3519,7 +3519,7 @@ enum AcademyCurriculum {
             reading: "A manuscript in the Dubrovnik archives (1445)",
             practice: guildPractice(
                 "paws", title: "Leave the Cat In",
-                invitation: "Boggle says keep the accidents. Write the book, the mark, and what happened.",
+                invitation: "Boggle says keep the accidents. Write one sentence about the mark and what happened.",
                 action: "File the accident",
                 [
                  ("book", "The book", "One of yours"),
@@ -3610,7 +3610,7 @@ enum AcademyCurriculum {
             reading: "Humphrey Carpenter, The Inklings (1978)",
             practice: inkwrightPractice(
                 "inklings", title: "Read It to the Room",
-                invitation: "The Inkwrights read aloud. Write what you read, who heard it, and the one honest thing they said.",
+                invitation: "The Inkwrights read aloud. Write the one honest thing they said.",
                 action: "Offer it to the circle",
                 [
                  ("read", "What you read", "Your own writing"),
@@ -3640,7 +3640,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: inkwrightPractice(
                 "effect", title: "What It Did to Me",
-                invitation: "Thorne wants effects before fixes. Write whose work it was, where you leaned in, and where you drifted.",
+                invitation: "Thorne wants effects before fixes. Write one sentence about where you leaned in.",
                 action: "Offer the note",
                 [
                  ("whose", "Whose work", "Theirs, not yours"),
@@ -3670,7 +3670,7 @@ enum AcademyCurriculum {
             reading: "Arthur Quiller-Couch, On the Art of Writing (1916)",
             practice: inkwrightPractice(
                 "darlings", title: "Murder a Darling",
-                invitation: "Thorne says cut the line you love most. Write the darling, what the piece was like without it, and whether you put it back.",
+                invitation: "Thorne says cut the line you love most. Write the darling, then whether you put it back.",
                 action: "Offer it up",
                 [
                  ("darling", "The darling", "The line you were proudest of"),
@@ -3729,7 +3729,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: inkwrightPractice(
                 "bad-first", title: "The Bad First Go",
-                invitation: "Thorne wants it bad first. Write what you started, how long the bad first go took, and the one good bit in it.",
+                invitation: "Thorne wants it bad first. Write the one good bit in it.",
                 action: "Offer the draft",
                 [
                  ("started", "What you started", "A story, a letter, a poem"),
@@ -3759,7 +3759,7 @@ enum AcademyCurriculum {
             reading: "Max Brod's postscript to Franz Kafka's The Trial (1925)",
             practice: inkwrightPractice(
                 "kafka", title: "Before the Burning",
-                invitation: "Thorne says burn the copy, not the only one. Write what you're letting go, the line you saved, and why.",
+                invitation: "Thorne says burn the copy, not the only one. Write the line you saved.",
                 action: "Offer it to the fire",
                 [
                  ("letting", "What you're letting go", "A draft, a poem, a page"),
@@ -3789,7 +3789,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: inkwrightPractice(
                 "exact", title: "Exact Praise",
-                invitation: "Thorne's banned \"great\". Write whose work it was, exactly what worked, and where.",
+                invitation: "Thorne's banned \"great\". Write one sentence about exactly what worked.",
                 action: "Offer the praise",
                 [
                  ("whose", "Whose work", "Somebody else's"),
@@ -3819,7 +3819,7 @@ enum AcademyCurriculum {
             reading: "Benjamin Franklin, Autobiography",
             practice: inkwrightPractice(
                 "copy", title: "Copy It Out",
-                invitation: "Thorne says copy to learn. Write what you copied, what you noticed about how it's built, and the first line of your own.",
+                invitation: "Thorne says copy to learn. Write the first line of your own.",
                 action: "Offer your own",
                 [
                  ("copied", "What you copied", "A paragraph you love"),
@@ -3849,7 +3849,7 @@ enum AcademyCurriculum {
             reading: "Kurt Vonnegut, Bagombo Snuff Box (1999)",
             practice: inkwrightPractice(
                 "one-reader", title: "For One Person",
-                invitation: "Thorne wants you writing for one reader. Write who it's for, what you wrote, and what you left out because of them.",
+                invitation: "Thorne wants you writing for one reader. Write one sentence about what you left out because of them.",
                 action: "Offer it, or don't",
                 [
                  ("who", "Who it's for", "One person"),
@@ -3879,7 +3879,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: inkwrightPractice(
                 "half", title: "Cut It in Half",
-                invitation: "Thorne's game: cut it to half. Write the long version, the half version, and the best word you cut.",
+                invitation: "Thorne's game: cut it to half. Write the half version, in one sentence.",
                 action: "Offer the short one",
                 [
                  ("long", "The long version", "As you first wrote it"),
@@ -3909,7 +3909,7 @@ enum AcademyCurriculum {
             reading: "The Wonder Compass, Chapter 9: West = Write",
             practice: inkwrightPractice(
                 "burning", title: "Read, Burn, Keep",
-                invitation: "Thorne's last meeting of the year: three pieces. Write what you read aloud, what you let go, and what you kept.",
+                invitation: "Thorne's last meeting of the year: three pieces. Write one sentence about what you kept.",
                 action: "Offer it to the fire",
                 [
                  ("read", "What you read aloud", "The one you're proudest of"),
@@ -4031,7 +4031,7 @@ enum AcademyCurriculum {
             reading: "Charles Dickens, A Christmas Carol (1843)",
             practice: jumpersPractice(
                 "carol", title: "Three Doors",
-                invitation: "The club's jumping into A Christmas Carol: three scenes, one place to come back to. Write the three scenes and your spot.",
+                invitation: "The club's jumping into A Christmas Carol: three scenes, one place to come back to. Write one sentence about your spot.",
                 action: "Put it to the group",
                 [
                  ("door", "Three scenes", "Past, present, still to come"),
@@ -4061,7 +4061,7 @@ enum AcademyCurriculum {
             reading: "Arthur Conan Doyle, \"A Scandal in Bohemia\" (1891)",
             practice: jumpersPractice(
                 "watson", title: "Count the Steps",
-                invitation: "The club's landing in Baker Street as Watson. Write what you counted, the number, and one thing about the room Holmes would ignore.",
+                invitation: "The club's landing in Baker Street as Watson. Write one sentence about one thing in the room Holmes would ignore.",
                 action: "Put it to the group",
                 [
                  ("door", "What you counted", "Steps, windows, cups"),
@@ -4091,7 +4091,7 @@ enum AcademyCurriculum {
             reading: "Jane Austen, Pride and Prejudice (1813)",
             practice: jumpersPractice(
                 "austen", title: "First Impressions",
-                invitation: "The club's at the dance in Pride and Prejudice. Write who you judged, your first impression, and what you thought by the end.",
+                invitation: "The club's at the dance in Pride and Prejudice. Write one sentence: your first impression, and what you thought by the end.",
                 action: "Put it to the group",
                 [
                  ("door", "Who you judged", "In the story, or in your life"),
@@ -4121,7 +4121,7 @@ enum AcademyCurriculum {
             reading: "Frances Hodgson Burnett, The Secret Garden (1911)",
             practice: jumpersPractice(
                 "garden", title: "Find the Door",
-                invitation: "The club's jumping into The Secret Garden. Write the door you'd look for, where you'd land, and the real one near you.",
+                invitation: "The club's jumping into The Secret Garden. Write one sentence about the real door near you.",
                 action: "Put it to the group",
                 [
                  ("door", "The door in the book", "Behind the ivy"),
@@ -4151,7 +4151,7 @@ enum AcademyCurriculum {
             reading: "Miguel de Cervantes, Don Quixote (1605)",
             practice: jumpersPractice(
                 "quixote", title: "Giant or Windmill?",
-                invitation: "The club's watching Don Quixote from the hill. Write what he thinks it is, what it really is, and how you'll check when you come back from a story.",
+                invitation: "The club's watching Don Quixote from the hill. Write one sentence: what he thinks it is, and what it really is.",
                 action: "Put it to the group",
                 [
                  ("door", "What he thinks it is", "A giant"),
@@ -4181,7 +4181,7 @@ enum AcademyCurriculum {
             reading: "L. Frank Baum, The Wonderful Wizard of Oz (1900)",
             practice: jumpersPractice(
                 "oz", title: "Your Silver Shoes",
-                invitation: "The club's jumping into Oz. Write your silver shoes, where you'd land, and how you'll knock your heels together to come home.",
+                invitation: "The club's jumping into Oz. Write one sentence about how you'll knock your heels together to come home.",
                 action: "Put it to the group",
                 [
                  ("door", "Your silver shoes", "Something you always carry"),
@@ -4211,7 +4211,7 @@ enum AcademyCurriculum {
             reading: "Robert Louis Stevenson, Treasure Island (1883)",
             practice: jumpersPractice(
                 "island", title: "Draw the Map",
-                invitation: "The club's jumping into Treasure Island. Draw your own map. Write where you landed, what the X was, and the way back to the boat.",
+                invitation: "The club's jumping into Treasure Island. Draw your own map. Write one sentence about what the X was.",
                 action: "Put it to the group",
                 [
                  ("door", "Where you landed", "The beach, the gate, the door"),
@@ -4241,7 +4241,7 @@ enum AcademyCurriculum {
             reading: "Herman Melville, Moby-Dick (1851)",
             practice: jumpersPractice(
                 "whale", title: "One Chapter",
-                invitation: "The club's standing on the deck of the Pequod for one chapter. Write which chapter, what you saw, and what you smelled.",
+                invitation: "The club's standing on the deck of the Pequod for one chapter. Write one sentence about what you smelled.",
                 action: "Put it to the group",
                 [
                  ("door", "The chapter", "Just one"),
@@ -4271,7 +4271,7 @@ enum AcademyCurriculum {
             reading: "Homer, The Odyssey",
             practice: jumpersPractice(
                 "home", title: "Coming Home",
-                invitation: "The club's last jump of the year is to Ithaca. Write where you landed, who recognised you, and what's changed in you since September.",
+                invitation: "The club's last jump of the year is to Ithaca. Write one sentence about who recognised you.",
                 action: "Put it to the group",
                 [
                  ("door", "Where you landed", "The beach at Ithaca"),

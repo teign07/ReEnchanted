@@ -3572,7 +3572,9 @@ extension ContentView {
             let directory = FileManager.default.temporaryDirectory
             let interiorURL = directory.appendingPathComponent("ReEnchanted-Welcome-Weekly-Interior.pdf")
             let coverURL = directory.appendingPathComponent("ReEnchanted-Welcome-Weekly-Cover.pdf")
-            let pageCount = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+            let pageCount = try await EditionPress.run {
+                try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+            }
             let editionID = "welcome-\(edition.publicationRecipeID ?? "weekly-issue-\(ordinal)")"
             let slot = BoundYearWelcomeWeekly.slotKey
             let client = PhysicalBookQuoteClient()
@@ -3595,13 +3597,15 @@ extension ContentView {
                       let exactCoverDimensions = preparation.coverDimensions else {
                     throw NSError(domain: "Bindery", code: 15, userInfo: [NSLocalizedDescriptionKey: "The print desk didn't return the welcome issue's cover template."])
                 }
-                try MonthlyEditionPDFWriter.writeCoverWrap(
-                    edition,
-                    spec: spec,
-                    pageCount: pageCount,
-                    exactDimensions: exactCoverDimensions,
-                    to: coverURL
-                )
+                try await EditionPress.run {
+                    try MonthlyEditionPDFWriter.writeCoverWrap(
+                        edition,
+                        spec: spec,
+                        pageCount: pageCount,
+                        exactDimensions: exactCoverDimensions,
+                        to: coverURL
+                    )
+                }
                 let printFiles: [(PhysicalBookHostedPrintFile.Kind, URL)] = [(.interior, interiorURL), (.cover, coverURL)]
                 for (kind, url) in printFiles {
                     let data = try Data(contentsOf: url)
@@ -3694,14 +3698,18 @@ extension ContentView {
         let plates = await illuminatedPlates(for: edition)
         // A bound year is the span these charts were built for.
         let charts = await editionMapPlates(for: edition, kind: .annual)
-        let pageCount = try MonthlyEditionPDFWriter.writeVolumePrintInterior(
-            edition,
-            plates: plates,
-            endpaper: charts.endpaper,
-            mapPlates: charts.plates,
-            spec: spec,
-            to: interiorURL
-        )
+        let endpaper = charts.endpaper
+        let mapPlates = charts.plates
+        let pageCount = try await EditionPress.run {
+            try MonthlyEditionPDFWriter.writeVolumePrintInterior(
+                edition,
+                plates: plates,
+                endpaper: endpaper,
+                mapPlates: mapPlates,
+                spec: spec,
+                to: interiorURL
+            )
+        }
         let interior = try Data(contentsOf: interiorURL)
         return SeasonalPrintInterior(
             editionID: editionID,
@@ -3832,7 +3840,8 @@ extension ContentView {
             boundTales: vault.data.boundTales ?? [],
             authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
             now: now,
-            calendar: calendar
+            calendar: calendar,
+            ribbonedPageIDs: vault.data.ribbons.map(\.protectedPageID)
         )
         guard !seasonal.isEmpty else { return nil }
         var volume = seasonal
@@ -3888,7 +3897,8 @@ extension ContentView {
             boundTales: vault.data.boundTales ?? [],
             authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
             now: editorialNow,
-            calendar: calendar
+            calendar: calendar,
+            ribbonedPageIDs: vault.data.ribbons.map(\.protectedPageID)
         )
         guard !volume.isEmpty else { return nil }
         volume.publicationKind = .seasonal
@@ -4277,7 +4287,11 @@ extension ContentView {
                 grimoire: vault.data.grimoire ?? GrimoireLedger(),
                 // What the Book showed them, frozen when it was shown: the
                 // month's story as this reader read it.
-                authoredReceipts: vault.data.authoredContentReceipts ?? .empty
+                authoredReceipts: vault.data.authoredContentReceipts ?? .empty,
+                // The month's fight against the Curse, bound as it happened.
+                attention: vault.data.attentionProbes ?? .empty,
+                inkbonesLog: vault.data.inkbonesLog ?? [],
+                greyPageThreats: vault.data.greyPageThreats ?? .empty
             )
         }
         let bindable = monthlyPublicationCandidates.filter(\.isBindable)
@@ -4335,7 +4349,7 @@ extension ContentView {
                 // inside the PDF pass.
                 let plates = await illuminatedPlates(for: bound)
                 let charts = await editionMapPlates(for: bound)
-                try bindMonthlyEditionPDF(
+                try await bindMonthlyEditionPDF(
                     bound,
                     plates: plates,
                     endpaper: charts.endpaper,
@@ -4378,7 +4392,9 @@ extension ContentView {
                 let archiveKey = "\(kind)-\(startKey)-\(endKey)"
                 let url = FileManager.default.temporaryDirectory
                     .appendingPathComponent("ReEnchanted-\(archiveKey).pdf")
-                try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
+                try await EditionPress.run {
+                    try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
+                }
                 let resolvedPeriodID = periodID ?? publicationPeriodID(for: edition)
                 let keptURL = try keepMonthlyEdition(
                     edition,
@@ -4523,7 +4539,6 @@ extension ContentView {
                 let directory = FileManager.default.temporaryDirectory
                 let cardURL = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Wrap-\(issue.number).png")
-                try WeeklyIssueShareCardRenderer.write(card, to: cardURL)
                 let url = directory
                     .appendingPathComponent("ReEnchanted-Weekly-Issue-\(issue.number).pdf")
                 let readerName = CharacterLetterPageGenerator.preferredPlayerName(inputs: sourceInputs)
@@ -4533,17 +4548,27 @@ extension ContentView {
                     kind: .weekly,
                     readerName: readerName
                 )
-                try WeeklyIssuePDFWriter.write(
-                    boundIssue,
-                    readerName: readerName,
-                    shareCard: card,
-                    editorialNote: wrapper.editorialNote,
-                    closingNote: wrapper.closingNote,
-                    chart: weekCharts.endpaper,
-                    receipts: vault.data.authoredContentReceipts ?? .empty,
-                    castActs: (vault.data.castActs ?? .empty).records,
-                    to: url
-                )
+                // Everything the press needs is read here, on main; the pages
+                // are set in the press room so the ceremony keeps moving.
+                let editorialNote = wrapper.editorialNote
+                let closingNote = wrapper.closingNote
+                let endpaper = weekCharts.endpaper
+                let receipts = vault.data.authoredContentReceipts ?? .empty
+                let castActs = (vault.data.castActs ?? .empty).records
+                try await EditionPress.run {
+                    try WeeklyIssueShareCardRenderer.write(card, to: cardURL)
+                    try WeeklyIssuePDFWriter.write(
+                        boundIssue,
+                        readerName: readerName,
+                        shareCard: card,
+                        editorialNote: editorialNote,
+                        closingNote: closingNote,
+                        chart: endpaper,
+                        receipts: receipts,
+                        castActs: castActs,
+                        to: url
+                    )
+                }
                 preparedWeeklyIssueCardURL = cardURL
                 preparedWeeklyIssuePDFURL = url
                 preparedWeeklyIssuePeriodID = candidate.id
@@ -4674,16 +4699,20 @@ extension ContentView {
                 try WeeklyIssueShareCardRenderer.write(artifact.card, to: cardURL)
             }
             if !FileManager.default.fileExists(atPath: pdfURL.path) {
-                try WeeklyIssuePDFWriter.write(
-                    artifact.issue,
-                    readerName: artifact.readerName,
-                    shareCard: artifact.card,
-                    editorialNote: artifact.editorialNote,
-                    closingNote: artifact.closingNote,
-                    receipts: vault.data.authoredContentReceipts ?? .empty,
-                    castActs: (vault.data.castActs ?? .empty).records,
-                    to: pdfURL
-                )
+                let receipts = vault.data.authoredContentReceipts ?? .empty
+                let castActs = (vault.data.castActs ?? .empty).records
+                try EditionPress.now {
+                    try WeeklyIssuePDFWriter.write(
+                        artifact.issue,
+                        readerName: artifact.readerName,
+                        shareCard: artifact.card,
+                        editorialNote: artifact.editorialNote,
+                        closingNote: artifact.closingNote,
+                        receipts: receipts,
+                        castActs: castActs,
+                        to: pdfURL
+                    )
+                }
             }
             let reader = WeeklyIssueReader(
                 issue: artifact.issue,
@@ -4785,7 +4814,7 @@ extension ContentView {
                 } else {
                     bound = try await gemmaMonthlyBinding(for: edition)
                 }
-                try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
+                try await exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
                 if edition.publicationKind != .weekly {
                     clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: edition))
                 }
@@ -4818,7 +4847,7 @@ extension ContentView {
                 } else {
                     bound = try await gemmaMonthlyBinding(for: edition)
                 }
-                try exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
+                try await exportPrintReadyEdition(bound, spec: spec, coverPhoto: coverPhoto)
                 if edition.publicationKind != .weekly {
                     clearPublicationBindingCheckpoint(slot: monthlyBindingSlot(for: edition))
                 }
@@ -4831,7 +4860,7 @@ extension ContentView {
     }
 
     @MainActor
-    private func exportPrintReadyEdition(_ edition: MonthlyEdition, spec: PrintSpec, coverPhoto: UIImage? = nil) throws {
+    private func exportPrintReadyEdition(_ edition: MonthlyEdition, spec: PrintSpec, coverPhoto: UIImage? = nil) async throws {
         do {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM"
@@ -4844,8 +4873,11 @@ extension ContentView {
             let interiorURL = dir.appendingPathComponent("ReEnchanted-Print-Interior-\(stamp).pdf")
             let coverURL = dir.appendingPathComponent("ReEnchanted-Print-Cover-\(stamp).pdf")
 
-            let pages = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
-            try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: pages, coverPhoto: coverPhoto, to: coverURL)
+            let pages = try await EditionPress.run {
+                let count = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+                try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: count, coverPhoto: coverPhoto, to: coverURL)
+                return count
+            }
 
             preparedPrintInteriorURL = interiorURL
             preparedPrintCoverURL = coverURL
@@ -5037,21 +5069,24 @@ extension ContentView {
         return (endpaper, plates)
     }
 
+    @MainActor
     private func bindMonthlyEditionPDF(
         _ edition: MonthlyEdition,
         plates: [MonthlyEditionPDFWriter.IlluminatedPlate] = [],
         endpaper: RenderedMapPlate? = nil,
         mapPlates: [RenderedMapPlate] = [],
         afterShopDismiss: Bool = false
-    ) throws {
+    ) async throws {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM"
         let monthKey = formatter.string(from: edition.startDate)
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ReEnchanted-Monthly-\(monthKey).pdf")
-        try MonthlyEditionPDFWriter.write(
-            edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, to: url
-        )
+        try await EditionPress.run {
+            try MonthlyEditionPDFWriter.write(
+                edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, to: url
+            )
+        }
         let calendar = Calendar.current
         let end = calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: edition.startDate))
             ?? edition.endDate.addingTimeInterval(1)
@@ -5171,7 +5206,7 @@ extension ContentView {
                     at: pdfURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try MonthlyEditionPDFWriter.write(artifact.edition, to: pdfURL)
+                try EditionPress.now { try MonthlyEditionPDFWriter.write(artifact.edition, to: pdfURL) }
             }
             preparedMonthlyEditionURL = pdfURL
             preparedMonthlyEditionPeriodID = monthlyPublicationPeriodID(for: artifact)
@@ -5280,7 +5315,7 @@ extension ContentView {
                     at: pdfURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
                 )
-                try MonthlyEditionPDFWriter.writeAnnual(artifact.edition, to: pdfURL)
+                try EditionPress.now { try MonthlyEditionPDFWriter.writeAnnual(artifact.edition, to: pdfURL) }
             }
             preparedAnnualEditionURL = pdfURL
             preparedAnnualEditionPeriodID = artifact.periodID
@@ -6442,13 +6477,17 @@ extension ContentView {
                     let charts = await editionMapPlates(for: bound, kind: .annual)
                     let url = FileManager.default.temporaryDirectory
                         .appendingPathComponent("ReEnchanted-Annual-\(targetYear).pdf")
-                    try MonthlyEditionPDFWriter.writeAnnual(
-                        bound,
-                        plates: plates,
-                        endpaper: charts.endpaper,
-                        mapPlates: charts.plates,
-                        to: url
-                    )
+                    let endpaper = charts.endpaper
+                    let mapPlates = charts.plates
+                    try await EditionPress.run {
+                        try MonthlyEditionPDFWriter.writeAnnual(
+                            bound,
+                            plates: plates,
+                            endpaper: endpaper,
+                            mapPlates: mapPlates,
+                            to: url
+                        )
+                    }
                     let keptURL = try keepAnnualEdition(
                         bound,
                         periodID: candidate.id,
@@ -8454,6 +8493,9 @@ struct PagewrightPinnedNote: Identifiable, Equatable {
     var id: String = UUID().uuidString
     var text: String
     var style: PagewrightPinnedNoteStyle
+    /// The wording is snapshotted in `text`; its origin keeps the Book's hand
+    /// distinct from a note the reader wrote, including in PDF/PNG export.
+    var sourceSnippetID: String? = nil
 }
 
 struct PagewrightCanvasElement: Identifiable, Equatable {
@@ -8580,6 +8622,7 @@ private struct PagewrightMarkCabinet {
 
     var contextKey: String = ""
     var marksByShelf: [MarkShelf: [IlluminationPackRegistry.ShelvedMark]] = [:]
+    var notesByShelf: [MarkShelf: [IlluminationMarginaliaSnippet]] = [:]
     var assetsByName: [String: IlluminationAsset] = [:]
     var shelves: [MarkShelf] = []
     var drawer: [IlluminationPackRegistry.ShelvedMark] = []
@@ -8609,15 +8652,22 @@ private struct PagewrightMarkCabinet {
             context: context,
             isUsable: isUnlocked
         )
-        self.shelves = IlluminationPackRegistry.populatedShelves(context: context)
+        let notes = IlluminationMarginaliaLibrary.browsableSnippets(context: context)
+        self.notesByShelf = Dictionary(grouping: notes, by: IlluminationMarginaliaLibrary.shelf(for:))
+        let occupied = Set(byShelf.keys).union(notesByShelf.keys)
+        self.shelves = MarkShelf.displayOrder.filter { occupied.contains($0) || $0 == .theDrawer }
     }
 
     func marks(on shelf: MarkShelf) -> [IlluminationPackRegistry.ShelvedMark] {
         shelf == .theDrawer ? drawer : (marksByShelf[shelf] ?? [])
     }
 
+    func notes(on shelf: MarkShelf) -> [IlluminationMarginaliaSnippet] {
+        notesByShelf[shelf] ?? []
+    }
+
     func count(on shelf: MarkShelf) -> Int {
-        marks(on: shelf).count
+        marks(on: shelf).count + notes(on: shelf).count
     }
 
     func asset(named name: String) -> IlluminationAsset? {
@@ -11710,8 +11760,10 @@ struct PagewrightSheet: View {
 
             let marks = visibleMarks
             let elsewhere = searchResultsAcrossShelves
+            let notes = visibleWrittenNotes
+            let otherNotes = writtenNotesAcrossShelves
 
-            if marks.isEmpty && elsewhere.isEmpty {
+            if marks.isEmpty && elsewhere.isEmpty && notes.isEmpty && otherNotes.isEmpty {
                 ContentUnavailableView(
                     markSearchText.isEmpty ? "Nothing on this shelf" : "Nothing by that name",
                     systemImage: selectedShelf.symbolName,
@@ -11727,10 +11779,16 @@ struct PagewrightSheet: View {
                         ForEach(marks) { mark in
                             markAssetTile(mark)
                         }
-                        if !elsewhere.isEmpty {
-                            elsewhereHeader(count: elsewhere.count)
+                        ForEach(notes, id: \.catalogueKey) { note in
+                            writtenNoteTile(note)
+                        }
+                        if !elsewhere.isEmpty || !otherNotes.isEmpty {
+                            elsewhereHeader(count: elsewhere.count + otherNotes.count)
                             ForEach(elsewhere) { mark in
                                 markAssetTile(mark, showingShelf: true)
+                            }
+                            ForEach(otherNotes, id: \.catalogueKey) { note in
+                                writtenNoteTile(note, showingShelf: true)
                             }
                         }
                     }
@@ -11779,12 +11837,13 @@ struct PagewrightSheet: View {
     /// as eighteen separate errands.
     private func shelfTally(_ shelf: MarkShelf) -> String? {
         let marks = cabinet.marks(on: shelf)
-        guard !marks.isEmpty else { return nil }
+        let count = cabinet.count(on: shelf)
+        guard count > 0 else { return nil }
         let locked = marks.filter { !isMarginaliaUnlocked($0.asset) }.count
         guard locked > 0 else {
-            return marks.count == 1 ? "One mark, and it's yours." : "All \(marks.count) are yours."
+            return count == 1 ? "One mark, and it's yours." : "All \(count) are yours."
         }
-        let open = marks.count - locked
+        let open = count - locked
         if open == 0 {
             return locked == 1 ? "One mark, still curled up." : "\(locked) marks, all still curled up."
         }
@@ -11978,7 +12037,54 @@ struct PagewrightSheet: View {
             .filter { $0 != .theDrawer && $0 != selectedShelf }
             .flatMap { cabinet.marks(on: $0) }
             .filter { matches(query, $0) && !onThisShelf.contains($0.id) }
-        return Array(hits.prefix(24))
+        return hits
+    }
+
+    private var visibleWrittenNotes: [IlluminationMarginaliaSnippet] {
+        cabinet.notes(on: selectedShelf).filter {
+            IlluminationMarginaliaLibrary.matches(markSearchText, snippet: $0)
+        }
+    }
+
+    private var writtenNotesAcrossShelves: [IlluminationMarginaliaSnippet] {
+        let query = markSearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.count >= 2 else { return [] }
+        return cabinet.shelves.filter { $0 != selectedShelf }
+            .flatMap { cabinet.notes(on: $0) }
+            .filter { IlluminationMarginaliaLibrary.matches(query, snippet: $0) }
+    }
+
+    private func writtenNoteTile(_ note: IlluminationMarginaliaSnippet, showingShelf: Bool = false) -> some View {
+        Button {
+            let pinned = PagewrightPinnedNote(text: note.text, style: .margin, sourceSnippetID: note.catalogueKey)
+            pinnedNotes.append(pinned)
+            let element = defaultNoteElement(for: pinned.id, index: pinnedNotes.count - 1)
+            canvasElements.append(element)
+            activeElementID = element.id
+            returnToCanvasAfterPlacement()
+            invalidateExports()
+            tutorTouch("scrapbook-marks")
+            BookFeedback.pressTick()
+        } label: {
+            VStack(alignment: .leading, spacing: 7) {
+                Text(note.text)
+                    .font(BookHand.book.font(17))
+                    .foregroundStyle(BookPalette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if showingShelf {
+                    Text(IlluminationMarginaliaLibrary.shelf(for: note).title)
+                        .font(.caption2)
+                        .foregroundStyle(BookPalette.ink.opacity(0.55))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(13)
+            .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(note.text)
+        .accessibilityHint("Put this writing on the Page, then move or resize it.")
     }
 
     private func matches(_ query: String, _ mark: IlluminationPackRegistry.ShelvedMark) -> Bool {
@@ -13162,10 +13268,13 @@ struct PagewrightSheet: View {
             activeElementID = element.id
         } label: {
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: note.style.symbolName)
-                    .foregroundStyle(note.style == .stamp ? BookPalette.teal : BookPalette.lampGold)
+                if note.sourceSnippetID == nil {
+                    Image(systemName: note.style.symbolName)
+                        .foregroundStyle(note.style == .stamp ? BookPalette.teal : BookPalette.lampGold)
+                }
                 Text(note.text)
-                    .font(note.style == .stamp ? .caption.weight(.black) : .system(.callout, design: .serif))
+                    .font(note.sourceSnippetID != nil ? BookHand.book.font(16) : (note.style == .stamp ? .caption.weight(.black) : .system(.callout, design: .serif)))
+                    .foregroundStyle(BookPalette.ink)
                     .textCase(note.style == .stamp ? .uppercase : nil)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -15110,7 +15219,10 @@ enum PagewrightPDFWriter {
 
     private static func drawComposedNote(_ note: PagewrightPinnedNote, element: PagewrightCanvasElement, in canvasRect: CGRect) {
         let width = element.width * canvasRect.width
-        let height = max(44, measuredHeight(note.text, font: .serifFont(ofSize: 11, weight: .regular), width: width - 26) + 26)
+        let font: UIFont = note.sourceSnippetID != nil
+            ? BookHand.book.uiFont(11)
+            : (note.style == .stamp ? .systemFont(ofSize: 9, weight: .black) : .serifFont(ofSize: 11, weight: .regular))
+        let height = max(44, measuredHeight(note.text, font: font, width: width - 26) + 26)
         let center = CGPoint(
             x: canvasRect.minX + element.x * canvasRect.width,
             y: canvasRect.minY + element.y * canvasRect.height
@@ -15127,7 +15239,7 @@ enum PagewrightPDFWriter {
         UIBezierPath(roundedRect: rect, cornerRadius: note.style == .stamp ? 3 : 8).stroke()
         drawText(
             note.text,
-            font: note.style == .stamp ? .systemFont(ofSize: 9, weight: .black) : .serifFont(ofSize: 11, weight: .regular),
+            font: font,
             color: ink,
             rect: rect.insetBy(dx: 11, dy: 10),
             tracking: note.style == .stamp ? 0.8 : 0

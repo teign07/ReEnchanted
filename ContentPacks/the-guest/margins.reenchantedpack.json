@@ -1836,7 +1836,7 @@
       "id": "wicker-cant-cook",
       "title": "The Thing They Can't Cook",
       "ask": "Somebody near you has one thing they can't cook, however good they are at everything else. Wicker finds this extremely comforting and would like to know what it is.",
-      "proofPrompt": "Who, and what can't they make?",
+      "proofPrompt": "One sentence: who, and what can't they make?",
       "tags": [
        "undertaking-door",
        "kitchen",
@@ -1943,7 +1943,7 @@
       "id": "vellum-who-made-it",
       "title": "Who Made It",
       "ask": "Something you eat this week was made by somebody, even if it came out of a packet. Dr. Vellum has a new column and would like one more entry in it.",
-      "proofPrompt": "What did you eat, and who made it?",
+      "proofPrompt": "One sentence: what you ate, and who made it.",
       "tags": [
        "undertaking-door",
        "kitchen",

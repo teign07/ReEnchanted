@@ -45,6 +45,22 @@ final class PageMarginAskTests: XCTestCase {
         }
     }
 
+    /// bj, 2026-11-07: "all our prompts should be asking for only one
+    /// sentence. That's the whole idea, use single sentences to capture the
+    /// hidden magic in your life." A box that asks for a list, a description or
+    /// two answers at once is where a reader stalls; one sentence always ends.
+    func testEveryBoxAsksForOneSentence() {
+        for type in BookPageType.allCases {
+            let ask = type.marginAsk.placeholder
+            let lower = ask.lowercased()
+            XCTAssertTrue(lower.contains("sentence"), "\(type.rawValue) doesn't ask for one sentence: \(ask)")
+            XCTAssertLessThanOrEqual(ask.filter { $0 == "?" }.count, 1, "\(type.rawValue) asks two questions: \(ask)")
+            for more in ["a few", "list ", "describe", "paragraph", "sentences", "lines"] {
+                XCTAssertFalse(lower.contains(more), "\(type.rawValue) asks for more than one sentence: \(ask)")
+            }
+        }
+    }
+
     /// The old failure mode: one generic line ("Add one true thing I should
     /// keep") standing in for every Page. A handful of shared labels is fine
     /// ("Your margin note"), but the actual invitation must be page-specific.
@@ -83,7 +99,7 @@ final class PageMarginAskTests: XCTestCase {
     /// on the desk, so it is the first writing anyone sees. It must point at the
     /// box rather than admire itself.
     func testEvergreenReserveTellsTheReaderWhatToDo() {
-        let pages = BookEvergreenPlayReserve.pages(now: Date(), keptPageCount: 99)
+        let pages = BookEvergreenPlayReserve.pages(now: Date())
         XCTAssertFalse(pages.isEmpty)
         for page in pages {
             XCTAssertFalse(

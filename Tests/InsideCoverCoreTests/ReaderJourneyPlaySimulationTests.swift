@@ -782,7 +782,6 @@ final class ReaderJourneyPlaySimulationTests: XCTestCase {
                     [
                         "trace=\(page.carriesEarnedReaderTrace)",
                         "mood=\(debugMood.allows(page))",
-                        "memory=\(!BookMemoryGate.locks(page.type, keptPageCount: debugMood.keptPageCount))",
                         "novelty=\(CuratorNoveltyPolicy.allowsAutomaticSurface(page, history: debugMood.surfaceHistory, preferences: .none, now: now))",
                         "new=\(CuratorNoveltyPolicy.isNewContent(page, history: debugMood.surfaceHistory))"
                     ].joined(separator: ",")

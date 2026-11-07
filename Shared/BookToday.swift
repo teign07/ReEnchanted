@@ -94,6 +94,17 @@ struct BookTodayEdition: Equatable {
     var assignment: Assignment? = nil
     /// More of the margins than the one beat: the Cast's business, a line each.
     var margins: [Beat] = []
+    /// The fight against the Curse today, read off the Knocks: the score, and
+    /// the Curse's favourite hour once the Book has learned it. Nil before the
+    /// first answered Knock of the day.
+    var fight: Fight? = nil
+
+    struct Fight: Equatable {
+        var reader: Int
+        var curse: Int
+        var line: String
+        var hourLine: String?
+    }
 }
 
 enum BookTodayProjector {
@@ -217,7 +228,21 @@ enum BookTodayProjector {
                                                  selectionSeed: selectionSeed),
             doorstep: BookTodayDoorstep.paper(day: day, inputs: inputs, now: now, calendar: calendar),
             assignment: BookTodayDoorstep.assignment(day: day, inputs: inputs, now: now, calendar: calendar),
-            margins: Array(marginLines.dropFirst().prefix(2))
+            margins: Array(marginLines.dropFirst().prefix(2)),
+            fight: {
+                let score = inputs.attentionProbes.score(on: now, calendar: calendar)
+                if inputs.attentionProbes.hush?.isQuiet(now: now) ?? false {
+                    return BookTodayEdition.Fight(
+                        reader: score.reader, curse: score.curse,
+                        line: "No Knocks today. I'm listening for yours.", hourLine: nil
+                    )
+                }
+                guard let line = CurseFight.dayLine(reader: score.reader, curse: score.curse) else { return nil }
+                return BookTodayEdition.Fight(
+                    reader: score.reader, curse: score.curse, line: line,
+                    hourLine: CurseFight.hourLine(inputs.attentionProbes, calendar: calendar)
+                )
+            }()
         )
     }
 
@@ -287,36 +312,37 @@ enum BookTodayProjector {
                 ], key: key)
             }
             if weatherPresent || eventPresent {
-                return "Today's already making a racket. I'm after the one strange bit with muddy shoes."
+                return "Today's already busy and loud. Somewhere in it there's one strange thing hiding, and I want it."
             }
             return relationship.depth == .firstPages
-                ? "I don't know enough yet. Good. I'm watching."
+                ? "I don't know you very well yet. I'm watching everything."
                 : "Nothing strange has happened yet. I'm not going to make one up."
         }
         let opening = hour < 12 ? "This morning" : (hour < 18 ? "Today" : "This evening")
-        return "\(opening), I'm \(attemptLine(for: intention.movement)) \(ambitionEnding(intention.ambition))"
+        return "\(opening) \(attemptLine(for: intention.movement)) \(ambitionEnding(intention.ambition))"
     }
 
+    /// Follows "This morning" / "Today" / "This evening" with no comma, so it reads as one sentence.
     private static func attemptLine(for movement: BookReenchantmentMovement) -> String {
         switch movement {
-        case .freshSight: return "trying to find one thing you've stopped seeing."
-        case .livingWorld: return "looking for proof the world is up to something without you."
-        case .scriptFreedom: return "trying to knock one bit of the usual day off its rails."
-        case .chosenDetour: return "keeping an eye out for a good wrong turn."
-        case .exactLanguage: return "hunting for the exact word for something."
-        case .humanOtherness: return "curious about somebody else in your day."
-        case .livingContinuity: return "fetching something old back to see you."
-        case .shelter: return "keeping quiet and staying close."
+        case .freshSight: return "I want to find one thing in your day that's been waiting ages for you to look at it."
+        case .livingWorld: return "I want to catch the world getting on with its own business while you're not looking."
+        case .scriptFreedom: return "I want one bit of the day to stop doing what it's told."
+        case .chosenDetour: return "I want you to go the wrong way once, so the wrong way finally gets a visit."
+        case .exactLanguage: return "I'm hunting for the exact word for something, and I'm being very quiet so it doesn't run off."
+        case .humanOtherness: return "I keep wondering about somebody else in your day, and what they had for breakfast."
+        case .livingContinuity: return "something old of yours is on its way back to see you."
+        case .shelter: return "I'm staying quiet and close."
         }
     }
 
     private static func ambitionEnding(_ ambition: BookSessionAmbition) -> String {
         switch ambition {
-        case .glint: return "One glint will do."
-        case .connection: return "I want to join two things up. I don't need an answer."
-        case .return: return "Something's sniffing its way back."
-        case .intervention: return "I think something today is worth a go."
-        case .revelation: return "I suspect two distant things have been passing notes."
+        case .glint: return "One little thing will do. I'm not greedy."
+        case .connection: return "I think two of your things belong together, and I don't know why yet."
+        case .return: return "Something you forgot about wants to come back."
+        case .intervention: return "I want to poke the day and see what it does."
+        case .revelation: return "I think two things that live miles apart have been talking to each other."
         }
     }
 

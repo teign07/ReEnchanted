@@ -245,7 +245,9 @@ private final class FolioInteractionStore: ObservableObject {
 
     func revealInk(on leaf: FolioLeaf) {
         guard let key = leaf.inkEmergenceID, inkArrivals[key] == nil else { return }
-        inkArrivals[key] = Date()
+        let arrival = Date()
+        inkArrivals[key] = arrival
+        BookLeafInkClock.inked(at: arrival)
     }
 
     func settleInk(on leaf: FolioLeaf) {
@@ -412,7 +414,7 @@ struct PagesRisingFolio: View {
     @Binding var departureRequest: FolioDeparture?
     var canRequestWeather: Bool = true
     var onSealChoice: (JournalSealChoice) -> Void = { _ in }
-    let savedRibbon: SavedPageRibbon?
+    let savedRibbons: [SavedPageRibbon]
     let showsGlow: Bool
     /// Back on the folio because the bookmark burns it. It left when the printed
     /// illumination was removed and nothing was reading it any more.
@@ -436,8 +438,8 @@ struct PagesRisingFolio: View {
     var endLeafControlsRevision: Int = 0
     let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
-    let onPlaceRibbon: (SurfacePage, String, Int) -> Void
-    let onLiftRibbon: () -> Void
+    let onPlaceRibbon: (SurfacePage, String, Int, Int?) -> Void
+    let onLiftRibbon: (String) -> Void
     let onOpenGlow: () -> Void
     let onExploreDeeper: () -> String?
     /// The Pages the next Explore deeper will bind, decided ahead of the tap so
@@ -714,22 +716,26 @@ struct PagesRisingFolio: View {
                     // it protrudes whether or not it is marking anything, so
                     // the reader meets the ribbon before they need it.
                     FolioSavedPageRibbon(
-                        title: savedRibbon?.title,
-                        canAct: ribbonCanAct(in: leaves),
-                        action: { ribbonTapped(in: leaves) },
-                        onLift: onLiftRibbon
+                        ribbons: savedRibbons,
+                        canTuckHere: ribbonCanTuckHere(in: leaves),
+                        markedHere: ribbonMarkingHere(in: leaves),
+                        isBookClosed: isBookClosed,
+                        onTuck: { strand in tuckRibbonHere(in: leaves, movingStrand: strand) },
+                        onOpen: { ribbon in openSavedRibbon(ribbon, in: leaves) },
+                        onLift: onLiftRibbon,
+                        onOpenBook: openBook
                     )
-                    // Slack cloth hangs shorter. Pulling it up into a Page is
-                    // the whole gesture, so tucking has to move it.
+                    // Slack cloth hangs shorter. Pulling a strand up into a
+                    // Page is the whole gesture, so tucking has to move it.
                     .offset(
                         x: rectoOrigin + leafWidth * 0.69,
-                        y: savedRibbon == nil
+                        y: savedRibbons.isEmpty
                             ? -Self.slackRibbonProtrusion
                             : -Self.tuckedRibbonProtrusion
                     )
                     .animation(
                         BookMotion.direct(reduceMotion),
-                        value: savedRibbon?.documentID
+                        value: savedRibbons.map(\.documentID)
                     )
                     .zIndex(0.84)
 
@@ -797,7 +803,7 @@ struct PagesRisingFolio: View {
                                 endLeafControlsRevision: endLeafControlsRevision,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
-                                savedRibbon: savedRibbon,
+                                savedRibbons: savedRibbons,
                                 onPlaceRibbon: onPlaceRibbon,
                                 onLiftRibbon: onLiftRibbon,
                                 onExploreDeeper: exploreDeeper,
@@ -825,7 +831,7 @@ struct PagesRisingFolio: View {
                                 endLeafControlsRevision: endLeafControlsRevision,
                                 onKeep: onKeep,
                                 onDismiss: onDismiss,
-                                savedRibbon: savedRibbon,
+                                savedRibbons: savedRibbons,
                                 onPlaceRibbon: onPlaceRibbon,
                                 onLiftRibbon: onLiftRibbon,
                                 onExploreDeeper: exploreDeeper,
@@ -1141,6 +1147,18 @@ struct PagesRisingFolio: View {
     }
 
     private func recordVisibleInterleaves(in leaves: [FolioLeaf], isSpread: Bool) {
+        // Every Page on an open leaf counts as met, even mid-turn or under a
+        // sheet: background curation must never change it afterwards.
+        if isOnReadingLeaves, !isBookClosed,
+           let index = leaves.firstIndex(where: { $0.id == currentLeafID }) {
+            let start = isSpread ? index - index % 2 : index
+            let end = min(leaves.count, start + (isSpread ? 2 : 1))
+            DeskLeafSightings.shared.record(
+                leaves[start..<end]
+                    .filter { $0.interstitialKind == nil && !$0.isEnding }
+                    .map(\.surface.id)
+            )
+        }
         guard isOnReadingLeaves, !isBookClosed, !isBookTransitioning, !isAmbientMotionPaused,
               let index = leaves.firstIndex(where: { $0.id == currentLeafID }) else { return }
         let end = min(leaves.count, index + (isSpread ? 2 : 1))
@@ -1290,36 +1308,28 @@ struct PagesRisingFolio: View {
         return leaf
     }
 
-    /// A tucked ribbon always has somewhere to go. A slack one on a closed Book
-    /// opens it; a slack one resting over a boundary leaf has nothing to hold.
-    private func ribbonCanAct(in leaves: [FolioLeaf]) -> Bool {
-        if savedRibbon != nil { return true }
-        if isBookClosed { return true }
-        return markableLeaf(in: leaves) != nil
+    /// The leaf under the reader's thumb can take a strand when it's a real
+    /// Page and no strand holds it yet.
+    private func ribbonCanTuckHere(in leaves: [FolioLeaf]) -> Bool {
+        guard let leaf = markableLeaf(in: leaves) else { return false }
+        return !savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) }
     }
 
-    /// One ribbon, one tap, and the state of the cloth decides what the tap
-    /// means: slack, it takes hold of the Page under the reader's thumb; tucked,
-    /// it takes them back to it. Lifting is the long press, because letting go
-    /// of a promise should not be the easiest thing to do by accident.
-    private func ribbonTapped(in leaves: [FolioLeaf]) {
-        if savedRibbon != nil {
-            openSavedRibbon(in: leaves)
-            return
-        }
-        guard !isBookClosed else {
-            openBook()
-            return
-        }
+    /// The strand already holding the leaf under the reader's thumb, if any.
+    private func ribbonMarkingHere(in leaves: [FolioLeaf]) -> SavedPageRibbon? {
+        guard let leaf = markableLeaf(in: leaves) else { return nil }
+        return savedRibbons.first { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) }
+    }
+
+    private func tuckRibbonHere(in leaves: [FolioLeaf], movingStrand: Int?) {
         guard let leaf = markableLeaf(in: leaves) else { return }
-        onPlaceRibbon(leaf.surface, leaf.documentID, leaf.textRange.lowerBound)
+        onPlaceRibbon(leaf.surface, leaf.documentID, leaf.textRange.lowerBound, movingStrand)
     }
 
     /// The ribbon stores a logical Page plus a text offset. Find the leaf that
     /// now owns those words, then let the ordinary Book-travel animation carry
     /// the reader there. This survives different phone sizes and repagination.
-    private func openSavedRibbon(in leaves: [FolioLeaf]) {
-        guard let savedRibbon else { return }
+    private func openSavedRibbon(_ savedRibbon: SavedPageRibbon, in leaves: [FolioLeaf]) {
         let candidates = leaves.filter {
             !$0.isInterstitial && !$0.isEnding
                 && $0.documentID == savedRibbon.documentID
@@ -3731,63 +3741,126 @@ private struct FolioSealBookmarkRail: View {
 /// drawn proud of the block in full colour and will carry the reader back to
 /// the exact words it was left in. It is the same piece of cloth in both
 /// states — not a control that appears once you have already found the control.
+/// The Book's ribbon: one tail at the head of the Pages, three strands in it
+/// (docs/the-knock-plan.md §4). A strand holding a Page stands up dyed; a free
+/// one hangs slack and pale. Tapping the ribbon opens a plain menu: tuck a
+/// strand here (or move one, when all three hold something), lift the strand
+/// from this Page, or riffle back to any of them. The Curse can't drink the ink
+/// of a Page under a ribbon.
 private struct FolioSavedPageRibbon: View {
-    /// The marked Page's title, or nil while the ribbon is still slack.
-    let title: String?
-    /// Whether a tap has anything to do at all. A slack ribbon lying over a
-    /// boundary leaf has nothing to take hold of, and says so by going quiet
-    /// rather than by accepting a tap and swallowing it.
-    let canAct: Bool
-    let action: () -> Void
-    let onLift: () -> Void
+    let ribbons: [SavedPageRibbon]
+    let canTuckHere: Bool
+    let markedHere: SavedPageRibbon?
+    let isBookClosed: Bool
+    let onTuck: (Int?) -> Void
+    let onOpen: (SavedPageRibbon) -> Void
+    let onLift: (String) -> Void
+    let onOpenBook: () -> Void
 
-    private var isTucked: Bool { title != nil }
-    private var isAsleep: Bool { !isTucked && !canAct }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Natural dyes, one a strand: madder red, woad blue, weld gold.
+    static let strandNames = ["Madder", "Woad", "Weld"]
+    static let strandColors: [Color] = [
+        Color(red: 0.70, green: 0.16, blue: 0.14),
+        Color(red: 0.20, green: 0.32, blue: 0.62),
+        Color(red: 0.86, green: 0.66, blue: 0.18)
+    ]
+
+    private func ribbon(onStrand strand: Int) -> SavedPageRibbon? {
+        ribbons.first { ($0.strand ?? 0) == strand }
+    }
+
+    private func label(_ ribbon: SavedPageRibbon) -> String {
+        "\(Self.strandNames[min(ribbon.strand ?? 0, 2)]) · \(ribbon.title)"
+    }
+
+    private var hasAnything: Bool {
+        canTuckHere || markedHere != nil || !ribbons.isEmpty || isBookClosed
+    }
 
     var body: some View {
-        Button(action: action) {
-            Image("FolioSavedPageRibbon")
-                .resizable()
-                .interpolation(.high)
-                .scaledToFit()
-                .frame(width: 54, height: 152)
-                // A slack ribbon is the same cloth with no Page's colour in it
-                // yet. Draining it rather than swapping the art keeps tucking
-                // legible as one object waking, not two objects trading places.
-                .saturation(isTucked ? 1 : 0.26)
-                .opacity(isTucked ? 1 : (isAsleep ? 0.34 : 0.62))
-                .shadow(
-                    color: .black.opacity(isTucked ? 0.50 : 0.24),
-                    radius: isTucked ? 5 : 3,
-                    x: 1,
-                    y: isTucked ? 5 : 3
-                )
-                .contentShape(Rectangle())
-                .accessibilityHidden(true)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .disabled(isAsleep)
-        .contextMenu {
-            if isTucked {
-                Button(role: .destructive, action: onLift) {
-                    Label("Lift the ribbon", systemImage: "bookmark.slash")
+        Menu {
+            if canTuckHere {
+                if ribbons.count < BookRibbons.strandCount {
+                    Button {
+                        onTuck(nil)
+                    } label: {
+                        Label("Tuck a ribbon here", systemImage: "bookmark")
+                    }
+                } else {
+                    Menu {
+                        ForEach(ribbons) { ribbon in
+                            Button(label(ribbon)) { onTuck(ribbon.strand ?? 0) }
+                        }
+                    } label: {
+                        Label("Move a ribbon here", systemImage: "arrow.uturn.down")
+                    }
+                }
+            } else if let markedHere {
+                Button(role: .destructive) {
+                    onLift(markedHere.documentID)
+                } label: {
+                    Label("Lift the ribbon from this Page", systemImage: "bookmark.slash")
                 }
             }
+            if !ribbons.isEmpty {
+                Section("Your ribbons") {
+                    ForEach(ribbons) { ribbon in
+                        Button {
+                            onOpen(ribbon)
+                        } label: {
+                            Label(label(ribbon), systemImage: "bookmark.fill")
+                        }
+                    }
+                }
+            } else if isBookClosed, !canTuckHere {
+                Button(action: onOpenBook) {
+                    Label("Open the Book", systemImage: "book")
+                }
+            }
+        } label: {
+            strands
         }
+        .menuOrder(.fixed)
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
+        .disabled(!hasAnything)
+        .sensoryFeedback(.selection, trigger: ribbons.map(\.documentID))
         .accessibilityLabel(
-            isTucked
-                ? "Return ribbon, marking \(title ?? "")"
-                : "Return ribbon, slack"
+            ribbons.isEmpty
+                ? "Ribbon, all three strands free"
+                : "Ribbon, holding \(ribbons.count) of 3: " + ribbons.map(label).joined(separator: "; ")
         )
-        .accessibilityHint(
-            isTucked
-                ? "Riffles the Book to the exact marked passage"
-                : "Tucks the ribbon into this Page so you can come back to it"
-        )
-        .accessibilityAction(named: "Lift the ribbon") {
-            if isTucked { onLift() }
+        .accessibilityHint("Tuck a strand into this Page, or go back to one you've tucked")
+    }
+
+    /// The one ribbon, split into its three strands at the head of the Pages.
+    private var strands: some View {
+        ZStack(alignment: .top) {
+            ForEach(0..<BookRibbons.strandCount, id: \.self) { strand in
+                let held = ribbon(onStrand: strand) != nil
+                Image("FolioSavedPageRibbon")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: 30, height: 152)
+                    // The cloth's own colour drained, then dyed: a held strand
+                    // in full, a free one faint, so tucking reads as one strand
+                    // waking up rather than an icon swapping.
+                    .saturation(0)
+                    .colorMultiply(Self.strandColors[strand])
+                    .saturation(held ? 1.25 : 0.3)
+                    .opacity(held ? 1 : 0.5)
+                    .shadow(color: .black.opacity(held ? 0.45 : 0.2), radius: held ? 4 : 2, x: 1, y: held ? 4 : 2)
+                    .rotationEffect(.degrees(Double(strand - 1) * 5), anchor: .bottom)
+                    .offset(x: CGFloat(strand - 1) * 11, y: held ? 0 : 16)
+                    .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.62), value: held)
+            }
         }
+        .frame(width: 60, height: 168, alignment: .top)
+        .contentShape(Rectangle())
+        .accessibilityHidden(true)
     }
 }
 
@@ -5571,7 +5644,7 @@ private extension IlluminationAsset {
         switch markShelf {
         case .fastenings, .flourishes, .paper, .wear:
             return false
-        case .thisMonth, .theDrawer, .academyDesk, .handwriting, .marginFolk, .inklings,
+        case .thisMonth, .theDrawer, .academyDesk, .handwriting, .bookNotes, .academyNotes, .oddNotes, .wickerSigils, .marginFolk, .inklings,
              .pressedAndGrown, .skyAndNight, .shore, .wayfinding,
              .creaturesAndCompany, .sealsAndLabels, .pastMonths:
             return true
@@ -8864,7 +8937,7 @@ private struct FolioLeafPage: View {
             if !leaf.isInterstitial {
                 Button(action: onToggleRibbon) {
                     Label(
-                        isRibbonHere ? "Lift the ribbon" : "Tuck the ribbon here",
+                        isRibbonHere ? "Lift the ribbon" : "Tuck a ribbon here",
                         systemImage: isRibbonHere ? "bookmark.slash" : "bookmark"
                     )
                 }
@@ -8910,6 +8983,8 @@ private struct FolioLeafPage: View {
         .onChange(of: reduceMotion) { _, _ in synchronizeArrival() }
         .task(id: isInkVisible) {
             if isInkVisible {
+                await BookLeafInkClock.waitForHold()
+                guard !Task.isCancelled else { return }
                 interactionStore.revealInk(on: leaf)
             } else {
                 interactionStore.settleInk(on: leaf)
@@ -13366,9 +13441,9 @@ private struct FolioStillPager: View {
     var endLeafControlsRevision: Int = 0
     let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
-    let savedRibbon: SavedPageRibbon?
-    let onPlaceRibbon: (SurfacePage, String, Int) -> Void
-    let onLiftRibbon: () -> Void
+    let savedRibbons: [SavedPageRibbon]
+    let onPlaceRibbon: (SurfacePage, String, Int, Int?) -> Void
+    let onLiftRibbon: (String) -> Void
     let onExploreDeeper: () -> Void
     let onReturnToStart: () -> Void
     var onOpenInterleafSource: (String) -> Void = { _ in }
@@ -13423,21 +13498,15 @@ private struct FolioStillPager: View {
                                 advanceAfterResolution(of: leaf.documentID)
                                 onDismiss(leaf.surface)
                             },
-                            isRibbonHere: savedRibbon?.marks(
-                                documentID: leaf.documentID,
-                                textRange: leaf.textRange
-                            ) == true,
+                            isRibbonHere: savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) },
                             onToggleRibbon: {
-                                if savedRibbon?.marks(
-                                    documentID: leaf.documentID,
-                                    textRange: leaf.textRange
-                                ) == true {
-                                    onLiftRibbon()
+                                if savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) } {
+                                    onLiftRibbon(leaf.documentID)
                                 } else {
                                     onPlaceRibbon(
                                         leaf.surface,
                                         leaf.documentID,
-                                        leaf.textRange.lowerBound
+                                        leaf.textRange.lowerBound, nil
                                     )
                                 }
                             },
@@ -13511,9 +13580,9 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
     var endLeafControlsRevision: Int = 0
     let onKeep: (SurfacePage, String, [BookPageMediaAsset]) -> FolioLeafKeepDisposition
     let onDismiss: (SurfacePage) -> Void
-    let savedRibbon: SavedPageRibbon?
-    let onPlaceRibbon: (SurfacePage, String, Int) -> Void
-    let onLiftRibbon: () -> Void
+    let savedRibbons: [SavedPageRibbon]
+    let onPlaceRibbon: (SurfacePage, String, Int, Int?) -> Void
+    let onLiftRibbon: (String) -> Void
     let onExploreDeeper: () -> Void
     let onReturnToStart: () -> Void
     var onOpenInterleafSource: (String) -> Void = { _ in }
@@ -13944,10 +14013,7 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
             if leaf.interactionKind == .pageControls {
                 hasher.combine(parent.endLeafControlsRevision)
             }
-            hasher.combine(parent.savedRibbon?.marks(
-                documentID: leaf.documentID,
-                textRange: leaf.textRange
-            ) == true)
+            hasher.combine(parent.savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) })
             for action in leaf.isInterstitial ? [] : parent.leafActions(leaf.surface) {
                 hasher.combine(action.kind.rawValue)
                 hasher.combine(action.title)
@@ -14023,22 +14089,16 @@ private struct FolioCurlPager: UIViewControllerRepresentable {
                         self?.advanceAfterResolution(of: leaf.documentID)
                         dismiss(leaf.surface)
                     },
-                    isRibbonHere: parent.savedRibbon?.marks(
-                        documentID: leaf.documentID,
-                        textRange: leaf.textRange
-                    ) == true,
+                    isRibbonHere: parent.savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) },
                     onToggleRibbon: { [weak self] in
                         guard let self else { return }
-                        if self.parent.savedRibbon?.marks(
-                            documentID: leaf.documentID,
-                            textRange: leaf.textRange
-                        ) == true {
-                            self.parent.onLiftRibbon()
+                        if self.parent.savedRibbons.contains { $0.marks(documentID: leaf.documentID, textRange: leaf.textRange) } {
+                            self.parent.onLiftRibbon(leaf.documentID)
                         } else {
                             self.parent.onPlaceRibbon(
                                 leaf.surface,
                                 leaf.documentID,
-                                leaf.textRange.lowerBound
+                                leaf.textRange.lowerBound, nil
                             )
                         }
                     },

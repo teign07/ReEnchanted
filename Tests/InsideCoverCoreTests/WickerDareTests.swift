@@ -313,6 +313,10 @@ final class WickerDareTests: XCTestCase {
                 XCTAssertFalse(text.contains(banned), "\(banned) in \(dare.id)")
             }
             XCTAssertTrue(dare.proofPrompt.hasPrefix("Bring me") || dare.proofPrompt.hasPrefix("Tell me"), dare.id)
+            // bj, 2026-11-07: every prompt asks for one sentence.
+            let ask = dare.proofPrompt.lowercased()
+            XCTAssertTrue(ask.contains("one sentence") || ask.contains("the sentence") || ask.contains("one line")
+                          || ask.contains("just the one") || ask.contains("in one sentence"), "\(dare.id) asks for more than one sentence: \(dare.proofPrompt)")
         }
     }
 

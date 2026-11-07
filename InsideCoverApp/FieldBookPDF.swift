@@ -4456,6 +4456,10 @@ extension MonthlyEditionPDFWriter {
             leaf.y += size + 6
             hbText(note, font: .fbSerifItalic(ofSize: 9.6), color: ink.withAlphaComponent(0.66), leaf: &leaf, justified: false, gap: 12)
         }
+        if let ribboned = annual.ribboned, !ribboned.isEmpty {
+            entry(nil, "Marked With a Ribbon",
+                  "The \(ribboned.count == 1 ? "Page" : "\(ribboned.count) Pages") you tucked a ribbon into, first of all.", size: 12)
+        }
         let days = annual.chapters.reduce(0) { $0 + ($1.dayBook?.days.count ?? $1.dayCount) }
         entry("Part One", volumeNoun == "year" ? "Your Year" : "Your Days", volumeNoun == "year"
               ? "Twelve months, each opening on its almanac: the fullest of its days, whole, and a line or two from every other day you wrote."

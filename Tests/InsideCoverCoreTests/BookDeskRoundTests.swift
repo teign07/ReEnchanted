@@ -167,17 +167,15 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertFalse(pages.contains(where: \.isReaderActionCommission))
     }
 
-    func testEvergreenQuipOpensWithAnActualQuipAfterMaturity() throws {
+    func testEvergreenQuipOpensWithAnActualQuipFromTheFirstPage() throws {
         let pages = BookEvergreenPlayReserve.pages(
-            now: Date(timeIntervalSince1970: 1_750_000_000),
-            keptPageCount: BookMemoryGate.requiredKeptPageCount
+            now: Date(timeIntervalSince1970: 1_750_000_000)
         )
         let quip = try XCTUnwrap(pages.first { $0.prompt == "The Margin Has Something To Add" })
 
         XCTAssertEqual(quip.type, .quip)
         XCTAssertNotEqual(quip.payload.body, quip.detail)
         XCTAssertTrue(quip.payload.body.contains("false moustache"))
-        XCTAssertFalse(BookMemoryGate.locks(quip.type, keptPageCount: BookMemoryGate.requiredKeptPageCount))
     }
 
     func testEvergreenQuoteOpensWithAnActualAttributedSentence() throws {
@@ -191,19 +189,6 @@ final class BookDeskRoundTests: XCTestCase {
         XCTAssertNotEqual(quote.payload.body, quote.detail)
         XCTAssertTrue(quote.payload.body.contains(quotedSentence))
         XCTAssertTrue(quote.payload.body.contains(author))
-    }
-
-    func testEvergreenReserveNeverOffersAPageTheDeskWillRefuseToOpen() {
-        let keptPageCount = BookMemoryGate.requiredKeptPageCount - 1
-        let pages = BookEvergreenPlayReserve.pages(
-            now: Date(timeIntervalSince1970: 1_750_000_000),
-            keptPageCount: keptPageCount
-        )
-
-        XCTAssertFalse(pages.contains { $0.type == .quip })
-        XCTAssertTrue(pages.allSatisfy {
-            !BookMemoryGate.locks($0.type, keptPageCount: keptPageCount)
-        })
     }
 
     func testEvergreenPlayReserveMintsAnotherSeatingWithoutChangingContentIdentity() {

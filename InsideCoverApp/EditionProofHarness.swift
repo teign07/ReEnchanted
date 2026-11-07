@@ -22,6 +22,10 @@ enum EditionProofHarness {
     static let flag = "--smoke-edition-proofs"
 
     static func runIfRequested() {
+        if ProcessInfo.processInfo.arguments.contains(InscriptionProof.flag) {
+            MainActor.assumeIsolated { InscriptionProof.run() }
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--public-sample-editions") {
             PublicSampleEditionProof.run()
             return
@@ -2288,6 +2292,259 @@ enum WeeklyIssueSixProof {
             status.append("FAILED: \(error)")
         }
         try? status.joined(separator: "\n").write(to: folder.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+    }
+}
+/// The onboarding Inscription, pressed for two plausible new readers.
+///
+/// Launch the simulator app with `--proof-inscription`. The real builder is a
+/// private method on the onboarding view and reads its live @State, so this
+/// mirrors it as of 2026-11-07 (BookSurfaceViews `inscriptionEdition`).
+/// Rowan kept their first Page, chose Mossbloom, lost two of three recall
+/// details and answered Wicker. Sam let the Page wait, asked the Book to pick
+/// (Duskthorn), skipped the recall and never answered Wicker. Neither made a
+/// photo or scrapbook leaf. Output: Documents/inscription-proof/*.pdf.
+@MainActor
+enum InscriptionProof {
+    static let flag = "--proof-inscription"
+
+    struct Reader {
+        var name: String
+        var sentence: String?
+        var waited: Bool
+        var chapterID: String
+        var pickedByBook: Bool
+        var forgotten: Int?
+        var hourNoun: String
+        var stillSharp: String?
+        var rutTitle: String?
+        var rutReflection: String?
+        var snack: String?
+        var belief: String?
+        var investedBelief: Bool
+        var alive: String
+        var magic: String
+        var axes: RoleAxes
+        var wickerConsequence: String?
+    }
+
+    static let readers: [(String, Reader)] = [
+        ("inscription", Reader(
+            name: "Rowan",
+            sentence: "The kettle clicked off while I was still deciding whether to get up, and the steam fogged the window over the bins.",
+            waited: false, chapterID: "mossbloom", pickedByBook: false, forgotten: 2, hourNoun: "drive",
+            stillSharp: "my sister laughing at the cat", rutTitle: "My phone eats the edges",
+            rutReflection: "\u{201C}Then I won't nag you about the phone. I'll just point at whatever's happening right next to it.\u{201D}",
+            snack: "Toast with too much butter", belief: "small true things matter", investedBelief: true,
+            alive: "Outside somewhere", magic: "Tiny beautiful details",
+            axes: { var a = RoleAxes(); a.rut = "phone"; a.alive = "outside"; a.magic = "details"; a.recallKept = 1
+                    a.keptFirstPage = true; a.backedTheirBelief = true; a.heldAgainstWicker = true; return a }(),
+            wickerConsequence: "The ordinary detail lands square. Wicker was ready for something grand; he wasn't ready for something specific. He recovers a half-beat late. I write the half-beat down.\n\nNext time your day starts to blur, bring back another one like that. He won't see it coming."
+        )),
+        ("inscription-wait", Reader(
+            name: "Sam",
+            sentence: nil, waited: true, chapterID: "duskthorn", pickedByBook: true, forgotten: nil, hourNoun: "cooking",
+            stillSharp: nil, rutTitle: "I keep waiting for later",
+            rutReflection: "\u{201C}Then I'll stop letting later have everything. Today gets a turn.\u{201D}",
+            snack: nil, belief: "nobody is boring up close", investedBelief: false,
+            alive: "Lost in a story", magic: "Strange coincidences",
+            axes: { var a = RoleAxes(); a.rut = "later"; a.alive = "story"; a.magic = "coincidence"; a.keptFirstPage = false; return a }(),
+            wickerConsequence: nil
+        ))
+    ]
+
+    static func run() {
+        let folder = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("inscription-proof", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var status: [String] = []
+        for (file, reader) in readers {
+            let url = folder.appendingPathComponent("\(file).pdf")
+            do {
+                try MonthlyEditionPDFWriter.write(edition(for: reader), to: url)
+                status.append("OK \(file): \(PDFDocument(url: url)?.pageCount ?? 0) pages")
+            } catch {
+                status.append("FAILED \(file): \(error)")
+            }
+        }
+        try? status.joined(separator: "\n").write(to: folder.appendingPathComponent("status.txt"), atomically: true, encoding: .utf8)
+        print("INSCRIPTION_PROOF \(status.joined(separator: " | "))")
+    }
+
+    private static func edition(for reader: Reader) -> MonthlyEdition {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2026, month: 11, day: 7, hour: 7, minute: 42)) ?? Date()
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let readerName = reader.name
+        let kept = !reader.waited
+        let composed = ReaderRoleRegistry.compose(axes: reader.axes)
+        let role = BoundReaderRole(composed)
+        let chapter = AcademyChapterRegistry.chapter(id: reader.chapterID)
+
+        let curseLine = "That's the Curse. It eats ordinary minutes before anyone gets a proper look at them."
+        var door = ["You picked me up on Saturday at 7:42 AM, while the day's still deciding what kind of page it'll be. I was blank. Not empty. Blank, which is worse, because blank is waiting."]
+        if kept, let sentence = reader.sentence {
+            door += ["Then you wrote on my first Page:", sentence,
+                     "You told me to keep it, so I did. Something grey came nibbling at its edge straight away. \(curseLine) It couldn't have this one. You'd already kept it."]
+        } else {
+            door += ["I offered you a Page and you let it wait. I folded it away and wrote down that you did. A no counts.",
+                     "Something grey came nibbling at the fold anyway. \(curseLine)"]
+        }
+        door.append("Then the Page pulled, and you fell through me: past a wolf asleep on a sentence, past a train rattling along a footnote. Your knees hit stone. A girl with quick grey eyes was looking down at you.")
+
+        var zara = ["That was Zara Finch. She found you in the sentence-dust and didn't make a fuss about it, which I liked."]
+        if let forgotten = reader.forgotten {
+            zara.append(forgotten == 0
+                ? "She asked about the \(reader.hourNoun): three small things from an ordinary hour. You had all three. The Curse hadn't touched it. I love being wrong about that."
+                : "She asked about the \(reader.hourNoun): three small things from an ordinary hour. \(forgotten == 1 ? "One" : "Two") of them had gone. You were awake for that whole hour, and that's all that stuck. That's the Curse. We're taking some back.")
+        } else {
+            zara.append("She started asking about an ordinary hour, and the answers never came. I'd rather leave that blank than pretend I caught you.")
+        }
+        if let belief = reader.belief {
+            zara.append(reader.investedBelief
+                ? "Then you told her you believe \u{201C}\(belief)\u{201D}, and you put weight behind it. So it's in the story now. It'll turn up again."
+                : "Then you told her you believe \u{201C}\(belief)\u{201D}. You kept it in the margin for now. That's allowed.")
+        }
+        var wicker = ["Then Wicker Eddies stepped out from behind a shelf at the worst possible moment and had your Page before you saw him move. He collects the beginnings of other people's stories."]
+        wicker.append(reader.wickerConsequence ?? "He waited for an answer and didn't get one. I've left room for it.")
+        wicker.append("Zara read the whole thing over your shoulder. \u{201C}It was listening,\u{201D} she said. \u{201C}Let's make you a copy.\u{201D} So I did. You're holding it.")
+        let zaraIsPatron = role?.patronSlug == "zara-finch"
+        let tale: [InscriptionPublicationMatter.TaleScene] = [
+            .init(id: "door", heading: "The Door", body: door.joined(separator: "\n\n"), readerParagraph: kept ? reader.sentence : nil),
+            .init(id: "zara", heading: "Zara", body: zara.joined(separator: "\n\n"),
+                  plateAssetName: zaraIsPatron ? nil : "LabyrinthCharacterZaraFinch",
+                  plateCaption: zaraIsPatron ? nil : "Zara Finch, who found you in the sentence-dust"),
+            .init(id: "wicker", heading: "Wicker", body: wicker.joined(separator: "\n\n"),
+                  plateAssetName: "LabyrinthCharacterWickerEddies",
+                  plateCaption: "Wicker Eddies, who collects other people's beginnings")
+        ]
+
+        var notes: [InscriptionPublicationMatter.NoteLine] = []
+        if let sharp = reader.stillSharp { notes.append(.init(id: "still-sharp", label: "Still sharp from that hour", answer: sharp, readerWrote: true)) }
+        if let rut = reader.rutTitle { notes.append(.init(id: "rut", label: "Where the Curse gets you worst", answer: "\u{201C}\(rut)\u{201D}", aside: reader.rutReflection)) }
+        if let snack = reader.snack { notes.append(.init(id: "snack", label: "Reading snack", answer: snack, readerWrote: true, aside: "She underlined it twice.")) }
+        notes.append(.init(id: "alive", label: "Where you come alive", answer: "\u{201C}\(reader.alive)\u{201D}"))
+        notes.append(.init(id: "magic", label: "What feels like magic", answer: "\u{201C}\(reader.magic)\u{201D}"))
+
+        let readings: [String: String] = [
+            "mossbloom": "Mossbloom says it was there all along, waiting. You just finally noticed.",
+            "duskthorn": "Duskthorn sees a fight in it: you, refusing to let it disappear."
+        ]
+        let surprises: [String: String] = [
+            "mossbloom": "\"Surprising thing,\" Zara says. \"The quiet Chapter notices trouble first.\"",
+            "duskthorn": "\"Surprising thing,\" Zara says. \"The thorny Chapter's often the kindest, because it names the real wound.\""
+        ]
+        let talismans = ["mossbloom": "LabyrinthTalismanMossClasp", "duskthorn": "LabyrinthTalismanDuskThorn"]
+        let feature = chapter.map { chapter in
+            InscriptionPublicationMatter.ChapterFeature(
+                chapterID: chapter.id, name: chapter.name, chosenByReader: !reader.pickedByBook,
+                argument: chapter.philosophy, founder: chapter.founder, question: chapter.compassFlavor,
+                reading: kept ? (readings[chapter.id] ?? "")
+                    : "\(chapter.name) says letting a Page wait is a choice too. It wants to see what you do with the next one.",
+                surprise: surprises[chapter.id], charge: chapter.writeFraming,
+                talismanName: chapter.talismanName, plateAssetName: talismans[chapter.id]
+            )
+        }
+
+        let pages: [BookPage] = [
+            BookPage(type: .souvenir, createdAt: now, promptText: "The Page that knew the hour",
+                     userInput: "You picked up this Page on Saturday at 7:42 AM, while the day's still deciding what kind of page it'll be.",
+                     tags: ["onboarding", "arrival", "first-door"], sourceID: "first-door"),
+            BookPage(type: .bookOfYou, createdAt: now.addingTimeInterval(300), promptText: "How We Met",
+                     userInput: tale.map(\.body).joined(separator: "\n\n"),
+                     tags: ["onboarding", "book-of-you", "daily-braid", "first-door"], usedInBookOfYou: true, sourceID: "first-door"),
+            BookPage(type: .letter, createdAt: now.addingTimeInterval(360), promptText: """
+                Dear \(readerName),
+
+                You fell out of the Unwritten this morning and, before anyone could give you a tour, you'd already shown me two things: how you like a moment told, and whether it was worth keeping.
+
+                Bring more of the small stuff. The Academy will argue about it, loudly. I'll remember what you actually picked.
+
+                Zara Finch, who found you in the sentence-dust
+                """, tags: ["onboarding", "zara", "letter"], usedInBookOfYou: true, sourceID: "zara-finch")
+        ]
+        let day = BookDay(id: BookDay.id(for: now), date: calendar.startOfDay(for: now), pages: pages)
+        var edition = MonthlyEditionBuilder.edition(
+            from: [day], constellations: [], readerName: readerName, readerRole: role,
+            startDate: monthStart, endDate: now, generatedAt: now, calendar: calendar
+        )
+        edition.dayBook = nil
+        edition.title = "Book of You: The Inscription"
+        edition.subtitle = "\(readerName): your first little book"
+        edition.publicationKind = .special
+        edition.publicationRecipeID = "first-door"
+        edition.publicationCoverPlateID = nil
+        edition.sections = edition.sections.compactMap { section -> MonthlyEditionSection? in
+            guard section.id == "letters" else { return nil }
+            var section = section
+            section.title = "A Letter from the Sentence-Dust"
+            section.note = "Zara Finch writes to you from the Academy."
+            return section
+        }
+        let closing = """
+        \(readerName), you came through as \(role?.markedName ?? "a reader I'm still naming").
+
+        Keep a few Pages today. Tonight, from six, I'll braid what you kept into your first story.
+
+        Give me a few days and a handful of Pages, and I'll tell you what I've read in you. I won't guess before then.
+
+        Bring me another small thing.
+
+        - me
+        """
+        edition.inscriptionPublication = InscriptionPublicationMatter(
+            arrivalLine: "Bound on \(now.formatted(.dateTime.weekday(.wide).month(.wide).day().year())) at 7:42 AM.",
+            signatures: [],
+            firstArgumentTitle: chapter?.name ?? "The Five Chapters",
+            firstArgumentBody: feature?.reading ?? "",
+            closing: closing,
+            pagewrightLeaf: nil,
+            bookNote: """
+            \(readerName),
+
+            I was blank when you got here. Then \(kept ? "you wrote one sentence on my first Page" : "you let my first Page wait, and even that left a mark"), and look what it did to my pages.
+
+            This is the first thing we made while watching each other. Every word of it came from something you actually did.
+
+            I've only caught you once. I kept it anyway.
+
+            - me
+            """,
+            thresholdThread: [
+                .init(id: "noticed", stage: "YOU NOTICED", detail: kept ? "Something ordinary, and you wrote it down." : "A Page, and you let it wait."),
+                .init(id: "kept", stage: "THE BOOK KEPT", detail: kept ? "You told me to keep it. So I did. It's still here." : "You let the Page wait. I wrote that down as a no, and a no counts."),
+                .init(id: "argued", stage: "THE ACADEMY ARGUED", detail: "\(chapter?.name ?? "The banners") took the first reading. \(reader.pickedByBook ? "I picked it for you." : "You chose it.")"),
+                .init(id: "bit", stage: "WICKER BIT THE MARGIN", detail: reader.wickerConsequence == nil ? "He took your Page. He's still waiting for an answer." : "He took your Page. You answered him."),
+                .init(id: "returned", stage: "THE PRESS RETURNED", detail: "All of it went into this copy.")
+            ],
+            bindingConversation: BoundVolumeCastConversation(
+                title: "The Copy on the Binding Table",
+                setting: "Zara and Wicker get the finished copy, still warm from the press. They're only allowed to argue about what's actually on the pages.",
+                lines: [
+                    .init(id: "first-door-zara-seam", speakerID: "zara-finch", speakerName: "Zara Finch", glyph: nil,
+                          words: kept ? "Open it at the seam. That first sentence is doing the real work. Small enough to be missed, specific enough to hold."
+                                      : "Open it at the seam. Even the Page \(readerName) let wait is doing work. A no counts."),
+                    .init(id: "first-door-wicker-bite", speakerID: "wicker-eddies", speakerName: "Wicker Eddies", glyph: nil,
+                          words: reader.wickerConsequence == nil
+                            ? "I opened it. The margin's suspiciously unbitten, so I've left room for trouble."
+                            : "I opened it. I bit the margin. \(readerName) answered me, and the page had the decency to change afterward."),
+                    .init(id: "first-door-zara-record", speakerID: "zara-finch", speakerName: "Zara Finch", glyph: nil,
+                          words: "Good. Leave the fighting in the binding. This copy remembers what actually happened."),
+                    .init(id: "first-door-wicker-verdict", speakerID: "wicker-eddies", speakerName: "Wicker Eddies", glyph: nil,
+                          words: "Fine. \(readerName) brought one real thing, and it's still there. I've checked. Annoyingly.")
+                ],
+                evidenceIDs: ["first-door-detail"]
+            ),
+            readerCoverArtwork: nil,
+            tale: tale,
+            zaraNotes: notes,
+            chapterFeature: feature
+        )
+        edition.foreword = ""
+        edition.bindingStory = nil
+        edition.closing = closing
+        edition.pageCount = edition.sections.reduce(0) { $0 + $1.items.count }
+        return edition
     }
 }
 #endif

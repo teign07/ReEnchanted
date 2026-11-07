@@ -35,32 +35,31 @@ final class BookInterruptionBudgetTests: XCTestCase {
         XCTAssertTrue(BookInterruptionBudget.plan(candidates: candidates, cadence: .morning, consumed: ["\(day)|morning"]).winners.isEmpty)
     }
 
-    func testAttentionSampleSurvivesInsideOnlyCadenceAndUsesExistingSeat() {
+    /// Knocks have their own lane (docs/the-knock-plan.md). They used to take
+    /// a window's seat and replace the whisper there; two a day would then
+    /// have crowded out the Book's other Knocks. Their schedule caps them at
+    /// two, so the day holds at most two Knocks and two seats.
+    func testKnocksHaveTheirOwnLaneAndNeverTakeASeat() {
         let candidates = [
             candidate("ordinary", .morning),
-            candidate(
-                "attention",
-                .morning,
-                kind: .attention,
-                specific: true,
-                priority: 150
-            )
+            candidate("knock-morning", .morning, kind: .attention, specific: true, priority: 150),
+            candidate("knock-afternoon", .evening, kind: .attention, specific: true, priority: 150),
+            candidate("braid", .evening, kind: .braid)
         ]
-
         XCTAssertEqual(
-            BookInterruptionBudget.plan(
-                candidates: candidates,
-                cadence: .inside
-            ).winners.map(\.id),
-            ["attention"]
+            Set(BookInterruptionBudget.plan(candidates: candidates, cadence: .both).winners.map(\.id)),
+            ["ordinary", "knock-morning", "knock-afternoon", "braid"]
         )
         XCTAssertEqual(
-            BookInterruptionBudget.plan(
-                candidates: candidates,
-                cadence: .morning
-            ).winners.map(\.id),
-            ["attention"],
-            "the sample replaces the ordinary whisper instead of stacking"
+            Set(BookInterruptionBudget.plan(candidates: candidates, cadence: .inside).winners.map(\.id)),
+            ["knock-morning", "knock-afternoon"],
+            "the Knocks survive an inside-only cadence, as the study always did"
+        )
+        XCTAssertEqual(
+            Set(BookInterruptionBudget.plan(candidates: candidates, cadence: .both,
+                                            consumed: ["\(day)|morning"]).winners.map(\.id)),
+            ["knock-morning", "knock-afternoon", "braid"],
+            "a used seat doesn't stop a Knock"
         )
     }
 

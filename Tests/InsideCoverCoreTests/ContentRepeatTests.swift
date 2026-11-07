@@ -157,7 +157,7 @@ final class ContentRepeatTests: XCTestCase {
     /// Nine pages, then nine more, then nine more, for as long as the reader
     /// keeps asking. The Curator's bench is empty here on purpose: this is what
     /// the reader meets after the first couple of pulls.
-    private func pulls(count: Int, keptPageCount: Int = 30) -> [[SurfacePage]] {
+    private func pulls(count: Int) -> [[SurfacePage]] {
         let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 9))!
         var shown: [SurfacePage] = []
         var history: [String: SurfaceHistoryRecord] = [:]
@@ -171,7 +171,7 @@ final class ContentRepeatTests: XCTestCase {
             ) { variants, rests, tier in
                 BookEvergreenPlayReserve.pages(
                     now: now, generation: generation * 10 + tier,
-                    keptPageCount: keptPageCount, history: history,
+                    history: history,
                     variantsPerCatalogue: variants, restsFixedSeeds: rests
                 )
             }
@@ -300,7 +300,7 @@ final class ContentRepeatTests: XCTestCase {
     }
 
     func testExploreDeeperStaysFullForAYoungReaderToo() {
-        let run = pulls(count: 30, keptPageCount: 0)
+        let run = pulls(count: 30)
         XCTAssertEqual(run.map(\.count), Array(repeating: BookDeskRound.reserveCapacity, count: 30))
     }
 

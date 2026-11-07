@@ -407,12 +407,19 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(achievements.text.localizedCaseInsensitiveContains("achievement"))
     }
 
-    func testMarginTutorCatalogCoversIntroductionCurriculumDebuts() throws {
+    func testMarginTutorCatalogExplainsTheWiderWorld() throws {
         let whatCues = ["This", " is ", " are ", "means", "shows", "lets", "live here", "happens"]
         let whyCues = ["appears", "because", "when", "after", "enough", "real", "starts from"]
         let howCues = ["Tap", "Read", "Choose", "Use", "Play", "Pick", "Do", "Listen", "Treat"]
 
-        for type in IntroductionCurriculum.requiredStage.keys {
+        let types: [BookPageType] = [
+            .narrativeOS, .academyClass, .elective, .gamePage, .gossip, .bookAside,
+            .letter, .facultyResearch, .supportGuild, .inkrestOfficeHours,
+            .glowInvitation, .wordNegotiation, .castBond, .twoReadings, .bookNotices,
+            .bookJump, .faeBargain, .bookFae, .pactDispatch, .pactVerdict,
+            .pactErrand, .theBleed
+        ]
+        for type in types {
             let id = try XCTUnwrap(MarginTutorCatalog.noteID(for: type), "missing tutor id for \(type.rawValue)")
             let note = try XCTUnwrap(MarginTutorCatalog.note(for: id), "missing tutor note \(id) for \(type.rawValue)")
             XCTAssertTrue(
@@ -2278,7 +2285,7 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         let quips = QuipPackRegistry.ridiculousPerspectiveQuips
         let bundledIDs = Set(QuipPackRegistry.bundledPacks.flatMap(\.quips).map(\.id))
 
-        XCTAssertEqual(quips.count, 40)
+        XCTAssertEqual(quips.count, 36)
         XCTAssertEqual(Set(quips.map(\.id)).count, quips.count)
         XCTAssertEqual(Set(quips.map(\.text)).count, quips.count)
         XCTAssertTrue(quips.allSatisfy { quip in
@@ -3901,6 +3908,43 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("local-brain") == true)
         XCTAssertTrue(welcome?.payload.metadata["tags"]?.contains("colophon") == true)
         XCTAssertGreaterThan(welcome?.score ?? 0, 80)
+    }
+
+    func testWelcomeDoesNotAskForABrainAlreadyComingOrAwake() {
+        let day = BookDay.today()
+        var inputs = BookSourceInputs.empty
+        func welcomeBody() -> String? {
+            LabyrinthWelcomePageSourceAdapter().candidates(
+                for: day,
+                context: CuratorContext.make(for: day),
+                inputs: inputs,
+                now: Date()
+            ).first?.payload.body
+        }
+
+        XCTAssertTrue(welcomeBody()?.contains("Tap Wake My Brain") == true)
+
+        // Said yes in onboarding: the download is under way.
+        inputs.localBrainIsFetching = true
+        let coming = try? XCTUnwrap(welcomeBody())
+        XCTAssertTrue(coming?.contains("still coming in") == true)
+        XCTAssertTrue(coming?.contains("I'll test it") == true)
+        XCTAssertFalse(coming?.contains("Tap Wake My Brain") == true)
+        XCTAssertFalse(coming?.contains("asleep") == true)
+
+        inputs.localBrainIsReady = true
+        let awake = try? XCTUnwrap(welcomeBody())
+        XCTAssertTrue(awake?.contains("I can think now") == true)
+        XCTAssertFalse(awake?.contains("Tap Wake My Brain") == true)
+    }
+
+    func testBrainRiderWaitsWhileTheBrainIsComing() {
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.firstMissionSourceID)")
+        XCTAssertNotNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs))
+
+        inputs.localBrainIsFetching = true
+        XCTAssertNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs))
     }
 
     func testWelcomePageKeepsBookBrainInvitationAfterCompletedInscription() {

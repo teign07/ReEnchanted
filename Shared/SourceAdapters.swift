@@ -1,14 +1,5 @@
 import Foundation
 
-/// Tunable thresholds gating the emergent/reflective pages that comment on the
-/// reader's library rather than capture new material.
-enum EmergentPageMaturity {
-    /// Minimum kept fragments before reflective pages may surface.
-    static let minimumKeptPages = 4
-    /// How long after the first kept page reflective pages stay folded away.
-    static let minimumAgeSeconds: TimeInterval = 6 * 3600
-}
-
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
     var publicationEpoch: BookPublicationEpoch? = nil
@@ -154,6 +145,8 @@ struct BookSourceInputs: Equatable {
     /// Repeating in-the-moment receipts of whether attention was here or
     /// elsewhere. Unanswered knocks never enter this ledger.
     var attentionProbes: AttentionProbeLedger = .empty
+    /// Every Inkbones throw, the reader's and the Curse's (docs/the-knock-plan.md §7).
+    var inkbonesLog: [InkbonesThrowRecord] = []
     /// The reader measured against their own usual, posted from the Daybook.
     /// This gates how bold a claim may be, how much the Book may interrupt, and
     /// what shape the desk takes. It is never spoken.
@@ -253,6 +246,9 @@ struct BookSourceInputs: Equatable {
     var ownedPackIDs: Set<String> = []
     var readerLexicon: ReaderLexicon = ReaderLexicon()
     var localBrainIsReady = false
+    /// The reader already said yes (usually in onboarding) and the brain is on
+    /// its way, so the first pages shouldn't ask for it again.
+    var localBrainIsFetching = false
     /// How big the brain download is on this device, in the Book's own words.
     var localBrainDownloadLabel = BrainFeedingNarration.downloadLabel(forModelID: "")
     var readerBeliefScore: Int = 30
@@ -286,17 +282,12 @@ struct BookSourceInputs: Equatable {
         days.reduce(0) { $0 + $1.pages.count }
     }
 
-    /// Emergent/reflective pages: The Two Readings, the Loom (cast bonds), Book
-    /// Notices, Book Remembers, and Constellations, only mean something once a
-    /// few kept pages have built up and the book has aged past its first hours.
-    /// Holding them back keeps the early days about capturing, not commentary.
-    /// `today` is folded in because the current day usually isn't in `days` yet.
-    func libraryReadyForReflectivePages(includingToday today: BookDay? = nil, now: Date = Date()) -> Bool {
+    /// Reflection needs reader material, not a minimum number of keeps or
+    /// hours of waiting. Each adapter decides whether that material supports
+    /// the particular page it wants to offer.
+    func hasReflectiveMaterial(includingToday today: BookDay? = nil) -> Bool {
         let allDays = today.map { days + [$0] } ?? days
-        let captured = allDays.flatMap(\.capturedPages)
-        guard captured.count >= EmergentPageMaturity.minimumKeptPages else { return false }
-        guard let first = captured.map(\.createdAt).min() else { return false }
-        return now.timeIntervalSince(first) >= EmergentPageMaturity.minimumAgeSeconds
+        return allDays.contains { !$0.capturedPages.isEmpty }
     }
     var selectedWonderCompass: ReferenceSnippet?
     var selectedWonderCompassSelector: String?
@@ -942,41 +933,6 @@ struct OvernightConnectionPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         return OvernightConnectionReview.surfaces(for: day, inputs: inputs, now: now)
-    }
-}
-
-/// Page families the Book withholds until it has standing to show them.
-///
-/// This used to hold Book Remembered, Book Connections, and the Margins Atlas
-/// behind a fiftieth-kept-page counter. That was dead weight twice over: those
-/// three adapters each already refuse to build a page without real material
-/// under it (a resurfacing candidate, `connectionWeight >= 3`, a non-empty
-/// graph), so the counter never prevented a hollow page: it only silenced a
-/// page that had something to say. And it made the reader's first weeks a
-/// progress bar. Claim size now scales with evidence instead: see
-/// `BookClaimTier`.
-///
-/// What remains here is the one thing a count genuinely governs: the Book
-/// asking a near-stranger for money, or being flippant at them, before it has
-/// earned either.
-enum BookMemoryGate {
-    /// Kept pages before the Book may pass the hat or crack wise.
-    static let requiredKeptPageCount = 30
-
-    static let lockedTypes: Set<BookPageType> = [.patreon, .quip]
-
-    static func locks(_ type: BookPageType, keptPageCount: Int) -> Bool {
-        lockedTypes.contains(type) && keptPageCount < requiredKeptPageCount
-    }
-
-    static func remainingPages(for keptPageCount: Int) -> Int {
-        max(0, requiredKeptPageCount - keptPageCount)
-    }
-
-    static func message(for type: BookPageType, keptPageCount: Int) -> String {
-        let remaining = remainingPages(for: keptPageCount)
-        let noun = remaining == 1 ? "page" : "pages"
-        return "\(type.title) unlocks after \(requiredKeptPageCount) kept pages. Keep \(remaining) more \(noun)."
     }
 }
 
@@ -1764,7 +1720,7 @@ enum JournalPromptCatalog {
                "Tomorrow, remember...",
                ["tomorrow", "intention", "choice", "courage", "need", "future"]),
         prompt("world-already-saying", .listening, "The Soundtrack You Didn't Choose",
-               "What was playing in the background of today that you never chose? A fridge, the traffic, somebody else's music?",
+               "What was playing in the background of today that you never chose: a fridge, the traffic, somebody else's music?",
                "Would you have picked it?",
                "All day there was...",
                ["listen", "nature", "weather", "pattern", "signal", "patience", "notice"]),
@@ -1839,19 +1795,19 @@ enum JournalPromptCatalog {
                "The room proves today happened because...",
                ["day", "room", "object", "evidence", "home", "work", "detail"]),
         prompt("plain-chronology", .traditional, "What Happened",
-               "What happened today? Tell it plainly. Which bit is still warm?",
+               "Which bit of today is still warm? Tell it plainly, in one sentence.",
                "Why that bit, and not the one that was supposed to matter?",
                "Today...",
                ["journal", "day", "memory", "event", "reflection", "traditional"]),
         prompt("hard-and-helped", .traditional, "Hard / Helped",
-               "What was hard today? What helped, even a little?",
+               "What was hard today, and what helped, even a little? One sentence can hold both.",
                "Who or what did the helping?",
-               "What was hard...\nWhat helped...",
+               "It was hard, but...",
                ["hard", "help", "care", "support", "tired", "reflection", "traditional"]),
         prompt("three-concrete-goods", .traditional, "Three Good Things with Names",
-               "Name three good things from today. Not 'my family' or 'my health'. A person, a thing, a sound, a place. Real ones.",
+               "Name one good thing from today. Not 'my family' or 'my health'. A person, a thing, a sound, a place. A real one.",
                "Which one would be easiest to forget by tomorrow?",
-               "1.\n2.\n3.",
+               "One good thing...",
                ["gratitude", "good", "person", "object", "place", "sound", "traditional"]),
         prompt("tomorrow-contain", .traditional, "A Shape for Tomorrow",
                "What does tomorrow need to have in it?",
@@ -1859,7 +1815,7 @@ enum JournalPromptCatalog {
                "Tomorrow needs...",
                ["tomorrow", "need", "plan", "care", "rest", "traditional"]),
         prompt("free-page", .traditional, "Let the Ink Misbehave",
-               "Write whatever you like for five minutes. If meaning turns up, make it wait outside.",
+               "Write one sentence, whatever you like. If meaning turns up, make it wait outside.",
                "If a true sentence falls out, leave it messy.",
                "Start anywhere...",
                ["free write", "journal", "thought", "feeling", "traditional", "private"]),
@@ -1869,12 +1825,12 @@ enum JournalPromptCatalog {
                "Tonight, I'm leaving...",
                ["rest", "unfinished", "tired", "night", "permission", "care"]),
         prompt("stop-performing", .rest, "Off Duty",
-               "What's off duty now the day is done? Your face, your voice, your shoes?",
+               "What's off duty now the day is done: your face, your voice, your shoes?",
                "What's still on duty that doesn't need to be?",
                "Off duty now...",
                ["rest", "night", "work", "body", "performance", "quiet"]),
         prompt("survived-with-you", .rest, "The Things That Made It Home",
-               "Name three things within reach that got through the day with you.",
+               "Name one thing within reach that got through the day with you.",
                "Which one looks most ready to be put down?",
                "Still here with me...",
                ["rest", "object", "home", "night", "survive", "inventory"]),
@@ -1928,7 +1884,7 @@ enum JournalPromptCatalog {
                ["truth", "conflict", "premise", "doubt", "avoid", "evidence"],
                author: ("wicker-eddies", "Wicker Eddies", "Wicker underlined this twice. That's never a peaceful sign.")),
         prompt("zara-small-return", .connection, "A Small Return",
-               "Who came back today when they said they would? Or remembered something small?",
+               "Who came back today when they said they would, or remembered something small?",
                "What does that tell you about them?",
                "The small return was...",
                ["trust", "friendship", "person", "return", "care", "relationship"],
@@ -2577,7 +2533,7 @@ struct FuelLogPageSourceAdapter: BookPageSourceAdapter {
                         "facultyWindowName": window.name,
                         "automaticRecurrenceSlot": "\(bellDay):\(window.id):fuel",
                         "chartTitle": FacultyEntryKind.fuel.chartTitle,
-                        "placeholder": "Breakfast: coffee, toast, water...\nLunch: leftovers, soda...\nMedicine/supplements: ...",
+                        "placeholder": "One sentence about what you ate and drank today. Medicine counts.",
                         "tags": "fuel,faculty-kind:fuel,faculty-window:\(window.id),dr-vellum,vellum-chart,food,drink"
                     ]
                 )
@@ -3424,7 +3380,7 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     static let rememberedRestDays = 45
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         guard !didRememberToday(day) else { return [] }
         let archive = inputs.days + [day]
         let restingPageIDs = ArchiveMemo.value(
@@ -3509,7 +3465,7 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let sheet = inputs.readersSheet
         guard sheet.isWorthSpeakingTo else { return [] }
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         guard !Self.shownRecently(days: inputs.days + [day], now: now) else { return [] }
 
         // Keyed to what it would actually say, so a sheet that has not changed
@@ -3520,7 +3476,7 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
             "frontMatterFingerprint": fingerprint,
             "invitesCorrection": "true",
             "responseLabel": "Correct me",
-            "placeholder": "Write what I got wrong. I'll keep your correction with this Page.",
+            "placeholder": "One sentence that corrects me. I'll keep it with this Page.",
             "tags": "front-matter,readers-sheet,local-memory,correctable"
         ]
         for section in sheet.readerFacingSections {
@@ -4346,9 +4302,9 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
                 pages += personPlaySurfaces(for: day, inputs: inputs, now: now)
             }
         }
-        // Patterns, namings, and wagers only mean something once the library has
-        // enough kept pages to find a pattern in.
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return pages }
+        // Patterns, namings, and wagers need actual reader material; each
+        // proposal below must support its own claim.
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return pages }
         pages += namingSurfaces(for: day, inputs: inputs, now: now)
         pages += wagerSurfaces(for: day, inputs: inputs, now: now)
         pages += watchedThreadSurfaces(for: day, inputs: inputs, now: now)
@@ -7795,6 +7751,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
         welcomeSurface(
             playerName: Self.playerName(from: inputs),
             downloadLabel: inputs.localBrainDownloadLabel,
+            brain: WelcomeBrain(inputs: inputs),
             score: 70,
             reason: "I can always re-open my first page."
         )
@@ -7809,14 +7766,64 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             welcomeSurface(
                 playerName: Self.playerName(from: inputs),
                 downloadLabel: inputs.localBrainDownloadLabel,
+                brain: WelcomeBrain(inputs: inputs),
                 score: context.distress.isActive ? 72 : 92,
                 reason: "The Labyrinth of Stories is introducing itself before asking for anything else."
             )
         ]
     }
 
-    private func welcomeSurface(playerName: String?, downloadLabel: String, score: Int, reason: String) -> SurfacePage {
+    /// Where the brain is when the Welcome is written. A reader who said yes in
+    /// onboarding mustn't be told it's asleep and handed the button again.
+    enum WelcomeBrain {
+        case asleep, coming, awake
+
+        init(inputs: BookSourceInputs) {
+            if inputs.localBrainIsReady {
+                self = .awake
+            } else if inputs.localBrainIsFetching {
+                self = .coming
+            } else {
+                self = .asleep
+            }
+        }
+    }
+
+    private func welcomeSurface(playerName: String?, downloadLabel: String, brain: WelcomeBrain, score: Int, reason: String) -> SurfacePage {
         let name = playerName?.nonEmpty ?? "Reader"
+        let detail: String
+        let brainPassage: String
+        switch brain {
+        case .asleep:
+            detail = "Open me first. My brain's asleep, and the button to wake it is inside."
+            brainPassage = """
+            One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
+
+            Tap Wake My Brain, below, and Gemma comes to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+
+            It's big: \(downloadLabel). Wi-Fi's best. Keep me open while it comes. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
+
+            Don't want it yet? Skip it. I'll still keep everything you give me. I just won't be very clever about it.
+            """
+        case .coming:
+            detail = "Open me first. My brain's on its way."
+            brainPassage = """
+            One problem. I can't think very hard yet. My brain's still coming in. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
+
+            It's coming to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+
+            It's big: \(downloadLabel), so it takes a while. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
+
+            You don't have to wait for it. I'll keep everything you give me in the meantime. I just won't be very clever about it yet.
+            """
+        case .awake:
+            detail = "Open me first."
+            brainPassage = """
+            And I can think now. My brain came in while you were busy with my questions. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
+
+            It lives inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+            """
+        }
         return SurfacePage(
             id: "\(source.id)-first-page",
             type: .welcome,
@@ -7826,7 +7833,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: reason,
             prompt: "Oh. There You Are.",
-            detail: "Open me first. My brain's asleep, and the button to wake it is inside.",
+            detail: detail,
             payload: BookPagePayload(
                 headline: "Oh. There You Are.",
                 body: """
@@ -7834,13 +7841,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
 
                 You got through all my questions and you didn't run. So that's settled. It's you and me against the Curse now. Every day it takes a bit of your life, and every day we take a bit back.
 
-                One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
-
-                Tap Wake My Brain, below, and Gemma comes to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
-
-                It's big: \(downloadLabel). Wi-Fi's best. Keep me open while it comes. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
-
-                Don't want it yet? Skip it. I'll still keep everything you give me. I just won't be very clever about it.
+                \(brainPassage)
                 """,
                 metadata: [
                     "source": source.id,
@@ -8718,7 +8719,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
                 movement = "The rounded share of answered Elsewhere moments didn't move."
             }
             comparisonParagraph = """
-            Last season's answered knocks were \(previousPercent)% Elsewhere. This season's were \(elsewherePercent)%. \(movement) That's a difference between two samples, not proof that you're improving or worsening. I need more life before I get grand about it.
+            Last round, the Curse had \(previousPercent)% of the knocks you answered. This round it had \(elsewherePercent)%. \(movement) That's a difference between two samples, not proof that you're improving or worsening. I need more life before I get grand about it.
             """
             comparisonDetail = change == 0
                 ? "same rounded share as last season"
@@ -8728,11 +8729,11 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             comparisonDetail = "first season"
         }
         let body = """
-        I knocked \(summary.answeredCount) times. You answered HERE \(summary.hereCount) times and ELSEWHERE \(summary.elsewhereCount) times.
+        I knocked and you answered \(summary.answeredCount) times. You were here \(summary.hereCount) times and somewhere good \(summary.somewhereGoodCount) times\(summary.notedCount > 0 ? ", and \(summary.notedCount) times you told me where in a sentence" : ""). The Curse had you \(summary.elsewhereCount) times.
 
-        In the knocks you answered, Elsewhere had \(elsewherePercent)% of the room. That's not a verdict on your whole life. It's one season's receipt from the moments I actually caught.
+        That's \(elsewherePercent)% for the Curse. Most people lose about half their day to it, so that's the number to beat. It isn't a verdict on your whole life. It's one round's receipt from the moments I actually caught.
 
-        Silence isn't Elsewhere. An unanswered knock means I don't know, so I left it blank.
+        Silence doesn't count for either side. An unanswered knock means I don't know, so I left it blank.
 
         \(comparisonParagraph)
 
@@ -8747,7 +8748,7 @@ struct AboutYouPageSourceAdapter: BookPageSourceAdapter {
             score: 99,
             reason: "A complete attention season has become a private, inspectable reading rather than disappearing into analytics.",
             prompt: "I counted only the knocks you answered.",
-            detail: "HERE \(summary.hereCount) · ELSEWHERE \(summary.elsewhereCount) · silence unknown · \(comparisonDetail)",
+            detail: "You \(summary.readerCount) · Curse \(summary.elsewhereCount) · silence unknown · \(comparisonDetail)",
             payload: BookPagePayload(
                 headline: "THE CURSE LEFT A RECEIPT",
                 body: body,
@@ -12696,7 +12697,7 @@ enum FirstRunPageSequence {
     /// card as a rider. After its one appearance it rests in the Colophon
     /// instead of following every later desk.
     static func pendingLocalBrainUpgrade(inputs: BookSourceInputs) -> SurfacePage? {
-        guard !inputs.localBrainIsReady else { return nil }
+        guard !inputs.localBrainIsReady, !inputs.localBrainIsFetching else { return nil }
         guard engaged(
             "source:\(firstMissionSourceID)",
             inputs: inputs
@@ -13033,7 +13034,7 @@ enum InkrestOfficeHours {
         InkrestPrompt(
             id: "externalize",
             lens: "externalizing",
-            question: "If the heaviest feeling today were a character who knocked on your door, what would you call it, and what did it want?",
+            question: "If the heaviest feeling today were a character who knocked on your door, what would you call it?",
             openingNudge: "Inkrest likes to give a feeling a name so it stops pretending to be you."
         ),
         InkrestPrompt(
@@ -13832,7 +13833,7 @@ struct TodaysSkyPageSourceAdapter: BookPageSourceAdapter {
             "eventTimestamp": "\(reading.nextEvent.date.timeIntervalSince1970)",
             "showerName": reading.activeShower?.commonName ?? "",
             "accent": accent,
-            "placeholder": "Did you go out and look? Write what you saw, or that you didn't.",
+            "placeholder": "Did you go out and look? One sentence about what you saw, or that you didn't.",
             "tags": "todays-sky,\(tag),almanac,sky,moon:\(reading.moonSign.name.lowercased())"
         ]
 
@@ -13899,8 +13900,8 @@ struct TwoReadingsPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        // Hold back until the library has enough kept pages to argue over.
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
+        // There must be reader material for the two readings to disagree over.
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         // Only when one a day, and only with something worth arguing about.
         guard !day.pages.contains(where: { $0.type == .twoReadings }) else { return [] }
         guard inputs.surfaceHistory["source:\(source.id)"].map({ now.timeIntervalSince($0.lastShownAt) >= 18 * 3600 }) ?? true else {
@@ -14236,8 +14237,8 @@ struct CastBondPageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
-        // The Loom only changes the web once the reader has kept enough to move it.
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
+        // The Loom needs reader material that can actually move the web.
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         let entities = NarrativePackRegistry.entities + inputs.customCastMembers.map(\.entity)
         let names = Dictionary(uniqueKeysWithValues: entities.map { ($0.id, $0.name) })
         let fired = firedKeys(in: inputs.days + [day])
@@ -14354,7 +14355,7 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
                         "readerGlowName": glowName,
                         "openGlowMenu": "true",
                         "noBeliefReward": "true",
-                        "placeholder": "Name what you're spending it on, and why them.",
+                        "placeholder": "One sentence: what you're spending it on, and why them.",
                         "tags": "glow,belief,spend-glow,\(isTooFull ? "glow-too-full" : "radiant-glow")"
                     ]
                 )
@@ -15546,12 +15547,14 @@ struct GreyPageThreatSourceAdapter: BookPageSourceAdapter {
             The raw Page stays safe in Stacks and in anything you export. The Grey can't eat that. It can only take the Page out of my living memory. Then I stop bringing it back, quoting it, and weaving it into what comes next.
             """
         case .fading:
-            prompt = "The Grey Has Its Finger Down"
+            // A Page the Curse threw for (docs/the-knock-plan.md §7.2) says so.
+            prompt = threat.curseRoll == nil ? "The Grey Has Its Finger Down" : "The Curse Threw for This One"
             headline = "“\(threat.pageTitle)” has \(deadlineLine) left."
-            detail = "Wake it with a new detail, or let it leave living memory."
-            reason = "You opened the warning. The clock is running."
+            detail = "Wake it with one sentence, or let it leave living memory."
+            reason = threat.curseRoll.map { "The Curse threw a \($0) and beat your number." }
+                ?? "You opened the warning. The clock is running."
             body = """
-            “\(threat.pageExcerpt)”
+            \(threat.curseRoll.map { "The Curse threw a \($0) last night, and it was enough. A ribbon would have stopped it.\n\n" } ?? "")“\(threat.pageExcerpt)”
 
             Bring back something the old Page couldn't have known. That wakes it. Or surrender it.
 
@@ -15589,6 +15592,7 @@ struct GreyPageThreatSourceAdapter: BookPageSourceAdapter {
             "greyThreatStatus": status.rawValue,
             "bookRupturePhase": status == .rescued ? "reopened" : (status == .erased ? "scar" : "broken-pattern"),
             "deadlineLine": deadlineLine,
+            "curseRoll": threat.curseRoll.map(String.init) ?? "",
             "tags": "grey-threat,grey-threat:\(threat.id),grey-threat-\(status.rawValue),book-self-rupture"
         ]
         if let deadline = threat.deadline {
@@ -16463,13 +16467,17 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         guard source.isActive else { return [] }
+        // The Inkbones Page needs no kept words: it's there from the first day,
+        // and leans in on mornings and for a reader who's in the fight.
         let days = inputs.days + [day]
+        let inkbones = inkbonesCameTrueSurface(days: days, now: now)
+            ?? inkbonesSurface(day: day, inputs: inputs, now: now)
         // Both pools are read out of every kept page, and neither can change
         // until the reader writes another one.
         let phrases = ArchiveMemo.value("game-page.phrases", days: days) {
             archivePhrases(from: days)
         }
-        guard phrases.count >= 6 else { return [] }
+        guard phrases.count >= 6 else { return [inkbones] }
         let hour = Calendar.current.component(.hour, from: now)
         let score = hour >= 17 ? 64 : 54
         let greyPool = ArchiveMemo.value("game-page.grey-pool", days: days) {
@@ -16493,7 +16501,74 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
                 )
             )
         }
-        return pages
+        return pages + [inkbones]
+    }
+
+    /// A few days on: did the bones come true?
+    func inkbonesCameTrueSurface(days: [BookDay], now: Date) -> SurfacePage? {
+        guard let page = InkbonesCameTrue.readingToAsk(in: days.flatMap(\.pages), now: now),
+              let stored = page.metadata?["inkbonesReading"],
+              let data = stored.data(using: .utf8),
+              let reading = try? JSONDecoder().decode(InkbonesReading.self, from: data) else { return nil }
+        let daysAgo = max(3, Int(now.timeIntervalSince(page.createdAt) / 86_400))
+        let asked = reading.question.isEmpty ? "the day" : "“\(reading.question)”"
+        return SurfacePage(
+            id: "\(source.id)-inkbones-came-true-\(page.id)",
+            type: .gamePage,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: 66,
+            reason: "A reading from \(daysAgo) days ago is owed an answer.",
+            prompt: "Did the Bones Come True?",
+            detail: "\(daysAgo) days ago you threw the Inkbones about \(asked).",
+            payload: BookPagePayload(
+                headline: "Did the Bones Come True?",
+                body: "\(daysAgo) days ago you threw the Inkbones about \(asked). Here's what they said. Were they right?",
+                metadata: [
+                    "source": source.id,
+                    "gameID": "inkbones-came-true",
+                    "gameTitle": "The Inkbones",
+                    "inkbonesReading": stored,
+                    "inkbonesOriginPageID": page.id,
+                    "placeholder": "One sentence: what actually happened?",
+                    "tags": "game-page,inkbones,inkbones-came-true"
+                ]
+            )
+        )
+    }
+
+    /// The Inkbones Page (docs/the-knock-plan.md §7.6): a dice game whose
+    /// throws write a reading. One a half-day.
+    func inkbonesSurface(day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        let slotID = SurfaceCadence.slotID(for: now, hours: 12)
+        let hour = Calendar.current.component(.hour, from: now)
+        let inTheFight = !inputs.attentionProbes.receipts.isEmpty
+        let score = (hour < 12 ? 60 : 50) + (inTheFight ? 4 : 0)
+        let id = "\(source.id)-inkbones-\(slotID)"
+        return SurfacePage(
+            id: id,
+            type: .gamePage,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .promptCard,
+            score: score,
+            reason: "The bones want throwing, and the throws write a reading.",
+            prompt: "The Inkbones",
+            detail: "Bring one thing. Throw five bones, keep the ones you like, throw the rest again. The Curse throws back. What you keep is your reading.",
+            payload: BookPagePayload(
+                headline: "Throw the Inkbones",
+                body: "Bring me a question, or just the day. You get three throws. After each one, tap the bones you want to keep and throw the rest. Watch out: between your throws the Curse throws its own, and if it throws high it greys one of yours. What's left is what the bones say.",
+                metadata: [
+                    "source": source.id,
+                    "gameID": "inkbones",
+                    "gameTitle": "The Inkbones",
+                    "inkbonesSeed": "\(day.id)|\(id)",
+                    "placeholder": "One sentence: what lands, or what misses?",
+                    "tags": "game-page,inkbones,divination"
+                ]
+            )
+        )
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {

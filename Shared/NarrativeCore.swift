@@ -1080,6 +1080,23 @@ enum CharacterVoiceCatalog {
     }
 }
 
+/// Per-generation pressure is terminal even if cleanup later returns memory.
+/// Otherwise a cancelled model stream can look like a successful short reply.
+struct LocalBrainMemoryBudget: Sendable {
+    static let prefillHeadroom: UInt64 = 320 * 1_024 * 1_024
+    // Leave room for the already-submitted GPU work to finish and unwind.
+    // This is a provisional safety margin, not a measured maximum allocation.
+    static let stopHeadroom: UInt64 = 192 * 1_024 * 1_024
+
+    private(set) var stopped = false
+
+    mutating func observe(availableBytes: UInt64, minimumBytes: UInt64 = LocalBrainMemoryBudget.stopHeadroom) -> Bool {
+        // On iOS, zero means the app has reached its memory limit.
+        if availableBytes < minimumBytes { stopped = true }
+        return !stopped
+    }
+}
+
 /// Conservative preflight budgeting for the 4,096-token rotating KV window.
 /// It uses a deliberately cautious character estimate; actual prompt-token
 /// counts are still captured by MLX completion receipts on-device.

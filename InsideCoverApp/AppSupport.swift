@@ -72,6 +72,8 @@ extension Notification.Name {
     static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
     static let promptWhisperKept = Notification.Name("promptWhisperKept")
     static let promptWhisperOpenReceived = Notification.Name("promptWhisperOpenReceived")
+    static let knockOpenReceived = Notification.Name("knockOpenReceived")
+    static let greyKnockOpenReceived = Notification.Name("greyKnockOpenReceived")
 }
 
 /// A notification may wake the process before `ContentView` exists, or while
@@ -81,6 +83,93 @@ struct PromptWhisperOpenRequest: Codable, Equatable {
     var id: UUID
     var whisper: PromptWhisper
     var issuedAt: Date
+}
+
+/// A Where-Were-You Knock the reader tapped open instead of answering on the
+/// lock screen. The app answers it on its own sheet, where the whole moment
+/// can be captured the way a keep's is (docs/the-knock-plan.md).
+struct KnockOpenRequest: Codable, Equatable, Identifiable {
+    var id: String
+    var scheduledAt: Date
+    var cycle: Int
+    var title: String
+    var body: String
+}
+
+enum KnockOpenStore {
+    static let requestKey = "knockOpenRequest"
+
+    static func enqueue(_ request: KnockOpenRequest) {
+        guard let data = try? JSONEncoder().encode(request) else { return }
+        UserDefaults.standard.set(data, forKey: requestKey)
+    }
+
+    static func load() -> KnockOpenRequest? {
+        guard let data = UserDefaults.standard.data(forKey: requestKey) else { return nil }
+        return try? JSONDecoder().decode(KnockOpenRequest.self, from: data)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: requestKey)
+    }
+}
+
+/// The Grey Knock (docs/the-knock-plan.md §4): the Curse threw for a Page and
+/// took it, and the Book says so the next morning. One sentence from the lock
+/// screen saves it; tapping opens the fading Page. The rescue window is the
+/// Grey Page's own seventy-two hours.
+enum GreyKnock {
+    static let categoryIdentifier = "grey-knock"
+    static let saveActionIdentifier = "grey-knock-save"
+    static let identifierPrefix = "grey-knock-"
+    static let openKey = "greyKnockOpenThreatID"
+
+    #if canImport(UserNotifications)
+    static var category: UNNotificationCategory {
+        UNNotificationCategory(
+            identifier: categoryIdentifier,
+            actions: [
+                UNTextInputNotificationAction(
+                    identifier: saveActionIdentifier,
+                    title: "Save it",
+                    options: [],
+                    textInputButtonTitle: "Keep",
+                    textInputPlaceholder: "One sentence about this Page…"
+                )
+            ],
+            intentIdentifiers: [],
+            options: []
+        )
+    }
+
+    /// Knocks the next morning at half past nine, while there's time.
+    static func offer(_ threat: GreyPageThreat, now: Date = Date(), calendar: Calendar = .current) {
+        let content = UNMutableNotificationContent()
+        content.title = "IT'S GOING GREY"
+        let throwLine = threat.curseRoll.map { "The Curse threw a \($0). " } ?? ""
+        content.body = "\(throwLine)“\(threat.pageTitle)” is going grey. One sentence saves it."
+        content.sound = BookSoundBank.notificationSound
+        content.categoryIdentifier = categoryIdentifier
+        content.userInfo = ["greyThreatID": threat.id]
+        var morning = calendar.dateComponents([.year, .month, .day],
+                                              from: calendar.date(byAdding: .day, value: 1, to: now) ?? now)
+        morning.hour = 9
+        morning.minute = 30
+        let trigger = UNCalendarNotificationTrigger(dateMatching: morning, repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(
+            identifier: identifierPrefix + threat.id, content: content, trigger: trigger
+        ))
+    }
+
+    static func cancel(threatID: String) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifierPrefix + threatID])
+        center.removeDeliveredNotifications(withIdentifiers: [identifierPrefix + threatID])
+    }
+    #else
+    static func offer(_ threat: GreyPageThreat, now: Date = Date(), calendar: Calendar = .current) {}
+    static func cancel(threatID: String) {}
+    #endif
 }
 
 enum PromptWhisperOpenStore {
@@ -961,6 +1050,279 @@ private final class BookHapticEngine {
 }
 
 #if canImport(AVFoundation)
+/// The live static between stations. Synthesized on the audio thread so the
+/// band answers the dial while it moves: turning scrapes and crackles, the
+/// heterodyne whistle falls as a station nears, and almost-words rise out of
+/// the hiss just before the broadcast catches. The main actor only writes the
+/// handful of targets below; the render block smooths toward them.
+final class RadioStaticVoice: @unchecked Sendable {
+    private let targets = UnsafeMutablePointer<Double>.allocate(capacity: 10)
+    private let state = UnsafeMutablePointer<Double>.allocate(capacity: 32)
+    private var lcg: UInt64 = 0x9E37_79B9_7F4A_7C15
+
+    private enum Target: Int {
+        case gain, proximity, dial, nudge
+        case hiss, darkness, sizzle, crashes, fading, reach
+    }
+
+    init() {
+        targets.initialize(repeating: 0, count: 10)
+        state.initialize(repeating: 0, count: 32)
+        targets[Target.dial.rawValue] = 94.1
+        setWeather(.calm)
+    }
+
+    deinit {
+        targets.deallocate()
+        state.deallocate()
+    }
+
+    /// Called on the main actor as the dial moves.
+    func retune(dial: Double, proximity: Double) {
+        targets[Target.dial.rawValue] = dial
+        targets[Target.proximity.rawValue] = min(1, max(0, proximity))
+        targets[Target.nudge.rawValue] += 1
+    }
+
+    func setOn(_ isOn: Bool) {
+        targets[Target.gain.rawValue] = isOn ? 1 : 0
+    }
+
+    /// The real sky on the aerial. Called on the main actor; the render block
+    /// eases toward it, so a change of weather drifts in rather than snaps.
+    func setWeather(_ band: RadioBandWeather) {
+        targets[Target.hiss.rawValue] = band.hiss
+        targets[Target.darkness.rawValue] = band.darkness
+        targets[Target.sizzle.rawValue] = band.sizzle
+        targets[Target.crashes.rawValue] = band.crashes
+        targets[Target.fading.rawValue] = band.fading
+        targets[Target.reach.rawValue] = band.reach
+    }
+
+    var isOn: Bool { targets[Target.gain.rawValue] > 0 }
+
+    /// Built outside the main actor so the render closure never inherits its
+    /// isolation: it runs on the real-time audio thread.
+    nonisolated static func makeNode(for voice: RadioStaticVoice, format: AVAudioFormat) -> AVAudioSourceNode {
+        let sampleRate = format.sampleRate
+        return AVAudioSourceNode(format: format) { isSilence, _, frameCount, audioBufferList -> OSStatus in
+            voice.render(frameCount: Int(frameCount), sampleRate: sampleRate, isSilence: isSilence, buffers: audioBufferList)
+            return noErr
+        }
+    }
+
+    private func noise() -> Double {
+        lcg = lcg &* 6364136223846793005 &+ 1442695040888963407
+        return Double(Int64(bitPattern: lcg)) / Double(Int64.max)
+    }
+
+    // State slots.
+    private enum S: Int {
+        case gain, proximity, whistleHz, whistlePhase, b0, b1, b2, rb0, rb1
+        case voiceLow, voiceBand, syllablePhase, phrasePhase, crackle, crackleSign
+        case movement, lastNudge, weatherPhase, time, bandHz, wobblePhase
+        case hiss, darkness, sizzle, fading, reach, muffled, sizzleEnv, rumble, rumbleLow, lastFlash
+    }
+
+    private func render(
+        frameCount: Int,
+        sampleRate: Double,
+        isSilence: UnsafeMutablePointer<ObjCBool>,
+        buffers: UnsafeMutablePointer<AudioBufferList>
+    ) {
+        let list = UnsafeMutableAudioBufferListPointer(buffers)
+        let gainTarget = targets[Target.gain.rawValue]
+        if gainTarget == 0, state[S.gain.rawValue] < 0.000_1 {
+            state[S.gain.rawValue] = 0
+            for buffer in list {
+                if let data = buffer.mData { memset(data, 0, Int(buffer.mDataByteSize)) }
+            }
+            isSilence.pointee = true
+            return
+        }
+
+        let dt = 1 / sampleRate
+        let dial = targets[Target.dial.rawValue]
+        let proximityTarget = targets[Target.proximity.rawValue]
+        let nudge = targets[Target.nudge.rawValue]
+        if nudge != state[S.lastNudge.rawValue] {
+            state[S.lastNudge.rawValue] = nudge
+            state[S.movement.rawValue] = 1
+        }
+        // Each stretch of band has its own weather and its own ghost register.
+        let character = abs(sin(dial * 12.9898) * 43758.5453).truncatingRemainder(dividingBy: 1)
+        let weatherHz = 0.06 + character * 0.18
+        let bandTarget = 620 + character * 900
+
+        let left = list.count > 0 ? list[0].mData?.assumingMemoryBound(to: Float.self) : nil
+        let right = list.count > 1 ? list[1].mData?.assumingMemoryBound(to: Float.self) : nil
+
+        var gain = state[S.gain.rawValue]
+        var proximity = state[S.proximity.rawValue]
+        var whistleHz = state[S.whistleHz.rawValue]
+        var whistlePhase = state[S.whistlePhase.rawValue]
+        var b0 = state[S.b0.rawValue], b1 = state[S.b1.rawValue], b2 = state[S.b2.rawValue]
+        var rb0 = state[S.rb0.rawValue], rb1 = state[S.rb1.rawValue]
+        var voiceLow = state[S.voiceLow.rawValue], voiceBand = state[S.voiceBand.rawValue]
+        var syllablePhase = state[S.syllablePhase.rawValue]
+        var phrasePhase = state[S.phrasePhase.rawValue]
+        var crackle = state[S.crackle.rawValue], crackleSign = state[S.crackleSign.rawValue]
+        var movement = state[S.movement.rawValue]
+        var weatherPhase = state[S.weatherPhase.rawValue]
+        var bandHz = state[S.bandHz.rawValue] == 0 ? bandTarget : state[S.bandHz.rawValue]
+        var wobblePhase = state[S.wobblePhase.rawValue]
+        if whistleHz == 0 { whistleHz = 1_800 }
+        if state[S.hiss.rawValue] == 0 {
+            state[S.hiss.rawValue] = targets[Target.hiss.rawValue]
+            state[S.darkness.rawValue] = targets[Target.darkness.rawValue]
+            state[S.sizzle.rawValue] = targets[Target.sizzle.rawValue]
+            state[S.fading.rawValue] = targets[Target.fading.rawValue]
+            state[S.reach.rawValue] = targets[Target.reach.rawValue]
+        }
+        // Weather eases in over a few seconds; per-buffer is smooth enough.
+        let weatherSlew = 1 - exp(-Double(frameCount) * dt / 2.5)
+        func ease(_ slot: S, _ target: Target) -> Double {
+            state[slot.rawValue] += (targets[target.rawValue] - state[slot.rawValue]) * weatherSlew
+            return state[slot.rawValue]
+        }
+        let skyHiss = ease(.hiss, .hiss)
+        let darkness = ease(.darkness, .darkness)
+        let sizzle = ease(.sizzle, .sizzle)
+        let fading = ease(.fading, .fading)
+        let reach = ease(.reach, .reach)
+        let crashes = targets[Target.crashes.rawValue]
+        var muffled = state[S.muffled.rawValue]
+        var sizzleEnv = state[S.sizzleEnv.rawValue]
+        var rumble = state[S.rumble.rawValue]
+        var rumbleLow = state[S.rumbleLow.rawValue]
+        var lastFlash = state[S.lastFlash.rawValue]
+        // The leaf's own strike clock, so the crash lands on the flash.
+        let startTime = Date().timeIntervalSinceReferenceDate
+        let muffle = 1 - darkness * 0.93
+        let fadeDepth = 0.28 + 0.45 * fading
+        let fadeRate = 1 + 1.5 * fading
+
+        let gainSlew = 1 - exp(-dt / 0.06)
+        let paramSlew = 1 - exp(-dt / 0.09)
+        let movementDecay = exp(-dt / 0.28)
+        let crackleDecay = exp(-dt / 0.0016)
+        let sizzleDecay = exp(-dt / 0.0003)
+        let rumbleDecay = exp(-dt / 0.9)
+        let twoPi = 2 * Double.pi
+
+        for frame in 0..<frameCount {
+            gain += (gainTarget - gain) * gainSlew
+            proximity += (proximityTarget - proximity) * paramSlew
+            movement *= movementDecay
+            bandHz += (bandTarget - bandHz) * paramSlew
+
+            let white = noise()
+            let whiteRight = noise()
+
+            // Pink-ish hiss (economy Kellet filter); turning brightens it.
+            b0 = 0.99765 * b0 + white * 0.0990460
+            b1 = 0.96300 * b1 + white * 0.2965164
+            b2 = 0.57000 * b2 + white * 1.0526913
+            let pink = (b0 + b1 + b2 + white * 0.1848) * 0.11
+            rb0 = 0.99765 * rb0 + whiteRight * 0.0990460
+            rb1 = 0.96300 * rb1 + whiteRight * 0.2965164
+            let pinkRight = (rb0 + rb1 + whiteRight * 0.3) * 0.12
+
+            weatherPhase += twoPi * weatherHz * fadeRate * dt
+            if weatherPhase > twoPi { weatherPhase -= twoPi }
+            let weather = 1 - fadeDepth * (0.5 + 0.5 * sin(weatherPhase))
+            let hissLevel = (0.20 + 0.10 * movement) * weather * (1 - 0.45 * proximity)
+                * skyHiss * (1 - 0.25 * reach)
+            let brightness = 0.05 + 0.20 * movement
+
+            // Heterodyne whistle: high and thin out in the band, falling to a
+            // low growl at a station's edge. A turn makes it swoop.
+            let whistleTarget = 120 + 2_400 * pow(1 - proximity, 1.6) + 900 * movement
+            whistleHz += (whistleTarget - whistleHz) * paramSlew
+            wobblePhase += twoPi * 5.3 * dt
+            if wobblePhase > twoPi { wobblePhase -= twoPi }
+            whistlePhase += twoPi * (whistleHz + sin(wobblePhase) * 14) * dt
+            if whistlePhase > twoPi { whistlePhase -= twoPi }
+            let whistle = sin(whistlePhase) * (0.006 + 0.034 * proximity + 0.012 * movement)
+
+            // Almost-words: band-limited hiss shaped into syllables and
+            // phrases, only near a broadcast.
+            let f = 2 * sin(Double.pi * min(bandHz, sampleRate / 6) / sampleRate)
+            let high = pink - voiceLow - 0.7 * voiceBand
+            voiceBand += f * high
+            voiceLow += f * voiceBand
+            syllablePhase += twoPi * (3.8 + character * 1.6) * dt
+            if syllablePhase > twoPi { syllablePhase -= twoPi }
+            phrasePhase += twoPi * 0.31 * dt
+            if phrasePhase > twoPi { phrasePhase -= twoPi }
+            let syllable = max(0, sin(syllablePhase)) * max(0, sin(phrasePhase) + 0.25)
+            // On a clear night far-off talk carries into the open band too,
+            // rising and sinking with the fade.
+            let carried = pow(proximity, 1.4) + reach * 0.14 * (1.15 - weather)
+            let words = voiceBand * syllable * 2.4 * carried
+
+            // Crackle: rare pops in the open band, a scrape while turning.
+            let popChance = 0.000_06 + 0.0024 * movement
+            if (white * 0.5 + 0.5) < popChance {
+                crackle = 0.25 + abs(whiteRight) * 0.55
+                crackleSign = whiteRight < 0 ? -1 : 1
+            }
+            crackle *= crackleDecay
+            let pop = crackle * crackleSign
+
+            // Rain and snow on the aerial: a fine, constant frying.
+            if sizzle > 0, (whiteRight * 0.5 + 0.5) < sizzle * 0.006 {
+                sizzleEnv = (0.04 + abs(white) * 0.12) * (white < 0 ? -1 : 1)
+            }
+            sizzleEnv *= sizzleDecay
+
+            // Lightning: a broadband crash on the flash, a dark rumble after.
+            var crash = 0.0
+            if crashes > 0 {
+                let flash = SkyField.lightning(
+                    at: startTime + Double(frame) * dt,
+                    seed: RadioBandWeather.lightningSeed
+                )
+                if flash > 0.01, lastFlash <= 0.01 { rumble = max(rumble, crashes) }
+                lastFlash = flash
+                rumbleLow += (white - rumbleLow) * 0.012
+                crash = white * flash * crashes * 1.4 + rumbleLow * rumble * 3.2
+            }
+            rumble *= rumbleDecay
+
+            var body = pink * hissLevel + white * brightness * 0.12 + words + pop * 0.5 + sizzleEnv
+            muffled += (body - muffled) * muffle
+            body = muffled + crash
+            let master = gain * 0.30
+            let leftSample = (body + whistle) * master
+            let rightSample = (body * 0.7 + pinkRight * hissLevel * 0.35 + whistle * 0.65) * master
+            left?[frame] = Float(max(-1, min(1, leftSample)))
+            right?[frame] = Float(max(-1, min(1, rightSample)))
+        }
+
+        state[S.gain.rawValue] = gain
+        state[S.proximity.rawValue] = proximity
+        state[S.whistleHz.rawValue] = whistleHz
+        state[S.whistlePhase.rawValue] = whistlePhase
+        state[S.b0.rawValue] = b0; state[S.b1.rawValue] = b1; state[S.b2.rawValue] = b2
+        state[S.rb0.rawValue] = rb0; state[S.rb1.rawValue] = rb1
+        state[S.voiceLow.rawValue] = voiceLow; state[S.voiceBand.rawValue] = voiceBand
+        state[S.syllablePhase.rawValue] = syllablePhase
+        state[S.phrasePhase.rawValue] = phrasePhase
+        state[S.crackle.rawValue] = crackle; state[S.crackleSign.rawValue] = crackleSign
+        state[S.movement.rawValue] = movement
+        state[S.weatherPhase.rawValue] = weatherPhase
+        state[S.bandHz.rawValue] = bandHz
+        state[S.wobblePhase.rawValue] = wobblePhase
+        state[S.muffled.rawValue] = muffled
+        state[S.sizzleEnv.rawValue] = sizzleEnv
+        state[S.rumble.rawValue] = rumble
+        state[S.rumbleLow.rawValue] = rumbleLow
+        state[S.lastFlash.rawValue] = lastFlash
+        isSilence.pointee = false
+    }
+}
+
 @Observable
 @MainActor
 final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
@@ -971,6 +1333,10 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private var filePlayer: AVAudioPlayer?
     private var activeBuffer: AVAudioPCMBuffer?
     private var didAttachPlayer = false
+    @ObservationIgnored private let staticVoice = RadioStaticVoice()
+    @ObservationIgnored private var staticNode: AVAudioSourceNode?
+    @ObservationIgnored private var staticWeather = RadioBandWeather.calm
+    @ObservationIgnored private var staticWeatherReadAt: Date?
     private var didConfigureRemoteCommands = false
     private var systemNowPlayingStartedAt: Date?
     private var systemNowPlayingPausedElapsed: TimeInterval?
@@ -991,6 +1357,31 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private(set) var sourceLine = "No broadcast is tuned."
     /// The DJ break currently on air, if any (for UI; nil while a song plays).
     private(set) var nowPlayingBanter: RadioBanter?
+    private(set) var currentReadAlong: RadioReadAlong?
+
+    /// Read by the visible transcript's timeline only. No app-wide progress
+    /// timer, and no wall-clock drift when playback pauses or resumes.
+    var readAlongElapsed: TimeInterval { filePlayer?.currentTime ?? 0 }
+
+    private static let bundledReadAlongs: [String: RadioReadAlong] = {
+        guard let url = Bundle.main.url(forResource: "RadioReadAlong", withExtension: "json", subdirectory: "RadioAudio"),
+              let data = try? Data(contentsOf: url),
+              let sheets = try? JSONDecoder().decode([String: RadioReadAlong].self, from: data) else { return [:] }
+        return sheets
+    }()
+
+    private func readAlong(forAudioURL url: URL, inline: RadioReadAlong?) -> RadioReadAlong? {
+        if let inline, !inline.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return inline }
+        if url.path.hasPrefix(Bundle.main.bundleURL.path + "/") {
+            return Self.bundledReadAlongs[url.deletingPathExtension().lastPathComponent]
+        }
+        // Downloaded/user audio uses its own adjacent cue sheet, so replacing
+        // a bundled song can never accidentally borrow that song's lyrics.
+        let sheet = url.deletingPathExtension().appendingPathExtension("readalong.json")
+        guard let size = try? sheet.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 1_000_000,
+              let data = try? Data(contentsOf: sheet) else { return nil }
+        return try? JSONDecoder().decode(RadioReadAlong.self, from: data)
+    }
 
     /// Packs unlocked when the current station was tuned: needed to re-resolve
     /// the station for banter selection as the playout loop advances.
@@ -1086,6 +1477,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     func tune(to station: RadioStation, unlockedPackIDs: Set<String>, persist: Bool = true) {
         configureAudioSession()
         configureSystemNowPlayingIfNeeded()
+        silenceStatic()
         currentPackIDs = unlockedPackIDs
         tracksSinceTune = 0
         tracksSinceBanter = 0
@@ -1133,6 +1525,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPlayingBanter = false
         isPlayingInterstitial = false
         nowPlayingBanter = nil
+        currentReadAlong = nil
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
@@ -1149,6 +1542,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                     return
                 }
                 filePlayer = audioPlayer
+                currentReadAlong = readAlong(forAudioURL: url, inline: track.lyrics)
                 activeBuffer = nil
                 activeTrack = track
                 sourceLine = "Playing \(track.title) from local radio assets."
@@ -1274,6 +1668,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     /// completed Page stop echoing for one measure.
     private func playExperienceSilence(for station: RadioStation) {
         nowPlayingBanter = nil
+        currentReadAlong = nil
         isPlayingBanter = false
         isPlayingInterstitial = true
         statusLine = "\(station.displayFrequency) \(station.title): one empty measure."
@@ -1308,6 +1703,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             return
         }
         nowPlayingBanter = nil
+        currentReadAlong = nil
         isPlayingBanter = false
         isPlayingInterstitial = true
         statusLine = "\(station.displayFrequency) \(station.title): static between broadcasts."
@@ -1366,6 +1762,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         )
         tracksSinceBanter = 0
         nowPlayingBanter = banter
+        currentReadAlong = banter.transcript ?? RadioReadAlong(text: banter.readerFacingCaption)
         isPlayingInterstitial = false
         statusLine = "\(station.displayFrequency) \(station.title): \(station.hostDisplayName) on air."
         player.stop()
@@ -1382,7 +1779,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 : resolved.occurrenceID
             var receipt = resolved.content.receipt(occurrenceID: occurrenceID, state: state, at: Date())
             // Frozen as it played, so a bound day can print what the dial said.
-            receipt.printedBody = banter.caption
+            receipt.printedBody = currentReadAlong?.text ?? banter.readerFacingCaption
             receipt.printedTitle = "\(station.displayFrequency) \(station.title)"
             PlayerVault.shared.data.authoredContentReceipts =
                 (PlayerVault.shared.data.authoredContentReceipts ?? .empty).recording(receipt)
@@ -1401,8 +1798,10 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
                 voice.delegate = self
                 voice.prepareToPlay()
                 guard voice.play() else { throw CocoaError(.fileReadCorruptFile) }
-                recordAuthoredPresentation(.played)
                 filePlayer = voice
+                currentReadAlong = readAlong(forAudioURL: url, inline: banter.transcript)
+                    ?? RadioReadAlong(text: banter.readerFacingCaption)
+                recordAuthoredPresentation(.played)
                 isPlayingBanter = true
                 sourceLine = "On air: \(station.title): \(banter.category)."
                 updateSystemNowPlayingBanter(banter, station: station, duration: voice.duration)
@@ -1412,6 +1811,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             }
         }
         // Caption-only (no audio yet): hold the line a beat, then resume music.
+        // Audio cue times do not apply when only the written script is shown.
+        currentReadAlong = RadioReadAlong(text: banter.transcript?.text ?? banter.readerFacingCaption)
         isPlayingBanter = false
         sourceLine = "On air: \(station.title): \(banter.category) (caption)."
         recordAuthoredPresentation(.delivered)
@@ -1463,11 +1864,29 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             tune(to: station, unlockedPackIDs: unlockedPackIDs)
             BookFeedback.radioLocked()
         } else {
-            playTuningNoise(frequency: frequency)
+            let available = RadioStationRegistry.availableStations(unlockedPackIDs: unlockedPackIDs)
+            playTuningNoise(
+                frequency: frequency,
+                proximity: RadioStationRegistry.staticProximity(at: frequency, in: available)
+            )
         }
     }
 
-    func playTuningNoise(frequency: Double, persist: Bool = true) {
+    /// Static between stations. The first call powers the band; every call
+    /// after that while the static holds only re-tunes the live voice, so a
+    /// dragged dial is heard moving (and nothing is saved per tick).
+    func playTuningNoise(frequency: Double, proximity: Double? = nil, persist: Bool = true) {
+        if isPlaying, isPlayingTuningNoise, staticVoice.isOn, engine.isRunning {
+            staticVoice.retune(dial: frequency, proximity: proximity ?? 0)
+            refreshStaticWeather()
+            statusLine = String(format: "%.1f FM: static between stations.", frequency)
+            sourceLine = staticSourceLine(for: frequency)
+            return
+        }
+        let proximity = proximity ?? RadioStationRegistry.staticProximity(
+            at: frequency,
+            in: RadioStationRegistry.availableStations(unlockedPackIDs: PackEntitlements.ownedPackIDs)
+        )
         configureAudioSession()
         configureSystemNowPlayingIfNeeded()
         currentPackIDs = []
@@ -1480,6 +1899,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPausedForMemoryPressure = false
         isPlayingTuningNoise = true
         nowPlayingBanter = nil
+        currentReadAlong = nil
         activeStation = nil
         activeTrack = nil
         pendingTrack = nil
@@ -1502,23 +1922,23 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
         filePlayer?.stop()
         filePlayer = nil
-        attachPlayerIfNeeded()
-        if !player.isPlaying || activeBuffer == nil {
-            let buffer = makeTuningNoiseBuffer(seedFrequency: frequency)
-            activeBuffer = buffer
-            player.stop()
-            player.scheduleBuffer(buffer, at: nil, options: [.loops])
-            if !engine.isRunning {
-                do {
-                    try engine.start()
-                } catch {
-                    statusLine = "The static sparked but wouldn't hold: \(error.localizedDescription)"
-                    appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .private)")
-                    return
-                }
+        // A procedural station buffer must not keep sounding under the static.
+        player.stop()
+        activeBuffer = nil
+        attachStaticIfNeeded()
+        staticVoice.retune(dial: frequency, proximity: proximity)
+        refreshStaticWeather(force: true)
+        sourceLine = staticSourceLine(for: frequency)
+        staticVoice.setOn(true)
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                staticVoice.setOn(false)
+                statusLine = "The static sparked but wouldn't hold: \(error.localizedDescription)"
+                appLog.error("Radio static engine failed: \(error.localizedDescription, privacy: .private)")
+                return
             }
-            player.volume = 0.20
-            player.play()
         }
 
         if persist {
@@ -1529,6 +1949,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     }
 
     func stop(persist: Bool = true) {
+        silenceStatic()
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
@@ -1540,6 +1961,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         isPausedForMemoryPressure = false
         isPlayingTuningNoise = false
         nowPlayingBanter = nil
+        currentReadAlong = nil
         tracksSinceTune = 0
         tracksSinceBanter = 0
         playoutToken = UUID()
@@ -1613,6 +2035,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         if player.isPlaying {
             player.pause()
         }
+        if isPlayingTuningNoise { silenceStatic() }
         isPlaying = false
         isPausedByRemoteControl = true
         isPausedForMemoryPressure = false
@@ -1638,6 +2061,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         if player.isPlaying {
             player.pause()
         }
+        if isPlayingTuningNoise { silenceStatic() }
         isPlaying = false
         isPausedByRemoteControl = false
         isPausedForMemoryPressure = true
@@ -1668,6 +2092,19 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             resumeAfterBanter(for: station)
         } else if let filePlayer {
             filePlayer.play()
+        } else if isPlayingTuningNoise {
+            attachStaticIfNeeded()
+            refreshStaticWeather(force: true)
+            staticVoice.setOn(true)
+            if !engine.isRunning {
+                do {
+                    try engine.start()
+                } catch {
+                    staticVoice.setOn(false)
+                    appLog.error("Radio static resume failed: \(error.localizedDescription, privacy: .private)")
+                    return false
+                }
+            }
         } else if activeBuffer != nil {
             attachPlayerIfNeeded()
             if !engine.isRunning {
@@ -1754,7 +2191,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             MPMediaItemPropertyTitle: "DJ: \(station.hostDisplayName)",
             MPMediaItemPropertyArtist: station.title,
             MPMediaItemPropertyAlbumTitle: "\(station.displayFrequency) \(station.title)",
-            MPMediaItemPropertyComments: banter.readerFacingCaption,
+            MPMediaItemPropertyComments: currentReadAlong?.text ?? banter.readerFacingCaption,
             MPNowPlayingInfoPropertyIsLiveStream: duration == nil,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
             MPNowPlayingInfoPropertyPlaybackRate: 1,
@@ -1893,6 +2330,35 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         engine.attach(player)
         engine.connect(player, to: engine.mainMixerNode, format: makeFormat())
         didAttachPlayer = true
+    }
+
+    private func attachStaticIfNeeded() {
+        guard staticNode == nil else { return }
+        let format = makeFormat()
+        let node = RadioStaticVoice.makeNode(for: staticVoice, format: format)
+        engine.attach(node)
+        engine.connect(node, to: engine.mainMixerNode, format: format)
+        staticNode = node
+    }
+
+    /// Read the believed sky onto the aerial. The outlook store is cached and
+    /// already fades a forecast it no longer trusts, so a withdrawn or stale
+    /// sky reads as a calm band. Re-read at most twice a minute while turning.
+    private func refreshStaticWeather(force: Bool = false, now: Date = Date()) {
+        if !force, let readAt = staticWeatherReadAt, now.timeIntervalSince(readAt) < 30 { return }
+        staticWeatherReadAt = now
+        staticWeather = RadioBandWeather.band(for: PaperSkyOutlookStore.load()?.sky(at: now))
+        staticVoice.setWeather(staticWeather)
+    }
+
+    /// Fade the band out. When nothing else is using the engine, pause it so
+    /// a silent static voice never keeps the audio hardware awake.
+    private func silenceStatic() {
+        guard staticNode != nil else { return }
+        staticVoice.setOn(false)
+        if !player.isPlaying, engine.isRunning {
+            engine.pause()
+        }
     }
 
     private func selectTrack(for station: RadioStation) -> RadioTrack? {
@@ -2081,34 +2547,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         return buffer
     }
 
-    private func makeTuningNoiseBuffer(seedFrequency: Double) -> AVAudioPCMBuffer {
-        let sampleRate = 44_100.0
-        let duration = 7.0
-        let frameCount = AVAudioFrameCount(sampleRate * duration)
-        let format = makeFormat()
-        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
-        buffer.frameLength = frameCount
-        let left = buffer.floatChannelData![0]
-        let right = buffer.floatChannelData![1]
-        var noiseSeed = UInt64(abs(Int(seedFrequency * 10_000))) + 97
-        let driftHz = 0.07 + (seedFrequency.truncatingRemainder(dividingBy: 3) * 0.02)
-        let whistleHz = 520.0 + seedFrequency * 3.0
-        for frame in 0..<Int(frameCount) {
-            let t = Double(frame) / sampleRate
-            noiseSeed = noiseSeed &* 2862933555777941757 &+ 3037000493
-            let rawNoise = Double(noiseSeed & 0xffff) / Double(UInt16.max)
-            let hiss = (rawNoise - 0.5) * 0.17
-            let drift = sin(2 * .pi * driftHz * t)
-            let whistle = sin(2 * .pi * (whistleHz + drift * 22) * t) * 0.018
-            let flutter = sin(2 * .pi * 6.0 * t + drift) * 0.012
-            let sample = Float(hiss + whistle + flutter)
-            left[frame] = sample
-            right[frame] = Float(Double(sample) * 0.78 - whistle * 0.35)
-        }
-        return buffer
-    }
-
     private func staticSourceLine(for frequency: Double) -> String {
+        if let weatherLine = staticWeather.dialLine { return weatherLine }
         let lines = [
             "Static, page-rustle, and a voice ducking behind the wallpaper.",
             "A narrow-band hiss with something tapping from the other side.",
@@ -2143,6 +2583,8 @@ final class BookRadioManager {
     private(set) var statusLine = "Audio playback is unavailable on this platform."
     private(set) var sourceLine = "No broadcast is tuned."
     private(set) var nowPlayingBanter: RadioBanter?
+    private(set) var currentReadAlong: RadioReadAlong?
+    var readAlongElapsed: TimeInterval { 0 }
     private var isPausedForMemoryPressure = false
     private var liveExperienceProgram: BookExperienceProgram?
     private init() {}
@@ -2690,6 +3132,7 @@ enum AppMemoryLedger {
         )
         appLog.info("\(message, privacy: .public)")
         print(message)
+        LaunchBeat.event(checkpoint)
     }
 
     /// How many bytes this process may still allocate before iOS terminates it.
@@ -4233,7 +4676,37 @@ enum BookWhispers {
     static let outcomeRealActionIdentifier = "outcome-real"
     static let attentionCategoryIdentifier = "book-whisper-attention"
     static let attentionHereActionIdentifier = "attention-here"
+    /// Grey. The identifier predates the three-way Knock and stays for
+    /// notifications already delivered.
     static let attentionElsewhereActionIdentifier = "attention-elsewhere"
+    static let attentionSomewhereGoodActionIdentifier = "attention-somewhere-good"
+    static let attentionSentenceActionIdentifier = "attention-sentence"
+
+    /// What the Book says when it knocks, so two days never sound alike. One
+    /// line per Knock, picked by its id.
+    static let knockLines: [(title: String, body: String)] = [
+        ("KNOCK KNOCK", "Where were you just now? Here, somewhere good, or grey?"),
+        ("I KNOCKED", "Were you in the room when I knocked, or somewhere else?"),
+        ("WHERE'S YOUR MIND?", "Quick, before you think about it. Where was it?"),
+        ("KNOCK", "The Curse takes about half of everybody's day. Did it have you just now?"),
+        ("ARE YOU THERE?", "Where were you a second before I knocked?"),
+        ("IT'S ME", "Knock knock. Here, or off somewhere?")
+    ]
+
+    /// For the week after the Reader knocked back (the eucatastrophe).
+    static let turnKnockLines: [(title: String, body: String)] = [
+        ("MY TURN TO KNOCK", "You knocked on me last time. Where are you now?"),
+        ("STILL HERE?", "I'm knocking the new way. Here, somewhere good, or grey?"),
+        ("A LETTER, NOT A PING", "I'm not ringing you like a bell anymore. Where are you, really?"),
+        ("YOU SAVED US", "You got the Curse out of my knocking. Where's it got you now?")
+    ]
+
+    /// For a Knock in the Curse's favourite hour.
+    static let counterKnockLines: [(title: String, body: String)] = [
+        ("IT'S ITS HOUR", "This is when the Curse usually gets you. Where are you right now?"),
+        ("I'M WATCHING THE CLOCK", "It usually has you about now. Not today, right? Where were you?"),
+        ("ON GUARD", "The Curse likes this hour. Quick: here, somewhere good, or grey?")
+    ]
 
     struct RefreshContext {
         var cadence: BookWhisperCadence
@@ -4342,7 +4815,10 @@ enum BookWhispers {
         var attentionProbeID: String? = nil
         var attentionCycle: Int? = nil
 
-        var seatID: String { "\(dayID)|\(window.rawValue)" }
+        /// A Knock has its own lane, so it never uses up its window's seat.
+        var seatID: String {
+            kind == .attention ? "\(dayID)|knock|\(candidateID)" : "\(dayID)|\(window.rawValue)"
+        }
     }
 
     private static let reservationDefaultsKey = "bookWhisperSeatReservations.v1"
@@ -4469,8 +4945,13 @@ enum BookWhispers {
         for reservation: SeatReservation
     ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
-        content.title = "WHERE'S YOUR MIND?"
-        content.body = "Quick. Where was your mind just before I knocked?"
+        let probeID = reservation.attentionProbeID ?? reservation.candidateID
+        // A counter-knock lands in the Curse's favourite hour and says so.
+        let lines = probeID.hasSuffix("-watch") ? counterKnockLines
+            : probeID.hasSuffix("-turn") ? turnKnockLines : knockLines
+        let line = lines[Int(probeID.unicodeScalars.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1.value) } % UInt64(lines.count))]
+        content.title = line.title
+        content.body = line.body
         content.sound = BookSoundBank.notificationSound
         content.categoryIdentifier = attentionCategoryIdentifier
         content.userInfo = [
@@ -4598,7 +5079,11 @@ enum BookWhispers {
                     candidates.append(candidate)
                     reservations[id] = SeatReservation(
                         candidateID: id,
-                        identifier: seatRequestIdentifier(dayID: dayID, window: window),
+                        // Two Knocks a day share a window with a whisper; a
+                        // seat-named identifier would let each overwrite the other.
+                        identifier: kind == .attention
+                            ? "\(identifierPrefix)knock-\(id)"
+                            : seatRequestIdentifier(dayID: dayID, window: window),
                         dayID: dayID,
                         window: window,
                         kind: kind,
@@ -5276,18 +5761,33 @@ enum BookWhispers {
             intentIdentifiers: [],
             options: []
         )
+        // Three answers in one tap each, and a sentence for anyone who wants
+        // to say where. Somewhere good counts for the reader; only Grey goes
+        // to the Curse (docs/the-knock-plan.md).
         let attentionCategory = UNNotificationCategory(
             identifier: attentionCategoryIdentifier,
             actions: [
                 UNNotificationAction(
                     identifier: attentionHereActionIdentifier,
-                    title: "HERE",
+                    title: "Here",
+                    options: []
+                ),
+                UNNotificationAction(
+                    identifier: attentionSomewhereGoodActionIdentifier,
+                    title: "Somewhere good",
                     options: []
                 ),
                 UNNotificationAction(
                     identifier: attentionElsewhereActionIdentifier,
-                    title: "ELSEWHERE",
+                    title: "Grey",
                     options: []
+                ),
+                UNTextInputNotificationAction(
+                    identifier: attentionSentenceActionIdentifier,
+                    title: "Say where",
+                    options: [],
+                    textInputButtonTitle: "Keep",
+                    textInputPlaceholder: "One sentence: where were you?"
                 )
             ],
             intentIdentifiers: [],
@@ -5299,10 +5799,12 @@ enum BookWhispers {
                 $0.identifier != promptCategoryIdentifier
                     && $0.identifier != outcomeCategoryIdentifier
                     && $0.identifier != attentionCategoryIdentifier
+                    && $0.identifier != GreyKnock.categoryIdentifier
             }
             updated.insert(category)
             updated.insert(outcomeCategory)
             updated.insert(attentionCategory)
+            updated.insert(GreyKnock.category)
             center.setNotificationCategories(updated)
         }
     }
@@ -5330,13 +5832,58 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if response.notification.request.content.categoryIdentifier == GreyKnock.categoryIdentifier,
+           let threatID = response.notification.request.content.userInfo["greyThreatID"] as? String {
+            let sentence = (response as? UNTextInputNotificationResponse)?.userText
+                .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+            Task { @MainActor in
+                if response.actionIdentifier == GreyKnock.saveActionIdentifier, let sentence {
+                    // Saved from the lock screen: the sentence is the rescue.
+                    let vault = PlayerVault.shared
+                    var ledger = vault.data.greyPageThreats ?? .empty
+                    if GreyPageThreatEngine.resolve(threatID: threatID, rescued: true, line: sentence, in: &ledger) != nil {
+                        vault.data.greyPageThreats = ledger
+                        vault.save()
+                    }
+                } else if response.actionIdentifier == UNNotificationDefaultActionIdentifier {
+                    UserDefaults.standard.set(threatID, forKey: GreyKnock.openKey)
+                    NotificationCenter.default.post(name: .greyKnockOpenReceived, object: nil)
+                }
+                completionHandler()
+            }
+            return
+        }
+
         if response.notification.request.content.categoryIdentifier == BookWhispers.attentionCategoryIdentifier {
+            // Tapped open, not answered: the app asks on its own sheet.
+            if response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+               let sample = Self.attentionSample(from: response.notification.request.content.userInfo) {
+                KnockOpenStore.enqueue(KnockOpenRequest(
+                    id: sample.id,
+                    scheduledAt: sample.scheduledAt,
+                    cycle: sample.cycle,
+                    title: response.notification.request.content.title,
+                    body: response.notification.request.content.body
+                ))
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .knockOpenReceived, object: nil)
+                    completionHandler()
+                }
+                return
+            }
             let answer: AttentionProbeAnswer?
+            var sentence: String?
             switch response.actionIdentifier {
             case BookWhispers.attentionHereActionIdentifier:
                 answer = .here
+            case BookWhispers.attentionSomewhereGoodActionIdentifier:
+                answer = .somewhereGood
             case BookWhispers.attentionElsewhereActionIdentifier:
                 answer = .elsewhere
+            case BookWhispers.attentionSentenceActionIdentifier:
+                sentence = (response as? UNTextInputNotificationResponse)?.userText
+                    .trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                answer = sentence == nil ? nil : .noted
             default:
                 answer = nil
             }
@@ -5352,7 +5899,8 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
                     id: sample.id,
                     scheduledAt: sample.scheduledAt,
                     cycle: sample.cycle,
-                    answer: answer
+                    answer: answer,
+                    sentence: sentence
                 )
                 if paused {
                     Self.cancelPendingAttentionSamples(center: center)
@@ -5461,16 +6009,20 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         id: String,
         scheduledAt: Date,
         cycle: Int,
-        answer: AttentionProbeAnswer
+        answer: AttentionProbeAnswer,
+        sentence: String? = nil
     ) -> Bool {
         let vault = PlayerVault.shared
         var ledger = vault.data.attentionProbes ?? .empty
+        let now = Date()
         ledger.record(
             id: id,
             scheduledAt: scheduledAt,
-            answeredAt: Date(),
+            answeredAt: now,
             answer: answer,
-            cycle: cycle
+            cycle: cycle,
+            sentence: sentence,
+            context: KnockMoment.snapshot(at: now)
         )
         vault.data.attentionProbes = ledger
         vault.save()

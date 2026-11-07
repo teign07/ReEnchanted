@@ -600,4 +600,136 @@ enum PerfLayerCensus {
         return "?"
     }
 }
+
+// MARK: - Launch frame timeline
+
+/// `--perf-launch [--perf-launch-seconds 14]`: from the first frame until the
+/// desk has settled, every frame's lateness, filed under the launch beat it
+/// fell in (cover lead-in, hold, reveal, title leaf, Book rising, first ink…).
+/// Beats are marked by `LaunchBeat.mark`; ledger checkpoints are listed as
+/// events. Written to Library/Caches/perf-launch.txt and printed.
+///
+/// What to read: a beat with late frames is a stall inside an animation; a
+/// beat that runs long with nothing moving is a wait that was not filled.
+@MainActor
+final class LaunchFrameProbe: NSObject {
+    static let shared = LaunchFrameProbe()
+    static let isEnabled = ProcessInfo.processInfo.arguments.contains("--perf-launch")
+
+    private struct Beat {
+        var name: String
+        var startMS: Double
+        var frames = 0
+        var lateFrames = 0
+        var missedFrames = 0
+        var hitchMS: Double = 0
+        var worstMS: Double = 0
+    }
+
+    private var link: CADisplayLink?
+    private var origin: CFTimeInterval = 0
+    private var last: CFTimeInterval = 0
+    private var beats: [Beat] = []
+    private var events: [(ms: Double, name: String)] = []
+    private var worst: [(ms: Double, frameMS: Double, beat: String)] = []
+    private var duration: Double = 14
+
+    static func startIfRequested() {
+        guard isEnabled, shared.link == nil else { return }
+        let arguments = ProcessInfo.processInfo.arguments
+        if let flag = arguments.firstIndex(of: "--perf-launch-seconds"),
+           arguments.indices.contains(flag + 1), let value = Double(arguments[flag + 1]) {
+            shared.duration = value
+        }
+        shared.origin = CACurrentMediaTime()
+        shared.beats = [Beat(name: "process-start", startMS: 0)]
+        // With `--perf-rb-census`, the per-second redraw tally covers the launch too.
+        PerfRBCensus.installIfRequested()
+        let link = CADisplayLink(target: shared, selector: #selector(tick(_:)))
+        link.add(to: .main, forMode: .common)
+        shared.link = link
+    }
+
+    private var nowMS: Double { (CACurrentMediaTime() - origin) * 1_000 }
+
+    func beat(_ name: String) {
+        guard link != nil else { return }
+        if beats.last?.name == name { return }
+        beats.append(Beat(name: name, startMS: nowMS))
+    }
+
+    func event(_ name: String, at time: CFTimeInterval) {
+        guard link != nil else { return }
+        events.append(((time - origin) * 1_000, name))
+    }
+
+    @objc private func tick(_ link: CADisplayLink) {
+        let now = link.timestamp
+        defer { last = now }
+        guard last > 0, !beats.isEmpty else { return }
+        let nominal = link.duration > 0 ? link.duration : 1.0 / 60.0
+        let interval = now - last
+        let index = beats.count - 1
+        beats[index].frames += 1
+        let late = Int((interval / nominal).rounded()) - 1
+        if late > 0 {
+            beats[index].lateFrames += 1
+            beats[index].missedFrames += late
+            beats[index].hitchMS += (interval - nominal) * 1_000
+            worst.append(((now - origin) * 1_000, interval * 1_000, beats[index].name))
+        }
+        beats[index].worstMS = max(beats[index].worstMS, interval * 1_000)
+        if (now - origin) >= duration { finish() }
+    }
+
+    private func finish() {
+        link?.invalidate()
+        link = nil
+        let end = nowMS
+        var lines = [String(format: "perf-launch %@ (%.0fs)", "\(Date())", duration)]
+        for (index, beat) in beats.enumerated() {
+            let next = index + 1 < beats.count ? beats[index + 1].startMS : end
+            lines.append(String(
+                format: "BEAT %6.0fms +%5.0fms %-28@ frames=%d late=%d missed=%d hitch=%.0fms worst=%.1fms",
+                beat.startMS, next - beat.startMS, beat.name as NSString,
+                beat.frames, beat.lateFrames, beat.missedFrames, beat.hitchMS, beat.worstMS
+            ))
+        }
+        for event in events {
+            lines.append(String(format: "EVENT %6.0fms %@", event.ms, event.name))
+        }
+        for frame in worst.sorted(by: { $0.frameMS > $1.frameMS }).prefix(15) {
+            lines.append(String(format: "LATE %6.0fms frame=%.1fms in %@", frame.ms, frame.frameMS, frame.beat))
+        }
+        let text = lines.joined(separator: "\n")
+        print(text)
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            try? text.write(to: caches.appendingPathComponent("perf-launch.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+}
+#endif
+
+/// Names the stretch of the launch the reader is in, for `--perf-launch`.
+/// Free in release builds.
+enum LaunchBeat {
+    @MainActor static func mark(_ name: String) {
+        #if DEBUG
+        LaunchFrameProbe.shared.beat(name)
+        #endif
+    }
+
+    nonisolated static func event(_ name: String) {
+        #if DEBUG
+        guard LaunchFrameProbe.isEnabledFlag else { return }
+        let time = CACurrentMediaTime()
+        Task { @MainActor in LaunchFrameProbe.shared.event(name, at: time) }
+        #endif
+    }
+}
+
+#if DEBUG
+extension LaunchFrameProbe {
+    nonisolated static let isEnabledFlag = ProcessInfo.processInfo.arguments.contains("--perf-launch")
+}
 #endif

@@ -14,7 +14,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         radioIsPlaying: Bool,
         activeWorldEvents: [ResolvedWorldEvent] = [],
         bookInterior: BookInteriorState = .unawakened,
-        bookWorking: BookWorking? = nil
+        bookWorking: BookWorking? = nil,
+        curseFight: ReEnchantedWidgetCurseFight? = nil
     ) {
         let snapshot = makeSnapshot(
             today: today,
@@ -26,7 +27,8 @@ enum ReEnchantedWidgetSnapshotWriter {
             radioIsPlaying: radioIsPlaying,
             activeWorldEvents: activeWorldEvents,
             bookInterior: bookInterior,
-            bookWorking: bookWorking
+            bookWorking: bookWorking,
+            curseFight: curseFight
         )
         try? ReEnchantedWidgetSnapshotStore.save(snapshot)
         #if canImport(WidgetKit)
@@ -44,7 +46,8 @@ enum ReEnchantedWidgetSnapshotWriter {
         radioIsPlaying: Bool,
         activeWorldEvents: [ResolvedWorldEvent] = [],
         bookInterior: BookInteriorState = .unawakened,
-        bookWorking: BookWorking? = nil
+        bookWorking: BookWorking? = nil,
+        curseFight: ReEnchantedWidgetCurseFight? = nil
     ) -> ReEnchantedWidgetSnapshot {
         let readerName = selfFacts
             .first { $0.id == "onboarding:onboarding-name" }?
@@ -80,7 +83,8 @@ enum ReEnchantedWidgetSnapshotWriter {
             enchantments: enchantments,
             belief: belief,
             question: question,
-            bookInterior: interior
+            bookInterior: interior,
+            curseFight: curseFight
         )
     }
 

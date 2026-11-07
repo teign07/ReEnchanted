@@ -697,6 +697,18 @@ enum LocalModelManager {
     }
 
     static func removeKnownLocalModels() {
+        removeLocalModels(except: nil)
+    }
+
+    /// Frees the room every other checkpoint holds before `modelID` downloads,
+    /// and leaves `modelID`'s own folder alone: the installer skips files that
+    /// already match, so a retry after a dropped connection carries on from
+    /// what landed instead of fetching gigabytes it already has.
+    static func removeLocalModels(otherThan modelID: String) {
+        removeLocalModels(except: modelID)
+    }
+
+    private static func removeLocalModels(except keptModelID: String?) {
         let fileManager = FileManager.default
         let modelIDs = Set(allModelChoices.flatMap { [$0.modelID] + $0.supersedes })
 
@@ -704,7 +716,7 @@ enum LocalModelManager {
 
         for modelID in modelIDs {
             let directory = modelDirectory(for: modelID)
-            if fileManager.fileExists(atPath: directory.path) {
+            if modelID != keptModelID, fileManager.fileExists(atPath: directory.path) {
                 try? fileManager.removeItem(at: directory)
             }
 

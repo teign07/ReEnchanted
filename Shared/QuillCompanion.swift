@@ -557,15 +557,14 @@ struct QuillChoosingPageSourceAdapter: BookPageSourceAdapter {
         guard source.isActive,
               inputs.chosenQuill == nil else { return [] }
         // The choosing claims to have read the reader's hand, so it waits for
-        // the same maturity as the other pages that make that claim.
-        guard inputs.libraryReadyForReflectivePages(includingToday: day, now: now) else { return [] }
+        // actual reader material, like the other pages that make that claim.
+        guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         // On a hard day the Book leads with care. This milestone is once-ever
         // and self-suppressing, so it simply waits for a calmer session.
         let archive = inputs.days + [day]
-        // Measuring the reader's hand reads every prose page they have kept,
-        // and both the maturity gate and the mint do it. One reading per
-        // version of the archive is enough; the choosing cannot change until
-        // the reader writes again.
+        // Measuring the reader's hand reads every prose page they have kept.
+        // Cache one reading per archive version; the choosing cannot change
+        // until the reader writes again.
         let chosen = ArchiveMemo.value(
             "quill.choosing",
             days: archive,

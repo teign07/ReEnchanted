@@ -459,7 +459,7 @@ extension KitchenOffering {
             "kitchenShelf": recipe.shelf.rawValue,
             "kitchenChips": KitchenOutcome.allCases.map(\.chip).joined(separator: "||"),
             "responseLabel": recipe.marginAsk,
-            "placeholder": "What it smelled like, who ate it, what you'd change…",
+            "placeholder": "One sentence about how it smelled, or who ate it…",
             "tags": "kitchen,recipe,kitchen-offer:\(recipe.id)"
         ]
         if let credit = recipe.credit { metadata["kitchenCredit"] = credit }
@@ -519,7 +519,7 @@ extension KitchenOffering {
                     "source": sourceID,
                     rescueKey: "true",
                     "responseLabel": "How they make it",
-                    "placeholder": "What you need, and what you do, the way they said it…",
+                    "placeholder": "One sentence: the step you'd hate to lose, the way they said it…",
                     "tags": "kitchen,recipe,\(KitchenLedger.rescuedTag)"
                 ]
             )

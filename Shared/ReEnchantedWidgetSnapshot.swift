@@ -163,6 +163,13 @@ struct ReEnchantedWidgetBookInterior: Codable, Equatable {
     var urlPath: String
 }
 
+/// Today's score against the Curse, from the answered Knocks. Counts only:
+/// never where the reader was or what they wrote.
+struct ReEnchantedWidgetCurseFight: Codable, Equatable {
+    var reader: Int
+    var curse: Int
+}
+
 struct ReEnchantedWidgetQuestion: Codable, Equatable {
     var id: String
     var title: String
@@ -189,6 +196,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
     /// Private-safe evidence that the Book is in the middle of something. The
     /// widget never carries the underlying personal excerpt or hidden secret.
     var bookInterior: ReEnchantedWidgetBookInterior? = nil
+    var curseFight: ReEnchantedWidgetCurseFight? = nil
 
     static let fallback = ReEnchantedWidgetSnapshot(
         generatedAt: Date(timeIntervalSinceReferenceDate: 0),

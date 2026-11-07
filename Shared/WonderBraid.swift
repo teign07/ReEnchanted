@@ -719,6 +719,9 @@ enum WonderBraid {
         /// Whether the tale is the house's own small business (not the month's
         /// news or a Cast errand), which a continuity thread may stand in for.
         var taleIsHouseCanon = true
+        /// The old-tale shape tonight's own material makes, if it makes one
+        /// (`turn(plan:details:dateKey:resting:)`), and its authored line.
+        var turn: Turn?
         /// How the model is waited on. It can be busy (a margin reply from the keep
         /// that prompted a re-braid is still being written) or briefly short of
         /// room; neither is a reason to assemble the night without it.
@@ -754,6 +757,10 @@ enum WonderBraid {
                 return try await tell(system, user, temperature, topP, maxTokens)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let unavailable as ModelUnavailable {
+                // The native caller has identified a terminal condition, such
+                // as memory pressure. Do not turn it into thirty fresh loads.
+                throw unavailable
             } catch {
                 guard waited < waits else { throw ModelUnavailable(underlying: error) }
                 waited += 1
@@ -806,6 +813,14 @@ enum WonderBraid {
             dateKey: input.dateKey, resting: input.resting, limit: input.beatLimit,
             library: input.isHardNight ? [] : library(delivered: input.delivered, retiring: input.retiring)
         )
+        if input.turn?.shape == .threeTimes, beats.count >= 3 {
+            // Two ordinary things and then the third: only the third gets its
+            // small impossible thing, so the turn has somewhere to land.
+            for index in beats.indices where index != 2 {
+                beats[index].lines = []
+                beats[index].lineIDs = []
+            }
+        }
         if shape == .watching, let first = beats.firstIndex(where: { !$0.lines.isEmpty }) {
             // A vigil keeps one small odd thing. More would be the night fidgeting.
             for index in beats.indices where index != first {
@@ -824,8 +839,17 @@ enum WonderBraid {
         var plain: [String] = []
         func flushPlain() {
             guard !plain.isEmpty else { return }
-            if shape == .mosaic {
-                paragraphs.append(contentsOf: plain.flatMap { Self.paragraphs(of: [$0]) })
+            if shape == .mosaic || input.turn?.shape == .threeTimes {
+                // Each moment apart, but "It moved its head" stays with the heron.
+                var moments: [String] = []
+                for detail in plain {
+                    if let last = moments.indices.last, Self.opensOnPronoun(detail) {
+                        moments[last] += " " + detail
+                    } else {
+                        moments.append(detail)
+                    }
+                }
+                paragraphs.append(contentsOf: moments.flatMap { Self.paragraphs(of: [$0]) })
             } else {
                 paragraphs.append(contentsOf: Self.paragraphs(of: plain))
             }
@@ -867,6 +891,10 @@ enum WonderBraid {
         // mosaic sets each beside its moment too.
         let braided = shape == .mosaic ? input.bookLines + input.keptLines : input.bookLines
         paragraphs = interleaved(braided, into: paragraphs)
+        // After the strands, so nothing slips between the turn and its moment.
+        if let turn = input.turn, !paragraphs.isEmpty {
+            paragraphs = placing(turn, in: paragraphs)
+        }
         if shape != .mosaic, !input.keptLines.isEmpty {
             paragraphs.append(input.keptLines.joined(separator: " "))
         }
@@ -918,7 +946,7 @@ enum WonderBraid {
         }
         return Output(
             paragraphs: paragraphs,
-            lineIDs: beats.flatMap(\.lineIDs),
+            lineIDs: beats.flatMap(\.lineIDs) + (input.turn.map { [$0.lineID] } ?? []),
             jobsFellBack: fellBack,
             thin: thin,
             weather: weatherMode,
@@ -974,6 +1002,140 @@ enum WonderBraid {
             after[slot, default: []].append(line)
         }
         return paragraphs.indices.flatMap { [paragraphs[$0]] + (after[$0] ?? []) }
+    }
+
+    // MARK: - Old-tale shapes
+
+    /// The shapes old tales make, at the size of one night (the same patterns
+    /// `TaleShape` recognises across days). A night takes one only when its own
+    /// material has it. The tale logic belongs to the Book and the things it
+    /// keeps, never to the reader: their real kindness can leave the Book in
+    /// their debt, but no bargain is ever invented for them.
+    enum TurnShape: String, Equatable, CaseIterable {
+        /// They chose, in a story, or promised or owed something.
+        case price
+        /// An earlier page came back.
+        case cameBack
+        /// They did something kind, and the Book owes them.
+        case owed
+        /// Something was lost or turned up.
+        case lostThing
+        /// They said no, or didn't do the thing.
+        case refused
+        /// Three moments: two ordinary, then the third.
+        case threeTimes
+    }
+
+    struct Turn: Equatable {
+        var shape: TurnShape
+        /// The reader's detail the line answers, as it appears in `details`.
+        var after: String
+        /// Three Times sets its line before the third moment instead.
+        var before = false
+        var lineID: String
+        var text: String
+    }
+
+    /// The Book's own say on the turn (bj, 2026-11-06: the Book keeps the
+    /// debts and notices, not "the building"): things alive, a little
+    /// dangerous, nothing explained. Never what the reader felt or did.
+    static let turnLines: [TurnShape: [(id: String, text: String)]] = [
+        .price: [
+            ("turn-price-a", "Nothing comes free. I'd like that written down."),
+            ("turn-price-b", "Picking costs something. It always has."),
+            ("turn-price-c", "Somebody's going to come asking for that. They always do."),
+            ("turn-price-d", "I heard a small sound when that happened, like a coin going into a jar.")
+        ],
+        .cameBack: [
+            ("turn-back-a", "It came back. Things that come back are never quite the same shape."),
+            ("turn-back-b", "I keep everything, and some of it comes back to see if I noticed."),
+            ("turn-back-c", "That's twice now. I'm keeping an eye on it."),
+            ("turn-back-d", "Same thing, different day. The day's the one that changed.")
+        ],
+        .owed: [
+            ("turn-owed-a", "I saw that. I keep a list of who I owe, and you're on it now."),
+            ("turn-owed-b", "That's gone down in my ink, on the page where I keep who I owe."),
+            ("turn-owed-c", "I owe you one now. I hate owing."),
+            ("turn-owed-d", "I'll pay that back. Not straight away, and probably a bit crooked.")
+        ],
+        .lostThing: [
+            ("turn-lost-a", "Some lost things don't want finding. I'd give it a day."),
+            ("turn-lost-b", "When a thing goes missing, it's usually gone somewhere on purpose."),
+            ("turn-lost-c", "It'll turn up when it's finished whatever it was doing.")
+        ],
+        .refused: [
+            ("turn-no-a", "Saying no is old magic. Older than me."),
+            ("turn-no-b", "Not doing a thing is a thing too. I noticed the gap."),
+            ("turn-no-c", "There's always one thing you're not meant to do. That's how you know it's a story.")
+        ],
+        .threeTimes: [
+            ("turn-three-a", "That's two. Everybody knows what happens on the third."),
+            ("turn-three-b", "Things come in threes. I counted."),
+            ("turn-three-c", "Once is a thing. Twice is a habit. Three times and something's listening.")
+        ]
+    ]
+
+    private static let pricePattern = try! NSRegularExpression(pattern: #"\b(promised|owe|owed|owes|bargain\w*|deal|traded|swapped|paid)\b"#, options: [.caseInsensitive])
+    private static let owedPattern = try! NSRegularExpression(
+        pattern: #"\b(helped|gave|carried|fixed|fed|lent|shared|visited|made (?:\w+ ){0,3}for|bought (?:\w+ ){0,3}for|held the door|looked after|checked on)\b"#,
+        options: [.caseInsensitive])
+    private static let lostPattern = try! NSRegularExpression(pattern: #"\b(lost|missing|couldn't find|can't find|misplaced|turned up|found (?:it|the|my|your|a))\b"#, options: [.caseInsensitive])
+    private static let refusedPattern = try! NSRegularExpression(
+        pattern: #"\b(refused|said no|wasn't supposed to|weren't supposed to|shouldn't have|not allowed|skipped|didn't go|didn't answer)\b"#,
+        options: [.caseInsensitive])
+
+    /// The old-tale shape tonight's real material makes, rarest first, and a
+    /// line for it that hasn't been said lately. Nil on a hard night, a vigil,
+    /// or a night that doesn't have one: most nights are just nights.
+    static func turn(plan: BraidScenePlan, details: [String], dateKey: String, resting: Set<String>) -> Turn? {
+        guard !plan.isHardNight, plan.form != "vigil", !details.isEmpty else { return nil }
+        let choices = plan.placements.compactMap { plan.evidence(for: $0.evidenceID) }
+            .filter { $0.kind == .fictionChoice }
+            .map { BraidSceneWriter.secondPerson($0.text) }
+        let ordinary = details.filter { !isCallback($0) && !choices.contains($0) }
+        func first(_ regex: NSRegularExpression) -> String? { ordinary.first { has(regex, in: $0) } }
+        var candidates: [(TurnShape, String)] = []
+        // Rarer shapes first: an earlier page comes back on most nights, and
+        // would otherwise speak over a kindness or a lost thing every time.
+        if let choice = choices.first(where: details.contains) ?? first(pricePattern) { candidates.append((.price, choice)) }
+        if let kind = first(owedPattern) { candidates.append((.owed, kind)) }
+        if let lost = first(lostPattern) { candidates.append((.lostThing, lost)) }
+        if let no = first(refusedPattern) { candidates.append((.refused, no)) }
+        if let earlier = details.first(where: isCallback) { candidates.append((.cameBack, earlier)) }
+        // Three moments means three Pages, not three sentences of one diary
+        // entry: the line goes before the first words of the third Page.
+        var pagesInOrder: [String] = []
+        var firstWords: [String: String] = [:]
+        for atom in plan.placements.compactMap({ plan.evidence(for: $0.evidenceID) })
+        where atom.isAboutTheReadersLife && atom.kind != .fictionChoice {
+            guard firstWords[atom.pageID] == nil else { continue }
+            pagesInOrder.append(atom.pageID)
+            firstWords[atom.pageID] = BraidSceneWriter.secondPerson(atom.text)
+        }
+        if pagesInOrder.count >= 3, let third = firstWords[pagesInOrder[2]], ordinary.contains(third) {
+            candidates.append((.threeTimes, third))
+        }
+        for (shape, after) in candidates {
+            let lines = (turnLines[shape] ?? []).filter { !resting.contains($0.id) }
+            guard !lines.isEmpty else { continue }
+            let line = lines[Int(stableHash(dateKey + shape.rawValue) % UInt64(lines.count))]
+            return Turn(shape: shape, after: after, before: shape == .threeTimes, lineID: line.id, text: line.text)
+        }
+        return nil
+    }
+
+    /// The turn's line goes right after the paragraph holding the detail it
+    /// answers; Three Times goes right before the third moment.
+    static func placing(_ turn: Turn, in paragraphs: [String]) -> [String] {
+        let words = contentWords(turn.after)
+        let index = paragraphs.indices
+            .map { ($0, contentWords(paragraphs[$0]).intersection(words).count) }
+            .max { $0.1 < $1.1 }
+            .flatMap { $0.1 > 0 ? $0.0 : nil }
+            ?? 0
+        var placed = paragraphs
+        placed.insert(turn.text, at: turn.before ? index : min(index + 1, placed.count))
+        return placed
     }
 
     // MARK: - A thread carried from night to night

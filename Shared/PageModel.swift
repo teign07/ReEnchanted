@@ -517,133 +517,133 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     var marginAsk: (label: String, placeholder: String) {
         switch self {
         case .mood:
-            return ("How you feel", "What word fits today?")
+            return ("How you feel", "One sentence about how today feels.")
         case .diary:
-            return ("Your answer", "What happened?")
+            return ("Your answer", "One sentence: what happened today?")
         case .souvenir:
-            return ("What you want to remember", "One thing from today you'd rather not lose.")
+            return ("What you want to remember", "One sentence about the thing from today you'd rather not lose.")
         case .rest:
-            return ("A note", "Anything you want to leave here.")
+            return ("A note", "One sentence you want to leave here.")
         case .body:
-            return ("What you feel", "Where in your body do you feel it?")
+            return ("What you feel", "One sentence: where in your body is it?")
         case .fuel:
-            return ("What fed you", "Food. Water. Medicine. Coffee. Crumbs. Put down what was there.")
+            return ("What fed you", "One sentence about what fed you today. Crumbs count.")
         case .weather:
-            return ("The sky", "Look outside. Write what the sky is doing and whether you like it.")
+            return ("The sky", "Look outside. One sentence about what the sky is doing.")
         case .location:
-            return ("This place", "One thing about where you were that only someone standing there would know.")
+            return ("This place", "One sentence only somebody standing there would know.")
         case .quip:
-            return ("What you think", "What surprised you?")
+            return ("What you think", "One sentence about what surprised you.")
         case .quotes:
-            return ("Why this line", "What made you choose it?")
+            return ("Why this line", "One sentence: why this line?")
         case .affirmations:
-            return ("Write over me", "Keep my line or cross it out. Put the truer one underneath.")
+            return ("Write over me", "Cross my line out if it's wrong, and put the truer one underneath in one sentence.")
         case .aboutYou:
-            return ("Your answer", "Answer it however you like. I'll keep what you say.")
+            return ("Your answer", "Answer it in one sentence. I'll keep it.")
         case .wonderCompass:
-            return ("What you brought back", "Give me the detail: colour, noise, smell, temperature.")
+            return ("What you brought back", "One sentence with the detail you brought back.")
         case .tarot:
-            return ("Your reading", "Say what lands. Say what misses. Cards can take an argument.")
+            return ("Your reading", "One sentence: what lands, or what misses. Cards can take an argument.")
         case .lore:
-            return ("What caught", "What do you want to remember or ask about?")
+            return ("What caught", "One sentence you want to remember, or one question.")
         case .patreon:
-            return ("Write back", "What would you like to say?")
+            return ("Write back", "Write back in one sentence.")
         case .illustration:
-            return ("What you saw", "Tell me what is happening in the picture. I want your version.")
+            return ("What you saw", "One sentence about what's happening in the picture. Your version.")
         case .illuminatedPhoto:
-            return ("Behind the photo", "What was happening outside the frame when this was taken?")
+            return ("Behind the photo", "One sentence about what was going on just outside the frame.")
         case .narrativeOS:
-            return ("Your note", "What happened when you tried it?")
+            return ("Your note", "One sentence about what happened when you tried it.")
         case .gossip:
-            return ("What you think", "Whose side you're on, or what you think really happened.")
+            return ("What you think", "One sentence: whose side are you on?")
         case .bookAside:
-            return ("Your reply", "What do you think?")
+            return ("Your reply", "One sentence back to me.")
         case .note:
-            return ("Your reply", "Write back to them. They'll remember what you said.")
+            return ("Your reply", "Write them one sentence back. They'll remember it.")
         case .facultyResearch:
-            return ("Correct their notes", "Mark what is true. Scratch through what isn't.")
+            return ("Correct their notes", "One sentence that puts their notes right.")
         case .letter:
-            return ("Your reply", "What would you like to tell them?")
+            return ("Your reply", "One sentence you'd like to tell them.")
         case .supportGuild:
-            return ("Your reply", "What did they miss?")
+            return ("Your reply", "One sentence about what they missed.")
         case .bookOfYou:
-            return ("What I missed", "Tell me what happened differently.")
+            return ("What I missed", "One sentence about what really happened.")
         case .askTheBook:
-            return ("Your words", "Tell me things, ask me things, argue, or start in the middle. I can follow.")
+            return ("Your words", "One sentence at a time. Tell me, ask me, or argue.")
         case .inkrestOfficeHours:
-            return ("Your answer", "Tell Inkrest how it went. He'll pretend not to care.")
+            return ("Your answer", "One sentence for Inkrest about how it went. He'll pretend not to care.")
         case .faeBargain:
-            return ("Terms", "Be exact. The Fae hold the words, not what you meant.")
+            return ("Terms", "Your terms in one exact sentence. The Fae hold the words, not what you meant.")
         case .bookFae:
-            return ("Your terms", "Say what you want and what you'll give. Mind every word.")
+            return ("Your terms", "One sentence: what you want and what you'll give. Mind every word.")
         case .pactDispatch:
-            return ("Your margin note", "What you make of the news.")
+            return ("Your margin note", "One sentence about what you make of the news.")
         case .pactVerdict:
-            return ("Your ruling", "Choose the reading. Point to the words that make it right.")
+            return ("Your ruling", "One sentence naming the reading the words prove.")
         case .pactErrand:
-            return ("What happened", "Tell me what you did.")
+            return ("What happened", "One sentence about what you did.")
         case .spell:
-            return ("What happened", "You did the thing. Tell me what you came back with.")
+            return ("What happened", "You did the thing. One sentence about what you came back with.")
         case .recipe:
-            return ("What did it smell like?", "And who ate it. And what you'd do differently.")
+            return ("The meal", "One sentence about how it smelled, or who ate it.")
         case .festival:
-            return ("What you kept", "Write the bit of the feast that reached your real day.")
+            return ("What you kept", "One sentence about the bit of the feast that reached your real day.")
         case .twoReadings:
-            return ("Your ruling", "Who read the line right? Point to the words that prove it.")
+            return ("Your ruling", "One sentence: who read the line right?")
         case .castBond:
-            return ("Your reading", "Name what changed between them. Or what they're hiding.")
+            return ("Your reading", "One sentence about what changed between them.")
         case .todaysSky:
-            return ("What you saw", "What did you see in the sky?")
+            return ("What you saw", "One sentence about what you saw in the sky.")
         case .radio:
-            return ("After the song", "What changed in the room while this was playing?")
+            return ("After the song", "One sentence about what changed in the room while it played.")
         case .bookJump:
-            return ("What you remember", "Which part stayed with you?")
+            return ("What you remember", "One sentence about the part that stayed with you.")
         case .enchantment:
-            return ("The plain photo", "Tell me what the photograph is before I put the spell on.")
+            return ("The plain photo", "One plain sentence about the photograph, before I put the spell on.")
         case .anchor:
-            return ("Your mark", "What do you know about this place?")
+            return ("Your mark", "One sentence you know about this place.")
         case .academyClass:
-            return ("Your classwork", "Do what they set. Bring back what happened.")
+            return ("Your classwork", "Do what they set, then one sentence about what happened.")
         case .elective:
-            return ("What happened", "Tell me what you tried and how it went.")
+            return ("What happened", "One sentence about what you tried.")
         case .wickerDare:
-            return ("Tell Wicker", "What did you do? Or why did you refuse?")
+            return ("Tell Wicker", "One sentence for Wicker: what you did, or why you didn't.")
         case .packPage:
-            return ("Answer the Page", "Whatever it just asked you, put it here.")
+            return ("Answer the Page", "One sentence for whatever this Page just asked.")
         case .wordNegotiation:
-            return ("Your meaning", "What does this word mean to you?")
+            return ("Your meaning", "One sentence: what does this word mean to you?")
         case .gamePage:
-            return ("After the game", "What do you want to keep from the run?")
+            return ("After the game", "One sentence you want to keep from the run.")
         case .calendar:
-            return ("Before / after", "What are you hoping for? Afterwards, what happened?")
+            return ("Before / after", "One sentence: what you hope for, or afterwards, what happened.")
         case .helpTips:
-            return ("How it went", "What worked? What should I change?")
+            return ("How it went", "One sentence about what worked or what I should change.")
         case .welcome:
-            return ("First mark", "What would you like me to know?")
+            return ("First mark", "One sentence you'd like me to know.")
         case .marginsAtlas:
-            return ("Correct the map", "Which connection is wrong or missing?")
+            return ("Correct the map", "One sentence about the connection that's wrong or missing.")
         case .bookConnections:
-            return ("What you think", "Do these belong together? Tell me why.")
+            return ("What you think", "One sentence: do these belong together?")
         case .bookRemembered:
-            return ("Reading it now", "What do you think of this page today?")
+            return ("Reading it now", "One sentence about this page, read today.")
         case .bookNotices:
-            return ("Your answer", "Did I get this right?")
+            return ("Your answer", "One sentence: did I get this right?")
         case .glowInvitation:
-            return ("Your choice", "What would you like more or less of?")
+            return ("Your choice", "One sentence: more of what, or less of what?")
         case .theBleed:
-            return ("Letters to the Editor", "Write to Penny. The next paper prints it.")
+            return ("Letters to the Editor", "One sentence to Penny. The next paper prints it.")
         case .inventory:
-            return ("Pick one", "Which thing would you like to use?")
+            return ("Pick one", "One sentence about the thing you'd use.")
         case .bindery:
             return ("First line", "Write the sentence that should open this chapter.")
         case .taleBound:
-            return ("After the tale", "What did this tale get right or leave out?")
+            return ("After the tale", "One sentence about what this tale got right or left out.")
         case .bookPocket:
-            return ("This scrap", "What does it remind you of?")
+            return ("This scrap", "One sentence about what this scrap reminds you of.")
         case .frontMatter:
-            return ("Correct me", "Write what I got wrong. I'll keep your correction with this Page.")
+            return ("Correct me", "One sentence that corrects me. I'll keep it with this Page.")
         case .plainPage:
-            return ("Write", "Anything at all. Nobody asked you for this one.")
+            return ("Write", "One sentence. Anything at all. Nobody asked you for this one.")
         }
     }
 
@@ -1809,7 +1809,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "daily; one kept reading per calendar day",
-            note: "A one-card pull or a Root / Weather / Door spread, drawn locally from a real 78-card deck."
+            note: "A one-card pull or What’s Here / What’s Hiding / What’s Possible, drawn locally from a real 78-card deck."
         )
     ]
 

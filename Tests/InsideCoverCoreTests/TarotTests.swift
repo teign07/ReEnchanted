@@ -24,11 +24,35 @@ final class TarotTests: XCTestCase {
 
     func testThreeCardDrawHasUniqueCardsInPositionOrder() {
         var generator = SeededGenerator(state: 42)
-        let reading = TarotDrawEngine.draw(spread: .rootWeatherDoor, using: &generator)
+        let reading = TarotDrawEngine.draw(spread: .hereHiddenPossible, using: &generator)
 
-        XCTAssertEqual(reading.cards.map(\.position), [.root, .weather, .door])
+        XCTAssertEqual(reading.cards.map(\.position), [.here, .hiding, .possible])
         XCTAssertEqual(Set(reading.cards.map(\.cardID)).count, 3)
         XCTAssertTrue(reading.cards.allSatisfy { !$0.isReversed })
+    }
+
+    func testDrawConsumesTheShuffledPacketInItsExistingOrder() throws {
+        var generator = SeededGenerator(state: 217)
+        let packet = TarotDrawEngine.shuffledCardIDs(using: &generator)
+        let one = try XCTUnwrap(TarotDrawEngine.draw(spread: .oneCard, fromShuffledCardIDs: packet))
+        let three = try XCTUnwrap(TarotDrawEngine.draw(spread: .hereHiddenPossible, fromShuffledCardIDs: packet))
+
+        XCTAssertEqual(Set(packet), Set(TarotDeck.all.map(\.id)))
+        XCTAssertEqual(one.cards.map(\.cardID), Array(packet.prefix(1)))
+        XCTAssertEqual(three.cards.map(\.cardID), Array(packet.prefix(3)))
+        XCTAssertEqual(three.cards.map(\.position), [.here, .hiding, .possible])
+        XCTAssertEqual(packet.count, 78)
+    }
+
+    func testDamagedPacketsCannotDealAnIncompleteOrRepeatedDeck() {
+        let complete = TarotDeck.all.map(\.id)
+        var repeated = complete
+        repeated[1] = repeated[0]
+        var unknown = complete
+        unknown[0] = "not-a-card"
+        for packet in [[], Array(complete.dropLast()), repeated, unknown] {
+            XCTAssertNil(TarotDrawEngine.draw(spread: .hereHiddenPossible, fromShuffledCardIDs: packet))
+        }
     }
 
     func testReadingArtifactSurvivesCodableRoundTrip() throws {
@@ -47,6 +71,58 @@ final class TarotTests: XCTestCase {
         XCTAssertEqual(decoded.readerName, "Serenity Brown")
         XCTAssertTrue(decoded.archiveText.contains("The yellow sky."))
         XCTAssertFalse(decoded.revealProse?.values.first?.isEmpty ?? true)
+    }
+
+    func testCurrentThreeCardSpreadKeepsItsRolesThroughSaving() throws {
+        var generator = SeededGenerator(state: 391)
+        let reading = TarotLocalInterpreter.fillReveals(in:
+            TarotDrawEngine.draw(spread: .hereHiddenPossible, using: &generator)
+        )
+        let restored = try JSONDecoder().decode(
+            TarotReadingArtifact.self, from: JSONEncoder().encode(reading)
+        )
+
+        XCTAssertEqual(TarotSpread.allCases, [.oneCard, .hereHiddenPossible])
+        XCTAssertEqual(restored.spread, .hereHiddenPossible)
+        XCTAssertEqual(restored.cards.map(\.position), [.here, .hiding, .possible])
+        XCTAssertEqual(restored.revealProse, reading.revealProse)
+        XCTAssertTrue(restored.archiveText.contains("What’s Hiding:"))
+        let notes = restored.cards.map { TarotLocalInterpreter.reveal(for: $0, in: restored) }
+        XCTAssertTrue(notes[0].contains("brought to the table"))
+        XCTAssertTrue(notes[1].contains("overlooked detail"))
+        XCTAssertTrue(notes[2].contains("make room for"))
+    }
+
+    func testKeptRootWeatherDoorReadingRetainsItsOriginalMeaning() throws {
+        let json = """
+        {
+          "schemaVersion": 3,
+          "id": "kept-original-spread",
+          "deckVersion": "unwritten-v3.2",
+          "spread": "rootWeatherDoor",
+          "drawnAt": 0,
+          "question": "What deserves a beginning?",
+          "cards": [
+            {"cardID":"major-00","position":"root","isReversed":false},
+            {"cardID":"major-18","position":"weather","isReversed":false},
+            {"cardID":"cups-page","position":"door","isReversed":false}
+          ],
+          "firstLook": "The dog noticed.",
+          "reflection": "Take the letters with me.",
+          "revealProse": {"root-major-00":"The exact old margin note."}
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let restored = try decoder.decode(TarotReadingArtifact.self, from: Data(json.utf8))
+
+        XCTAssertEqual(restored.spread.title, "Root · Weather · Door")
+        XCTAssertEqual(restored.cards.map(\.position.title), ["Root", "Weather", "Door"])
+        XCTAssertEqual(restored.revealProse?["root-major-00"], "The exact old margin note.")
+        XCTAssertEqual(restored.firstLook, "The dog noticed.")
+        XCTAssertEqual(restored.reflection, "Take the letters with me.")
+        XCTAssertTrue(restored.archiveText.contains("Root: The Fool"))
+        XCTAssertFalse(TarotSpread.allCases.contains(restored.spread))
     }
 
     func testLocalRevealChangesWithPositionAndHeldQuestionWithoutGemma() {
@@ -108,7 +184,7 @@ final class TarotTests: XCTestCase {
         XCTAssertTrue(directive.contains("people, places, and concrete subject"))
     }
 
-    func testSourceWaitsForARealArchiveAndOffersOneReadingEachCalendarDay() {
+    func testSourceOffersAReadingFromAnEmptyArchiveAndOnceEachCalendarDay() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let oldPages = (0..<4).map { index in
             BookPage(
@@ -124,9 +200,9 @@ final class TarotTests: XCTestCase {
         let context = CuratorContext.make(for: today)
         let adapter = TarotPageSourceAdapter()
 
-        var thinInputs = BookSourceInputs.empty
-        thinInputs.days = [BookDay(id: "thin", date: now, pages: Array(oldPages.prefix(3)))]
-        XCTAssertTrue(adapter.candidates(for: today, context: context, inputs: thinInputs, now: now).isEmpty)
+        XCTAssertFalse(adapter.candidates(
+            for: today, context: context, inputs: .empty, now: now
+        ).isEmpty)
 
         var readyInputs = BookSourceInputs.empty
         readyInputs.days = [archiveDay]
@@ -157,17 +233,11 @@ final class TarotTests: XCTestCase {
 
     func testDailyTarotClaimsAnOrdinaryDeskSlot() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
-        let pages = (0..<4).map { index in
-            BookPage(
-                id: "kept-\(index)",
-                type: .souvenir,
-                createdAt: now.addingTimeInterval(TimeInterval(-86_400 - index)),
-                promptText: "Keep something.",
-                userInput: "Something worth keeping."
-            )
-        }
         var inputs = BookSourceInputs.empty
-        inputs.days = [BookDay(id: "archive", date: now.addingTimeInterval(-86_400), pages: pages)]
+        // An ordinary desk has no outstanding first-reading or earned-reader
+        // promise. Tarot itself needs no kept-page prerequisite.
+        inputs.firstRunEngagedKeys = Set(FirstRunPageSequence.stepEngagementKeys)
+        inputs.bookInterior = BookInteriorState(awakenedAt: now.addingTimeInterval(-86_400))
         let today = BookDay(id: "today", date: now, pages: [])
 
         let shelf = BookCurator.surfacedPages(for: today, inputs: inputs, now: now, limit: 3)

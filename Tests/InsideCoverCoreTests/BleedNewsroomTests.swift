@@ -128,7 +128,8 @@ final class BleedNewsroomTests: XCTestCase {
         // lead keeps the same laws as the report it replaces.
         let lead = try XCTUnwrap(briefs(inputs).first { $0.id == "front-page" })
         let told = lead.fallbackBody ?? ""
-        XCTAssertTrue(told.contains("Penny says: The blue paint is fresh."), told)
+        // Fresh voices from the Cast; the one keeping quiet is never among them.
+        XCTAssertFalse(told.contains("Other"), told)
         XCTAssertTrue(told.contains("Then the evidence turned up. The old photograph already shows blue paint."))
         for text in [told, lead.packet] {
             XCTAssertFalse(text.contains("secret not for publication"))

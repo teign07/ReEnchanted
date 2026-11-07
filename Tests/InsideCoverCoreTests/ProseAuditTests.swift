@@ -303,9 +303,11 @@ final class ProseAuditTests: XCTestCase {
     func testQuipShelfIsNotOneJokeToldOverAndOver() {
         let shelf = QuipPackRegistry.enabledPacks.flatMap(\.quips)
         let census = Dictionary(grouping: shelf, by: \.shape).mapValues(\.count)
+        // Rhetorical questions are welcome; a quota of questions must not
+        // turn the quip shelf back into a set of reader assignments.
         for shape in QuipShape.allCases {
             XCTAssertGreaterThanOrEqual(
-                census[shape] ?? 0, 6,
+                census[shape] ?? 0, shape == .question ? 1 : 6,
                 "the shelf has almost nothing in the \(shape.rawValue) shape: \(census)"
             )
         }

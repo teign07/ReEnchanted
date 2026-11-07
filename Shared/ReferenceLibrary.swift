@@ -216,6 +216,54 @@ enum InterleafIllustrationLibrary {
             assetName: "InterleafForgottenStacks",
             title: "The forgotten stacks",
             tags: ["library", "stacks", "shadow", "grey", "curse", "nothing", "night", "secret", "mystery", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::breakfast-has-not-been-approved",
+            assetName: "InterleafBreakfastHasNotBeenApproved",
+            title: "Breakfast has not been approved",
+            tags: ["breakfast", "food", "great-hall", "dictionary", "punctuation", "order", "play", "professor-thaddeus-mook", "pippa-pilcrow", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::somebody-elses-handwriting",
+            assetName: "InterleafSomebodyElsesHandwriting",
+            title: "Somebody else’s handwriting",
+            tags: ["kitchen", "food", "cooking", "recipe", "handwriting", "memory", "care", "ambrose-trencher", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::an-island-in-the-tea",
+            assetName: "InterleafAnIslandInTheTea",
+            title: "An island in the tea",
+            tags: ["tea", "map", "island", "rain", "window", "discovery", "play", "serenity-brown", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-card-that-wouldnt-file",
+            assetName: "InterleafTheCardThatWouldntFile",
+            title: "The card that wouldn’t file",
+            tags: ["archive", "records", "catalogue", "paper", "bird", "evidence", "curiosity", "penny-blackletter", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-rain-came-in-first",
+            assetName: "InterleafTheRainCameInFirst",
+            title: "The rain came in first",
+            tags: ["rain", "weather", "footsteps", "outer-stacks", "threshold", "door", "anchor", "mystery", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::before-the-pens-wake",
+            assetName: "InterleafBeforeThePensWake",
+            title: "Before the pens wake",
+            tags: ["quillquarium", "pen", "quill", "ink", "writing", "morning", "rest", "observation", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-wrong-door",
+            assetName: "InterleafTheWrongDoor",
+            title: "The wrong door",
+            tags: ["door", "key", "broom", "cupboard", "surprise", "play", "wicker-eddies", "labyrinth"]
+        ),
+        InterleafIllustration(
+            id: "evergreen::the-book-kept-the-blanket",
+            assetName: "InterleafTheBookKeptTheBlanket",
+            title: "The Book kept the blanket",
+            tags: ["burrow", "blanket", "biscuit", "chair", "rest", "shelter", "home", "quiet", "labyrinth"]
         )
     ]
 
@@ -362,16 +410,14 @@ struct QuipPack: Identifiable, Codable, Equatable {
 /// VERBS". Every line was funny and the page still went flat, because a
 /// surprise that arrives in the same shape every time is a format. Selection
 /// reads this so one desk never carries two of the same move, and so the
-/// quieter shapes — a dare, a question, a plain astonishing fact — get their
+/// quieter shapes — a rhetorical question or a plain observation — get their
 /// turn instead of losing to the wittiest equation in the pool.
 enum QuipShape: String, Codable, Equatable, CaseIterable {
     /// "A mirror is an extremely punctual ghost."
     case equation
     /// "Bread goes stale from the outside. Cake goes stale from the inside."
     case observation
-    /// "Go and look at the underside of a leaf."
-    case dare
-    /// "What did you walk past twice today?"
+    /// "What is the oldest thing in this room, and does it know it?"
     case question
 }
 
@@ -383,20 +429,8 @@ struct QuipEntry: Identifiable, Codable, Equatable {
     var packID: String
     var weight: Int
 
-    private static let imperatives: Set<String> = [
-        "go", "look", "find", "put", "take", "watch", "hold", "say", "count",
-        "smell", "touch", "ask", "turn", "stand", "step", "notice", "open",
-        "listen", "pick", "check", "read", "carry", "keep", "leave"
-    ]
-
     var shape: QuipShape {
         if text.contains("?") { return .question }
-        let firstWord = text
-            .lowercased()
-            .split(whereSeparator: { !$0.isLetter })
-            .first
-            .map(String.init) ?? ""
-        if Self.imperatives.contains(firstWord) { return .dare }
         let equation = #"^(?:A|An|The)?\s*[A-Za-z][A-Za-z'\- ]{0,28}\s(?:is|are)\s(?:a|an|the|what|just|where|two|only|proof|time|air|enthusiasm|rain|privacy)\b"#
         if text.range(of: equation, options: .regularExpression) != nil { return .equation }
         return .observation
@@ -960,7 +994,7 @@ enum SelfKnowledgePackRegistry {
         // asking what someone came through is a different act from asking what
         // they are currently inside.
         ,question("hard-season", "What's a stretch you came through that changed you?", "Past tense only. If it's still going on, skip this one. I won't push.", "Four words will do. Or skip it. I won't pry.", .story, .storyOnly, ["shadow", "past", "story-seed", "state-not-identity"], 24)
-        ,question("carrying", "What are you carrying at the moment?", "Put it down, explain it, or do neither. I only want to know where not to step.", "One word, a paragraph, or leave the line staring back.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
+        ,question("carrying", "What are you carrying at the moment?", "Put it down, explain it, or do neither. I only want to know where not to step.", "One word, or one sentence, or leave the line staring back.", .comfort, .storyOnly, ["shadow", "present", "care"], 23)
         ,question("person-missed", "Who do you miss?", "Missing someone isn't only for the dead: distance and estrangement count.", "A name, or just who they were to you.", .comfort, .storyOnly, ["shadow", "people", "absence"], 22)
         ,question("went-quiet", "What ended that you haven't finished with?", "Things end long before we're done with them. That gap is worth knowing about.", "A friendship, a job, a place, a version of yourself.", .story, .storyOnly, ["shadow", "absence", "unfinished"], 21)
         ,question("still-angry", "What still makes you angry?", "Anger is information. I won't try to talk you out of it, or call it growth.", "Something done to you, something you watched happen, something ongoing.", .values, .storyOnly, ["shadow", "anger", "values"], 20)
@@ -2181,7 +2215,6 @@ enum QuipPackRegistry {
         quip("ridiculous-dust", "Dust is a house quietly practicing archaeology.", "House Reclassified", ["ridiculous", "perspective", "home", "history"], weight: 2),
         quip("ridiculous-table", "A table is a floor that believed in itself.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "object"], weight: 2),
         quip("ridiculous-chair", "A chair is a machine for turning standing into opinions.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "body"], weight: 2),
-        quip("ridiculous-doormat", "Stand on the doormat and look back out. That's the last thing the house sees of you every morning.", "The Threshold", ["ridiculous", "perspective", "home", "threshold"], weight: 2),
         quip("ridiculous-laundry-basket", "A laundry basket is a chair with consequences.", "Furniture Reclassified", ["ridiculous", "perspective", "home", "ordinary"], weight: 2),
         quip("ridiculous-fridge", "A refrigerator is a cupboard with its own weather system.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
         quip("ridiculous-microwave", "A microwave is a tiny thunderstorm with a clock.", "Appliance Reclassified", ["ridiculous", "perspective", "home", "food", "weather"], weight: 2),
@@ -2189,16 +2222,13 @@ enum QuipPackRegistry {
         quip("ridiculous-broom", "A broom is a bundle of dead grass on a stick, and it has beaten every machine built to replace it.", "Object Reclassified", ["ridiculous", "perspective", "home", "tree"], weight: 2),
         quip("ridiculous-umbrella", "An umbrella is a portable roof that panics in the wind.", "Object Reclassified", ["ridiculous", "perspective", "weather", "wind"], weight: 2),
         quip("ridiculous-zipper", "A zipper is two rows of tiny teeth achieving rare cooperation.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "object"], weight: 2),
-        quip("ridiculous-button", "Find the button doing the most work on you right now. Nobody has ever thanked it and nobody is going to start.", "Object Reclassified", ["ridiculous", "perspective", "clothing", "ordinary"], weight: 2),
         quip("ridiculous-escalator", "A broken escalator is still a staircase. That's why the sign says out of order and everybody slows down anyway.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
         quip("ridiculous-elevator", "An elevator is a room pretending to be public transportation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "movement"], weight: 2),
         quip("ridiculous-traffic-light", "A traffic light is a three-bulb government for cars.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "color"], weight: 2),
         quip("ridiculous-parking-lot", "A parking lot is a meadow that got audited into rectangles.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "place"], weight: 2),
         quip("ridiculous-roundabout", "A roundabout is a road avoiding a difficult decision.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "road", "movement"], weight: 2),
-        quip("ridiculous-sidewalk", "Follow the worn path across the grass instead of the paving. Somebody voted with their feet and won.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "walk", "margin"], weight: 2),
         quip("ridiculous-bench", "A bench is public punctuation.", "Infrastructure Reclassified", ["ridiculous", "perspective", "public", "rest", "place"], weight: 2),
         quip("ridiculous-receipt", "A receipt is a store saying goodbye and showing its work.", "Errand Reclassified", ["ridiculous", "perspective", "public", "errand", "paper"], weight: 2),
-        quip("ridiculous-notification", "What was the last sound that made you reach for your pocket? Something chose it, and it wasn't you.", "Attention Reclassified", ["ridiculous", "perspective", "attention", "technology", "sound"], weight: 2),
         quip("ridiculous-autocorrect", "Autocorrect is a ghostwriter with unlimited confidence and no context.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "writing", "words"], weight: 2),
         quip("ridiculous-typo", "A typo is a letter sitting in the wrong chair and acting natural.", "Type Reclassified", ["ridiculous", "perspective", "writing", "letter", "words"], weight: 2),
         quip("ridiculous-loading-spinner", "A loading spinner is the computer stirring its thoughts.", "Technology Reclassified", ["ridiculous", "perspective", "technology", "time", "movement"], weight: 2),
@@ -2216,27 +2246,11 @@ enum QuipPackRegistry {
     ]
 
 
-    /// The other three moves. The shelf could equate an object with a joke a
-    /// hundred times over and could not once tell the reader to go and put a
-    /// hand on something. A dare and a question cost the reader ten seconds
-    /// and give the Book something back; a plain astonishing fact needs no
-    /// wit at all and survives being read twice.
+    /// A quip gives the reader a thought, never an assignment. Rhetorical
+    /// questions, facts, and plain observations keep the shelf from becoming
+    /// one equation repeated. Small acts live in the playful-mission pool.
     private static let coreQuipsOtherShapes: [QuipEntry] = [
-        quip("dare-leaf-underside", "Go and look at the underside of a leaf. Nobody checks the back of anything.", "An Errand", ["nature", "noticing", "outside", "errand"], weight: 2),
-        quip("dare-coldest-thing", "Put your hand flat on the coldest thing in the room and leave it there while you count to five.", "An Errand", ["body", "home", "noticing", "errand"], weight: 2),
-        quip("dare-oldest-paper", "Find the oldest piece of paper within reach and read one line of it out loud.", "An Errand", ["paper", "home", "reading", "errand"], weight: 2),
-        quip("dare-look-up", "Look up. Higher than that. Most rooms keep their best part above eye level.", "An Errand", ["home", "noticing", "errand"], weight: 2),
-        quip("dare-smell-the-book", "Smell the back of a book. Go on. Nobody is watching you.", "An Errand", ["book", "smell", "errand"], weight: 2),
-        quip("dare-count-doors", "Count the doors between you and outside.", "An Errand", ["home", "threshold", "errand"]),
-        quip("dare-not-yours", "Pick up the nearest thing that isn't yours and work out who put it there.", "An Errand", ["home", "people", "noticing", "errand"]),
-        quip("dare-photograph-nothing", "Take one photograph of something nobody would photograph.", "An Errand", ["photo", "noticing", "errand"], weight: 2),
-        quip("dare-stand-still", "Stand still until the fridge starts up again. That's the house breathing.", "An Errand", ["home", "sound", "errand"]),
         quip("ask-oldest-thing", "What is the oldest thing in this room, and does it know it?", "A Question", ["home", "time", "noticing"], weight: 2),
-        quip("ask-walked-past-twice", "What did you walk past twice today?", "A Question", ["noticing", "route", "day"], weight: 2),
-        quip("ask-whose-handwriting", "Whose handwriting is nearest you right now?", "A Question", ["people", "writing", "home"], weight: 2),
-        quip("ask-hundred-years", "What in this room will still be here in a hundred years?", "A Question", ["home", "time", "object"]),
-        quip("ask-nameless-maker", "What is near you that was made by a person whose name you'll never know?", "A Question", ["object", "people", "work"]),
-        quip("ask-which-door-squeaks", "Which door in your day squeaks?", "A Question", ["home", "sound", "route"]),
         quip("fact-bread-and-cake", "Bread goes stale from the outside. Cake goes stale from the inside.", "Kitchen Note", ["kitchen", "food", "science"], weight: 2),
         quip("fact-dark-adaptation", "Your eyes need about twenty minutes to see properly in the dark. Most people give up after two.", "Science Oddity", ["night", "body", "science", "light"], weight: 2),
         quip("fact-wet-stone", "Wet stone goes darker because the water fills the little pits and stops the light bouncing back at you.", "Science Oddity", ["weather", "stone", "science", "light"]),
@@ -2266,10 +2280,10 @@ enum QuoteLibraryRegistry {
         QuotePack(
             id: corePackID,
             displayName: "Borrowed Lanterns",
-            version: "1.0",
+            version: "1.1",
             author: "The Book",
             availability: .bundledFree,
-            quotes: coreQuotes
+            quotes: coreQuotes + contraryQuotes
         )
     ]
 
@@ -2426,6 +2440,36 @@ enum QuoteLibraryRegistry {
         q("camus-summer", "In the depth of winter, I finally learned that within me there lay an invincible summer.", "Albert Camus", "Resilience", ["hope", "resilience", "winter", "shadow", "season"], weight: 2),
         q("okeeffe-flower", "To see takes time, like to have a friend takes time.", "Georgia O'Keeffe", "Seeing", ["attention", "seeing", "slow", "notice", "friendship"]),
         q("proust-eyes", "The real voyage of discovery consists not in seeking new landscapes, but in having new eyes.", "Marcel Proust", "New Eyes", ["attention", "seeing", "wonder", "notice", "present"], weight: 2)
+    ]
+
+    // The other lanterns argue, invent, interrupt, and sometimes bite. Keep
+    // the gentler shelf intact; these share its ordinary rotation and rest.
+    // Wording, editions, and context: docs/borrowed-lanterns-sources.md.
+    private static let contraryQuotes: [QuoteEntry] = [
+        q("carroll-yesterday", "It’s no use going back to yesterday, because I was a different person then.", "Lewis Carroll", "A Different Person", ["change", "identity", "memory", "play"], source: "Alice’s Adventures in Wonderland, chapter X (Alice)", weight: 2),
+        q("carroll-explanations", "Explanations take such a dreadful time.", "Lewis Carroll", "Explanations", ["story", "impatience", "play", "humour"], source: "Alice’s Adventures in Wonderland, chapter X (the Gryphon)", weight: 2),
+        q("carroll-contrariwise", "If it was so, it might be; and if it were so, it would be; but as it isn’t, it ain’t. That’s logic.", "Lewis Carroll", "Troublesome Logic", ["logic", "nonsense", "questions", "play"], source: "Through the Looking-Glass, chapter IV (Tweedledee)", weight: 2),
+        q("carroll-backwards-memory", "It’s a poor sort of memory that only works backwards.", "Lewis Carroll", "Memory", ["memory", "time", "nonsense", "play"], source: "Through the Looking-Glass, chapter V (the White Queen)", weight: 2),
+        q("bierce-positive", "POSITIVE, adj. Mistaken at the top of one’s voice.", "Ambrose Bierce", "Certainty", ["certainty", "argument", "humour", "doubt"], source: "The Devil’s Dictionary, ‘Positive’", weight: 2),
+        q("bierce-cabbage", "CABBAGE, n. A familiar kitchen-garden vegetable about as large and wise as a man’s head.", "Ambrose Bierce", "Cabbage", ["food", "garden", "humour", "ordinary"], source: "The Devil’s Dictionary, ‘Cabbage’", weight: 2),
+        q("blake-tigers-instruction", "The tigers of wrath are wiser than the horses of instruction.", "William Blake", "Disobedience", ["wild", "anger", "learning", "defiance"], source: "The Marriage of Heaven and Hell, ‘Proverbs of Hell’", weight: 2),
+        q("blake-once-imagined", "What is now proved was once only imagined.", "William Blake", "Imagination", ["imagination", "science", "doubt", "possibility"], source: "The Marriage of Heaven and Hell, ‘Proverbs of Hell’", weight: 2),
+        q("blake-bird-world", "How do you know but every bird\nthat cuts the airy way\nIs an immense world of delight,\nclosed by your senses five?", "William Blake", "Other Worlds", ["bird", "creature", "senses", "questions", "delight"], source: "The Marriage of Heaven and Hell, ‘A Memorable Fancy’", weight: 2),
+        q("blake-different-tree", "A fool sees not the same tree that a wise man sees.", "William Blake", "The Same Tree", ["tree", "seeing", "argument", "doubt"], source: "The Marriage of Heaven and Hell, ‘Proverbs of Hell’", weight: 2),
+        q("wilde-truth", "The truth is rarely pure and never simple.", "Oscar Wilde", "Complications", ["truth", "doubt", "argument", "humour"], source: "The Importance of Being Earnest, act I (Algernon)", weight: 2),
+        q("wilde-diary", "I never travel without my diary. One should always have something sensational to read in the train.", "Oscar Wilde", "Private Literature", ["diary", "writing", "travel", "humour"], source: "The Importance of Being Earnest, act II (Gwendolen)", weight: 2),
+        q("dickinson-madness", "Much madness is divinest sense\nTo a discerning eye;\nMuch sense the starkest madness.", "Emily Dickinson", "Dissent", ["madness", "defiance", "seeing", "argument"], source: "Poems, Series One, XI (‘Much madness is divinest sense’)", weight: 2),
+        q("stein-sugar", "Sugar is not a vegetable.", "Gertrude Stein", "Sugar", ["food", "nonsense", "ordinary", "humour"], source: "Tender Buttons, ‘A Substance in a Cushion’", weight: 2),
+        q("stein-difference", "The difference is spreading.", "Gertrude Stein", "Something Loose", ["difference", "change", "strange", "mystery"], source: "Tender Buttons, ‘A Carafe, That Is a Blind Glass’", weight: 2),
+        q("austen-incivility", "Is not general incivility the very essence of love?", "Jane Austen", "Love Misbehaving", ["love", "manners", "questions", "humour"], source: "Pride and Prejudice, chapter 25 (Mrs Gardiner)", weight: 2),
+        q("woolf-wood", "Wood is a pleasant thing to think about. It comes from a tree; and trees grow, and we don’t know how they grow.", "Virginia Woolf", "Wood", ["tree", "wood", "ordinary", "thought", "nature"], source: "The Mark on the Wall, in Monday or Tuesday", weight: 2),
+        q("woolf-beneath-facts", "I want to sink deeper and deeper, away from the surface, with its hard separate facts.", "Virginia Woolf", "Beneath the Surface", ["thought", "mystery", "quiet", "depth"], source: "The Mark on the Wall, in Monday or Tuesday", weight: 2),
+        q("whitman-contradiction", "Do I contradict myself?\nVery well then I contradict myself,\n(I am large, I contain multitudes.)", "Walt Whitman", "Contradiction", ["identity", "contradiction", "defiance", "body"], source: "Song of Myself, section 51", weight: 2),
+        q("saki-short-notice", "Romance at short notice was her speciality.", "Saki", "Making Things Up", ["story", "mischief", "imagination", "humour"], source: "The Open Window, in Beasts and Super-Beasts", weight: 2),
+        q("twain-prosperity", "Few of us can stand prosperity. Another man’s, I mean.", "Mark Twain", "Envy", ["envy", "humour", "honesty", "people"], source: "Following the Equator, chapter XL epigraph", weight: 2),
+        q("twain-moon", "Every one is a moon, and has a dark side which he never shows to anybody.", "Mark Twain", "The Other Side", ["moon", "night", "secrets", "people"], source: "Following the Equator, chapter LXVI epigraph", weight: 2),
+        q("rossetti-goblin-roots", "We must not look at goblin men,\nWe must not buy their fruits:\nWho knows upon what soil they fed\nTheir hungry thirsty roots?", "Christina Rossetti", "Goblin Fruit", ["goblin", "faerie", "roots", "hunger", "mystery"], source: "Goblin Market (Laura)", weight: 2),
+        q("shelley-opposite-effects", "How strange, I thought, that the same cause should produce such opposite effects!", "Mary Shelley", "The Trouble with Fire", ["fire", "discovery", "contradiction", "curiosity"], source: "Frankenstein, chapter 11 (the creature, discovering fire)", weight: 2)
     ]
 }
 
@@ -4133,7 +4177,7 @@ struct AffirmationsPageSourceAdapter: BookPageSourceAdapter {
                     PactCallIn.pageIDKey: owed.page.id,
                     "pactText": entry.text,
                     "countersigns": PactCallIn.answers.joined(separator: "||"),
-                    "placeholder": "Tell me what happened. Even if nothing did.",
+                    "placeholder": "One sentence about what happened. Even if nothing did.",
                     "surfaceLabel": "Pact",
                     "tags": (["affirmation", "pact-call-in", entry.theme.lowercased()] + entry.tags.filter { $0 != "pact" }).joined(separator: ","),
                     "privacy": "bundled local text"

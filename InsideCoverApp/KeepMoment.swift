@@ -140,3 +140,33 @@ final class HoldingSensor {
     }
     #endif
 }
+
+// MARK: - The moment around a Knock
+
+/// What the Book can know about the moment a Where-Were-You Knock is answered
+/// (docs/the-knock-plan.md). A lock-screen answer runs without the app's
+/// views, so this reads only what the app already stores: the time, how the
+/// phone is held, the last place the Book stood (rounded to about a
+/// kilometre, and only while it's still worth believing), and the sky for
+/// that hour from the stored forecast. Nothing here asks for a new fix or a
+/// new permission, and nothing leaves the device.
+@MainActor
+enum KnockMoment {
+    static func snapshot(at date: Date, defaults: UserDefaults = .standard) -> BookPageContextSnapshot {
+        let placeAt = defaults.double(forKey: "rememberedSkyPlaceAt")
+        let placeIsFresh = placeAt > 0
+            && SkyRefresh.trustsPlace(recordedAt: Date(timeIntervalSince1970: placeAt), now: date)
+        let sky = PaperSkyOutlookStore.load(from: defaults)?.sky(at: date)
+        var snapshot = BookPageContextSnapshot(
+            at: date,
+            weatherTags: sky.map { [$0.condition.rawValue] } ?? [],
+            locationLabel: defaults.string(forKey: "lastCoarseLocationContextLabel"),
+            latitude: placeIsFresh ? defaults.double(forKey: "rememberedSkyPlaceLatitude") : nil,
+            longitude: placeIsFresh ? defaults.double(forKey: "rememberedSkyPlaceLongitude") : nil,
+            // The remembered place is rounded to two decimal places.
+            horizontalAccuracyMeters: placeIsFresh ? 1_100 : nil
+        )
+        snapshot.holding = KeepMoment.holding()
+        return snapshot
+    }
+}

@@ -235,7 +235,10 @@ final class BraidMonthLabTests: XCTestCase {
         leadDetail: WonderBraid.leadDetail(plan: scenePlan),
         beatLimit: Self.isBaseline ? 4 : WonderBraid.beatLimit(scale: scenePlan.scale),
         continuity: Self.isBaseline ? nil : WonderBraid.continuity(for: context.continuityBeat),
-        taleIsHouseCanon: scenePlan.worldBeat.map { $0.source != .worldEvent && $0.source != .undertaking } ?? true)
+        taleIsHouseCanon: scenePlan.worldBeat.map { $0.source != .worldEvent && $0.source != .undertaking } ?? true,
+        turn: Self.isBaseline || ProcessInfo.processInfo.environment["BRAID_MONTH_TURNS"] == "0" ? nil : WonderBraid.turn(
+          plan: scenePlan, details: scenePlan.readerDayNarration, dateKey: WonderBraidHistory.dateKey(for: day),
+          resting: WonderBraidHistory.resting(in: context.recentDays, before: day.date)))
       if let output = try await WonderBraid.write(input, tell: { system, user, temperature, topP, maxTokens in
         try await tell(system, user, temperature, topP, maxTokens).0
       }), !output.prose.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

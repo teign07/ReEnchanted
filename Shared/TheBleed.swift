@@ -89,6 +89,9 @@ struct BleedColumnBrief: Codable, Equatable {
     var urgency: Int? = nil
     /// The caption competition's entries, for Penny to judge once the Cast have written.
     var caption: BleedCaptionContest? = nil
+    /// The Cast the paper asked about an argument: one small job each, whose words
+    /// fill the packet's `{{VOICES}}` (their leans, if a job comes back empty).
+    var voiceJobs: [BleedVoices.Job]? = nil
 
     var needsLocalBrain: Bool { composedBody.isEmpty && !packet.isEmpty }
 }
@@ -774,7 +777,7 @@ enum BleedIssueCurator {
     static func desk(_ brief: BleedColumnBrief) -> Desk {
         switch brief.id {
         case "front-page", BleedLeadDesk.noteID: return .front
-        case BleedDataDesk.warID, BleedDataDesk.oddsID, BleedDataDesk.marketID: return .data
+        case BleedDataDesk.warID, BleedDataDesk.oddsID, BleedDataDesk.marketID, BleedDataDesk.curseID: return .data
         case _ where BleedAlmanacDesk.ids.contains(brief.id) || BleedAlmanacDesk.surpriseIDs.contains(brief.id)
             || BleedAlmanacDesk.everydayIDs.contains(brief.id): return .data
         case BleedFeatureDesk.id: return .feature
@@ -977,7 +980,7 @@ enum BleedDiversions {
              answer: "No. She may think it is wrong and have said nothing. The sentence reports what she did not say; it does not report what she believes. The map has gained no endorsement.",
              invitation: "Find a name on an object: a maker's mark, a dedication, a scratched initial. What is it attached to?"),
         Pair(id: "missing-line",
-             question: "Two opening lines: ‘There was no handle on this side.’ ‘Somebody had polished the keyhole.’ Which would you print first, and what does the order change? No correct order has been filed.",
+             question: "Two opening lines: ‘There was no handle on this side.’ ‘Somebody had polished the keyhole.’ Which would you print first? One sentence. No correct order has been filed.",
              answer: "Handle first: a trap, followed by evidence of care. Keyhole first: care, followed by the trap. The same two observations can make a reader discover danger at different speeds. Either order earns its place if you want that effect.",
              invitation: "Look for a gap that gives something its shape: a handle, an arch, the space between branches. Try describing the gap.")
     ]
@@ -3960,6 +3963,130 @@ enum BleedBusinessStory {
     }
 }
 
+/// The voices a paper asks about an argument: any of the Cast, fresh each paper,
+/// so the same three people don't hold forth every morning. The Book's own pick
+/// is always asked; anyone the ledger says is keeping quiet stays quiet; the
+/// person the story is about has the event, not a voice; Penny is writing it.
+/// Each voice carries a lean (their recorded position, or their own lens on it)
+/// that the writer turns into their words, and the press prints if it can't.
+enum BleedVoices {
+    struct Voice: Codable, Equatable {
+        var id: String
+        var name: String
+        var lean: String
+    }
+
+    struct Job: Codable, Equatable {
+        var voice: Voice
+        var instructions: String
+        var prompt: String
+    }
+
+    static let placeholder = "{{VOICES}}"
+
+    static func jobs(_ voices: [Voice], question: ContestedQuestion) -> [Job] {
+        voices.map { voice in
+            let job = job(for: voice, question: question)
+            return Job(voice: voice, instructions: job.instructions, prompt: job.prompt)
+        }
+    }
+
+    /// What the writer gets once the voices have answered: their exact words to
+    /// quote, and for anyone who didn't answer, their lean to report.
+    static func answered(_ jobs: [Job], words: [String: String]) -> String {
+        guard !jobs.isEmpty else { return "" }
+        let quoted = jobs.compactMap { job in words[job.voice.id].map { "- \(job.voice.name): “\($0)”" } }
+        let leaning = jobs.filter { words[$0.voice.id] == nil }.map { "- \($0.voice.lean)" }
+        var parts: [String] = []
+        if !quoted.isEmpty {
+            parts.append("VOICES (the paper asked them today). Quote each one's words exactly, with their name, and nothing else in their mouths:\n"
+                         + quoted.joined(separator: "\n"))
+        }
+        if !leaning.isEmpty {
+            parts.append("ALSO ASKED (report their view in your words; don't quote them):\n" + leaning.joined(separator: "\n"))
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
+    /// One key per paper: the day, and morning or evening.
+    static func paperKey(_ now: Date, calendar: Calendar = .current) -> String {
+        let day = calendar.ordinality(of: .day, in: .era, for: now) ?? 0
+        return "\(day)-\(calendar.component(.hour, from: now) < 12 ? "morning" : "evening")"
+    }
+
+    static func voices(for question: ContestedQuestion, paper: String, count: Int = 3,
+                       entities: [NarrativeWorldEntity] = NarrativePackRegistry.entities) -> [Voice] {
+        let subjectIDs = Set(question.positions.filter { BleedDeskReading.isSubject($0, of: question) }.map(\.holderID))
+        let quiet = Set(question.positions.filter { !$0.isSpeaking }.map(\.holderID))
+        let topic = BleedDeskReading.topic(of: question.question)?.lowercased() ?? "it"
+        func voice(_ id: String) -> Voice? {
+            if let held = question.positions.first(where: { $0.holderID == id && $0.isSpeaking }) {
+                let claim = held.claim.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !claim.isEmpty { return Voice(id: id, name: held.holderName, lean: BleedDeskReading.named(claim, holder: held.holderName)) }
+            }
+            guard let entity = entities.first(where: { $0.id == id }) else { return nil }
+            return Voice(id: id, name: entity.name,
+                         lean: ContestedQuestionEngine.reading(for: entity, seed: "\(question.id)|\(paper)", topic: topic))
+        }
+        var chosen: [Voice] = []
+        if let backed = question.bookBackedHolderID, !subjectIDs.contains(backed), !quiet.contains(backed), let first = voice(backed) {
+            chosen.append(first)
+        }
+        let taken = Set(chosen.map(\.id))
+        let pool = entities.filter { $0.kind == .character && !subjectIDs.contains($0.id) && !quiet.contains($0.id)
+            && $0.id != "penny-blackletter" && !taken.contains($0.id) }
+            .sorted { "\(paper)|\(question.id)|\($0.id)".stableHash < "\(paper)|\(question.id)|\($1.id)".stableHash }
+        for entity in pool where chosen.count < count {
+            if let next = voice(entity.id) { chosen.append(next) }
+        }
+        return chosen
+    }
+
+    /// One small job per voice: that person, asked by the paper, in their own words.
+    /// A small model writes one character far better than four at once, and the
+    /// feature writer then quotes these words exactly.
+    static func job(for voice: Voice, question: ContestedQuestion,
+                    entities: [NarrativeWorldEntity] = NarrativePackRegistry.entities) -> (instructions: String, prompt: String) {
+        let person = entities.first { $0.id == voice.id }
+        let talk = person?.resolvedWritingVoice
+        let event = question.speakingPositions.first { BleedDeskReading.isSubject($0, of: question) }
+            .map { BleedDeskReading.sentence($0.claim) }
+        let instructions = """
+        You are \(voice.name), at the Academy in ReEnchanted. The school paper has asked what you think.
+        Answer in one short sentence, two at most, under 25 words, the way you talk: \(talk?.register ?? "plainly").
+        \(talk.map { BleedDeskReading.sentence($0.rhythm) } ?? "")
+        Give your opinion, sharp and specific, like a real person with a view, chatting in a corridor.
+        Plain everyday words. Say it in your own words.
+        Never report a new event, sighting or fact, never propose doing anything, and never mention a reader.
+        Return only your words, with no quotation marks and no name.
+        """
+        var lines = ["The question: \(question.question)"]
+        if let event { lines.append("What's known: \(event)") }
+        if let evidence = question.contradictingEvidence?.nonEmpty { lines.append("Also known: \(BleedDeskReading.sentence(evidence))") }
+        if let belief = person?.beliefs.first { lines.append("You believe \(belief).") }
+        if let fault = person?.faults.first { lines.append("Your blind spot: \(fault).") }
+        lines.append("Your angle on it: \(voice.lean)")
+        return (instructions, lines.joined(separator: "\n"))
+    }
+
+    /// A voice's words fit to print: one or two sentences, not quoted twice,
+    /// not a speech. Nil when there's nothing usable, and the lean prints instead.
+    static func usable(_ words: String) -> String? {
+        var text = words.trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "\"“”'"))
+        if let colon = text.range(of: ": "), text[..<colon.lowerBound].split(separator: " ").count <= 4 {
+            text = String(text[colon.upperBound...]).trimmingCharacters(in: CharacterSet(charactersIn: "\"“” "))
+        }
+        let count = text.split(whereSeparator: \.isWhitespace).count
+        guard count >= 4, count <= 30, !text.contains("\n"), text.uppercased() != "OMIT" else { return nil }
+        // An opinion, not a plan: a voice that proposes something is reported by its lean instead.
+        let lower = text.lowercased()
+        guard !["i propose", "we should", "let's ", "i suggest", "we must"].contains(where: lower.contains) else { return nil }
+        return text
+    }
+
+}
+
 /// How the paper reports a contested question: a reading already names its
 /// holder, a bare action is what happened, and the topic is lifted whole from
 /// the question instead of being cut into a fragment.
@@ -4022,6 +4149,12 @@ enum BleedLeadDesk {
         /// The authored witnessed scene behind a Cast step: supporting colour
         /// for the feature writer, never a source of new events.
         var scene: String? = nil
+        /// Who the paper asked about an argument, for the writer to give words to.
+        var voices: [BleedVoices.Voice] = []
+        /// The facts for the writer, when they differ from the printed telling:
+        /// an argument's leans go to the writer under VOICES, never twice.
+        var facts: String? = nil
+        var voiceJobs: [BleedVoices.Job] = []
 
         /// Academy stories are features the writer may have some fun with; a Grey
         /// Page, a pact or the Reader's own day prints exactly as the desk set it.
@@ -4084,7 +4217,8 @@ enum BleedLeadDesk {
             composedBody: lead.isFeature ? "" : body, packet: packet, maxTokens: lead.isFeature ? 360 : 0, storyID: storyID,
             revision: BleedNewsroom.revision(body), sourcePageIDs: lead.sourcePageIDs,
             fallbackBody: lead.isFeature ? body : nil, castIDs: lead.castIDs,
-            worldFactID: lead.worldFactID, undertakingID: lead.undertakingID, snapshot: lead.snapshot
+            worldFactID: lead.worldFactID, undertakingID: lead.undertakingID, snapshot: lead.snapshot,
+            voiceJobs: lead.isFeature && !lead.voiceJobs.isEmpty ? lead.voiceJobs : nil
         )]
         if let dayFront, let note = note(from: dayFront) { front.append(note) }
         return (front, lead.drops)
@@ -4095,9 +4229,10 @@ enum BleedLeadDesk {
         FRONT PAGE FEATURE. The lead story of today's paper, from these facts only.
         HEADLINE ALREADY SET: \(lead.headline)
         FACTS:
-        \(lead.body)
+        \(lead.facts ?? lead.body)
 
         \(lead.scene.map { "WITNESSED SCENE (supporting colour: its visible actions and spoken words only, not new events):\n" + String($0.prefix(2400)) } ?? "")
+        \(lead.voices.isEmpty ? "" : BleedVoices.placeholder)
         """
     }
 
@@ -4244,19 +4379,12 @@ enum BleedLeadDesk {
                 && ($0.lastMovedAt > since
                     || ($0.embarrassedHolderID != nil && !led.contains("question:\($0.id):corrected"))) })
             .max(by: { $0.lastMovedAt < $1.lastMovedAt }) else { return nil }
-        // Readings already name their holder ("Soren Ng thinks…"); the subject's own
-        // position is what they did, so it is reported as the event, not as a claim.
-        var event: String?
-        var accounts: [String] = []
-        for position in question.speakingPositions {
-            let claim = position.claim.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !claim.isEmpty else { continue }
-            if event == nil, BleedDeskReading.isSubject(position, of: question) {
-                event = "What happened: \(BleedDeskReading.sentence(claim))"
-            } else {
-                accounts.append(BleedDeskReading.named(claim, holder: position.holderName))
-            }
-        }
+        // The subject's own position is what they did, so it's the event. The rest
+        // of the Academy is asked fresh each paper, from the whole Cast.
+        let event = question.speakingPositions.first { BleedDeskReading.isSubject($0, of: question) }
+            .map { "What happened: \(BleedDeskReading.sentence($0.claim))" }
+        let voices = BleedVoices.voices(for: question, paper: BleedVoices.paperKey(now))
+        let accounts = voices.map(\.lean)
         guard !accounts.isEmpty else { return nil }
         // The topic lifted whole from "going on with…", else the question's own noun
         // when it comes out clean ("the Heron"), else no topic in the headline at all.
@@ -4266,22 +4394,27 @@ enum BleedLeadDesk {
         let named = BleedDeskReading.topic(of: question.question)
             ?? (clean ? WeeklyTaleBuilder.lowercasedArticle(fragment) : nil)
         let corrected = question.embarrassedHolderID != nil
-        var paragraphs = [question.question] + [event].compactMap { $0 } + accounts
+        var record: [String] = []
         if let evidence = question.contradictingEvidence?.nonEmpty {
-            paragraphs.append("Then the evidence turned up. \(BleedDeskReading.sentence(evidence))")
+            record.append("Then the evidence turned up. \(BleedDeskReading.sentence(evidence))")
         }
         // The Book's reasoning stays its own; who it backed is a matter of record.
         if let backed = question.bookBackedHolderID.flatMap({ id in question.positions.first { $0.holderID == id }?.holderName }) {
-            paragraphs.append(corrected ? "The Book backed \(backed). The evidence went the other way, and the Book says so."
-                                        : "The Book has its money on \(backed), and says it may be wrong.")
+            record.append(corrected ? "The Book backed \(backed). The evidence went the other way, and the Book says so."
+                                    : "The Book has its money on \(backed), and says it may be wrong.")
         }
+        let opening = [question.question] + [event].compactMap { $0 }
+        let paragraphs = opening + accounts + record
         let headline = corrected
             ? named.map { "The Book Was Wrong About \($0)" } ?? "The Book Was Wrong, and Says So"
             : question.question.count <= 64 ? question.question : named.map { "The Academy Argues Over \($0)" } ?? "The Academy Argues"
         return Candidate(kind: .question, rank: 200, subject: "question:\(question.id)\(corrected ? ":corrected" : "")",
                          kicker: corrected ? "The Book stands corrected" : "Still disputed", headline: headline,
                          body: paragraphs.joined(separator: "\n\n"), drops: ["academy-question:\(question.id)"],
-                         castIDs: question.speakingPositions.map(\.holderID))
+                         castIDs: (question.speakingPositions.filter { BleedDeskReading.isSubject($0, of: question) }.map(\.holderID)
+                                   + voices.map(\.id)),
+                         voices: voices, facts: (opening + record).joined(separator: "\n\n"),
+                         voiceJobs: BleedVoices.jobs(voices, question: question))
     }
 
     /// The Academy's top report. It outranks only a day of leftovers, and then
@@ -4305,7 +4438,9 @@ enum BleedDataDesk {
     static let warID = "pact-war"
     static let oddsID = "story-odds"
     static let marketID = "word-market"
-    static let ids = [warID, oddsID, marketID]
+    static let curseID = "curse-report"
+    static let ids = [warID, oddsID, marketID, curseID]
+    static let curseByline = "kept by the Book, from the knocks you answered"
     static let warByline = "dispatches from the front"
     static let oddsByline = "odds by Penny Blackletter"
     static let marketByline = "the Word Market, kept by the Book"
@@ -4314,7 +4449,8 @@ enum BleedDataDesk {
                         history: [BleedPrintRecord]) -> [BleedColumnBrief] {
         [pactWarReport(inputs: inputs, now: now, calendar: calendar, history: history),
          storyOdds(inputs: inputs, now: now, calendar: calendar, history: history),
-         wordMarket(day: day, inputs: inputs, now: now, calendar: calendar, history: history)]
+         wordMarket(day: day, inputs: inputs, now: now, calendar: calendar, history: history),
+         curseReport(inputs: inputs, now: now, calendar: calendar)]
             .compactMap { $0 }
             // A table that hasn't changed since it last ran is not news.
             .filter { BleedNewsroom.previous($0.storyID ?? $0.id, in: history)?.revision != $0.revision }
@@ -4398,6 +4534,68 @@ enum BleedDataDesk {
         return BleedColumnBrief(id: warID, title: "The Pact War Report", byline: warByline, composedBody: body,
                                 packet: "", maxTokens: 0, storyID: warID, revision: BleedNewsroom.revision(body),
                                 snapshot: pactSnapshot(war))
+    }
+
+    // MARK: The Curse Report
+
+    /// The week's fight against the Curse (docs/the-knock-plan.md): the
+    /// Knocks the reader answered, the Curse's share against everyone's usual
+    /// half, its favourite hour, and the Pages taken back from the grey.
+    /// Counts only. Never where the reader was or what they wrote.
+    static func curseReport(inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BleedColumnBrief? {
+        let ledger = inputs.attentionProbes
+        let week = CurseFight.week(ledger, now: now)
+        guard week.answered >= 3 else { return nil }
+        let share = Int((Double(week.curse) / Double(week.answered) * 100).rounded())
+        let usual = Int((CurseFight.everyonesShare * 100).rounded())
+        var lines = [
+            "KNOCKS ANSWERED THIS WEEK · \(week.answered)",
+            "Taken by the Curse · \(week.curse) (\(share)%)",
+            "Everyone's usual · about \(usual)%",
+            ""
+        ]
+        lines.append(share < usual
+            ? "The Reader's beating the usual. Penny has asked for a recount."
+            : "The Curse is having a good week. That's a week, not a verdict.")
+        if let hourLine = CurseFight.hourLine(ledger, calendar: calendar) {
+            lines.append(hourLine)
+        }
+        let counters = ledger.receipts.filter {
+            $0.id.hasSuffix("-watch") && $0.answeredAt <= now && now.timeIntervalSince($0.answeredAt) < 7 * 86_400
+        }
+        if !counters.isEmpty {
+            let held = counters.filter { $0.answer.countsForReader }.count
+            lines.append("Knocks sent into the Curse's own hour · \(counters.count), held \(held)")
+        }
+        let rescued = inputs.greyPageThreats.threats.filter {
+            $0.status == .rescued && ($0.resolvedAt.map { now.timeIntervalSince($0) < 7 * 86_400 } ?? false)
+        }.count
+        if rescued > 0 {
+            lines.append("Pages taken back from the grey this week · \(rescued)")
+        }
+        // The week's throws, both sides, as they were inked in the margins.
+        let thrown = inputs.inkbonesLog.filter { $0.at <= now && now.timeIntervalSince($0.at) < 7 * 86_400 }
+        let curseRolls = thrown.filter { $0.thrower == .curse }.map { String($0.roll) }
+        let readerThrows = thrown.filter { $0.thrower == .reader }
+        if !curseRolls.isEmpty || !readerThrows.isEmpty { lines.append("") }
+        if !curseRolls.isEmpty {
+            let took = thrown.filter { $0.thrower == .curse && $0.outcome == "took" }.count
+            lines.append("The Curse threw \(Self.listed(curseRolls))" + (took == 0 ? " and took nothing." : ", and took \(took) Page\(took == 1 ? "" : "s")."))
+        }
+        if !readerThrows.isEmpty {
+            let triumphs = readerThrows.filter { $0.outcome == StoryInkbonesBand.triumph.rawValue }.count
+            lines.append("The Reader threw \(Self.listed(readerThrows.map { String($0.roll) }))"
+                + (triumphs == 0 ? "." : ", with \(triumphs == 1 ? "a triumph" : "\(triumphs) triumphs")."))
+        }
+        let body = lines.joined(separator: "\n")
+        return BleedColumnBrief(id: curseID, title: "The Curse Report", byline: curseByline, composedBody: body,
+                                packet: "", maxTokens: 0, storyID: curseID, revision: BleedNewsroom.revision(body))
+    }
+
+    /// "91, 12 and 47"
+    static func listed(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + items.last!
     }
 
     // MARK: Story Odds
@@ -4715,6 +4913,9 @@ enum BleedFeatureDesk {
         var castIDs: [String]
         var undertakingID: String? = nil
         var scene: String? = nil
+        /// What prints without the writer, when it isn't the facts themselves.
+        var fallback: String? = nil
+        var voiceJobs: [BleedVoices.Job] = []
     }
 
     /// Who's who for a feature: enough of each person to make them vivid, and
@@ -4729,7 +4930,8 @@ enum BleedFeatureDesk {
             .compactMap { id in entities.first { $0.id == id && $0.kind == .character } }
         var lines = people.map { person in
             ([person.name + ":"] + [clause("Nature:", person.traits, limit: 4), clause("Believes", person.beliefs),
-                                    clause("Habits:", person.quirks), clause("Blind spot:", person.faults, limit: 1)]
+                                    clause("Habits:", person.quirks), clause("Blind spot:", person.faults, limit: 1),
+                                    "Talks: \(person.resolvedWritingVoice.register); \(person.resolvedWritingVoice.rhythm)."]
                 .compactMap { $0 }).joined(separator: " ")
         }
         if let penny = entities.first(where: { $0.id == "penny-blackletter" }) {
@@ -4773,7 +4975,8 @@ enum BleedFeatureDesk {
             \(subject.ask)
             """,
             maxTokens: 360, storyID: subject.storyID, revision: BleedNewsroom.revision(subject.facts),
-            fallbackBody: subject.facts, castIDs: subject.castIDs, undertakingID: subject.undertakingID
+            fallbackBody: subject.fallback ?? subject.facts, castIDs: subject.castIDs, undertakingID: subject.undertakingID,
+            voiceJobs: subject.voiceJobs.isEmpty ? nil : subject.voiceJobs
         )
     }
 
@@ -4804,13 +5007,16 @@ enum BleedFeatureDesk {
         }.sorted { $0.openedAt < $1.openedAt }.map { question in
             let days = Int((now.timeIntervalSince(question.openedAt) / 86_400).rounded())
             let backed = question.bookBackedHolderID.flatMap { id in question.positions.first { $0.holderID == id }?.holderName }
+            let voices = BleedVoices.voices(for: question, paper: "feature|" + BleedVoices.paperKey(now), count: 4)
             var facts = ["The question: \(question.question)", "It has been argued for \(days) days."]
-            facts += question.speakingPositions.map { BleedDeskReading.named($0.claim, holder: $0.holderName) }
             if let evidence = question.contradictingEvidence?.nonEmpty { facts.append("Later evidence: \(evidence)") }
             if let backed { facts.append("The Book has backed \(backed), and says it may be wrong.") }
             return Subject(storyID: "feature:question:\(question.id)", title: "The Long Argument", facts: facts.joined(separator: "\n\n"),
-                           ask: "The long argument: who thinks what, why each view is so like its owner, and why nobody will let it go.",
-                           castIDs: question.speakingPositions.map(\.holderID))
+                           ask: "The long argument: let each voice have their say, and say why nobody will let it go.\n"
+                               + BleedVoices.placeholder,
+                           castIDs: voices.map(\.id),
+                           fallback: (facts.prefix(2) + voices.map(\.lean) + facts.dropFirst(2)).joined(separator: "\n\n"),
+                           voiceJobs: BleedVoices.jobs(voices, question: question))
         }
     }
 

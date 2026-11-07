@@ -93,13 +93,7 @@ final class FestivalAlwaysSurfacesTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(kinds.count, 2, "only one kind of feast in a whole year: \(kinds)")
     }
 
-    /// The curriculum gate, specifically. A reader on their first day, with
-    /// nothing kept, still gets the solstice.
     func testAReaderWithNothingKeptStillGetsTheFeast() {
-        XCTAssertFalse(
-            IntroductionCurriculum.locks(.festival, keptPageCount: 0, surfaceHistory: [:]),
-            "the introduction curriculum is holding the feast back again"
-        )
         XCTAssertTrue(desk(on: date(2026, 10, 31)).contains { $0.type == .festival })
     }
 

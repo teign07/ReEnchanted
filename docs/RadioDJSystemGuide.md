@@ -167,6 +167,10 @@ Runtime/user files may also be resolved from the app Documents folder, `Document
 
 ## Adding A Basic Clip
 
+The caption must contain the full spoken script, including the ending. Do not
+use a production placeholder or an abbreviated summary. For transcripts and
+lyrics that highlight during playback, see [Radio read-along](radio-read-along.md).
+
 Add a `RadioBanter(...)` to the station's `banters:` array in `Shared/WorldSystems.swift`.
 
 ```swift

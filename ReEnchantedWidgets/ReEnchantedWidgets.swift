@@ -64,6 +64,56 @@ private struct QuestionWidgetView: View {
     }
 }
 
+/// The day's score against the Curse on the Lock Screen
+/// (docs/the-knock-plan.md). Counts only, so it's safe on a locked phone.
+private struct CurseFightWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    let entry: ReEnchantedWidgetEntry
+
+    private var fight: ReEnchantedWidgetCurseFight {
+        let fight = entry.snapshot.curseFight ?? ReEnchantedWidgetCurseFight(reader: 0, curse: 0)
+        // A score from another day is no score today.
+        return Calendar.current.isDateInToday(entry.snapshot.generatedAt) ? fight : ReEnchantedWidgetCurseFight(reader: 0, curse: 0)
+    }
+
+    private var symbol: String {
+        fight.curse > fight.reader ? "cloud.fog.fill" : "shield.lefthalf.filled"
+    }
+
+    @ViewBuilder
+    var body: some View {
+        switch family {
+        case .accessoryInline:
+            Label("You \(fight.reader) · Curse \(fight.curse)", systemImage: symbol)
+                .widgetURL(deepLinkURL("today"))
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 0) {
+                    Text("\(fight.reader)")
+                        .font(.title3.weight(.bold))
+                    Text("\(fight.curse)")
+                        .font(.caption2)
+                        .opacity(0.6)
+                }
+            }
+            .widgetURL(deepLinkURL("today"))
+        default:
+            VStack(alignment: .leading, spacing: 2) {
+                Label("Against the Curse", systemImage: symbol)
+                    .font(.caption.weight(.bold))
+                    .lineLimit(1)
+                Text(fight.reader + fight.curse == 0
+                     ? "No knocks answered yet today."
+                     : "You \(fight.reader) · the Curse \(fight.curse)")
+                    .font(.caption2)
+                    .lineLimit(2)
+            }
+            .widgetURL(deepLinkURL("today"))
+        }
+    }
+}
+
 private struct TodayWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: ReEnchantedWidgetEntry
@@ -1383,6 +1433,20 @@ private struct ReEnchantedQuestionWidget: Widget {
     }
 }
 
+private struct ReEnchantedCurseFightWidget: Widget {
+    let kind = "ReEnchantedCurseFightWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: ReEnchantedWidgetProvider()) { entry in
+            CurseFightWidgetView(entry: entry)
+                .containerBackground(.clear, for: .widget)
+        }
+        .configurationDisplayName("Against the Curse")
+        .description("Today's score: the knocks you won and the ones the Curse took.")
+        .supportedFamilies([.accessoryInline, .accessoryCircular, .accessoryRectangular])
+    }
+}
+
 @main
 struct ReEnchantedWidgets: WidgetBundle {
     var body: some Widget {
@@ -1393,5 +1457,6 @@ struct ReEnchantedWidgets: WidgetBundle {
         ReEnchantedRememberedWidget()
         ReEnchantedGlowWidget()
         ReEnchantedQuestionWidget()
+        ReEnchantedCurseFightWidget()
     }
 }

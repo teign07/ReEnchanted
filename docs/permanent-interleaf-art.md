@@ -56,3 +56,44 @@ Artwork inspection and asset/source validation do not establish the runtime
 appearance. All seven assets were checked for catalogue filenames, dimensions,
 profiles, hashes and decode success; Swift syntax and whitespace checks passed.
 No app build, installation or publication was performed.
+
+## Everyday life additions — November 6, 2026
+
+Eight more portrait leaves join the same permanent pool, bringing it to fifteen.
+The original seven remain unchanged. These are small, newly authored incidents
+grounded in existing cast habits and room lore, without monthly plot reveals.
+Some have short handwritten notes; others let the scene stand alone.
+
+| Leaf | Bundled asset |
+| --- | --- |
+| Breakfast has not been approved | `InterleafBreakfastHasNotBeenApproved` |
+| Somebody else's handwriting | `InterleafSomebodyElsesHandwriting` |
+| An island in the tea | `InterleafAnIslandInTheTea` |
+| The card that wouldn't file | `InterleafTheCardThatWouldntFile` |
+| The rain came in first | `InterleafTheRainCameInFirst` |
+| Before the pens wake | `InterleafBeforeThePensWake` |
+| The wrong door | `InterleafTheWrongDoor` |
+| The Book kept the blanket | `InterleafTheBookKeptTheBlanket` |
+
+Each has a distinct title and semantic tags for its depicted people, place,
+objects, and mood. The additions use the existing year-round selection,
+repeat avoidance, full-leaf presentation, and inspector. They add no gates or
+new encounter mechanism.
+
+The PNG masters remain at `output/interleaf-illustrations-2026-11-06/`.
+The eight app JPEGs retain 1024 × 1536 pixels, use sRGB and the existing
+`sips` quality-72 conversion, and total 5,339,737 bytes, compared with
+29,828,963 bytes for the masters (82.10% less encoded storage). The largest
+JPEG is 727,727 bytes. This is a file-size comparison, not a memory or
+performance measurement.
+
+Exact generation prompts, canonical art references, conversion settings,
+subject tags, paths, and source/derivative SHA-256 hashes are preserved in
+[the production record](art-provenance/interleaf-everyday-2026-11-06.json).
+The PNG masters and prior images are preserved.
+
+Validation: all fifteen permanent entries have unique IDs and asset names;
+all declared files decode and retain their dimensions; the eight new JPEGs
+have sRGB profiles; Swift syntax and whitespace checks pass. The converted
+artwork was visually inspected. No app build, XCTest, installation, or native
+presentation check was run.

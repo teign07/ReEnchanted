@@ -541,7 +541,7 @@ final class SkyOnTheLeafTests: XCTestCase {
         // During drying: the bead should be gone while
         // the paper is still visibly damp. This is the whole difference between
         // wet paper and a dot drawn on top of a page.
-        let drying = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 6)
+        let drying = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 3)
         XCTAssertLessThan(drying.beadAlpha, drying.dampAlpha)
     }
 
@@ -556,8 +556,40 @@ final class SkyOnTheLeafTests: XCTestCase {
         )
         let first = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 3)
         let second = SkyField.frame(for: speck, condition: .rain, wind: 0, time: 3 + 8)
-        XCTAssertEqual(first.y, second.y, accuracy: 0.0001)
         XCTAssertEqual(first.beadAlpha, second.beadAlpha, accuracy: 0.0001)
+        XCTAssertEqual(first.dampAlpha, second.dampAlpha, accuracy: 0.0001)
+
+        // Snow comes back to the same place; rain does not (see the patter test).
+        let flakeFirst = SkyField.frame(for: speck, condition: .snow, wind: 0, time: 3)
+        let flakeSecond = SkyField.frame(for: speck, condition: .snow, wind: 0, time: 3 + 8)
+        XCTAssertEqual(flakeFirst.x, flakeSecond.x, accuracy: 0.0001)
+        XCTAssertEqual(flakeFirst.y, flakeSecond.y, accuracy: 0.0001)
+    }
+
+    func testRainPattersAcrossTheLeafRatherThanBlinkingInPlace() {
+        let speck = SkySpeck(laneX: 0.3, restY: 0.4, size: 0.5,
+                             period: 2, offset: 0, runs: false)
+        // Sample each impact just after it has landed, over twenty cycles.
+        let landings = (0..<20).map {
+            SkyField.frame(for: speck, condition: .rain, wind: 0, time: Double($0) * 2 + 0.5)
+        }
+        let spots = Set(landings.map { "\(Int($0.x * 4)),\(Int($0.y * 4))" })
+        XCTAssertGreaterThan(spots.count, 8, "One drop kept striking the same patch of paper.")
+        for frame in landings {
+            XCTAssert((0...1).contains(frame.x))
+            XCTAssert((0...1).contains(frame.y))
+        }
+    }
+
+    func testEveryRainDropSeepsInWithinHalfASecond() {
+        for speck in SkyField.specks(count: SkyField.ceiling, condition: .rain, seed: 6) {
+            let start = (1 - speck.offset) * speck.period // the next impact
+            let struck = SkyField.frame(for: speck, condition: .rain, wind: 0, time: start + 0.02)
+            let seeped = SkyField.frame(for: speck, condition: .rain, wind: 0, time: start + 0.5)
+            XCTAssertGreaterThan(struck.beadAlpha, 0.3, "A fresh drop should be visible on impact.")
+            XCTAssertEqual(seeped.beadAlpha, 0, accuracy: 0.001, "period \(speck.period)")
+            XCTAssertGreaterThan(seeped.dampAlpha, 0.25, "The paper should still show the wet.")
+        }
     }
 
     func testWindPushesArrivingSpecksAndLetsThemStraightenAsTheyLand() {
@@ -673,9 +705,9 @@ final class SkyOnTheLeafTests: XCTestCase {
                              period: 10, offset: 0, runs: false)
         for condition in [SkyCondition.rain, .storm] {
             let landed = SkyField.frame(for: speck, condition: condition, wind: 0, time: 0.25)
-            let soaking = SkyField.frame(for: speck, condition: condition, wind: 0, time: 1.2)
-            let absorbed = SkyField.frame(for: speck, condition: condition, wind: 0, time: 2.4)
-            let dry = SkyField.frame(for: speck, condition: condition, wind: 0, time: 9)
+            let soaking = SkyField.frame(for: speck, condition: condition, wind: 0, time: 0.8)
+            let absorbed = SkyField.frame(for: speck, condition: condition, wind: 0, time: 1.45)
+            let dry = SkyField.frame(for: speck, condition: condition, wind: 0, time: 7)
             XCTAssertGreaterThan(landed.beadAlpha, soaking.beadAlpha)
             XCTAssertGreaterThan(soaking.absorption, landed.absorption)
             XCTAssertGreaterThan(soaking.dampAlpha, landed.dampAlpha)

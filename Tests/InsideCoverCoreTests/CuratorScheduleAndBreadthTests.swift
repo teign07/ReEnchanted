@@ -182,6 +182,23 @@ final class CuratorScheduleAndBreadthTests: XCTestCase {
         XCTAssertEqual(CuratorNoveltyPolicy.patienceBonus(for: unseen, history: recentlyActive, now: date(12)), 0)
     }
 
+    func testAnUnseenFamilyEarnsBoundedPatienceUntilItsFirstShowing() {
+        let unseen = page(.gamePage)
+        let history = [
+            "source:another-family":
+                SurfaceHistoryRecord(lastShownAt: date(12, day: 1), recentShowCount: 1)
+        ]
+        let bonus = CuratorNoveltyPolicy.patienceBonus(for: unseen, history: history, now: date(12))
+        XCTAssertGreaterThan(bonus, 0)
+        XCTAssertLessThanOrEqual(Double(bonus), CuratorNoveltyPolicy.patienceCapPoints)
+        XCTAssertEqual(CuratorNoveltyPolicy.patienceBonus(for: unseen, history: [:], now: date(12)), 0)
+
+        var served = history
+        served[CuratorVarietyGovernor.typeKey(for: unseen.type)] =
+            SurfaceHistoryRecord(lastShownAt: date(12), recentShowCount: 1)
+        XCTAssertEqual(CuratorNoveltyPolicy.patienceBonus(for: unseen, history: served, now: date(12)), 0)
+    }
+
     func testNewlyUnlockedStoryNodesHaveIndependentDeliveryClaims() {
         func claim(_ content: String, _ node: String, run: String = "current") -> String {
             MonthlyIssuePageMetadata.storyClaimHistoryKey(

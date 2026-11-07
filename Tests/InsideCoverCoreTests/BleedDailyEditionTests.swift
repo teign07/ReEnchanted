@@ -487,7 +487,8 @@ extension BleedDailyEditionTests {
         XCTAssertEqual(lead.title, "Who Frightened the Heron off the Canal?")
         // An argument is written as a feature: its facts are the packet, its own telling the fallback.
         let told = lead.fallbackBody ?? ""
-        XCTAssertTrue(told.contains("Wicker says: Nobody did."), told)
+        // The Book's own pick always has a say; the rest of the Academy is asked fresh.
+        XCTAssertTrue(told.contains("Penny says: The bell did it."), told)
         XCTAssertFalse(told.contains("private guess"), told)
         XCTAssertFalse(lead.packet.contains("private guess"), lead.packet)
         XCTAssertFalse(pool(weak).contains { $0.storyID == "academy-question:heron" })

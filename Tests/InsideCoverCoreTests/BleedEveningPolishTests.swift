@@ -33,8 +33,10 @@ final class BleedEveningPolishTests: XCTestCase {
         let lead = try XCTUnwrap(BleedLeadDesk.contested(inputs: inputs, now: now, since: now))
         XCTAssertEqual(lead.headline, "The Book Was Wrong About the Unsigned Recipe")
         XCTAssertTrue(lead.body.contains("What happened: Trencher buys"), lead.body)
-        XCTAssertTrue(lead.body.contains("\n\nSoren Ng thinks the unsigned recipe"), lead.body)
-        XCTAssertFalse(lead.body.contains("Soren Ng says: Soren Ng"), lead.body)
+        for voice in lead.voices {
+            XCTAssertTrue(lead.body.contains(voice.lean), lead.body)
+            XCTAssertFalse(lead.body.contains("\(voice.name) says: \(voice.name)"), lead.body)
+        }
         XCTAssertTrue(lead.body.contains("Then the evidence turned up. The room disagrees"), lead.body)
     }
 
@@ -159,6 +161,57 @@ final class BleedEveningPolishTests: XCTestCase {
         XCTAssertFalse(BleedFeatureDesk.whoIsWho(castIDs: ["soren-ng"]).contains("The pavement says left"))
     }
 
+    func testAnyOfTheCastCanBeAskedAndTheLineUpChangesEachPaper() {
+        var question = recipeQuestion(corrected: false)
+        question.bookBackedHolderID = "zara-finch"
+        question.positions.append(ContestedPosition(id: "q", holderID: "wicker-eddies", holderName: "Wicker Eddies",
+                                                    claim: "Wicker Eddies has declined to comment.", groundedInIDs: [],
+                                                    confidence: 50, silence: .wouldHaveToAdmitSomething, formedAt: now))
+        var everyone = Set<String>()
+        for day in 0..<8 {
+            for half in ["morning", "evening"] {
+                let voices = BleedVoices.voices(for: question, paper: "\(day)-\(half)")
+                XCTAssertEqual(voices.count, 3)
+                XCTAssertEqual(voices.first?.id, "zara-finch", "the Book's pick always has a say")
+                XCTAssertFalse(voices.contains { $0.id == "ambrose-trencher" }, "the subject has the event, not a voice")
+                XCTAssertFalse(voices.contains { $0.id == "penny-blackletter" }, "Penny is writing it")
+                XCTAssertFalse(voices.contains { $0.id == "wicker-eddies" }, "a quiet holder stays quiet")
+                everyone.formUnion(voices.map(\.id))
+            }
+        }
+        XCTAssertGreaterThan(everyone.count, 12, "sixteen papers should hear from most of the Cast")
+    }
+
+    func testEachVoiceIsAskedAloneAndTheWriterQuotesTheirWordsExactly() throws {
+        let question = recipeQuestion(corrected: false)
+        let voices = BleedVoices.voices(for: question, paper: "1-morning")
+        let jobs = BleedVoices.jobs(voices, question: question)
+        let first = try XCTUnwrap(jobs.first)
+        XCTAssertTrue(first.instructions.hasPrefix("You are \(first.voice.name)"), first.instructions)
+        XCTAssertTrue(first.prompt.contains("The question: What is actually going on with the unsigned recipe?"), first.prompt)
+        XCTAssertTrue(first.prompt.contains("Your angle on it: "), first.prompt)
+
+        let words = [first.voice.id: "Somebody loved that page into the ground."]
+        let section = BleedVoices.answered(jobs, words: words)
+        XCTAssertTrue(section.contains("- \(first.voice.name): “Somebody loved that page into the ground.”"), section)
+        XCTAssertTrue(section.contains("ALSO ASKED"), section)
+
+        var inputs = BookSourceInputs.empty
+        inputs.contestedQuestions = [question]
+        let lead = try XCTUnwrap(BleedLeadDesk.contested(inputs: inputs, now: now, since: now.addingTimeInterval(-2 * 86_400)))
+        XCTAssertTrue(BleedLeadDesk.featurePacket(lead).contains(BleedVoices.placeholder))
+        XCTAssertFalse(BleedLeadDesk.featurePacket(lead).contains("Leans:"), "a lean never reaches the writer twice")
+    }
+
+    func testAVoicesWordsMustBeAnOpinionAndShort() {
+        XCTAssertEqual(BleedVoices.usable("“It's a distraction; the silence speaks louder than the ink.”"),
+                       "It's a distraction; the silence speaks louder than the ink.")
+        XCTAssertEqual(BleedVoices.usable("Damien Nights: It's a distraction, plainly."), "It's a distraction, plainly.")
+        XCTAssertNil(BleedVoices.usable("I propose testing the material under controlled conditions."))
+        XCTAssertNil(BleedVoices.usable("Too short."))
+        XCTAssertNil(BleedVoices.usable(String(repeating: "word ", count: 40)))
+    }
+
     /// Writes the exact feature prompts the phone sends, for the Mac model lab:
     ///     BLEED_FEATURE_PROMPTS_OUT=/tmp/features.json swift test --filter testWriteFeaturePromptsWhenAsked
     func testWriteFeaturePromptsWhenAsked() throws {
@@ -205,6 +258,13 @@ final class BleedEveningPolishTests: XCTestCase {
                               try reading("soren-ng"), try reading("wicker-eddies"), try reading("zara-finch")]
         var argued = BookSourceInputs.empty
         argued.contestedQuestions = [question]
+        for paper in ["1-morning", "1-evening", "2-morning"] {
+            for voice in BleedVoices.voices(for: question, paper: paper) {
+                let job = BleedVoices.job(for: voice, question: question)
+                out.append(["id": "voice-\(paper)-\(voice.id)", "kind": "voice", "instructions": job.instructions,
+                            "prompt": job.prompt, "fallback": voice.lean])
+            }
+        }
         if let lead = BleedLeadDesk.contested(inputs: argued, now: now, since: now) {
             out.append(["id": "lead-recipe-argument", "kind": "front-page",
                         "prompt": prompt(title: lead.headline, byline: lead.kicker, castIDs: lead.castIDs ?? [], packet: BleedLeadDesk.featurePacket(lead)),

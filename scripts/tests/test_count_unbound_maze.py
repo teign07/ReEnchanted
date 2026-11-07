@@ -29,14 +29,15 @@ class CountUnboundMazeTests(unittest.TestCase):
 
     def test_both_print_cadences_use_the_same_answered_map(self):
         pack = json.loads((ROOT / 'paper.editionplay.json').read_text())
-        route = [tuple(map(int, pair.split(','))) for pair in
-                 json.loads((ROOT / 'map-the-door-home.answer.json').read_text())['solution'].split(' -> ')]
-        compass = {(1, 0): 'E', (-1, 0): 'W', (0, 1): 'S', (0, -1): 'N'}
-        directions = ''.join(compass[(x2-x1, y2-y1)]
-                             for (x1, y1), (x2, y2) in zip(route, route[1:]))
         maps = [leaf for leaf in pack['leaves'] if leaf['form'] == 'map']
         self.assertEqual({leaf['cadence'] for leaf in maps}, {'weekly', 'monthly'})
-        self.assertTrue(all(leaf['answerKey'] == f'C → {directions} → B' for leaf in maps))
+        self.assertEqual({leaf['assetName'] for leaf in maps},
+                         {'{{asset-path:count-unbound.play.map-the-door-home}}'})
+        self.assertEqual({leaf['answerAssetName'] for leaf in maps},
+                         {'{{asset-path:count-unbound.play.map-the-door-home-solved}}'})
+        self.assertTrue((ROOT / 'map-the-door-home-solved.png').is_file())
+        self.assertEqual({leaf['answerKey'] for leaf in maps},
+                         {'From the Count to his book, through 1, 2 and 3 in order. The red chair goes nowhere.'})
         self.assertEqual(pack['eventStartYear'], 2026)
 
 

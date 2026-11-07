@@ -4412,14 +4412,17 @@ struct BookShopSheet: View {
             }
             if let preparedPrintCoverURL {
                 let quotedEdition = physicalBookEditionWithCoverMetadata(edition)
-                try MonthlyEditionPDFWriter.writeCoverWrap(
-                    quotedEdition,
-                    spec: spec,
-                    pageCount: pageCount,
-                    coverPhoto: physicalBookEffectiveCoverImage(for: edition),
-                    exactDimensions: exactDimensions,
-                    to: preparedPrintCoverURL
-                )
+                let coverPhoto = physicalBookEffectiveCoverImage(for: edition)
+                try await EditionPress.run {
+                    try MonthlyEditionPDFWriter.writeCoverWrap(
+                        quotedEdition,
+                        spec: spec,
+                        pageCount: pageCount,
+                        coverPhoto: coverPhoto,
+                        exactDimensions: exactDimensions,
+                        to: preparedPrintCoverURL
+                    )
+                }
                 loadPhysicalBookPrintFileChecksums()
             }
             physicalBookQuote = quote
@@ -9235,6 +9238,14 @@ struct WeeklyIssueBindingOverlay: View {
     var coverTitle: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// One per stage the press has reported. The note changing is the only
+    /// signal the bind gives, and it changes only when real work finishes.
+    @State private var stagesDone = 0
+
+    /// The opening scene plays once; the seam waits for it to finish.
+    private var openingDuration: Double {
+        reduceMotion ? 0 : (moment?.duration ?? BindingFolioDrawing.duration)
+    }
 
     var body: some View {
         ZStack {
@@ -9242,10 +9253,13 @@ struct WeeklyIssueBindingOverlay: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                if let moment {
-                    BookMakingScene(moment: moment, title: coverTitle)
-                } else {
-                    BindingFolioGlyph()
+                VStack(spacing: 6) {
+                    if let moment {
+                        BookMakingScene(moment: moment, title: coverTitle)
+                    } else {
+                        BindingFolioGlyph()
+                    }
+                    BindingSeam(laid: stagesDone, openingDelay: openingDuration)
                 }
 
                 VStack(spacing: 7) {
@@ -9277,6 +9291,143 @@ struct WeeklyIssueBindingOverlay: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(moment?.workingTitle ?? "Binding the weekly issue"). \(note)")
         .accessibilityAddTraits(.updatesFrequently)
+        .onChange(of: note) { _, _ in stagesDone += 1 }
+    }
+}
+
+/// What the binding desk does once its opening flourish has played: it keeps
+/// sewing, for as long as the work takes.
+///
+/// The scene above plays once and settles, and on its own that left a long
+/// Gemma pass looking like a frozen screen. The seam carries on underneath it:
+/// the needle goes down through the cloth and up again at the next hole, the
+/// thread draws tight and slackens, and it never closes anything. That motion
+/// means "still at it", never "nearly done".
+///
+/// Progress is the gold, and only real work lays it: one stitch per stage the
+/// bind reports (`laid`). A stage that never comes leaves the needle working
+/// the same hole, which is the truth and still moves.
+struct BindingSeam: View {
+    var laid: Int
+    /// The opening scene's length, so the seam joins after it rather than
+    /// competing with it.
+    var openingDelay: Double = 0
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var start = Date()
+    @State private var laidAt = Date.distantPast
+    @State private var previousLaid = 0
+
+    private static let holes = 13
+    private static let spacing: CGFloat = 16
+    /// One trip down through the cloth and back up.
+    private static let cycle: Double = 1.6
+
+    var body: some View {
+        Group {
+            if reduceMotion {
+                Canvas { context, size in draw(in: context, size: size, now: nil) }
+            } else {
+                // The same 30 fps budget the Glow lamp breathes on.
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: scenePhase != .active)) { timeline in
+                    Canvas { context, size in draw(in: context, size: size, now: timeline.date) }
+                }
+            }
+        }
+        .frame(width: CGFloat(Self.holes - 1) * Self.spacing + 24, height: 30)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
+        .onAppear {
+            start = Date()
+            previousLaid = laid
+        }
+        .onChange(of: laid) { old, _ in
+            previousLaid = old
+            laidAt = Date()
+        }
+    }
+
+    private func smooth(_ value: Double) -> Double {
+        let x = min(1, max(0, value))
+        return x * x * (3 - 2 * x)
+    }
+
+    private func draw(in context: GraphicsContext, size: CGSize, now: Date?) {
+        let elapsed = now.map { $0.timeIntervalSince(start) } ?? .infinity
+        let reveal = now == nil ? 1 : smooth((elapsed - openingDelay) / 0.6)
+        guard reveal > 0 else { return }
+
+        var cloth = context
+        cloth.opacity = reveal
+        let seamY = size.height * 0.55
+        func holeX(_ index: Int) -> CGFloat { 12 + CGFloat(index) * Self.spacing }
+
+        // The seam and its punched holes.
+        var seam = Path()
+        seam.move(to: CGPoint(x: 4, y: seamY))
+        seam.addLine(to: CGPoint(x: size.width - 4, y: seamY))
+        cloth.stroke(seam, with: .color(BookPalette.nightText.opacity(0.16)),
+                     style: StrokeStyle(lineWidth: 0.8, dash: [2, 3]))
+        for index in 0..<Self.holes {
+            cloth.fill(Path(ellipseIn: CGRect(x: holeX(index) - 1.1, y: seamY - 1.1, width: 2.2, height: 2.2)),
+                       with: .color(BookPalette.nightText.opacity(0.3)))
+        }
+
+        // Laid stitches: gold, and they stay. The newest draws itself across
+        // and glows for a moment, so a finished stage is something you see.
+        let shown = min(laid, Self.holes - 1)
+        let sinceLaid = now.map { $0.timeIntervalSince(laidAt) } ?? .infinity
+        for index in 0..<shown {
+            let isNewest = index == shown - 1
+            let grow = isNewest ? smooth(sinceLaid / 0.45) : 1
+            let glow = isNewest ? max(0, 1 - sinceLaid / 1.2) : 0
+            var stitch = Path()
+            stitch.move(to: CGPoint(x: holeX(index), y: seamY))
+            stitch.addLine(to: CGPoint(x: holeX(index) + Self.spacing * CGFloat(grow), y: seamY))
+            var lit = cloth
+            if glow > 0 {
+                lit.addFilter(.shadow(color: BookPalette.lampGold.opacity(0.85 * glow), radius: 4))
+            }
+            lit.stroke(stitch, with: .color(BookPalette.lampGold),
+                       style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        }
+
+        // The needle works the next hole. After a stage it hops along to the
+        // new one; otherwise it stays put and keeps going down and up.
+        let target = holeX(min(shown + 1, Self.holes - 1))
+        let from = holeX(min(min(previousLaid, Self.holes - 1) + 1, Self.holes - 1))
+        let needleX = from + (target - from) * CGFloat(smooth(sinceLaid / 0.5))
+        let turn: Double = now == nil ? 0.75 : (max(0, elapsed - openingDelay) / Self.cycle)
+            .truncatingRemainder(dividingBy: 1)
+        let dip = CGFloat(7 * sin(2 * .pi * turn))            // > 0 is under the cloth
+        let tension = CGFloat(0.5 - 0.5 * sin(2 * .pi * turn)) // tight as it comes up
+        let tip = CGPoint(x: needleX, y: seamY + dip)
+        let eye = CGPoint(x: tip.x + 9, y: tip.y - 17)
+
+        // The working thread, from the last laid stitch up to the needle's eye.
+        let anchor = CGPoint(x: holeX(shown), y: seamY)
+        var thread = Path()
+        thread.move(to: anchor)
+        thread.addQuadCurve(
+            to: eye,
+            control: CGPoint(x: (anchor.x + eye.x) / 2 - 4, y: min(anchor.y, eye.y) - 3 - 9 * (1 - tension))
+        )
+        cloth.stroke(thread, with: .color(BookPalette.lampGold.opacity(0.8)),
+                     style: StrokeStyle(lineWidth: 1.1, lineCap: .round))
+
+        // Whatever is under the cloth is hidden, so the needle pierces it.
+        var needle = cloth
+        needle.clip(to: Path(CGRect(x: 0, y: 0, width: size.width, height: seamY)))
+        var shaft = Path()
+        shaft.move(to: tip)
+        shaft.addLine(to: eye)
+        needle.stroke(shaft, with: .color(BookPalette.nightText.opacity(0.92)),
+                      style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
+        needle.stroke(
+            Path(ellipseIn: CGRect(x: eye.x - 1.6, y: eye.y - 2.6, width: 3.2, height: 4.6)),
+            with: .color(BookPalette.nightText.opacity(0.85)), lineWidth: 0.85
+        )
     }
 }
 

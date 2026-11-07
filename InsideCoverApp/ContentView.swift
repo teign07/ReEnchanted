@@ -2,6 +2,8 @@ import SwiftUI
 import OSLog
 import Darwin.Mach
 import CryptoKit
+import Network
+import os
 #if canImport(AudioToolbox)
 import AudioToolbox
 #endif
@@ -254,7 +256,9 @@ private struct BookPresentationGate<Content: View>: View {
 
     init(
         title: String,
-        settleMilliseconds: Int = 260,
+        // The sheet's slide-up finishes before its leaf is built; a build
+        // started mid-slide stuttered the slide and the ink beneath it.
+        settleMilliseconds: Int = 480,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
@@ -695,6 +699,8 @@ struct ContentView: View {
     @State var isChoosingWonderCompassPassage = false
     @State var isRequestingHealthKit = false
     @State var isSourceSettingsPresented = false
+    /// A Knock the reader tapped open, waiting on its sheet.
+    @State var pendingKnock: KnockOpenRequest?
     @State var isBookWorkingAuthorityPresented = false
     @State var isCustomCastSheetPresented = false
     @State var isBraidingTablePresented = false
@@ -960,7 +966,7 @@ struct ContentView: View {
     @State var launchHydrationTask: Task<Void, Never>?
     @State var didPrepareLaunchDesk = false
     @State var isLaunchDeskCurating = true
-    @State var isLaunchFrontMatterReady = false
+    @State var launchFrontMatter = LaunchFrontMatterProgress()
     @State var isSettlingLaunchDesk = false
     @State var isLaunchPresentationReady = false
     @State var isLaunchAmbientMotionPaused = true
@@ -1322,6 +1328,7 @@ struct ContentView: View {
         inputs.readerAliveness = vault.data.readerAliveness ?? .unwritten
         inputs.readerStatePulses = vault.data.readerStatePulses ?? .empty
         inputs.attentionProbes = vault.data.attentionProbes ?? .empty
+        inputs.inkbonesLog = vault.data.inkbonesLog ?? []
         inputs.standingLedger = vault.data.standingLedger ?? .unwritten
         inputs.inferredSignals = vault.data.inferredSignals ?? .unwritten
         inputs.daybookRows = daybookRows
@@ -1402,6 +1409,8 @@ struct ContentView: View {
         inputs.preparedLetterSurface = generation.preparedLetterSurface
         inputs.userPhotoIlluminationFallbackAllowed = userPhotoIlluminationFallbackAllowed
         inputs.localBrainIsReady = modelReport.state == .ready
+        inputs.localBrainIsFetching = modelReport.state != .ready
+            && (isInstallingModel || LocalBrainInstallIntent.isWanted)
         inputs.localBrainDownloadLabel = LocalModelManager.preferredModel.approximateDownloadLabel
         inputs.selfFacts = selfFacts
         inputs.facultyEntries = facultyEntries
@@ -1425,15 +1434,6 @@ struct ContentView: View {
 
     var keptPageCount: Int {
         days.reduce(0) { $0 + $1.pages.count }
-    }
-
-    func isMemoryPageLocked(_ type: BookPageType) -> Bool {
-        BookMemoryGate.locks(type, keptPageCount: keptPageCount)
-    }
-
-    func showMemoryPageLockedMessage(for type: BookPageType) {
-        BookFeedback.play(.error)
-        statusMessage = BookMemoryGate.message(for: type, keptPageCount: keptPageCount)
     }
 
     /// Manual page types that only exist when their content pack is owned. They
@@ -1473,7 +1473,6 @@ struct ContentView: View {
             var knownIDs = Set(pages.map(\.id))
             for fallback in BookEvergreenPlayReserve.pages(
                 now: surfaceRefreshDate,
-                keptPageCount: keptPageCount,
                 history: vault.data.surfaceHistory ?? [:]
             ) where knownIDs.insert(fallback.id).inserted {
                 pages.append(fallback)
@@ -1537,7 +1536,7 @@ struct ContentView: View {
         // the binding, replace that copy in place with the exact marked
         // snapshot; if curation moved it away, bind the snapshot at the end.
         // Its wording must not quietly change under a promise to come back.
-        if let ribbon = vault.data.savedPageRibbon {
+        for ribbon in vault.data.ribbons {
             let markedSurface = ribbon.surfaceForFolio
             if let index = result.firstIndex(where: {
                 pagesRisingDocumentID(for: $0) == ribbon.documentID
@@ -1652,10 +1651,14 @@ struct ContentView: View {
         )
     }
 
+    /// Tucks one of the ribbon's three strands into this Page. With all three
+    /// in use, `movingStrand` says which to move; without it nothing moves and
+    /// the reader is told to choose (from the ribbon's menu).
     func placePagesRisingRibbon(
         on surface: SurfacePage,
         documentID: String,
-        textOffset: Int
+        textOffset: Int,
+        movingStrand: Int? = nil
     ) {
         let title = surface.payload.metadata["playfulMissionTitle"]?.nonEmpty
             ?? surface.prompt.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
@@ -1668,18 +1671,47 @@ struct ContentView: View {
             title: String(title.prefix(96)),
             savedAt: Date()
         )
-        vault.mutate { $0.savedPageRibbon = ribbon }
+        let before = vault.data.ribbons
+        guard let after = BookRibbons.tucking(ribbon, into: before, movingStrand: movingStrand) else {
+            BookFeedback.play(.tap)
+            statusMessage = "All three ribbons are holding something. Tap the ribbon to choose which one moves."
+            return
+        }
+        let moved = movingStrand.flatMap { strand in before.first { ($0.strand ?? 0) == strand } }
+        // A ribbon laid in a Page that's already going grey saves it.
+        var threats = vault.data.greyPageThreats ?? .empty
+        var rescued = threats.threats.first { $0.isActive && $0.pageID == ribbon.protectedPageID }
+        if let active = rescued {
+            GreyPageThreatEngine.resolve(threatID: active.id, rescued: true, line: "A ribbon held it.", in: &threats)
+            GreyKnock.cancel(threatID: active.id)
+        } else if GreyPageThreatEngine.reink(pageID: ribbon.protectedPageID, line: "A ribbon brought it back.", in: &threats) {
+            // A Page that had gone out of the Book's memory comes back under a ribbon.
+            rescued = threats.threats.last { $0.pageID == ribbon.protectedPageID }
+        }
+        vault.mutate {
+            $0.ribbons = after
+            if rescued != nil { $0.greyPageThreats = threats }
+        }
         vault.save()
         BookFeedback.play(.select)
-        statusMessage = "Ribbon tucked. Tap its tail to come back to “\(ribbon.title)” — press and hold it to let go."
+        if rescued != nil {
+            statusMessage = "Just in time. The grey's going out of “\(ribbon.title)”, and the ribbon's got it."
+        } else if let moved, moved.documentID != documentID {
+            statusMessage = "I let go of “\(moved.title)”. The weather can have it now. This one's held."
+        } else {
+            let free = BookRibbons.strandCount - after.count
+            statusMessage = "Ribbon tucked into “\(ribbon.title)”. The Curse can't drink ink under a ribbon. "
+                + (free == 0 ? "That's all three." : "\(free) left.")
+        }
     }
 
-    func liftPagesRisingRibbon() {
-        guard vault.data.savedPageRibbon != nil else { return }
-        vault.mutate { $0.savedPageRibbon = nil }
+    func liftPagesRisingRibbon(documentID: String) {
+        let before = vault.data.ribbons
+        guard let lifted = before.first(where: { $0.documentID == documentID }) else { return }
+        vault.mutate { $0.ribbons = BookRibbons.lifting(documentID: documentID, from: before) }
         vault.save()
         BookFeedback.play(.tap)
-        statusMessage = "Ribbon lifted. The Page is loose again."
+        statusMessage = "Ribbon lifted from “\(lifted.title)”. It's loose in the weather again."
     }
 
     func pagesRisingDocumentID(for surface: SurfacePage) -> String {
@@ -1772,7 +1804,6 @@ struct ContentView: View {
             BookEvergreenPlayReserve.pages(
                 now: surfaceRefreshDate,
                 generation: generation * 10 + tier,
-                keptPageCount: keptPageCount,
                 history: served,
                 variantsPerCatalogue: variants,
                 restsFixedSeeds: restsFixedSeeds
@@ -1922,8 +1953,8 @@ struct ContentView: View {
     func dismissPagesRisingSurface(_ surface: SurfacePage) {
         let documentID = pagesRisingDocumentID(for: surface)
         endLeafControlParents.removeValue(forKey: documentID)
-        if vault.data.savedPageRibbon?.documentID == documentID {
-            liftPagesRisingRibbon()
+        if vault.data.ribbons.contains(where: { $0.documentID == documentID }) {
+            liftPagesRisingRibbon(documentID: documentID)
         }
         if isPagesRisingEphemeraSurface(surface) {
             pagesRisingDismissedPersistentDocumentIDs.insert(documentID)
@@ -2268,6 +2299,17 @@ struct ContentView: View {
                     withAnimation(BookMotion.retreat(callbacks.view.reduceMotion)) {
                         callbacks.view.isStoryOnboardingPaused = true
                     }
+                },
+                localBrain: OnboardingLocalBrainStatus(
+                    canInstall: callbacks.view.modelReport.state != .unavailable,
+                    isReady: callbacks.view.modelReport.state == .ready,
+                    isFetching: callbacks.view.isInstallingModel,
+                    progress: callbacks.view.installProgress,
+                    message: callbacks.view.installMessage,
+                    downloadLabel: LocalModelManager.preferredModel.approximateDownloadLabel
+                ),
+                onFetchBrain: { allowsCellular in
+                    Task { await callbacks.view.installModel(allowsCellular: allowsCellular) }
                 }
             ) { result in
                 callbacks.view.isStoryOnboardingPaused = false
@@ -2706,6 +2748,8 @@ struct ContentView: View {
                 callbacks.view.handlePendingWidgetDeepLink()
                 callbacks.view.handlePendingSiriCommand()
                 callbacks.view.handlePendingPromptWhisperOpen()
+                callbacks.view.handlePendingKnockOpen()
+                callbacks.view.handlePendingGreyKnockOpen()
                 callbacks.view.scheduleBookTodayAfterLaunchIfNeeded()
                 await callbacks.view.runPostLaunchTasksIfNeeded()
             }
@@ -2869,12 +2913,15 @@ struct ContentView: View {
                         callbacks.view.handlePendingWidgetDeepLink()
                         callbacks.view.handlePendingSiriCommand()
                         callbacks.view.handlePendingPromptWhisperOpen()
+                        callbacks.view.handlePendingKnockOpen()
+                        callbacks.view.handlePendingGreyKnockOpen()
                         callbacks.view.scheduleIdleLocationRefreshIfNeeded(
                             trigger: .foreground(backgroundedFor: backgroundedFor)
                         )
                         // Time may have crossed one or more day boundaries while
                         // iOS held the app. Record today and walk the gap.
                         callbacks.view.tickDaybook()
+                        callbacks.view.resumeLocalBrainInstallIfWanted()
                     }
                     return
                 }
@@ -2928,6 +2975,8 @@ struct ContentView: View {
                 callbacks.view.handlePendingWidgetDeepLink()
                 callbacks.view.handlePendingSiriCommand()
                 callbacks.view.handlePendingPromptWhisperOpen()
+                callbacks.view.handlePendingKnockOpen()
+                callbacks.view.handlePendingGreyKnockOpen()
                 callbacks.view.writeWidgetSnapshot()
             }
             .onChange(of: callbacks.view.isOpeningMovieVisible) { _, visible in
@@ -2975,6 +3024,12 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .promptWhisperOpenReceived)) { _ in
                 callbacks.view.handlePendingPromptWhisperOpen()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .knockOpenReceived)) { _ in
+                callbacks.view.handlePendingKnockOpen()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .greyKnockOpenReceived)) { _ in
+                callbacks.view.handlePendingGreyKnockOpen()
             }
             .onReceive(NotificationCenter.default.publisher(for: .storeKitEntitlementsChanged)) { _ in
                 // Withdraw live offers immediately, even if file cleanup is offline.
@@ -3289,6 +3344,13 @@ struct ContentView: View {
             .sheet(isPresented: callbacks.view.$isPlainPagePresented) {
                 PlainPageSheet(autoRecord: callbacks.view.plainPageAutoRecord) { text, media in
                     callbacks.view.keepPlainPage(text: text, media: media)
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(item: callbacks.view.$pendingKnock) { knock in
+                KnockAnswerSheet(knock: knock) { answer, sentence in
+                    callbacks.view.answerKnock(knock, answer: answer, sentence: sentence)
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
@@ -3935,6 +3997,12 @@ struct ContentView: View {
         let payload = await Task.detached(priority: .utility) { () -> LaunchHydrationPayload in
             let database = BookDatabase.detachedDatabase()
             let initialDays = database.loadDays(migratingFrom: BookStore.loadDays())
+            // The first tendTales after launch tags every recent Page's nouns
+            // with a fresh NLTagger on the main thread, freezing the Pixie
+            // mid-flight. Fill that per-Page cache here, beside the launch.
+            Task.detached(priority: .utility) {
+                _ = TaleGrammar.witnesses(events: [], days: initialDays)
+            }
             let resurfacingCandidates = (try? database.resurfacingCandidates(before: Date(), limit: 64)) ?? []
             let events = (try? database.narrativeEvents(limit: 160)) ?? []
             let memories = NarrativeEntityMemoryConsolidator.consolidate(
@@ -3972,6 +4040,17 @@ struct ContentView: View {
         customCastMembers = payload.customCastMembers
         facultyEntries = payload.facultyEntries
         modelReport = payload.modelReport
+        if LocalBrainInstallIntent.isWanted, payload.modelReport.state == .missing {
+            // Waits out the opening. Recreating the background session first
+            // lets iOS hand back whatever the download did while the app was
+            // gone, so the pick-up finds it instead of starting over.
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(6))
+                LocalModelFileDownloader.reconnectIfNeeded(identifier: LocalModelFileDownloader.sessionIdentifier)
+                try? await Task.sleep(for: .seconds(2))
+                resumeLocalBrainInstallIfWanted()
+            }
+        }
         // Resolve one-time Pages before the first curator can resurrect them.
         let learningEvents = vault.data.readerLearning?.events ?? []
         let recoveredGuidance = FirstRunPageSequence.recordingResolvedGuidance(
@@ -4041,7 +4120,7 @@ struct ContentView: View {
             curatedSurfaceBench = []
             didPrepareLaunchDesk = true
             isLaunchDeskCurating = true
-            isLaunchFrontMatterReady = false
+            launchFrontMatter = LaunchFrontMatterProgress()
         }
     }
 
@@ -4065,6 +4144,11 @@ struct ContentView: View {
         DispatchQueue.main.async {
             refreshBookInterior(now: interiorRefreshDate)
         }
+        // Applying the archive and snapshotting it for the curator are each a
+        // large main-thread piece; back to back they froze the cover's hold
+        // for one half-second frame. Let the cover breathe between them.
+        await letAFrameThrough()
+        guard !Task.isCancelled else { return }
 
         surfaceBuildToken &+= 1
         let token = surfaceBuildToken
@@ -4073,9 +4157,16 @@ struct ContentView: View {
             surfaceLimit: BookDeskRound.candidateBenchCapacity
         )
         AppMemoryLedger.record("launch-quick-curation-start")
+        // Capture the binding, not the view: a closure holding `self` copies
+        // all of ContentView onto the launch frame's stack.
+        let frontMatter = $launchFrontMatter
+        let foundationRead: @MainActor @Sendable () -> Void = {
+            if frontMatter.wrappedValue.stage == .reading { frontMatter.wrappedValue.stage = .choosing }
+        }
         let stage = await ContentView.computeQuickSurfaceBuild(
             request,
-            priority: .userInitiated
+            priority: .userInitiated,
+            onFoundation: foundationRead
         )
         guard !Task.isCancelled, token == surfaceBuildToken else { return }
 
@@ -4083,15 +4174,24 @@ struct ContentView: View {
         curatedSurfaceBench = stage.result.surfaces
 
         withAnimation(.easeOut(duration: 0.22)) {
-            isLaunchFrontMatterReady = true
+            launchFrontMatter.stage = .found
+            launchFrontMatter.foundAt = Date()
         }
+        LaunchBeat.mark("title-found")
         // A fast curator must not swap the title leaf for the physical Book
         // while the monthly-cover flourish still hides it. Keep the front matter
-        // visible for one clear beat after the cover has completely yielded.
+        // visible for one clear beat after the cover has completely yielded,
+        // and never take the leaf while the Book is still writing its title.
         await waitForOpeningMovieToFinish()
-        try? await Task.sleep(for: .milliseconds(reduceMotion ? 120 : 360))
+        let beat: TimeInterval = reduceMotion ? 0.12 : 0.36
+        // Finished writing, then a breath, then the Book.
+        let writingHold = reduceMotion ? 0 : launchFrontMatter.remainingWritingHold() + 0.3
+        try? await Task.sleep(for: .seconds(max(beat, writingHold)))
         guard !Task.isCancelled, token == surfaceBuildToken else { return }
 
+        // The first leaf takes ink once the Book has risen and the title leaf
+        // has gone, not while both are still moving.
+        BookLeafInkClock.hold(until: Date().addingTimeInterval(reduceMotion ? 0 : 0.4))
         withAnimation(.easeOut(duration: 0.32)) {
             surfacedPages = BookCurator.readingArc(
                 Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity))
@@ -4099,11 +4199,14 @@ struct ContentView: View {
             deskRound.begin(with: surfacedPages)
             isLaunchDeskCurating = false
         }
+        LaunchBeat.mark("book-rising")
+        settleDeskAfterBookRises()
         // Record the published folio, not the quick bench before its leaves
         // exist. A receipt written first can make enrichment retire an authored
         // scene that the reader has not yet had a chance to meet.
         recordServedSurfaces(surfacedPages)
         AppMemoryLedger.record("launch-quick-curation-published")
+        let bookRoseAt = Date().addingTimeInterval(-0.5)
 
         let launchDays = days
         Task { @MainActor in
@@ -4126,22 +4229,41 @@ struct ContentView: View {
                 foundation: stage.foundation
             )
             guard !Task.isCancelled, token == surfaceBuildToken else { return }
+            // Rebinding the folio is a main-thread build; not under wet ink
+            // or Book Today's rise.
+            await waitForLaunchArrivalsToSettle(bookRoseAt: bookRoseAt)
+            guard !Task.isCancelled, token == surfaceBuildToken else { return }
             applySurfaceBuildMetadata(result)
             curatedSurfaceBench = result.surfaces
-            let enrichedDesk = BookCurator.stabilizedDeskOrder(
+            // A leaf the reader has met stays exactly as met: seen, opened,
+            // passed, or carrying ink. The richer result upgrades only leaves
+            // still ahead of them; everything else is the refill bench.
+            let sighted = DeskLeafSightings.shared.snapshot
+            let frozenIDs = Set(surfacedPages.filter { page in
+                let documentID = pagesRisingDocumentID(for: page)
+                let answered: Bool = deskRound.resolutions[page.deskSlotKey].map { $0 != .waiting } ?? false
+                return answered
+                    || sighted.contains(page.id)
+                    || page.id == selectedSurface?.id
+                    || pagesRisingGenerationParentDocumentIDs.contains(documentID)
+                    || pagesRisingFolioInsertions.contains { $0.parentDocumentID == documentID }
+            }.map(\.id))
+            let enrichedDesk = BookCurator.upgradingUnseenLeaves(
                 previous: surfacedPages,
                 rebuilt: result.surfaces,
+                frozenIDs: frozenIDs,
                 limit: BookDeskRound.reserveCapacity
             )
-            // Enrichment may tuck an earned Page into a wholly untouched
-            // launch window. Once the reader has acted, the encounter stays
-            // exactly as met and the richer result becomes its refill bench.
-            guard !deskRound.isTouched else {
+            guard enrichedDesk != surfacedPages else {
                 AppMemoryLedger.record("launch-enriched-curation-benched")
                 return
             }
             surfacedPages = enrichedDesk
-            deskRound.reconcileUntouched(with: enrichedDesk)
+            if deskRound.isTouched {
+                deskRound.reconcilePublished(with: enrichedDesk)
+            } else {
+                deskRound.reconcileUntouched(with: enrichedDesk)
+            }
             recordServedSurfaces(Array(surfacedPages.prefix(BookDeskRound.reserveCapacity)))
             AppMemoryLedger.record("launch-enriched-curation-published")
         }
@@ -4194,13 +4316,32 @@ struct ContentView: View {
         withAnimation(.easeInOut(duration: 0.28)) {
             isOpeningMovieVisible = false
         }
+        // The cover has opened onto the title leaf. If the Pages are still
+        // being chosen the Book writes the leaf now; if they are already
+        // found there is no wait to fill, so the leaf is simply there.
+        if isLaunchDeskCurating, launchFrontMatter.ink == .waiting {
+            // The first stroke waits for the cover's 0.28s fade to finish.
+            launchFrontMatter.ink = launchFrontMatter.stage == .found
+                ? .settled
+                : .writing(since: Date().addingTimeInterval(reduceMotion ? 0 : 0.28))
+        }
+        LaunchBeat.mark(isLaunchDeskCurating ? "title-leaf" : "book-rising")
+        // Under a title leaf the Book has not risen yet; the curator settles
+        // the desk when it does, so "found your place" is heard over the Book.
+        if !isLaunchDeskCurating {
+            settleDeskAfterBookRises()
+        }
+    }
 
-        // Let the physical Book finish rising before ambient motion resumes.
-        // Book Today is the welcome; no separate greeting should cover it.
+    /// Let the physical Book finish rising before ambient motion resumes.
+    /// Book Today is the welcome; no separate greeting should cover it.
+    @MainActor
+    func settleDeskAfterBookRises() {
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(360))
             guard !isOpeningMovieVisible else { return }
             isLaunchAmbientMotionPaused = false
+            LaunchBeat.mark("ambient-resumed")
             // "Found your place": the desk has fallen quiet enough to hear a settling two-note step.
             BookSoundBank.overture(.settle)
 
@@ -4227,11 +4368,19 @@ struct ContentView: View {
               !isGlowMenuPresented else { return }
 
         didScheduleBookTodayThisLaunch = true
+        let bookRoseAt = Date().addingTimeInterval(-0.5)
         Task { @MainActor in
-            // The physical Book rises for 0.32 seconds, then gets a full quiet
-            // beat on the desk before Today comes forward. Reduce Motion keeps
-            // the recognition beat without making the reader wait as long.
-            try? await Task.sleep(for: .milliseconds(reduceMotion ? 1_000 : 1_750))
+            // The physical Book rises for 0.32 seconds and its first leaf takes
+            // ink. Today comes forward once that ink is dry, after a breath:
+            // sliding up over wet ink made the ink stutter under the sheet's
+            // first build. Reduce Motion keeps the recognition beat only.
+            if reduceMotion {
+                try? await Task.sleep(for: .milliseconds(1_000))
+            } else {
+                try? await Task.sleep(for: .milliseconds(900))
+                await BookLeafInkClock.waitUntilDry(since: bookRoseAt)
+                try? await Task.sleep(for: .milliseconds(350))
+            }
             guard !Task.isCancelled,
                   !isOpeningMovieVisible,
                   didCompleteStoryOnboarding,
@@ -4287,6 +4436,34 @@ struct ContentView: View {
         surfaceRefreshDate = Date()
     }
 
+    /// The arrivals after the Book rises: its first leaf's ink, then Book
+    /// Today sliding up, gating and building. Heavy main-thread work waits
+    /// for all of them, so none of them stutters. Bounded, never a hang.
+    @MainActor
+    func waitForLaunchArrivalsToSettle(bookRoseAt: Date) async {
+        if !reduceMotion {
+            await BookLeafInkClock.waitUntilDry(since: bookRoseAt)
+        }
+        if didScheduleBookTodayThisLaunch {
+            let deadline = Date().addingTimeInterval(4)
+            while activeBookDivision != .bookToday, Date() < deadline, !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            // The sheet's rise, its 480ms gate, its first build and crossfade.
+            if activeBookDivision == .bookToday {
+                try? await Task.sleep(for: .milliseconds(1_200))
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(200))
+    }
+
+    /// One display frame for whatever is animating, between pieces of main-
+    /// thread work that would otherwise run as a single long stall.
+    @MainActor
+    func letAFrameThrough() async {
+        try? await Task.sleep(for: .milliseconds(16))
+    }
+
     @MainActor
     func waitForOpeningMovieToFinish() async {
         while isOpeningMovieVisible && !Task.isCancelled {
@@ -4303,9 +4480,9 @@ struct ContentView: View {
         // noncritical follow-up until the prepared desk has been revealed.
         await waitForOpeningMovieToFinish()
         guard !Task.isCancelled, !didRunPostLaunchTasks else { return }
-        // Leave the final fade and first reading surface a clean runway before
-        // the remaining launch chores begin.
-        try? await Task.sleep(for: .milliseconds(900))
+        // Leave the first leaf's ink and Book Today's rise a clean runway
+        // before the remaining launch chores begin.
+        await waitForLaunchArrivalsToSettle(bookRoseAt: Date().addingTimeInterval(-0.5))
 
         didRunPostLaunchTasks = true
         AppMemoryLedger.record("app-launch-idle")
@@ -4324,6 +4501,7 @@ struct ContentView: View {
         ensurePublicationEpochIfNeeded()
         runBeliefEconomyDailyTick()
         runCastAgencyTurnIfNeeded()
+        LaunchBeat.event("economy+cast")
         // Cheap and idempotent: it does nothing on every day but the handful a
         // year when a Bound Year season has closed and been paid for.
         await reconcileBoundYearForDispatchIfNeeded()
@@ -4332,6 +4510,7 @@ struct ContentView: View {
         await postWelcomeWeeklyIfDue()
         tendBookJump()
         restoreRadioIfNeeded()
+        LaunchBeat.event("jump+radio")
         if generation.preparedStoryPageSurface == nil,
            let overnight = OvernightScribe.adoptDraft() {
             generation.preparedStoryPageSurface = overnight
@@ -4405,17 +4584,36 @@ struct ContentView: View {
         }
         await tendBookWorkings()
         if didCompleteStoryOnboarding { refreshBookWhispers() }
+        LaunchBeat.event("workings+whispers")
         PackEntitlements.ownedPackIDs = Set(vault.data.ownedPacks ?? [])
         tendWorldEventLifecycle()
         refreshMonthlyIssueDelivery()
+        // Each tend can read the whole archive. Run back to back they froze
+        // the first leaf's ink and Book Today's rise for a few hundred ms, so
+        // one frame is let through between them. The order is unchanged.
         tendArc()
+        LaunchBeat.event("tendArc")
+        await letAFrameThrough()
         tendTales()
+        LaunchBeat.event("tendTales")
+        await letAFrameThrough()
         tendRole()
+        LaunchBeat.event("tendRole")
+        await letAFrameThrough()
         tendAlmanac()
+        LaunchBeat.event("tendAlmanac")
+        await letAFrameThrough()
         tendFae()
+        LaunchBeat.event("tendFae")
+        await letAFrameThrough()
         tendGreyPageThreats()
+        LaunchBeat.event("tendGreyPageThreats")
+        await letAFrameThrough()
         tendPact()
+        LaunchBeat.event("tendPact")
+        await letAFrameThrough()
         tendConstellations()
+        LaunchBeat.event("tendConstellations")
         nearbyPlaces = LocalPlacesScout.cachedPlaces()
         await runLaunchSmokeTestIfRequested()
 
@@ -5086,6 +5284,7 @@ struct ContentView: View {
         // real-world reading is due, refresh it in a separate idle task; the
         // current desk remains responsive and the next build receives it.
         scheduleIdleLocationRefreshIfNeeded(trigger: .curation)
+        LaunchBeat.event("desk-rebuild-start")
         refreshBookInterior(now: surfaceRefreshDate)
 
         // Snapshot the inputs on the main actor (cheap value copies), then run the
@@ -5100,6 +5299,7 @@ struct ContentView: View {
             now: now,
             surfaceLimit: BookDeskRound.candidateBenchCapacity
         )
+        LaunchBeat.event("desk-rebuild-snapshotted")
 
         surfaceRebuildTask = Task {
             defer {
@@ -5112,6 +5312,7 @@ struct ContentView: View {
             // the bench behind it is being replenished.
             await KeepReplyStage.waitForQuiet()
             guard !Task.isCancelled, token == surfaceBuildToken else { return }
+            LaunchBeat.event("desk-rebuild-applied")
             applySurfaceBuildMetadata(result)
             curatedSurfaceBench = result.surfaces
             let previousTopID = surfacedPages.first?.id
@@ -5157,7 +5358,10 @@ struct ContentView: View {
                     let refreshedBySlot = result.surfaces.reduce(into: [String: SurfacePage]()) {
                         if $0[$1.deskSlotKey] == nil { $0[$1.deskSlotKey] = $1 }
                     }
+                    let sighted = DeskLeafSightings.shared.snapshot
                     surfacedPages = surfacedPages.map { current in
+                        // A leaf the reader has met keeps the words they met.
+                        guard !sighted.contains(current.id) else { return current }
                         let documentID = pagesRisingDocumentID(for: current)
                         let isCallingGeneratedInk = pagesRisingGenerationParentDocumentIDs.contains(documentID)
                             || pagesRisingFolioInsertions.contains {
@@ -5457,12 +5661,18 @@ struct ContentView: View {
     /// Launch computes the shared narrative/quiet-day foundation once. The
     /// cheap curator can publish immediately, and the enriched continuation
     /// reuses that exact foundation instead of repeating all of the setup work.
+    /// `onFoundation` is told, without the curator waiting on it, when the
+    /// archive has been read and choosing begins; the title leaf writes it.
     nonisolated static func computeQuickSurfaceBuild(
         _ request: SurfaceBuildRequest,
-        priority: TaskPriority = .userInitiated
+        priority: TaskPriority = .userInitiated,
+        onFoundation: (@MainActor @Sendable () -> Void)? = nil
     ) async -> StagedSurfaceBuild {
         await cancellableSurfaceWork(priority: priority) {
             let foundation = makeSurfaceBuildFoundation(request)
+            if let onFoundation {
+                Task { @MainActor in onFoundation() }
+            }
             return StagedSurfaceBuild(
                 foundation: foundation,
                 result: makeSurfaceBuildResult(
@@ -5751,7 +5961,6 @@ struct ContentView: View {
             surfaces = BookEvergreenPlayReserve.pages(
                 now: request.now,
                 generation: request.preferences.dismissedSurfaceIDs.count,
-                keptPageCount: request.inputs.keptPageCount,
                 history: request.inputs.surfaceHistory
             )
         }
@@ -5917,7 +6126,6 @@ struct ContentView: View {
             let evergreen = BookEvergreenPlayReserve.pages(
                 now: now,
                 generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
-                keptPageCount: keptPageCount,
                 history: vault.data.surfaceHistory ?? [:]
             ).filter { page in
                 preferences.allows(page)
@@ -6033,7 +6241,6 @@ struct ContentView: View {
                 candidates.append(contentsOf: BookEvergreenPlayReserve.pages(
                     now: now,
                     generation: preferences.dismissedSurfaceIDs.count + pendingIDs.count,
-                    keptPageCount: keptPageCount,
                     history: vault.data.surfaceHistory ?? [:]
                 ).filter {
                     preferences.allows($0)
@@ -8168,6 +8375,52 @@ struct ContentView: View {
             : "I opened the prompt that tapped the glass."
     }
 
+    /// A Grey Knock tapped open goes straight to the fading Page.
+    func handlePendingGreyKnockOpen() {
+        guard didHydrateLaunchState,
+              let threatID = UserDefaults.standard.string(forKey: GreyKnock.openKey) else { return }
+        UserDefaults.standard.removeObject(forKey: GreyKnock.openKey)
+        guard let threat = (vault.data.greyPageThreats ?? .empty).threats.first(where: { $0.id == threatID && $0.isActive }) else {
+            statusMessage = "Too late, or already saved. Either way, the Page is safe in the Stacks."
+            return
+        }
+        selectedSurface = GreyPageThreatSourceAdapter.surface(for: threat, now: Date())
+    }
+
+    /// A Knock tapped open lands on its own sheet, not the ordinary desk. One
+    /// already answered (on the lock screen, or a second tap) is let go.
+    func handlePendingKnockOpen() {
+        guard didHydrateLaunchState, let request = KnockOpenStore.load() else { return }
+        KnockOpenStore.clear()
+        guard !(vault.data.attentionProbes ?? .empty).receipts.contains(where: { $0.id == request.id }) else { return }
+        pendingKnock = request
+    }
+
+    /// Answered in the app, a Knock keeps the whole moment, the way a keep
+    /// does: a fresh place, the body, the calendar, the nearby Anchor.
+    func answerKnock(_ request: KnockOpenRequest, answer: AttentionProbeAnswer, sentence: String?) {
+        let now = Date()
+        var ledger = vault.data.attentionProbes ?? .empty
+        ledger.record(
+            id: request.id,
+            scheduledAt: request.scheduledAt,
+            answeredAt: now,
+            answer: answer,
+            cycle: request.cycle,
+            sentence: sentence,
+            context: pageContextSnapshot(at: now)
+        )
+        vault.mutate { $0.attentionProbes = ledger }
+        vault.save()
+        pendingKnock = nil
+        BookFeedback.play(.select)
+        let score = ledger.score(on: now)
+        statusMessage = answer.countsForReader
+            ? "That one's yours. You \(score.reader), the Curse \(score.curse) today."
+            : "The Curse had that one. Saying so is how you get the next. You \(score.reader), the Curse \(score.curse) today."
+        refreshBookWhispers()
+    }
+
     func handlePendingSiriCommand() {
         guard didHydrateLaunchState,
               let command = ReEnchantedSiriCommandStore.load() else { return }
@@ -8287,8 +8540,6 @@ struct ContentView: View {
             if let type = BookPageType.legacyCompatible(rawValue: destination) {
                 if isContentPackLocked(type) {
                     selectedSurface = surfaces.first
-                } else if isMemoryPageLocked(type) {
-                    showMemoryPageLockedMessage(for: type)
                 } else {
                     selectedSurface = freshManualSurface(for: type)
                 }
@@ -8483,10 +8734,6 @@ struct ContentView: View {
         guard !Task.isCancelled else { return }
         pagesRisingSheetGenerationParent = nil
         if isContentPackLocked(type) { return }
-        if isMemoryPageLocked(type) {
-            showMemoryPageLockedMessage(for: type)
-            return
-        }
 
         // These are genuine rooms rather than CapturePageSheet Pages. Their
         // own presentation gates live on those existing sheet destinations.
@@ -9127,6 +9374,12 @@ struct ContentView: View {
             }
             if let senderName = noteSenderName(from: page) {
                 metadata["senderName"] = senderName
+            }
+        }
+        // The Inkbones Page replays from its kept reading.
+        if page.type == .gamePage, let stored = page.metadata, stored["gameID"]?.hasPrefix("inkbones") == true {
+            for key in ["gameID", "gameTitle", "inkbonesReading", "inkbonesSeed", "inkbonesVerdict", "inkbonesOriginPageID"] {
+                if let value = stored[key] { metadata[key] = value }
             }
         }
         if page.type == .theBleed {
@@ -10112,6 +10365,34 @@ struct ContentView: View {
             }
             .accessibilityElement(children: .combine)
 
+            // The fight against the Curse, from today's Knocks.
+            if let fight = edition.fight {
+                HStack(alignment: .top, spacing: 11) {
+                    Image(systemName: fight.curse > fight.reader ? "cloud.fog.fill" : "shield.lefthalf.filled")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(fight.curse > fight.reader ? AnyShapeStyle(MaterialInk.text.opacity(0.6)) : AnyShapeStyle(BookPalette.teal))
+                        .frame(width: 18, height: 20)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("AGAINST THE CURSE")
+                            .font(.system(size: 9, weight: .black, design: .serif))
+                            .tracking(0.9)
+                            .foregroundStyle(MaterialInk.gilt.opacity(0.80))
+                        Text(fight.line)
+                            .font(.system(.footnote, design: .serif, weight: .medium))
+                            .foregroundStyle(MaterialInk.text.opacity(0.82))
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let hourLine = fight.hourLine {
+                            Text(hourLine)
+                                .font(.system(.footnote, design: .serif).italic())
+                                .foregroundStyle(MaterialInk.text.opacity(0.72))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.vertical, 6)
+                .accessibilityElement(children: .combine)
+            }
+
             if !edition.beats.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(edition.beats.enumerated()), id: \.element.id) { index, beat in
@@ -10927,6 +11208,7 @@ struct ContentView: View {
             // The first reading surface rising out of the Book: its own flourish, not the everyday leaf.
             BookFeedback.play(.openPage, sound: false)
             BookSoundBank.todaySurfaces()
+            LaunchBeat.mark("book-today")
         } else {
             BookFeedback.play(.openPage)
         }
@@ -11005,7 +11287,7 @@ struct ContentView: View {
             if isLaunchDeskCurating {
                 LaunchFrontMatterView(
                     cover: pagesRisingMonthlyCover,
-                    isReady: isLaunchFrontMatterReady,
+                    progress: launchFrontMatter,
                     // This motion *is* the loading receipt. Do not inherit the
                     // launch ambient pause that deliberately stills the room
                     // behind the opening cover; only stop when the app sleeps.
@@ -11223,7 +11505,7 @@ struct ContentView: View {
             departureRequest: $folioDepartureRequest,
             canRequestWeather: !isRequestingWeather && workBlockingState.canRequestWeather,
             onSealChoice: { callbacks.view.selectJournalSealChoice($0) },
-            savedRibbon: vault.data.savedPageRibbon,
+            savedRibbons: vault.data.ribbons,
             showsGlow: shouldShowGlowPill,
             glowScore: beliefScore,
             isGlowRevealing: isGlowPillRevealing && !shouldPauseAmbientMotion,
@@ -11254,8 +11536,8 @@ struct ContentView: View {
                     callbacks.view.dismissPagesRisingSurface(surface)
                 }
             },
-            onPlaceRibbon: { callbacks.view.placePagesRisingRibbon(on: $0, documentID: $1, textOffset: $2) },
-            onLiftRibbon: { callbacks.view.liftPagesRisingRibbon() },
+            onPlaceRibbon: { callbacks.view.placePagesRisingRibbon(on: $0, documentID: $1, textOffset: $2, movingStrand: $3) },
+            onLiftRibbon: { callbacks.view.liftPagesRisingRibbon(documentID: $0) },
             onOpenGlow: { callbacks.view.openGlowFromBook() },
             onExploreDeeper: { callbacks.view.deepenPagesRising() },
             onPrepareDeeper: { callbacks.view.preparePagesRisingDeeperPull() },
@@ -11365,10 +11647,6 @@ struct ContentView: View {
                 await braidToday(intoPagesRisingAfter: surface)
             }
         case .open:
-            if isMemoryPageLocked(surface.type) {
-                showMemoryPageLockedMessage(for: surface.type)
-                return
-            }
             catchDeskRound(on: surface)
             recordMagicMomentInteraction(surface, status: .asked)
             if markFirstRunEngaged(surface) {
@@ -16239,30 +16517,92 @@ struct ContentView: View {
             selfFacts: inputs.selfFacts,
             now: now
         )
+        // A Fae long-memory gift, or one of the ribbon's three strands.
         let protectedPageIDs = Set(
             inputs.faeState.gifts
                 .filter { $0.effect == .longMemory && !$0.isCold }
                 .compactMap(\.boundSourceID)
-        )
+        ).union(vault.data.ribbons.map(\.protectedPageID))
         var ledger = vault.data.greyPageThreats ?? .empty
         let recentlyReopened = ledger.threats.contains { threat in
             guard let resolvedAt = threat.resolvedAt else { return false }
             return threat.status == .rescued
                 && now.timeIntervalSince(resolvedAt) < 60 * 86_400
         }
+        // The Curse's nightly throw (docs/the-knock-plan.md §7.2): once a
+        // night, from six in the evening, for a reader who's in the fight. The
+        // reader's edge from answered Knocks, sentences, rescues and ribbons is
+        // the number it has to beat. Never on a hard day.
+        // The eucatastrophe (docs/the-knock-plan.md §6): when the Knocks have
+        // gone rote, the Book stops knocking until the Reader knocks back.
+        var attention = vault.data.attentionProbes ?? .empty
+        let hushEvent = KnockHushEngine.tend(
+            &attention,
+            rote: familiarity.mayThreaten,
+            distressActive: distressActive,
+            pages: allPages,
+            now: now
+        )
+        if hushEvent != nil {
+            vault.mutate { $0.attentionProbes = attention }
+            vault.save()
+            refreshBookWhispers()
+        }
+        if var hush = attention.hush, let line = KnockHushEngine.line(for: hush, now: now) {
+            if hush.isQuiet(now: now) { hush.announcedAt = now } else { hush.turnAnnouncedAt = now }
+            attention.hush = hush
+            vault.mutate { $0.attentionProbes = attention }
+            vault.save()
+            statusMessage = line
+        }
+        let hushed = attention.hush?.isQuiet(now: now) ?? false
+        let throwID = "curse-\(today.id)"
+        let log = vault.data.inkbonesLog ?? []
+        let isNight = Calendar.current.component(.hour, from: now) >= 18
+        // A quiet Book doesn't fight; the Curse has nothing to throw against.
+        let inTheFight = !inputs.attentionProbes.receipts.isEmpty && !hushed
+        let curseThrowsTonight = isNight && inTheFight && !distressActive && !log.contains { $0.id == throwID }
+        let edge = InkbonesOdds.edge(knocks: inputs.attentionProbes, threats: ledger,
+                                     ribbonCount: vault.data.ribbons.count, now: now)
+        let curseRoll = InkbonesOdds.curseRoll(dayID: today.id)
+        let curseNeeds = InkbonesOdds.curseNeeds(edge: edge.total)
+        let curseTakes = curseThrowsTonight && curseRoll >= curseNeeds
         let changes = GreyPageThreatEngine.reconcile(
             ledger: &ledger,
             pages: allPages,
-            mayThreaten: familiarity.mayThreaten && !recentlyReopened,
+            mayThreaten: (familiarity.mayThreaten || curseTakes) && !recentlyReopened,
             distressActive: distressActive,
             protectedPageIDs: protectedPageIDs,
+            curseRoll: !familiarity.mayThreaten && curseTakes ? curseRoll : nil,
             now: now
         )
-        guard !changes.isEmpty else { return }
+        let markedByCurse = changes.compactMap { change -> GreyPageThreat? in
+            guard change.hasPrefix("marked:") else { return nil }
+            let id = String(change.dropFirst("marked:".count))
+            return ledger.threats.first { $0.id == id && $0.curseRoll != nil }
+        }.first
+        if curseThrowsTonight {
+            let record = InkbonesThrowRecord(
+                id: throwID, at: now, thrower: .curse, roll: curseRoll, target: curseNeeds,
+                subject: markedByCurse?.pageTitle ?? "",
+                outcome: markedByCurse == nil ? "missed" : "took"
+            )
+            vault.mutate { $0.inkbonesLog = InkbonesThrowRecord.appending(record, to: log) }
+        }
+        guard !changes.isEmpty else {
+            if curseThrowsTonight {
+                vault.save()
+                statusMessage = "The Curse threw a \(curseRoll) tonight and went home with nothing."
+            }
+            return
+        }
         vault.data.greyPageThreats = ledger
         vault.save()
         surfaceRefreshDate = now
-        if changes.contains(where: { $0.hasPrefix("erased:") }) {
+        if let markedByCurse {
+            statusMessage = "The Curse threw a \(curseRoll). “\(markedByCurse.pageTitle)” is going grey. One sentence saves it."
+            GreyKnock.offer(markedByCurse, now: now)
+        } else if changes.contains(where: { $0.hasPrefix("erased:") }) {
             statusMessage = "The Grey left a pale patch in me. The Page itself is still safe down in the Stacks."
         }
     }
@@ -17516,6 +17856,7 @@ struct ContentView: View {
         ) != nil else { return }
         vault.data.greyPageThreats = ledger
         vault.save()
+        GreyKnock.cancel(threatID: threatID)
         surfaceRefreshDate = now
         statusMessage = rescued
             ? "There. It opened again. The Page stays alive: for now."
@@ -18767,11 +19108,6 @@ struct ContentView: View {
         intoPagesRisingAfter folioParent: SurfacePage? = nil,
         presentUsing presentationOverride: ((SurfacePage) -> Void)? = nil
     ) async {
-        if isMemoryPageLocked(surface.type) {
-            showMemoryPageLockedMessage(for: surface.type)
-            return
-        }
-
         recordBookInteriorSurfaceOpened(surface)
 
         let generationParentDocumentID = folioParent.map { pagesRisingDocumentID(for: $0) }
@@ -20769,7 +21105,7 @@ struct ContentView: View {
                     ?? page.payload.metadata["authoredStorySceneID"]
                     ?? page.payload.metadata["worldEventBeatIDs"]
                     ?? "-"
-                return "candidate \(content) \(page.type.rawValue) mood=\(mood.allows(page)) memory=\(!BookMemoryGate.locks(page.type, keptPageCount: mood.keptPageCount)) novelty=\(CuratorNoveltyPolicy.allowsAutomaticSurface(page, history: mood.surfaceHistory, preferences: curatorSurfacePreferences(now: now), now: now))"
+                return "candidate \(content) \(page.type.rawValue) mood=\(mood.allows(page)) novelty=\(CuratorNoveltyPolicy.allowsAutomaticSurface(page, history: mood.surfaceHistory, preferences: curatorSurfacePreferences(now: now), now: now))"
             }
             let visibleRows = surfaces.map {
                 "visible \($0.payload.metadata[MonthlyIssuePageMetadata.contentID] ?? $0.id) directive=\($0.payload.metadata["bookCurationDirectiveID"] ?? "-") campaign=\($0.payload.metadata["bookCampaignID"] ?? "-") ask=\($0.spendsCuratorAskBudget) action=\($0.spendsCuratorActionBudget) job=\($0.deskJob.rawValue)"
@@ -21895,7 +22231,11 @@ struct ContentView: View {
             radioIsPlaying: radioManager.isPlaying,
             activeWorldEvents: inputs.resolvingWorldEvents(for: today, now: Date()).activeWorldEvents,
             bookInterior: inputs.bookInterior,
-            bookWorking: inputs.bookWorkings.current
+            bookWorking: inputs.bookWorkings.current,
+            curseFight: {
+                let score = inputs.attentionProbes.score(on: Date())
+                return ReEnchantedWidgetCurseFight(reader: score.reader, curse: score.curse)
+            }()
         )
     }
 
@@ -22304,23 +22644,25 @@ struct ContentView: View {
         }
     }
 
-    func installModel() async {
+    /// A button the reader presses on a page that names the size is their yes
+    /// to cellular too; the onboarding ask passes false when they'd rather wait
+    /// for Wi-Fi. Either way the yes is remembered, so an install that drops
+    /// picks itself up later (`resumeLocalBrainInstallIfWanted`).
+    func installModel(allowsCellular: Bool = true) async {
         guard !isInstallingModel else { return }
         isInstallingModel = true
         installMessage = "Fetching the brain. This is the long part."
         installProgress = nil
         appLog.info("Gemma install requested")
+        LocalBrainInstallIntent.record(allowsCellular: allowsCellular)
 
         let previousIdleTimerState = UIApplication.shared.isIdleTimerDisabled
         UIApplication.shared.isIdleTimerDisabled = true
-        let backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "Install Gemma") {
-            appLog.error("Gemma install background task expired")
-        }
+        let backgroundTime = LocalModelInstallBackgroundTime()
+        backgroundTime.begin()
         defer {
             UIApplication.shared.isIdleTimerDisabled = previousIdleTimerState
-            if backgroundTaskID != .invalid {
-                UIApplication.shared.endBackgroundTask(backgroundTaskID)
-            }
+            backgroundTime.end()
             isInstallingModel = false
             modelReport = LocalModelManager.report()
             // The ceremony step that was waiting on this is now finished, so
@@ -22336,11 +22678,15 @@ struct ContentView: View {
             appLog.info("Starting streaming Hugging Face download for \(modelID, privacy: .public)")
             let directory = LocalModelManager.modelDirectory(for: modelID)
             installMessage = "Clearing out the old brain to make room."
-            LocalModelManager.removeKnownLocalModels()
+            LocalModelManager.removeLocalModels(otherThan: modelID)
+            if !allowsCellular, await LocalBrainNetwork.isExpensive() {
+                installMessage = "I'm waiting for Wi-Fi. The second you're on it, I'll start."
+            }
             try await LocalModelStreamingInstaller.download(
                 modelID: modelID,
                 revision: model.revision,
-                to: directory
+                to: directory,
+                allowsExpensiveNetwork: allowsCellular
             ) { progress in
                 installProgress = progress.fraction
                 installMessage = BrainFeedingNarration.message(
@@ -22365,20 +22711,123 @@ struct ContentView: View {
             appLog.info("Gemma install completed at \(directory.path, privacy: .private)")
             installProgress = 1
             installMessage = "It passed. The brain's awake."
+            LocalBrainInstallIntent.clear()
             modelReport = LocalModelManager.report()
             surfaceRefreshDate = Date()
             rebuildSurfaceCache()
+        } catch let LocalModelInstallError.notEnoughRoom(neededBytes, availableBytes) {
+            appLog.error("Gemma install stopped: not enough room")
+            installProgress = nil
+            // Asking again on every return would only say the same thing.
+            LocalBrainInstallIntent.clear()
+            installMessage = String(
+                format: "My brain won't fit. It needs %.1f GB of room and this phone has %.1f GB spare. Clear some space and press the button, and we'll go again.",
+                Double(neededBytes) / 1_000_000_000,
+                Double(availableBytes) / 1_000_000_000
+            )
         } catch {
             appLog.error("Gemma install failed: \(error.localizedDescription, privacy: .private)")
             installProgress = nil
-            installMessage = isCheckingTheBrain
-                ? "The brain came, but it failed my test, so I haven't woken it. Press the button and we'll go again."
-                : "The brain didn't make it all the way here. Check your connection and press the button, and we'll go again."
+            var testNeededTheScreen = false
+            #if canImport(MLXLLM) && canImport(MLXVLM) && canImport(MLXLMCommon) && canImport(MLXLMTokenizers) && canImport(MLX) && !targetEnvironment(simulator)
+            if case LocalBrainGateError.inactive = error { testNeededTheScreen = true }
+            #endif
+            if isCheckingTheBrain, testNeededTheScreen {
+                // The files are all here; the test needs the screen. The kept
+                // yes runs it again the next time the Book is open.
+                installMessage = "It's here. I'll test it the next time you open me."
+            } else if isCheckingTheBrain {
+                // Every file matched its hash, so fetching again brings back
+                // the same bytes. Don't loop on it; the button is still there.
+                LocalBrainInstallIntent.clear()
+                installMessage = "The brain came, but it failed my test, so I haven't woken it. Press the button and we'll go again."
+            } else {
+                installMessage = "The brain didn't make it all the way here. I kept what came, so we'll carry on from there. Check your connection and press the button."
+            }
         }
         #else
         installProgress = nil
         installMessage = "The Hugging Face downloader isn't linked in this build."
         #endif
+    }
+
+    /// Picks up an install the reader already said yes to: after a relaunch,
+    /// and each time the Book comes back to the screen. Nothing starts here
+    /// that they didn't ask for.
+    @MainActor
+    func resumeLocalBrainInstallIfWanted() {
+        guard LocalBrainInstallIntent.isWanted,
+              !isInstallingModel,
+              modelReport.state == .missing else { return }
+        appLog.info("Resuming a Gemma install the reader already asked for")
+        Task { await installModel(allowsCellular: LocalBrainInstallIntent.allowsCellular) }
+    }
+}
+
+enum LocalModelInstallError: Error {
+    case notEnoughRoom(neededBytes: Int64, availableBytes: Int64)
+}
+
+/// The reader's yes to the brain, kept across launches. An install they asked
+/// for picks itself back up after a dropped connection or a relaunch instead
+/// of waiting for them to find the button again.
+enum LocalBrainInstallIntent {
+    private static let wantedKey = "localBrainInstallWanted"
+    private static let cellularKey = "localBrainInstallAllowsCellular"
+
+    static var isWanted: Bool { UserDefaults.standard.bool(forKey: wantedKey) }
+    static var allowsCellular: Bool { UserDefaults.standard.bool(forKey: cellularKey) }
+
+    static func record(allowsCellular: Bool) {
+        UserDefaults.standard.set(true, forKey: wantedKey)
+        UserDefaults.standard.set(allowsCellular, forKey: cellularKey)
+    }
+
+    static func clear() {
+        UserDefaults.standard.removeObject(forKey: wantedKey)
+        UserDefaults.standard.removeObject(forKey: cellularKey)
+    }
+}
+
+/// One reading of the route the phone is on. Cellular and personal hotspots
+/// both report as expensive, which is the line that matters for gigabytes.
+enum LocalBrainNetwork {
+    static func isExpensive() async -> Bool {
+        await withCheckedContinuation { continuation in
+            let monitor = NWPathMonitor()
+            let answered = OSAllocatedUnfairLock(initialState: false)
+            monitor.pathUpdateHandler = { path in
+                let isFirst = answered.withLock { done in
+                    defer { done = true }
+                    return !done
+                }
+                guard isFirst else { return }
+                monitor.cancel()
+                continuation.resume(returning: path.isExpensive)
+            }
+            monitor.start(queue: .global(qos: .utility))
+        }
+    }
+}
+
+/// iOS kills an app whose background time runs out with the task still open,
+/// so the expiry handler has to end it. The download itself carries on in the
+/// background session either way.
+@MainActor
+private final class LocalModelInstallBackgroundTime {
+    private var identifier: UIBackgroundTaskIdentifier = .invalid
+
+    func begin() {
+        identifier = UIApplication.shared.beginBackgroundTask(withName: "Install Gemma") { [weak self] in
+            appLog.error("Gemma install background task expired")
+            MainActor.assumeIsolated { self?.end() }
+        }
+    }
+
+    func end() {
+        guard identifier != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+        identifier = .invalid
     }
 }
 
@@ -22414,10 +22863,15 @@ private enum LocalModelStreamingInstaller {
         }
     }
 
+    /// Left free after the brain lands, so the phone (and the Book's own
+    /// archive) is never wedged against a full disk by it.
+    static let spareRoomBytes: Int64 = 512 * 1_024 * 1_024
+
     static func download(
         modelID: String,
         revision: String,
         to directory: URL,
+        allowsExpensiveNetwork: Bool,
         progressHandler: @MainActor @Sendable @escaping (LocalModelDownloadProgress) -> Void
     ) async throws {
         let files = try await filesToDownload(modelID: modelID, revision: revision)
@@ -22426,6 +22880,8 @@ private enum LocalModelStreamingInstaller {
         let fileManager = FileManager.default
 
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        removeStrayWeights(in: directory, keeping: files)
+        try requireRoom(for: files, in: directory)
 
         for file in files {
             try Task.checkCancellation()
@@ -22450,7 +22906,8 @@ private enum LocalModelStreamingInstaller {
             let startingBytes = completedBytes
             try await LocalModelFileDownloader.shared.download(
                 from: resolveURL(modelID: modelID, revision: revision, path: file.rfilename),
-                to: temporaryURL
+                to: temporaryURL,
+                allowsExpensiveNetwork: allowsExpensiveNetwork
             ) { bytesWritten, expectedBytes in
                 let fileBytes = expectedSize ?? expectedBytes
                 let downloadTotal = max(totalBytes - (expectedSize ?? 1) + fileBytes, 1)
@@ -22506,6 +22963,38 @@ private enum LocalModelStreamingInstaller {
     static func shouldInstall(path: String) -> Bool {
         let allowedSuffixes = [".safetensors", ".json", ".jinja", ".model", ".txt"]
         return allowedSuffixes.contains { path.hasSuffix($0) }
+    }
+
+    /// The folder survives retries and revision bumps now, so a weight shard
+    /// the new file list no longer names could linger beside the right ones,
+    /// and the loader reads every `.safetensors` file it finds.
+    static func removeStrayWeights(in directory: URL, keeping files: [Sibling]) {
+        let fileManager = FileManager.default
+        let wanted = Set(files.map(\.rfilename))
+        let names = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where name.hasSuffix(".safetensors") && !wanted.contains(name) {
+            try? fileManager.removeItem(at: directory.appendingPathComponent(name))
+        }
+    }
+
+    /// Checked before the first byte, so a full phone hears so now rather than
+    /// at eighty percent. Files already in place at the right size count as
+    /// landed; the hash check that follows catches any that only look it.
+    static func requireRoom(for files: [Sibling], in directory: URL) throws {
+        let neededBytes = files.reduce(Int64(0)) { total, file in
+            guard let size = file.size else { return total }
+            let landed = existingFileSize(at: directory.appendingPathComponent(file.rfilename)) == size
+            return landed ? total : total + size
+        }
+        guard neededBytes > 0,
+              let values = try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]),
+              let availableBytes = values.volumeAvailableCapacityForImportantUsage else { return }
+        guard availableBytes >= neededBytes + spareRoomBytes else {
+            throw LocalModelInstallError.notEnoughRoom(
+                neededBytes: neededBytes + spareRoomBytes,
+                availableBytes: availableBytes
+            )
+        }
     }
 
     static func existingFileSize(at url: URL) -> Int64? {
@@ -22578,10 +23067,54 @@ final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unc
     static let shared = LocalModelFileDownloader()
 
     private struct Job {
+        let url: URL
         let destination: URL
         let progressHandler: @Sendable (Int64, Int64) -> Void
         var continuation: CheckedContinuation<Void, Error>?
         var lastProgressReport = Date.distantPast
+    }
+
+    /// A download can outlive the call that asked for it: iOS keeps background
+    /// tasks running after the app is suspended or killed, and a file that
+    /// failed partway leaves resume data for the bytes it already had. Both
+    /// wait here, keyed by URL, for the next attempt to pick up.
+    private static var holdingDirectory: URL {
+        LocalModelManager.modelsDirectory.appendingPathComponent(".downloads", isDirectory: true)
+    }
+
+    private static func holdingURL(for url: URL, extension pathExtension: String) -> URL {
+        let key = SHA256.hash(data: Data(url.absoluteString.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return holdingDirectory.appendingPathComponent(key).appendingPathExtension(pathExtension)
+    }
+
+    private static func landedURL(for url: URL) -> URL { holdingURL(for: url, extension: "landed") }
+    private static func resumeDataURL(for url: URL) -> URL { holdingURL(for: url, extension: "resume") }
+
+    private static func hold(_ file: URL, at heldURL: URL) {
+        let fileManager = FileManager.default
+        try? fileManager.createDirectory(at: holdingDirectory, withIntermediateDirectories: true)
+        try? fileManager.removeItem(at: heldURL)
+        try? fileManager.moveItem(at: file, to: heldURL)
+    }
+
+    /// Moves a file that finished while nobody was waiting into place. The
+    /// caller still checks its size and hash before trusting it.
+    private static func claimLandedFile(for url: URL, to destination: URL) -> Bool {
+        let fileManager = FileManager.default
+        let landed = landedURL(for: url)
+        guard fileManager.fileExists(atPath: landed.path) else { return false }
+        try? fileManager.removeItem(at: destination)
+        guard (try? fileManager.moveItem(at: landed, to: destination)) != nil else { return false }
+        try? fileManager.removeItem(at: resumeDataURL(for: url))
+        return true
+    }
+
+    private static func takeResumeData(for url: URL) -> Data? {
+        let heldURL = resumeDataURL(for: url)
+        defer { try? FileManager.default.removeItem(at: heldURL) }
+        return try? Data(contentsOf: heldURL)
     }
 
     private let lock = NSLock()
@@ -22609,24 +23142,56 @@ final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unc
         _ = shared
     }
 
+    /// Picks up, in order: a file that already finished while the app was
+    /// away, a task for the same file still running from before a relaunch,
+    /// the bytes a failed attempt left behind, and only then a fresh fetch.
+    /// `allowsExpensiveNetwork` false holds a fresh fetch until Wi-Fi; a task
+    /// picked up keeps whatever its first request allowed.
     func download(
         from url: URL,
         to destination: URL,
+        allowsExpensiveNetwork: Bool,
         progressHandler: @escaping @Sendable (Int64, Int64) -> Void
     ) async throws {
+        if Self.claimLandedFile(for: url, to: destination) { return }
+        let runningTask = await session.allTasks.first { task in
+            task.originalRequest?.url == url && (task.state == .running || task.state == .suspended)
+        }
         try await withCheckedThrowingContinuation { continuation in
-            let task = session.downloadTask(with: url)
+            let task: URLSessionTask
+            if let runningTask {
+                task = runningTask
+            } else if let resumeData = Self.takeResumeData(for: url) {
+                task = session.downloadTask(withResumeData: resumeData)
+            } else {
+                var request = URLRequest(url: url)
+                request.allowsExpensiveNetworkAccess = allowsExpensiveNetwork
+                task = session.downloadTask(with: request)
+            }
             // Registered before `resume()`, so no delegate callback can arrive
             // for a task that does not have a job yet.
             lock.withLock {
                 jobs[task.taskIdentifier] = Job(
+                    url: url,
                     destination: destination,
                     progressHandler: progressHandler,
                     continuation: continuation
                 )
             }
+            // A task picked up from before a relaunch can finish between
+            // being found and being claimed; its file then waits in holding.
+            if task.state == .completed {
+                finishFromHolding(taskIdentifier: task.taskIdentifier)
+                return
+            }
             task.resume()
         }
+    }
+
+    private func finishFromHolding(taskIdentifier: Int) {
+        guard let job = lock.withLock({ jobs[taskIdentifier] }) else { return }
+        let claimed = Self.claimLandedFile(for: job.url, to: job.destination)
+        finish(taskIdentifier: taskIdentifier, result: claimed ? .success(()) : .failure(URLError(.networkConnectionLost)))
     }
 
     func urlSession(
@@ -22660,15 +23225,20 @@ final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unc
     ) {
         // The temporary file is deleted the moment this returns, so it has to
         // be moved here rather than by whoever is awaiting the download.
-        guard let destination = lock.withLock({ jobs[downloadTask.taskIdentifier]?.destination }) else {
+        let succeeded = (downloadTask.response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
+        guard let job = lock.withLock({ jobs[downloadTask.taskIdentifier] }) else {
+            // Nobody is waiting: the app was relaunched while this ran. Keep
+            // the file for the next attempt instead of letting it vanish.
+            if succeeded, let url = downloadTask.originalRequest?.url {
+                Self.hold(location, at: Self.landedURL(for: url))
+            }
             return
         }
         do {
-            guard let response = downloadTask.response as? HTTPURLResponse,
-                  (200..<300).contains(response.statusCode) else {
-                throw URLError(.badServerResponse)
-            }
-            try FileManager.default.moveItem(at: location, to: destination)
+            guard succeeded else { throw URLError(.badServerResponse) }
+            try? FileManager.default.removeItem(at: job.destination)
+            try FileManager.default.moveItem(at: location, to: job.destination)
+            try? FileManager.default.removeItem(at: Self.resumeDataURL(for: job.url))
             finish(taskIdentifier: downloadTask.taskIdentifier, result: .success(()))
         } catch {
             finish(taskIdentifier: downloadTask.taskIdentifier, result: .failure(error))
@@ -22681,7 +23251,22 @@ final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unc
         didCompleteWithError error: Error?
     ) {
         if let error {
+            // Whatever arrived before the connection dropped (or the reader
+            // swiped the app away) comes back as resume data. Kept, a retry
+            // starts from there rather than from the first byte.
+            if let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data,
+               let url = task.originalRequest?.url {
+                let scratch = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                if (try? resumeData.write(to: scratch)) != nil {
+                    Self.hold(scratch, at: Self.resumeDataURL(for: url))
+                }
+            }
             finish(taskIdentifier: task.taskIdentifier, result: .failure(error))
+        } else if lock.withLock({ jobs[task.taskIdentifier] != nil }) {
+            // It finished before its job was registered, so the file went to
+            // holding; collect it from there.
+            finishFromHolding(taskIdentifier: task.taskIdentifier)
         }
     }
 

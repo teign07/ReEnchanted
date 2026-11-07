@@ -117,6 +117,10 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
     case theDrawer
     case academyDesk
     case handwriting
+    case bookNotes
+    case academyNotes
+    case oddNotes
+    case wickerSigils
     case marginFolk
     case inklings
     case pressedAndGrown
@@ -136,7 +140,7 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
     /// The shelves a mark can permanently belong to. Ordered as they are shown:
     /// the ones with a voice first, materials and texture last.
     static let permanentShelves: [MarkShelf] = [
-        .academyDesk, .handwriting, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight, .shore,
+        .academyDesk, .handwriting, .bookNotes, .academyNotes, .oddNotes, .wickerSigils, .marginFolk, .inklings, .pressedAndGrown, .skyAndNight, .shore,
         .wayfinding, .creaturesAndCompany, .sealsAndLabels, .paper,
         .fastenings, .flourishes, .wear
     ]
@@ -152,6 +156,10 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         case .theDrawer: return "The Drawer"
         case .academyDesk: return "Academy Desk"
         case .handwriting: return "Handwriting"
+        case .bookNotes: return "Book Notes"
+        case .academyNotes: return "Academy Gossip"
+        case .oddNotes: return "Odd Scraps"
+        case .wickerSigils: return "Wicker’s Sigils"
         case .marginFolk: return "Margin Folk"
         case .inklings: return "Inklings"
         case .pressedAndGrown: return "Pressed & Grown"
@@ -175,6 +183,10 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         case .theDrawer: return "I tipped a drawer out. It's different tomorrow."
         case .academyDesk: return "Class scraps. The bell bit some of them."
         case .handwriting: return "Somebody wrote these by hand. Not always me."
+        case .bookNotes: return "A few things I wrote in the edges."
+        case .academyNotes: return "They've been writing about each other again."
+        case .oddNotes: return "I found these. I have questions."
+        case .wickerSigils: return "His pen won't leave the rules alone."
         case .marginFolk: return "The little people who live in my margins. Not shy."
         case .inklings: return "Small inked thoughts. They tend to have opinions."
         case .pressedAndGrown: return "Things that grew, then got flattened."
@@ -197,6 +209,10 @@ enum MarkShelf: String, Codable, CaseIterable, Identifiable {
         case .theDrawer: return "shippingbox"
         case .academyDesk: return "graduationcap"
         case .handwriting: return "hand.write"
+        case .bookNotes: return "text.book.closed"
+        case .academyNotes: return "text.bubble"
+        case .oddNotes: return "note.text"
+        case .wickerSigils: return "pencil.and.outline"
         case .marginFolk: return "theatermasks"
         case .inklings: return "drop"
         case .pressedAndGrown: return "leaf"
@@ -377,6 +393,7 @@ extension MarkShelf {
         // general hand to sixty-five marks. Their subject tags still route
         // them through the photo and folio compositors.
         if tags.contains("academy-tip") { return .academyDesk }
+        if tags.contains("wicker-sigil") { return .wickerSigils }
 
         // Handwriting outranks subject. An Academy note about the moon is
         // somebody's handwriting first and the moon second — the hand is the
@@ -850,7 +867,7 @@ enum CoreMarginsPack {
     static let pack = IlluminationAssetPack(
         id: id,
         displayName: "Core Margins Pack",
-        version: "1.0",
+        version: "1.1",
         author: "The Book",
         availability: .bundledFree,
         supportedTemplates: IlluminatedTemplateID.allCases,
@@ -904,7 +921,7 @@ enum CoreMarginsPack {
             asset("stamp_pawlogy", "MarginaliaStamp", .stamp, ["paw", "creature"]),
             asset("stamp_west_write", "MarginaliaCompass", .stamp, ["compass", "west"])
         ],
-        doodles: academyWarningAssets + academyNoteAssets + academyTipAssets + botanicalAssets + [
+        doodles: wickerSigilAssets + academyWarningAssets + academyNoteAssets + academyTipAssets + botanicalAssets + [
             themedAsset("marginalia_goblin_quill_standing", "MarginaliaGoblinQuillStanding", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quill", "ink", "writing", "standing"], 343, 345, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.02),
             themedAsset("marginalia_goblin_writing_crouched", "MarginaliaGoblinWritingCrouched", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "note", "ink", "writing", "crouched"], 289, 262, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
             themedAsset("marginalia_goblin_shushing", "MarginaliaGoblinShushing", .doodle, ["marginalia-goblin", "goblin", "marginalia", "academy", "character", "quiet", "secret", "warning"], 285, 340, .portrait, [.lowerField, .middleLeading, .middleTrailing], 1.00),
@@ -1910,6 +1927,23 @@ enum CoreMarginsPack {
         academyNoteAsset("academy_tip_permancer_exit", "AcademyTipPermancerExit", 416, 223, ["academy-tip", "book-jumping", "book-jumpers", "club", "permancer", "exit", "safety", "door", "vault-of-doors"]),
     ]
 
+    private static let wickerSigilAssets: [IlluminationAsset] = [
+        themedAsset("wicker_sigil_wrong_door", "WickerSigilWrongDoor", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "door", "key", "threshold", "possibility", "escape"], 356, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_hidden_hinge", "WickerSigilHiddenHinge", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "rule", "question", "doubt", "hinge", "change"], 536, 504, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_borrowed_certainty", "WickerSigilBorrowedCertainty", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "belief", "truth", "doubt", "illusion", "authority"], 536, 520, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_unbought", "WickerSigilUnbought", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "will", "choice", "self", "agency", "bargain"], 446, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_last_laugh", "WickerSigilLastLaugh", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "laughter", "mischief", "play", "dare", "wit"], 536, 278, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_unwritten_name", "WickerSigilUnwrittenName", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "name", "secret", "memory", "forgetting", "trace"], 499, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_thornwave", "WickerSigilThornwave", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "radio", "music", "static", "thornwave", "listening", "truth"], 536, 387, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_enough", "WickerSigilEnough", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "restraint", "care", "experiment", "mercy", "small", "choice"], 488, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_colour_stays", "WickerSigilColourStays", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "curse", "grey", "routine", "colour", "color", "protection", "resistance"], 536, 407, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_keep_my_name", "WickerSigilKeepMyName", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "curse", "grey", "name", "identity", "protection", "memory"], 335, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_way_back", "WickerSigilWayBack", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "curse", "grey", "return", "thread", "guidance", "protection", "home"], 536, 491, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_look_twice", "WickerSigilLookTwice", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "attention", "noticing", "look-again", "curiosity", "observation", "wonder"], 536, 518, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_small_living_thing", "WickerSigilSmallLivingThing", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "attention", "noticing", "alive", "small", "ordinary", "wonder", "life"], 469, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76),
+        themedAsset("wicker_sigil_awake_in_the_day", "WickerSigilAwakeInTheDay", .doodle, ["wicker-sigil", "chaos-sigil", "sigil", "wicker-eddies", "wicker", "duskthorn", "ink", "monogram", "awake", "awakening", "attention", "noticing", "day", "presence", "wonder"], 392, 536, .sigil, [.middleLeading, .middleTrailing, .upperTrailing, .lowerLeading], 0.76)
+    ]
+
     private static let academyWarningAssets: [IlluminationAsset] = [
         academyWarningAsset("academy_warning_beware_the_goblins", "AcademyWarningBewareTheGoblins", 320, 301, ["goblin", "danger", "beware"]),
         academyWarningAsset("academy_warning_dont_trust_momort", "AcademyWarningDontTrustMomort", 313, 223, ["momort", "trust", "danger"]),
@@ -2097,7 +2131,20 @@ struct IlluminationAssetResolver {
         let pool = !unused.isEmpty ? unused : (!otherUnused.isEmpty ? otherUnused : preferred)
 
         guard !pool.isEmpty else { return nil }
-        guard let seed else { return pool.first }
+        guard let seed else {
+            // A direct, unseeded request gets its closest subject match.
+            // Registration order must not let a broad new mark take the
+            // place of an explicitly named blue thread, warning, or flower.
+            // Seeded decoration keeps the nearby-match variety above.
+            func score(_ asset: IlluminationAsset) -> Int {
+                normalizedTags.intersection(Set(
+                    (asset.tags + (asset.leafTraits?.subjectTags ?? [])).map { $0.lowercased() }
+                )).count
+            }
+            return pool.dropFirst().reduce(pool[0]) { best, candidate in
+                score(candidate) > score(best) ? candidate : best
+            }
+        }
         let index = abs((seed &+ salt * 7919).stableScramble) % pool.count
         return pool[index]
     }
@@ -2664,7 +2711,9 @@ enum LeafDecorationLibrary {
             motifs += ["letter", "postage", "stamp"]
         case .bookOfYou, .bookConnections, .bookRemembered, .narrativeOS:
             motifs += ["memory", "thread", "archive"]
-        case .wickerDare, .gamePage:
+        case .wickerDare:
+            motifs += ["wicker", "wicker-eddies", "play", "field", "ordinary", "curiosity"]
+        case .gamePage:
             motifs += ["play", "field", "ordinary", "curiosity"]
         case .quotes, .affirmations, .rest:
             motifs += ["quiet", "botanical", "soft"]
@@ -2730,6 +2779,11 @@ enum LeafDecorationLibrary {
             (["blue thread"], ["blue-thread", "thread", "guidance"]),
             (["momort"], ["momort", "character"]),
             (["wicker"], ["wicker", "wicker-eddies", "character"]),
+            (["chaos sigil", "chaos sigils"], ["chaos-sigil", "sigil", "wicker", "wicker-eddies"]),
+            (["sigil", "sigils"], ["sigil", "chaos-sigil"]),
+            (["curse", "the grey", "the gray", "rut of routine"], ["curse", "grey", "routine"]),
+            (["awake", "awaken", "awakening"], ["awake", "awakening", "attention"]),
+            (["look twice", "look again", "noticing"], ["look-again", "noticing", "attention"]),
             (["new moon"], ["new-moon", "moon", "event"]),
             (["full moon"], ["full-moon", "moon", "dream"]),
             (["moonlight"], ["moonlight", "moon", "night", "path"]),
@@ -2913,6 +2967,9 @@ struct IlluminationMarginaliaSnippet: Identifiable, Codable, Equatable {
     var packID: String
     var weight: Double
     var placementTrigger: IlluminationPlacementTrigger? = nil
+    /// Browsing only. Text remains text when placed or exported.
+    var shelf: MarkShelf? = nil
+    var catalogueKey: String { "\(packID)|\(id)" }
 }
 
 enum IlluminationMarginaliaLibrary {
@@ -2965,7 +3022,62 @@ enum IlluminationMarginaliaLibrary {
         snippet("ink-argument", "The ink has other ideas.", tags: ["ink", "writing", "pen"]),
         snippet("night-pocket", "I put a little night here.", tags: ["night", "moon", "star"]),
         snippet("map-squabble", "The map and I disagree.", tags: ["map", "place", "compass"]),
-        snippet("water-saved", "Water got into the margins again.", tags: ["water", "harbor", "rain"])
+        snippet("water-saved", "Water got into the margins again.", tags: ["water", "harbor", "rain"]),
+
+        // Incidents from the Academy. Canonical tells supply the subject;
+        // these small fictional scraps reveal no reader history or plot ending.
+        snippet("mook-dictionary-chain", "Mook's dictionary is chained.\nA word got out.", tags: ["mook", "dictionary", "words", "ink"], shelf: .academyNotes),
+        snippet("pippa-question-lead", "Pippa let the question mark off its lead.", tags: ["pippa-pilcrow", "punctuation", "question", "creature"], shelf: .academyNotes),
+        snippet("penny-filed-hole", "Penny filed the hole.\nStill no page.", tags: ["penny-blackletter", "paper", "archive", "missing"], shelf: .academyNotes),
+        snippet("thorne-sentence-key", "The Headmistress's key fits a word.", tags: ["headmistress-thorne", "key", "sentence", "secret"], shelf: .academyNotes),
+        snippet("permancer-bookmark-return", "Permancer's back.\nHis bookmark isn't.", tags: ["permancer", "bookmark", "travel", "map"], shelf: .academyNotes),
+        snippet("inkrest-black-sand", "Dr. Inkrest's black sand fell upwards.", tags: ["inkrest", "sand", "time", "quiet"], shelf: .academyNotes),
+        snippet("wispwood-teacup-apology", "Wispwood's cup accepted her apology.", tags: ["wispwood", "tea", "cup", "home"], shelf: .academyNotes),
+        snippet("ambrose-old-cookbook", "Ambrose's oldest cookbook smells of somebody else.", tags: ["ambrose-trencher", "recipe", "kitchen", "memory"], shelf: .academyNotes),
+        snippet("euphony-cupboard-hum", "Euphony left a hum in the cupboard.", tags: ["euphony", "sound", "music", "home"], shelf: .academyNotes),
+        snippet("boggle-haunted-cup", "Boggle scrubbed.\nThe cup's still haunted.", tags: ["boggle", "cup", "kitchen", "home"], shelf: .academyNotes),
+        snippet("guild-detention-slip", "The Marginalia Guild amended its detention slip.", tags: ["marginalia-guild", "paper", "writing", "academy"], shelf: .academyNotes),
+        snippet("villanelle-perfect-moving", "Villanelle crossed out 'perfect'.\nIt was still moving.", tags: ["villanelle", "sentence", "writing", "ink"], shelf: .academyNotes),
+        snippet("momort-chalk-arrow", "Momort's arrow took the stairs.", tags: ["momort", "chalk", "arrow", "movement"], shelf: .academyNotes),
+        snippet("stonebrook-chair-roots", "Stonebrook's chair has roots.", tags: ["stonebrook", "roots", "wood", "rest"], shelf: .academyNotes),
+        snippet("wicker-wrong-key", "Wicker's key opened the wrong door perfectly.", tags: ["wicker-eddies", "key", "door", "mischief"], shelf: .academyNotes),
+        snippet("zara-loose-end", "Zara tied the loose end to her wrist.", tags: ["zara-finch", "thread", "ribbon", "care"], shelf: .academyNotes),
+        snippet("serenity-another-island", "Serenity's map has room for another island.", tags: ["serenity-brown", "map", "island", "water"], shelf: .academyNotes),
+        snippet("mook-pippa-final", "Mook: 'Final.'\nPippa: 'We'll see.'", tags: ["mook", "pippa-pilcrow", "writing", "words"], shelf: .academyNotes),
+
+        // Unsigned scraps: a trace of something the main text never explains.
+        snippet("two-absent-correctors", "Two people corrected this.\nNeither was here.", tags: ["correction", "writing", "absence"], shelf: .oddNotes),
+        snippet("ink-alibi", "The ink says it was already like that.", tags: ["ink", "writing", "mischief"], shelf: .oddNotes),
+        snippet("stain-crossed-out-name", "Somebody's crossed out the name of the stain.", tags: ["stain", "ink", "paper", "secret"], shelf: .oddNotes),
+        snippet("shrinking-handwriting", "The other hand gets smaller here.", tags: ["handwriting", "writing", "edge", "secret"], shelf: .oddNotes),
+        snippet("warm-found-page", "This page was warm when I found it.", tags: ["paper", "warm", "found"], shelf: .oddNotes),
+        snippet("hole-and-writing", "The hole goes through.\nThe words don't.", tags: ["paper", "hole", "writing", "edge"], shelf: .oddNotes),
+        snippet("last-seen-between-words", "Last seen between these two words.", tags: ["words", "missing", "sentence"], shelf: .oddNotes),
+        snippet("last-line-upstairs", "The last line's gone back upstairs.", tags: ["line", "writing", "room"], shelf: .oddNotes),
+        snippet("little-ladder", "A little ladder.\nNothing at the top. Yet.", tags: ["ladder", "height", "wood", "mystery"], shelf: .oddNotes),
+        snippet("pressed-shadow", "Someone pressed a shadow here.", tags: ["shadow", "pressed", "light", "paper"], shelf: .oddNotes),
+        snippet("reply-inside-letter", "The letter arrived folded inside its own reply.", tags: ["letter", "envelope", "fold", "reply"], shelf: .oddNotes),
+        snippet("rain-stopped-at-word", "The rain stopped at this word.", tags: ["rain", "weather", "water", "word"], shelf: .oddNotes),
+        snippet("return-footprint", "The footprint's smaller on the way back.", tags: ["footprint", "walk", "track", "path"], shelf: .oddNotes),
+        snippet("moth-ate-date", "The moth ate the date.", tags: ["moth", "night", "paper", "time"], shelf: .oddNotes),
+        snippet("comma-with-legs", "There was another comma here.\nIt had legs.", tags: ["comma", "punctuation", "creature", "ink"], shelf: .oddNotes),
+        snippet("winter-full-stop", "That full stop has been here all winter.", tags: ["punctuation", "winter", "time", "quiet"], shelf: .oddNotes),
+
+        // Private arguments and objects that have their own account of things.
+        snippet("ink-mouth-crumbs", "A small ink-mouth.\nStill full of crumbs.", tags: ["ink", "mouth", "crumb", "food"], shelf: .oddNotes),
+        snippet("kettle-said-it-first", "No, the kettle said it first.", tags: ["kettle", "tea", "sound", "kitchen"], shelf: .oddNotes),
+        snippet("spoon-denial", "The spoon denies everything.", tags: ["spoon", "kitchen", "food", "mischief"], shelf: .oddNotes),
+        snippet("final-draft-laughter", "He said 'final draft'.\nSomething laughed.", tags: ["writing", "draft", "sound", "mischief"], shelf: .oddNotes),
+        snippet("unclaimed-tea-ring", "Tea ring.\nNo cup has admitted to it.", tags: ["tea", "cup", "stain", "home"], shelf: .oddNotes),
+        snippet("lid-knocked", "I put the lid on.\nIt knocked.", tags: ["lid", "container", "sound", "home"], shelf: .oddNotes),
+        snippet("paper-sneeze", "Something under the paper just sneezed.", tags: ["paper", "sound", "creature"], shelf: .oddNotes),
+        snippet("biscuit-ownership", "Apology accepted.\nThe biscuit is still disputed.", tags: ["biscuit", "food", "tea", "argument"], shelf: .oddNotes),
+        snippet("chair-dust-place", "I moved the chair.\nThe dust kept its place.", tags: ["chair", "dust", "home", "room"], shelf: .oddNotes),
+        snippet("escaped-soup", "This is where the soup escaped.", tags: ["soup", "food", "kitchen", "stain"], shelf: .oddNotes),
+        snippet("ducking-underline", "I meant to underline that.\nIt ducked.", tags: ["underline", "writing", "ink", "mischief"], shelf: .oddNotes),
+        snippet("hatched-cancellation", "Cancelled.\nThe cancellation has hatched.", tags: ["correction", "writing", "creature", "egg"], shelf: .oddNotes),
+        snippet("bitten-signature", "Yours sincerely,\n[small bite]", tags: ["letter", "signature", "paper", "creature"], shelf: .oddNotes),
+        snippet("acorn-accounts", "One acorn.\nSeveral conflicting accounts.", tags: ["acorn", "tree", "forest", "argument"], shelf: .oddNotes)
     ]
 
     static var availableSnippets: [IlluminationMarginaliaSnippet] {
@@ -2975,6 +3087,38 @@ enum IlluminationMarginaliaLibrary {
         return (snippets + contentPackSnippets).filter {
             seen.insert("\($0.packID)|\($0.id)").inserted
         }
+    }
+
+    /// Complete, searchable text supply for Pagewright. Placement conditions
+    /// still apply, but no preview limit can hide the tail of a shelf.
+    static let writtenShelves: [MarkShelf] = [.bookNotes, .academyNotes, .oddNotes]
+
+    static func shelf(for snippet: IlluminationMarginaliaSnippet) -> MarkShelf {
+        guard let shelf = snippet.shelf, writtenShelves.contains(shelf) else { return .bookNotes }
+        return shelf
+    }
+
+    static func browsableSnippets(
+        on shelf: MarkShelf? = nil,
+        matching query: String = "",
+        context: IlluminationPlacementContext = .empty
+    ) -> [IlluminationMarginaliaSnippet] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return availableSnippets
+            .filter { $0.placementTrigger?.allows(context) ?? true }
+            .filter { shelf == nil || Self.shelf(for: $0) == shelf }
+            .filter { matches(query, snippet: $0) }
+            .sorted {
+                if $0.packID != $1.packID { return $0.packID < $1.packID }
+                return $0.id < $1.id
+            }
+    }
+
+    static func matches(_ query: String, snippet: IlluminationMarginaliaSnippet) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else { return true }
+        return ([snippet.text, snippet.title ?? ""] + snippet.tags)
+            .contains { $0.lowercased().contains(query) }
     }
 
     static func select(
@@ -3016,9 +3160,10 @@ enum IlluminationMarginaliaLibrary {
         title: String? = nil,
         tags: [String],
         packID: String = corePackID,
-        weight: Double = 1
+        weight: Double = 1,
+        shelf: MarkShelf? = nil
     ) -> IlluminationMarginaliaSnippet {
-        IlluminationMarginaliaSnippet(id: id, text: text, title: title, tags: tags, packID: packID, weight: weight)
+        IlluminationMarginaliaSnippet(id: id, text: text, title: title, tags: tags, packID: packID, weight: weight, shelf: shelf)
     }
 }
 

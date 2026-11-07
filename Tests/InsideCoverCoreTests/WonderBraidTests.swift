@@ -408,6 +408,128 @@ final class WonderBraidTests: XCTestCase {
     XCTAssertLessThanOrEqual(vigil.lineIDs.count, 1, "a vigil keeps one small odd thing at most")
   }
 
+  // MARK: - Old-tale turns
+
+  /// `turn` reads only the plan's form, its hard-night state and its fiction
+  /// choices; the details are handed over as the writer receives them.
+  private func plan(details: [String], form: String = "sliceOfLife", hard: Bool = false) -> BraidScenePlan {
+    var plan = BraidScenePlanBuilder.plan(for: BookDay(id: "2026-10-09", date: Date(timeIntervalSince1970: 1_791_500_000), pages: []))
+    plan.form = form
+    plan.mustRemainUnresolved = hard ? ["held"] : []
+    return plan
+  }
+
+  /// Three kept Pages, one moment each, as the planner sees them.
+  private func threePageNight(_ moments: [String]) -> (plan: BraidScenePlan, details: [String]) {
+    let start = Calendar.current.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 8))!
+    let pages = moments.enumerated().map { index, text in
+      BookPage(id: "page-\(index)", type: .diary, createdAt: start.addingTimeInterval(Double(index + 1) * 3600),
+               promptText: "What happened?", userInput: text, origin: .userAuthored)
+    }
+    let plan = BraidScenePlanBuilder.plan(for: BookDay(id: "2026-10-09", date: start, pages: pages))
+    return (plan, plan.readerDayNarration)
+  }
+
+  func testATurnComesFromTheNightsOwnMaterial() {
+    let kind = ["You carried the neighbour's shopping up four flights.", "You read until late."]
+    XCTAssertEqual(WonderBraid.turn(plan: plan(details: kind), details: kind, dateKey: "2026-10-09", resting: [])?.shape, .owed)
+    let lost = ["You lost the good scissors again.", "You read until late."]
+    XCTAssertEqual(WonderBraid.turn(plan: plan(details: lost), details: lost, dateKey: "2026-10-09", resting: [])?.shape, .lostThing)
+    let back = ["You read until late.", "9 days ago: You lost the same key on the stairs."]
+    XCTAssertEqual(WonderBraid.turn(plan: plan(details: back), details: back, dateKey: "2026-10-09", resting: [])?.shape, .cameBack)
+    let three = ["You read until late.", "You watered the fern.", "You found a button in the coat."]
+    XCTAssertEqual(WonderBraid.turn(plan: plan(details: three), details: three, dateKey: "2026-10-09", resting: [])?.shape, .lostThing,
+                   "a found thing outranks plain counting")
+    let night = threePageNight(["I read until late with the radio on low and the cat asleep on the good chair.",
+                                "I watered the fern on the landing and moved it nearer the window for the light.",
+                                "I walked the long way home past the bakery because the main road was loud."])
+    let threes = WonderBraid.turn(plan: night.plan, details: night.details, dateKey: "2026-10-09", resting: [])
+    XCTAssertEqual(threes?.shape, .threeTimes)
+    XCTAssertEqual(threes?.after, night.details.last)
+    XCTAssertEqual(threes?.before, true, "the line lands before the third")
+    let oneEntry = ["Long walk.", "You took the path by the water.", "It moved its head about an inch."]
+    XCTAssertNotEqual(WonderBraid.turn(plan: plan(details: oneEntry), details: oneEntry, dateKey: "2026-10-09", resting: [])?.shape, .threeTimes,
+                      "three sentences of one entry are one moment")
+    XCTAssertNil(WonderBraid.turn(plan: plan(details: ["You read until late."]), details: ["You read until late."], dateKey: "2026-10-09", resting: []),
+                 "most nights are just nights")
+  }
+
+  func testNoTurnOnAHardNightOrAVigil() {
+    let kind = ["You carried the neighbour's shopping up four flights."]
+    XCTAssertNil(WonderBraid.turn(plan: plan(details: kind, hard: true), details: kind, dateKey: "2026-10-09", resting: []))
+    XCTAssertNil(WonderBraid.turn(plan: plan(details: kind, form: "vigil"), details: kind, dateKey: "2026-10-09", resting: []))
+  }
+
+  func testATurnLineRestsAfterItIsSaid() {
+    let kind = ["You carried the neighbour's shopping up four flights."]
+    let all = Set((WonderBraid.turnLines[.owed] ?? []).map(\.id))
+    XCTAssertNil(WonderBraid.turn(plan: plan(details: kind), details: kind, dateKey: "2026-10-09", resting: all))
+    let one = try? XCTUnwrap(WonderBraid.turn(plan: plan(details: kind), details: kind, dateKey: "2026-10-09", resting: []))
+    XCTAssertNotNil(one)
+    XCTAssertFalse(all.subtracting([one!.lineID]).contains(one!.lineID))
+  }
+
+  /// The lines are the Book's own say: never the Book by name (it narrates),
+  /// never the reader's feelings, no teeth or door sayings. And no invented
+  /// keeper: "the building" owed the reader things in a first draft, a
+  /// character nobody had met (bj, 2026-11-06). "In here" was wrong too, on a
+  /// night the lost thing was lost at the library.
+  func testTurnLinesKeepTheVoice() {
+    for (shape, lines) in WonderBraid.turnLines {
+      XCTAssertGreaterThanOrEqual(lines.count, 3, shape.rawValue)
+      for line in lines {
+        let lower = line.text.lowercased()
+        XCTAssertFalse(lower.contains("the book"), line.text)
+        XCTAssertFalse(lower.contains("teeth"), line.text)
+        XCTAssertFalse(lower.range(of: #"\byou (felt|feel|were|wanted|meant)\b"#, options: .regularExpression) != nil, line.text)
+        XCTAssertFalse(lower.contains("lesson") || lower.contains("really about"), line.text)
+        XCTAssertFalse(lower.contains("building") || lower.contains("in here"), line.text)
+      }
+    }
+    XCTAssertEqual(Set(WonderBraid.turnLines.keys), Set(WonderBraid.TurnShape.allCases))
+  }
+
+  func testThreeTimesSavesTheOddThingForTheThird() async throws {
+    let night = threePageNight(["I read until late with the radio on low and the cat asleep on the good chair.",
+                                "I watered the fern on the landing and moved it nearer the window for the light.",
+                                "I walked the long way home past the bakery because the main road was loud."])
+    var input = WonderBraid.Input(details: night.details, dateKey: "2026-10-09")
+    input.turn = WonderBraid.turn(plan: night.plan, details: night.details, dateKey: "2026-10-09", resting: [])
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let written = try await WonderBraid.write(input, tell: fakeTeller())
+    let output = try XCTUnwrap(written)
+    let turnText = try XCTUnwrap(input.turn?.text)
+    let at = try XCTUnwrap(output.paragraphs.firstIndex(of: turnText))
+    XCTAssertTrue(output.paragraphs[at - 1].contains("fern"), output.prose)
+    XCTAssertTrue(output.paragraphs[at + 1].contains("long way home"), output.prose)
+    XCTAssertEqual(output.paragraphs.filter { $0.contains("fern") || $0.contains("radio") }.count, 2, "two ordinary moments, each its own")
+    XCTAssertTrue(output.lineIDs.contains(input.turn!.lineID), "the line rests for the next weeks")
+  }
+
+  func testSettingMomentsApartKeepsAPronounWithItsThing() async throws {
+    let details = ["You read until late.", "You watched a heron in the shallows by the bridge.", "It moved its head about an inch.", "You walked the long way home."]
+    var input = WonderBraid.Input(details: details, dateKey: "2026-10-04")
+    input.turn = WonderBraid.turn(plan: plan(details: details), details: details, dateKey: "2026-10-04", resting: [])
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let written = try await WonderBraid.write(input, tell: fakeTeller())
+    let output = try XCTUnwrap(written)
+    XCTAssertTrue(output.paragraphs.contains { $0.contains("heron") && $0.contains("It moved its head") }, output.prose)
+  }
+
+  func testATurnSitsRightAfterItsMomentEvenWithAKeptLetter() async throws {
+    let details = ["You gave the plant by the window a new pot.", "You read until late."]
+    var input = WonderBraid.Input(details: details, dateKey: "2026-10-19")
+    input.bookLines = ["A letter came from Ambrose Trencher. \u{201C}The soup has opinions.\u{201D}"]
+    input.turn = WonderBraid.turn(plan: plan(details: details), details: details, dateKey: "2026-10-19", resting: [])
+    input.patience = .init(pauseSeconds: 0, waits: 0, optionalWaits: 0)
+    let written = try await WonderBraid.write(input, tell: fakeTeller())
+    let output = try XCTUnwrap(written)
+    let turn = try XCTUnwrap(input.turn)
+    XCTAssertEqual(turn.shape, .owed)
+    let at = try XCTUnwrap(output.paragraphs.firstIndex(of: turn.text))
+    XCTAssertTrue(output.paragraphs[at - 1].contains("new pot"), output.prose)
+  }
+
   // MARK: - A thread from night to night
 
   private func beat(_ kind: BraidPromptBuilder.ContinuityKind, prior: String? = nil, now: String = "the pen") -> BraidPromptBuilder.ContinuityBeat {
@@ -576,6 +698,25 @@ final class WonderBraidTests: XCTestCase {
     } catch {
       XCTFail("expected ModelUnavailable, got \(error)")
     }
+  }
+
+  func testATerminalModelRefusalDoesNotRetryItsAllocation() async {
+    var input = thinDay
+    input.patience = WonderBraid.Patience(pauseSeconds: 0, waits: 30, optionalWaits: 3)
+    let calls = Counter()
+    let unavailable: WonderBraid.Teller = { _, _, _, _, _ in
+      _ = calls.next()
+      throw WonderBraid.ModelUnavailable(underlying: NSError(domain: "memory-pressure", code: 1))
+    }
+    do {
+      _ = try await WonderBraid.write(input, tell: unavailable)
+      XCTFail("A pressure-stopped braid must remain pending")
+    } catch let error as WonderBraid.ModelUnavailable {
+      XCTAssertEqual((error.underlying as NSError).domain, "memory-pressure")
+    } catch {
+      XCTFail("Expected the original terminal refusal, got \(error)")
+    }
+    XCTAssertEqual(calls.next(), 2, "Exactly one model request, then this counter read")
   }
 
   func testNothingToBraidIsNotForThisPath() async throws {

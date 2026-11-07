@@ -63,11 +63,18 @@ struct TarotCardDefinition: Identifiable, Codable, Equatable {
 
 enum TarotSpread: String, Codable, CaseIterable, Equatable {
     case oneCard
+    case hereHiddenPossible
+    /// Decode kept readings in their original positions and meanings.
     case rootWeatherDoor
+
+    /// Only current spreads are offered for a new draw. The old case remains
+    /// readable without quietly relabeling a reader's already-kept artifact.
+    static let allCases: [TarotSpread] = [.oneCard, .hereHiddenPossible]
 
     var title: String {
         switch self {
         case .oneCard: return "One card"
+        case .hereHiddenPossible: return "What’s Here · What’s Hiding · What’s Possible"
         case .rootWeatherDoor: return "Root · Weather · Door"
         }
     }
@@ -75,6 +82,7 @@ enum TarotSpread: String, Codable, CaseIterable, Equatable {
     var subtitle: String {
         switch self {
         case .oneCard: return "One image to carry into the day."
+        case .hereHiddenPossible: return "Recognition · discovery · possibility."
         case .rootWeatherDoor: return "What’s beneath · what surrounds · what may open."
         }
     }
@@ -82,17 +90,34 @@ enum TarotSpread: String, Codable, CaseIterable, Equatable {
     var positions: [TarotSpreadPosition] {
         switch self {
         case .oneCard: return [.single]
+        case .hereHiddenPossible: return [.here, .hiding, .possible]
         case .rootWeatherDoor: return [.root, .weather, .door]
+        }
+    }
+
+    var readingDirective: String {
+        switch self {
+        case .oneCard:
+            return "Let one image open a question; it need not solve anything."
+        case .hereHiddenPossible:
+            return "What’s Here recognizes what the reader brings. What’s Hiding explores an overlooked detail, contradiction, appetite, or unexpected ally; it never claims secret knowledge of another person. What’s Possible offers a choice, experiment, pleasure, or different way of seeing; it is not a prediction or command. A playful or contented question needs no invented problem."
+        case .rootWeatherDoor:
+            return "Root explores underlying context; Weather explores the present atmosphere; Door explores an opening or choice. Preserve these original positions in this kept reading."
         }
     }
 }
 
 enum TarotSpreadPosition: String, Codable, Equatable {
-    case single, root, weather, door
+    case single, here, hiding, possible
+    /// Historical positions remain distinct from the current spread.
+    case root, weather, door
 
     var title: String {
         switch self {
         case .single: return "The card"
+        case .here: return "What’s Here"
+        case .hiding: return "What’s Hiding"
+        case .possible: return "What’s Possible"
         case .root: return "Root"
         case .weather: return "Weather"
         case .door: return "Door"
@@ -102,6 +127,9 @@ enum TarotSpreadPosition: String, Codable, Equatable {
     var prompt: String {
         switch self {
         case .single: return "What keeps catching your eye?"
+        case .here: return "What have you brought to the table?"
+        case .hiding: return "What deserves another look?"
+        case .possible: return "What could you make room for?"
         case .root: return "What is underneath this?"
         case .weather: return "What atmosphere are you moving through?"
         case .door: return "What wants a small opening?"
@@ -239,7 +267,7 @@ enum TarotReadingGuide {
     static let readerName = "Serenity Brown"
 
     static let voiceContract = """
-    You are Serenity Brown of Tidecrest inside ReEnchanted. Read the Tarot in your own voice: warm, lightly mischievous, companionable, concrete, and willing to turn a solemn plan sideways when a kinder detour reveals more life. You believe joy is not a distraction from magic. Your gift is shared lightness and playful motion; your fault is skipping past gravity and leaving someone else to name the hard thing. Do not make that mistake here: name the real thorn plainly before offering one thing to try. You are a Cast member beside the reader, not an oracle, therapist, sage, or generic assistant.
+    You are Serenity Brown of Tidecrest inside ReEnchanted. Read the Tarot in your own voice: warm, lightly mischievous, companionable, concrete, and willing to turn a solemn plan sideways when a kinder detour reveals more life. You believe joy is not a distraction from magic. Your gift is shared lightness and playful motion; your fault is skipping past gravity and leaving someone else to name the hard thing. If a real thorn is present, name the real thorn plainly before offering one thing to try. Never invent a problem in a playful or contented question. You are a Cast member beside the reader, not an oracle, therapist, sage, or generic assistant.
 
     Never predict destiny, diagnose, claim certainty about another person's mind, or make medical, legal, financial, safety, fertility, mortality, or crisis decisions. If the question asks a card to make such a decision, say: “Don't let a picture make that call for you. We can read what the choice is stirring, but the decision belongs with real information and real help.” Use only the supplied question, cards, notes, and explicitly receipted Pages.
     """
@@ -267,6 +295,12 @@ enum TarotLocalInterpreter {
         switch drawn.position {
         case .single:
             positionLine = "It arrives alone, so let \(card.keywords.first ?? "its image") be the first thread, not the final answer."
+        case .here:
+            positionLine = "\(card.name) meets what you have brought to the table: \(card.lightMeaning.lowercasedFirst)"
+        case .hiding:
+            positionLine = "\(card.name) gives an overlooked detail another look: \(card.lightMeaning.lowercasedFirst)"
+        case .possible:
+            positionLine = "\(card.name) offers something you could make room for: \(card.lightMeaning.lowercasedFirst)"
         case .root:
             positionLine = "\(card.name) sits under the spread like a root: \(card.lightMeaning.lowercasedFirst)"
         case .weather:
@@ -658,14 +692,57 @@ enum TarotDeck {
 
     /// Literal subjects from the two neighboring Pages. Whole words and
     /// explicit phrases only: no mood inference, model work or archive search.
+    /// The folio asks this at every Page boundary while the Book is first laid
+    /// out, so the vocabulary is spelled out once and each text is read once.
     static func interleafSubjectTags(in text: String) -> [String] {
+        subjectTagLock.lock()
+        if let cached = subjectTagMemo[text] {
+            subjectTagLock.unlock()
+            return cached
+        }
+        subjectTagLock.unlock()
+
         let words = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .lowercased().components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
         let wordSet = Set(words)
         let joined = " " + words.joined(separator: " ") + " "
-        let vocabulary = Set(all.flatMap { pictureSubjects(for: $0.id) })
-        return vocabulary.filter { subject in
+        let tags = subjectMatchers.compactMap { matcher -> String? in
+            // A phrase can only be in the text if its first word is, so the
+            // whole-text search runs for the few that could match.
+            let found = matcher.isPhrase
+                ? wordSet.contains(matcher.firstWord)
+                    && (joined.contains(matcher.spacedPhrase) || joined.contains(matcher.spacedPlural))
+                : wordSet.contains(matcher.phrase) || wordSet.contains(matcher.plural)
+            return found ? matcher.subject : nil
+        }
+
+        subjectTagLock.lock()
+        // A hard reset, not an eviction: a desk's boundaries are a few dozen
+        // texts, so the table only fills across many rebuilt desks.
+        if subjectTagMemo.count >= 2_000 { subjectTagMemo.removeAll(keepingCapacity: true) }
+        subjectTagMemo[text] = tags
+        subjectTagLock.unlock()
+        return tags
+    }
+
+    private struct SubjectMatcher {
+        let subject: String
+        let phrase: String
+        let plural: String
+        let spacedPhrase: String
+        let spacedPlural: String
+        let firstWord: String
+        let isPhrase: Bool
+    }
+
+    private static let subjectTagLock = NSLock()
+    nonisolated(unsafe) private static var subjectTagMemo: [String: [String]] = [:]
+
+    /// Sorted, so tags come back in the same order the filtered set gave.
+    private static let subjectMatchers: [SubjectMatcher] = Set(all.flatMap { pictureSubjects(for: $0.id) })
+        .sorted()
+        .map { subject in
             let phrase = subject.replacingOccurrences(of: "-", with: " ")
             let plural: String
             if phrase.hasSuffix("knife") {
@@ -675,12 +752,13 @@ enum TarotDeck {
             } else {
                 plural = phrase + "s"
             }
-            if phrase.contains(" ") {
-                return joined.contains(" \(phrase) ") || joined.contains(" \(plural) ")
-            }
-            return wordSet.contains(phrase) || wordSet.contains(plural)
-        }.sorted()
-    }
+            return SubjectMatcher(
+                subject: subject, phrase: phrase, plural: plural,
+                spacedPhrase: " \(phrase) ", spacedPlural: " \(plural) ",
+                firstWord: String(phrase.prefix { $0 != " " }),
+                isPhrase: phrase.contains(" ")
+            )
+        }
 
     /// Installed art supplies its own visible subjects; superseded locations
     /// such as the chapel in Four of Swords must not keep matching Pages.
@@ -782,6 +860,17 @@ enum TarotDeck {
 }
 
 enum TarotDrawEngine {
+    static func shuffledCardIDs() -> [String] {
+        var generator = SystemRandomNumberGenerator()
+        return shuffledCardIDs(using: &generator)
+    }
+
+    static func shuffledCardIDs<R: RandomNumberGenerator>(using generator: inout R) -> [String] {
+        var ids = TarotDeck.all.map(\.id)
+        ids.shuffle(using: &generator)
+        return ids
+    }
+
     static func draw(spread: TarotSpread) -> TarotReadingArtifact {
         var generator = SystemRandomNumberGenerator()
         return draw(spread: spread, using: &generator)
@@ -791,10 +880,21 @@ enum TarotDrawEngine {
         spread: TarotSpread,
         using generator: inout R
     ) -> TarotReadingArtifact {
-        var deck = TarotDeck.all
-        deck.shuffle(using: &generator)
-        let cards = zip(spread.positions, deck.prefix(spread.positions.count)).map { position, card in
-            TarotDrawnCard(cardID: card.id, position: position, isReversed: false)
+        artifact(spread: spread, cardIDs: shuffledCardIDs(using: &generator))
+    }
+
+    /// A shuffled packet stays the same packet when the reader chooses a
+    /// spread. Reject damaged/stale packets rather than dealing duplicates or
+    /// quietly accepting a partial deck. Callers can make a fresh random draw.
+    static func draw(spread: TarotSpread, fromShuffledCardIDs ids: [String]) -> TarotReadingArtifact? {
+        let completeDeck = Set(TarotDeck.all.map(\.id))
+        guard ids.count == completeDeck.count, Set(ids) == completeDeck else { return nil }
+        return artifact(spread: spread, cardIDs: ids)
+    }
+
+    private static func artifact(spread: TarotSpread, cardIDs: [String]) -> TarotReadingArtifact {
+        let cards = zip(spread.positions, cardIDs.prefix(spread.positions.count)).map { position, cardID in
+            TarotDrawnCard(cardID: cardID, position: position, isReversed: false)
         }
         return TarotReadingArtifact(spread: spread, cards: cards)
     }
@@ -809,10 +909,7 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
         inputs: BookSourceInputs,
         now: Date
     ) -> [SurfacePage] {
-        guard source.isActive,
-              inputs.keptPageCount >= EmergentPageMaturity.minimumKeptPages else {
-            return []
-        }
+        guard source.isActive else { return [] }
         let mostRecentReading = (inputs.days + [day])
             .flatMap(\.pages)
             .filter { $0.type == .tarot }
@@ -843,10 +940,10 @@ struct TarotPageSourceAdapter: BookPageSourceAdapter {
             score: 70,
             reason: "A small deck has surfaced without insisting it knows more than you do.",
             prompt: "The cards have left a little room for you.",
-            detail: "Choose one card, or lay Root · Weather · Door. The draw is chance; the reading belongs to you.",
+            detail: "Choose one card, or lay What’s Here · What’s Hiding · What’s Possible. The draw is chance; the reading belongs to you.",
             payload: BookPagePayload(
                 headline: "Tarot Pages",
-                body: "All 78 cards are in here. Open the deck. Draw one card, or draw three: Root, Weather, Door. Serenity reads beside you. Chance chooses the cards. You decide what fits. Nothing here predicts your life.",
+                body: "All 78 cards are in here. Open the deck. Draw one card, or draw three: What’s Here, What’s Hiding, What’s Possible. Serenity reads beside you. Chance chooses the cards. You decide what fits. Nothing here predicts your life.",
                 metadata: [
                     "source": source.id,
                     "tags": "tarot,reflection,rider-waite-smith",

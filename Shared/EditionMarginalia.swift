@@ -622,5 +622,7 @@ enum MarginaliaDeck {
         "MarginaliaGoblinQuillStanding", "MarginaliaGoblinReading", "MarginaliaGoblinRedRibbon",
         "MarginaliaGoblinRoyalWaxSeal", "MarginaliaGoblinSatchel", "MarginaliaGoblinSealedNote", "MarginaliaGoblinShushing",
         "MarginaliaGoblinSleeping", "MarginaliaGoblinTiedScroll", "MarginaliaGoblinWritingCrouched"
-    ]
+    ] + CoreMarginsPack.pack.doodles
+        .filter { $0.tags.contains("wicker-sigil") }
+        .map(\.assetName)
 }

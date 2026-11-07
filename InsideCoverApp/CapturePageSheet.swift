@@ -265,6 +265,10 @@ struct InkbonesThrow: Identifiable, Equatable {
     var choiceID: String
     var resolution: StoryInkbonesResolution
     var effectLine: String
+    /// The fight's edge on this throw, as the modifier stack shows it
+    /// ("Knocks answered this week +6 · ribbons held +2").
+    var edgeLine: String? = nil
+    var choiceTitle: String = ""
 
     var threshold: Int { resolution.threshold }
     var roll: Int { resolution.roll }
@@ -272,13 +276,18 @@ struct InkbonesThrow: Identifiable, Equatable {
     var outcome: String { resolution.band.outcome }
     var texture: String { resolution.band.texture }
 
-    static func make(choice: StoryPageChoiceDraft) -> InkbonesThrow {
-        let threshold = BeliefCombatResolver.finalThreshold(for: 50, difficulty: .standard)
+    /// The odds read the round's fight against the Curse
+    /// (docs/the-knock-plan.md §7.1). Every throw used to sit on a Belief of
+    /// fifty, so nothing the reader did ever changed their luck.
+    static func make(choice: StoryPageChoiceDraft, edge: InkbonesOdds.Edge) -> InkbonesThrow {
+        let threshold = InkbonesOdds.storyThreshold(edge: edge.total)
         let roll = Int.random(in: 1...100)
         return InkbonesThrow(
             choiceID: choice.id,
             resolution: StoryInkbonesResolution(roll: roll, threshold: threshold),
-            effectLine: choice.effectLine
+            effectLine: choice.effectLine,
+            edgeLine: edge.line,
+            choiceTitle: choice.title
         )
     }
 }
@@ -336,6 +345,14 @@ private struct InkbonesThrowOverlay: View {
                         .padding(.vertical, 6)
                         .background(throwState.band.accent.opacity(0.34), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
+            }
+
+            if let edgeLine = throwState.edgeLine {
+                // The modifier stack: what the fight against the Curse put on this throw.
+                Text(edgeLine)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(BookPalette.page.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             ZStack {
@@ -1116,6 +1133,67 @@ private struct RadioDialScratch: View {
     }
 }
 
+/// A bounded reading window keeps a long DJ break or lyric sheet on the radio
+/// leaf. Following can be turned off to read ahead or return to an earlier line.
+private struct RadioReadAlongCallout: View {
+    let title: String
+    let symbol: String
+    let sheet: RadioReadAlong
+    let tint: Color
+    let manager: BookRadioManager
+    @State private var followsPlayback = true
+    @Environment(\.scenePhase) private var scenePhase
+
+    var body: some View {
+        FolioControlStack(alignment: .leading, spacing: 8) {
+            Label(title, systemImage: symbol)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(tint)
+            TimelineView(.animation(minimumInterval: 0.2,
+                                    paused: !manager.isPlaying || scenePhase != .active || !sheet.hasValidTiming)) { _ in
+                let activeIndex = sheet.activeCueIndex(at: manager.readAlongElapsed)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 10) {
+                            ForEach(Array(sheet.readableLines.enumerated()), id: \.offset) { index, line in
+                                Text(line)
+                                    .font(.callout.weight(.semibold))
+                                    .foregroundStyle(BookPalette.ink)
+                                    .padding(6)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(activeIndex == index ? tint.opacity(0.19) : Color.clear,
+                                                in: RoundedRectangle(cornerRadius: 5))
+                                    .overlay(alignment: .leading) {
+                                        if activeIndex == index {
+                                            Capsule().fill(tint).frame(width: 3)
+                                        }
+                                    }
+                                    .id(index)
+                            }
+                        }
+                    }
+                    .frame(height: 220)
+                    .textSelection(.enabled)
+                    .onChange(of: activeIndex, initial: true) { _, index in
+                        if followsPlayback, let index { proxy.scrollTo(index, anchor: .center) }
+                    }
+                    .onChange(of: followsPlayback) { _, follows in
+                        if follows, let activeIndex { proxy.scrollTo(activeIndex, anchor: .center) }
+                    }
+                }
+            }
+            if sheet.hasValidTiming {
+                Toggle("Follow the words", isOn: $followsPlayback)
+                    .font(.caption)
+                    .tint(tint)
+            }
+        }
+        .padding(12)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+        .folioControlUnbroken()
+    }
+}
+
 private struct RadioSignalMeter: View {
     let stationID: String
     let isPlaying: Bool
@@ -1832,6 +1910,8 @@ struct CapturePageSheet: View {
     @FolioPageState("openedPageTurnProgress") private var openedPageTurnProgress = 1.0
     @FolioPageState("loosePageTurns") private var loosePageTurns: [String: Int] = [:]
     @FolioPageState("tarotReading", presentation: true) private var tarotReading: TarotReadingArtifact?
+    @FolioPageState("inkbonesReading", presentation: true) private var inkbonesReading: InkbonesReading?
+    @FolioPageState("inkbonesVerdict") private var inkbonesVerdict: String?
     @AppStorage("tarotReadingDraftV1") private var tarotReadingDraftData = ""
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
@@ -2736,7 +2816,23 @@ struct CapturePageSheet: View {
         return clipped.isEmpty ? nil : "\(clipped)..."
     }
 
+    /// The throws inked into this kept Page's margin.
+    private var keptInkbonesMarks: [InkbonesMarginMark.Mark] {
+        InkbonesMarginMark.marks(in: (surface.payload.metadata["tags"] ?? "").split(separator: ",").map(String.init))
+    }
+
+    private var isInkbonesPage: Bool {
+        surface.type == .gamePage && surface.payload.metadata["gameID"] == "inkbones"
+    }
+
+    private var isInkbonesCameTruePage: Bool {
+        surface.type == .gamePage && surface.payload.metadata["gameID"] == "inkbones-came-true"
+    }
+
     private var quoteCardSourceTitle: String {
+        if isInkbonesPage || isInkbonesCameTruePage {
+            return "The Inkbones"
+        }
         if surface.type == .gamePage {
             return "Sentence Runner"
         }
@@ -2827,6 +2923,19 @@ struct CapturePageSheet: View {
         #else
             result = effectiveSurface
         #endif
+        }
+        if isInkbonesCameTruePage, let inkbonesVerdict {
+            result = result.withMetadata(["inkbonesVerdict": inkbonesVerdict])
+        }
+        if isInkbonesPage,
+           let inkbonesReading,
+           let data = try? JSONEncoder().encode(inkbonesReading),
+           let encoded = String(data: data, encoding: .utf8) {
+            result = result.withMetadata([
+                "inkbonesReading": encoded,
+                "inkbonesFaces": inkbonesReading.liveBones.map(\.face.rawValue).joined(separator: ","),
+                "inkbonesGreyed": inkbonesReading.greyedBone?.face.rawValue ?? ""
+            ])
         }
         if surface.type == .tarot,
            let tarotReading,
@@ -5335,7 +5444,38 @@ struct CapturePageSheet: View {
             }
 
             if surface.type == .gamePage {
-                gamePageView
+                if isInkbonesCameTruePage {
+                    InkbonesCameTrueView(
+                        stored: surface.payload.metadata["inkbonesReading"],
+                        verdict: $inkbonesVerdict,
+                        sentence: $text,
+                        storedVerdict: surface.payload.metadata["inkbonesVerdict"],
+                        isReadOnly: isKeptReadbackPage
+                    )
+                } else if isInkbonesPage {
+                    InkbonesPageView(
+                        reading: $inkbonesReading,
+                        sentence: $text,
+                        seed: surface.payload.metadata["inkbonesSeed"] ?? surface.id,
+                        stored: surface.payload.metadata["inkbonesReading"],
+                        isReadOnly: isKeptReadbackPage,
+                        edge: {
+                            let vault = PlayerVault.shared
+                            return InkbonesOdds.edge(
+                                knocks: vault.data.attentionProbes ?? .empty,
+                                threats: vault.data.greyPageThreats ?? .empty,
+                                ribbonCount: vault.data.ribbons.count,
+                                now: Date()
+                            ).total
+                        }
+                    )
+                } else {
+                    gamePageView
+                }
+            }
+
+            if isKeptReadbackPage, !keptInkbonesMarks.isEmpty {
+                InkbonesMarginMarksView(marks: keptInkbonesMarks)
             }
 
             if surface.type == .tarot {
@@ -7132,7 +7272,10 @@ struct CapturePageSheet: View {
                         onTuneRadio(station.id)
                     } else {
                         BookFeedback.play(.sourceRefresh)
-                        radioManager.playTuningNoise(frequency: radioDialFrequency)
+                        radioManager.playTuningNoise(
+                            frequency: radioDialFrequency,
+                            proximity: RadioStationRegistry.staticProximity(at: radioDialFrequency, in: available)
+                        )
                     }
                 } label: {
                     Image(systemName: isPowered ? "power.circle.fill" : "power.circle")
@@ -7193,7 +7336,10 @@ struct CapturePageSheet: View {
                                 onTuneRadio(tuned.id)
                             }
                         } else {
-                            radioManager.playTuningNoise(frequency: value)
+                            radioManager.playTuningNoise(
+                                frequency: value,
+                                proximity: RadioStationRegistry.staticProximity(at: value, in: available)
+                            )
                         }
                     }
             }
@@ -7205,16 +7351,18 @@ struct CapturePageSheet: View {
                     body: active.subtitle,
                     tint: BookPalette.teal
                 )
-                if radioManager.isPlaying,
+                if (radioManager.isPlaying || radioManager.currentReadAlong != nil),
                    radioManager.activeStation?.id == active.id,
                    let banter = radioManager.nowPlayingBanter {
-                    hourPageCallout(
+                    RadioReadAlongCallout(
                         title: "DJ: \(active.hostDisplayName)",
                         symbol: "mic.fill",
-                        body: banter.readerFacingCaption,
-                        tint: BookPalette.violet
+                        sheet: radioManager.currentReadAlong ?? RadioReadAlong(text: banter.readerFacingCaption),
+                        tint: BookPalette.violet,
+                        manager: radioManager
                     )
-                } else if radioManager.isPlaying,
+                    .id(banter.id)
+                } else if (radioManager.isPlaying || radioManager.currentReadAlong != nil),
                           radioManager.activeStation?.id == active.id,
                           let track = radioManager.activeTrack {
                     hourPageCallout(
@@ -7226,6 +7374,16 @@ struct CapturePageSheet: View {
                         ].compactMap { $0?.nonEmpty }.joined(separator: "\n"),
                         tint: LeafInk.gold
                     )
+                    if let lyrics = radioManager.currentReadAlong {
+                        RadioReadAlongCallout(
+                            title: "Lyrics",
+                            symbol: "text.quote",
+                            sheet: lyrics,
+                            tint: BookPalette.teal,
+                            manager: radioManager
+                        )
+                        .id(track.id)
+                    }
                 } else {
                     Text(radioManager.sourceLine)
                         .font(.caption.weight(.semibold))
@@ -8149,11 +8307,23 @@ struct CapturePageSheet: View {
                 if let deadline {
                     TimelineView(.periodic(from: Date(), by: 60)) { context in
                         let remaining = max(0, deadline.timeIntervalSince(context.date))
-                        Text(remaining <= 3_600
-                             ? "The ink of “\(title)” is fading now."
-                             : "The window around “\(title)” is narrowing.")
-                            .font(.caption.weight(.bold))
-                            .foregroundStyle(LeafInk.gold)
+                        // The Page's own words, thinning as the window closes.
+                        let ink = max(0.12, min(1, remaining / GreyPageThreatEngine.rescueWindow))
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let excerpt = metadata["greyTargetExcerpt"]?.nonEmpty {
+                                Text("“\(excerpt)”")
+                                    .font(.system(.callout, design: .serif).italic())
+                                    .foregroundStyle(BookPalette.ink.opacity(ink))
+                                    .blur(radius: (1 - ink) * 1.6)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .accessibilityLabel("The Page's words, going grey: \(excerpt)")
+                            }
+                            Text(remaining <= 3_600
+                                 ? "The ink of “\(title)” is fading now."
+                                 : "The window around “\(title)” is narrowing.")
+                                .font(.caption.weight(.bold))
+                                .foregroundStyle(LeafInk.gold)
+                        }
                     }
                 }
 
@@ -8716,7 +8886,16 @@ struct CapturePageSheet: View {
 
     private func beginStoryBeliefDiceThrow(choice: StoryPageChoiceDraft, draft: StoryPageSceneDraft) {
         guard activeInkbonesThrow == nil else { return }
-        let inkbonesThrow = InkbonesThrow.make(choice: choice)
+        let vault = PlayerVault.shared
+        let inkbonesThrow = InkbonesThrow.make(
+            choice: choice,
+            edge: InkbonesOdds.edge(
+                knocks: vault.data.attentionProbes ?? .empty,
+                threats: vault.data.greyPageThreats ?? .empty,
+                ribbonCount: vault.data.ribbons.count,
+                now: Date()
+            )
+        )
         activeInkbonesThrow = inkbonesThrow
         storyContinuationMessage = ""
         BookFeedback.play(.braidStart)
@@ -8738,6 +8917,14 @@ struct CapturePageSheet: View {
             // narrative consequence had already been written.
             storyTurns[turnIndex].inkbonesResolutions[inkbonesThrow.choiceID] = inkbonesThrow.resolution
         }
+        // Into the throw log, for the margins, the Bleed and the month's edition.
+        let record = InkbonesThrowRecord(
+            id: "reader-\(inkbonesThrow.id.uuidString)", at: Date(), thrower: .reader,
+            roll: inkbonesThrow.roll, target: inkbonesThrow.threshold,
+            subject: inkbonesThrow.choiceTitle, outcome: inkbonesThrow.band.rawValue
+        )
+        PlayerVault.shared.mutate { $0.inkbonesLog = InkbonesThrowRecord.appending(record, to: $0.inkbonesLog ?? []) }
+        PlayerVault.shared.save()
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             activeInkbonesThrow = nil
         }
@@ -15891,6 +16078,8 @@ struct CapturePageSheet: View {
             return !isCastingEnchantment && enchantmentResult != nil
         }
         if surface.type == .gamePage {
+            if isInkbonesCameTruePage { return inkbonesVerdict != nil }
+            if isInkbonesPage { return inkbonesReading?.finished == true }
             return gameResultSurface != nil
         }
         if isAnchorOfferPage || isChapterBindingPage || isChapterPrimerPage {
@@ -16212,6 +16401,19 @@ struct CapturePageSheet: View {
             let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
             return threadText + marginNote
         }
+        if isInkbonesCameTruePage,
+           let verdict = inkbonesVerdict.flatMap(InkbonesCameTrue.Verdict.init(rawValue:)) {
+            let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
+            let reading = surface.payload.metadata["inkbonesReading"]
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONDecoder().decode(InkbonesReading.self, from: $0) }
+            return (["Did the bones come true? \(verdict.line)", reading?.archiveText].compactMap { $0 })
+                .joined(separator: "\n\n") + marginNote
+        }
+        if isInkbonesPage, let inkbonesReading, inkbonesReading.finished {
+            let marginNote = trimmed.isEmpty ? "" : "\n\nMargin note: \(trimmed)"
+            return inkbonesReading.archiveText + marginNote
+        }
         if surface.type == .gamePage, let gameResultSurface {
             return gameResultSurface.payload.body
         }
@@ -16517,11 +16719,27 @@ struct CapturePageSheet: View {
            let threatID = preparedSurface.payload.metadata["greyThreatID"] {
             tags.append("grey-threat")
             tags.append("grey-threat:\(threatID)")
+            if let roll = Int(preparedSurface.payload.metadata["curseRoll"] ?? "") {
+                tags.append(InkbonesMarginMark.curseTag(roll: roll, took: greyThreatChoice != "rescue"))
+            }
             if greyThreatChoice == "rescue" {
                 tags.append("grey-threat-rescued")
             } else if greyThreatChoice == "surrender" {
                 tags.append("grey-threat-surrendered")
             }
+        }
+        if preparedSurface.payload.metadata["gameID"] == "inkbones-came-true",
+           let originID = preparedSurface.payload.metadata["inkbonesOriginPageID"] {
+            tags.append("inkbones")
+            tags.append("\(InkbonesCameTrue.askedTag)\(originID)")
+            if let inkbonesVerdict { tags.append("inkbones-verdict:\(inkbonesVerdict)") }
+        }
+        if preparedSurface.type == .gamePage, let inkbonesReading,
+           preparedSurface.payload.metadata["gameID"] == "inkbones" {
+            tags.append("inkbones")
+            tags.append(contentsOf: inkbonesReading.liveBones.map { "inkbones-face:\($0.face.rawValue)" })
+            if let greyed = inkbonesReading.greyedBone { tags.append("inkbones-greyed:\(greyed.face.rawValue)") }
+            if inkbonesReading.isTriumph { tags.append("inkbones-triumph") }
         }
         if preparedSurface.type == .tarot, let tarotReading {
             tags.append("tarot")
@@ -16607,6 +16825,10 @@ struct CapturePageSheet: View {
             for turn in storyTurns {
                 if let choice = turn.selectedChoice {
                     tags.append("choice:\(choice.id)")
+                    // The throw, inked where it happened (docs/the-knock-plan.md §7.5).
+                    if let resolution = turn.inkbonesResolution(for: choice) {
+                        tags.append(InkbonesMarginMark.tag(roll: resolution.roll, band: resolution.band))
+                    }
                     let closureText = [
                         choice.title,
                         choice.prompt,

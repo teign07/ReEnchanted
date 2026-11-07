@@ -256,9 +256,9 @@ struct SkyOnTheLeafLayer: View {
             Path(ellipseIn: body),
             with: .radialGradient(
                 Gradient(stops: [
-                    .init(color: Self.damp.opacity(0.03 * frame.beadAlpha), location: 0),
-                    .init(color: Self.damp.opacity(0.08 * frame.beadAlpha), location: 0.58),
-                    .init(color: Self.damp.opacity(0.22 * frame.beadAlpha), location: 0.86),
+                    .init(color: Self.damp.opacity(0.10 * frame.beadAlpha), location: 0),
+                    .init(color: Self.damp.opacity(0.16 * frame.beadAlpha), location: 0.58),
+                    .init(color: Self.damp.opacity(0.36 * frame.beadAlpha), location: 0.86),
                     .init(color: Self.damp.opacity(0), location: 1)
                 ]),
                 center: point,

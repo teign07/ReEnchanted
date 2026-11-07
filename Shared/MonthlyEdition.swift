@@ -154,6 +154,65 @@ struct InscriptionPublicationMatter: Codable, Equatable {
     /// Optional for readers who chose the dedicated sigil or a Bindery plate,
     /// and for Inscriptions bound before personal cover photographs existed.
     var readerCoverArtwork: ReaderCoverArtwork? = nil
+
+    // MARK: The arrival, told once (Inscriptions bound from 2026-11-07)
+    //
+    // The first Inscription repeated the reader's answers five times: a sample
+    // story, a form of souvenirs, four proof cards, the thread, the cast and
+    // the closing all said the same handful of things. A copy bound with
+    // `tale` tells the arrival once, as a story, and gives each answer exactly
+    // one home. Older copies have no tale and keep the legacy press path.
+
+    /// One scene of the arrival.
+    struct TaleScene: Codable, Equatable, Identifiable {
+        var id: String
+        var heading: String
+        /// Paragraphs separated by a blank line.
+        var body: String
+        /// A paragraph of `body` written by the reader, set in their hand.
+        var readerParagraph: String? = nil
+        /// A Cast or talisman plate that opens the scene, by asset name.
+        var plateAssetName: String? = nil
+        var plateCaption: String? = nil
+    }
+
+    /// One line of Zara's notes: something the reader told her, kept once.
+    struct NoteLine: Codable, Equatable, Identifiable {
+        var id: String
+        var label: String
+        var answer: String
+        /// True when `answer` is the reader's own words, set in their hand.
+        var readerWrote: Bool = false
+        /// What the Book did about it, in its own voice.
+        var aside: String? = nil
+    }
+
+    /// The Chapter the reader chose under the five banners, given a leaf of
+    /// its own: its argument, its talisman, its reading of their Page, and
+    /// the charge it hands them for tomorrow. Frozen with the copy.
+    struct ChapterFeature: Codable, Equatable {
+        var chapterID: String
+        var name: String
+        /// False when the reader asked the Book to pick for them. The leaf
+        /// says so rather than pretending they chose.
+        var chosenByReader: Bool
+        var argument: String
+        var founder: String
+        var question: String
+        var reading: String
+        var surprise: String?
+        var charge: String
+        var talismanName: String
+        var plateAssetName: String?
+    }
+
+    var tale: [TaleScene]? = nil
+    /// The small things the reader told Zara: the only place each appears.
+    var zaraNotes: [NoteLine]? = nil
+    var chapterFeature: ChapterFeature? = nil
+
+    /// Whether this copy was bound with the told-once arrival.
+    var tellsArrivalOnce: Bool { !(tale ?? []).isEmpty }
 }
 
 /// The publication house's durable vocabulary. Calendar editions and special
@@ -763,6 +822,9 @@ struct AnnualEdition: Codable, Equatable {
     /// when it rains, the hour the ink runs heavy. Each with its base rate and the lines it was
     /// read from. Optional so older editions decode.
     var connections: [EditionConnection]? = nil
+    /// The Pages the reader ribboned, which open the volume. Optional so older
+    /// volumes decode.
+    var ribboned: [MonthlyEditionItem]? = nil
 
     /// The reader's own name for covers, jackets, and spines. The Book-given
     /// role only stands in when an older archive has no usable human name.
@@ -2390,7 +2452,8 @@ enum MonthlyEditionBuilder {
         boundTales: [LivingTale] = [],
         authoredReceipts: AuthoredContentReceiptLedger = .empty,
         now: Date = Date(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        ribbonedPageIDs: [String] = []
     ) -> AnnualEdition {
         let seasonStart = calendar.date(from: calendar.dateComponents([.year, .month], from: startingMonth))
             ?? calendar.startOfDay(for: startingMonth)
@@ -2529,7 +2592,25 @@ enum MonthlyEditionBuilder {
                                             calendar: calendar)
         let connections = EditionConnections.make(days: seasonDays, now: now, calendar: calendar, limit: bindsAnnual ? 8 : 6)
         assembled.connections = connections.isEmpty ? nil : connections
+        let ribboned = Self.ribbonedItems(days: seasonDays, ribbonedPageIDs: ribbonedPageIDs)
+        assembled.ribboned = ribboned.isEmpty ? nil : ribboned
         return assembled
+    }
+
+    /// The season opens with the Pages the reader tucked a ribbon into
+    /// (docs/the-knock-plan.md §4), in the order they were kept. Only the
+    /// season's own Pages: a ribbon in an older Page belongs to its own volume.
+    static func ribbonedItems(days: [BookDay], ribbonedPageIDs: [String]) -> [MonthlyEditionItem] {
+        let wanted = Set(ribbonedPageIDs)
+        guard !wanted.isEmpty else { return [] }
+        return days.flatMap(\.pages)
+            .filter { wanted.contains($0.id) }
+            .map { page in
+                var item = pageItem(page)
+                item.tags.append("ribboned")
+                return item
+            }
+            .sorted { ($0.date ?? .distantPast) < ($1.date ?? .distantPast) }
     }
 
     /// The season as a term: one Handbook across its three months. The Cast who were
@@ -2647,7 +2728,10 @@ enum MonthlyEditionBuilder {
         grimoire: GrimoireLedger = GrimoireLedger(),
         authoredReceipts: AuthoredContentReceiptLedger = .empty,
         packTitle: String? = nil,
-        editionName: String? = nil
+        editionName: String? = nil,
+        attention: AttentionProbeLedger = .empty,
+        inkbonesLog: [InkbonesThrowRecord] = [],
+        greyPageThreats: GreyPageThreatLedger = .empty
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -2816,6 +2900,14 @@ enum MonthlyEditionBuilder {
                 calendar: calendar
             ),
             worldEventSection(from: boundPages),
+            curseSection(
+                attention: attention,
+                inkbonesLog: inkbonesLog,
+                greyPageThreats: greyPageThreats,
+                start: startDate,
+                end: endDate,
+                calendar: calendar
+            ),
             fictionalConsequenceSection(
                 from: storyConsequences.filter {
                     $0.createdAt >= startDate && $0.createdAt <= endDate
@@ -3674,6 +3766,87 @@ enum MonthlyEditionBuilder {
             id: recordSectionID,
             title: "The Record",
             note: "What the Academy did this month, written down plain. I only put you in it where I kept a receipt.",
+            items: items
+        )
+    }
+
+    /// The month's fight against the Curse (docs/the-knock-plan.md §7.4): the
+    /// Knocks, both sides' throws, the Pages it greyed and the ones taken
+    /// back, inked as they happened. Absent in a month without a Knock.
+    static func curseSection(
+        attention: AttentionProbeLedger,
+        inkbonesLog: [InkbonesThrowRecord],
+        greyPageThreats: GreyPageThreatLedger,
+        start: Date,
+        end: Date,
+        calendar: Calendar
+    ) -> MonthlyEditionSection {
+        func inMonth(_ date: Date) -> Bool { date >= start && date <= end }
+        func listed(_ items: [String]) -> String {
+            guard items.count > 1 else { return items.first ?? "" }
+            return items.dropLast().joined(separator: ", ") + " and " + items.last!
+        }
+        let knocks = attention.receipts.filter { inMonth($0.answeredAt) }
+        guard knocks.count >= 3 else {
+            return MonthlyEditionSection(id: "against-the-curse", title: "Against the Curse", note: "", items: [])
+        }
+        let curse = knocks.filter { $0.answer == .elsewhere }.count
+        let share = Int((Double(curse) / Double(knocks.count) * 100).rounded())
+        let usual = Int((CurseFight.everyonesShare * 100).rounded())
+        var score = ["You answered \(knocks.count) Knocks this month, and the Curse had \(curse) of them: \(share)%. Most people lose about \(usual)% of their waking hours to it."]
+        let sentences = knocks.filter { !($0.sentence ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        if sentences > 0 {
+            score.append("You wrote me \(sentences) sentence\(sentences == 1 ? "" : "s") from wherever you were.")
+        }
+        let counters = knocks.filter { $0.id.hasSuffix("-watch") }
+        if !counters.isEmpty {
+            let held = counters.filter { $0.answer.countsForReader }.count
+            score.append("I knocked \(counters.count) time\(counters.count == 1 ? "" : "s") in the Curse's own hour, and you held \(held).")
+        }
+        if let hourLine = CurseFight.hourLine(attention, calendar: calendar) {
+            score.append(hourLine)
+        }
+        if let hush = attention.hush, inMonth(hush.startedAt) {
+            switch hush.wokenBy {
+            case .reader?: score.append("I went quiet this month, because the Curse got into my knocking. You knocked on me first.")
+            case .time?: score.append("I went quiet this month for a few days, then came back on my own.")
+            case nil: score.append("I went quiet at the end of the month. I'm still listening.")
+            }
+        }
+        var items = [MonthlyEditionItem(
+            id: "against-the-curse-score", kind: .continuity, title: "The Month's Score",
+            body: score.joined(separator: "\n"), date: knocks.map(\.answeredAt).min(),
+            pageType: nil, sourceID: nil, mediaAssets: [], tags: ["monthly-edition", "curse-fight"]
+        )]
+        let thrown = inkbonesLog.filter { inMonth($0.at) }.sorted { $0.at < $1.at }
+        let curseThrows = thrown.filter { $0.thrower == .curse }
+        let readerThrows = thrown.filter { $0.thrower == .reader }
+        var dice: [String] = []
+        if !curseThrows.isEmpty {
+            let took = curseThrows.filter { $0.outcome == "took" }
+            dice.append("The Curse threw \(listed(curseThrows.map { String($0.roll) }))."
+                + (took.isEmpty ? " It took nothing." : " It took \(listed(took.map { "“\($0.subject)”" }))."))
+        }
+        if !readerThrows.isEmpty {
+            let triumphs = readerThrows.filter { $0.outcome == StoryInkbonesBand.triumph.rawValue }.count
+            dice.append("You threw \(listed(readerThrows.map { String($0.roll) }))"
+                + (triumphs == 0 ? "." : ", with \(triumphs == 1 ? "a triumph" : "\(triumphs) triumphs")."))
+        }
+        let rescued = greyPageThreats.threats.filter { $0.status == .rescued && ($0.resolvedAt.map(inMonth) ?? false) }
+        if !rescued.isEmpty {
+            dice.append("You took back \(listed(rescued.map { "“\($0.pageTitle)”" })) from the grey.")
+        }
+        if !dice.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "against-the-curse-throws", kind: .continuity, title: "The Bones",
+                body: dice.joined(separator: "\n"), date: thrown.first?.at,
+                pageType: nil, sourceID: nil, mediaAssets: [], tags: ["monthly-edition", "curse-fight", "inkbones"]
+            ))
+        }
+        return MonthlyEditionSection(
+            id: "against-the-curse",
+            title: "Against the Curse",
+            note: "Every Knock you answered, and every throw, as it fell.",
             items: items
         )
     }

@@ -59,6 +59,9 @@ struct InsideCoverApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     init() {
+        #if DEBUG
+        LaunchFrameProbe.startIfRequested()
+        #endif
         // Before anything reads the disk: a confirmed moving copy takes its place.
         BookMovingCopy.finishPendingRestore()
         guard !BookMovingCopy.recoveryIsRequired else { return }
@@ -181,6 +184,18 @@ struct InsideCoverApp: App {
     private static func warmReferenceLibrary() {
         Task.detached(priority: .utility) {
             _ = BookReferenceCatalog.wonderCompass.count
+        }
+        // Installed packs are decoded on first read and held while their files
+        // are unchanged. The first reads land on the main thread under the
+        // opening cover (radio world, StoreKit refresh, the first desk), where
+        // each decode is a frozen frame; read them here first instead.
+        Task.detached(priority: .utility) {
+            _ = WorldEventRegistry.userPacks().count
+            _ = RadioStationRegistry.userPacks().count
+            _ = PageArchetypePackRegistry.userPacks().count
+            _ = StoryFormRegistry.userPacks().count
+            _ = StoryConsequenceRegistry.userPacks().count
+            _ = EditionPlayCatalogue.userPacks().count
         }
     }
 

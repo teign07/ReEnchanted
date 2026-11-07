@@ -38,7 +38,9 @@ final class BraidKeepCoverageProbeTests: XCTestCase {
       }
       XCTAssertEqual(reached, seated, "\(day.id): a seated Page never reached the telling")
 
-      let draft = (details + keptLines + bookLines).joined(separator: "\n\n")
+      // The night's old-tale line goes through the same scrub and audit.
+      let turn = WonderBraid.turn(plan: plan, details: details, dateKey: day.id, resting: [])
+      let draft = (details + keptLines + bookLines + [turn?.text].compactMap { $0 }).joined(separator: "\n\n")
       let scrub = BraidTellingScrub.scrubbed(
         draft, readerMaterial: ([plan.title()] + details).joined(separator: " "),
         isHardNight: plan.isHardNight, verbatim: keptLines)
@@ -58,6 +60,7 @@ final class BraidKeepCoverageProbeTests: XCTestCase {
       print("\(day.id) scale=\(plan.scale) kept=\(eligible.count) seated=\(seated.count) reached=\(reached.count)"
         + " fictionKept=\(fictionKept) unseated=\(unseated)")
       for line in keptLines { print("  KEPT \(line)") }
+      if let turn { print("  TURN \(turn.shape) after: \(turn.after.prefix(60)) -> \(turn.text)") }
     }
     if printing { print("TOTAL kept=\(totals.kept) seated=\(totals.seated) reached=\(totals.reached)") }
   }

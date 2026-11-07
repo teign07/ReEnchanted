@@ -2,10 +2,8 @@ import Foundation
 @testable import InsideCoverCore
 
 extension BookSourceInputs {
-    /// Seeds enough backdated kept pages that `libraryReadyForReflectivePages`
-    /// returns true, so tests of the reflective/emergent pages (Two Readings,
-    /// the Loom, Book Notices, Book Remembers, Constellations) aren't blocked by
-    /// the early-days maturity gate.
+    /// Seeds a small backdated archive for tests that need several concrete
+    /// reader fragments. Content eligibility itself has no maturity counter.
     func withMatureLibrary(now: Date = Date(), calendar: Calendar = .current) -> BookSourceInputs {
         var copy = self
         var seeded: [BookDay] = []

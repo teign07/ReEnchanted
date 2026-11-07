@@ -19,6 +19,9 @@ struct GreyPageThreat: Identifiable, Codable, Equatable {
     var status: GreyPageThreatStatus
     var resolvedAt: Date?
     var rescueLine: String?
+    /// The Curse's Inkbones throw that marked this Page (docs/the-knock-plan.md
+    /// §7.2), when it was a throw and not the Book going rote.
+    var curseRoll: Int? = nil
 
     var isActive: Bool { status == .marked || status == .fading }
 }
@@ -54,6 +57,7 @@ enum GreyPageThreatEngine {
         mayThreaten: Bool,
         distressActive: Bool,
         protectedPageIDs: Set<String> = [],
+        curseRoll: Int? = nil,
         now: Date = Date()
     ) -> [String] {
         guard !distressActive else { return [] }
@@ -107,11 +111,16 @@ enum GreyPageThreatEngine {
             pageExcerpt: String(excerptSource.prefix(240)),
             markedAt: now,
             deadline: nil,
-            status: .marked,
+            status: curseRoll == nil ? .marked : .fading,
             resolvedAt: nil,
-            rescueLine: nil
+            rescueLine: nil,
+            curseRoll: curseRoll
         )
-        ledger.threats.append(threat)
+        var marked = threat
+        // A Page the Curse threw for starts fading at once: the Grey Knock
+        // tells the reader, and the rescue window is open from that moment.
+        if curseRoll != nil { marked.deadline = now.addingTimeInterval(rescueWindow) }
+        ledger.threats.append(marked)
         ledger.lastMarkedAt = now
         changes.append("marked:\(threat.id)")
         return changes
@@ -129,6 +138,17 @@ enum GreyPageThreatEngine {
             ledger.threats[index].deadline = now.addingTimeInterval(rescueWindow)
         }
         return ledger.threats[index]
+    }
+
+    /// A Page that went out of the Book's memory comes back when the reader
+    /// returns to it: a ribbon, or a sentence. The archive never lost it.
+    @discardableResult
+    static func reink(pageID: String, line: String?, in ledger: inout GreyPageThreatLedger, now: Date = Date()) -> Bool {
+        guard let index = ledger.threats.lastIndex(where: { $0.pageID == pageID && $0.status == .erased }) else { return false }
+        ledger.threats[index].status = .rescued
+        ledger.threats[index].resolvedAt = now
+        ledger.threats[index].rescueLine = line?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+        return true
     }
 
     @discardableResult
@@ -360,6 +380,56 @@ enum BookFamiliarityRutEngine {
 }
 
 
+/// Words supplied with a recording. Cue times are seconds in that exact audio
+/// file, never estimated from word count. Untimed text remains readable.
+struct RadioReadAlong: Codable, Equatable {
+    struct Cue: Codable, Equatable {
+        var start: Double
+        var end: Double
+        var text: String
+    }
+
+    var text: String
+    var cues: [Cue] = []
+
+    var hasValidTiming: Bool {
+        guard !cues.isEmpty else { return false }
+        var previousEnd = 0.0
+        for cue in cues {
+            guard cue.start.isFinite, cue.end.isFinite,
+                  cue.start >= previousEnd, cue.end > cue.start,
+                  !cue.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            previousEnd = cue.end
+        }
+        // A partial alignment must not hide the rest of a transcript.
+        let normalize: (String) -> String = { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+        return normalize(cues.map(\.text).joined(separator: " ")) == normalize(text)
+    }
+
+    func activeCueIndex(at seconds: Double) -> Int? {
+        guard seconds.isFinite, hasValidTiming else { return nil }
+        return cues.firstIndex { $0.start <= seconds && seconds < $0.end }
+    }
+
+    /// A malformed cue sheet falls back to its complete text, without a false
+    /// highlight or a truncated transcript.
+    var readableLines: [String] {
+        if hasValidTiming { return cues.map(\.text) }
+        return text.components(separatedBy: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+    }
+
+    init(text: String, cues: [Cue] = []) {
+        self.text = text
+        self.cues = cues
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        text = try values.decode(String.self, forKey: .text)
+        cues = try values.decodeIfPresent([Cue].self, forKey: .cues) ?? []
+    }
+}
+
 struct RadioTrack: Codable, Equatable, Identifiable {
     var id: String
     var title: String
@@ -373,6 +443,8 @@ struct RadioTrack: Codable, Equatable, Identifiable {
     var conditions: RadioBanter.Conditions? = nil
     /// A short, authored, non-lyric trace which may tint later fiction.
     var meaning: RadioTrackMeaning? = nil
+    /// Display only. Lyrics never enter the narrative-meaning prompt path.
+    var lyrics: RadioReadAlong? = nil
 
     var resolvedWeight: Int { max(1, weight ?? 1) }
 }
@@ -578,6 +650,9 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     /// For a bound break, whether it leads into the song (`intro`) or follows it
     /// (`outro`). nil + a `trackID` means "either side is fine."
     var placement: Placement? = nil
+    /// Optional inline transcript for radio packs; bundled recordings also
+    /// carry cue sheets alongside their audio.
+    var transcript: RadioReadAlong? = nil
 
     var resolvedWeight: Int { max(1, weight ?? 1) }
     var isBound: Bool { trackID != nil }
@@ -585,6 +660,9 @@ struct RadioBanter: Codable, Equatable, Identifiable {
     /// Imported DJ batches sometimes arrive with only production placeholders.
     /// This is intentionally a label, not an invented transcript.
     var readerFacingCaption: String {
+        if let transcript, !transcript.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return transcript.text
+        }
         let lowered = caption.lowercased()
         if lowered.contains("unscheduled ") || lowered.contains("audio-backed clip") {
             return "A local station break is playing. Its words haven't been transcribed yet."
@@ -1741,70 +1819,70 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-penny-banter-01", category: .stationID,
                     assetName: "DJ_faefi_penny_banter_01",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 1 of the July 7 batch.",
+                    caption: "You're back on Fae-Fi, frequency nine and three-quarters-ish, where we keep the static warm and the sentences warmer. Today's spell is called specific is terrific. A vague sentence is a locked door. I had a good coffee. Locked. The coffee was hot, still locked, but now we can hear someone breathing inside. The coffee tasted smoky and the mug warmed both my hands like it was trying to apologize for Monday. Open. Specific details are how memory knows where to live. Your brain is very rude. It throws away anything labeled nice, fun, or pretty unless you pin it down by the sleeve and say, No. This one. Not just bird. Bluejay. Not just dinner. Garlic hitting hot oil. Not just walk. The puddle shaped like a sleeping cat. So tonight, take one boring sentence and make it less boring. I went outside. Fine. Useful. A pebble. Now give it a jewel. I went outside and the cold air bit my cheeks awake. There, now it has teeth. Penny's rule, if your sentence could belong to anyone, sharpen it until it belongs to you.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-02", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_02",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 2 of the July 7 batch.",
+                    caption: "Hey there, little paper ghosts! Penny Blackletter here, broadcasting from the ink-stained booth at Fae-Fi, where the kettle is haunted, the moon is underlining things, and every sentence is a tiny door. Tonight's lesson. You do not need to journal. There. Did your shoulders drop? Good. We are not filling three pages before breakfast. We are not buying a leather notebook and immediately fearing it. We are not becoming a writer in the alarming hat and candle sense. We are stealing. One sentence. That's all. Not today was nice. That's fog. That's soup without salt. That will vanish by Thursday. Try this instead. The blue jay looked like a piece of hard candy against the grey sky. See? Now the moment has a hook. The future you can hang a coat on it. Your assignment should you accept the quill. Before you sleep, write one sentence from today with a color, a sound, a smell, or a texture in it. One sentence, steal it before time eats it.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-03", category: .news,
                     assetName: "DJ_faefi_penny_banter_03",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 3 of the July 7 batch.",
+                    caption: "Hello, inklings! Penny Blackletter here, teaching dangerous sentence magic between songs. Tonight's trick, Cross the Wires. Your senses are not school children. They do not have to stay in their own little lines. A sound can have a color. A smell can have a temperature. A taste can have a shape. The rain smelled fresh is perfectly legal. But legal is not always alive. Try the rain smelled green and silver. Now the caveman in your brain stops filing and starts looking. The fire was warm. Fine. The fire sounded orange. Better. Stranger. Stickier. The soup smelled loud. Ridiculous? Absolutely. Memorable? Also absolutely. When you cross two senses, you create a tiny spark. The brain pauses, confused, and in that pause, the moment gets branded deeper. So here's your practice. Take one plain sentence. The room was quiet. Now cross the wires. The room was so quiet it felt soft. There you are. That's not a room anymore. That's a place your future self can enter.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-04", category: .network,
                     assetName: "DJ_faefi_penny_banter_04",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 4 of the July 7 batch.",
+                    caption: "This is Penny Blackletter on Fae-Fi, broadcasting from beneath the old library, where the lamps gossip and the commas keep multiplying. Today we take you out of the center of the sentence. Most beginners write like this, I saw the moon, I found a stone, I sat on a bench. Perfectly fine, also slightly dead. No offense to your bench. Now give the world the verb. The moon followed me home. The stone waited in the river until my hand finally arrived. The bench caught me like it had been saving that patch of shade all afternoon. Hear the difference? In the first version, the world is scenery. In the second, the world has opinions. This is how you write a sentence that feels enchanted without lying. You're not saying the bench literally has a secret life. You're saying, I was awake enough to feel a relationship. Try it now. Plain sentence. I drink tea. World with a verb sentence. The tea climbed into my chest and lit one small lamp. That's the spell. Give the world the pen. Let it write back.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-05", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_05",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 5 of the July 7 batch.",
+                    caption: "Welcome back to Fae-Fi sentence thieves. Penny Blackletter here with the alchemists formula. Ready? Cross a sense. Give the world the verb. That's it. Two ingredients. Tiny cauldron. Plain sentence. The old book smelled nice. Cross a sense. The old book smelled golden. Give the world the verb. The old book breathed gold dust when I opened it. Now we have a sentence with lungs. Plain sentence. The traffic was bad. Cross a sense. The traffic felt gray. Give the world the verb. The traffic pressed its fat gray thumb against the windshield, but the radio slipped one bright song through the crack. Now that commute isn't deleted. It survived. You're not trying to be fancy. You're trying to be findable. A good souvenir sentence is a little trail of breadcrumbs back to your own life. So tonight's spellwork. Take one thing from today. A cup. A cloud. A receipt. A cat's paw. A weird smell in the hallway. Cross one wire. Give one object a verb. Do not explain it. Don't defend it. Just let it glow in the jar.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-06", category: .news,
                     assetName: "DJ_faefi_penny_banter_06",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 6 of the July 7 batch.",
+                    caption: "Did you hear that? The tiny goblin in your pocket wants you to post the moment before you've lived it. Penny Blackletter here, declaring a gentle but ironclad law of Fae-Fi, the 24-hour embargo. You may take the photo, you may write the sentence, you may grin privately like someone with a secret acorn, but you may not post it for 24 hours. Why? Because the second you start wondering how the moment will look to other people, you stop being inside it. You leave the tavern and start designing the tavern poster. Experience first. Broadcast later. Let the memory cure like wet concrete. Make it yours before you make it public. Carry it around for one day like a warm coin in your pocket. No likes, no comments, no little hearts turning your private wonder into a public performance. Tomorrow, if you still want to share it, share it. But tonight, write the line. Close the app. Stay enchanted.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-07", category: .stationID,
                     assetName: "DJ_faefi_penny_banter_07",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 7 of the July 7 batch.",
+                    caption: "This is Fae-Fi for the tired ones. The ones listening from kitchens, parked cars, laundry rooms, and beds they meant to leave 20 minutes ago. Penny Blackletter here with a note from your future self. Make the jar. Or the notes folder. Or the text thread. Or the receipt box. The vessel doesn't matter. The saving does. Because someday the gray will come back. It does that. It knocks like it pays rent. And on that day, your brain will say, nothing good ever happens. This is when you open the jar. You read, the garlic hit the oil and the whole kitchen smelled like someone loved me. You read the garbage truck rumbled past like a dragon clearing its throat. You read a kid in a blue tutu danced in the cereal aisle like the store was Broadway. And suddenly the gray has a problem. Evidence. Your own handwriting. Your own life. Proof that color has happened here before and can happen here again. A souvenir is not just a memory, it's a lantern you build on a better day for the self who has to walk home in the dark.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-08", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_08",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 8 of the July 7 batch.",
+                    caption: "Penny Blackletter here, live from Fae-Fi, where we're currently rescuing dinner conversations from the swamp of FINE. You know the loop. How was your day? Fine. What did you do? Nothing. And there it is. Two humans, full of storms and jokes and tiny miracles, exchanging weather reports from behind glass. A one-sentence souvenir breaks the glass. Instead of, fine, try. I saw a dog refuse to cross a puddle with the dignity of a disappointed prince. Now there's a door the other person can enter. They can laugh. They can ask what kind of dog. They can tell you about the squirrel they saw losing an argument with a trash can. This is how connection begins again. Not with a grand confession. not with perfect vulnerability, with one specific picture handed across the table. So here's tonight's social spell. Bring one sentence to someone you love, not advice, not a report, a moment. Offer it like a match. See what lights.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-09", category: .news,
                     assetName: "DJ_faefi_penny_banter_09",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 9 of the July 7 batch.",
+                    caption: "A reminder from your local ink witch. Your first sentence is allowed to be ugly. In fact, it probably should be. First drafts are field mice, nervous, tiny, darting under furniture. Let them be mice. Write, the bird was pretty. Good, you caught the mouse. Now look again. What kind of pretty? Blue? sharp, ridiculous, too bright for the weather. Try, the bird was so blue it looked illegal. There, now the mouse has a little hat. Don't demand poetry from the first sentence. Ask it questions. What color was it? What did it sound like? What did it remind me of? What did the world do? The sentence will answer if you don't scare it. Catch the mouse first. Give it a hat second.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-10", category: .network,
                     assetName: "DJ_faefi_penny_banter_10",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 10 of the July 7 batch.",
+                    caption: "This is Penny Blackletter, Spinning. Today's lesson is simple. Time is a dragon. It eats Mondays. It eats weekends. It eats the smell of your coffee, the look on your partner's face, the exact joke that made you laugh until your stomach hurt. It's not evil. It's only hungry. But you have a knife. One sentence. That's the blade. When you write, the orange street light turned the rain into falling pennies. You cut that moment free. When you write, Amanda laughed so hard she had to hold the table. You pull that laugh from the dragon's teeth. When you write, the cat's paw rested on my wrist like a tiny warm question. You rescue the ordinary before it becomes invisible. This is not homework. This is a heist. So sharpen your little sentence. Slip it into your pocket. Walk away whistling. The dragon can have plenty. But not this. Not this one.",
                     conditions: nil,
                     weight: 3
                 ),
@@ -1814,73 +1892,73 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "faefi-penny-banter-11", category: .stationID,
                     assetName: "DJ_faefi_penny_banter_11",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 11.",
+                    caption: "Penny Blackletter here, Fae-Fi 88.3. This is your reminder that the nearest miracle probably isn't far away. It may be a mug. It may be a sock. It may be a house plant surviving under, frankly, suspicious management. Look at one ordinary thing near you and ask. I wonder how long it's been helping me. There, that's it. The book accepts tiny evidence.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-12", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_12",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 12.",
+                    caption: "Tiny mission. Find three things that are the same color, not matching. Matching is for curtains and cowards, just related. Three blues, three yellows, three greens pretending not to know each other. When you find them, say, ah, a committee. Now you've discovered a color conspiracy. Please report findings to your nearest window, notebook, or willing spoon.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-13", category: .news,
                     assetName: "DJ_faefi_penny_banter_13",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 13.",
+                    caption: "Some, I wonder, questions are too large before breakfast. I wonder what I'm doing with my life. Absolutely not, denied. Return later with snacks. Try smaller. I wonder what sound the room is making under the music. I wonder what the light is touching first. I wonder which object near me has the best shadow. Small questions are not lesser magic. They’re magic that fits through the door.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-14", category: .network,
                     assetName: "DJ_faefi_penny_banter_14",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 14.",
+                    caption: "Attention listener one object near you has gone unthanked for too long could be your chair could be your shoes could be the charger currently keeping civilization from collapse choose one look at it for two seconds and say silently or aloud good work little accomplice there you've improved labor relations with the material world, Fae-Fi approves.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-15", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_15",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 15.",
+                    caption: "Field assignment, find the weirdest texture within arm's reach, not the prettiest, the weirdest, ribbed cardboard, sweater fuzz, crumbly napkin edge, the mysterious rubber button on the remote, touch it like you are meeting a tiny animal, then write one sentence, it felt like, That's all. Wonder enters through the fingertips more often than people admit.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-16", category: .news,
                     assetName: "DJ_faefi_penny_banter_16",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 16.",
+                    caption: "If you have a window nearby, congratulations, you own a live painting that changes without asking permission. Look through it and ask. I wonder what moved while I wasn't watching. A branch? A cloud? A shadow? A neighbor's curtain? The world is constantly editing itself. You're allowed to catch one revision.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-17", category: .stationID,
                     assetName: "DJ_faefi_penny_banter_17",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 17.",
+                    caption: "If you have a window nearby, congratulations, you own a live painting that changes without asking permission. Look through it and ask. I wonder what moved while I wasn't watching. A branch? A cloud? A shadow? A neighbor's curtain? The world is constantly editing itself. You're allowed to catch one revision.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-18", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_18",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 18.",
+                    caption: "Penny Blackletter with a sanctioned pocket inspection. Check one pocket, bag, drawer, or couch crack. Find the most boring thing there. Receipt, coin, wrapper, hair tie, mystery screw. Now ask, what tiny journey brought you here? That receipt used to be a tree. Then it was a transaction. then evidence, then trash, then a fossil. Respect the paperwork.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-19", category: .news,
                     assetName: "DJ_faefi_penny_banter_19",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 19.",
+                    caption: "Listen underneath the music for three seconds. What did you hear? Fridge hum? Traffic hiss? A vent pretending to be the ocean? Your own sleeve moving. Excellent. The room was broadcasting the whole time. Fae-Fi was merely interrupting.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-20", category: .network,
                     assetName: "DJ_faefi_penny_banter_20",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 20.",
+                    caption: "One sentence. Three seconds of attention. That's the deal. Look at something ordinary and finish this. I never noticed. I never noticed the mug has a chip shaped like Maine. I never noticed the floor creaks after I stop moving. I never noticed the lamp makes my hand look golden. There. A souvenir. No gift shop required.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-21", category: .gossip,
                     assetName: "DJ_faefi_penny_banter_21",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 21.",
+                    caption: "New mission. Pretend you're a friendly spy sent to prove this room is secretly alive. Gather three clues. A blinking light. A leaning stack of books. A plant reaching for the window like it has somewhere to be. Don't solve the case. Just collect evidence. Wonder loves an unfinished investigation.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
                     id: "faefi-penny-banter-22", category: .news,
                     assetName: "DJ_faefi_penny_banter_22",
-                    caption: "Unscheduled Penny Blackletter banter from the Fae-Fi records desk. Audio-backed clip 22.",
+                    caption: "Declare a festival for one small thing, the festival of clean socks, the festival of finding the pen, the festival of water tasting better than expected, duration, 12 seconds, required ritual, notice the thing, optional ritual, nod respectfully. Not every festival needs tents, Some only need permission.",
                     conditions: nil, weight: 3
                 ),
                 RadioBanter(
@@ -2284,108 +2362,108 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "mothlight-euphony-banter-01", category: .stationID,
                     assetName: "DJ_mothlight_euphony_banter_01",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 1 of the July 7 batch.",
+                    caption: "Here’s a sentence spell for tired people. Look at your coffee. Don't write what it is. Write what it feels like it's trying to remember. My coffee smelled like yesterday trying again. That's enough. A sentence does not have to be clever. It only has to leave a fingerprint.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-02", category: .gossip,
                     assetName: "DJ_mothlight_euphony_banter_02",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 2 of the July 7 batch.",
+                    caption: "Hello, little lanterns. Professor Euphony here. Tiny lesson. Do not write. The lamp was yellow. Too obedient. Write. The lamp tasted like warm toast. That's synesthetic sentence writing. One sense borrows another sense's hat. Try it with the nearest light. What does it taste like? music to help your sentence writing.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-03", category: .news,
                     assetName: "DJ_mothlight_euphony_banter_03",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 3 of the July 7 batch.",
+                    caption: "Today's assignment. Pick one ugly, useful thing near you. A chair, a charger, a receipt, a sock. Now give it one beautiful job. The chair held the room together like a quiet uncle. There, that's writing. Noticing plus surprise. Nothing more dramatic than that.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-04", category: .network,
                     assetName: "DJ_mothlight_euphony_banter_04",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 4 of the July 7 batch.",
+                    caption: "Professor Euphony, with your minute of weather. Not outside weather, inside weather. Try this. My mood isn't sad. It's blue laundry left in the basket. See? More useful. Sad is a label. Blue laundry has weight. Blue laundry has a smell. Blue laundry can be picked up.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-05", category: .stationID,
                     assetName: "DJ_mothlight_euphony_banter_05",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 5 of the July 7 batch.",
+                    caption: "If your phone is glowing at you right now, give it a sentence. Not a judgement, not a lecture, a sentence. The phone lit my hand like a tiny aquarium. Now you've noticed it, that's the beginning of freedom. Not the whole thing, just the beginning.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-06", category: .gossip,
                     assetName: "DJ_mothlight_euphony_banter_06",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 6 of the July 7 batch.",
+                    caption: "Simple spell. Look at the sink. Write one sentence that makes it stranger than it was. The sink smelled like spoons and old rain. Good. The sink sounded tired of holding everyone's rinsed-off day. Also good. The kitchen is full of witnesses. Be polite. Take their statements.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-07", category: .news,
                     assetName: "DJ_mothlight_euphony_banter_07",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 7 of the July 7 batch.",
+                    caption: "For grief, keep the sentence small. Don't try to explain the whole ocean. Name one cup of water. The empty chair was louder than the television. That's enough. A true sentence can be a candle. It doesn't have to be the sun. Back to the music, gently.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-08", category: .network,
                     assetName: "DJ_mothlight_euphony_banter_08",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 8 of the July 7 batch.",
+                    caption: "A grocery store is an orchestra pretending to be errands. Listen. Freezers, hum, carts, clatter. Someone's keys jingle like pocket weather. Try this sentence. The cereal aisle buzzed yellow. That's it. No pilgrimage required. Wonder accepts coupons.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-09", category: .stationID,
                     assetName: "DJ_mothlight_euphony_banter_09",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 9 of the July 7 batch.",
+                    caption: "Look at your hands for three seconds, not symbolically, actually. Now write, my hands look like maps that had forgiven me. Or simpler, my knuckles felt like little hills. Both work. You're not making literature, you're making contact.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-10", category: .gossip,
                     assetName: "DJ_mothlight_euphony_banter_10",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 10 of the July 7 batch.",
+                    caption: "If a sentence feels dead, give it one sense. If it still feels dead, give it the wrong sense. The room was quiet, fine. The room was quiet like gray bread, awake. The wrong sense is often the right door.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-11", category: .news,
                     assetName: "DJ_mothlight_euphony_banter_11",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 11 of the July 7 batch.",
+                    caption: "Before this next song ends, steal one thing from the day, not money, a detail, the blue light under the door, the spoon clicking the bowl, the way your sleeve smelled like outside. Put it in one sentence, that sentence is a souvenir, small enough to carry, strong enough to prove You were here.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "mothlight-euphony-banter-12", category: .network,
                     assetName: "DJ_mothlight_euphony_banter_12",
-                    caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 12 of the July 7 batch.",
+                    caption: "A moth doesn't review the lamp. It doesn't say derivative, overly bright, lacks nuance. It simply goes. So today, don't review the moment. Approach it. Write one sentence from inside the light. That is all. Professor Euphony, leaving the porch light on.",
                     conditions: nil,
                     weight: 3
                 ),
                 // Unscheduled Professor Euphony breaks imported from the July
                 // 11 ElevenLabs batch. All are ordinary, ungated Mothlight
                 // breaks and belong to the normal random DJ rotation.
-                RadioBanter(id: "mothlight-euphony-banter-13", category: .stationID, assetName: "DJ_mothlight_euphony_banter_13", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 13.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-14", category: .gossip, assetName: "DJ_mothlight_euphony_banter_14", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 14.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-15", category: .news, assetName: "DJ_mothlight_euphony_banter_15", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 15.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-16", category: .network, assetName: "DJ_mothlight_euphony_banter_16", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 16.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-17", category: .stationID, assetName: "DJ_mothlight_euphony_banter_17", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 17.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-18", category: .gossip, assetName: "DJ_mothlight_euphony_banter_18", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 18.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-19", category: .news, assetName: "DJ_mothlight_euphony_banter_19", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 19.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-20", category: .network, assetName: "DJ_mothlight_euphony_banter_20", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 20.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-21", category: .stationID, assetName: "DJ_mothlight_euphony_banter_21", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 21.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-22", category: .gossip, assetName: "DJ_mothlight_euphony_banter_22", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 22.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-23", category: .news, assetName: "DJ_mothlight_euphony_banter_23", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 23.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-24", category: .network, assetName: "DJ_mothlight_euphony_banter_24", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 24.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-25", category: .stationID, assetName: "DJ_mothlight_euphony_banter_25", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 25.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-26", category: .gossip, assetName: "DJ_mothlight_euphony_banter_26", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 26.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-27", category: .news, assetName: "DJ_mothlight_euphony_banter_27", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 27.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-28", category: .network, assetName: "DJ_mothlight_euphony_banter_28", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 28.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-29", category: .stationID, assetName: "DJ_mothlight_euphony_banter_29", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 29.", conditions: nil, weight: 3),
-                RadioBanter(id: "mothlight-euphony-banter-30", category: .gossip, assetName: "DJ_mothlight_euphony_banter_30", caption: "Unscheduled Professor Euphony banter from Mothlight Beats. Audio-backed clip 30.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-13", category: .stationID, assetName: "DJ_mothlight_euphony_banter_13", caption: "Good evening, little lanterns. Professor Euphony here, on Mothlight Beats. Before the next song begins, listen to the room you're in, not the music, under the music. A hum, a creak, a breath, a far-off engine, the tiny electric insect of a charger. ask. I wonder what note this room is holding. You don't have to answer correctly. You only have to listen like the room's been waiting.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-14", category: .gossip, assetName: "DJ_mothlight_euphony_banter_14", caption: "Tiny exercise. Look at the nearest light, lamp, window, phone, street light, refrigerator glow at an hour when nobody needs to explain themselves. Now ask, what texture is this light? Is it velvet, dust, warm bread, thin paper, a spoon left in tea? The light was bright is information. The light felt like yellow flannel is a little door. Step through gently.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-15", category: .news, assetName: "DJ_mothlight_euphony_banter_15", caption: "If the whole day feels too large, choose one detail, only one, the edge of the cup, the sock around your ankle, the small click your jaw makes, the way the blanket is warmer where your hands been. Ask, I wonder what I would miss about this if it disappeared. That question isn't sadness, it's attention putting its hand on the world.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-16", category: .network, assetName: "DJ_mothlight_euphony_banter_16", caption: "Feelings are difficult when they arrive as names. Sad. Tired. Fine. Fine is especially suspicious. So try temperature instead. Ask what temperature am I? Maybe you’re lukewarm soup. Maybe you’re cold window glass. Maybe you're a kettle just before it sings. That's enough. A feeling with a temperature is easier to hold and much easier to write down.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-17", category: .stationID, assetName: "DJ_mothlight_euphony_banter_17", caption: "Find one ordinary sound. A fan. A faucet. A car passing. Someone moving in another room. Now give it the wrong sense. What colour is it? The fan sounded grey-blue. The faucet sounded silver. The car passed in a long brown ribbon. This isn't nonsense, this is your attention learning to braid.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-18", category: .gossip, assetName: "DJ_mothlight_euphony_banter_18", caption: "If there's a cup near you, regard it, this cup's had a full life. It's held heat, fingerprints, thirst, maybe lipstick, maybe soup, maybe one very bad decision involving microwave tea. Ask, I wonder what this cup remembers about me. Then write one sentence. The cup remembered my hands by their warmth. There. A small archive. No password required.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-19", category: .news, assetName: "DJ_mothlight_euphony_banter_19", caption: "Today's mission is sleeve weather. Touch your sleeve, cuff, blanket or shirt. Don't judge it. Report the weather. Fuzzy with a chance of lint. Cool cotton after sunset. Static gathering in the west. Warm from the animal of you. The body is always living somewhere. Sometimes the fastest way back is through fabric.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-20", category: .network, assetName: "DJ_mothlight_euphony_banter_20", caption: "Look for a shadow near you, not a dramatic one, a small one, under a mug, behind a chair, along the wall, beneath your own hand. Now ask. I wonder what this shadow is protecting. Maybe nothing. Maybe the floor from too much certainty. Maybe the object's secret life. Maybe your right to be unfinished. Shadows aren't always warnings, sometimes they’re little pockets.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-21", category: .stationID, assetName: "DJ_mothlight_euphony_banter_21", caption: "If there's a bag, basket, pile, or cluttered corner near you, don't call it a mess yet. First, call it evidence. Evidence that someone ate, someone carried, someone tried, someone came home. Ask. I wonder what care is hiding inside this A receipt can be a fossil, a wrapper can be proof of survival, a sock can be a flag planted by the tired.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-22", category: .gossip, assetName: "DJ_mothlight_euphony_banter_22", caption: "Try this with me. Take three quiet breaths. On the first, notice one sound. On the second, notice one texture. On the third, notice one bit of light. Now put them in a sentence. The room hummed, the blanket scratched, and the lamp made gold on my knuckles. Not poetry. Proof. You were here.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-23", category: .news, assetName: "DJ_mothlight_euphony_banter_23", caption: "Quiet is not empty. Quiet has a flavour. Listen for it. Is this quiet, minty, dusty, metallic, like a milky way bar? Write, the quiet tasted like and then trust the strange answer. The first strange answer is often the one that came from the body.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-24", category: .network, assetName: "DJ_mothlight_euphony_banter_24", caption: "Look at your hand. Just one. The back of it. The palm. The knuckles. The small places time has been signing its name. Ask. I wonder what my hand did for me without being thanked. Held a cup. Opened a door. Found a pocket. Reached for someone. Stayed. There's wonder in loyalty, especially the kind attached to your own wrist.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-25", category: .stationID, assetName: "DJ_mothlight_euphony_banter_25", caption: "Find the smallest glow near you, not the grand light, the little one, a charger dot, a clock number, the seam of light under a door, the tiny blue tooth of a device pretending it is asleep. Ask, I wonder why this small light feels so brave. Perhaps because darkness is large And still, there it is, unimpressed, doing its one little job.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-26", category: .gossip, assetName: "DJ_mothlight_euphony_banter_26", caption: "Smell the air just once. Not dramatically, we aren't summoning anything dangerous. What is there? Dust, soap, dinner, rain, fabric, old paper, warm electronics, yourself. Now ask, I wonder what memory this smell is almost opening. Don't force the door, just notice the handle. Sometimes that's the whole enchantment.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-27", category: .news, assetName: "DJ_mothlight_euphony_banter_27", caption: "A useful sentence doesn't need to explain your life, it only needs to catch one living thread. Try this shape. The blank felt like blank. The blanket felt like a low cello note. The sink felt like old rain. The lamp felt like a peach-coloured promise. too much, possibly. But the grey is allergic to specificity. Be specific.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-28", category: .network, assetName: "DJ_mothlight_euphony_banter_28", caption: "If you're near a window, look at it. A window isn't just something you see through, it's an instrument for mixing worlds. Inside. Comfort. Outside. Wild. Your reflection, trying to join both. Ask. I wonder what the window’s composing with my face and the weather. You don't have to be beautiful for this. You only have to appear.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-29", category: .stationID, assetName: "DJ_mothlight_euphony_banter_29", caption: "For tired people, the mission is smaller. Don't get up. Do not improve. Do not become a radiant citizen of morning. Just notice one thing touching you. Chair, sock, air, blanket, floor. Ask. I wonder what's holding me up right now. Sometimes wonder isn't a spark, sometimes it's support.", conditions: nil, weight: 3),
+                RadioBanter(id: "mothlight-euphony-banter-30", category: .gossip, assetName: "DJ_mothlight_euphony_banter_30", caption: "The moment you're in has edges. You can find them. One edge is sound, one edge is light, one edge is the feeling of your body against the world. Touch the edge nearest you, table, sleeve, cup, knee, wall. Ask, I wonder where I end and the room begins. There. Not an answer. A doorway. Mothlight Beats will hold it open for a song or two.", conditions: nil, weight: 3),
                 RadioBanter(
                     id: "mothlight-psa-samhain", category: .news,
                     assetName: "DJ_mothlight_psa_samhain_01",
@@ -2806,152 +2884,152 @@ enum RadioStationRegistry {
                 RadioBanter(
                     id: "thornwave-wicker-banter-01", category: .stationID,
                     assetName: "DJ_thornwave_wicker_banter_01",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 1 of the July 7 batch.",
+                    caption: "Wicker Eddies here, broadcasting on Thornwave. A sentence without pressure is just furniture. The kitchen was quiet. Fine, lovely, dead on arrival. Try this. The kitchen was quiet, but the dishes knew I was avoiding them. There, now the room has teeth. Your assignment is simple. one boring sentence and add the word but. The laundry was folded, but. The porch light was on, but. The phone buzzed, but. But is where the story enters with wet boots.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-02", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_02",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 2 of the July 7 batch.",
+                    caption: "Most people look at an object and ask what is it? Amateurs. Ask what it wants. The unopened envelope wants to ruin dinner. The laundry basket wants an empire. The chair by the door wants someone to admit they're tired. Don't be ridiculous, obviously. Be usefully, ridiculous. A motive makes the room wake up and start lying to you. That's where the fun begins.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-03", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_03",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 3 of the July 7 batch.",
+                    caption: "Today's trick, pick something small and make it the villain, not a dragon, not a curse, the spoon, the sock, the e-mail. The little red notification dot sitting there like it owns your nervous system. Try this. The notification dot glared from the corner of the screen, tiny and legally evil. See? No cape required. Most villains are smaller than you think. They simply know where to stand. Fight them.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-04", category: .network,
                     assetName: "DJ_thornwave_wicker_banter_04",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 4 of the July 7 batch.",
+                    caption: "An errand is not boring. An errand is a quest with fluorescent lighting and worse snacks. The trick is stakes, not fake stakes, tiny stakes. If I get the groceries before the third song ends, the couch loses. If I find one strange label in this aisle, the mission succeeds. If I speak kindly to the cashier, the kingdom survives another hour. Absurd? Yes. Useful? Also yes. A bored brain needs a wager. Give it one.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-05", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_05",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 5 of the July 7 batch.",
+                    caption: "Every scene has a thorn. Find it. The room is clean, except for the cup no one moved. The walk is pleasant, except for the wind being personally rude. The conversation is fine, except for the thing everyone is stepping around. Don't start with meaning. Start with irritation. Wonder is very noble, but irritation? Irritation points. Follow the thorn. It knows where the story is hiding.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-06", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_06",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 6 of the July 7 batch.",
+                    caption: "Weather is never just weather on Thornwave. Rain is someone tapping the glass. Fog is the street refusing to finish its sentence. Wind is the house reading your mail. Today, give the weather one suspicious verb. Not the rain fell. The rain inspected the roof. Not the wind blew. The wind tried every door. There. Now the sky’s entered the scene. Do be polite, it may be listening.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-07", category: .stationID,
                     assetName: "DJ_thornwave_wicker_banter_07",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 7 of the July 7 batch.",
+                    caption: "No conflict, no story. Yes, I know. Terrible news. But conflict doesn't require shouting. Conflict can be very small. A person wants to rest. The sink wants attention. The blanket wants custody. The phone wants the thumb back. Write this. I wanted X, but Y wanted Z. I wanted quiet, but the refrigerator wanted a solo. Simple, petty, alive. That's the size of most real stories.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-08", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_08",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 8 of the July 7 batch.",
+                    caption: "Reality is useful, but it's rarely well lit. So here's a better lie. This is not a messy desk. This is an archaeological site. This is not a bad hair day. This is a weather event. This is not procrastination. This is a dragon guarding the first sentence. Don't believe the lie completely. That would be embarrassing. Use the lie like a lantern. Hold it near the boring thing. See what moves.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-09", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_09",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 9 of the July 7 batch.",
+                    caption: "A room becomes interesting, the moment it accuses you of something. The hallway waited. Better. The hallway waited like it knew I had forgotten why I came in. The laundry sat there. Better. The laundry sat there with the patience of a disappointed judge. Tonight's exercise, let the room have an opinion. Rooms are excellent gossips. They remember where you put things. They remember what you avoided. They remember who left first.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-10", category: .network,
                     assetName: "DJ_thornwave_wicker_banter_10",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 10 of the July 7 batch.",
+                    caption: "A door is never just a door. A door is a decision wearing hinges. Open it and the scene changes. Ignore it and the scene changes anyway. Try this sentence. The door looked ordinary, which was exactly how it got away with everything. Use that on anything. The mug looked ordinary. The email looked ordinary. The Tuesday looked ordinary. That's where they hide the trap door.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-11", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_11",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 11 of the July 7 batch.",
+                    caption: "Gossip has a terrible reputation because people use it badly. Properly handled, gossip is pattern recognition in a nicer coat. Ask, what changed? Who noticed? Who is pretending not to notice? The plant has moved closer to the window. The mug is on the wrong side of the sink. The coat is still on the chair. Someone in this house has surrendered to gravity. There, no cruelty required, just evidence with eyebrows.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-12", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_12",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 12 of the July 7 batch.",
+                    caption: "Choose one object near you. Now assume it knows too much. The charger knows how late you stayed up. The mirror knows which face you practiced. The pillow knows what you didn't say. Now write one sentence. The pillow kept my secrets badly. I woke with them still on my cheek. Not bad. A little dramatic, yes. But drama is just attention in a wild outfit.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-13", category: .stationID,
                     assetName: "DJ_thornwave_wicker_banter_13",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 13 of the July 7 batch.",
+                    caption: "Beware the couch. The couch is not furniture. The couch is a velvet swamp with cup holders. It doesn't hate you. It simply prefers you horizontal and obedient. So make a wager. If I stand up before the ad, I win. That's all, no life overhaul, no productivity sermon, one tiny duel with upholstery. Thornwave believes in manageable enemies. Start with the couch.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-14", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_14",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 14 of the July 7 batch.",
+                    caption: "Bad first sentences aren't failures. They're decoys. Write the boring version first. The room was messy. Good. There's the corpse. Now revive it. The room was messy in a way that suggested several objects had formed a union. See? You didn't become a better person. You simply refused the first answer. That's craft. That's mischief. That's most of magic, frankly.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-15", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_15",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 15 of the July 7 batch.",
+                    caption: "An omen is just an ordinary detail placed at a rude angle. Ahem. The crow landed on the fence. Fine. The crow landed on the fence exactly when I decided not to answer the message. Now the crow has paperwork. Today, take one detail and attach it to one decision. The light flickered when I reached for my keys. The kettle clicked off when I changed my mind. The dog licked me when I opened my email. Coincidence? Obviously. Useful. Extremely.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-16", category: .network,
                     assetName: "DJ_thornwave_wicker_banter_16",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 16 of the July 7 batch.",
+                    caption: "Don't wait for a grand adventure. Make the small thing epic and keep a straight face. The trash bag tore. No. The trash bag betrayed the kingdom at the bottom of the stairs. The printer jammed. No. The printer demanded tribute and took page seven hostage. This isn't escapism. This is scale adjustment. The day already has battles. Name them properly.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-17", category: .gossip,
                     assetName: "DJ_thornwave_wicker_banter_17",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 17 of the July 7 batch.",
+                    caption: "Every scene wants something. Even a quiet one. The lamp wants to be useful. The blanket wants you back. The sink wants absolution. The window wants your face turned toward it for once. Ask the room, what do you want from me? Then answer badly. Bad answers are often more honest. The window wants me to stop calling this nothing. There. A little thorn. Keep it.",
                     conditions: nil,
                     weight: 3
                 ),
                 RadioBanter(
                     id: "thornwave-wicker-banter-18", category: .news,
                     assetName: "DJ_thornwave_wicker_banter_18",
-                    caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 18 of the July 7 batch.",
+                    caption: "Here's the whole Thornwave method. Thing, pressure, choice. The phone glowed. Thing, the phone glowed like it knew I was weak. Pressure, I turned it face down before it could make its case. Choice. That's a story. Small enough for a grocery line, sharp enough to cut the gray. Wicker Eddies, Thornwave 103.7 Don't behave too well, it ruins the prose.",
                     conditions: nil,
                     weight: 3
                 ),
                 // Unscheduled Wicker breaks imported from the July 11 batch.
                 // These are ordinary, ungated Thornwave breaks.
-                RadioBanter(id: "thornwave-wicker-banter-19", category: .stationID, assetName: "DJ_thornwave_wicker_banter_19", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 19.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-20", category: .gossip, assetName: "DJ_thornwave_wicker_banter_20", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 20.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-21", category: .news, assetName: "DJ_thornwave_wicker_banter_21", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 21.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-22", category: .network, assetName: "DJ_thornwave_wicker_banter_22", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 22.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-23", category: .stationID, assetName: "DJ_thornwave_wicker_banter_23", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 23.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-24", category: .gossip, assetName: "DJ_thornwave_wicker_banter_24", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 24.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-25", category: .news, assetName: "DJ_thornwave_wicker_banter_25", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 25.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-26", category: .network, assetName: "DJ_thornwave_wicker_banter_26", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 26.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-27", category: .stationID, assetName: "DJ_thornwave_wicker_banter_27", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 27.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-28", category: .gossip, assetName: "DJ_thornwave_wicker_banter_28", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 28.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-29", category: .news, assetName: "DJ_thornwave_wicker_banter_29", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 29.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-19", category: .stationID, assetName: "DJ_thornwave_wicker_banter_19", caption: "Wicker Eddies here. Thornwave is live, which is more than can be said for most Tuesdays. Here's the lesson. The grey loves a day with no friction. Wake, work, scroll, sleep, repeat. Perfectly smooth. Perfectly forgettable. So add a splinter. Ask. What's trying to make this moment boring. Then pick a fight with it. Not a heroic fight, a petty one. Stand up before the chorus ends. Open the window for 30 seconds. Drink the water before the phone wins. There. Conflict. Interest. Blood in the sentence.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-20", category: .gossip, assetName: "DJ_thornwave_wicker_banter_20", caption: "No story starts until something wants something. A room wants quiet. A phone wants your thumb. A sink wants forgiveness. You want five minutes without being hunted by chores. Good, now we have a scene. Ask, what do I want right now? And what's in the way? Don't be noble. I want tea, but the kettle is across the room. Excellent. That's enough plot for one song.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-21", category: .news, assetName: "DJ_thornwave_wicker_banter_21", caption: "An errand's only boring if you obey its official story. Milk, bread, toothpaste. Ah, tedious. Counter-proposal. You're entering a fluorescent kingdom to retrieve white potion, sliced grain, and mint armour for your teeth. Ridiculous? Obviously. Effective? Annoyingly. Tonight's mission, rename one boring task before you do it. not laundry, textile rebellion, not dishes, porcelain amnesty, not taking out the trash, escorting the evidence off the premises, then music.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-22", category: .network, assetName: "DJ_thornwave_wicker_banter_22", caption: "You don't need to burn down your life to be free. Please don't. Paperwork is dreadful. Try a smaller rebellion. Take the long way to the kitchen. Wear the good socks for no audience. Eat breakfast from the wrong bowl. Put the pen in the cup where it doesn't belong. And let civilization tremble. Freedom isn't always a door kicked open. Sometimes it's moving one inch off the script. I love this next song. Listen like this is the only time you'll hear it in just this way, in just this moment.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-23", category: .stationID, assetName: "DJ_thornwave_wicker_banter_23", caption: "Every ordinary moment has a thorn. Find it. The blanket is warm, but your foot is cold. The room is quiet, but the notification is waiting. The tea is perfect, but you forgot to sit down for it. Ask, where is the little pressure? Not the catastrophe, the little pressure. That's where attention gathers. That's where the story still has a pulse.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-24", category: .gossip, assetName: "DJ_thornwave_wicker_banter_24", caption: "Beware the couch. The couch isn't furniture. The couch is a velvet swamp with excellent public relations. It says, stay. It says, later. It says, you can become a person tomorrow. Today's duel. Before this track ends, touch the floor with both feet. That's it. No speech. No transformation montage. Just feet on floor. A rebellion so small, the couch may not notice until it's too late. Ready? Let's do this.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-25", category: .news, assetName: "DJ_thornwave_wicker_banter_25", caption: "Attention isn't found, it's stolen back. The world has pick pockets, notifications, worry, habit. The grey little machine that says nothing to see here, disagree. Look at one thing near you for five full seconds. A cup, a door, your own hand. Make eye contact with reality until it gets uncomfortable. There, you've committed petty theft against routine. Thornwave applauds. Let's celebrate with this wicked tune.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-26", category: .network, assetName: "DJ_thornwave_wicker_banter_26", caption: "The room you're in is not neutral. It's trying to become either memory or fog. Those are the stakes. Memory or fog. All the time. So choose one detail and make it survive. The scratch on the table. The weird painting on the wall. The shadow under the chair. Name it. The chair cast a shadow like a secret it was tired of keeping. Now the room’s lost its chance to vanish completely. Do the same with this next song.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-27", category: .stationID, assetName: "DJ_thornwave_wicker_banter_27", caption: "The boring thing is lying, always. The receipt says it's a receipt. False, it's a tiny white fossil of hunger and money. The sock says it's a sock. False, it is a foot-shaped flag of survival. The mug says it's a mug. False, it's a hand-warmed well. Tonight's prompt. I wonder what this boring thing is pretending not to be, ask politely, then don't believe the first answer.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-28", category: .gossip, assetName: "DJ_thornwave_wicker_banter_28", caption: "Conflict doesn't have to mean cruelty. Let's be very clear. A story doesn't need someone bleeding in the hallway. Though, that certainly gets attention. Conflict can be… I want to rest, but the dishes exist. I want to text back, but fear has my sleeve. I want to go outside, but the door feels heavier than usual. There. Human. Interesting. Alive. Disbelief prefers numbness. I prefer a problem small enough to touch.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-29", category: .news, assetName: "DJ_thornwave_wicker_banter_29", caption: "The phone wants the throne. It wants your eyes. Your thumb. Your small scraps of panic. Your boredom especially. Delicious stuff. Tonight's rebellion. Turn it face down for one song. Not forever. Forever is dramatic and usually doomed. One song. Two if you feel determined. Let the tiny king sulk in the dark. Look up and notice what rushes in to replace it. That's where the story was waiting.", conditions: nil, weight: 3),
                 // Unscheduled Wicker breaks imported from the later July 11
                 // batch. These are ordinary, ungated Thornwave breaks.
-                RadioBanter(id: "thornwave-wicker-banter-30", category: .network, assetName: "DJ_thornwave_wicker_banter_30", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 30.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-31", category: .stationID, assetName: "DJ_thornwave_wicker_banter_31", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 31.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-32", category: .gossip, assetName: "DJ_thornwave_wicker_banter_32", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 32.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-33", category: .news, assetName: "DJ_thornwave_wicker_banter_33", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 33.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-34", category: .network, assetName: "DJ_thornwave_wicker_banter_34", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 34.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-35", category: .stationID, assetName: "DJ_thornwave_wicker_banter_35", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 35.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-36", category: .gossip, assetName: "DJ_thornwave_wicker_banter_36", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 36.", conditions: nil, weight: 3),
-                RadioBanter(id: "thornwave-wicker-banter-37", category: .news, assetName: "DJ_thornwave_wicker_banter_37", caption: "Unscheduled Wicker Eddies banter from the Thornwave booth. Audio-backed clip 37.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-30", category: .network, assetName: "DJ_thornwave_wicker_banter_30", caption: "Make it interesting. That's not shallow advice. That's survival. Routine wins by sanding the edges off everything. Interesting keeps belief moving. Interesting gives attention somewhere to go. Interesting says, no, this moment isn't disposable. So add one rule. Step only on the shadows. Count red things. give every passing car a secret. Walk to the sink like you were arriving late to a duel. Congratulations, you've made a scene. That's life.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-31", category: .stationID, assetName: "DJ_thornwave_wicker_banter_31", caption: "The enemy isn't the errand. The enemy is the blur. The errand may be dull, fine. But the blur is worse. The blur eats the whole day and leaves you with nothing worth remembering. So before the next task swallows you, choose one detail to keep. One sound, one color, one ridiculous object, one strange little sentence. A day with one kept detail has resisted erasure, like this song.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-32", category: .gossip, assetName: "DJ_thornwave_wicker_banter_32", caption: "Here's a sentence shape for a small rebellion. I was supposed to blank, but I blanked instead. I was supposed to scroll, but I watched the steam rise. I was supposed to hurry, but I touched the brick wall. I was supposed to be efficient, but I made the spoon a character. Efficiency will survive the insult. Your life, however, may become briefly visible. Worth it.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-33", category: .news, assetName: "DJ_thornwave_wicker_banter_33", caption: "Gravity has opinions. It wants you down. The bed agrees. The chair agrees. The floor is neutral, but complicit. So make a tiny argument. Roll your shoulders. Lift your chin. Stand for 10 seconds. Stretch one hand like you're reaching for a crown no one authorized. You don't need to feel powerful first. Sometimes the body signs the treaty before the mind arrives. Let's use your ears.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-34", category: .network, assetName: "DJ_thornwave_wicker_banter_34", caption: "Take one harmless wrong turn. Not while driving into a lake, please. I'm wicked, not liable. But in a room, on a walk, in a grocery aisle, choose the less automatic path. Ask, I wonder what the script of the day didn't want me to see. That's the secret of Thornwave, not chaos, counter-pattern, one small refusal of the obvious route, like this song, independent and alive.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-35", category: .stationID, assetName: "DJ_thornwave_wicker_banter_35", caption: "Pick an object near you. Now let it disagree with you. You say, this is just a spoon. The spoon says, I've touched more soups than you've had opinions. You say, this is just a lamp. The lamp says, I kept watch while you forgot yourself. Good. Now the world is talking back. That's not madness. That's craft. Hm, usually.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-36", category: .gossip, assetName: "DJ_thornwave_wicker_banter_36", caption: "A secret duskthorn rule, no charge. Don't remove the thorn too quickly. The thorn tells you where you're alive, the annoying sound, the unfinished chore, the feeling you keep stepping over, the wish you've been calling impractical. Don't worship discomfort, that's tedious, but don't waste it either. Ask, what's this trying to make me notice? Then steal the answer and run.", conditions: nil, weight: 3),
+                RadioBanter(id: "thornwave-wicker-banter-37", category: .news, assetName: "DJ_thornwave_wicker_banter_37", caption: "Tiny stakes are still stakes. Will you look up from the screen? Will you taste the first sip? Will you say the kind thing before embarrassment edits you? Will you go outside for one breath of weather? Routine says these choices don't matter. How convenient for routine? Tonight, choose one tiny stake and act like it counts. That's how belief learns the road back.", conditions: nil, weight: 3),
                 RadioBanter(
                     id: "thornwave-psa-clubs-night", category: .news,
                     assetName: "DJ_thornwave_psa_clubs_night_01",
@@ -3222,6 +3300,21 @@ enum RadioStationRegistry {
             return nil
         }
         return nearest
+    }
+
+    /// How close the dial sits to a broadcast it has not caught yet, from 0
+    /// (open band) to 1 (right at the edge of a station's capture). Drives the
+    /// static between stations: the whistle falls and almost-words rise as a
+    /// station nears. Hidden stations bleed through over a narrower reach.
+    static func staticProximity(at frequency: Double, in available: [RadioStation]) -> Double {
+        available.reduce(0) { closest, station in
+            let hidden = hiddenStationIDs.contains(station.id)
+            let capture = hidden ? 0.051 : 0.35
+            let reach = hidden ? 0.45 : 1.6
+            let distance = abs(station.frequency - frequency)
+            let proximity = 1 - (distance - capture) / reach
+            return max(closest, min(1, max(0, proximity)))
+        }
     }
 
     /// The tuned station's atmosphere line, for coloring generated prose.
@@ -15644,5 +15737,78 @@ extension PeopleOfTheBook {
             start = range.upperBound
         }
         return false
+    }
+}
+
+// MARK: - Weather on the band
+
+/// What the real sky does to the static between stations. Real radio hears
+/// weather: lightning crashes across every frequency at the moment of the
+/// flash, rain and snow on an aerial fry and hush, wind sets far signals
+/// fading in and out, and a clear night lets distant voices carry. Built only
+/// from a believed `PaperSky`, so an absent or forgotten sky is a calm band:
+/// the dial never claims weather the leaf would not.
+struct RadioBandWeather: Equatable, Sendable {
+    /// Multiplier on the hiss floor.
+    var hiss: Double = 1
+    /// 0 bright ... 1 muffled, as through wool.
+    var darkness: Double = 0
+    /// Density of fine precipitation crackle, 0...1.
+    var sizzle: Double = 0
+    /// Strength of lightning crashes, 0...1. Storms only.
+    var crashes: Double = 0
+    /// Depth of the slow fading, 0...1. Wind drives it.
+    var fading: Double = 0
+    /// How far almost-words carry into the open band, 0...1. Clear nights.
+    var reach: Double = 0
+
+    static let calm = RadioBandWeather()
+
+    /// The seed the leaf uses for its strikes, so a crash on the dial lands on
+    /// the same instant the page is lit.
+    static let lightningSeed = 0x5707
+
+    static func band(for sky: PaperSky?) -> RadioBandWeather {
+        guard let sky else { return .calm }
+        let amount = sky.intensity
+        var band = RadioBandWeather()
+        switch sky.condition {
+        case .clear:
+            band.hiss = sky.isDay ? 0.95 : 0.78
+            band.reach = sky.isDay ? 0 : 0.7
+        case .cloud:
+            band.darkness = 0.15
+            band.reach = sky.isDay ? 0 : 0.3
+        case .fog:
+            band.hiss = 0.9
+            band.darkness = 0.62
+            band.fading = 0.2
+        case .rain:
+            band.hiss = 1 + 0.3 * amount
+            band.darkness = 0.1
+            band.sizzle = 0.25 + 0.65 * amount
+        case .snow:
+            band.hiss = 1.1
+            band.darkness = 0.45
+            band.sizzle = 0.12 + 0.3 * amount
+        case .storm:
+            band.hiss = 1.25
+            band.darkness = 0.1
+            band.sizzle = 0.4 + 0.4 * amount
+            band.crashes = 0.5 + 0.5 * amount
+        }
+        band.fading = max(band.fading, sky.wind * 0.8)
+        return band
+    }
+
+    /// A line for the dial when the weather is what the reader is hearing.
+    var dialLine: String? {
+        if crashes > 0 { return "Lightning somewhere is shouting over every station at once." }
+        if sizzle > 0, darkness > 0.3 { return "Snow on the aerial. The whole band has gone hushed." }
+        if sizzle > 0 { return "Rain on the aerial, frying softly in the gaps." }
+        if darkness > 0.5 { return "Fog got into the band. Everything sounds wrapped in wool." }
+        if reach > 0.5 { return "A clear night. Far-off voices are carrying tonight." }
+        if fading > 0.5 { return "The wind keeps blowing the far voices in and out." }
+        return nil
     }
 }

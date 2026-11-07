@@ -86,15 +86,17 @@ final class SentenceRunnerSupplyTests: XCTestCase {
     }
 
     /// And the gate is still a gate: a reader with almost nothing kept is not
-    /// handed a game made of three phrases.
-    func testAThinArchiveStillOpensNoGame() {
+    /// handed a runner made of three phrases. The Inkbones Page needs no kept
+    /// words, so it's the only game offered.
+    func testAThinArchiveStillOpensNoRunner() {
         var inputs = BookSourceInputs.empty
         inputs.days = archive(Array(plainAndShort.prefix(3)))
         inputs.resurfacingCandidates = inputs.days.flatMap(\.pages)
         let today = BookDay(id: BookDay.id(for: now, calendar: calendar), date: now, pages: [])
 
-        XCTAssertTrue(GamePageSourceAdapter().candidates(
+        let offered = GamePageSourceAdapter().candidates(
             for: today, context: .make(for: today), inputs: inputs, now: now
-        ).isEmpty)
+        )
+        XCTAssertEqual(offered.map { $0.payload.metadata["gameID"] }, ["inkbones"])
     }
 }

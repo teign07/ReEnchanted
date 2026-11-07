@@ -327,8 +327,8 @@ final class BookPersonalityTests: XCTestCase {
     func testPhysicalMarksExplainActualBookBusiness() {
         XCTAssertTrue(BookMaterialMark.dogEar.explanation.contains("favourite Page"))
         XCTAssertTrue(BookMaterialMark.keepingWatch.explanation.contains("unfinished promise"))
-        XCTAssertTrue(BookMaterialMark.revision.explanation.contains("too certain"))
-        XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, Index, or ink"))
+        XCTAssertTrue(BookMaterialMark.revision.explanation.contains("too sure"))
+        XCTAssertTrue(BookMaterialMark.mischief.explanation.contains("ribbon, my Index or my ink"))
         XCTAssertTrue(BookMaterialMark.greyScar.explanation.contains("Routine gets into books too"))
     }
 

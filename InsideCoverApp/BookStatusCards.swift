@@ -5474,3 +5474,103 @@ struct BookTodayKeepsakeView: View {
         .accessibilityHint("Opens that Page.")
     }
 }
+
+/// A Where-Were-You Knock answered in the app (docs/the-knock-plan.md): the
+/// same three answers as the lock screen, and one sentence for anyone who
+/// wants to say where. Somewhere good counts for the reader; only Grey goes
+/// to the Curse.
+struct KnockAnswerSheet: View {
+    let knock: KnockOpenRequest
+    let onAnswer: (AttentionProbeAnswer, String?) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var choice: AttentionProbeAnswer?
+    @State private var sentence = ""
+    @FocusState private var sentenceFocused: Bool
+
+    private static let choices: [(answer: AttentionProbeAnswer, title: String, line: String, symbol: String)] = [
+        (.here, "Here", "In the room, all of me.", "eye"),
+        (.somewhereGood, "Somewhere good", "A daydream, a plan, a memory I picked.", "sparkles"),
+        (.elsewhere, "Grey", "Autopilot. The scroll. The fog.", "cloud.fog")
+    ]
+
+    private var trimmedSentence: String? {
+        sentence.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(knock.title)
+                        .font(.caption.weight(.black))
+                        .tracking(1.2)
+                        .foregroundStyle(BookPalette.gold)
+                    Text(knock.body)
+                        .font(.system(.title3, design: .serif).weight(.semibold))
+                        .foregroundStyle(BookPalette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    VStack(spacing: 8) {
+                        ForEach(Self.choices, id: \.title) { option in
+                            Button {
+                                BookFeedback.play(.select)
+                                choice = option.answer
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: option.symbol)
+                                        .frame(width: 22)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(option.title)
+                                            .font(.system(.body, design: .serif).weight(.bold))
+                                        Text(option.line)
+                                            .font(.caption)
+                                            .opacity(0.72)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    Spacer(minLength: 0)
+                                    Image(systemName: choice == option.answer ? "checkmark.circle.fill" : "circle")
+                                }
+                                .padding(12)
+                                .foregroundStyle(choice == option.answer ? BookPalette.page : BookPalette.ink)
+                                .background(
+                                    choice == option.answer ? BookPalette.teal : BookPalette.page.opacity(0.7),
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    TextField("One sentence: where were you?", text: $sentence, axis: .vertical)
+                        .font(.system(.body, design: .serif))
+                        .lineLimit(1...3)
+                        .focused($sentenceFocused)
+                        .padding(12)
+                        .background(BookPalette.page.opacity(0.7), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+                    Button {
+                        guard let answer = choice ?? (trimmedSentence == nil ? nil : .noted) else { return }
+                        onAnswer(answer, trimmedSentence)
+                        dismiss()
+                    } label: {
+                        Text("Keep it")
+                            .font(.system(.headline, design: .serif))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(BookPalette.teal)
+                    .disabled(choice == nil && trimmedSentence == nil)
+                }
+                .padding(20)
+            }
+            .background(BookPalette.paper.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Not now") { dismiss() }
+                }
+            }
+        }
+    }
+}
