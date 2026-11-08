@@ -3448,58 +3448,72 @@ struct BookRememberedPageSourceAdapter: BookPageSourceAdapter {
     }
 }
 
-/// The Front Matter: everything the Book actually holds about the reader, shown
-/// to them so it can be argued with.
+/// The Reader's Sheet (the `.frontMatter` Page): the reader's standing in the
+/// game and everything the Book holds about them, on one Page.
 ///
-/// A permanent record of someone that they cannot inspect or amend is the bad
-/// version of this whole apparatus, so the page exists to be corrected. It waits
-/// until there is genuinely something to show: a nearly-empty sheet read back
-/// is worse than silence, and then rests a long time, because this is a page
-/// about who someone is and it should feel rare.
+/// The top of the sheet is live (Belief, role, the fight, the Curse's hour,
+/// ribbons, the last throw, the Inventory) and is read from the ledgers when
+/// the Page opens. The bottom is what the Book has learned, shown so it can be
+/// argued with: a permanent record of someone that they cannot inspect or
+/// amend is the bad version of this whole apparatus.
+///
+/// Contents opens it whenever the reader wants it. The curator also deals it
+/// now and then, keyed to what it would say, so an unchanged sheet never comes
+/// back wearing a new id.
 struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
     let source = BookPageSourceRegistry.source(for: .frontMatter)
 
-    /// Days before the Book offers to show its front pages again.
-    static let restDays = 45
+    /// Days before the curator deals the sheet again on its own.
+    static let restDays = 10
 
     func candidates(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let sheet = inputs.readersSheet
-        guard sheet.isWorthSpeakingTo else { return [] }
+        guard sheet.isWorthSpeakingTo || inputs.attentionProbes.receipts.count >= 3 else { return [] }
         guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         guard !Self.shownRecently(days: inputs.days + [day], now: now) else { return [] }
+        return [surface(inputs: inputs, now: now, manual: false)]
+    }
 
-        // Keyed to what it would actually say, so a sheet that has not changed
-        // cannot come back wearing a new id.
-        let fingerprint = Self.fingerprint(of: sheet)
+    func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        surface(inputs: inputs, now: now, manual: true)
+    }
+
+    private func surface(inputs: BookSourceInputs, now: Date, manual: Bool) -> SurfacePage {
+        let sheet = inputs.readersSheet
+        let fingerprint = Self.fingerprint(of: sheet, inputs: inputs)
         var metadata = [
             "source": source.id,
             "frontMatterFingerprint": fingerprint,
             "invitesCorrection": "true",
             "responseLabel": "Correct me",
-            "placeholder": "One sentence that corrects me. I'll keep it with this Page.",
+            "placeholder": "One sentence that corrects me. I'll keep it with your sheet.",
             "tags": "front-matter,readers-sheet,local-memory,correctable"
         ]
+        if let role = sheet.role {
+            metadata["readerRoleName"] = role.fullName
+            metadata["readerRoleGloss"] = role.role.gloss
+        }
         for section in sheet.readerFacingSections {
             metadata["frontMatterSection.\(section.id)"] = section.text
         }
-        return [
-            SurfacePage(
-                id: "\(source.id)-\(fingerprint)",
-                type: .frontMatter,
-                sourceID: source.id,
-                intent: .resurface,
-                renderStyle: .loreLetter,
-                score: 34,
-                reason: "I wrote down what I know about you. You get to see it and correct it.",
-                prompt: "This is what I know about you.",
-                detail: "Read it. Cross out the wrong bits.",
-                payload: BookPagePayload(
-                    headline: "What I Know About You",
-                    body: sheet.readerFacingBody,
-                    metadata: metadata
-                )
+        return SurfacePage(
+            id: manual ? "\(source.id)-opened-\(Int(now.timeIntervalSince1970))" : "\(source.id)-\(fingerprint)",
+            type: .frontMatter,
+            sourceID: source.id,
+            intent: .resurface,
+            renderStyle: .loreLetter,
+            score: manual ? 62 : 46,
+            reason: manual
+                ? "You turned to the front of me."
+                : "Your sheet's changed since you last looked. Come and see.",
+            prompt: "The Reader's Sheet",
+            detail: "Your Belief, your role, the fight, your ribbons and what you're carrying.",
+            payload: BookPagePayload(
+                headline: "The Reader's Sheet",
+                body: sheet.readerFacingBody,
+                metadata: metadata
             )
-        ]
+        )
     }
 
     static func shownRecently(days: [BookDay], now: Date) -> Bool {
@@ -3513,8 +3527,8 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
     /// A stable digest of what the sheet would say. Two sheets that would read
     /// identically produce the same id, so an unchanged reader is not offered
     /// their own front matter twice.
-    static func fingerprint(of sheet: ReadersSheet) -> String {
-        let parts: [String] = [
+    static func fingerprint(of sheet: ReadersSheet, inputs: BookSourceInputs? = nil) -> String {
+        var parts: [String] = [
             sheet.role?.signature ?? "no-role",
             sheet.transformationClause ?? "",
             sheet.seasonName ?? "",
@@ -3525,6 +3539,13 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
             "\(sheet.openBargainCount)",
             "\(sheet.outstandingWagers.count)"
         ]
+        if let inputs {
+            // The live half of the sheet: a new Belief band, a found Curse's
+            // hour, or a new thing on the shelves is worth dealing it again.
+            parts.append(BeliefLexicon.Band.of(inputs.readerBeliefScore).rawValue)
+            parts.append(CurseFight.strongestHour(inputs.attentionProbes).map { "\($0.hour)" } ?? "no-hour")
+            parts.append("\(inputs.faeState.gifts.count)/\(inputs.ownedPackIDs.count)")
+        }
         return String(format: "%08x", abs(parts.joined(separator: "|").stableHash))
     }
 }

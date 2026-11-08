@@ -246,3 +246,21 @@ It shows as a short modifier stack on the throw, in the Book's voice: *"Knocks a
 - Folding the came-true verdicts into the month's edition or the Curse Report.
 
 Tests: `KnockFightTests` (counter-knocks, the hush, the Inkbones Page, came-true, margin marks, the month's leaf, the season's ribbons), alongside the Phase 1 tests in `RutSelfKnowledgeTests`.
+
+## The Reader's Sheet and the Curse's file (2026-11-08)
+
+bj: "No character sheet in one place." The `.frontMatter` Page is now **The Reader's Sheet**:
+- **Where to find it:** first in Contents (`readers-sheet`, which opens it fresh with `openManualPage(.frontMatter)`). The curator also deals it every ten days or so, keyed to what it would say: a new Belief band, a newly found Curse's hour or a new thing on the shelves deals it again.
+- **The top is live.** `ReaderSheetStanding` (PagePacks.swift) shows Belief, the role, the fight (today's score plus the week's Curse share), the Curse's hour, ribbons, a Page going grey, and the last Inkbones throw. Each row is read from the ledger that owns it, so the sheet can't disagree with the bookmark or the doorstep.
+- **The Curse's file:** `CurseDossier` reads the answered Knocks and lists:
+  - its take;
+  - its worst time of day and day of the week;
+  - its place, its weather, and how the phone was held;
+  - the words the reader keeps writing from inside the grey;
+  - how much slower grey answers come;
+  - the last sentence written from the grey.
+
+  A finding is only reported where the Curse beats its own average, with the counts beside it. The file stays shut until three grey answers.
+- **Then the Inventory's shelves** (`inventoryShelves`, shared with the Inventory Page), **then what I know about you**, which can still be corrected.
+
+**First-contact directions:** `FirstContactHowTo` puts one line of "how this works" on the Knock sheet, the ribbon card and the Grey Page. It shows the first three times each is met, then steps aside.

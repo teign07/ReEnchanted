@@ -2044,8 +2044,7 @@ window.PublicIllumination={
   {
    "id": "elective",
    "pages": [
-    "elective",
-    "wickerDare"
+    "elective"
    ],
    "top": "#f7e8c7",
    "middle": "#e3c9a3",
@@ -2262,16 +2261,6 @@ window.PublicIllumination={
    "middle": "#bfad94",
    "bottom": "#857a70",
    "accent": "#4c708a"
-  },
-  {
-   "id": "illuminatedPhoto",
-   "pages": [
-    "illuminatedPhoto"
-   ],
-   "top": "#f5d6a8",
-   "middle": "#d1a175",
-   "bottom": "#8f634c",
-   "accent": "#944f2b"
   }
  ]
 };

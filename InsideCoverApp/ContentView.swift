@@ -10788,6 +10788,19 @@ struct ContentView: View {
             )
         }
         var rooms = [
+            // The reader's own sheet leads the Contents, the way front matter
+            // leads a book: Belief, role, the fight, ribbons and Inventory on
+            // one Page, opened fresh every time.
+            PagesRisingContentsEntry(
+                id: "readers-sheet",
+                title: "The Reader's Sheet",
+                detail: "Your Belief, your role, the fight, your ribbons, your things.",
+                systemImage: "person.text.rectangle",
+                action: {
+                    BookFeedback.play(.openPage, fill: true)
+                    Task { await callbacks.view.openManualPage(.frontMatter) }
+                }
+            ),
             PagesRisingContentsEntry(
                 id: "bookshop",
                 wear: marks(.bookshop),

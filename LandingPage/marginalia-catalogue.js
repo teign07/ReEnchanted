@@ -612,12 +612,6 @@ window.PublicMarginalia={
    "h": 143
   },
   {
-   "id": "academy-note-glow-is-belief",
-   "src": "./assets/book/notes/academy-note-glow-is-belief.webp",
-   "w": 162,
-   "h": 172
-  },
-  {
    "id": "academy-note-goblin-market-new-moon",
    "src": "./assets/book/notes/academy-note-goblin-market-new-moon.webp",
    "w": 257,

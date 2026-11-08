@@ -2264,6 +2264,409 @@ enum CurseFight {
     }
 }
 
+/// The Reader's Sheet: the reader's standing in the game, on one page.
+///
+/// Solo RPGs make the character sheet a comfort object, and this Book had the
+/// same facts scattered over five places: Belief on the bookmark, the role in
+/// the menu's dossier, the ribbons on the ribbon, the fight on the doorstep,
+/// the Curse's hour in the Bleed. Nothing here is stored; every row is read
+/// live from the ledger that already owns it, so the sheet can never disagree
+/// with the rest of the Book.
+struct ReaderSheetStanding: Equatable {
+    struct Row: Equatable, Identifiable {
+        var id: String
+        /// Small caps over the value: "BELIEF", "THE FIGHT".
+        var label: String
+        /// The thing you read at a glance: "34", "You 5 · Curse 2".
+        var value: String
+        /// One sentence: what it means, or how to move it.
+        var line: String
+        var symbol: String
+    }
+
+    var rows: [Row]
+
+    /// The one line of rules at the top of the sheet. Directions, not lore.
+    static let howItWorks = "Notice something and keep it, and you get Belief. Spend Belief in the stories. Answer my Knocks and you win the fight. Ribbons keep Pages safe from the Curse."
+
+    static func build(
+        belief: Int,
+        roleName: String?,
+        roleGloss: String?,
+        attention: AttentionProbeLedger,
+        ribbons: [SavedPageRibbon],
+        inkbones: [InkbonesThrowRecord],
+        greyThreats: GreyPageThreatLedger,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> ReaderSheetStanding {
+        var rows: [Row] = []
+
+        let score = BeliefLexicon.clamped(belief)
+        rows.append(Row(
+            id: "belief",
+            label: "Belief",
+            value: "\(score)",
+            line: BeliefLexicon.state(for: score),
+            symbol: "sparkle"
+        ))
+
+        if let roleName = roleName?.trimmingCharacters(in: .whitespacesAndNewlines), !roleName.isEmpty {
+            rows.append(Row(
+                id: "role",
+                label: "You are",
+                value: roleName,
+                line: roleGloss?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                    ?? "That's what I call you in here.",
+                symbol: "person.text.rectangle"
+            ))
+        } else {
+            rows.append(Row(
+                id: "role",
+                label: "You are",
+                value: "Not named yet",
+                line: "Keep a few Pages. I'll name you once I've seen how you notice.",
+                symbol: "person.text.rectangle"
+            ))
+        }
+
+        rows.append(fightRow(attention: attention, now: now, calendar: calendar))
+        rows.append(curseHourRow(attention: attention, calendar: calendar))
+        rows.append(ribbonRow(ribbons))
+        if let grey = greyThreats.activeThreat {
+            rows.append(Row(
+                id: "grey",
+                label: "Going grey",
+                value: grey.pageTitle,
+                line: "The Curse has its eye on this Page. Bring it one new true detail, or bookmark it with the ribbon, and it stays.",
+                symbol: "cloud.fog"
+            ))
+        }
+        rows.append(inkbonesRow(inkbones))
+        return ReaderSheetStanding(rows: rows)
+    }
+
+    static func fightRow(attention: AttentionProbeLedger, now: Date, calendar: Calendar = .current) -> Row {
+        let today = attention.score(on: now, calendar: calendar)
+        let week = CurseFight.week(attention, now: now)
+        let line: String
+        if attention.hush?.isQuiet(now: now) ?? false {
+            line = "No Knocks today. I'm listening for yours."
+        } else if week.answered >= 3 {
+            let share = Int((Double(week.curse) / Double(week.answered) * 100).rounded())
+            let everyone = Int((CurseFight.everyonesShare * 100).rounded())
+            line = "This week the Curse took \(share)% of the Knocks you answered. Everyone starts near \(everyone)%."
+        } else {
+            line = "When I knock, say where your mind was. Here or somewhere good is a point to you. Grey is a point to the Curse."
+        }
+        return Row(
+            id: "fight",
+            label: "The fight",
+            value: "You \(today.reader) · Curse \(today.curse)",
+            line: line,
+            symbol: "hand.raised"
+        )
+    }
+
+    static func curseHourRow(attention: AttentionProbeLedger, calendar: Calendar = .current) -> Row {
+        if let strongest = CurseFight.strongestHour(attention, calendar: calendar), strongest.share >= 0.5 {
+            return Row(
+                id: "curse-hour",
+                label: "The Curse's hour",
+                value: CurseFight.hourPhrase(strongest.hour),
+                line: "It gets you hardest then. I'm keeping watch there, and I'll knock right when it's strongest.",
+                symbol: "clock"
+            )
+        }
+        let answered = attention.receipts.count
+        let needed = max(0, 12 - answered)
+        return Row(
+            id: "curse-hour",
+            label: "The Curse's hour",
+            value: "Not found yet",
+            line: needed > 0
+                ? "Answer \(needed) more Knock\(needed == 1 ? "" : "s") and I can start to find when it gets you."
+                : "No hour stands out yet. Keep answering and it'll show itself.",
+            symbol: "clock"
+        )
+    }
+
+    static func ribbonRow(_ ribbons: [SavedPageRibbon]) -> Row {
+        let held = ribbons.count
+        let titles = ribbons
+            .sorted { $0.savedAt > $1.savedAt }
+            .map { $0.title.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let line: String
+        if titles.isEmpty {
+            line = "Tap the ribbon on any Page to bookmark it. A bookmarked Page can't go grey."
+        } else {
+            let named = titles.prefix(BookRibbons.strandCount).map { "\u{201C}\($0)\u{201D}" }.joined(separator: ", ")
+            line = "Keeping \(named) safe from the Curse."
+        }
+        return Row(
+            id: "ribbons",
+            label: "Ribbons",
+            value: "\(min(held, BookRibbons.strandCount)) of \(BookRibbons.strandCount)",
+            line: line,
+            symbol: "bookmark"
+        )
+    }
+
+    static func inkbonesRow(_ log: [InkbonesThrowRecord]) -> Row {
+        guard let last = log.last(where: { $0.thrower == .reader }) else {
+            return Row(
+                id: "inkbones",
+                label: "Last throw",
+                value: "None yet",
+                line: "The Inkbones are a hundred-sided throw. Under your line is good, and your line rises with Belief.",
+                symbol: "dice"
+            )
+        }
+        let band = StoryInkbonesBand(rawValue: last.outcome)
+        let word: String
+        switch band {
+        case .triumph?: word = "a triumph"
+        case .favor?: word = "favoured"
+        case .hesitate?: word = "it hesitated"
+        case .cost?: word = "it asked a cost"
+        case .sideways?: word = "it went sideways"
+        case nil: word = last.outcome
+        }
+        return Row(
+            id: "inkbones",
+            label: "Last throw",
+            value: "\(last.roll)",
+            line: "Against a line of \(last.target), and \(word).",
+            symbol: "dice"
+        )
+    }
+}
+
+/// The Curse's file: everything the Knocks have taught the Book about when,
+/// where and how it gets the reader. Read off answered Knocks only (silence
+/// goes to nobody), and only ever as places it does *better than usual*: a
+/// finding is reported when the Curse's share there beats its share overall,
+/// with the counts beside it so the reader can judge it themselves.
+struct CurseDossier: Equatable {
+    struct Finding: Equatable, Identifiable {
+        var id: String
+        var label: String
+        var value: String
+        var line: String
+        var symbol: String
+    }
+
+    var answered: Int
+    var grey: Int
+    var findings: [Finding]
+
+    /// Grey answers needed before the Book says anything about the Curse.
+    static let minimumGrey = 3
+    /// A time, place or sky needs this many answers to count as a pattern.
+    static let minimumBucket = 3
+
+    var isReady: Bool { grey >= Self.minimumGrey }
+
+    /// What the file says while it is still too thin to say anything.
+    var waitingLine: String {
+        let needed = max(0, Self.minimumGrey - grey)
+        if answered == 0 {
+            return "Answer my Knocks and I'll start a file on the Curse: when it gets you, where, in what weather, and the words around it."
+        }
+        return "I need \(needed) more grey answer\(needed == 1 ? "" : "s") before I can tell you anything true about it. Keep answering honestly."
+    }
+
+    static func build(_ ledger: AttentionProbeLedger, calendar: Calendar = .current) -> CurseDossier {
+        let receipts = ledger.receipts
+        let grey = receipts.filter { $0.answer == .elsewhere }.count
+        var dossier = CurseDossier(answered: receipts.count, grey: grey, findings: [])
+        guard dossier.isReady else { return dossier }
+        let overall = Double(grey) / Double(max(1, receipts.count))
+        let overallPercent = percent(overall)
+
+        dossier.findings.append(Finding(
+            id: "take",
+            label: "Its take",
+            value: "\(overallPercent)%",
+            line: "Of the \(receipts.count) Knocks you've answered, \(grey) went grey. Everyone starts near \(percent(CurseFight.everyonesShare))%.",
+            symbol: "chart.pie"
+        ))
+
+        func report(_ id: String, _ label: String, _ symbol: String,
+                    keys: (AttentionProbeReceipt) -> [String],
+                    value: (String) -> String,
+                    phrase: (String) -> String) {
+            guard let worst = worstBucket(receipts, keys: keys),
+                  Double(worst.grey) / Double(worst.total) > overall else { return }
+            dossier.findings.append(Finding(
+                id: id,
+                label: label,
+                value: value(worst.key),
+                line: "\(worst.grey) of \(worst.total) Knocks \(phrase(worst.key)) went grey. That's \(percent(Double(worst.grey) / Double(worst.total)))%, against \(overallPercent)% overall.",
+                symbol: symbol
+            ))
+        }
+
+        report("day-part", "Time of day", "sun.and.horizon",
+               keys: { [dayPart(calendar.component(.hour, from: $0.scheduledAt))] },
+               value: { $0.capitalized },
+               phrase: { "in the \($0)" })
+
+        report("weekday", "Day of the week", "calendar",
+               keys: { receipt in
+                   let index = calendar.component(.weekday, from: receipt.scheduledAt) - 1
+                   let names = calendar.weekdaySymbols
+                   return names.indices.contains(index) ? [names[index]] : []
+               },
+               value: { "\($0)s" },
+               phrase: { "on \($0)s" })
+
+        report("place", "Where", "mappin",
+               keys: { receipt in
+                   guard let label = receipt.context?.locationLabel?.nonEmpty else { return [] }
+                   return [label]
+               },
+               value: { $0 },
+               phrase: { "at \($0)" })
+
+        report("weather", "Weather", "cloud.sun",
+               keys: { receipt in
+                   Array(Set((receipt.context?.weatherTags ?? []).compactMap { $0.lowercased().nonEmpty }))
+               },
+               value: { $0.capitalized },
+               phrase: { "in \($0) weather" })
+
+        report("holding", "How you held the phone", "iphone",
+               keys: { receipt in holdingKeys(receipt.context?.holding) },
+               value: { $0.prefix(1).uppercased() + String($0.dropFirst()) },
+               phrase: { "with the phone \($0)" })
+
+        if let words = greyWords(receipts) {
+            dossier.findings.append(words)
+        }
+        if let speed = answerSpeed(receipts) {
+            dossier.findings.append(speed)
+        }
+        if let last = receipts.last(where: { $0.answer == .elsewhere && $0.sentence?.nonEmpty != nil }),
+           let sentence = last.sentence?.nonEmpty {
+            dossier.findings.append(Finding(
+                id: "last-words",
+                label: "From inside the grey",
+                value: "\u{201C}\(sentence)\u{201D}",
+                line: "The last thing you wrote while it had you.",
+                symbol: "quote.opening"
+            ))
+        }
+        return dossier
+    }
+
+    static func percent(_ share: Double) -> Int {
+        Int((share * 100).rounded())
+    }
+
+    static func dayPart(_ hour: Int) -> String {
+        switch hour {
+        case 5...11: return "morning"
+        case 12...16: return "afternoon"
+        case 17...20: return "evening"
+        default: return "night"
+        }
+    }
+
+    static func holdingKeys(_ holding: HoldingSnapshot?) -> [String] {
+        guard let holding else { return [] }
+        var keys: [String] = []
+        switch holding.posture {
+        case .flat?: keys.append("lying flat")
+        case .upright?: keys.append("held upright")
+        case .sideways?: keys.append("on its side")
+        case .overhead?: keys.append("held overhead")
+        case nil: break
+        }
+        if holding.moving == true { keys.append("on the move") }
+        if holding.charging == true { keys.append("on the charger") }
+        if holding.headphones == true { keys.append("with headphones in") }
+        if let battery = holding.batteryPercent, battery <= 20 { keys.append("nearly flat") }
+        return keys
+    }
+
+    /// The bucket where the Curse does best: highest grey share, among
+    /// buckets with enough answers and at least two grey ones.
+    static func worstBucket(
+        _ receipts: [AttentionProbeReceipt],
+        keys: (AttentionProbeReceipt) -> [String]
+    ) -> (key: String, grey: Int, total: Int)? {
+        var buckets: [String: (grey: Int, total: Int)] = [:]
+        for receipt in receipts {
+            for key in keys(receipt) {
+                var bucket = buckets[key] ?? (grey: 0, total: 0)
+                bucket.total += 1
+                if receipt.answer == .elsewhere { bucket.grey += 1 }
+                buckets[key] = bucket
+            }
+        }
+        let ranked = buckets
+            .filter { $0.value.total >= minimumBucket && $0.value.grey >= 2 }
+            .map { (key: $0.key, grey: $0.value.grey, total: $0.value.total) }
+        return ranked.max { lhs, rhs in
+            let left = Double(lhs.grey) / Double(lhs.total)
+            let right = Double(rhs.grey) / Double(rhs.total)
+            if left != right { return left < right }
+            if lhs.total != rhs.total { return lhs.total < rhs.total }
+            return lhs.key > rhs.key
+        }
+    }
+
+    /// Words the reader keeps writing from inside the grey, when they've
+    /// written from there at least twice and a word comes back.
+    static func greyWords(_ receipts: [AttentionProbeReceipt]) -> Finding? {
+        let sentences = receipts
+            .filter { $0.answer == .elsewhere }
+            .compactMap { $0.sentence?.nonEmpty }
+        guard sentences.count >= 2 else { return nil }
+        var counts: [String: Int] = [:]
+        for sentence in sentences {
+            let words = Set(
+                sentence.lowercased()
+                    .components(separatedBy: CharacterSet.letters.inverted)
+                    .filter { $0.count >= 4 && !InferredSignalReader.stopWords.contains($0) }
+            )
+            for word in words { counts[word, default: 0] += 1 }
+        }
+        let top = counts
+            .filter { $0.value >= 2 }
+            .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+            .prefix(4)
+            .map { $0.key }
+        guard !top.isEmpty else { return nil }
+        return Finding(
+            id: "words",
+            label: "Its words",
+            value: top.joined(separator: ", "),
+            line: "Words that keep turning up when you write from inside the grey.",
+            symbol: "text.word.spacing"
+        )
+    }
+
+    /// When the Curse has the reader, the Knock waits longer for an answer.
+    static func answerSpeed(_ receipts: [AttentionProbeReceipt]) -> Finding? {
+        let grey = receipts.filter { $0.answer == .elsewhere }.map(\.latency).sorted()
+        let other = receipts.filter { $0.answer != .elsewhere }.map(\.latency).sorted()
+        guard grey.count >= 3, other.count >= 3 else { return nil }
+        let greyMinutes = Int((grey[grey.count / 2] / 60).rounded())
+        let otherMinutes = Int((other[other.count / 2] / 60).rounded())
+        guard greyMinutes - otherMinutes >= 3 else { return nil }
+        return Finding(
+            id: "speed",
+            label: "How long it holds you",
+            value: "\(greyMinutes - otherMinutes) min slower",
+            line: "When it has you, you answer my Knock about \(greyMinutes) minutes late. Otherwise it's about \(otherMinutes).",
+            symbol: "hourglass"
+        )
+    }
+}
+
 struct AttentionProbeScheduleSlot: Equatable {
     var id: String
     var dayID: String

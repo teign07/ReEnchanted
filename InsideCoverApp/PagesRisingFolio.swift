@@ -3893,6 +3893,12 @@ private struct RibbonBookmarkCard: View {
                     .multilineTextAlignment(.center)
                     .foregroundStyle(BookPalette.page.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
+                FirstContactHowTo(
+                    "ribbon",
+                    text: "It holds three Pages. Use the button below to bookmark the Page you're on, and tap a tag to turn back to it.",
+                    tint: Self.thread
+                )
+                .padding(.top, 4)
             }
             knots
             here

@@ -5479,6 +5479,47 @@ struct BookTodayKeepsakeView: View {
 /// same three answers as the lock screen, and one sentence for anyone who
 /// wants to say where. Somewhere good counts for the reader; only Grey goes
 /// to the Curse.
+/// One line of "how this works" for the first few times a reader meets one of
+/// the game's pieces (a Knock, the ribbon, a Grey Page), then it steps aside.
+/// The rules shouldn't need to be known in advance, and they shouldn't nag
+/// once they are. Counted in standard defaults, per piece.
+struct FirstContactHowTo: View {
+    let text: String
+    let tint: Color
+    private let defaultsKey: String
+    @State private var isShown: Bool
+
+    init(_ key: String, text: String, tint: Color = BookPalette.teal, showings: Int = 3) {
+        self.text = text
+        self.tint = tint
+        self.defaultsKey = "firstContactHowTo.\(key)"
+        _isShown = State(initialValue: UserDefaults.standard.integer(forKey: "firstContactHowTo.\(key)") < showings)
+    }
+
+    var body: some View {
+        if isShown {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "questionmark.circle")
+                    .font(.caption.weight(.bold))
+                    .padding(.top, 1)
+                    .accessibilityHidden(true)
+                Text(text)
+                    .font(.system(.footnote, design: .serif))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("How this works: \(text)")
+            .onAppear {
+                let defaults = UserDefaults.standard
+                defaults.set(defaults.integer(forKey: defaultsKey) + 1, forKey: defaultsKey)
+            }
+        }
+    }
+}
+
 struct KnockAnswerSheet: View {
     let knock: KnockOpenRequest
     let onAnswer: (AttentionProbeAnswer, String?) -> Void
@@ -5510,6 +5551,11 @@ struct KnockAnswerSheet: View {
                         .font(.system(.title3, design: .serif).weight(.semibold))
                         .foregroundStyle(BookPalette.ink)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    FirstContactHowTo(
+                        "knock",
+                        text: "Say where your mind was when I knocked. Here or somewhere good is a point to you, grey is a point to the Curse, and a sentence about it always counts for you."
+                    )
 
                     VStack(spacing: 8) {
                         ForEach(Self.choices, id: \.title) { option in

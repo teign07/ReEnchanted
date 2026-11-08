@@ -2602,7 +2602,7 @@ struct CapturePageSheet: View {
             return "Keep this favorite"
         }
         if surface.type == .frontMatter {
-            return "Keep these front pages"
+            return "Keep this sheet"
         }
         if surface.type == .bookRemembered {
             return "Bind this return"
@@ -8300,6 +8300,11 @@ struct CapturePageSheet: View {
             ISO8601DateFormatter().date(from: $0)
         }
         return FolioControlStack(alignment: .leading, spacing: 14) {
+            FirstContactHowTo(
+                "grey-page",
+                text: "The Curse is drinking this Page's ink. Bring it one new true detail before the time runs out and it stays, or let it go. Either way it's still in your Stacks.",
+                tint: LeafInk.gold
+            )
             if status == .fading {
                 hourPageCallout(
                     title: "What is actually at stake",
@@ -9603,15 +9608,47 @@ struct CapturePageSheet: View {
         .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
     }
 
+    /// The Reader's Sheet: standing at the top (read live, so it can never
+    /// disagree with the bookmark or the doorstep), the Inventory in the
+    /// middle, and what the Book holds about the reader at the bottom, where
+    /// it can be corrected.
     private var frontMatterOpeningView: some View {
-        FolioControlStack(alignment: .leading, spacing: 14) {
+        let standing = readerSheetStanding
+        return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
-                title: "This is what I know about you.",
-                subtitle: "I learned it from Pages you kept and choices you made. I didn't guess.",
-                symbol: "text.book.closed.fill",
+                title: "The Reader's Sheet",
+                subtitle: "Everything you are in here, on one Page. It changes as you do.",
+                symbol: "person.text.rectangle",
                 tint: LeafInk.gold
             )
 
+            ceremonyFindingCard(
+                title: "How this works",
+                text: ReaderSheetStanding.howItWorks,
+                symbol: "questionmark.circle",
+                tint: BookPalette.teal
+            )
+
+            readerSheetStandingView(standing)
+
+            readerSheetDivider("The Curse's file")
+            readerSheetCurseFile
+
+            readerSheetDivider("What you're carrying")
+            inventoryShelves
+
+            readerSheetDivider("What I know about you")
+            readerSheetKnowledge
+        }
+        .opacity(didRevealCeremony ? 1 : 0.01)
+        .offset(y: didRevealCeremony ? 0 : 8)
+        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// What the Book has learned, in the sections the Front Matter always
+    /// had, ending on the invitation to correct it.
+    private var readerSheetKnowledge: some View {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             frontMatterSection(
                 "you",
                 title: "You in this Book",
@@ -9637,17 +9674,125 @@ struct CapturePageSheet: View {
                 title: "Still open",
                 symbol: "eye.fill"
             )
-
             ceremonyFindingCard(
                 title: "Wrong?",
-                text: "Write the correction below. I'll keep it with these front pages.",
+                text: "Write the correction below. I'll keep it with your sheet.",
                 symbol: "pencil.line",
                 tint: BookPalette.teal
             )
         }
-        .opacity(didRevealCeremony ? 1 : 0.01)
-        .offset(y: didRevealCeremony ? 0 : 8)
-        .animation(.easeOut(duration: 0.55), value: didRevealCeremony)
+    }
+
+    /// Everything the Knocks have taught the Book about the Curse: when,
+    /// where, in what weather, how the phone was held, and the reader's own
+    /// words from inside the grey. Drawn in the sheet's ruled rows.
+    @ViewBuilder
+    private var readerSheetCurseFile: some View {
+        let dossier = CurseDossier.build(PlayerVault.shared.data.attentionProbes ?? .empty)
+        if dossier.isReady {
+            readerSheetStandingView(ReaderSheetStanding(rows: dossier.findings.map { finding in
+                ReaderSheetStanding.Row(
+                    id: "curse-\(finding.id)",
+                    label: finding.label,
+                    value: finding.value,
+                    line: finding.line,
+                    symbol: finding.symbol
+                )
+            }))
+        } else {
+            ceremonyFindingCard(
+                title: "Not enough yet",
+                text: dossier.waitingLine,
+                symbol: "cloud.fog",
+                tint: LeafInk.gold
+            )
+        }
+    }
+
+    private var readerSheetStanding: ReaderSheetStanding {
+        _ = inventoryRevision
+        let data = PlayerVault.shared.data
+        return ReaderSheetStanding.build(
+            belief: readerBelief,
+            roleName: surface.payload.metadata["readerRoleName"],
+            roleGloss: surface.payload.metadata["readerRoleGloss"],
+            attention: data.attentionProbes ?? .empty,
+            ribbons: data.pageRibbons ?? [],
+            inkbones: data.inkbonesLog ?? [],
+            greyThreats: data.greyPageThreats ?? .empty,
+            now: Date()
+        )
+    }
+
+    /// The sheet proper: one ruled row per stat, the way a character sheet
+    /// gives each number its own box. Belief is the big one.
+    private func readerSheetStandingView(_ standing: ReaderSheetStanding) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(standing.rows.enumerated()), id: \.element.id) { index, row in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: row.symbol)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(LeafInk.gold)
+                        .frame(width: 22)
+                        .padding(.top, 2)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.label.uppercased())
+                            .font(.system(size: 11, weight: .black, design: .serif))
+                            .tracking(2)
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                        Text(row.value)
+                            .font(.system(row.id == "belief" ? .largeTitle : .title3, design: .serif).weight(.black))
+                            .foregroundStyle(row.id == "belief" ? LeafInk.gold : BookPalette.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(row.line)
+                            .font(.system(.callout, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.72))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.vertical, 11)
+                .overlay(alignment: .top) {
+                    if index > 0 {
+                        Rectangle()
+                            .fill(LeafInk.gold.opacity(0.26))
+                            .frame(height: 1)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 4)
+        .background(BookPalette.page.opacity(0.62), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(LeafInk.gold.opacity(0.46), lineWidth: 1)
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(LeafInk.gold.opacity(0.22), lineWidth: 0.5)
+                .padding(3)
+        }
+    }
+
+    private func readerSheetDivider(_ title: String) -> some View {
+        HStack(spacing: 10) {
+            Rectangle()
+                .fill(LeafInk.gold.opacity(0.34))
+                .frame(height: 1)
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .black, design: .serif))
+                .tracking(2.4)
+                .foregroundStyle(LeafInk.gold)
+                .fixedSize()
+            Rectangle()
+                .fill(LeafInk.gold.opacity(0.34))
+                .frame(height: 1)
+        }
+        .padding(.top, 6)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private var flyleafOpeningView: some View {
@@ -11417,6 +11562,14 @@ struct CapturePageSheet: View {
                 .font(.system(.body, design: .serif))
                 .foregroundStyle(BookPalette.ink)
                 .fixedSize(horizontal: false, vertical: true)
+            inventoryShelves
+        }
+    }
+
+    /// The Inventory's shelves, on the Inventory Page and on the Reader's
+    /// Sheet: the same objects with the same controls, wherever they're read.
+    private var inventoryShelves: some View {
+        FolioControlStack(alignment: .leading, spacing: 16) {
 
             if !inventoryMessage.isEmpty {
                 Label(inventoryMessage, systemImage: "sparkles")

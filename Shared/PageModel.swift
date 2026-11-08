@@ -229,7 +229,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return "My Pocket"
         case .frontMatter:
-            return "The Front Matter"
+            return "The Reader's Sheet"
         case .plainPage:
             return "A Loose Page"
         }
@@ -362,7 +362,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return "Pocket"
         case .frontMatter:
-            return "Front Matter"
+            return "Reader's Sheet"
         case .plainPage:
             return "Loose"
         }
@@ -641,7 +641,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return ("This scrap", "One sentence about what this scrap reminds you of.")
         case .frontMatter:
-            return ("Correct me", "One sentence that corrects me. I'll keep it with this Page.")
+            return ("Correct me", "One sentence that corrects me. I'll keep it with your sheet.")
         case .plainPage:
             return ("Write", "One sentence. Anything at all. Nobody asked you for this one.")
         }
@@ -787,7 +787,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookPocket:
             return ("I have things in my pocket.", "I'm turning it inside out. Mind the crumbs.")
         case .frontMatter:
-            return ("I wrote down what I know about you.", "Read it. Cross out the wrong bits.")
+            return ("Here's your sheet.", "Everything you are in here, on one Page. Cross out what I got wrong.")
         case .taleBound:
             return ("You were in a fairy tale.", "I saw the shape afterwards. Here it is, bound.")
         case .plainPage:
@@ -1214,14 +1214,14 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "the-front-matter",
             type: .frontMatter,
-            title: "The Front Matter",
-            shortTitle: "Front Matter",
-            symbolName: "text.book.closed.fill",
+            title: "The Reader's Sheet",
+            shortTitle: "Reader's Sheet",
+            symbolName: "person.text.rectangle",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "seldom; when enough of you has been written down",
-            note: "The pages at the front of a book that say what the book is. Everything I actually hold about you: your name in the story, what you're owed, what a finished tale left behind. If I have any of it wrong, write over me."
+            cadence: "whenever you open it from Contents; now and then when it changes",
+            note: "Your sheet, at the front of me: your Belief, your role, the fight with the Curse, your ribbons, what you're carrying, and everything I hold about you. If I have any of it wrong, write over me."
         ),
         BookPageSource(
             id: "tale-bound",

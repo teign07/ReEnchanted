@@ -3420,7 +3420,7 @@ extension SurfacePage {
         case .bindery: return "Pick a book in here and I'll show you how it gets bound."
         case .supportGuild: return "Vellum and Inkrest have their charts out. What they spotted is folded inside."
         case .patreon: return "This one's about money. Unfold it to see what it pays for. You don't have to."
-        case .frontMatter: return "I wrote down what I know about you. Unfold it and fix what's wrong."
+        case .frontMatter: return "Your sheet's folded in here: Belief, the fight, your ribbons, what you're carrying."
         case .bookPocket: return "Everything in my pocket's folded in here."
         case .spell: return "The steps are folded inside. Do them in order. Spells notice."
         case .festival: return "Something's happening. Unfold it to see what, and how to get in on it."
@@ -3551,7 +3551,7 @@ extension SurfacePage {
         case .taleBound:
             return ("Bind it", "books.vertical")
         case .frontMatter:
-            return ("Check what I know", "person.text.rectangle")
+            return ("Open your sheet", "person.text.rectangle")
         case .rest:
             return ("Mark the rest", "moon.zzz")
 
