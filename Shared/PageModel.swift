@@ -17,7 +17,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case wonderCompass
     case tarot
     case lore
-    case patreon
+    /// Older Books stored this as "patreon". Only the stored name is left.
+    case creatorNote = "patreon"
     case illustration
     case illuminatedPhoto
     case narrativeOS
@@ -134,7 +135,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Tarot Pages"
         case .lore:
             return "From the Deeper Stacks"
-        case .patreon:
+        case .creatorNote:
             return "Creator Notes"
         case .illustration:
             return "An Illustration from the Labyrinth of Stories"
@@ -267,7 +268,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Tarot"
         case .lore:
             return "Lore"
-        case .patreon:
+        case .creatorNote:
             return "Notes"
         case .illustration:
             return "Illustration"
@@ -400,7 +401,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "rectangle.stack.fill"
         case .lore:
             return "books.vertical"
-        case .patreon:
+        case .creatorNote:
             return "shippingbox"
         case .illustration:
             return "photo.artframe"
@@ -546,7 +547,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("Your reading", "One sentence: what lands, or what misses. Cards can take an argument.")
         case .lore:
             return ("What caught", "One sentence you want to remember, or one question.")
-        case .patreon:
+        case .creatorNote:
             return ("Write back", "Write back in one sentence.")
         case .illustration:
             return ("What you saw", "One sentence about what's happening in the picture. Your version.")
@@ -694,7 +695,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("A card from all seventy-eight.", "I shuffle on this device. Tell me where the card is wrong.")
         case .lore:
             return ("The Labyrinth keeps loose scraps here.", "Rooms, people, old rows. Take what catches.")
-        case .patreon:
+        case .creatorNote:
             return ("An old shop.", "Nothing new comes in. The old pages are still inside.")
         case .illustration:
             return ("Look.", "That's the whole job of this Page.")
@@ -1620,8 +1621,8 @@ enum BookPageSourceRegistry {
             note: "Characters, rooms, classes, history, and living margins."
         ),
         BookPageSource(
-            id: "patreon-packet",
-            type: .patreon,
+            id: "creator-notes",
+            type: .creatorNote,
             title: "Creator Notes",
             shortTitle: "Notes",
             symbolName: "shippingbox",
@@ -1904,7 +1905,7 @@ enum BookPageSourceRegistry {
             return 26
         case .affirmations:
             return 28
-        case .quip, .location, .patreon:
+        case .quip, .location, .creatorNote:
             return 18
         case .plainPage:
             return 18
@@ -1963,7 +1964,7 @@ enum BookPageSourceRegistry {
             return 20
         case .affirmations:
             return 22
-        case .quip, .location, .patreon:
+        case .quip, .location, .creatorNote:
             return 14
         case .plainPage:
             return 14

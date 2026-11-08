@@ -5488,7 +5488,7 @@ enum NarrativeEventResolver {
             } else {
                 createdHint = "An unprompted Page the reader gave the Book can return as memory, argument, correspondence, or braid."
             }
-        case .location, .lore, .patreon, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .tarot:
+        case .location, .lore, .creatorNote, .bookOfYou, .packPage, .calendar, .helpTips, .welcome, .bindery, .tarot:
             break
         }
 

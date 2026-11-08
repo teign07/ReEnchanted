@@ -93,7 +93,7 @@
 
       <p class="eyebrow">The fine print, plainly</p>
       <h1>Privacy <span class="accent">Policy</span></h1>
-      <p class="updated">Effective July 18, 2026 · Last updated November 1, 2026</p>
+      <p class="updated">Effective July 18, 2026 · Last updated November 8, 2026</p>
 
       <p class="lede">
         The most personal app on your phone shouldn't feel like a surveillance product.
@@ -115,7 +115,7 @@
         <li><strong>Accounts are optional.</strong> You never create a ReEnchanted login. Printed Books and the Bound Year create the Stripe merchant record needed for billing and delivery.</li>
         <li><strong>Local-first.</strong> Your pages, saves, photos, and writing stay on your device. We can't see them.</li>
         <li><strong>On-device intelligence.</strong> The app's &ldquo;local brain&rdquo; runs entirely on your device. Your writing is not sent to us or to an AI service to generate pages.</li>
-        <li><strong>No ads, no trackers, no analytics.</strong> We do not embed advertising, third-party trackers, or usage analytics SDKs.</li>
+        <li><strong>No ads, no trackers, no analytics of your Book.</strong> We do not embed advertising, third-party trackers, or usage analytics of our own. The one exception is Stripe&rsquo;s checkout code, described under printed Books below: it reports how its own checkout is used, and only once you open one.</li>
         <li><strong>No selling data.</strong> We never sell, rent, or share your personal information. There is no data broker in here.</li>
         <li><strong>Your Book stays yours.</strong> There is no social feed and no community feature, so nothing you write is shared with other readers.</li>
       </ul>
@@ -153,8 +153,9 @@
 
       <h3>Weather and local context</h3>
       <p>
-        To show weather and local flavor, the app may request weather data for your approximate
-        location from Open-Meteo, a public weather service. Optional content sources you choose
+        To show weather and local flavor, the app may request weather, sea and air-quality data for
+        your approximate location from Open-Meteo, a public weather service, and the planet-wide
+        space-weather index from NOAA (nothing about you is sent for that one). Optional content sources you choose
         to enable (for example, public reference or news feeds) are fetched directly from their
         publishers.
       </p>
@@ -176,8 +177,8 @@
       <h3>Personalized public-web research</h3>
       <p>
         The optional “Let my interests visit the public web” setting is off by default. If you enable
-        it, the app may send an interest you wrote and a broad home-place description to DuckDuckGo
-        or another public research source so a Gossip Page or letter can carry back a current public
+        it, the app may send an interest you wrote and a broad home-place description to Wikipedia's
+        search, the GDELT public news index, DuckDuckGo's instant-answer service, or another public research source so a Gossip Page or letter can carry back a current public
         finding. Names, Book pages, health notes, and precise coordinates are not included. Close the
         setting at any time to return those searches to fixed, non-personal queries.
       </p>
@@ -206,7 +207,10 @@
           printed edition</strong> of your Book. To manufacture and ship it, the app sends the print-ready
           PDF of the edition you chose, plus the shipping name and address you enter, to our
           print-on-demand partner (<strong>Lulu</strong>), and processes your payment through our payment
-          processor (<strong>Stripe</strong>). Your contact email is used to send you order and shipping
+          processor (<strong>Stripe</strong>). Stripe&rsquo;s checkout runs inside the app, and while it is
+          open it sends Stripe information about how that checkout is used (for example, which steps
+          loaded and any errors), which Stripe uses to run payments, prevent fraud, and improve its
+          checkout. It does not see your Book. Your contact email is used to send you order and shipping
           updates. We only send these details when you choose to place a print order, and only to
           complete that order. A paid order goes to Lulu only after your payment has cleared to us,
           usually within a few business days. Until then its print files and delivery details wait in

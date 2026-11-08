@@ -26,13 +26,22 @@ enum BraidRetellingChoice: String, Equatable, Sendable {
 /// onboarding photo flow that has not run yet, so the same screen produced two
 /// visibly different pages.
 ///
-/// Asks for Photos access on first use and returns nil for every refusal, so a
-/// declined prompt is simply a page without a photograph in it.
+/// Raises the iOS Photos prompt only when `asking` is true, which the
+/// Pagewright sets after it has said why it wants a photograph and the reader
+/// has said yes. A refusal is simply a page without a photograph in it.
 enum PagewrightLibraryPhoto {
-    static func random() async -> PagewrightPersonalPhoto? {
+    static var needsToAsk: Bool {
+        #if canImport(Photos)
+        PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined
+        #else
+        false
+        #endif
+    }
+
+    static func random(asking: Bool = false) async -> PagewrightPersonalPhoto? {
         #if canImport(Photos) && canImport(UIKit)
         let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        let resolvedStatus = status == .notDetermined
+        let resolvedStatus = status == .notDetermined && asking
             ? await PHPhotoLibrary.requestAuthorization(for: .readWrite)
             : status
         guard resolvedStatus == .authorized || resolvedStatus == .limited else { return nil }
@@ -7907,7 +7916,7 @@ extension ContentView {
 
         return SurfacePage(
             id: "purchase-thanks-\(packID)-\(Int(Date().timeIntervalSince1970))",
-            type: .patreon,
+            type: .creatorNote,
             sourceID: "creator-thanks",
             intent: .importReference,
             renderStyle: .loreLetter,
@@ -10285,6 +10294,8 @@ struct PagewrightSheet: View {
     @State private var pageCache = PagewrightPageCache.empty
     @State private var cabinet = PagewrightMarkCabinet.empty
     @State private var isManipulatingElement = false
+    /// The Pagewright says why it wants a photograph before iOS asks.
+    @State private var asksToBorrowLibraryPhoto = false
     @State private var compactCanvasFrame: CGRect = .zero
     @GestureState private var looseFindingDragState: LooseFindingDragState?
     #if canImport(PhotosUI)
@@ -10703,6 +10714,16 @@ struct PagewrightSheet: View {
                     }
                 }
             }
+            .alert("Can I borrow a photo?", isPresented: $asksToBorrowLibraryPhoto) {
+                Button("Let me look") {
+                    #if canImport(Photos)
+                    Task { await seedOpeningLibraryPhoto(asking: true) }
+                    #endif
+                }
+                Button("Not now", role: .cancel) {}
+            } message: {
+                Text("I'd like one of your own photographs on this spread. If you let me into your library, I'll pick one and pin it here. It stays on this phone, and you can swap it or take it off.")
+            }
             .onAppear {
                 ensureSelectedMarginaliaPackIsUnlocked()
                 refreshStudioCachesIfNeeded()
@@ -10722,11 +10743,15 @@ struct PagewrightSheet: View {
                     title = experience == .inscription ? "The Inscription, in Pieces" : "Things I Kept"
                 }
                 #if canImport(Photos)
-                // The opening spread wants one photograph in it. The library is
-                // asked first — this is also where the iOS Photos prompt is
-                // raised — and if it is refused or empty, the kept scrap that
+                // The opening spread wants one photograph in it. If iOS hasn't
+                // asked yet, the Pagewright says why first and the prompt waits
+                // for the reader's yes. Refused or empty, the kept scrap that
                 // already carries an image stays where `openingScrapIDs` put it.
-                Task { await seedOpeningLibraryPhoto() }
+                if PagewrightLibraryPhoto.needsToAsk {
+                    asksToBorrowLibraryPhoto = true
+                } else {
+                    Task { await seedOpeningLibraryPhoto() }
+                }
                 #endif
                 activeElementID = canvasElements.first?.id
                 sharedURL = initialPDFURL
@@ -11638,8 +11663,8 @@ struct PagewrightSheet: View {
     #endif
 
     #if canImport(Photos)
-    private func seedOpeningLibraryPhoto() async {
-        guard let photo = await PagewrightLibraryPhoto.random() else { return }
+    private func seedOpeningLibraryPhoto(asking: Bool = false) async {
+        guard let photo = await PagewrightLibraryPhoto.random(asking: asking) else { return }
         await MainActor.run {
             // The spread stays three things: two kept scraps and one uncropped
             // photograph from the reader's library. The scrap dropped here is

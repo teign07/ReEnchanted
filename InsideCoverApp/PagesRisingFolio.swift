@@ -39,6 +39,8 @@ struct FolioLeafAction: Identifiable, Equatable {
         /// by name — "I put the waking button inside" — and until now there was
         /// no inside to put it in.
         case wakeTheBrain
+        /// The reader would rather the Book stopped asking for its brain.
+        case stopAskingForBrain
         case startCompassRun
         case storySliceOfLife
         case storyProgressArc
@@ -49,7 +51,7 @@ struct FolioLeafAction: Identifiable, Equatable {
             case .storySliceOfLife: return "sliceoflife"
             case .storyProgressArc: return "progressarc"
             case .storySurprise: return "surprise"
-            case .wakeTheBrain, .startCompassRun: return nil
+            case .wakeTheBrain, .stopAskingForBrain, .startCompassRun: return nil
             }
         }
 
@@ -5312,7 +5314,7 @@ private enum FolioLeafCompositor {
             return .correspondence
         case .mood, .weather, .todaysSky:
             return .weatherCabinet
-        case .aboutYou, .patreon, .bookOfYou, .bookRemembered,
+        case .aboutYou, .creatorNote, .bookOfYou, .bookRemembered,
              .bookConnections, .bookNotices, .inventory, .bindery,
              .bookPocket, .packPage, .calendar, .helpTips, .radio,
              .frontMatter:

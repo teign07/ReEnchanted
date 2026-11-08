@@ -464,6 +464,15 @@ struct BookShopSheet: View {
                         .font(.system(.callout, design: .serif))
                         .foregroundStyle(BookPalette.nightText.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
+                    if !PaperOrdering.isOpen {
+                        // Said before any room, so nobody fills in an address
+                        // to find out at the till.
+                        Label(PaperOrdering.shopNotice, systemImage: "clock")
+                            .font(.system(.footnote, design: .serif).weight(.semibold))
+                            .foregroundStyle(BookPalette.lampGold)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
                 }
 
                 bookshopRouteLink(
@@ -4469,11 +4478,19 @@ struct BookShopSheet: View {
         } catch PhysicalBookQuoteClient.ConfigurationError.missingEndpoint {
             physicalBookPaymentIntent = nil
             physicalBookPaymentSheet = nil
+            #if DEBUG
             physicalBookCheckoutMessage = "Quote service is not configured yet, so checkout cannot be prepared."
+            #else
+            physicalBookCheckoutMessage = PaperOrdering.closedLine
+            #endif
         } catch PhysicalBookQuoteClient.ConfigurationError.missingStripePublishableKey {
             physicalBookPaymentIntent = nil
             physicalBookPaymentSheet = nil
+            #if DEBUG
             physicalBookCheckoutMessage = "Stripe publishable key is not configured yet. Add StripePublishableKey to Info.plist or the stripePublishableKey user default."
+            #else
+            physicalBookCheckoutMessage = PaperOrdering.closedLine
+            #endif
         } catch {
             physicalBookPaymentIntent = nil
             physicalBookPaymentSheet = nil
@@ -5980,14 +5997,48 @@ private struct PhysicalBookCoverPreviewScreen: View {
     }
 }
 
+/// Whether paper can be bought for real money in this build. Debug builds keep
+/// the test checkout for development; a Release build (TestFlight, the App
+/// Store) opens only once it is configured for live payments, so no reader ever
+/// meets a test till pretending to be a shop.
+enum PaperOrdering {
+    /// Whether this build takes payment for paper at all.
+    static var isLive: Bool {
+        #if DEBUG
+        return true
+        #else
+        return PhysicalBookQuoteClient.configuredCheckoutMode() == "live"
+        #endif
+    }
+
+    /// Whether a reader here may order: a live build, on a phone set to the US.
+    static var isOpen: Bool { isLive && PhysicalBookShippingPolicy.ordersOpenHere }
+
+    static var closedLine: String {
+        PhysicalBookShippingPolicy.ordersOpenHere
+            ? "Paper isn't open yet. I can't take payment or post anything until it is. Everything else in me works now, and your PDFs are yours to keep."
+            : "Paper is only sold in the United States for now. Everything else in me is yours, and your PDFs are yours to keep."
+    }
+
+    static var shopNotice: String {
+        PhysicalBookShippingPolicy.ordersOpenHere
+            ? "Paper opens soon. Look around and make your PDFs; I can't take payment yet."
+            : "Paper is only sold in the United States for now. Look around and make your PDFs; they're free."
+    }
+}
+
 struct PhysicalBookQuoteClient {
     enum ConfigurationError: LocalizedError {
         case missingEndpoint
         case missingStripePublishableKey
         case invalidStripePublishableKey
+        /// This build takes no real money yet, so it takes none at all.
+        case paperNotOpenYet
 
         var errorDescription: String? {
             switch self {
+            case .paperNotOpenYet:
+                return PaperOrdering.closedLine
             case .missingEndpoint:
                 return "Physical book quote endpoint is not configured."
             case .missingStripePublishableKey:
@@ -6081,6 +6132,7 @@ struct PhysicalBookQuoteClient {
         shippingAddress: PhysicalBookShippingAddress,
         acceptsLuluFulfillment: Bool
     ) async throws -> BoundYearMembershipDraft {
+        guard PaperOrdering.isOpen else { throw ConfigurationError.paperNotOpenYet }
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(url: siblingEndpointURL(from: endpointURL, endpointName: "memberships"))
         let body = BoundYearPurchaseRequest(cadence: cadence, contactEmail: contactEmail, shippingAddress: shippingAddress, acceptsLuluFulfillment: acceptsLuluFulfillment)
@@ -6097,6 +6149,7 @@ struct PhysicalBookQuoteClient {
     func openBoundYearGift(
         _ purchase: BookGiftBoundYearPurchaseRequest
     ) async throws -> BookGiftBoundYearDraft {
+        guard PaperOrdering.isOpen else { throw ConfigurationError.paperNotOpenYet }
         guard let endpointURL else { throw ConfigurationError.missingEndpoint }
         var request = URLRequest(
             url: siblingEndpointURL(from: endpointURL, endpointName: "gifts/bound-year")
@@ -6354,6 +6407,7 @@ struct PhysicalBookQuoteClient {
         _ paymentRequest: PhysicalBookPaymentIntentRequest,
         checkoutToken: String
     ) async throws -> PhysicalBookPaymentIntent {
+        guard PaperOrdering.isOpen else { throw ConfigurationError.paperNotOpenYet }
         guard let endpointURL else {
             throw ConfigurationError.missingEndpoint
         }
@@ -6613,7 +6667,7 @@ struct PhysicalBookQuoteClient {
         request.setValue(token, forHTTPHeaderField: "X-Checkout-Token")
     }
 
-    private static func configuredCheckoutMode() -> String {
+    static func configuredCheckoutMode() -> String {
         if let override = UserDefaults.standard.string(forKey: "physicalBookCheckoutMode")?.lowercased(),
            override == "test" || override == "live" {
             return override

@@ -4630,12 +4630,20 @@ struct RealInterestGossipClipping: Equatable {
     }
 }
 
+/// The open-web fallback for an interest. It used to read DuckDuckGo's HTML
+/// results page, which search engines' terms forbid for automated clients; it
+/// now asks Wikipedia's public search API, which is built for exactly this and
+/// licenses its text openly. Same contract for every caller: a few short,
+/// sourced clippings, or none.
 struct WebSearchFallback {
-    private struct LiteResult {
+    private struct Result {
         var title: String
         var snippet: String
         var url: String
     }
+
+    /// Wikimedia asks automated clients to name themselves and a contact.
+    static let userAgent = "ReEnchanted/1.0 (https://reenchanted.app; hello@reenchanted.app)"
 
     func clipping(for interest: String) async -> RealInterestGossipClipping? {
         (await clippings(for: interest, limit: 1)).first
@@ -4643,7 +4651,7 @@ struct WebSearchFallback {
 
     func clippings(for interest: String, limit: Int = 2) async -> [RealInterestGossipClipping] {
         guard let interest = PublicWebResearch.query(interest), limit > 0,
-              let results = try? await duckDuckGoLiteResults(for: interest),
+              let results = try? await wikipediaResults(for: interest, limit: max(limit, 3)),
               !results.isEmpty else {
             return []
         }
@@ -4651,61 +4659,51 @@ struct WebSearchFallback {
             RealInterestGossipClipping(
                 interest: interest,
                 fact: "\(result.title). \(result.snippet)".bookPreviewSentenceLimit(2),
-                sourceName: URL(string: result.url)?.host?
-                    .replacingOccurrences(of: "www.", with: "")
-                    .nonEmpty ?? result.title,
+                sourceName: "Wikipedia",
                 sourceURL: result.url
             )
         }
     }
 
-    private func duckDuckGoLiteResults(for query: String) async throws -> [LiteResult] {
-        var components = URLComponents(string: "https://lite.duckduckgo.com/lite/")!
-        components.queryItems = [URLQueryItem(name: "q", value: query)]
-        guard let url = components.url else { return [] }
+    static func searchURL(for query: String, limit: Int) -> URL? {
+        var components = URLComponents(string: "https://en.wikipedia.org/w/api.php")
+        components?.queryItems = [
+            URLQueryItem(name: "action", value: "query"),
+            URLQueryItem(name: "list", value: "search"),
+            URLQueryItem(name: "srsearch", value: query),
+            URLQueryItem(name: "srlimit", value: "\(min(max(limit, 1), 10))"),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "utf8", value: "1")
+        ]
+        return components?.url
+    }
+
+    private func wikipediaResults(for query: String, limit: Int) async throws -> [Result] {
+        guard let url = Self.searchURL(for: query, limit: limit) else { return [] }
         var request = URLRequest(url: url)
         request.timeoutInterval = 10
-        request.setValue("Mozilla/5.0 ReEnchanted/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200,
-              let html = String(data: data, encoding: .utf8) else {
-            return []
-        }
-        return parseDuckDuckGoLite(html: html)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return [] }
+        return Self.parse(data)
     }
 
-    private func parseDuckDuckGoLite(html: String) -> [LiteResult] {
-        let pattern = #"<a rel="nofollow" href="([^"]+)" class='result-link'>(.*?)</a>[\s\S]*?<td class='result-snippet'>\s*(.*?)\s*</td>"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            return []
-        }
-        let range = NSRange(html.startIndex..<html.endIndex, in: html)
-        return regex.matches(in: html, options: [], range: range).compactMap { match in
-            guard match.numberOfRanges >= 4,
-                  let hrefRange = Range(match.range(at: 1), in: html),
-                  let titleRange = Range(match.range(at: 2), in: html),
-                  let snippetRange = Range(match.range(at: 3), in: html) else {
-                return nil
-            }
-            let url = resolvedDuckDuckGoRedirect(String(html[hrefRange]).htmlEntityDecoded)
-            let title = String(html[titleRange]).strippingHTML.htmlEntityDecoded
-            let snippet = String(html[snippetRange]).strippingHTML.htmlEntityDecoded
-            guard let cleanTitle = title.nonEmpty,
-                  let cleanSnippet = snippet.nonEmpty,
-                  let cleanURL = url.nonEmpty else {
-                return nil
-            }
-            return LiteResult(title: cleanTitle, snippet: cleanSnippet, url: cleanURL)
-        }
+    private struct SearchResponse: Decodable {
+        struct Query: Decodable { var search: [Hit] }
+        struct Hit: Decodable { var title: String; var snippet: String }
+        var query: Query?
     }
 
-    private func resolvedDuckDuckGoRedirect(_ href: String) -> String {
-        let absolute = href.hasPrefix("//") ? "https:\(href)" : href
-        guard let components = URLComponents(string: absolute),
-              let uddg = components.queryItems?.first(where: { $0.name == "uddg" })?.value?.nonEmpty else {
-            return absolute
+    private static func parse(_ data: Data) -> [Result] {
+        guard let decoded = try? JSONDecoder().decode(SearchResponse.self, from: data) else { return [] }
+        return (decoded.query?.search ?? []).compactMap { hit in
+            let title = hit.title.htmlEntityDecoded
+            let snippet = hit.snippet.strippingHTML.htmlEntityDecoded
+            guard let cleanTitle = title.nonEmpty, let cleanSnippet = snippet.nonEmpty else { return nil }
+            let path = cleanTitle.replacingOccurrences(of: " ", with: "_")
+                .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? cleanTitle
+            return Result(title: cleanTitle, snippet: cleanSnippet, url: "https://en.wikipedia.org/wiki/\(path)")
         }
-        return uddg
     }
 }
 
@@ -6594,14 +6592,10 @@ struct BleedInterestSearcher {
     ) async -> BleedNewsArticle? {
         guard let interest = PublicWebResearch.topic(interest) else { return nil }
         var candidates: [BleedNewsCandidate] = []
-        // Prefer the structured feed: the HTML news-card attributes are not a
-        // stable discovery contract and are absent from some search responses.
-        if let url = BleedInterestNewsDesk.feedURL(for: interest), let feed = await page(at: url) {
-            candidates = BleedInterestNewsDesk.candidates(from: feed.text, interest: interest)
-        }
-        if candidates.isEmpty,
-           let url = BleedInterestNewsDesk.searchURL(for: interest), let html = await page(at: url) {
-            candidates = BleedInterestNewsDesk.candidates(from: html.text, interest: interest)
+        // GDELT's open news index supplies candidates as structured JSON.
+        if let url = BleedInterestNewsDesk.searchURL(for: interest), let list = await page(at: url),
+           let data = list.text.data(using: .utf8) {
+            candidates = BleedInterestNewsDesk.candidates(fromGDELT: data, interest: interest)
         }
         let used = Set(previouslyPrintedURLs.compactMap(URL.init(string:)).map(BleedInterestNewsDesk.canonicalURL))
         let fresh = candidates.filter { !used.contains(BleedInterestNewsDesk.canonicalURL($0.url)) }

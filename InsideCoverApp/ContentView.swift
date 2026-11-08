@@ -1412,6 +1412,8 @@ struct ContentView: View {
         inputs.localBrainIsFetching = modelReport.state != .ready
             && (isInstallingModel || LocalBrainInstallIntent.isWanted)
         inputs.localBrainDownloadLabel = LocalModelManager.preferredModel.approximateDownloadLabel
+        inputs.localBrainAsksStopped = LocalBrainAsks.isStopped
+        inputs.localBrainOnWiFi = LocalBrainAsks.lastSeenOnWiFi
         inputs.selfFacts = selfFacts
         inputs.facultyEntries = facultyEntries
         // Read the ledger once rather than once per cast member.
@@ -11411,19 +11413,29 @@ struct ContentView: View {
             }
         }
 
-        if surface.talksAboutTheLocalBrain, modelReport.state != .ready {
+        // While the brain sleeps, the Pages the Book wrote offer to wake it;
+        // while it is being fetched, every leaf carries the fetch's narration.
+        if modelReport.state != .ready, isInstallingModel || surface.offersBrainWaking {
             actions.append(
                 FolioLeafAction(
                     kind: .wakeTheBrain,
-                    title: isInstallingModel ? "Fetching the brain…" : "Wake the private mind",
+                    title: isInstallingModel ? "Fetching my brain…" : "Wake my brain",
                     systemImage: "brain.head.profile",
                     detail: isInstallingModel
-                        ? (installMessage.nonEmpty ?? "Fetching the brain…")
-                        : "Gemma is \(LocalModelManager.preferredModel.approximateDownloadLabel), and it stays on this phone.",
+                        ? (installMessage.nonEmpty ?? "Fetching my brain…")
+                        : "\(surface.brainWakingInvitation) It's \(LocalModelManager.preferredModel.approximateDownloadLabel).",
                     isBusy: isInstallingModel,
                     progress: installProgress
                 )
             )
+            if !isInstallingModel, surface.sourceID == FirstRunPageSequence.localBrainSetupSourceID {
+                actions.append(FolioLeafAction(
+                    kind: .stopAskingForBrain,
+                    title: "Stop asking",
+                    systemImage: "moon.zzz",
+                    detail: "I'll stay asleep and stop bringing it up."
+                ))
+            }
         }
 
         return actions
@@ -11438,6 +11450,11 @@ struct ContentView: View {
             guard !isInstallingModel else { return }
             BookFeedback.play(.openPage)
             Task { await installModel() }
+        case .stopAskingForBrain:
+            LocalBrainAsks.stop()
+            BookFeedback.play(.select)
+            statusMessage = "Fine. I'll stop asking. It's still on any Page I skimmed if you change your mind."
+            surfaceRefreshDate = Date()
         case .storySliceOfLife, .storyProgressArc, .storySurprise:
             guard let choiceID = kind.storyChoiceID else { return }
             let draft = StoryPageSceneDraft(surface: surface)
@@ -12834,12 +12851,16 @@ struct ContentView: View {
                         Task { await installModel() }
                     }
 
+                    #if DEBUG
+                    // Store, database and timing stats are for the bench, not
+                    // for readers (or App Review) browsing the Colophon.
                     LabStatusCard(
                         report: modelReport,
                         storeReport: storeReport,
                         databaseReport: databaseReport,
                         lastBraidDuration: generation.lastBraidDuration
                     )
+                    #endif
 
                     let taughtRules = TaughtReading.rules(
                         learnedBraidNotes: vault.data.learnedBraidNotes ?? [],
@@ -13097,6 +13118,8 @@ struct ContentView: View {
                         .tint(BookPalette.teal)
                         .bookToggleSound(personalizedWebResearchOptIn)
 
+                        #if DEBUG
+                        // A developer key field; readers never configure Reddit.
                         HStack(spacing: 8) {
                             Image(systemName: RedditSourceAccount.isConfigured ? "checkmark.seal.fill" : "antenna.radiowaves.left.and.right")
                                 .foregroundStyle(RedditSourceAccount.isConfigured ? BookPalette.teal : BookPalette.gold.opacity(0.84))
@@ -13120,6 +13143,7 @@ struct ContentView: View {
                             .font(.caption2)
                             .foregroundStyle(MaterialInk.text.opacity(0.55))
                             .fixedSize(horizontal: false, vertical: true)
+                        #endif
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
@@ -22777,6 +22801,13 @@ struct ContentView: View {
     /// that they didn't ask for.
     @MainActor
     func resumeLocalBrainInstallIfWanted() {
+        // Runs after hydrate and on every foreground: a good moment to notice
+        // Wi-Fi, which lets the Book ask for its brain a little sooner.
+        if modelReport.state != .ready {
+            Task.detached(priority: .utility) {
+                LocalBrainAsks.lastSeenOnWiFi = !(await LocalBrainNetwork.isExpensive())
+            }
+        }
         guard LocalBrainInstallIntent.isWanted,
               !isInstallingModel,
               modelReport.state == .missing else { return }
@@ -22807,6 +22838,21 @@ enum LocalBrainInstallIntent {
     static func clear() {
         UserDefaults.standard.removeObject(forKey: wantedKey)
         UserDefaults.standard.removeObject(forKey: cellularKey)
+    }
+}
+
+/// The Book's standing ask for its brain: whether the reader said stop, and
+/// whether the phone was last seen on Wi-Fi.
+enum LocalBrainAsks {
+    private static let stoppedKey = "localBrainAsksStopped"
+    private static let wifiKey = "localBrainLastSeenOnWiFi"
+
+    static var isStopped: Bool { UserDefaults.standard.bool(forKey: stoppedKey) }
+    static func stop() { UserDefaults.standard.set(true, forKey: stoppedKey) }
+
+    static var lastSeenOnWiFi: Bool {
+        get { UserDefaults.standard.bool(forKey: wifiKey) }
+        set { UserDefaults.standard.set(newValue, forKey: wifiKey) }
     }
 }
 

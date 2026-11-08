@@ -21,12 +21,29 @@ final class BleedInterestNewsTests: XCTestCase {
                          storyID: "interest:artificial intelligence", researchQuery: "artificial intelligence")
     }
 
-    func testSearchUsesNewsAndSevenDayFilterRatherThanInstantAnswers() throws {
+    func testSearchUsesAnOpenNewsIndexWithASevenDayWindow() throws {
         let query = try XCTUnwrap(BleedInterestNewsDesk.searchURL(for: "artificial intelligence & art"))
         let components = try XCTUnwrap(URLComponents(url: query, resolvingAgainstBaseURL: false))
-        XCTAssertEqual(query.path, "/news/search")
-        XCTAssertEqual(components.queryItems?.first { $0.name == "q" }?.value, "artificial intelligence & art")
-        XCTAssertEqual(components.queryItems?.first { $0.name == "qft" }?.value, "interval=\"7\"")
+        XCTAssertEqual(query.host, "api.gdeltproject.org")
+        XCTAssertEqual(components.queryItems?.first { $0.name == "query" }?.value,
+                       "\"artificial intelligence & art\" sourcelang:english")
+        XCTAssertEqual(components.queryItems?.first { $0.name == "timespan" }?.value, "7d")
+        XCTAssertEqual(components.queryItems?.first { $0.name == "format" }?.value, "json")
+    }
+
+    func testOpenNewsIndexKeepsPublisherLinksAndRejectsDefinitions() {
+        let json = Data("""
+        {"articles":[
+          {"url":"https://publisher.example/launch?utm_source=search","title":"Researchers released a small AI model","domain":"publisher.example"},
+          {"url":"https://encyclopedia.example/ai","title":"What is artificial intelligence?","domain":"encyclopedia.example"},
+          {"url":"https://publisher.example/launch?utm_source=other","title":"Researchers released a small AI model","domain":"publisher.example"}
+        ]}
+        """.utf8)
+        let found = BleedInterestNewsDesk.candidates(fromGDELT: json, interest: "artificial intelligence")
+        XCTAssertEqual(found.count, 1)
+        XCTAssertEqual(found.first?.url.host, "publisher.example")
+        XCTAssertEqual(found.first?.sourceName, "publisher.example")
+        XCTAssertTrue(BleedInterestNewsDesk.candidates(fromGDELT: Data("not json".utf8), interest: "ai").isEmpty)
     }
 
     func testCandidateParserKeepsPublisherLinksAndRejectsDefinitions() {
@@ -173,8 +190,6 @@ final class BleedInterestNewsTests: XCTestCase {
         XCTAssertEqual(found.first?.url.host, "publisher.example")
         XCTAssertEqual(found.first?.sourceName, "Field Notes")
         XCTAssertEqual(found.first.map { BleedInterestNewsDesk.canonicalURL($0.url) }, "https://publisher.example/field-results")
-        let feedURL = try XCTUnwrap(BleedInterestNewsDesk.feedURL(for: "sailing"))
-        XCTAssertTrue(feedURL.absoluteString.contains("format=rss"))
     }
 
     func testExplicitPublicationTimeAndArticleBodyMarkupAreReadable() throws {

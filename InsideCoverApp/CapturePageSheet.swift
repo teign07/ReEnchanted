@@ -3040,7 +3040,7 @@ struct CapturePageSheet: View {
     }
 
     private var articlePreviews: [(title: String, url: URL, publishedAt: String, preview: String)] {
-        guard surface.type == .patreon,
+        guard surface.type == .creatorNote,
               let previews = surface.payload.metadata["articlePreviews"]?.nonEmpty else {
             return []
         }
@@ -3061,7 +3061,7 @@ struct CapturePageSheet: View {
     }
 
     private var articleLinks: [(title: String, url: URL)] {
-        guard surface.type == .patreon,
+        guard surface.type == .creatorNote,
               let links = surface.payload.metadata["links"] else {
             return []
         }
@@ -6422,13 +6422,12 @@ struct CapturePageSheet: View {
         }
     }
 
-    /// True on pages that talk about the private local mind while it isn't yet
-    /// installed: the first Welcome, the recovery install rider, and any
-    /// local-brain issue page. These get an inline download button so the reader
-    /// never has to hunt for the Colophon.
+    /// True while the brain sleeps on pages that offer to wake it (see
+    /// `offersBrainWaking`), and on any page while it is being fetched, so the
+    /// fetch's narration follows the reader instead of staying on one page.
     private var showsLocalBrainInstallControl: Bool {
         guard !localBrainIsReady else { return false }
-        return surface.talksAboutTheLocalBrain || (surface.type == .anchor && surface.isStoryPlayablePage)
+        return isInstallingLocalBrain || surface.offersBrainWaking
     }
 
     @ViewBuilder
@@ -6451,7 +6450,7 @@ struct CapturePageSheet: View {
                     BookFeedback.play(.openPage)
                     onInstallLocalBrain()
                 } label: {
-                    Label("Download Gemma · Wake My Brain", systemImage: "brain.head.profile")
+                    Label("Wake my brain", systemImage: "brain.head.profile")
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
@@ -6714,9 +6713,30 @@ struct CapturePageSheet: View {
                 LetsChatBubble(role: .book, text: letsChatOpener)
             }
 
+            // Said plainly once per conversation: these replies are written by
+            // an AI model on this phone, and they can miss.
+            Label("My replies come from an AI model that lives on this phone. I can be wrong, or strange. Hold a reply to erase it or report it.",
+                  systemImage: "sparkles")
+                .font(.caption2)
+                .foregroundStyle(openPageSecondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 32)
+
             ForEach(askTurns) { turn in
                 LetsChatBubble(role: .reader, text: turn.prompt)
                 LetsChatBubble(role: .book, text: turn.answer)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            eraseAskTurn(turn)
+                        } label: {
+                            Label("Erase this reply", systemImage: "eraser")
+                        }
+                        Button {
+                            reportAskTurn(turn)
+                        } label: {
+                            Label("Report it", systemImage: "flag")
+                        }
+                    }
                 if let searched = askSearchCountByTurnID[turn.id], searched > 0 {
                     LetsChatLeaves(
                         evidence: askEvidenceByTurnID[turn.id] ?? [],
@@ -6779,6 +6799,29 @@ struct CapturePageSheet: View {
 
     /// The Book's first line when it has not spoken first. Instant and
     /// deterministic: opening the chat never waits on the model.
+    /// Erases one exchange from this conversation, reply and question both.
+    private func eraseAskTurn(_ turn: AskTheBookTurn) {
+        askTurns.removeAll { $0.id == turn.id }
+        askEvidenceByTurnID[turn.id] = nil
+        askSearchCountByTurnID[turn.id] = nil
+        askOffer = nil
+        BookFeedback.play(.select)
+    }
+
+    /// Opens a pre-filled email to the people who make the Book. Nothing is
+    /// sent unless the reader sends it; the Book itself never phones home.
+    private func reportAskTurn(_ turn: AskTheBookTurn) {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = "hello@reenchanted.app"
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "A Let's Chat reply"),
+            URLQueryItem(name: "body", value: "What I asked:\n\(turn.prompt)\n\nWhat the Book said:\n\(turn.answer)\n\nWhat was wrong with it:\n")
+        ]
+        guard let url = components.url else { return }
+        UIApplication.shared.open(url)
+    }
+
     private var letsChatOpener: String {
         if let line = bookInterior.currentInitiative?.openingLine.nonEmpty { return line }
         if let fascination = bookInterior.fascination {

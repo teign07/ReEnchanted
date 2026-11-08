@@ -20,7 +20,7 @@ final class WonderCompassContentsTests: XCTestCase {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         let links = try XCTUnwrap(first.contentsLinks)
         XCTAssertEqual(links.map(\.label), labels)
-        XCTAssertEqual(links.count, 55)
+        XCTAssertEqual(links.count, 54)
         XCTAssertEqual(Set(links.map(\.id)).count, links.count)
         for link in links {
             let destination = try XCTUnwrap(sections.first { $0.id == link.sectionID }, link.label)
@@ -80,7 +80,7 @@ final class WonderCompassContentsTests: XCTestCase {
 
     func testEveryReadingPageHasContentAndUsesBoundedLosslessTextRuns() throws {
         let sections = try library().wonderCompass
-        XCTAssertEqual(sections.count, 48)
+        XCTAssertEqual(sections.count, 47)
         for section in sections {
             let page = WonderCompassPageSourceAdapter().readingSurface(for: section)
             let blocks = section.readingBlocks(for: page.payload.body)

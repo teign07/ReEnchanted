@@ -64,7 +64,7 @@ final class BeliefStaysALeverTests: XCTestCase {
     /// genuinely one card each.
     func testAQuipIsNoLongerThrottledLikeASingleCardUtility() {
         XCTAssertFalse(CuratorMood.slowDeskTypes.contains(.quip))
-        for single in [BookPageType.radio, .inventory, .helpTips, .patreon] {
+        for single in [BookPageType.radio, .inventory, .helpTips, .creatorNote] {
             XCTAssertTrue(
                 CuratorMood.slowDeskTypes.contains(single),
                 "\(single.rawValue) is one card and should still rest by kind"

@@ -2019,14 +2019,12 @@ struct BookReferenceLibraryPayload: Codable, Equatable {
     var version: Int
     var wonderCompass: [ReferenceSnippet]
     var enchantifyLore: [ReferenceSnippet]
-    var patreon: [ReferenceSnippet]?
     var characterIllustrations: [CharacterIllustrationProfile]
 
     enum CodingKeys: String, CodingKey {
         case version
         case wonderCompass
         case enchantifyLore
-        case patreon
         case characterIllustrations
     }
 
@@ -2034,13 +2032,11 @@ struct BookReferenceLibraryPayload: Codable, Equatable {
         version: Int,
         wonderCompass: [ReferenceSnippet],
         enchantifyLore: [ReferenceSnippet],
-        patreon: [ReferenceSnippet]?,
         characterIllustrations: [CharacterIllustrationProfile] = []
     ) {
         self.version = version
         self.wonderCompass = wonderCompass
         self.enchantifyLore = enchantifyLore
-        self.patreon = patreon
         self.characterIllustrations = characterIllustrations
     }
 
@@ -2049,11 +2045,10 @@ struct BookReferenceLibraryPayload: Codable, Equatable {
         version = try container.decode(Int.self, forKey: .version)
         wonderCompass = try container.decode([ReferenceSnippet].self, forKey: .wonderCompass)
         enchantifyLore = try container.decode([ReferenceSnippet].self, forKey: .enchantifyLore)
-        patreon = try container.decodeIfPresent([ReferenceSnippet].self, forKey: .patreon)
         characterIllustrations = try container.decodeIfPresent([CharacterIllustrationProfile].self, forKey: .characterIllustrations) ?? []
     }
 
-    static let empty = BookReferenceLibraryPayload(version: 0, wonderCompass: [], enchantifyLore: [], patreon: [], characterIllustrations: [])
+    static let empty = BookReferenceLibraryPayload(version: 0, wonderCompass: [], enchantifyLore: [], characterIllustrations: [])
 }
 
 enum QuipPackRegistry {
@@ -2802,11 +2797,6 @@ enum BookReferenceCatalog {
         )
     }
 
-    static var patreon: [ReferenceSnippet] {
-        let snippets = bundledLibrary.patreon ?? []
-        return snippets.isEmpty ? fallbackPatreon : snippets
-    }
-
     static var characterIllustrations: [CharacterIllustrationProfile] {
         let profiles = bundledLibrary.characterIllustrations
         let all = profiles.isEmpty ? fallbackCharacterIllustrations + fallbackScheduledProfessorIllustrations : profiles
@@ -3388,17 +3378,6 @@ enum BookReferenceCatalog {
         )
     ]
 
-    static let fallbackPatreon: [ReferenceSnippet] = [
-        ReferenceSnippet(
-            id: "creator-notes-retired",
-            sourceID: "patreon-packet",
-            title: "Creator Notes",
-            prompt: "The public shelf is retired.",
-            body: "Creator support notes are retired from my daily pages. I keep my attention on your own pages.",
-            tags: ["creator-notes", "retired"]
-        )
-    ]
-
     static func dailyWonderCompassSnippet(for day: BookDay, now: Date = Date()) -> ReferenceSnippet {
         snippet(from: wonderCompass, dayID: day.id, sourceID: "wonder-compass", now: now)
     }
@@ -3543,35 +3522,6 @@ enum BookReferenceCatalog {
             }
             .prefix(max(1, limit))
             .map(\.snippet)
-    }
-
-    static func patreonShelfSnippet(now: Date = Date()) -> ReferenceSnippet {
-        snippet(from: patreon, dayID: currentDayID(now), sourceID: "patreon-packet", now: now)
-    }
-
-    static func rotatingPatreonShelfSnippet(for day: BookDay, now: Date = Date(), manual: Bool = false) -> ReferenceSnippet {
-        let pool = patreon.isEmpty ? [] : patreon
-        return rotatedSnippet(from: pool, day: day, sourceID: "patreon-packet", now: now, manual: manual)
-            ?? patreonShelfSnippet(now: now)
-    }
-
-    static func patreonPostSnippets(limit: Int = 6, now: Date = Date()) -> [ReferenceSnippet] {
-        let posts = patreon
-            .filter { snippet in
-                snippet.url?.isEmpty == false
-                    || snippet.body.range(of: "https://", options: [.caseInsensitive]) != nil
-                    || snippet.body.range(of: "http://", options: [.caseInsensitive]) != nil
-            }
-            .sorted { left, right in
-                let leftDate = left.publishedAt ?? ""
-                let rightDate = right.publishedAt ?? ""
-                if leftDate == rightDate {
-                    return left.title.localizedCaseInsensitiveCompare(right.title) == .orderedAscending
-                }
-                return leftDate > rightDate
-            }
-        guard !posts.isEmpty else { return [] }
-        return Array(posts.prefix(max(1, limit)))
     }
 
     static func labyrinthIllustration(for day: BookDay, now: Date = Date()) -> LabyrinthIllustrationPlate {

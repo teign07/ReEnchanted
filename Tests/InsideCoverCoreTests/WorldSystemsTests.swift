@@ -3952,6 +3952,67 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         XCTAssertNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs))
     }
 
+    func testBrainAskReturnsEveryFewHoursWithANewLine() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let key = "source:\(FirstRunPageSequence.localBrainSetupSourceID)"
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.firstMissionSourceID)")
+        let first = try XCTUnwrap(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs, now: now))
+
+        inputs.surfaceHistory[key] = SurfaceHistoryRecord(lastShownAt: now.addingTimeInterval(-3_600), recentShowCount: 1)
+        XCTAssertNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs, now: now))
+
+        inputs.surfaceHistory[key] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-FirstRunPageSequence.brainAskRest - 60), recentShowCount: 1)
+        let second = try XCTUnwrap(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs, now: now))
+        XCTAssertNotEqual(first.payload.headline, second.payload.headline)
+    }
+
+    func testBrainAskOnWiFiComesSoonerAndSaysSo() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.firstMissionSourceID)")
+        inputs.surfaceHistory["source:\(FirstRunPageSequence.localBrainSetupSourceID)"] = SurfaceHistoryRecord(
+            lastShownAt: now.addingTimeInterval(-FirstRunPageSequence.brainAskRestOnWiFi - 60), recentShowCount: 2)
+        XCTAssertNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs, now: now))
+
+        inputs.localBrainOnWiFi = true
+        let ask = try XCTUnwrap(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs, now: now))
+        XCTAssertEqual(ask.payload.headline, "Ooh. Wi-Fi.")
+    }
+
+    func testStopAskingSilencesTheBrainAsk() {
+        var inputs = BookSourceInputs.empty
+        inputs.firstRunEngagedKeys.insert("source:\(FirstRunPageSequence.firstMissionSourceID)")
+        inputs.localBrainAsksStopped = true
+        XCTAssertNil(FirstRunPageSequence.pendingLocalBrainUpgrade(inputs: inputs))
+    }
+
+    func testEveryBrainAskNamesTheSizeAndNeverTheColophon() {
+        for variant in 0..<6 {
+            for onWiFi in [false, true] {
+                let ask = FirstRunPageSequence.brainAsk(variant: variant, onWiFi: onWiFi,
+                                                        name: "Rabbit", downloadLabel: "about 3.6 GB")
+                XCTAssertTrue(ask.body.contains("about 3.6 GB"), ask.headline)
+                XCTAssertFalse(ask.body.contains("Colophon"), ask.headline)
+                XCTAssertFalse(ask.body.contains("the Book"), ask.headline)
+            }
+        }
+    }
+
+    func testPagesTheBookWroteOfferToWakeItsBrain() {
+        func page(_ metadata: [String: String]) -> SurfacePage {
+            SurfacePage(type: .helpTips, sourceID: "probe", prompt: "Probe", detail: "Probe",
+                        payload: BookPagePayload(headline: "Probe", body: "Probe", metadata: metadata))
+        }
+        XCTAssertFalse(page([:]).offersBrainWaking)
+        XCTAssertTrue(page(["proseStatus": "fallback"]).offersBrainWaking)
+        XCTAssertFalse(page(["proseStatus": "kept"]).offersBrainWaking)
+        XCTAssertTrue(page(["proseSource": "deterministic"]).offersBrainWaking)
+        XCTAssertTrue(page(["tags": "local-brain"]).offersBrainWaking)
+        XCTAssertTrue(page(["proseStatus": "fallback"]).brainWakingInvitation.contains("skimmed"))
+    }
+
     func testWelcomePageKeepsBookBrainInvitationAfterCompletedInscription() {
         let startedAt = Date()
         let day = BookDay.today()

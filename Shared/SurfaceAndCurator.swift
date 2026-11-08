@@ -588,7 +588,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .calendar:
             return .reflect
-        case .wonderCompass, .lore, .patreon, .illustration, .quip, .quotes, .helpTips, .welcome, .marginsAtlas, .bindery:
+        case .wonderCompass, .lore, .creatorNote, .illustration, .quip, .quotes, .helpTips, .welcome, .marginsAtlas, .bindery:
             return .importReference
         case .affirmations:
             return .reflect
@@ -3249,7 +3249,7 @@ extension SurfacePage {
              .wordNegotiation, .bookJump, .enchantment, .radio, .inventory,
              .marginsAtlas, .gamePage, .askTheBook, .inkrestOfficeHours, .packPage,
              .calendar, .bindery, .frontMatter,
-             .spell, .recipe, .festival, .supportGuild, .patreon, .bookPocket, .wickerDare, .rest:
+             .spell, .recipe, .festival, .supportGuild, .creatorNote, .bookPocket, .wickerDare, .rest:
             return .activityPreview
         case .illuminatedPhoto:
             return payload.metadata["renderedPreviewPath"]?.nonEmpty == nil ? .activityPreview : .reading
@@ -3419,7 +3419,7 @@ extension SurfacePage {
         case .calendar: return "The calendar's folded inside. Pick what happens next."
         case .bindery: return "Pick a book in here and I'll show you how it gets bound."
         case .supportGuild: return "Vellum and Inkrest have their charts out. What they spotted is folded inside."
-        case .patreon: return "This one's about money. Unfold it to see what it pays for. You don't have to."
+        case .creatorNote: return "A note from whoever stitched me together. Unfold it if you're curious."
         case .frontMatter: return "Your sheet's folded in here: Belief, the fight, your ribbons, what you're carrying."
         case .bookPocket: return "Everything in my pocket's folded in here."
         case .spell: return "The steps are folded inside. Do them in order. Spells notice."
@@ -3603,6 +3603,26 @@ extension SurfacePage {
         if payload.metadata["status"] == "failed" { return true }
         let tags = payload.metadata["tags"] ?? ""
         return tags.contains("local-brain") || tags.contains("colophon")
+    }
+
+    /// Pages that offer to wake the brain while it sleeps: the ones that talk
+    /// about it, and the ones the Book wrote for the reader, where it skimmed.
+    /// The reader meets the offer where the brain would have done better,
+    /// instead of in the Colophon.
+    var offersBrainWaking: Bool {
+        if talksAboutTheLocalBrain { return true }
+        if isStoryPlayablePage { return true }
+        let metadata = payload.metadata
+        // "kept" is a letter reopened from the archive, not prose written now.
+        if let status = metadata["proseStatus"] { return status != "kept" }
+        return metadata["proseSource"] != nil
+    }
+
+    /// The line a skimmed Page says beside the waking button.
+    var brainWakingInvitation: String {
+        talksAboutTheLocalBrain
+            ? "It stays on this phone."
+            : "I skimmed this one. With my brain awake I'd read you properly."
     }
 
     var preparedExperimentRole: BookSessionRole? {
@@ -11046,7 +11066,7 @@ struct CuratorMood {
     /// tempo and Belief folded in. The 72-hour ban was written for a
     /// three-card desk where a returning kind was visible at a glance; on a
     /// nine-leaf block it just meant the reader stopped meeting quips.
-    static let slowDeskTypes: Set<BookPageType> = [.radio, .inventory, .helpTips, .patreon]
+    static let slowDeskTypes: Set<BookPageType> = [.radio, .inventory, .helpTips, .creatorNote]
 
     private static let firstHoursOrientationBoosts: [BookPageType: Int] = [
         .helpTips: 18,

@@ -458,6 +458,18 @@ enum PhysicalBookShippingPolicy {
     static func displayName(for code: String) -> String {
         Locale.current.localizedString(forRegionCode: code) ?? code
     }
+
+    /// bj, 2026-11-08: "only USA can order books; app is available to everyone
+    /// otherwise." Readers anywhere use the whole Book; paper is sold only to
+    /// phones set to a region paper ships to, which today is the US alone.
+    static func ordersOpen(inRegion region: String?) -> Bool {
+        guard let region = region?.uppercased(), !region.isEmpty else { return false }
+        return countryCodes.contains(region)
+    }
+
+    static var ordersOpenHere: Bool {
+        ordersOpen(inRegion: Locale.current.region?.identifier)
+    }
 }
 
 struct PhysicalBookShippingAddress: Codable, Equatable {

@@ -47,6 +47,8 @@
 		010000000000000000000041 /* SensitiveFileProtection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010000000000000000000141 /* SensitiveFileProtection.swift */; };
 		0100000000000000000002A1 /* RadioAudio in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002A2 /* RadioAudio */; };
 		0100000000000000000002F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 0100000000000000000002F2 /* PrivacyInfo.xcprivacy */; };
+		041000000000000000000301 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 040000000000000000000108 /* PrivacyInfo.xcprivacy */; };
+		051000000000000000000301 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 050000000000000000000105 /* PrivacyInfo.xcprivacy */; };
 		020000000000000000000200 /* PageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000100 /* PageModel.swift */; };
 		020000000000000000000201 /* SurfaceAndCurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000101 /* SurfaceAndCurator.swift */; };
 		020000000000000000000202 /* NarrativeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000102 /* NarrativeCore.swift */; };
@@ -268,6 +270,8 @@
 		010000000000000000000201 /* InsideCoverApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = InsideCoverApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0100000000000000000002A2 /* RadioAudio */ = {isa = PBXFileReference; lastKnownFileType = folder; path = RadioAudio; sourceTree = "<group>"; };
 		0100000000000000000002F2 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		040000000000000000000108 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		050000000000000000000105 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		020000000000000000000100 /* PageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PageModel.swift; sourceTree = "<group>"; };
 		020000000000000000000101 /* SurfaceAndCurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceAndCurator.swift; sourceTree = "<group>"; };
 		020000000000000000000102 /* NarrativeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NarrativeCore.swift; sourceTree = "<group>"; };
@@ -659,6 +663,7 @@
 				040000000000000000000103 /* ReEnchantedWidgets.swift */,
 				040000000000000000000104 /* ReEnchantedWidgets.entitlements */,
 				040000000000000000000105 /* Info.plist */,
+				040000000000000000000108 /* PrivacyInfo.xcprivacy */,
 			);
 			path = ReEnchantedWidgets;
 			sourceTree = "<group>";
@@ -669,6 +674,7 @@
 				050000000000000000000102 /* ShareViewController.swift */,
 				050000000000000000000103 /* ReEnchantedShare.entitlements */,
 				050000000000000000000104 /* Info.plist */,
+				050000000000000000000105 /* PrivacyInfo.xcprivacy */,
 			);
 			path = ReEnchantedShare;
 			sourceTree = "<group>";
@@ -811,6 +817,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				041000000000000000000301 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -818,6 +825,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				051000000000000000000301 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

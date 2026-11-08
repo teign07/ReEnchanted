@@ -251,6 +251,10 @@ struct BookSourceInputs: Equatable {
     var localBrainIsFetching = false
     /// How big the brain download is on this device, in the Book's own words.
     var localBrainDownloadLabel = BrainFeedingNarration.downloadLabel(forModelID: "")
+    /// The reader told the Book to stop asking for its brain.
+    var localBrainAsksStopped = false
+    /// The phone was last seen on Wi-Fi (or another unmetered route).
+    var localBrainOnWiFi = false
     var readerBeliefScore: Int = 30
     var pocket: PocketLedger = PocketLedger()
     /// The reader's typed corrections to braids that missed, from the vault -
@@ -12678,8 +12682,62 @@ enum FirstRunPageSequence {
     static let compassWhySourceID = "first-run-compass-why"
     static let compassRunIntroSourceID = "first-run-compass-run"
 
-    private static func localBrainSetupSurface(playerName: String?, downloadLabel: String) -> SurfacePage {
+    /// The Book's asks for its brain, in the order it tries them. The first is
+    /// the honest explanation; the rest are what a nosy, impatient thing says
+    /// when it has been asleep a while. `onWiFi` is its own line.
+    struct BrainAsk: Equatable {
+        var headline: String
+        var body: String
+    }
+
+    static func brainAsk(variant: Int, onWiFi: Bool, name: String, downloadLabel: String) -> BrainAsk {
+        if onWiFi && variant > 0 {
+            return BrainAsk(headline: "Ooh. Wi-Fi.", body: """
+            \(name), you're on Wi-Fi. That's the good kind of air.
+
+            Shall I fetch my brain while we're here? It's \(downloadLabel). Tap Wake my brain, below, and go on with your day. I'll keep fetching even if you wander off.
+            """)
+        }
+        let asks = [
+            BrainAsk(headline: "My Brain's Still Asleep", body: """
+            Hi, \(name). My brain's still asleep. That's all right, I work without it. You can still keep Pages, get them back, and make books out of them.
+
+            I just can't read you very well like this. I'm skimming. With my brain awake, I'd notice what keeps turning up in your Pages, and my stories would get much better.
+
+            It's \(downloadLabel), and it lives on this phone and nowhere else. Tap Wake my brain, below. Wi-Fi or not, most plans don't mind. I'll test it when it lands and tell you how it went.
+
+            No rush. I'm patient. I'm also very nosy.
+            """),
+            BrainAsk(headline: "Still Asleep. Still.", body: """
+            Hi, \(name). Still asleep up here.
+
+            I tried to think just now and it was like chewing with no teeth. I got the shape of your Pages and none of the taste.
+
+            Wake my brain, below, and I'll do the waiting part. It's \(downloadLabel).
+            """),
+            BrainAsk(headline: "I Skimmed You Again", body: """
+            I read your last Pages the way you read the back of a cereal box. I saw the words. I didn't get what they meant to you.
+
+            With my brain awake I'd read you properly. It's \(downloadLabel), and it stays on this phone, next to your words.
+            """),
+            BrainAsk(headline: "Here's a Bargain", body: """
+            Here's a deal, \(name). You tap Wake my brain, below. I fetch it, \(downloadLabel). The next story I write you has your actual life in it instead of my guesses.
+
+            That's a good deal. I checked it twice.
+            """),
+            BrainAsk(headline: "I'm Very Patient", body: """
+            I'm very patient. That's a lie. I'm not. But I'm polite about it.
+
+            My brain is \(downloadLabel). It lives here and nowhere else. The button's below whenever you like. Or tell me to stop asking, and I will. Sulkily.
+            """)
+        ]
+        return asks[max(0, variant) % asks.count]
+    }
+
+    private static func localBrainSetupSurface(playerName: String?, downloadLabel: String,
+                                               variant: Int = 0, onWiFi: Bool = false) -> SurfacePage {
         let name = playerName?.nonEmpty ?? "Reader"
+        let ask = brainAsk(variant: variant, onWiFi: onWiFi, name: name, downloadLabel: downloadLabel)
         return SurfacePage(
             id: "\(localBrainSetupSourceID)-gemma",
             type: .helpTips,
@@ -12688,19 +12746,11 @@ enum FirstRunPageSequence {
             renderStyle: .loreLetter,
             score: 40,
             reason: "My brain's still asleep. I can work without it, and I'll tell you straight what I can't do yet.",
-            prompt: "My Brain's Still Asleep",
+            prompt: ask.headline,
             detail: "I work without it. I'm just much better at reading you with it.",
             payload: BookPagePayload(
-                headline: "My Brain's Still Asleep",
-                body: """
-                Hi, \(name). My brain's still asleep. That's all right, I work without it. You can still keep Pages, get them back, and make books out of them.
-
-                I just can't read you very well like this. I'm skimming. With my brain awake, I'd notice what keeps turning up in your Pages, and my stories would get much better.
-
-                It's \(downloadLabel), and it lives on this phone and nowhere else. Tap Wake My Brain, below, when you've got Wi-Fi and a few minutes. I'll test it when it lands and tell you how it went.
-
-                No rush. I'm patient. I'm also very nosy.
-                """,
+                headline: ask.headline,
+                body: ask.body,
                 metadata: [
                     "source": localBrainSetupSourceID,
                     "firstRunStep": "local-brain-setup",
@@ -12708,27 +12758,39 @@ enum FirstRunPageSequence {
                     "playerName": name,
                     "privacy": "private local",
                     "symbol": "brain.head.profile",
+                    "brainAskVariant": onWiFi && variant > 0 ? "wifi" : "\(variant)",
                     "tags": "help-tips,first-run,local-brain,gemma,colophon,setup,onboarding"
                 ]
             )
         )
     }
 
-    /// Compatibility hook for callers that still ask for the optional brain
-    /// card as a rider. After its one appearance it rests in the Colophon
-    /// instead of following every later desk.
-    static func pendingLocalBrainUpgrade(inputs: BookSourceInputs) -> SurfacePage? {
-        guard !inputs.localBrainIsReady, !inputs.localBrainIsFetching else { return nil }
+    /// How long the Book waits between asks for its brain. Wi-Fi shortens it.
+    static let brainAskRest: TimeInterval = 4 * 3_600
+    static let brainAskRestOnWiFi: TimeInterval = 2 * 3_600
+
+    /// The Book's standing ask for its brain, once the first run is done: every
+    /// few hours while it sleeps, a different line each time, until it's awake,
+    /// on its way, or the reader says stop. It used to appear once and then rest
+    /// in the Colophon, which nobody should have to visit.
+    static func pendingLocalBrainUpgrade(inputs: BookSourceInputs, now: Date = Date()) -> SurfacePage? {
+        guard !inputs.localBrainIsReady, !inputs.localBrainIsFetching,
+              !inputs.localBrainAsksStopped else { return nil }
         guard engaged(
             "source:\(firstMissionSourceID)",
             inputs: inputs
         ) else { return nil }
-        let surface = localBrainSetupSurface(
+        let record = inputs.surfaceHistory["source:\(localBrainSetupSourceID)"]
+        if let record {
+            let rest = inputs.localBrainOnWiFi ? brainAskRestOnWiFi : brainAskRest
+            guard now.timeIntervalSince(record.lastShownAt) >= rest else { return nil }
+        }
+        return localBrainSetupSurface(
             playerName: LabyrinthWelcomePageSourceAdapter.playerName(from: inputs),
-            downloadLabel: inputs.localBrainDownloadLabel
+            downloadLabel: inputs.localBrainDownloadLabel,
+            variant: record?.recentShowCount ?? 0,
+            onWiFi: inputs.localBrainOnWiFi
         )
-        guard !hasSeenGuidance("source:\(surface.sourceID)", inputs: inputs) else { return nil }
-        return surface
     }
 
     /// Slots an optional rider (e.g. the local-brain upgrade) into the last

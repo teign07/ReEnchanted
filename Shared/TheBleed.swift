@@ -1081,21 +1081,47 @@ struct BleedNewsArticle: Equatable {
 enum BleedInterestNewsDesk {
     static let maximumAge: TimeInterval = 7 * 86_400
 
+    /// GDELT's open news index: recent articles, publisher links, no scraping.
+    /// It replaced Bing's news pages, whose terms forbid automated clients.
     static func searchURL(for interest: String) -> URL? {
-        var components = URLComponents(string: "https://www.bing.com/news/search")
+        let topic = interest.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !topic.isEmpty else { return nil }
+        let phrase = topic.contains(" ") ? "\"\(topic)\"" : topic
+        var components = URLComponents(string: "https://api.gdeltproject.org/api/v2/doc/doc")
         components?.queryItems = [
-            URLQueryItem(name: "q", value: interest),
-            URLQueryItem(name: "qft", value: "interval=\"7\""),
-            URLQueryItem(name: "form", value: "PTFTNR")
+            URLQueryItem(name: "query", value: "\(phrase) sourcelang:english"),
+            URLQueryItem(name: "mode", value: "ArtList"),
+            URLQueryItem(name: "format", value: "json"),
+            URLQueryItem(name: "timespan", value: "7d"),
+            URLQueryItem(name: "maxrecords", value: "25"),
+            URLQueryItem(name: "sort", value: "HybridRel")
         ]
         return components?.url
     }
 
-    static func feedURL(for interest: String) -> URL? {
-        guard let search = searchURL(for: interest),
-              var parts = URLComponents(url: search, resolvingAgainstBaseURL: false) else { return nil }
-        parts.queryItems = (parts.queryItems ?? []) + [URLQueryItem(name: "format", value: "rss")]
-        return parts.url
+    private struct GDELTList: Decodable {
+        struct Article: Decodable { var url: String; var title: String; var domain: String? }
+        var articles: [Article]?
+    }
+
+    /// Candidates from a GDELT article list, held to the same rules as any
+    /// other source: publisher links only, no definitions, no stock tips.
+    static func candidates(fromGDELT data: Data, interest: String) -> [BleedNewsCandidate] {
+        guard let list = try? JSONDecoder().decode(GDELTList.self, from: data) else { return [] }
+        var seen = Set<String>()
+        return (list.articles ?? []).compactMap { item -> BleedNewsCandidate? in
+            let headline = clean(item.title)
+            guard !headline.isEmpty, !isBackground(headline), !unwantedStockTip(headline, interest: interest),
+                  let url = publisherURL(item.url), seen.insert(canonicalURL(url)).inserted else { return nil }
+            return BleedNewsCandidate(headline: headline, url: url,
+                                      sourceName: item.domain?.nonEmpty ?? url.host ?? "Publisher")
+        }
+        .sorted {
+            let left = candidateValue($0, interest: interest)
+            let right = candidateValue($1, interest: interest)
+            if left != right { return left > right }
+            return canonicalURL($0.url) < canonicalURL($1.url)
+        }
     }
 
     /// News feeds link through a click tracker. Only the embedded publisher

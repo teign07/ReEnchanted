@@ -3205,7 +3205,7 @@ struct SurfaceCard: View {
 
     private var isReadingCard: Bool {
         surface.type == .wonderCompass
-            || surface.type == .patreon
+            || surface.type == .creatorNote
             || surface.type == .illustration
             || surface.type == .illuminatedPhoto
             || surface.type == .quip
@@ -8466,7 +8466,7 @@ struct PageVisualStyle {
                 scrapWidth: 92,
                 scrapHeight: 34
             )
-        case .patreon:
+        case .creatorNote:
             return PageVisualStyle(
                 accent: Color(red: 0.60, green: 0.26, blue: 0.22),
                 symbolColor: Color(red: 0.60, green: 0.26, blue: 0.22),
@@ -15032,8 +15032,9 @@ struct OnboardingFlowView: View {
     }
 
     /// The Book's one big ask, made while there's still most of onboarding
-    /// left for the download to happen in. Off Wi-Fi the first button waits
-    /// for it, so nobody spends gigabytes of data by tapping the obvious thing.
+    /// left for the download to happen in. Off Wi-Fi it says so and asks once:
+    /// most plans don't mind the data, so going ahead is the obvious button and
+    /// waiting for Wi-Fi is the other.
     private func onboardingBrainAsk(readerName: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             if brainAnswer == "yes" {
@@ -15074,13 +15075,13 @@ struct OnboardingFlowView: View {
                     symbol: "brain.head.profile",
                     title: "Can I fetch my brain?",
                     body: """
-                    Smaller ink, in the corner of your Page: "\(readerName). I can't think very hard yet. My brain's asleep. It's \(localBrain.downloadLabel), and it lives on this phone, right next to your words. Can I fetch it while Zara talks? You don't have to wait for it.\(isOnExpensiveNetwork ? " You're not on Wi-Fi, so I'll wait till you are." : "")"
+                    Smaller ink, in the corner of your Page: "\(readerName). I can't think very hard yet. My brain's asleep. It's \(localBrain.downloadLabel), and it lives on this phone, right next to your words. Can I fetch it while Zara talks? You don't have to wait for it.\(isOnExpensiveNetwork ? " You're on cellular. Most plans don't mind. Shall I go ahead?" : "")"
                     """
                 )
                 Button {
-                    answerBrainAsk(fetch: true, allowsCellular: false)
+                    answerBrainAsk(fetch: true, allowsCellular: true)
                 } label: {
-                    Label(isOnExpensiveNetwork ? "Fetch it on Wi-Fi" : "Fetch my brain", systemImage: "brain.head.profile")
+                    Label(isOnExpensiveNetwork ? "Go ahead" : "Fetch my brain", systemImage: "brain.head.profile")
                         .font(.body.weight(.bold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 10)
@@ -15090,8 +15091,8 @@ struct OnboardingFlowView: View {
 
                 HStack(spacing: 12) {
                     if isOnExpensiveNetwork {
-                        Button("Use my data now") {
-                            answerBrainAsk(fetch: true, allowsCellular: true)
+                        Button("Wait for Wi-Fi") {
+                            answerBrainAsk(fetch: true, allowsCellular: false)
                         }
                     }
                     Spacer(minLength: 0)

@@ -670,4 +670,14 @@ final class PhysicalBookOrdersTests: XCTestCase {
             from: JSONEncoder().encode(preparation)
         ).coverDimensions, preparation.coverDimensions)
     }
+
+    func testOnlyPhonesSetToTheUSCanOrderPaper() {
+        XCTAssertTrue(PhysicalBookShippingPolicy.ordersOpen(inRegion: "US"))
+        XCTAssertTrue(PhysicalBookShippingPolicy.ordersOpen(inRegion: "us"))
+        for elsewhere in ["DE", "FR", "GB", "CA", "AU", "JP"] {
+            XCTAssertFalse(PhysicalBookShippingPolicy.ordersOpen(inRegion: elsewhere), elsewhere)
+        }
+        XCTAssertFalse(PhysicalBookShippingPolicy.ordersOpen(inRegion: nil))
+        XCTAssertFalse(PhysicalBookShippingPolicy.ordersOpen(inRegion: ""))
+    }
 }

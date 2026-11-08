@@ -1521,7 +1521,7 @@ final class ReaderJourneyPlaySimulationTests: XCTestCase {
         ]
         let previewsBody: Set<BookPageType> = [
             .wonderCompass,
-            .patreon,
+            .creatorNote,
             .illustration,
             .illuminatedPhoto,
             .quip,
