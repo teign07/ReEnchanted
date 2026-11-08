@@ -228,6 +228,7 @@ struct InsideCoverApp: App {
                 // default `.primary` renders light, never black-on-dark in a
                 // device set to Light Mode.
                 .preferredColorScheme(.dark)
+                .task { await BookMovingCopy.announceFailureIfAny() }
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .background {

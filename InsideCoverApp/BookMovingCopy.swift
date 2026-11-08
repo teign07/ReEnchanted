@@ -282,8 +282,10 @@ enum BookMovingCopy {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let manifest = try decoder.decode(Manifest.self, from: Data(contentsOf: unpacked.appendingPathComponent("manifest.json")))
+            // A copy sealed before the rename names the old App Group. Its
+            // container still lands in today's group, like the support folder.
             guard manifest.format == format, (1...formatVersion).contains(manifest.version),
-                  manifest.appGroup == InsideCoverStore.appGroup,
+                  acceptedAppGroups.contains(manifest.appGroup),
                   manifest.bundleID.range(of: #"^[A-Za-z0-9][A-Za-z0-9.-]{0,254}$"#, options: .regularExpression) != nil else {
                 throw CopyError.notAMovingCopy
             }
@@ -301,7 +303,33 @@ enum BookMovingCopy {
         } catch {
             recoveryIsRequired = fileManager.fileExists(atPath: recoveryURL.path)
             UserDefaults.standard.set(error.localizedDescription, forKey: restoreFailureKey)
+            failureThisLaunch = error.localizedDescription
         }
+    }
+
+    /// App Groups a moving copy may come from: today's, and the group of every
+    /// bundle ID the app has shipped under.
+    private static var acceptedAppGroups: Set<String> {
+        Set(MonthlyIssueMediaPath.legacyBundleIDs.map { "group." + $0 }).union([InsideCoverStore.appGroup])
+    }
+
+    /// Set when this launch tried a staged copy and gave up. The reader was
+    /// told to close and reopen, so silence would read as success.
+    private(set) static var failureThisLaunch: String?
+
+    /// Says so once the Book is on screen, if this launch's move failed.
+    @MainActor
+    static func announceFailureIfAny() async {
+        guard let reason = failureThisLaunch else { return }
+        failureThisLaunch = nil
+        try? await Task.sleep(nanoseconds: 1_500_000_000)
+        let alert = UIAlertController(
+            title: "I couldn't move in.",
+            message: "The Book on this phone is as it was. \(reason)",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        presentOnTop(alert)
     }
 
     /// The inventory catches missing or truncated files in new moving copies;
