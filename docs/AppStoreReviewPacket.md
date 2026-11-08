@@ -10,9 +10,9 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 
 - App name: ReEnchanted. Prepared submission bundle ID `app.reenchanted.book`
   (+ `.widgets`, `.share`). App Group `group.app.reenchanted.book`.
-  The rename is staged on `rename/app-reenchanted-book`; the current checkout
-  still uses the old ID. Apply it after paid membership activation and preserve
-  the existing Book through the sealed-copy migration in the launch checklist.
+  Applied on main 2026-11-08 (3c690ba3) and registered in the developer portal
+  under team 3YH7862K4Q. Existing Books move through the sealed-copy migration
+  in the launch checklist.
 - Category: Books (`LSApplicationCategoryType = public.app-category.books`);
   secondary Entertainment.
 - Minimum OS: iOS 17. iPhone and iPad.
