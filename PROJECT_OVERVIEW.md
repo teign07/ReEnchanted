@@ -498,7 +498,7 @@ control must hang off the Book somewhere the reader can point at.
 
 ## Project Facts
 
-- Bundle ID: `com.openclaw.enchantify.insidecover`
+- Bundle ID: `app.reenchanted.book`
 - Xcode project: `EnchantifyInsideCover.xcodeproj`
 - App target: `InsideCoverApp`
 - Shared SwiftPM package: `InsideCoverCore`
@@ -548,7 +548,7 @@ control must hang off the Book somewhere the reader can point at.
 - Widget status: **shipped** as a Home Screen / Lock Screen extension target,
   `ReEnchantedWidgets`, with interactive (App Intents) radio and Wonder Compass
   widgets. It reads a snapshot the app publishes to a shared App Group
-  (`group.com.openclaw.enchantify.insidecover`). See "Widgets" below.
+  (`group.app.reenchanted.book`). See "Widgets" below.
 
 ## Current Build Snapshot
 
@@ -7053,7 +7053,7 @@ extension target, **`ReEnchantedWidgets`** (`ReEnchantedWidgets/`). It is its ow
 process, so it never touches SwiftData, the local brain, or the live vault
 directly — instead the app and the extension communicate through a small, typed
 **snapshot** published to a shared **App Group**
-(`group.com.openclaw.enchantify.insidecover`, declared in both targets'
+(`group.app.reenchanted.book`, declared in both targets'
 entitlements).
 
 **The shared bridge (`Shared/ReEnchantedWidgetSnapshot.swift`).** A

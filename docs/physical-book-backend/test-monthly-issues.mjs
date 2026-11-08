@@ -128,7 +128,7 @@ test('provider outage is retriable and signing misconfiguration cannot mint acce
   await rejects(()=>issueMonthlySession(body,e,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',async()=>membership(),now),503);
 });
 function appleClients(overrides={}) {
-  const tx={bundleId:'com.openclaw.enchantify.insidecover',productId:'com.openclaw.enchantify.insidecover.pass.standing-order.monthly',
+  const tx={bundleId:'app.reenchanted.book',productId:'app.reenchanted.book.pass.standing-order.monthly',
     originalTransactionId:'original',expiresDate:now+600_000,purchaseDate:now-60_000,...overrides};
   return {verifier:{async verifyAndDecodeTransaction(proof){if(proof==='bad')throw Error();return tx;}},
     api:{async getAllSubscriptionStatuses(){return {data:[{lastTransactions:[{status:1,signedTransactionInfo:'current'}]}]};}}};
@@ -147,7 +147,7 @@ test('Apple current transaction cannot switch subscriber identity',async()=>{
   assert.equal(await verifyAppleAccess(env(),['presented'],now,c),null);
 });
 test('real Apple verifier rejects unsigned local JSON',async()=>{
-  const v=new SignedDataVerifier([],true,Environment.SANDBOX,'com.openclaw.enchantify.insidecover');
+  const v=new SignedDataVerifier([],true,Environment.SANDBOX,'app.reenchanted.book');
   await assert.rejects(()=>v.verifyAndDecodeTransaction(Buffer.from(JSON.stringify({expiresDate:now+99999})).toString('base64url')));
 });
 function issue(id,start,end) {return {id,foreshadowStartsAt:start,liveStartsAt:start,liveEndsAt:end,residueEndsAt:end,

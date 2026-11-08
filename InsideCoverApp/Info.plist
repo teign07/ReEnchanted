@@ -4,14 +4,14 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.openclaw.enchantify.insidecover.overnight-scribe</string>
-		<string>com.openclaw.enchantify.insidecover.weather-bell</string>
+		<string>app.reenchanted.book.overnight-scribe</string>
+		<string>app.reenchanted.book.weather-bell</string>
 	</array>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.openclaw.enchantify.insidecover</string>
+			<string>app.reenchanted.book</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>reenchanted</string>

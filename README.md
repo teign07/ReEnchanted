@@ -229,7 +229,7 @@ development team, and change the bundle identifier if Xcode asks for a unique on
 
 ## Notes
 
-- Bundle ID: `com.openclaw.enchantify.insidecover`
+- Bundle ID: `app.reenchanted.book`
 - App target: `InsideCoverApp`
 - Shared package: `InsideCoverCore`
 - Supported runtime target: iOS 17+

@@ -4737,7 +4737,7 @@ extension ContentView {
 
     private func weeklyIssueArchiveDirectory() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = base
             .appendingPathComponent(bundle, isDirectory: true)
             .appendingPathComponent("WeeklyIssues", isDirectory: true)
@@ -5224,7 +5224,7 @@ extension ContentView {
 
     private func monthlyEditionArchiveDirectory() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = base
             .appendingPathComponent(bundle, isDirectory: true)
             .appendingPathComponent("MonthlyEditions", isDirectory: true)
@@ -5333,7 +5333,7 @@ extension ContentView {
 
     private func annualEditionArchiveDirectory() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = base
             .appendingPathComponent(bundle, isDirectory: true)
             .appendingPathComponent("AnnualEditions", isDirectory: true)

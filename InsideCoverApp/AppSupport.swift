@@ -66,7 +66,7 @@ let mlxRuntimeLinked = true
 let mlxRuntimeLinked = false
 #endif
 
-let appLog = Logger(subsystem: "com.openclaw.enchantify.insidecover", category: "InsideCoverApp")
+let appLog = Logger(subsystem: "app.reenchanted.book", category: "InsideCoverApp")
 
 extension Notification.Name {
     static let bookAppLockAuthorized = Notification.Name("bookAppLockAuthorized")
@@ -7106,7 +7106,7 @@ import BackgroundTasks
 /// retires already-queued jobs; new model writing must be offered in a reader-
 /// initiated foreground flow. Existing drafts remain adoptable until stale.
 enum OvernightScribe {
-    static let taskIdentifier = "com.openclaw.enchantify.insidecover.overnight-scribe"
+    static let taskIdentifier = "app.reenchanted.book.overnight-scribe"
     static let freshnessWindow: TimeInterval = 18 * 3600
 
     private struct Draft: Codable {
@@ -7416,7 +7416,7 @@ enum OvernightScribe {
 }
 
 enum WeatherBell {
-    static let taskIdentifier = "com.openclaw.enchantify.insidecover.weather-bell"
+    static let taskIdentifier = "app.reenchanted.book.weather-bell"
 
     static func register() {
         #if canImport(BackgroundTasks)
@@ -7570,7 +7570,7 @@ final class PlayerVault {
     /// widens a race that a stored struct read does not have.
     var data: PlayerVaultData
     @ObservationIgnored private let persistenceQueue = DispatchQueue(
-        label: "com.openclaw.reenchanted.player-vault",
+        label: "app.reenchanted.book.player-vault",
         qos: .utility
     )
     @ObservationIgnored private let persistenceLock = NSLock()

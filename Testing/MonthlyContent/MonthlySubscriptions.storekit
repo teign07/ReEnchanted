@@ -68,7 +68,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+          "productID" : "app.reenchanted.book.pass.standing-order.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Standing Order Monthly",
           "subscriptionGroupID" : "reenchanted-standing-order-local",
@@ -107,7 +107,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+          "productID" : "app.reenchanted.book.pass.standing-order.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Standing Order Annual",
           "subscriptionGroupID" : "reenchanted-standing-order-local",

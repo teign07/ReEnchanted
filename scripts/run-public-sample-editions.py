@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BUNDLE = 'com.openclaw.enchantify.insidecover'
+BUNDLE = 'app.reenchanted.book'
 
 def sim(*args):
     return subprocess.check_output(['xcrun', 'simctl', *args], text=True).strip()

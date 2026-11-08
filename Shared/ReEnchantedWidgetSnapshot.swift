@@ -289,7 +289,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
 }
 
 enum ReEnchantedWidgetSnapshotStore {
-    static let appGroup = "group.com.openclaw.enchantify.insidecover"
+    static let appGroup = "group.app.reenchanted.book"
     static let stateKey = "reenchantedWidgetSnapshot"
 
     static var defaults: UserDefaults {

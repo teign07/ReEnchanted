@@ -89,7 +89,7 @@ struct ExternalShareCapture: Codable, Identifiable, Equatable {
 }
 
 enum ExternalSharePromptClock {
-    static let appGroup = "group.com.openclaw.enchantify.insidecover"
+    static let appGroup = "group.app.reenchanted.book"
     static let lastSurfaceKey = "externalShare.lastBookSurfaceAt"
     static let promptedWindow: TimeInterval = 3_600
 

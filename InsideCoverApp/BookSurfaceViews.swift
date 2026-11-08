@@ -13867,7 +13867,7 @@ struct OnboardingFlowView: View {
     /// to QuickLook.
     private func inscriptionEditionArchiveURL() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = base
             .appendingPathComponent(bundle, isDirectory: true)
             .appendingPathComponent("FirstDoorEditions", isDirectory: true)
@@ -15722,7 +15722,7 @@ struct OnboardingFlowView: View {
         guard let data = image.jpegData(compressionQuality: 0.94) else { return nil }
         do {
             let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+            let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
             let directory = base
                 .appendingPathComponent(bundle, isDirectory: true)
                 .appendingPathComponent("FirstDoorEditions", isDirectory: true)
@@ -16975,7 +16975,7 @@ struct OnboardingFlowView: View {
 
     private func onboardingPagewrightArchiveURL() throws -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundle = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundle = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = base
             .appendingPathComponent(bundle, isDirectory: true)
             .appendingPathComponent("FirstDoorEditions", isDirectory: true)

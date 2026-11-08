@@ -1156,7 +1156,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.openclaw.enchantify.insidecover\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"app.reenchanted.book\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -1183,7 +1183,7 @@
 				MARKETING_VERSION = 1.0;
 				PHYSICAL_BOOK_CHECKOUT_MODE = test;
 				PHYSICAL_BOOK_ENDPOINT = "https://reenchanted-physical-books.snow-potions.workers.dev";
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1205,7 +1205,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = InsideCoverApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ReEnchanted;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"com.openclaw.enchantify.insidecover\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLName = \"app.reenchanted.book\";\n    CFBundleURLSchemes =     (\n        reenchanted\n    );\n}";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.books";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -1232,7 +1232,7 @@
 				MARKETING_VERSION = 1.0;
 				PHYSICAL_BOOK_CHECKOUT_MODE = test;
 				PHYSICAL_BOOK_ENDPOINT = "https://reenchanted-physical-books.snow-potions.workers.dev";
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1260,7 +1260,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widgets;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1288,7 +1288,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.widgets;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1315,7 +1315,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.share;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -1342,7 +1342,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.openclaw.enchantify.insidecover.share;
+				PRODUCT_BUNDLE_IDENTIFIER = app.reenchanted.book.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;

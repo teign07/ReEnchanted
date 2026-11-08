@@ -134,7 +134,7 @@ final class StandingOrderTierTests: StandingOrderGatedTestCase {
     func testRetiredWeeklyProductStillRestoresTheStandingOrder() {
         XCTAssertEqual(
             BookShopCatalog.packID(
-                forProductID: "com.openclaw.enchantify.insidecover.pass.standing-order.weekly"
+                forProductID: "app.reenchanted.book.pass.standing-order.weekly"
             ),
             PackEntitlements.standingOrderPackID
         )

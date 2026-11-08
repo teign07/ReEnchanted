@@ -67,7 +67,7 @@ and returns `PhysicalBookQuote`:
 Example:
 
 ```sh
-defaults write com.openclaw.enchantify.insidecover physicalBookQuoteEndpointURL "https://example.com/api/physical-books/quote"
+defaults write app.reenchanted.book physicalBookQuoteEndpointURL "https://example.com/api/physical-books/quote"
 ```
 
 ## Cloudflare Worker Setup
@@ -120,9 +120,9 @@ quote endpoint.
 For a local device/debug install:
 
 ```sh
-defaults write com.openclaw.enchantify.insidecover physicalBookQuoteEndpointURL "https://reenchanted-physical-books.YOUR_SUBDOMAIN.workers.dev"
-defaults write com.openclaw.enchantify.insidecover stripePublishableKey "pk_test_..."
-defaults write com.openclaw.enchantify.insidecover physicalBookCheckoutMode "test"
+defaults write app.reenchanted.book physicalBookQuoteEndpointURL "https://reenchanted-physical-books.YOUR_SUBDOMAIN.workers.dev"
+defaults write app.reenchanted.book stripePublishableKey "pk_test_..."
+defaults write app.reenchanted.book physicalBookCheckoutMode "test"
 ```
 
 For TestFlight/App Store builds, add the same URL as

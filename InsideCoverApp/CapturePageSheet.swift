@@ -15050,7 +15050,7 @@ struct CapturePageSheet: View {
 
     private func saveCameraFirstPhotoData(_ data: Data) throws -> URL {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundleID = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = baseURL
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("CameraFirstPhotos", isDirectory: true)
@@ -15349,7 +15349,7 @@ struct CapturePageSheet: View {
 
     private func saveCompassProofPhotoData(_ data: Data) throws -> URL {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundleID = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         let directory = baseURL
             .appendingPathComponent(bundleID, isDirectory: true)
             .appendingPathComponent("CompassProofs", isDirectory: true)

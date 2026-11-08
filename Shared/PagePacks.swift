@@ -3031,7 +3031,7 @@ enum BookShopCatalog {
     }
 
     /// Everything the Goblins are willing to sell, ever listed here.
-    /// Product IDs follow com.openclaw.enchantify.insidecover.pack.<packID>;
+    /// Product IDs follow app.reenchanted.book.pack.<packID>;
     /// the Standing Order (an auto-renewable subscription) uses .pass. instead.
     static let listings: [BookShopListing] = [
         BookShopListing(
@@ -3041,7 +3041,7 @@ enum BookShopCatalog {
             title: "The Standing Order · Annual",
             goblinPitch: "One line in the ledger, renewed yearly, and every folio the Empire prints walks itself to your shelf. The clerk calls it the only honest bargain in the building.",
             contents: "The current Monthly Content Pack while its calendar window is alive: new Pages, quests, rituals, events, sounds, places, characters, and other living additions. Pages you keep and lasting things you earn stay in your Book after the temporary story closes.",
-            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+            productID: "app.reenchanted.book.pass.standing-order.annual",
             fallbackDisplayPrice: "$79.99"
         ),
         BookShopListing(
@@ -3051,7 +3051,7 @@ enum BookShopCatalog {
             title: "The Standing Order · Monthly",
             goblinPitch: "One line in the ledger, renewed each month, and every folio the Empire prints walks itself to your shelf. The clerk keeps the ink wet in case you change your mind.",
             contents: "The current Monthly Content Pack while its calendar window is alive: new Pages, quests, rituals, events, sounds, places, characters, and other living additions. Pages you keep and lasting things you earn stay in your Book after the temporary story closes.",
-            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+            productID: "app.reenchanted.book.pass.standing-order.monthly",
             fallbackDisplayPrice: "$9.99"
         ),
         BookShopListing(
@@ -3061,7 +3061,7 @@ enum BookShopCatalog {
             title: "The Dictionary Rebellion",
             goblinPitch: "A small riot in the margins: twenty-odd words with picket signs, a professor with a rubber stamp, and a punctuation pixie who keeps stealing the full stops.",
             contents: "The September 2027 world event: living words to negotiate, Mook and Pippa in the Cast, fieldwork prompts, event pages, treaty aftermaths, and lexicon choices that can bend my later prose.",
-            productID: "com.openclaw.enchantify.insidecover.pack.dictionary-rebellion",
+            productID: "app.reenchanted.book.pack.dictionary-rebellion",
             saleState: .liveEvent,
             subscriptionReleasedAt: releaseMonth(2027, 9)
         )
@@ -3075,7 +3075,7 @@ enum BookShopCatalog {
         StandingOrderTier(
             id: "standing-order-monthly",
             cadence: .monthly,
-            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.monthly",
+            productID: "app.reenchanted.book.pass.standing-order.monthly",
             title: "Monthly",
             fallbackDisplayPrice: "$9.99",
             periodUnit: "month",
@@ -3084,7 +3084,7 @@ enum BookShopCatalog {
         StandingOrderTier(
             id: "standing-order-annual",
             cadence: .annual,
-            productID: "com.openclaw.enchantify.insidecover.pass.standing-order.annual",
+            productID: "app.reenchanted.book.pass.standing-order.annual",
             title: "Annual",
             fallbackDisplayPrice: "$79.99",
             periodUnit: "year",
@@ -3095,7 +3095,7 @@ enum BookShopCatalog {
     /// Retired products remain recognizable so an older receipt can still
     /// restore the Standing Order even though the plan is no longer offered.
     private static let retiredStandingOrderProductIDs: Set<String> = [
-        "com.openclaw.enchantify.insidecover.pass.standing-order.weekly"
+        "app.reenchanted.book.pass.standing-order.weekly"
     ]
 
     /// Every product identifier that grants the Standing Order, across all

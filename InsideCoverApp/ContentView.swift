@@ -23056,7 +23056,7 @@ private enum LocalModelStreamingInstaller {
 /// to hand finished work back, so a random one per file paid the full cost of a
 /// background session while discarding the only thing it buys.
 final class LocalModelFileDownloader: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
-    static let sessionIdentifier = "com.openclaw.enchantify.insidecover.local-model-download"
+    static let sessionIdentifier = "app.reenchanted.book.local-model-download"
 
     /// URLSession reports written bytes on every chunk: many times a second,
     /// sustained across a multi-gigabyte download. Each report hops to the main

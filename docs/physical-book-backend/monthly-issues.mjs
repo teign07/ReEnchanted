@@ -2,7 +2,7 @@ import { Buffer } from 'node:buffer';
 import { expectedStripeLivemode } from './checkout-mode.mjs';
 import { acceptedBoundYearPriceIDs } from './bound-year-prices.mjs';
 
-const BUNDLE_ID = 'com.openclaw.enchantify.insidecover';
+const BUNDLE_ID = 'app.reenchanted.book';
 const PRODUCTS = new Set(['monthly', 'annual', 'weekly'].map(period => `${BUNDLE_ID}.pass.standing-order.${period}`));
 const SESSION_SECONDS = 600;
 const encoder = new TextEncoder();

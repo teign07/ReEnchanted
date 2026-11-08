@@ -6727,7 +6727,7 @@ private actor PhysicalBookClientSessionAuthorizer {
 }
 
 private enum PhysicalBookInstallationIdentity {
-    private static let service = "com.openclaw.enchantify.insidecover.physical-book"
+    private static let service = "app.reenchanted.book.physical-book"
     private static let account = "installation-id"
     private static let legacyDefaultsKey = "physicalBookInstallationID"
 

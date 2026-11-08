@@ -720,8 +720,8 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         var seenProducts = Set<String>()
         for listing in BookShopCatalog.listings {
             let prefix = listing.family == .standingOrder
-                ? "com.openclaw.enchantify.insidecover.pass."
-                : "com.openclaw.enchantify.insidecover.pack."
+                ? "app.reenchanted.book.pass."
+                : "app.reenchanted.book.pack."
             XCTAssertTrue(listing.productID.hasPrefix(prefix), listing.id)
             XCTAssertTrue(seenProducts.insert(listing.productID).inserted, "duplicate product \(listing.productID)")
             XCTAssertFalse(listing.goblinPitch.isEmpty)

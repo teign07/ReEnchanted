@@ -4,7 +4,7 @@ import UIKit
 import Metal
 
 enum InsideCoverStore {
-    static let appGroup = "group.com.openclaw.enchantify.insidecover"
+    static let appGroup = "group.app.reenchanted.book"
     static let stateKey = "insideCoverState"
     static let imageName = "widget-image.png"
 
@@ -540,7 +540,7 @@ enum LocalModelManager {
 
     private static var supportDirectory: URL {
         let baseURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let bundleID = Bundle.main.bundleIdentifier ?? "com.openclaw.enchantify.insidecover"
+        let bundleID = Bundle.main.bundleIdentifier ?? "app.reenchanted.book"
         return baseURL.appendingPathComponent(bundleID, isDirectory: true)
     }
 

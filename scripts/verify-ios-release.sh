@@ -11,8 +11,8 @@ BUILD_LOG="${REENCHANTED_BUILD_LOG:-/private/tmp/ReEnchanted-ReleaseGate-xcodebu
 TEST_LOG="${REENCHANTED_TEST_LOG:-/private/tmp/ReEnchanted-ReleaseGate-tests.log}"
 PROJECT="EnchantifyInsideCover.xcodeproj"
 SCHEME="InsideCoverApp"
-EXPECTED_APP_ID="com.openclaw.enchantify.insidecover"
-EXPECTED_WIDGET_ID="com.openclaw.enchantify.insidecover.widgets"
+EXPECTED_APP_ID="app.reenchanted.book"
+EXPECTED_WIDGET_ID="app.reenchanted.book.widgets"
 APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/InsideCoverApp.app"
 WIDGET="$APP/PlugIns/ReEnchantedWidgetsExtension.appex"
 

@@ -67,11 +67,15 @@ gates; they do not need to be finished before starting Apple enrollment.
    organization are deferred; revisit later if useful. The seller name on the
    App Store is public. EU storefront availability remains a separate decision;
    trader distribution requires published contact details (address, phone, email).
-2. **App identity — prepared.** The `rename/app-reenchanted-book` branch
-   prepares `app.reenchanted.book`, extensions `.widgets` and `.share`, and
-   App Group `group.app.reenchanted.book`. The current checkout still uses
-   `com.openclaw.enchantify.insidecover`. Apply the rename only after the paid
-   membership is active, preserving the concurrent working-tree changes.
+2. **App identity — applied November 8.** Membership is active (individual,
+   renews November 6, 2027). The paid team kept the personal team's ID,
+   `3YH7862K4Q`, so `DEVELOPMENT_TEAM` did not change. The app is now
+   `app.reenchanted.book`, extensions `.widgets` and `.share`, App Group
+   `group.app.reenchanted.book`. `MonthlyIssueMediaPath.legacyBundleIDs` keeps
+   the old `com.openclaw.enchantify.insidecover` so moved Books still resolve
+   their stored paths. The deployed Worker still checks the old `BUNDLE_ID` in
+   `monthly-issues.mjs` until its next deploy (it only guards the retired
+   StoreKit pass).
 3. **Account prerequisites.** Use an Apple Account with two-factor
    authentication and the owner's legal name; Apple verifies contact and
    identity information before the membership purchase. Individual enrollment
@@ -170,7 +174,7 @@ renamed app still needs its own verification; keep the existing app meanwhile.
 
 ## E. Apple Pay (optional, after the fee)
 
-1. Merchant identifier, e.g. `merchant.com.openclaw.enchantify`.
+1. Merchant identifier, e.g. `merchant.app.reenchanted.book`.
 2. Apple Pay capability on the app target.
 3. Stripe → Settings → Payments → Apple Pay: register it; Stripe issues the cert.
 4. Info.plist: `ApplePayMerchantIdentifier` and `ApplePayMerchantCountryCode = US`.
