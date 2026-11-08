@@ -908,8 +908,7 @@ h2 {
 .pagetype:active,
 .weave-card:active,
 .chapter-card:active,
-.pack-chip:active,
-.patreon-card:active {
+.pack-chip:active {
   transform: translateY(0) scale(0.985);
 }
 
@@ -4567,31 +4566,6 @@ h2 {
 .promises-license a:hover { border-color: var(--gold); }
 .promises-license em { color: var(--paper); font-style: italic; }
 
-.patreon-card {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  width: min(560px, 100%);
-  margin: 28px auto 0;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 20px;
-  text-align: left;
-  background: rgba(255, 255, 255, 0.04);
-  transition: transform 200ms ease, border-color 200ms ease;
-}
-.patreon-card:hover { transform: translateY(-3px); border-color: rgba(255, 200, 116, 0.4); }
-.patreon-shot {
-  flex: 0 0 88px;
-  margin: 0;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
-}
-.patreon-shot img { width: 88px; aspect-ratio: 9 / 14; object-fit: cover; object-position: top; }
-.patreon-cap { color: var(--text-dim); font-size: 0.92rem; line-height: 1.5; }
-.patreon-cap strong { display: block; margin-bottom: 4px; color: var(--gold); font-family: var(--serif); font-size: 1.15rem; font-weight: 600; }
-.patreon-card.no-shot .patreon-shot { display: none; }
 
 /* ───────────────────────── final cta ───────────────────────── */
 .final-cta {

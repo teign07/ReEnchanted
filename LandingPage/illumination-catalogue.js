@@ -2243,9 +2243,9 @@ window.PublicIllumination={
    "accent": "#8c3d45"
   },
   {
-   "id": "patreon",
+   "id": "creatorNote",
    "pages": [
-    "patreon"
+    "creatorNote"
    ],
    "top": "#f5d4ab",
    "middle": "#db9e80",

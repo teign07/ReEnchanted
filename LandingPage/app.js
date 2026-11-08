@@ -116,7 +116,6 @@ function referrerSignal() {
   const source = tagged || host;
   if (!source) return null;
   if (/github/.test(source)) return "You came from the place where my seams show. I'm not shy about the seams. I'm proud of them.";
-  if (/patreon/.test(source)) return "You came in by the helping hand. I felt the page lift.";
   if (/bsky|bluesky/.test(source)) return "You came in on a little blue wind. It dropped a feather in my margin and left.";
   if (/x\.com|twitter/.test(source)) return "You came out of a noisy square. Come closer. I'm quieter than that.";
   if (/google|bing|duckduckgo|search/.test(source)) return "You were looking for something. Let's find out whether it was me.";
