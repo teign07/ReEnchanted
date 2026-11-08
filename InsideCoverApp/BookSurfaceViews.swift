@@ -1748,7 +1748,7 @@ struct BookOfYouShareArtifact: Hashable {
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) } ?? []
         let title = shareTitle(from: surface)
-        guard let excerpt = shareExcerpt(from: surface.payload.body) else { return nil }
+        guard let excerpt = shareExcerpt(from: surface.payload.body, tags: tags) else { return nil }
         return BookOfYouShareArtifact(
             title: title,
             excerpt: publicSafe(excerpt),
@@ -1774,7 +1774,15 @@ struct BookOfYouShareArtifact: Hashable {
         return "The Book of You"
     }
 
-    private static func shareExcerpt(from body: String) -> String? {
+    /// The card quotes what the braid made up, not what the day measured: the
+    /// wonder braid's invented line first (`BraidShareQuote`), then a plain
+    /// braid's own "I kept the page:" landing, then the best sentence that isn't
+    /// the sky line or a kept-Page credit.
+    private static func shareExcerpt(from body: String, tags: [String] = []) -> String? {
+        if let invented = BraidShareQuote.invented(body: body, tags: tags) {
+            return clipped(invented)
+        }
+        let isWonder = tags.contains(BraidShareQuote.wonderTag)
         let normalized = body
             .replacingOccurrences(of: "\r\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1791,12 +1799,16 @@ struct BookOfYouShareArtifact: Hashable {
             return clipped(BraidColophon.removingStems(from: keptLine).trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
-        let ranked = paragraphs
+        let sized = paragraphs
             .flatMap { sentences(in: $0) }
             .filter { sentence in
                 let words = sentence.split { !$0.isLetter && !$0.isNumber }.count
                 return words >= 8 && words <= 34
             }
+        // A wonder braid's "You …" sentences are the reader's own words handed
+        // back; a public card says the Book's, when it has any.
+        let told = sized.filter { !BraidShareQuote.isReport($0) && !(isWonder && BraidShareQuote.opensOnReader($0)) }
+        let ranked = (told.isEmpty ? sized.filter { !BraidShareQuote.isReport($0) } : told)
             .sorted { lhs, rhs in
                 score(lhs) > score(rhs)
             }
@@ -1820,7 +1832,7 @@ struct BookOfYouShareArtifact: Hashable {
     private static func score(_ sentence: String) -> Int {
         let lower = sentence.lowercased()
         var total = min(40, sentence.count / 8)
-        for word in ["book", "kept", "door", "page", "rain", "lamp", "window", "key", "moon", "weather", "story"] where lower.contains(word) {
+        for word in ["book", "door", "page", "lamp", "window", "key", "story"] where lower.contains(word) {
             total += 8
         }
         if lower.contains("the book kept") || lower.hasPrefix("i kept the page") { total += 18 }

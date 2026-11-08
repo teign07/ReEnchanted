@@ -7,7 +7,7 @@ import NaturalLanguage
 //
 // Unified search across everything the living archive holds: kept pages,
 // cast, anchors, memories, favors, and the reference library. Understands
-// more than keywords: Glow tiers, mood vocabularies, "about <name>", and
+// more than keywords: Belief bands, mood vocabularies, "about <name>", and
 // day-correlation ("what did I keep when I was tired?").
 
 struct StacksSearchResult: Identifiable, Equatable {
@@ -1677,17 +1677,12 @@ private final class SentenceVectorMemo: @unchecked Sendable {
 struct StacksQuery: Equatable {
     var raw: String
     var terms: [String]
-    var glowName: String?
+    var beliefBand: BeliefLexicon.Band?
     var moodKey: String?
     var wantsKeptCorrelation: Bool
     var pageTypeFilters: Set<BookPageType>
     var kindFilters: Set<StacksSearchResult.Kind>
 
-    static let glowNames: [String] = [
-        "glow barely there", "meager glow", "faint glow", "small glow",
-        "warming glow", "steady glow", "clear glow", "bright glow",
-        "radiant glow", "glow too full"
-    ]
 
     static let moodLexicon: [String: [String]] = [
         "tired": ["tired", "exhausted", "drained", "weary", "sleepy", "depleted", "fatigued", "low energy", "worn out", "heavy-limbed"],
@@ -1708,11 +1703,13 @@ struct StacksQuery: Equatable {
         var lowered = raw.lowercased()
             .replacingOccurrences(of: "[?!.,;:\"']", with: " ", options: .regularExpression)
 
-        var glowName: String?
-        for name in glowNames where lowered.contains(name) {
-            glowName = name
-            lowered = lowered.replacingOccurrences(of: name, with: " ")
-            break
+        var beliefBand: BeliefLexicon.Band?
+        bandSearch: for band in BeliefLexicon.Band.allCases {
+            for phrase in band.phrases where lowered.contains(phrase) {
+                beliefBand = band
+                lowered = lowered.replacingOccurrences(of: phrase, with: " ")
+                break bandSearch
+            }
         }
 
         var moodKey: String?
@@ -1758,7 +1755,7 @@ struct StacksQuery: Equatable {
         return StacksQuery(
             raw: raw,
             terms: Array(Set(terms)).sorted(),
-            glowName: glowName,
+            beliefBand: beliefBand,
             moodKey: moodKey,
             wantsKeptCorrelation: wantsKeptCorrelation,
             pageTypeFilters: pageTypes,
@@ -1780,7 +1777,7 @@ enum StacksSearchEngine {
     ) -> [StacksSearchResult] {
         var query = StacksQuery.parse(raw)
         query.terms = Array(Set(query.terms + extraTerms.map { $0.lowercased() })).sorted()
-        guard !query.terms.isEmpty || query.glowName != nil || query.moodKey != nil || !query.pageTypeFilters.isEmpty || !query.kindFilters.isEmpty else {
+        guard !query.terms.isEmpty || query.beliefBand != nil || query.moodKey != nil || !query.pageTypeFilters.isEmpty || !query.kindFilters.isEmpty else {
             return []
         }
 
@@ -1917,7 +1914,7 @@ enum StacksSearchEngine {
                 id: "entity-\(entity.id)",
                 kind: .castMember,
                 title: entity.name,
-                body: ([BeliefLexicon.glowName(for: adjusted), entity.kind.rawValue, entity.chapter ?? ""] + entity.traits + entity.tags + entity.beliefs + entity.goals + [entity.unwrittenInterest ?? ""]).joined(separator: "\n"),
+                body: ([BeliefLexicon.label(for: adjusted), entity.kind.rawValue, entity.chapter ?? ""] + entity.traits + entity.tags + entity.beliefs + entity.goals + [entity.unwrittenInterest ?? ""]).joined(separator: "\n"),
                 dateLabel: "",
                 referenceID: entity.id,
                 relatedIDs: ["entity-\(entity.id)"]
@@ -2204,12 +2201,12 @@ enum StacksSearchEngine {
         }
     }
 
-    // MARK: Cast (with Glow tiers)
+    // MARK: Cast (with Belief)
 
     private static func searchEntities(_ query: StacksQuery, dataset: StacksSearchDataset) -> [StacksSearchResult] {
         dataset.entities.compactMap { entity in
             let adjusted = max(0, min(100, entity.belief + (dataset.entityBeliefOffsets[entity.id] ?? 0)))
-            let glow = BeliefLexicon.glowName(for: adjusted)
+            let belief = BeliefLexicon.label(for: adjusted)
             var score = 0
             let name = entity.name.lowercased()
             let texture = (entity.traits + entity.tags + entity.beliefs + entity.goals + [entity.chapter ?? ""]).joined(separator: " ").lowercased()
@@ -2217,7 +2214,7 @@ enum StacksSearchEngine {
                 if name.contains(term) { score += 12 }
                 if texture.contains(term) { score += 4 }
             }
-            if let glowName = query.glowName, glow.lowercased() == glowName {
+            if let band = query.beliefBand, BeliefLexicon.Band.of(adjusted) == band {
                 score += 20
             }
             if query.kindFilters.contains(.castMember), score == 0, query.terms.isEmpty {
@@ -2229,7 +2226,7 @@ enum StacksSearchEngine {
                 id: "entity-\(entity.id)",
                 kind: .castMember,
                 title: entity.name,
-                snippet: "\(glow)\(chapterNote). \(entity.beliefs.first ?? entity.goals.first ?? entity.kind.rawValue)",
+                snippet: "\(belief)\(chapterNote). \(entity.beliefs.first ?? entity.goals.first ?? entity.kind.rawValue)",
                 dateLabel: "",
                 score: score,
                 referenceID: entity.id
@@ -2334,16 +2331,16 @@ enum StacksSearchEngine {
     }
 
     private static func searchPageFamilies(_ query: StacksQuery, dataset: StacksSearchDataset) -> [StacksSearchResult] {
-        guard let glowName = query.glowName else { return [] }
+        guard let band = query.beliefBand else { return [] }
         return BookPageSourceRegistry.activeSources.compactMap { source in
             let base = BookPageSourceRegistry.defaultBelief(for: source)
             let adjusted = max(0, min(100, base + (dataset.pageBeliefOffsets[source.id] ?? 0)))
-            guard BeliefLexicon.glowName(for: adjusted).lowercased() == glowName else { return nil }
+            guard BeliefLexicon.Band.of(adjusted) == band else { return nil }
             return StacksSearchResult(
                 id: "family-\(source.id)",
                 kind: .pageFamily,
                 title: source.title,
-                snippet: "\(BeliefLexicon.glowName(for: adjusted)) · \(source.note)",
+                snippet: "\(BeliefLexicon.label(for: adjusted)) · \(source.note)",
                 dateLabel: "",
                 score: 14,
                 referenceID: source.id

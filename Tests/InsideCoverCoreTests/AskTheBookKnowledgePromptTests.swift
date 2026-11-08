@@ -22,9 +22,9 @@ final class AskTheBookKnowledgePromptTests: XCTestCase {
         let packet = BookKnowledgePromptBuilder.trainingPacket(for: "What are Story Pages and Belief?")
 
         XCTAssertTrue(packet.contains("Story Pages"))
-        // Belief is now described as a wallet (earned, held, given, and spent)
-        // with Glow as how that wallet presents, rather than a bare score.
+        // Belief is a wallet (earned by noticing, invested in the fiction),
+        // and it is the only name the reader sees for it.
         XCTAssertTrue(packet.contains("Belief is a wallet of real attention made usable"))
-        XCTAssertTrue(packet.contains("Glow"))
+        XCTAssertTrue(packet.contains("invests it in the fiction"))
     }
 }

@@ -156,7 +156,7 @@ final class EchoesAndRipplesTests: XCTestCase {
 
     func testRippleTiersByBelief() {
         XCTAssertTrue(BeliefRipple.line(entityName: "Mook", effectiveBelief: 10).contains("stirred"))
-        XCTAssertTrue(BeliefRipple.line(entityName: "Mook", effectiveBelief: 45).contains("brightened"))
+        XCTAssertTrue(BeliefRipple.line(entityName: "Mook", effectiveBelief: 45).contains("Belief rose"))
         XCTAssertTrue(BeliefRipple.line(entityName: "Mook", effectiveBelief: 75).contains("steadier"))
     }
 

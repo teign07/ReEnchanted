@@ -217,7 +217,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookNotices:
             return "I Notice"
         case .glowInvitation:
-            return "Spend Glow"
+            return "Spend Belief"
         case .theBleed:
             return "The Bleed"
         case .inventory:
@@ -350,7 +350,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookNotices:
             return "Notices"
         case .glowInvitation:
-            return "Glow"
+            return "Belief"
         case .theBleed:
             return "Bleed"
         case .inventory:
@@ -777,7 +777,7 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
         case .bookNotices:
             return ("Nothing's jumped out at me yet.", "When something keeps coming back in your Pages, I'll show you here.")
         case .glowInvitation:
-            return ("Your Glow wants somewhere to go.", "Warm what you want more of. Cool what's gone too loud. Cooling never deletes a thing, it just lets it rest.")
+            return ("Your Belief wants somewhere to go.", "Give it to what you want more of. Take it from what's gone too loud. Taking never deletes a thing, it just lets it rest.")
         case .theBleed:
             return ("The paper came. It's still warm.", "My daily edition. Penny prints it morning and evening. Read it, keep it, or bind its PDF. Write in the margin for Penny.")
         case .inventory:
@@ -1238,13 +1238,13 @@ enum BookPageSourceRegistry {
         BookPageSource(
             id: "spend-glow",
             type: .glowInvitation,
-            title: "Spend Glow",
-            shortTitle: "Glow",
+            title: "Spend Belief",
+            shortTitle: "Belief",
             symbolName: "sparkle",
             origin: .generated,
             privacy: .privateLocal,
             isActive: true,
-            cadence: "when the reader's Glow runs high",
+            cadence: "when the reader's Belief runs high",
             note: "A pressure valve for investing Belief in cast members, page sources, and other living parts of me."
         ),
         BookPageSource(

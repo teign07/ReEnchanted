@@ -889,4 +889,49 @@ final class WonderBraidAssemblyTests: XCTestCase {
     XCTAssertFalse(line.contains("…"))
     XCTAssertTrue(line.hasSuffix("avoiding the pen.\u{201D}"))
   }
+
+  // MARK: - The share card's quote
+
+  private let sharedNight = """
+    Cold Coffee on the Sill
+
+    You made coffee before the meeting and left it on the windowsill. The coffee went cold on purpose, out of tact, because it could see you were busy. It was raining over Leeds, and the moon was a waxing gibbous.
+
+    Nothing comes free. I'd like that written down.
+
+    You kept a line of Emily Dickinson's: \u{201C}Hope is the thing with feathers that perches in the soul.\u{201D}
+    """
+
+  func testTheShareCardQuotesTheInventedLineNotTheDaysData() {
+    let tags = ["braid", "braid-wonder", "wonder-line:w004b", "wonder-line:turn-price-a"]
+    XCTAssertEqual(
+      BraidShareQuote.invented(body: sharedNight, tags: tags),
+      "The coffee went cold on purpose, out of tact, because it could see you were busy."
+    )
+  }
+
+  func testTheShareCardFallsBackToTheTurnWhenNoObjectSpoke() {
+    let tags = ["braid-wonder", "wonder-line:turn-price-a"]
+    XCTAssertEqual(BraidShareQuote.invented(body: sharedNight, tags: tags), "Nothing comes free. I'd like that written down.")
+  }
+
+  func testTheShareCardNeverTakesTheReadersOwnDetailForTheSeed() {
+    // The reader's sentence shares "coffee", "went" and "cold" with the seed,
+    // but it is theirs, handed back; it must not stand in for the Book's line.
+    let body = "You made coffee and it went cold on the sill.\n\nIt was cloudy over Leeds."
+    XCTAssertNil(BraidShareQuote.invented(body: body, tags: ["braid-wonder", "wonder-line:w004b"]))
+  }
+
+  func testAPlainBraidKeepsItsOwnClosingForTheCard() {
+    XCTAssertNil(BraidShareQuote.invented(body: sharedNight, tags: ["braid", "wonder-line:w004b"]))
+    XCTAssertNil(BraidShareQuote.invented(body: sharedNight, tags: ["braid-wonder"]))
+  }
+
+  func testTheSkyLineAndKeptCreditsAreReportsNotTelling() {
+    XCTAssertTrue(BraidShareQuote.isReport("It was raining over Leeds, and the moon was full."))
+    XCTAssertTrue(BraidShareQuote.isReport("You kept a line of Emily Dickinson's: \u{201C}Hope.\u{201D}"))
+    XCTAssertFalse(BraidShareQuote.isReport("The kettle was in the middle of a sentence."))
+    XCTAssertTrue(BraidShareQuote.opensOnReader("You made coffee."))
+    XCTAssertFalse(BraidShareQuote.opensOnReader("Your kettle had opinions."))
+  }
 }

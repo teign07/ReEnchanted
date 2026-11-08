@@ -279,14 +279,16 @@ struct InkbonesThrow: Identifiable, Equatable {
     /// The odds read the round's fight against the Curse
     /// (docs/the-knock-plan.md §7.1). Every throw used to sit on a Belief of
     /// fifty, so nothing the reader did ever changed their luck.
-    static func make(choice: StoryPageChoiceDraft, edge: InkbonesOdds.Edge) -> InkbonesThrow {
-        let threshold = InkbonesOdds.storyThreshold(edge: edge.total)
+    static func make(choice: StoryPageChoiceDraft, edge: InkbonesOdds.Edge, belief: Int) -> InkbonesThrow {
+        // The reader's own Belief sets the base, as it does for every throw.
+        let threshold = InkbonesOdds.storyThreshold(edge: edge.total, belief: belief)
         let roll = Int.random(in: 1...100)
+        let beliefPart = "Belief \(belief) gives \(InkbonesOdds.storyThreshold(edge: 0, belief: belief))"
         return InkbonesThrow(
             choiceID: choice.id,
             resolution: StoryInkbonesResolution(roll: roll, threshold: threshold),
             effectLine: choice.effectLine,
-            edgeLine: edge.line,
+            edgeLine: [beliefPart, edge.line].compactMap { $0 }.joined(separator: " · "),
             choiceTitle: choice.title
         )
     }
@@ -1913,6 +1915,8 @@ struct CapturePageSheet: View {
     @FolioPageState("inkbonesReading", presentation: true) private var inkbonesReading: InkbonesReading?
     @FolioPageState("inkbonesVerdict") private var inkbonesVerdict: String?
     @AppStorage("tarotReadingDraftV1") private var tarotReadingDraftData = ""
+    /// The reader's Belief: it sets the line on every Inkbones throw.
+    @AppStorage("beliefScore") private var readerBelief = 30
     @AppStorage("illuminatedPhotoHistory") private var illuminatedPhotoHistoryData = "{}"
     #if canImport(PhotosUI)
     @FolioPageState("selectedPhotoItem", presentation: true) private var selectedPhotoItem: PhotosPickerItem?
@@ -2933,8 +2937,9 @@ struct CapturePageSheet: View {
            let encoded = String(data: data, encoding: .utf8) {
             result = result.withMetadata([
                 "inkbonesReading": encoded,
-                "inkbonesFaces": inkbonesReading.liveBones.map(\.face.rawValue).joined(separator: ","),
-                "inkbonesGreyed": inkbonesReading.greyedBone?.face.rawValue ?? ""
+                "inkbonesRoll": inkbonesReading.roll.map(String.init) ?? "",
+                "inkbonesBand": inkbonesReading.band?.rawValue ?? "",
+                "inkbonesBelief": "\(inkbonesReading.beliefChange)"
             ])
         }
         if surface.type == .tarot,
@@ -5456,7 +5461,6 @@ struct CapturePageSheet: View {
                     InkbonesPageView(
                         reading: $inkbonesReading,
                         sentence: $text,
-                        seed: surface.payload.metadata["inkbonesSeed"] ?? surface.id,
                         stored: surface.payload.metadata["inkbonesReading"],
                         isReadOnly: isKeptReadbackPage,
                         edge: {
@@ -5466,7 +5470,7 @@ struct CapturePageSheet: View {
                                 threats: vault.data.greyPageThreats ?? .empty,
                                 ribbonCount: vault.data.ribbons.count,
                                 now: Date()
-                            ).total
+                            )
                         }
                     )
                 } else {
@@ -7614,7 +7618,7 @@ struct CapturePageSheet: View {
                 .foregroundStyle(BookPalette.ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
                 if readerBeliefScore < BookJumpEngine.startCost {
-                    Text("The Spine will wait. Real-world attention will rekindle enough Glow to open it.")
+                    Text("The Spine will wait. Notice something real and keep it, and you'll have enough Belief to open it.")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(BookPalette.violet)
                         .fixedSize(horizontal: false, vertical: true)
@@ -8689,7 +8693,7 @@ struct CapturePageSheet: View {
             #endif
 
             if readerBeliefScore < BeliefGenerationKind.enchantment.cost {
-                Text("The spell is waiting for my Glow to warm.")
+                Text("The spell needs more Belief than you've got right now.")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(BookPalette.ink.opacity(0.58))
             }
@@ -8894,7 +8898,8 @@ struct CapturePageSheet: View {
                 threats: vault.data.greyPageThreats ?? .empty,
                 ribbonCount: vault.data.ribbons.count,
                 now: Date()
-            )
+            ),
+            belief: readerBelief
         )
         activeInkbonesThrow = inkbonesThrow
         storyContinuationMessage = ""
@@ -11472,7 +11477,7 @@ struct CapturePageSheet: View {
                             Label(object.name, systemImage: "key.horizontal.fill")
                                 .font(.subheadline.weight(.bold))
                             Spacer()
-                            Text(BookMechanicPresentation.glow(glow))
+                            Text(BookMechanicPresentation.belief(glow))
                                 .font(.caption2.weight(.black))
                                 .foregroundStyle(LeafInk.gold)
                         }
@@ -13120,6 +13125,9 @@ struct CapturePageSheet: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(calloutBodyText)
                 }
+                Text("Low is lucky. 1 to 5 is a triumph; 96 to 100 asks a cost.")
+                    .font(.caption2)
+                    .foregroundStyle(calloutBodyText.opacity(0.7))
                 Text(line)
                     .font(.callout)
                     .foregroundStyle(calloutBodyText)
@@ -15196,7 +15204,7 @@ struct CapturePageSheet: View {
             return
         }
         guard onSpendBeliefForGeneration(.enchantment) else {
-            enchantmentMessage = "This spell is waiting for my Glow to warm."
+            enchantmentMessage = "This spell needs more Belief than you've got right now."
             return
         }
 
@@ -16301,7 +16309,7 @@ struct CapturePageSheet: View {
             Rest:
             \(metadata["restPrompt"] ?? "Put the phone face down for sixty seconds and let the run land.")
 
-            Keep this page after the quiet minute to complete the run. My Glow will warm.
+            Keep this page after the quiet minute to complete the run.
             """
         }
 
@@ -16737,9 +16745,14 @@ struct CapturePageSheet: View {
         if preparedSurface.type == .gamePage, let inkbonesReading,
            preparedSurface.payload.metadata["gameID"] == "inkbones" {
             tags.append("inkbones")
-            tags.append(contentsOf: inkbonesReading.liveBones.map { "inkbones-face:\($0.face.rawValue)" })
-            if let greyed = inkbonesReading.greyedBone { tags.append("inkbones-greyed:\(greyed.face.rawValue)") }
-            if inkbonesReading.isTriumph { tags.append("inkbones-triumph") }
+            if let roll = inkbonesReading.roll, let band = inkbonesReading.band {
+                tags.append("inkbones-band:\(band.rawValue)")
+                tags.append(InkbonesMarginMark.tag(roll: roll, band: band))
+            }
+            if let angle = inkbonesReading.angle { tags.append("inkbones-angle:\(angle.rawValue)") }
+            if let curse = inkbonesReading.curseRoll {
+                tags.append(InkbonesMarginMark.curseTag(roll: curse, took: inkbonesReading.curseTook))
+            }
         }
         if preparedSurface.type == .tarot, let tarotReading {
             tags.append("tarot")

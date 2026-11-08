@@ -1512,8 +1512,8 @@ enum MarginTutorCatalog {
     static let notes: [MarginTutorNote] = [
         MarginTutorNote(
             id: "glow-menu",
-            title: "Your Glow",
-            text: "That sparkle's your Glow. Warm up the things you want more of, and the Book brings them round more often. Cool the ones that have got too loud. Cooling never throws anything away. It just lets it rest."
+            title: "Your Belief",
+            text: "That number's your Belief. You get it by noticing true things and keeping them, and you spend it in the stories. Give some to what you want more of and the Book brings it round more often. Take some from what's got too loud. Taking never throws anything away. It just lets it rest."
         ),
         MarginTutorNote(
             id: "seal-camera",
@@ -1548,7 +1548,7 @@ enum MarginTutorCatalog {
         MarginTutorNote(
             id: "dismiss-surface",
             title: "Ripping a Page Out",
-            text: "Ripped out. No hard feelings. The Book can call it back another day if it thinks you'd like it then. If one kind of Page keeps turning up and you're sick of it, cool it in your Glow."
+            text: "Ripped out. No hard feelings. The Book can call it back another day if it thinks you'd like it then. If one kind of Page keeps turning up and you're sick of it, take some Belief from it."
         ),
         MarginTutorNote(
             id: "story-page",
@@ -1602,8 +1602,8 @@ enum MarginTutorCatalog {
         ),
         MarginTutorNote(
             id: "glow-invitation",
-            title: "Glow Invitations",
-            text: "This is your Glow asking where it should go next. It turns up when a person, a place or a story is ready for more of it. Pick only what you really want more of. The Book learns from where you put it."
+            title: "Belief Invitations",
+            text: "This is your Belief asking where it should go next. It turns up when a person, a place or a story is ready for more of it. Pick only what you really want more of. The Book learns from where you put it."
         ),
         MarginTutorNote(
             id: "word-negotiation",

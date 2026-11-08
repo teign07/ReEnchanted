@@ -211,8 +211,8 @@ const STACKS_SEARCH_RESULTS = [
     title: "Love",
     group: "The Cast",
     type: "Cast",
-    text: "Small Glow. Love.",
-    tags: ["love", "glow", "cast"],
+    text: "A little Belief. Love.",
+    tags: ["love", "belief", "cast"],
   },
   {
     title: "Riddlewind Chapter",
@@ -354,7 +354,7 @@ const PAGES = [
     onboardingStep: "name",
   },
   {
-    kicker: "Belief and Glow",
+    kicker: "Belief",
     title: "Name the stubborn light.",
     body: "At the far end of the aisle, a grey absence is eating the corner of a page. One word goes. Then another. Zara raises her compass and the letters crawl back in wet black ink. \"That's Routine,\" she says. \"Attention leaves. The world turns into wallpaper.\" She gives you her Belief—every life is already a book—then nods to the blank line. \"Your turn. What matters enough that you want the Book to notice it?\"",
     source: "Onboarding · Belief",
@@ -446,7 +446,7 @@ const PAGES = [
     characterPrompt: true,
   },
   {
-    kicker: "Spells & Glow",
+    kicker: "Spells & Belief",
     title: "Cast an Enchantment.",
     body: "Give me one spell and one true photo. I stare until the ordinary thing gives up what it's been hiding. The pen points. I pounce. The world supplies the strange bit because it was there first.",
     source: "Enchantment · illuminated photo",
@@ -708,10 +708,10 @@ function renderOnboardingPanel(page) {
       </div>
       <p class="onboarding-result">${
         onboarding.plantedBelief === true
-          ? "Glow wakes in the header. I've put a little weight behind that Belief now."
+          ? "Belief wakes in the header. I've put a little weight behind it now."
           : onboarding.plantedBelief === false
             ? "Named, then. Keep it in your pocket. I saw it."
-            : "Name the belief, then decide whether to plant a little weight in it. Belief is what you give me; Glow is what I show back."
+            : "Name the belief, then decide whether to plant a little weight in it. Belief is what you give me, and I spend it on the story."
       }</p>
     `;
   } else if (page.onboardingStep === "wicker") {
@@ -794,7 +794,7 @@ const GLOW_EFFECTS = {
   },
   stacks: {
     title: "Stacks Whisper",
-    copy: "I can find kept Pages again by mood, Glow, names, and tiny tags. The Stacks remember what you chose to make real. They gossip, but only inside this device.",
+    copy: "I can find kept Pages again by mood, Belief, names, and tiny tags. The Stacks remember what you chose to make real. They gossip, but only inside this device.",
     target: "#privacy",
   },
   bookmark: {
@@ -820,24 +820,14 @@ const GLOW_EFFECTS = {
 };
 
 function glowName(score) {
-  const scaled = Math.max(0, Math.min(100, score * 10));
-  if (scaled < 10) return "Glow Barely There";
-  if (scaled < 20) return "Meager Glow";
-  if (scaled < 30) return "Faint Glow";
-  if (scaled < 40) return "Small Glow";
-  if (scaled < 50) return "Warming Glow";
-  if (scaled < 60) return "Steady Glow";
-  if (scaled < 70) return "Clear Glow";
-  if (scaled < 80) return "Bright Glow";
-  if (scaled < 90) return "Radiant Glow";
-  return "Glow Too Full";
+  return `Belief ${Math.max(0, Math.round(score))}`;
 }
 
 function glowStateText(score) {
   const scaled = Math.max(0, Math.min(100, score * 10));
   if (scaled < 20) return "Barely lit. Still listening, though.";
   if (scaled < 40) return "Something in here is starting to warm up.";
-  if (scaled < 60) return "Steady glow. I can work with this.";
+  if (scaled < 60) return "Steady. I can work with this.";
   if (scaled < 80) return "Bright enough to see a path by now.";
   if (scaled < 90) return "Very bright. Hard to ignore. That is the point of it.";
   return "Almost too full to hold. This is my favorite part.";
@@ -911,7 +901,7 @@ function injectStacksIndex() {
   const entries = document.querySelectorAll("#privacy .privacy-list li").length;
   const note = document.createElement("p");
   note.className = "glow-stacks-index";
-  note.innerHTML = `<span aria-hidden="true">✦</span>I filed ${entries} entries by mood, name, and Glow tier. Kept Pages answer when you call them.`;
+  note.innerHTML = `<span aria-hidden="true">✦</span>I filed ${entries} entries by mood, name, and Belief. Kept Pages answer when you call them.`;
   host.appendChild(note);
   requestAnimationFrame(() => note.classList.add("is-filed"));
 }
@@ -992,7 +982,7 @@ glowPill?.addEventListener("click", () => {
   const open = glowPill.getAttribute("aria-expanded") !== "true";
   glowPill.setAttribute("aria-expanded", String(open));
   if (glowMenu) glowMenu.hidden = !open;
-  earnGlow("opened-glow-menu", 1, "You found the Glow pocket. Obviously I count that as Belief.");
+  earnGlow("opened-glow-menu", 1, "You found the Belief pocket. Obviously I count that.");
 });
 glowMenu?.querySelectorAll(".glow-nav a").forEach((link) => {
   link.addEventListener("click", () => {
@@ -1021,7 +1011,7 @@ onboardingPanel?.addEventListener("input", (event) => {
   if (!key || !(key in onboarding)) return;
   onboarding[key] = event.target.value;
   if (key === "belief" && cleanOnboardingValue(onboarding.belief)) {
-    earnGlow("belief-named", 1, "A belief has been named. The header Glow wakes.");
+    earnGlow("belief-named", 1, "A belief has been named. The header wakes.");
   }
   updateOnboardingNav();
 });
@@ -1056,7 +1046,7 @@ onboardingPanel?.addEventListener("click", (event) => {
       return;
     }
     onboarding.plantedBelief = true;
-    earnGlow("belief-planted", 3, "Three Belief planted. Glow gathers where attention lands.");
+    earnGlow("belief-planted", 3, "Three Belief planted. It gathers where attention lands.");
     hint.textContent = "Belief planted. Wicker will have to deal with that.";
   } else if (action === "hold-belief") {
     if (!cleanOnboardingValue(onboarding.belief)) {
@@ -1275,7 +1265,7 @@ function choose(kind) {
   if (kind === "keep") {
     const keptCount = choices.filter((choice) => choice === "keep").length;
     if (keptCount > 0 && keptCount % 3 === 0) {
-      earnGlow(`kept-pages-${keptCount}`, 1, "Three kept Pages huddled together. I added one Belief to your Glow.");
+      earnGlow(`kept-pages-${keptCount}`, 1, "Three kept Pages huddled together. I added one Belief.");
     } else if (glowSpendNote) {
       const left = 3 - (keptCount % 3);
       glowSpendNote.textContent = `${left} more kept page${left === 1 ? "" : "s"} and I add Belief.`;
@@ -1294,7 +1284,7 @@ function openBook() {
   nav.hidden = false;
   index = 0;
   render();
-  earnGlow("opened-book", 2, "The cover opened. Glow gathers at the spine.");
+  earnGlow("opened-book", 2, "The cover opened. Belief gathers at the spine.");
   loadLocationDaypart(); // best-effort and user-triggered, so the page doesn't call location services on load
 }
 
@@ -3542,7 +3532,7 @@ const CHAPTER_BINDINGS = {
           ? `${binding.name} releases its claim. The page grows quiet again.`
           : `${binding.name} holds ${next === 1 ? "a little" : "deep"} Belief. The talisman is warmer now.`;
       }
-      if (next > 0) earnGlow(`chapter-belief-${key}-${next}`, 1, `${binding.name} warmed the header Glow.`);
+      if (next > 0) earnGlow(`chapter-belief-${key}-${next}`, 1, `${binding.name} added to the header Belief.`);
       if (touches >= 5) revealBinding();
     });
   });
@@ -4528,7 +4518,7 @@ const STATIONS = [
     if (onAir) powerOffBroadcast();
   });
 
-  // The "Bless the dial" Belief spend (in the Glow menu) unlocks one secret
+  // The "Bless the dial" Belief spend (in the Belief menu) unlocks one secret
   // track per station and brings the cabinet to life on the current frequency.
   // Returns how many tracks it newly unlocked so the spend can react.
   window.blessRadioDial = function blessRadioDial() {
@@ -5583,7 +5573,7 @@ const LORE = {
       open(trigger.getAttribute("data-lore"));
       loreLinkClicks += 1;
       if (loreLinkClicks % 3 === 0) {
-        earnGlow(`lore-link-belief-${loreLinkClicks}`, 1, "Three golden lore links opened. The Book adds one Belief to your Glow.");
+        earnGlow(`lore-link-belief-${loreLinkClicks}`, 1, "Three golden lore links opened. I added one Belief.");
       } else if (glowSpendNote) {
         const left = 3 - (loreLinkClicks % 3);
         glowSpendNote.textContent = `${left} more golden lore link${left === 1 ? "" : "s"} and I add Belief.`;

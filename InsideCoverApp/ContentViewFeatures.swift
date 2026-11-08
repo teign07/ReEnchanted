@@ -834,7 +834,7 @@ extension ContentView {
             day: today,
             memory: memory
         ) {
-            body = "\(scene)\n\nKeeping this page checks in at the Anchor and offers it a little Belief from your Glow."
+            body = "\(scene)\n\nKeeping this page checks in at the Anchor and gives it a little of your Belief."
             metadata["visitScene"] = scene
             metadata["storyScene"] = scene
         }
@@ -2087,8 +2087,8 @@ extension ContentView {
             return
         }
         statusMessage = elective.bookFavorID == nil
-            ? "\(elective.characterName) will remember this. My Glow warms."
-            : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") My Glow warms."
+            ? "\(elective.characterName) will remember this. Your Belief went up by \(UnwrittenElective.completionBeliefReward)."
+            : "\(bookCompletionLine ?? "You brought the favor back. I'll remember it.") Your Belief went up by \(UnwrittenElective.completionBeliefReward)."
         BookFeedback.play(.braidComplete, fill: true)
     }
 
@@ -7785,10 +7785,10 @@ extension ContentView {
         case .castMember:
             let pool = NarrativePackRegistry.entities + customCastMembers.map(\.entity)
             if let entity = pool.first(where: { $0.id == result.referenceID }) {
-                let glow = BeliefLexicon.glowName(for: max(0, min(100, entity.belief + (entityBeliefLedger[entity.id] ?? 0))))
+                let belief = BeliefLexicon.label(for: max(0, min(100, entity.belief + (entityBeliefLedger[entity.id] ?? 0))))
                 let lines = [
                     entity.chapter.map { "Chapter \($0)" },
-                    "Glow: \(glow)",
+                    belief,
                     entity.traits.isEmpty ? nil : "Traits: \(entity.traits.joined(separator: ", "))",
                     entity.beliefs.first.map { "Believes: \($0)" },
                     entity.goals.first.map { "Wants: \($0)" },
@@ -11823,9 +11823,9 @@ struct PagewrightSheet: View {
             if isMarginaliaUnlocked(asset) {
                 Text("\(achievement.title)\nThe lock fell off. You can put the mark on the Page now.")
             } else if isMarginaliaHintRevealed(asset) {
-                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\(lockCompanionLine(for: asset))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
+                Text("\(achievement.title)\n\(achievement.revealedHint(in: marginaliaAchievementContext))\(lockCompanionLine(for: asset))\nYour Belief's at \(min(100, max(0, beliefScore))) right now.")
             } else {
-                Text("\(achievement.title)\n\(achievement.hiddenHint)\(lockCompanionLine(for: asset))\nMy edges are \(BookMechanicPresentation.glow(beliefScore).lowercased()) right now.")
+                Text("\(achievement.title)\n\(achievement.hiddenHint)\(lockCompanionLine(for: asset))\nYour Belief's at \(min(100, max(0, beliefScore))) right now.")
             }
         }
     }

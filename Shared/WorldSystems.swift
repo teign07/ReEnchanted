@@ -3149,6 +3149,20 @@ enum RadioStationRegistry {
                     weight: 4
                 )
             ]
+        ),
+        RadioStation(
+            id: OverheadSky.stationID,
+            title: "Overhead",
+            frequency: 100.1,
+            subtitle: "No DJ and no records. Whatever is over your roof right now picks up the lute and plays.",
+            hostEntityID: nil,
+            packID: nil,
+            unlockRule: "core",
+            moodTags: ["weather", "live", "sky", "lute"],
+            signalLine: "The signal smells of whatever is happening outside.",
+            tracks: [],
+            interludeTitles: [],
+            effects: []
         )
     ]
 
@@ -9006,29 +9020,30 @@ enum CelebrationMechanic: String, Codable, Equatable, CaseIterable {
 
 /// The feast-day throw. One per feast per day, seeded so it can't be rerolled
 /// into a better answer: the bones are thrown when the day is, not when the
-/// reader gets curious. Two bones, so the middle is common and the ends are
-/// rare, the way an honest die behaves.
+/// reader gets curious. It's the app's one Inkbones, the 1–100 throw, where
+/// low is lucky: 1 to 5 is a triumph and 96 to 100 asks a cost, exactly as on
+/// a Story throw.
 struct FeastBonesThrow: Equatable {
     enum Band: String, Equatable {
-        case wide      // 11-12
-        case open      // 8-10
-        case level     // 6-7
-        case narrow    // 4-5
-        case shut      // 2-3
+        case wide      // 1-5, a triumph
+        case open      // 6-35
+        case level     // 36-65
+        case narrow    // 66-95
+        case shut      // 96-100, a cost
 
         static func resolve(roll: Int) -> Band {
             switch roll {
-            case ...3: return .shut
-            case 4...5: return .narrow
-            case 6...7: return .level
-            case 8...10: return .open
-            default: return .wide
+            case ...5: return .wide
+            case 6...35: return .open
+            case 36...65: return .level
+            case 66...95: return .narrow
+            default: return .shut
             }
         }
 
         var headline: String {
             switch self {
-            case .wide: return "Both bones stood up"
+            case .wide: return "The bones stood on end"
             case .open: return "The bones fell open"
             case .level: return "The bones fell level"
             case .narrow: return "The bones fell narrow"
@@ -9071,15 +9086,13 @@ struct FeastBonesThrow: Equatable {
 }
 
 enum FeastBones {
-    /// Deterministic in (feast, day), so the throw belongs to the day. Two
-    /// independent bones rather than one 2...12 draw, so the distribution is
-    /// the one the reader expects from a pair of dice.
+    /// Deterministic in (feast, day), so the throw belongs to the day. One
+    /// 1–100 throw, the same Inkbones every other throw in the Book uses.
     static func throwBones(celebrationID: String, dayID: String) -> FeastBonesThrow {
         var seed = UInt64(bitPattern: Int64("\(celebrationID)|\(dayID)".stableHash))
         if seed == 0 { seed = 0x9E3779B97F4A7C15 }
-        let first = 1 + Int(next(&seed) % 6)
-        let second = 1 + Int(next(&seed) % 6)
-        let roll = first + second
+        _ = next(&seed)
+        let roll = 1 + Int(next(&seed) % 100)
         return FeastBonesThrow(roll: roll, band: .resolve(roll: roll))
     }
 
@@ -14212,9 +14225,9 @@ enum BeliefRipple {
         if effectiveBelief >= 60 {
             return "\(entityName) burns a little steadier for it."
         } else if effectiveBelief >= 30 {
-            return "\(entityName)\u{2019}s glow brightened."
+            return "\(entityName)\u{2019}s Belief rose."
         }
-        return "\(entityName)\u{2019}s glow stirred."
+        return "\(entityName)\u{2019}s Belief stirred."
     }
 }
 
@@ -15810,5 +15823,163 @@ struct RadioBandWeather: Equatable, Sendable {
         if reach > 0.5 { return "A clear night. Far-off voices are carrying tonight." }
         if fading > 0.5 { return "The wind keeps blowing the far voices in and out." }
         return nil
+    }
+}
+
+// MARK: - Overhead: the station the sky plays
+
+/// Which composer the Overhead station runs. Built only from a believed
+/// `PaperSky`, so no reading (or a forgotten one) means the station is off
+/// the air rather than playing weather it was never told about.
+enum OverheadSky: Equatable, Sendable {
+    case clear(night: Bool)
+    case cloud(night: Bool)
+    case rain(amount: Double)
+    case storm(amount: Double)
+    case windy(amount: Double, night: Bool)
+    case snow(amount: Double)
+    case fog
+
+    static let stationID = "overhead"
+
+    /// Wind this strong takes over a dry sky.
+    static let windyThreshold = 0.6
+
+    static func from(_ sky: PaperSky?) -> OverheadSky? {
+        guard let sky else { return nil }
+        let night = !sky.isDay
+        switch sky.condition {
+        case .storm: return .storm(amount: sky.intensity)
+        case .rain: return .rain(amount: sky.intensity)
+        case .snow: return .snow(amount: sky.intensity)
+        case .fog: return .fog
+        case .clear, .cloud:
+            if sky.wind >= windyThreshold { return .windy(amount: sky.wind, night: night) }
+            return sky.condition == .clear ? .clear(night: night) : .cloud(night: night)
+        }
+    }
+
+    /// The composer's family, for switching only when the music would change.
+    var family: String {
+        switch self {
+        case .clear(let night): return night ? "clear-night" : "clear-day"
+        case .cloud(let night): return night ? "clear-night" : "clear-day"
+        case .rain: return "rain"
+        case .storm: return "storm"
+        case .windy: return "windy"
+        case .snow: return "snow"
+        case .fog: return "fog"
+        }
+    }
+
+    /// The station's title line: who is playing it right now.
+    static func playedBy(_ sky: PaperSky?) -> String {
+        guard let sky, let overhead = from(sky) else {
+            return "Off the air. The sky hasn't told it anything it can stand behind."
+        }
+        let when = sky.isDay ? "today" : "tonight"
+        let player: String
+        switch overhead {
+        case .clear: player = sky.isDay ? "a clear sky" : "a clear night"
+        case .cloud: player = "cloud"
+        case .rain(let amount): player = amount < 0.25 ? "drizzle" : amount > 0.7 ? "a downpour" : "rain"
+        case .storm: player = "a storm"
+        case .windy: player = "the wind"
+        case .snow(let amount): player = amount > 0.6 ? "heavy snow" : "snow"
+        case .fog: player = "fog"
+        }
+        var line = "Played \(when) by \(player)"
+        if case .windy = overhead {
+            // The wind is already the player.
+        } else if sky.wind > 0.6 {
+            line += ", and a lot of wind"
+        } else if sky.wind > 0.35 {
+            line += ", a little wind"
+        }
+        return line + "."
+    }
+}
+
+// MARK: - The past in the static
+
+/// Something the reader kept weeks ago that the static between stations can
+/// carry back: a few of their own words, and their own voice when a kept
+/// memo exists. Small and plain on purpose, so the archive is never copied
+/// as Pages into the radio.
+struct RadioPastSelfEcho: Equatable, Sendable {
+    var pageID: String
+    var keptAt: Date
+    /// At most fourteen of the reader's own words.
+    var quote: String?
+    /// A kept voice memo on that Page, by file path.
+    var voicePath: String?
+}
+
+enum RadioPastSelf {
+    /// Nothing younger than three weeks: this is the past, not yesterday.
+    static let minimumAge: TimeInterval = 21 * 86_400
+    /// Ages that feel like an anniversary, in days: three weeks, about three
+    /// months, about six, a year.
+    static let anniversaries: [Double] = [21, 91, 182, 365]
+
+    static func echoes(
+        days: [BookDay],
+        now: Date,
+        limit: Int = 24,
+        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) -> [RadioPastSelfEcho] {
+        var found: [RadioPastSelfEcho] = []
+        for day in days {
+            for page in day.pages {
+                let age = now.timeIntervalSince(page.createdAt)
+                guard age >= minimumAge else { continue }
+                let memo = page.mediaAssets.first { $0.kind == .audioFile && fileExists($0.reference) }
+                let words = (memo?.voiceTranscript ?? page.reflectiveMaterial).flatMap(Self.quote)
+                guard words != nil || memo != nil else { continue }
+                found.append(RadioPastSelfEcho(
+                    pageID: page.id,
+                    keptAt: page.createdAt,
+                    quote: words,
+                    voicePath: memo?.reference
+                ))
+            }
+        }
+        // Anniversary ages first, then the rest by how near they fall to one.
+        func distance(_ echo: RadioPastSelfEcho) -> Double {
+            let ageDays = now.timeIntervalSince(echo.keptAt) / 86_400
+            return anniversaries.map { abs($0 - ageDays) }.min() ?? .infinity
+        }
+        return Array(found.sorted { distance($0) < distance($1) }.prefix(limit))
+    }
+
+    /// The first line of the reader's words, cut to fourteen of them.
+    static func quote(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstLine = trimmed.split(separator: "\n", omittingEmptySubsequences: true).first.map(String.init) ?? trimmed
+        let words = firstLine.split { $0.isWhitespace }.map(String.init)
+        guard words.count >= 3 else { return nil }
+        return words.count <= 14 ? firstLine : words.prefix(14).joined(separator: " ") + "\u{2026}"
+    }
+
+    /// Pick one for a session in the static, favouring the nearest anniversary
+    /// but not always the same one.
+    static func pick(_ echoes: [RadioPastSelfEcho], wantingVoice: Bool, seed: Int) -> RadioPastSelfEcho? {
+        let pool = wantingVoice ? echoes.filter { $0.voicePath != nil } : echoes.filter { $0.quote != nil }
+        guard !pool.isEmpty else { return nil }
+        let head = pool.prefix(4)
+        return head[head.startIndex + abs(seed) % head.count]
+    }
+
+    /// What the dial almost caught, said on the page.
+    static func caughtLine(_ quote: String, isVoice: Bool, seed: Int) -> String {
+        let lines = isVoice ? [
+            "That voice under the hiss is yours. It said \u{201C}\(quote)\u{201D} a while ago and is still saying it.",
+            "Somewhere under the static you are talking: \u{201C}\(quote)\u{201D}",
+        ] : [
+            "Under the hiss, almost words. They sound like yours: \u{201C}\(quote)\u{201D}",
+            "The static caught something you kept a while back: \u{201C}\(quote)\u{201D}",
+            "For a second the noise made words, and they were yours: \u{201C}\(quote)\u{201D}",
+        ]
+        return lines[abs(seed) % lines.count]
     }
 }

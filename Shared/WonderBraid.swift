@@ -1853,3 +1853,69 @@ extension WonderBraid {
         "s044|boiler,radiator|ticked,tick,ticking|The boiler ticked in the dark like a very small clock that has lost its owner.",
     ]
 }
+
+/// The line of a night's braid that goes on its public share card.
+///
+/// The card used to want the plain braid's "I kept the page:" closing. The
+/// wonder braid writes no closing, so every card fell back to a keyword score
+/// that liked "rain" and "moon". That score picked the sky line ("It was raining
+/// over …, and the moon was …") and the kept-Page credits, so the card listed
+/// the day's data. A stranger should see what the Book made up instead: the
+/// small impossible thing an ordinary object did (a library seed, told in
+/// Gemma's sentence) or the Book's own say on the turn. Never the weather, the
+/// kept credits, or the reader's own words handed back to them.
+enum BraidShareQuote {
+    static let wonderTag = "braid-wonder"
+
+    /// The invented sentence of a wonder braid, as the page prints it, or nil
+    /// for a plain braid or a night where nothing was invented.
+    static func invented(body: String, tags: [String]) -> String? {
+        let tags = tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard tags.contains(wonderTag) else { return nil }
+        let ids = Set(tags.compactMap { tag -> String? in
+            tag.hasPrefix(WonderBraidHistory.tagPrefix) ? String(tag.dropFirst(WonderBraidHistory.tagPrefix.count)) : nil
+        })
+        guard !ids.isEmpty else { return nil }
+        let sentences = body
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .flatMap(WonderBraid.sentences)
+            .filter { !isReport($0) && !opensOnReader($0) }
+
+        // The object's small impossible act. Gemma tells the seed in its own
+        // words, so the sentence is found by the words it shares with the seed.
+        let seeds = WonderBraid.lines.filter { ids.contains($0.id) }
+        var best: (sentence: String, score: Double)?
+        for seed in seeds {
+            let seedWords = Set(WonderBraid.contentWords(seed.text).map(WonderBraid.stem))
+            guard !seedWords.isEmpty else { continue }
+            for sentence in sentences {
+                let shared = Set(WonderBraid.contentWords(sentence).map(WonderBraid.stem)).intersection(seedWords).count
+                let score = Double(shared) / Double(seedWords.count)
+                guard shared >= 2 || score >= 0.5 else { continue }
+                if score > (best?.score ?? 0) { best = (sentence, score) }
+            }
+        }
+        if let best { return best.sentence }
+
+        // The Book's say on the turn, placed word for word.
+        let page = WonderBraid.normalized(body)
+        for line in WonderBraid.turnLines.values.flatMap({ $0 }) where ids.contains(line.id) {
+            if page.contains(WonderBraid.normalized(line.text)) { return line.text }
+        }
+        return nil
+    }
+
+    /// The braid's reports, not its telling: the sky line and the credits for
+    /// Pages kept without writing.
+    static func isReport(_ sentence: String) -> Bool {
+        let lower = WonderBraid.normalized(sentence)
+        return lower.hasPrefix("it was ") || lower.hasPrefix("you kept ")
+    }
+
+    /// The reader's own detail, already turned to face them ("You found …").
+    /// "Your kettle …" stays: that is an object, and objects are the Book's.
+    static func opensOnReader(_ sentence: String) -> Bool {
+        WonderBraid.normalized(sentence).hasPrefix("you ")
+    }
+}

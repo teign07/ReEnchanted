@@ -110,9 +110,11 @@ final class IlluminationSheetImportTests: XCTestCase {
     }
 
     func testFirstAcademyNoteSheetReachedBaseContentAsOpaqueInk() {
-        XCTAssertEqual(academyNoteAssets.count, 37)
-        XCTAssertEqual(Set(academyNoteAssets.map(\.id)).count, 37)
-        XCTAssertEqual(Set(academyNoteAssets.map(\.assetName)).count, 37)
+        // 36: "Glow isn't a score. It's belief." left the deck when Glow was
+        // retired and Belief became the only name for the number.
+        XCTAssertEqual(academyNoteAssets.count, 36)
+        XCTAssertEqual(Set(academyNoteAssets.map(\.id)).count, 36)
+        XCTAssertEqual(Set(academyNoteAssets.map(\.assetName)).count, 36)
 
         for asset in academyNoteAssets {
             XCTAssertEqual(asset.kind, .doodle)

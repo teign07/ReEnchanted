@@ -12103,7 +12103,7 @@ struct OuterStacksAnchorPageSourceAdapter: BookPageSourceAdapter {
             visitPhrase: visitPhrase,
             season: season
         )
-        let body = "\(storyScene)\n\nKeeping this page checks in at the Anchor and offers it a little Belief from your Glow."
+        let body = "\(storyScene)\n\nKeeping this page checks in at the Anchor and gives it a little of your Belief."
         let turn = AnchorTurnBuilder.turn(
             anchor: anchor,
             visitMode: proximity.visitMode,
@@ -12749,7 +12749,7 @@ enum FirstRunPageSequence {
                 The rest of my edge, while you're out:
 
                 • The other wax seals make a Page from right where you are. Body asks how you feel. Place starts from where you're standing. Radio plays you something.
-                • The bookmark at the top is Glow. My useful things live there.
+                • The bookmark at the top shows your Belief. My useful things live there.
                 • Contents is everything in me, in order.
 
                 Go on. Out. I'll be here, being a book.
@@ -14324,13 +14324,13 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
 
         let isTooFull = inputs.readerBeliefScore >= 90
         let score = isTooFull ? 95 : 78
-        let glowName = BeliefLexicon.glowName(for: inputs.readerBeliefScore)
+        let glowName = BeliefLexicon.label(for: inputs.readerBeliefScore)
         let body = isTooFull
             ? """
-            Your Glow is full and glaring at me. Open the Glow menu. Spend it on a person, Page kind, spell, or living thread. I’ll pull that thing closer and let it rise more often. Or spend it when a story asks to wake now. Hoarded Glow just singes the shelf.
+            You’ve so much Belief it’s glaring at me. Open the Belief menu. Spend it on a person, Page kind, spell, or living thread. I’ll pull that thing closer and let it rise more often. Or spend it when a story asks to wake now. Hoarded Belief just singes the shelf.
             """
             : """
-            You have enough Glow to steer me. Open the Glow menu. Choose a person, Page kind, spell, or living thread. I’ll hold it closer and let it rise more often. You can also spend Glow when a story asks to start now.
+            You’ve got enough Belief to steer me. Open the Belief menu. Choose a person, Page kind, spell, or living thread. I’ll hold it closer and let it rise more often. You can also spend Belief when a story asks to start now.
             """
 
         return [
@@ -14342,12 +14342,12 @@ struct GlowInvitationPageSourceAdapter: BookPageSourceAdapter {
                 renderStyle: .promptCard,
                 score: score,
                 reason: isTooFull
-                    ? "Your Glow is so full it's spilling over and wants somewhere to go."
-                    : "Your Glow is bright enough now to spend on purpose.",
-                prompt: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
-                detail: "Wake fiction when it calls, or open the Glow menu and warm something you'd like me to hold closer.",
+                    ? "You've so much Belief it's spilling over and wants somewhere to go."
+                    : "You've enough Belief now to spend on purpose.",
+                prompt: isTooFull ? "Too Much Belief" : "Your Belief Wants Somewhere to Go",
+                detail: "Spend it in a story when one calls, or open the Belief menu and give some to whatever you'd like me to hold closer.",
                 payload: BookPagePayload(
-                    headline: isTooFull ? "Your Glow Is Too Full" : "Your Glow Wants a Direction",
+                    headline: isTooFull ? "Too Much Belief" : "Your Belief Wants Somewhere to Go",
                     body: body,
                     metadata: [
                         "source": source.id,
@@ -15057,14 +15057,18 @@ enum HelpTipsCatalog {
         ),
         HelpTipEntry(
             id: "glow-menu",
-            title: "Using Glow",
-            prompt: "Tug the Glow bookmark when you want something on purpose.",
+            title: "Using Belief",
+            prompt: "Notice something, keep it, and you get Belief. Spend it in here.",
             body: """
-            The Glow bookmark opens my menu. Go there when you want something on purpose.
+            Belief is what you get for noticing. Every true thing you keep from your day gives you a little, and the number on the Belief bookmark is how much you've got.
+
+            You spend it in the stories. Stake it on an Inkbones throw, give it to someone in the Cast, cast a spell with it, feed it to an Anchor. The more you notice out there, the more you can do in here.
+
+            The Belief bookmark opens my menu. Go there when you want something on purpose.
 
             The Cast is everyone who's awake in my margins right now. Magic has Compass Runs, Spells, and enchanting a photo. Pages finds open threads and the Pages I've tucked deep in my binding. The Bindery has the daily paper, the weekly issue, and the bigger books. Book lets you read the Wonder Compass itself.
 
-            You don't have to tune me in there. I tune myself from what you keep and what you let wait. Glow is for when you want something right now.
+            You don't have to tune me in there. I tune myself from what you keep and what you let wait. The menu is for when you want something right now.
             """,
             tags: ["help", "glow", "menu", "magic"]
         ),
@@ -16555,15 +16559,14 @@ struct GamePageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: "The bones want throwing, and the throws write a reading.",
             prompt: "The Inkbones",
-            detail: "Bring one thing. Throw five bones, keep the ones you like, throw the rest again. The Curse throws back. What you keep is your reading.",
+            detail: "Ask one thing, then throw under your line. Your Belief and your fight set it.",
             payload: BookPagePayload(
                 headline: "Throw the Inkbones",
-                body: "Bring me a question, or just the day. You get three throws. After each one, tap the bones you want to keep and throw the rest. Watch out: between your throws the Curse throws its own, and if it throws high it greys one of yours. What's left is what the bones say.",
+                body: "Ask me one thing, or just bring the day. I'll show you your line: throw under it. You can stake a little Belief to lift it, and if you don't like the throw you can throw once more, but then the Curse throws too.",
                 metadata: [
                     "source": source.id,
                     "gameID": "inkbones",
                     "gameTitle": "The Inkbones",
-                    "inkbonesSeed": "\(day.id)|\(id)",
                     "placeholder": "One sentence: what lands, or what misses?",
                     "tags": "game-page,inkbones,divination"
                 ]

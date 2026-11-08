@@ -41,10 +41,13 @@ spine of the Academy's entire curriculum:
 | West | **Write** | Keep a One-Sentence Souvenir |
 | Center | **Rest** | Let the loop close; integration, the Permission to Stop |
 
-**Belief** is a wallet of real attention made usable; **Glow** is how its
-balance appears. Noticing the world, writing honest sentences, answering the
+**Belief** is a wallet of real attention made usable, and the reader sees it
+as one number: "Belief 34". There is no Glow; that name was retired on
+2026-11-08 so the whole game has one word. Noticing the world, writing honest sentences, answering the
 Book, and keeping nonfiction Pages *earn* Belief. Story Pages, Letters, Notes,
-Fae Parleys, and other generated fiction *spend* it. This is the load-bearing
+Fae Parleys, and other generated fiction *spend* it, and so do Inkbones stakes, gifts to the Cast, spells and Anchors.
+The reader gains Belief by noticing the hidden magic in their life and invests
+it in the fiction. This is the load-bearing
 economy: fiction is paid for with real attention, which is why the app cannot
 simply hand out infinite story.
 

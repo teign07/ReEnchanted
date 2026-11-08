@@ -396,6 +396,46 @@ final class LeafPresentationTests: XCTestCase {
         }
     }
 
+    func testCabinetOffersEveryMarkTier() {
+        let marks = CoreMarginsPack.pack.allAssets
+        XCTAssertFalse(marks.filter { $0.leafTiers.contains(.hero) }.isEmpty)
+        XCTAssertGreaterThanOrEqual(marks.filter { $0.leafTiers.contains(.crumb) }.count, 12)
+        for mark in marks where mark.tags.contains("handwritten") {
+            XCTAssertEqual(mark.leafTiers, [.mid], "\(mark.id) must stay legible")
+        }
+        for mark in marks where mark.kind == .tape || mark.kind == .paperScrap {
+            XCTAssertTrue(mark.leafTiers.isEmpty, mark.id)
+        }
+    }
+
+    func testCrowdedLeavesCarryCrumbsAndPlatesCarryHeroes() {
+        let overdone = (0..<24).map {
+            LeafDecorationLibrary.recipe(
+                pageType: .diary, metadata: ["leafMarginaliaDensity": "overdone"],
+                documentID: "crumbs-\($0)", leafIndex: 0
+            )
+        }
+        XCTAssertTrue(overdone.allSatisfy { $0.crumbAssets.count >= 3 })
+        for recipe in overdone {
+            let names = recipe.crumbAssets.map(\.assetName)
+            XCTAssertEqual(names.count, Set(names).count, "a crumb repeats on one leaf")
+            XCTAssertFalse(names.contains(recipe.primaryAsset?.assetName ?? "-"))
+            XCTAssertTrue(recipe.crumbAssets.allSatisfy { $0.leafTiers.contains(.crumb) })
+        }
+        let quiet = LeafDecorationLibrary.recipe(
+            pageType: .diary, metadata: ["leafMarginaliaDensity": "quiet"], documentID: "quiet", leafIndex: 0
+        )
+        XCTAssertTrue(quiet.crumbAssets.isEmpty)
+        XCTAssertEqual(quiet.primaryTier, .mid)
+
+        let plates = (0..<40).map {
+            LeafDecorationLibrary.recipe(pageType: .diary, metadata: [:], documentID: "plate-\($0)", leafIndex: 0, decorationPlate: true)
+        }
+        let heroes = plates.filter { $0.primaryTier == .hero }
+        XCTAssertGreaterThan(heroes.count, plates.count / 2)
+        XCTAssertTrue(heroes.allSatisfy { $0.primaryAsset?.leafTiers.contains(.hero) == true })
+    }
+
     func testOlderPacksStillDecodeWithoutPresentationFields() throws {
         let data = Data(#"{"id":"old-pack","displayName":"Old pack","version":1,"author":"The Book","availability":"bundledFree","archetypes":[]}"#.utf8)
         let pack = try JSONDecoder().decode(PageArchetypePack.self, from: data)

@@ -3185,13 +3185,18 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
         return day
     }
 
-    func testGlowTierQueryFindsMatchingCast() {
+    func testBeliefBandQueryFindsMatchingCast() {
         var dataset = StacksSearchDataset()
         dataset.entities = NarrativePackRegistry.entities
-        let results = StacksSearchEngine.search("Show me everything with Small Glow", in: dataset)
+        let results = StacksSearchEngine.search("Show me everything with some belief", in: dataset)
         XCTAssertFalse(results.isEmpty)
         for result in results where result.kind == .castMember {
-            XCTAssertTrue(result.snippet.contains("Small Glow"), result.snippet)
+            let number = result.snippet
+                .components(separatedBy: CharacterSet.decimalDigits.inverted)
+                .compactMap(Int.init)
+                .first
+            XCTAssertTrue(result.snippet.hasPrefix("Belief "), result.snippet)
+            XCTAssertEqual(number.map(BeliefLexicon.Band.of), .middling, result.snippet)
         }
     }
 

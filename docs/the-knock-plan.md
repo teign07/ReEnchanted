@@ -205,7 +205,7 @@ It shows as a short modifier stack on the throw, in the Book's voice: *"Knocks a
 
 **The Grey Knock** (`GreyKnock` in AppSupport). When the Curse greys a Page, a notification goes out at 9:30 the next morning. Its one-sentence reply rescues the Page headlessly, and a tap opens it. A fading leaf shows its excerpt with the ink thinning as the 72 hours run out. A ribbon tucked into an erased Page re-inks it (`GreyPageThreatEngine.reink`).
 
-**The ribbons** (§4). There are three strands (Madder, Woad, Weld) in the one ribbon. A `Menu` on the ribbon tucks, moves, lifts or opens them.
+**The ribbon** (§4). It's one ribbon object (bj: "one ribbon object that does multiple things"). Its tap menu bookmarks this Page, takes a bookmark out, or opens any Page it keeps (up to three). Knots in the cloth show how many it keeps. An earlier three-strand drawing hid the ribbon under the leaf and was dropped.
 
 **The Inkbones.**
 - Your edge: `InkbonesOdds.edge` adds knocks this week (up to 8), sentences (up to 3), rescues ×2 (up to 4) and ribbons (up to 3), capped at 15. It lifts the Story threshold, which the throw overlay shows as a modifier line.
@@ -222,13 +222,16 @@ It shows as a short modifier stack on the throw, in the Book's voice: *"Knocks a
 - After the turn line, the week's Knocks end `-turn` and speak in new voices.
 - If nobody knocks within 6 days, the Book comes back on its own. There's a 60-day rest before it can go quiet again.
 
-**The Inkbones Page** (§7.6). This is a `.gamePage` with `gameID: inkbones`, surfaced by `GamePageSourceAdapter.inkbonesSurface`: one every 12 hours, leaning in on mornings and for a reader in the fight.
-- `InkbonesReading` has five bones, six faces (salt, thread, key, moon, ink, coin), three throws, and keep by tapping.
-- Between throws the Curse rolls d100 against `80 + edge` and can grey one kept bone.
-- Each face has authored lines for one, two or three-plus bones, plus a shadow line for the greyed face. Three of a kind is a triumph.
-- It ends with "One sentence: what lands, or what misses?". The kept Page carries the reading JSON in metadata, so a kept reading replays.
-- The view is `InkbonesPageView` (in TarotPageView.swift).
-- Choices I made for bj to revise: the six faces and their lines, five bones, and authored lines only (no Gemma).
+**The Inkbones Page** (§7.6), rebuilt 2026-11-07 on the app's one Inkbones, the 1–100 throw (bj: "number inkbones, the ones we use in the rest of the app, since they can affect Belief"). It's a `.gamePage` with `gameID: inkbones` (`GamePageSourceAdapter.inkbonesSurface`), and the model is `InkbonesReading`.
+- Three numbered directions at the top: ask one thing; throw under your line; throw again if you like, but the Curse throws too.
+- **Your line** is `InkbonesOdds.storyThreshold(edge:belief:)`: the reader's Belief (`@AppStorage("beliefScore")`) plus the fight's edge, shown part by part.
+- **Stake** 0, 3 or 6 Belief (never more than you have). It lifts the line by twice the stake. A triumph pays +stake+2, favoured +stake/3, hesitated 0, sideways −stake/2, a cost −stake.
+- **Throw again** once: the second throw counts, and the Curse rolls against `80+edge`. If it hits, the reading is greyed and the stake is lost.
+- **The reading:** the result gives the answer (a question gets yes / not yet / not like that; just the day gets a forecast). The tens digit picks one of ten angles (salt, thread, key, moon, ink, coin, ash, glass, feather, bell). The Curse adds a shadow line.
+- Belief is settled once, when the throw ends, and both throws go into `inkbonesLog`. The kept Page carries its margin marks.
+- The symbol-bones version is gone. Readings kept from it no longer decode, and they're skipped quietly.
+
+**One Inkbones.** Story throws now use the reader's real Belief (it used to be fixed at 50), and the overlay shows "Belief N gives L". The feast and spell bones are now one seeded 1–100 throw where low is lucky: 1–5 is wide, 6–35 open, 36–65 level, 66–95 narrow and 96–100 shut. The wording is unchanged, apart from "The bones stood on end".
 
 **In print.** The month's edition has an "Against the Curse" section (`MonthlyEditionBuilder.curseSection`) with the month's score and the bones: both sides' throws, the Pages the Curse took, and the ones taken back.
 

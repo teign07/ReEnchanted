@@ -270,7 +270,7 @@ struct BookMenuCommands: Commands {
             Button("New Plain Page") { book?.newPlainPage() }
                 .keyboardShortcut("n", modifiers: .command)
                 .disabled(book == nil)
-            Button("Glow") { book?.openGlow() }
+            Button("Belief") { book?.openGlow() }
                 .keyboardShortcut("g", modifiers: .command)
                 .disabled(book == nil)
         }

@@ -77,35 +77,40 @@ final class CelebrationMechanicTests: XCTestCase {
         XCTAssertGreaterThan(rolls.count, 4, "The throw looks stuck: \(rolls.sorted())")
     }
 
-    func testThrowsStayInTwoDiceRange() {
+    func testThrowsAreTheOneHundredInkbones() {
         for day in 1...200 {
             let bones = FeastBones.throwBones(celebrationID: "feast", dayID: "day-\(day)")
-            XCTAssertTrue((2...12).contains(bones.roll), "Out of range: \(bones.roll)")
+            XCTAssertTrue((1...100).contains(bones.roll), "Out of range: \(bones.roll)")
             XCTAssertEqual(bones.band, FeastBonesThrow.Band.resolve(roll: bones.roll))
         }
     }
 
     func testBandsCoverEveryRollAndNeverPunish() {
-        for roll in 2...12 {
+        for roll in 1...100 {
             let band = FeastBonesThrow.Band.resolve(roll: roll)
             XCTAssertFalse(band.headline.isEmpty)
             XCTAssertFalse(band.line.isEmpty)
             XCTAssertGreaterThanOrEqual(band.beliefBonus, 0, "A bad throw must never cost belief")
         }
-        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 12), .wide)
-        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 2), .shut)
-        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 7), .level)
+        // Low is lucky, as on every Inkbones throw.
+        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 3), .wide)
+        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 20), .open)
+        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 50), .level)
+        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 80), .narrow)
+        XCTAssertEqual(FeastBonesThrow.Band.resolve(roll: 99), .shut)
     }
 
-    /// Two independent bones, so the middle is common and the ends are rare.
-    func testTheDistributionLooksLikeAPairOfDice() {
-        var counts: [Int: Int] = [:]
+    /// The ends are rare: a triumph or a cost is about one throw in twenty each.
+    func testTriumphsAndCostsAreRare() {
+        var counts: [FeastBonesThrow.Band: Int] = [:]
         for day in 1...4000 {
-            counts[FeastBones.throwBones(celebrationID: "feast", dayID: "d\(day)").roll, default: 0] += 1
+            counts[FeastBones.throwBones(celebrationID: "feast", dayID: "d\(day)").band, default: 0] += 1
         }
-        let sevens = counts[7] ?? 0
-        let twos = counts[2] ?? 0
-        XCTAssertGreaterThan(sevens, twos * 2, "7 should be far more common than 2: got \(sevens) vs \(twos)")
+        let wide = counts[.wide] ?? 0
+        let level = counts[.level] ?? 0
+        XCTAssertGreaterThan(wide, 80)
+        XCTAssertLessThan(wide, 320)
+        XCTAssertGreaterThan(level, wide * 3, "the middle should be far more common than a triumph")
     }
 
     // MARK: Adapter wiring

@@ -103,77 +103,96 @@ final class KnockFightTests: XCTestCase {
 
     // MARK: The Inkbones Page
 
-    func testTheInkbonesReplayFromTheirSeed() {
-        let first = InkbonesReading.begin(seed: "day|page", question: " Should I call her? ", edge: 0)
-        let again = InkbonesReading.begin(seed: "day|page", question: "Should I call her?", edge: 0)
-        XCTAssertEqual(first, again)
-        XCTAssertEqual(first.bones.count, InkbonesReading.boneCount)
-        XCTAssertEqual(first.question, "Should I call her?")
-        XCTAssertEqual(first.throwsLeft, 2)
+    func testYourBeliefAndTheFightSetTheLine() {
+        let low = InkbonesReading.begin(question: " Should I call her? ", belief: 10, edge: 0)
+        let high = InkbonesReading.begin(question: "", belief: 90, edge: 0)
+        let fought = InkbonesReading.begin(question: "", belief: 10, edge: 12)
+        XCTAssertEqual(low.question, "Should I call her?")
+        XCTAssertLessThan(low.line, high.line, "more Belief, a kinder line")
+        XCTAssertEqual(fought.line, low.line + 12, "the fight lifts it")
+        XCTAssertEqual(low.line, InkbonesOdds.storyThreshold(edge: 0, belief: 10), "the same line a Story throw uses")
     }
 
-    func testKeptBonesStayPutAndTheGameEndsAfterThreeThrows() {
-        for index in 0..<40 {
-            var reading = InkbonesReading.begin(seed: "seed-\(index)", question: "", edge: 0)
-            reading.toggleKeep(0)
-            reading.toggleKeep(1)
-            let held = reading.bones.prefix(2).map(\.face)
-            reading.throwAgain()
-            for bone in reading.bones.prefix(2) where !bone.greyed {
-                XCTAssertEqual(bone.face, held[bone.id])
-            }
-            reading.throwAgain()
-            XCTAssertTrue(reading.finished)
-            XCTAssertEqual(reading.throwsLeft, 0)
-            XCTAssertEqual(reading.curseRolls.count, 2)
-            XCTAssertLessThanOrEqual(reading.bones.filter(\.greyed).count, 1, "the Curse greys one bone at most")
-            if let greyed = reading.greyedBone {
-                XCTAssertTrue(greyed.id < 2, "it only greys a bone you kept")
-                XCTAssertTrue(reading.lines.last == greyed.face.shadowLine)
-            }
-            reading.throwAgain()
-            XCTAssertEqual(reading.curseRolls.count, 2, "no throws after the third")
-            XCTAssertFalse(reading.lines.isEmpty)
-            XCTAssertTrue(reading.archiveText.hasPrefix("The Inkbones · The day"))
+    func testAStakeLiftsTheLineAndIsPaidOrLost() {
+        var reading = InkbonesReading.begin(question: "", belief: 50, edge: 0)
+        let base = reading.line
+        reading.setStake(6)
+        XCTAssertEqual(reading.line, base + 12)
+        reading.setStake(4)
+        XCTAssertEqual(reading.stake, 6, "only 0, 3 or 6")
+
+        func settled(_ roll: Int, stake: Int) -> Int {
+            var reading = InkbonesReading.begin(question: "", belief: 50, edge: 0)
+            reading.setStake(stake)
+            reading.throwBones(roll: roll)
+            reading.keep()
+            return reading.beliefChange
         }
+        XCTAssertEqual(settled(3, stake: 6), 8, "a triumph pays the stake and two more")
+        XCTAssertEqual(settled(20, stake: 6), 2, "favoured gives it back with a little")
+        XCTAssertEqual(settled(99, stake: 6), -6, "a cost keeps the stake")
+        XCTAssertEqual(settled(99, stake: 0), 0, "no stake, nothing lost")
+        XCTAssertEqual(settled(3, stake: 0), 2)
+
+        var broke = InkbonesReading.begin(question: "", belief: 2, edge: 0)
+        broke.setStake(3)
+        XCTAssertEqual(broke.stake, 2, "you can't stake Belief you haven't got")
     }
 
-    func testTheFightMakesTheCurseMissMore() {
-        func greyed(edge: Int) -> Int {
-            (0..<400).filter { index in
-                var reading = InkbonesReading.begin(seed: "fight-\(index)", question: "", edge: edge)
-                for bone in reading.bones { reading.toggleKeep(bone.id) }
-                reading.throwAgain()
-                reading.throwAgain()
-                return reading.greyedBone != nil
-            }.count
+    func testThrowingAgainBringsTheCurseIn() {
+        var reading = InkbonesReading.begin(question: "", belief: 50, edge: 0)
+        reading.setStake(3)
+        reading.throwBones(roll: 70)
+        XCTAssertTrue(reading.mayThrowAgain)
+        XCTAssertFalse(reading.finished)
+        reading.throwAgain(roll: 12, curse: 95)
+        XCTAssertTrue(reading.finished)
+        XCTAssertEqual(reading.roll, 12, "the second throw counts")
+        XCTAssertTrue(reading.curseTook)
+        XCTAssertEqual(reading.beliefChange, -3, "the Curse takes the stake")
+        XCTAssertTrue(reading.lines.first?.contains("then 12") == true)
+        XCTAssertTrue(reading.lines.last?.contains("greyed the reading") == true)
+        reading.throwAgain(roll: 1, curse: 1)
+        XCTAssertEqual(reading.rolls.count, 2, "only one push")
+
+        var missed = InkbonesReading.begin(question: "", belief: 50, edge: 15)
+        missed.throwBones(roll: 70)
+        missed.throwAgain(roll: 20, curse: 90)
+        XCTAssertFalse(missed.curseTook, "the fight pushes the Curse's number up to \(missed.curseNeeds)")
+        XCTAssertTrue(missed.lines.last?.hasSuffix("Ha.") == true)
+    }
+
+    func testTheNumberWritesTheReading() {
+        XCTAssertEqual(InkbonesReading.Angle.of(roll: 1), .salt)
+        XCTAssertEqual(InkbonesReading.Angle.of(roll: 35), .moon)
+        XCTAssertEqual(InkbonesReading.Angle.of(roll: 100), .bell)
+        for roll in [3, 30, 60, 75, 99] {
+            for question in ["", "Will it rain?"] {
+                var reading = InkbonesReading.begin(question: question, belief: 50, edge: 0)
+                reading.throwBones(roll: roll)
+                XCTAssertTrue(reading.lines.isEmpty, "no reading until the throw is kept")
+                reading.keep()
+                XCTAssertEqual(reading.lines.count, 2)
+                XCTAssertTrue(reading.archiveText.contains("Threw \(roll) against a line of \(reading.line)"))
+            }
         }
-        XCTAssertLessThan(greyed(edge: 15), greyed(edge: 0))
-        XCTAssertGreaterThan(greyed(edge: 0), 0)
-    }
-
-    func testEveryReadingLineIsAuthoredAndInVoice() {
-        for face in InkbonesReading.Face.allCases {
-            for line in (1...4).map(face.line(count:)) + [face.shadowLine] {
-                XCTAssertTrue(line.hasSuffix(".") || line.hasSuffix("!"), line)
+        for angle in InkbonesReading.Angle.allCases {
+            for line in [angle.line, angle.shadowLine] {
+                XCTAssertTrue(line.hasSuffix("."), line)
                 XCTAssertFalse(line.lowercased().contains("the book"), line)
                 XCTAssertFalse(line.lowercased().contains("door"), line)
-                XCTAssertFalse(line.lowercased().contains("ritual"), line)
             }
         }
-        var reading = InkbonesReading.begin(seed: "x", question: "", edge: 0)
-        reading.read()
-        XCTAssertEqual(reading.ask, "One sentence: what lands, or what misses?")
     }
 
-    func testThreeOfAKindIsATriumph() {
-        var reading = InkbonesReading.begin(seed: "t", question: "", edge: 0)
-        for index in reading.bones.indices { reading.bones[index].face = index < 3 ? .moon : .coin }
-        reading.read()
-        XCTAssertTrue(reading.isTriumph)
-        XCTAssertTrue(reading.lines.first?.contains("triumph") == true)
-        XCTAssertTrue(reading.lines.contains(InkbonesReading.Face.moon.line(count: 3)))
-        XCTAssertTrue(reading.lines.contains(InkbonesReading.Face.coin.line(count: 2)))
+    func testKeptReadingsReplay() throws {
+        var reading = InkbonesReading.begin(question: "Is it time?", belief: 40, edge: 4)
+        reading.setStake(3)
+        reading.throwBones(roll: 40)
+        reading.keep()
+        reading.settled = true
+        let data = try JSONEncoder().encode(reading)
+        XCTAssertEqual(try JSONDecoder().decode(InkbonesReading.self, from: data), reading)
     }
 
     func testTheMorningBoneRetitlesOneCheckIn() throws {
@@ -232,8 +251,9 @@ final class KnockFightTests: XCTestCase {
     // MARK: Did the bones come true?
 
     func testTheBookAsksAFewDaysLaterWhetherAReadingCameTrue() throws {
-        var reading = InkbonesReading.begin(seed: "s", question: "Will it rain on Friday?", edge: 0)
-        reading.read()
+        var reading = InkbonesReading.begin(question: "Will it rain on Friday?", belief: 50, edge: 0)
+        reading.throwBones(roll: 30)
+        reading.keep()
         let stored = String(data: try JSONEncoder().encode(reading), encoding: .utf8)!
         func kept(daysAgo: Double) -> BookPage {
             BookPage(id: "reading-\(daysAgo)", type: .gamePage, createdAt: now.addingTimeInterval(-daysAgo * 86_400),

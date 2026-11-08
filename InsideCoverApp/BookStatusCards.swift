@@ -52,8 +52,8 @@ import MLX
 /// Real-world facts (prices, dates, event times, weather, and health readings)
 /// remain exact. These helpers are only for fictional simulation state.
 enum BookMechanicPresentation {
-    static func glow(_ value: Int) -> String {
-        BeliefLexicon.glowName(for: max(0, min(100, value)))
+    static func belief(_ value: Int) -> String {
+        BeliefLexicon.label(for: max(0, min(100, value)))
     }
 
     static func quantity(_ value: Int, none: String, some: String, many: String) -> String {
@@ -442,7 +442,7 @@ struct StoryFieldStatusCard: View {
 
     private var bookGlowText: String {
         let glow = metadata["bookGlow"]?.nonEmpty ?? metadata["playerBelief"]?.nonEmpty
-        return glow.map { "glow \($0)" } ?? "glow unread"
+        return glow.map { "belief \($0)" } ?? "belief unread"
     }
 
     private var threads: [String] {
@@ -975,7 +975,7 @@ struct BeliefScoreBadge: View {
     }
 
     private var tierName: String {
-        BeliefLexicon.glowName(for: clampedScore)
+        BeliefLexicon.label(for: clampedScore)
     }
 
     private var glowRadius: CGFloat {
@@ -1058,8 +1058,8 @@ struct BeliefScoreBadge: View {
                 }
             }
         }
-        .accessibilityLabel("My Glow is \(tierName.lowercased())")
-        .help("My Glow is \(tierName.lowercased())")
+        .accessibilityLabel("Your Belief is \(clampedScore)")
+        .help("Your Belief is \(clampedScore)")
     }
 }
 
@@ -1071,7 +1071,7 @@ struct GlowEntityMenuItem: Identifiable, Equatable {
     var line: String
 
     var glowName: String {
-        BeliefLexicon.glowName(for: glow)
+        BeliefLexicon.label(for: glow)
     }
 }
 
@@ -1086,7 +1086,7 @@ struct GlowPageMenuItem: Identifiable, Equatable {
     var narrativeWeight: Int
 
     var glowName: String {
-        BeliefLexicon.glowName(for: glow)
+        BeliefLexicon.label(for: glow)
     }
 
     var curationWeight: Int {
@@ -1691,7 +1691,7 @@ struct GlowCommandMenu: View {
     }
 
     private var tierName: String {
-        BeliefLexicon.glowName(for: score)
+        BeliefLexicon.label(for: score)
     }
 
     private var menuPaperSeed: Int { "glow-command-menu".stableHash }
@@ -1859,7 +1859,7 @@ struct GlowCommandMenu: View {
                     // above this, so printing it again here said the same
                     // three words twice, 60pt apart. The panel keeps the
                     // description and lets the badge do the naming.
-                    Text(BeliefLexicon.glowState(for: score))
+                    Text(BeliefLexicon.state(for: score))
                         .font(.system(.callout, design: .serif).italic())
                         .foregroundStyle(BookPalette.ink.opacity(0.78))
                         .multilineTextAlignment(.center)
@@ -2908,7 +2908,7 @@ struct GlowCommandMenu: View {
     }
 
     private var closeSeal: some View {
-        BookCommandCardCloseSeal(label: "Close Glow menu", onClose: onClose)
+        BookCommandCardCloseSeal(label: "Close Belief menu", onClose: onClose)
     }
 
     @ViewBuilder

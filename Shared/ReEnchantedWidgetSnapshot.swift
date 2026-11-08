@@ -281,7 +281,7 @@ struct ReEnchantedWidgetSnapshot: Codable, Equatable {
             )
         ],
         belief: ReEnchantedWidgetBelief(
-            title: "Glow",
+            title: "Belief",
             detail: "Ready",
             level: 30
         )

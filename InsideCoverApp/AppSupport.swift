@@ -1050,24 +1050,660 @@ private final class BookHapticEngine {
 }
 
 #if canImport(AVFoundation)
+/// The Overhead station: the sky playing the Book's own instruments, live.
+/// Real lute takes (scripts/render_overhead_bank.py), electronic pops and a
+/// round sub, wind sung through tuned bands, thunder on the leaf's own strike
+/// clock. Each sky is a small composer ported from
+/// scripts/weather_station_prototype.py; they run on the audio thread, so
+/// nothing here allocates once the bank is loaded.
+final class RadioSkyVoice: @unchecked Sendable {
+    // MARK: Bank (written once on the main actor before the node is attached)
+
+    private struct Sound { var data: UnsafeMutablePointer<Int16>?; var count: Int }
+    private static let luteDegrees = -2...10
+    private static let takes = 2
+    private static let popDegrees = [3, 5, 7, 8]
+    private static let soundCapacity = 48
+    private let sounds = UnsafeMutablePointer<Sound>.allocate(capacity: soundCapacity)
+    private var soundScale: Float = 1
+    private(set) var isLoaded = false
+    private var popBase = 0, popFallBase = 0, creakBase = 0, creakCount = 0
+
+    // MARK: Control (main writes, render reads)
+
+    private enum C: Int { case gain, family, amount, night, wind, count }
+    private let control = UnsafeMutablePointer<Double>.allocate(capacity: C.count.rawValue)
+
+    // MARK: Render state (audio thread only)
+
+    private struct Voice {
+        var kind: Int8 = 0          // 0 off, 1 sample, 2 sub, 3 thump
+        var sound = 0
+        var reverse = false
+        var delay = 0
+        var pos = 0
+        var length = 0
+        var gain: Float = 0
+        var left: Float = 0
+        var right: Float = 0
+        var lpA: Float = 0          // 0 = no extra lowpass
+        var lp1: Float = 0
+        var lp2: Float = 0
+        var freq: Double = 0
+        var phase: Double = 0
+        var attack: Double = 0.006
+        var tau: Double = 1
+        var crash: Float = 0
+        var crash2: Float = 0
+        var rumble: Float = 0
+    }
+    private static let voiceCapacity = 72
+    private let voices = UnsafeMutablePointer<Voice>.allocate(capacity: voiceCapacity)
+    private static let mixCapacity = 16_384
+    private let mixL = UnsafeMutablePointer<Float>.allocate(capacity: mixCapacity)
+    private let mixR = UnsafeMutablePointer<Float>.allocate(capacity: mixCapacity)
+
+    private var lcg: UInt64 = 0x2545_F491_4F6C_DD1D
+    private var clock = 0                    // frames since the voice began
+    private var family = -1
+    private var nextStep = 0
+    private var stepIndex = 0
+    private var cur = 5
+    private var lastNoteAt = -1_000_000
+    private var lastDegree = 5
+    private var nextDrop = 0
+    private var nextPedal = 0
+    private var phrase = (0, 2, 3, 5, 0)
+    private var rep = 0
+    private var gain: Double = 0
+    private var gust: Double = 0.3, gustTarget: Double = 0.3, gustAt = 0
+    private var windLevel: Double = 0
+    private var w1 = (low: 0.0, band: 0.0), w2 = (low: 0.0, band: 0.0), w3 = (low: 0.0, band: 0.0)
+    private var air1 = 0.0, air2 = 0.0, windOut1 = 0.0, windOut2 = 0.0
+    private var windPower = (1.0, 1.0, 1.0, 1.0)
+    private var master1 = (l: Float(0), r: Float(0)), master2 = (l: Float(0), r: Float(0))
+    private var lastFlash = 0.0
+    private var carrier = 0.0
+
+    init() {
+        sounds.initialize(repeating: Sound(data: nil, count: 0), count: Self.soundCapacity)
+        control.initialize(repeating: 0, count: C.count.rawValue)
+        control[C.family.rawValue] = -1
+        voices.initialize(repeating: Voice(), count: Self.voiceCapacity)
+        mixL.initialize(repeating: 0, count: Self.mixCapacity)
+        mixR.initialize(repeating: 0, count: Self.mixCapacity)
+    }
+
+    deinit {
+        for index in 0..<Self.soundCapacity { sounds[index].data?.deallocate() }
+        sounds.deallocate()
+        control.deallocate()
+        voices.deallocate()
+        mixL.deallocate()
+        mixR.deallocate()
+    }
+
+    // MARK: Main actor
+
+    /// Decode the bundled notes. Once; about 6 MB as 16-bit samples.
+    @discardableResult
+    func loadBankIfNeeded(bundle: Bundle = .main) -> Bool {
+        guard !isLoaded else { return true }
+        let folder = "RadioAudio/Overhead"
+        guard let manifestURL = bundle.url(forResource: "manifest", withExtension: "json", subdirectory: folder),
+              let data = try? Data(contentsOf: manifestURL),
+              let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let scale = manifest["gain"] as? Double else { return false }
+        var names: [String] = []
+        for degree in Self.luteDegrees {
+            for take in 0..<Self.takes { names.append(String(format: "lute_%02d_%d", degree + 2, take)) }
+        }
+        popBase = names.count
+        names += Self.popDegrees.map { "pop_\($0)" }
+        popFallBase = names.count
+        names += Self.popDegrees.map { "popfall_\($0)" }
+        creakBase = names.count
+        let creaks = (manifest["creaks"] as? Int) ?? 0
+        names += (0..<creaks).map { "creak_\($0)" }
+        creakCount = creaks
+        guard names.count <= Self.soundCapacity else { return false }
+        for (index, name) in names.enumerated() {
+            guard let url = bundle.url(forResource: name, withExtension: "caf", subdirectory: folder),
+                  let file = try? AVAudioFile(forReading: url),
+                  let buffer = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+                  (try? file.read(into: buffer)) != nil,
+                  let channel = buffer.floatChannelData?[0] else { return false }
+            let count = Int(buffer.frameLength)
+            let samples = UnsafeMutablePointer<Int16>.allocate(capacity: max(1, count))
+            for frame in 0..<count {
+                samples[frame] = Int16(max(-1, min(1, channel[frame])) * 32_767)
+            }
+            sounds[index] = Sound(data: samples, count: count)
+        }
+        soundScale = Float(scale) / 32_767
+        isLoaded = true
+        return true
+    }
+
+    func setOn(_ isOn: Bool) { control[C.gain.rawValue] = isOn ? 1 : 0 }
+    var isOn: Bool { control[C.gain.rawValue] > 0 }
+
+    /// What is playing the station, or nil for off the air.
+    func setSky(_ sky: OverheadSky?, wind: Double) {
+        let code: Double
+        var amount = 0.0
+        var night = 0.0
+        switch sky {
+        case .none: code = -1
+        case .clear(let isNight)?: code = isNight ? 1 : 0; night = isNight ? 1 : 0
+        case .cloud(let isNight)?: code = isNight ? 1 : 7; night = isNight ? 1 : 0
+        case .rain(let value)?: code = 2; amount = value
+        case .storm(let value)?: code = 3; amount = value
+        case .windy(let value, let isNight)?: code = 4; amount = value; night = isNight ? 1 : 0
+        case .snow(let value)?: code = 5; amount = value
+        case .fog?: code = 6
+        }
+        control[C.amount.rawValue] = amount
+        control[C.night.rawValue] = night
+        control[C.wind.rawValue] = wind
+        control[C.family.rawValue] = code
+    }
+
+    /// The room each sky plays in.
+    static func room(for sky: OverheadSky?) -> (preset: AVAudioUnitReverbPreset, wet: Float) {
+        switch sky {
+        case .none: return (.smallRoom, 10)
+        case .clear(let night)?, .cloud(let night)?: return night ? (.largeHall, 45) : (.mediumRoom, 20)
+        case .rain?: return (.mediumHall, 28)
+        case .storm?: return (.mediumHall, 25)
+        case .windy?: return (.mediumHall, 25)
+        case .snow?: return (.largeHall, 35)
+        case .fog?: return (.cathedral, 50)
+        }
+    }
+
+    nonisolated static func makeNode(for voice: RadioSkyVoice, format: AVAudioFormat) -> AVAudioSourceNode {
+        let sampleRate = format.sampleRate
+        return AVAudioSourceNode(format: format) { isSilence, _, frameCount, audioBufferList -> OSStatus in
+            voice.render(frameCount: Int(frameCount), sampleRate: sampleRate, isSilence: isSilence, buffers: audioBufferList)
+            return noErr
+        }
+    }
+
+    // MARK: Randomness and pitch
+
+    private func unit() -> Double {
+        lcg = lcg &* 6364136223846793005 &+ 1442695040888963407
+        return Double(lcg >> 11) / Double(1 << 53)
+    }
+    private func uniform(_ lo: Double, _ hi: Double) -> Double { lo + (hi - lo) * unit() }
+    private func integer(_ lo: Int, _ hi: Int) -> Int { lo + Int(unit() * Double(hi - lo + 1)) % (hi - lo + 1) }
+    private func normal(_ sigma: Double) -> Double {
+        let u = max(1e-9, unit()), v = unit()
+        return sigma * sqrt(-2 * log(u)) * cos(2 * .pi * v)
+    }
+    private func white() -> Double { unit() * 2 - 1 }
+
+    private static func hz(_ degree: Int) -> Double {
+        let octave = Int(floor(Double(degree) / 5))
+        let step = degree - octave * 5
+        let semitones = step == 0 ? 0 : step == 1 ? 2 : step == 2 ? 4 : step == 3 ? 7 : 9
+        let midi = 62 + 12 * octave + semitones
+        return 440 * pow(2, Double(midi - 69) / 12)
+    }
+    private static func isChordTone(_ degree: Int) -> Bool {
+        let step = ((degree % 5) + 5) % 5
+        return step == 0 || step == 2 || step == 3       // D, F#, A
+    }
+    private func chordTone(_ lo: Int, _ hi: Int) -> Int {
+        var count = 0
+        for degree in lo...hi where Self.isChordTone(degree) { count += 1 }
+        guard count > 0 else { return lo }
+        var pick = integer(0, count - 1)
+        for degree in lo...hi where Self.isChordTone(degree) {
+            if pick == 0 { return degree }
+            pick -= 1
+        }
+        return lo
+    }
+    private func walk(_ value: Int, _ lo: Int, _ hi: Int, leap: Int = 2) -> Int {
+        max(lo, min(hi, value + integer(-leap, leap)))
+    }
+    /// A melodic step that never lands one scale step from a note still
+    /// ringing: neighbours a whole tone apart beat against each other.
+    private func melodic(_ lo: Int, _ hi: Int, at frame: Int, ring: Double, leap: Int = 2, sampleRate: Double) -> Int {
+        var next = walk(cur, lo, hi, leap: leap)
+        if Double(frame - lastNoteAt) < ring * sampleRate, abs(next - lastDegree) == 1 {
+            let away = next + (next > lastDegree ? 1 : -1)
+            next = away >= lo && away <= hi ? away : lastDegree
+        }
+        cur = next
+        lastDegree = next
+        lastNoteAt = frame
+        return next
+    }
+
+    // MARK: Spawning (audio thread)
+
+    private func freeVoice() -> Int? {
+        for index in 0..<Self.voiceCapacity where voices[index].kind == 0 { return index }
+        return nil
+    }
+    private static func pan(_ value: Double) -> (Float, Float) {
+        let theta = (max(-1, min(1, value)) + 1) * .pi / 4
+        return (Float(cos(theta)), Float(sin(theta)))
+    }
+    private func lowpassCoefficient(_ cutoff: Double, _ sampleRate: Double) -> Float {
+        cutoff <= 0 ? 0 : Float(1 - exp(-2 * .pi * cutoff / sampleRate))
+    }
+
+    private func lute(_ degree: Int, at frame: Int, seconds: Double, gain: Double, pan: Double,
+                      cutoff: Double = 0, reverse: Bool = false, sampleRate: Double) {
+        let clamped = max(Self.luteDegrees.lowerBound, min(Self.luteDegrees.upperBound, degree))
+        let index = (clamped - Self.luteDegrees.lowerBound) * Self.takes + integer(0, Self.takes - 1)
+        play(sound: index, at: frame, seconds: seconds, gain: gain, pan: pan, cutoff: cutoff, reverse: reverse, sampleRate: sampleRate)
+    }
+    private func pop(_ degree: Int, falling: Bool = false, at frame: Int, gain: Double, pan: Double, sampleRate: Double) {
+        let slot: Int
+        switch degree {
+        case 3: slot = 0
+        case 5: slot = 1
+        case 7: slot = 2
+        case 8: slot = 3
+        default: return
+        }
+        play(sound: (falling ? popFallBase : popBase) + slot, at: frame, seconds: 0.2, gain: gain, pan: pan, sampleRate: sampleRate)
+    }
+    private func play(sound: Int, at frame: Int, seconds: Double, gain: Double, pan: Double,
+                      cutoff: Double = 0, reverse: Bool = false, sampleRate: Double) {
+        guard let slot = freeVoice(), sounds[sound].data != nil else { return }
+        let (l, r) = Self.pan(pan)
+        voices[slot] = Voice(
+            kind: 1, sound: sound, reverse: reverse, delay: max(0, frame - clock), pos: 0,
+            length: min(sounds[sound].count, Int(seconds * sampleRate)),
+            gain: Float(gain), left: l, right: r, lpA: lowpassCoefficient(cutoff, sampleRate)
+        )
+    }
+    private func sub(_ degree: Int, at frame: Int, seconds: Double, gain: Double,
+                     attack: Double = 0.006, tau: Double? = nil, sampleRate: Double) {
+        guard let slot = freeVoice() else { return }
+        voices[slot] = Voice(
+            kind: 2, delay: max(0, frame - clock), length: Int(seconds * sampleRate),
+            gain: Float(gain), left: 0.7071, right: 0.7071,
+            freq: Self.hz(degree), attack: attack, tau: tau ?? seconds * 0.4
+        )
+    }
+    private func thump(at frame: Int, strength: Double, sampleRate: Double) {
+        guard let slot = freeVoice() else { return }
+        voices[slot] = Voice(kind: 3, delay: max(0, frame - clock), length: Int(2.6 * sampleRate),
+                             gain: Float(0.9 * strength), left: 0.7071, right: 0.7071)
+    }
+    private func pops(_ degrees: (Int, Int, Int, Int), count: Int, at frame: Int, gap: Double, gain: Double,
+                      falling: Bool, sampleRate: Double) {
+        for k in 0..<min(4, count) {
+            let frac = Double(k) / Double(max(1, count - 1))
+            let side: Double = k % 2 == 0 ? -1 : 1
+            let degree = k == 0 ? degrees.0 : k == 1 ? degrees.1 : k == 2 ? degrees.2 : degrees.3
+            pop(degree, falling: falling, at: frame + Int(gap * Double(k) * sampleRate), gain: gain,
+                pan: 0.6 * side * (0.35 + 0.65 * frac), sampleRate: sampleRate)
+        }
+    }
+
+    // MARK: Composers (audio thread)
+
+    /// Emit every step that begins before `end`. Steps may schedule notes a
+    /// little later than themselves; voices wait out their delay.
+    private func compose(until end: Int, sampleRate sr: Double) {
+        let amount = control[C.amount.rawValue]
+        func frames(_ seconds: Double) -> Int { Int(seconds * sr) }
+        switch family {
+        case 0, 7: // clear or cloudy day
+            let cutoff = family == 7 ? 1800.0 : 0
+            let beat = 60.0 / 76
+            while nextStep < end {
+                let at = nextStep
+                let step = stepIndex % 8
+                let bar = stepIndex / 8
+                if step == 0 { sub(bar % 4 == 3 ? -2 : -5, at: at, seconds: 1.6, gain: 0.5, sampleRate: sr) }
+                if unit() < (step % 2 == 0 ? 0.62 : 0.3) {
+                    let degree = melodic(2, 9, at: at, ring: 0.6, sampleRate: sr)
+                    lute(degree, at: at, seconds: 0.6, gain: 0.5, pan: uniform(-0.5, 0.5), cutoff: cutoff, sampleRate: sr)
+                }
+                if step == 7, unit() < 0.5 {
+                    pops((chordTone(5, 8), chordTone(5, 8), 0, 0), count: 2, at: at + frames(beat * 0.5),
+                         gap: 0.045, gain: 0.14, falling: false, sampleRate: sr)
+                }
+                stepIndex += 1
+                nextStep += frames(beat / 2)
+            }
+        case 1: // clear or cloudy night
+            while nextStep < end {
+                let at = nextStep
+                let degree = chordTone(5, 8)
+                lute(degree, at: at, seconds: 2.4, gain: 0.42, pan: uniform(-0.8, 0.8), cutoff: 2200, sampleRate: sr)
+                if unit() < 0.35 { pop(min(degree, 8), at: at + frames(0.9), gain: 0.12, pan: uniform(-0.8, 0.8), sampleRate: sr) }
+                if unit() < 0.3 { sub(-10, at: at + frames(0.2), seconds: 2.2, gain: 0.45, attack: 0.02, sampleRate: sr) }
+                nextStep += frames(uniform(2.2, 5.5))
+            }
+        case 2: // rain
+            let rate = 0.8 + 6 * amount
+            while nextDrop < end {
+                let t = Double(nextDrop) / sr
+                let wave = 0.55 + 0.45 * pow(sin(2 * .pi * t / 11), 2)
+                if unit() < 0.68 {
+                    lute(chordTone(3, 8), at: nextDrop, seconds: 0.32, gain: 0.36 * wave, pan: uniform(-0.9, 0.9), cutoff: 2400, sampleRate: sr)
+                } else {
+                    pop(chordTone(5, 8), at: nextDrop, gain: 0.16 * wave, pan: uniform(-0.9, 0.9), sampleRate: sr)
+                }
+                nextDrop += max(1, frames(-log(max(1e-6, unit())) / rate))
+            }
+            let bar = 4 * 60.0 / 64
+            while nextPedal < end {
+                sub(stepIndex % 3 == 0 ? -2 : -5, at: nextPedal, seconds: 3, gain: 0.45, attack: 0.04, sampleRate: sr)
+                stepIndex += 1
+                nextPedal += frames(bar)
+            }
+        case 3: // storm
+            let beat = 60.0 / (96 + 30 * amount)
+            let pattern = (-5, -2, -5, 0, -5, -2, 2, -2)
+            while nextStep < end {
+                let degree = withUnsafeBytes(of: pattern) { $0.bindMemory(to: Int.self)[stepIndex % 8] }
+                sub(degree, at: nextStep, seconds: 0.4, gain: 0.55, tau: 0.12, sampleRate: sr)
+                if stepIndex % 2 == 0 {
+                    lute(degree + 5, at: nextStep, seconds: 0.4, gain: 0.32, pan: stepIndex % 4 == 0 ? 0.2 : -0.2, cutoff: 1500, sampleRate: sr)
+                }
+                stepIndex += 1
+                nextStep += frames(beat / 2)
+            }
+            while nextDrop < end {
+                lute(chordTone(3, 8), at: nextDrop, seconds: 0.25, gain: 0.2, pan: uniform(-1, 1), cutoff: 2200, sampleRate: sr)
+                nextDrop += max(1, frames(-log(max(1e-6, unit())) / 7))
+            }
+        case 4: // windy
+            let beat = 60.0 / 70
+            while nextStep < end {
+                let push = gust
+                if unit() < 0.25 + 0.4 * push {
+                    _ = melodic(0, 7, at: nextStep, ring: 0.7, sampleRate: sr)
+                    let jitter = normal(0.03 + 0.12 * push)
+                    let pan = max(-1, min(1, (push - 0.5) * 1.6 + normal(0.2)))
+                    lute(cur, at: nextStep + max(0, frames(0.2 + jitter)), seconds: 0.7, gain: 0.45, pan: pan, cutoff: 2000, sampleRate: sr)
+                }
+                nextStep += frames(beat / 2)
+            }
+        case 5: // snow
+            let beat = 60.0 / 48
+            while nextStep < end {
+                let at = nextStep
+                if unit() < 0.7 {
+                    let degree = melodic(-2, 6, at: at, ring: 1.8, leap: 1, sampleRate: sr)
+                    lute(degree, at: at, seconds: 1.8, gain: 0.55, pan: uniform(-0.4, 0.4), cutoff: 900, sampleRate: sr)
+                }
+                if creakCount > 0, unit() < 0.18 {
+                    play(sound: creakBase + integer(0, creakCount - 1), at: at + frames(0.3), seconds: 0.8, gain: 0.35,
+                         pan: uniform(-0.6, 0.6), sampleRate: sr)
+                }
+                if unit() < 0.22 { pop(chordTone(3, 6), at: at + frames(beat * 0.5), gain: 0.1, pan: 0, sampleRate: sr) }
+                nextStep += frames(beat)
+            }
+        case 6: // fog: a phrase half-heard, some notes arriving backwards
+            let beat = 60.0 / 54
+            while nextStep < end {
+                let missing = integer(0, 4)
+                for i in 0..<5 where i != missing {
+                    let degree = i == 0 ? phrase.0 : i == 1 ? phrase.1 : i == 2 ? phrase.2 : i == 3 ? phrase.3 : phrase.4
+                    let backwards = (i + rep) % 3 == 0
+                    lute(degree, at: nextStep + frames(Double(i) * beat), seconds: 1.4, gain: backwards ? 0.42 : 0.5,
+                         pan: uniform(-0.7, 0.7), cutoff: 1000, reverse: backwards, sampleRate: sr)
+                }
+                nextStep += frames(beat * 7)
+                rep += 1
+                if rep % 2 == 0 {
+                    switch integer(0, 4) {
+                    case 0: phrase.0 = chordTone(0, 6)
+                    case 1: phrase.1 = chordTone(0, 6)
+                    case 2: phrase.2 = chordTone(0, 6)
+                    case 3: phrase.3 = chordTone(0, 6)
+                    default: phrase.4 = chordTone(0, 6)
+                    }
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    private func restart(family newFamily: Int, sampleRate sr: Double) {
+        family = newFamily
+        stepIndex = 0
+        rep = 0
+        let lead = clock + Int(0.3 * sr)
+        nextStep = lead
+        nextDrop = lead
+        nextPedal = lead
+        cur = newFamily == 5 ? 3 : newFamily == 4 ? 4 : 5
+        phrase = (chordTone(0, 6), chordTone(0, 6), chordTone(0, 6), chordTone(0, 6), chordTone(0, 6))
+    }
+
+    // MARK: Render
+
+    private struct SkyMix { var wind: Double; var gustRate: Double; var gustFloor: Double; var lowpass: Double; var level: Double; var drive: Double }
+    private static func mix(for family: Int) -> SkyMix {
+        switch family {
+        case 1: return SkyMix(wind: 0, gustRate: 0.2, gustFloor: 0.2, lowpass: 0, level: 1.0, drive: 1.1)
+        case 2: return SkyMix(wind: 0, gustRate: 0.2, gustFloor: 0.2, lowpass: 0, level: 1.0, drive: 1.1)
+        case 3: return SkyMix(wind: 0.05, gustRate: 0.35, gustFloor: 0.3, lowpass: 0, level: 1.0, drive: 1.3)
+        case 4: return SkyMix(wind: 0.075, gustRate: 0.22, gustFloor: 0.12, lowpass: 0, level: 1.0, drive: 1.1)
+        case 5: return SkyMix(wind: 0, gustRate: 0.2, gustFloor: 0.2, lowpass: 1100, level: 1.0, drive: 1.1)
+        case 6: return SkyMix(wind: 0, gustRate: 0.2, gustFloor: 0.2, lowpass: 1400, level: 1.0, drive: 1.1)
+        default: return SkyMix(wind: 0, gustRate: 0.2, gustFloor: 0.2, lowpass: 0, level: 1.0, drive: 1.1)
+        }
+    }
+
+    /// Headroom before the saturator: the lute takes carry pluck()'s own hot
+    /// levels.
+    static let preGain: Float = 0.3
+
+    /// Per-sky output level, calibrated offline against the prototype's
+    /// loudness (scripts/weather_station_prototype.py).
+    private static func level(for family: Int) -> Double {
+        switch family {
+        // Stations' songs play near -18.5 dBFS; Overhead sits a little under
+        // them, the sparse skies lower still, the storm allowed up close.
+        case 0, 7: return 1.80     // clear or cloudy day, ~-22
+        case 1: return 1.30        // night, ~-24
+        case 2: return 2.19        // rain, ~-22
+        case 3: return 1.10        // storm, ~-19
+        case 4: return 0.74        // windy, ~-22
+        case 5: return 2.16        // snow, ~-24
+        case 6: return 2.04        // fog, ~-25
+        default: return 1          // off the air: the carrier only
+        }
+    }
+
+    private func render(frameCount: Int, sampleRate sr: Double, isSilence: UnsafeMutablePointer<ObjCBool>,
+                        buffers: UnsafeMutablePointer<AudioBufferList>) {
+        let list = UnsafeMutableAudioBufferListPointer(buffers)
+        let target = control[C.gain.rawValue]
+        if target == 0, gain < 0.000_1 {
+            gain = 0
+            for buffer in list { if let data = buffer.mData { memset(data, 0, Int(buffer.mDataByteSize)) } }
+            isSilence.pointee = true
+            return
+        }
+        let frames = min(frameCount, Self.mixCapacity)
+        let requested = Int(control[C.family.rawValue])
+        if requested != family { restart(family: requested, sampleRate: sr) }
+        let start = clock
+        let end = clock + frames
+        compose(until: end, sampleRate: sr)
+
+        // Lightning: the leaf's strike clock, checked every 64 frames.
+        if family == 3 {
+            let wall = Date().timeIntervalSinceReferenceDate
+            let strength = 0.5 + 0.5 * control[C.amount.rawValue]
+            var offset = 0
+            while offset < frames {
+                let flash = SkyField.lightning(at: wall + Double(offset) / sr, seed: RadioBandWeather.lightningSeed)
+                if flash > 0.01, lastFlash <= 0.01 {
+                    let at = start + offset
+                    thump(at: at, strength: flash * strength, sampleRate: sr)
+                    for j in 0..<7 {
+                        lute(10 - 2 * j, at: at + Int((0.12 + 0.07 * Double(j)) * sr), seconds: 0.5,
+                             gain: 0.45 * (1 - 0.08 * Double(j)), pan: -0.7 + 0.2 * Double(j), cutoff: 2400, sampleRate: sr)
+                    }
+                    pops((8, 7, 5, 3), count: 4, at: at + Int(0.05 * sr), gap: 0.035, gain: 0.18, falling: true, sampleRate: sr)
+                }
+                lastFlash = flash
+                offset += 64
+            }
+        }
+
+        for frame in 0..<frames { mixL[frame] = 0; mixR[frame] = 0 }
+        let dt = 1 / sr
+        for index in 0..<Self.voiceCapacity where voices[index].kind != 0 {
+            var v = voices[index]
+            var frame = 0
+            if v.delay >= frames { v.delay -= frames; voices[index] = v; continue }
+            frame = v.delay
+            v.delay = 0
+            let fadeFrames = max(1, Int(0.025 * sr))
+            while frame < frames, v.pos < v.length {
+                var s: Float
+                switch v.kind {
+                case 1:
+                    let sound = sounds[v.sound]
+                    let read = v.reverse ? v.length - 1 - v.pos : v.pos
+                    s = Float(sound.data![read]) * soundScale
+                case 2:
+                    let t = Double(v.pos) * dt
+                    v.phase += 2 * .pi * v.freq * dt
+                    if v.phase > 2 * .pi { v.phase -= 2 * .pi }
+                    s = Float(sin(v.phase) * min(t / v.attack, 1) * exp(-t / v.tau))
+                default:
+                    let t = Double(v.pos) * dt
+                    let f = 73.42 * (1 + 1.2 * exp(-t / 0.04))
+                    v.phase += 2 * .pi * f * dt
+                    let subDrop = sin(v.phase) * exp(-t / 0.55)
+                    let n = Float(white())
+                    v.crash += (n - v.crash) * 0.15
+                    v.crash2 += (v.crash - v.crash2) * 0.15      // two poles: a dark crash, not a hiss
+                    v.rumble += (n - v.rumble) * 0.017
+                    let crash = Double(v.crash2) * 3.4 * exp(-t / 0.09)
+                    let rumble = Double(v.rumble) * 13 * min(t / 0.25, 1) * exp(-t / 0.9)
+                    s = Float(subDrop + crash * 0.55 + rumble * 0.25)
+                }
+                if v.lpA > 0 {
+                    v.lp1 += (s - v.lp1) * v.lpA
+                    v.lp2 += (v.lp1 - v.lp2) * v.lpA
+                    s = v.lp2
+                }
+                let remaining = v.length - v.pos
+                if remaining < fadeFrames { s *= Float(remaining) / Float(fadeFrames) }
+                if v.reverse, v.pos < fadeFrames { s *= Float(v.pos) / Float(fadeFrames) }
+                s *= v.gain
+                mixL[frame] += s * v.left
+                mixR[frame] += s * v.right
+                v.pos += 1
+                frame += 1
+            }
+            if v.pos >= v.length { v.kind = 0 }
+            voices[index] = v
+        }
+
+        let mix = Self.mix(for: family)
+        let level = Self.level(for: family)
+        let gainSlew = 1 - exp(-dt / 0.25)
+        let gustSlew = 1 - exp(-dt / 0.27)
+        let windSlew = 1 - exp(-dt / 2.0)
+        let masterA = Float(mix.lowpass > 0 ? 1 - exp(-2 * .pi * mix.lowpass / sr) : 1)
+        let bands = (146.83, 220.0, 369.99)
+        func svf(_ state: inout (low: Double, band: Double), _ input: Double, _ hz: Double) -> Double {
+            let f = 2 * sin(.pi * hz / sr)
+            let high = input - state.low - 0.07 * state.band
+            state.band += f * high
+            state.low += f * state.band
+            return state.band
+        }
+        let airA = 1 - exp(-2 * .pi * 800 / sr), airHP = 1 - exp(-2 * .pi * 200 / sr)
+        let windLP = 1 - exp(-2 * .pi * 1100 / sr)
+        let left = list.count > 0 ? list[0].mData?.assumingMemoryBound(to: Float.self) : nil
+        let right = list.count > 1 ? list[1].mData?.assumingMemoryBound(to: Float.self) : nil
+
+        for frame in 0..<frames {
+            gain += (target - gain) * gainSlew
+            var l = mixL[frame] * Self.preGain, r = mixR[frame] * Self.preGain
+
+            // Wind singing in a resonant body, swelling with uneven gusts.
+            if clock + frame >= gustAt {
+                gustTarget = mix.gustFloor + (1 - mix.gustFloor) * pow(unit(), 1.6)
+                gustAt = clock + frame + Int(sr / (mix.gustRate * 4))
+            }
+            gust += (gustTarget - gust) * gustSlew
+            windLevel += (mix.wind - windLevel) * windSlew
+            if windLevel > 0.000_5 {
+                let n = white() * 1.7
+                let a = svf(&w1, n, bands.0), b = svf(&w2, n, bands.1), c = svf(&w3, n, bands.2)
+                air1 += (n - air1) * airA
+                air2 += (air1 - air2) * airHP
+                let airBand = air1 - air2
+                windPower.0 += (a * a - windPower.0) * 0.0002
+                windPower.1 += (b * b - windPower.1) * 0.0002
+                windPower.2 += (c * c - windPower.2) * 0.0002
+                windPower.3 += (airBand * airBand - windPower.3) * 0.0002
+                var wind = a / sqrt(windPower.0 + 1e-9) + b / sqrt(windPower.1 + 1e-9) + c / sqrt(windPower.2 + 1e-9)
+                wind += 0.25 * airBand / sqrt(windPower.3 + 1e-9)
+                windOut1 += (wind * gust - windOut1) * windLP
+                windOut2 += (windOut1 - windOut2) * windLP
+                let w = Float(windOut2 * windLevel)
+                l += w; r += w
+            }
+            // Off the air: only a faint carrier.
+            if family < 0 {
+                carrier += (white() - carrier) * 0.05
+                l += Float(carrier * 0.02); r += Float(carrier * 0.02)
+            }
+            if masterA < 1 {
+                master1.l += (l - master1.l) * masterA; master2.l += (master1.l - master2.l) * masterA
+                master1.r += (r - master1.r) * masterA; master2.r += (master1.r - master2.r) * masterA
+                l = master2.l; r = master2.r
+            }
+            let drive = mix.drive
+            let norm = Float(1 / tanh(drive))
+            let out = Float(gain * level)
+            left?[frame] = tanhf(l * Float(drive)) * norm * out
+            right?[frame] = tanhf(r * Float(drive)) * norm * out
+        }
+        if frames < frameCount {
+            for frame in frames..<frameCount { left?[frame] = 0; right?[frame] = 0 }
+        }
+        clock = end
+        isSilence.pointee = false
+    }
+}
+
 /// The live static between stations. Synthesized on the audio thread so the
 /// band answers the dial while it moves: turning scrapes and crackles, the
 /// heterodyne whistle falls as a station nears, and almost-words rise out of
 /// the hiss just before the broadcast catches. The main actor only writes the
 /// handful of targets below; the render block smooths toward them.
 final class RadioStaticVoice: @unchecked Sendable {
-    private let targets = UnsafeMutablePointer<Double>.allocate(capacity: 10)
-    private let state = UnsafeMutablePointer<Double>.allocate(capacity: 32)
+    private let targets = UnsafeMutablePointer<Double>.allocate(capacity: 11)
+    private let state = UnsafeMutablePointer<Double>.allocate(capacity: 44)
+    /// A few seconds of the reader's own kept voice, loaded while the ghost
+    /// is idle and read only by the render block once triggered.
+    private var ghostData: UnsafeMutablePointer<Float>?
+    private var ghostCount = 0
     private var lcg: UInt64 = 0x9E37_79B9_7F4A_7C15
 
     private enum Target: Int {
         case gain, proximity, dial, nudge
-        case hiss, darkness, sizzle, crashes, fading, reach
+        case hiss, darkness, sizzle, crashes, fading, reach, ghostTrigger
     }
 
     init() {
-        targets.initialize(repeating: 0, count: 10)
-        state.initialize(repeating: 0, count: 32)
+        targets.initialize(repeating: 0, count: 11)
+        state.initialize(repeating: 0, count: 44)
         targets[Target.dial.rawValue] = 94.1
         setWeather(.calm)
     }
@@ -1075,6 +1711,33 @@ final class RadioStaticVoice: @unchecked Sendable {
     deinit {
         targets.deallocate()
         state.deallocate()
+        ghostData?.deallocate()
+    }
+
+    /// True while no ghost is sounding, so a new one may be loaded.
+    var ghostIsIdle: Bool {
+        state[S.ghostActive.rawValue] == 0 && targets[Target.ghostTrigger.rawValue] == state[S.ghostLastTrigger.rawValue]
+    }
+
+    /// Hand over the reader's voice (mono, at the engine's rate). Refused
+    /// while one is sounding.
+    @discardableResult
+    func loadGhost(_ samples: [Float]) -> Bool {
+        guard ghostIsIdle, !samples.isEmpty else { return false }
+        ghostData?.deallocate()
+        let data = UnsafeMutablePointer<Float>.allocate(capacity: samples.count)
+        data.initialize(from: samples, count: samples.count)
+        ghostData = data
+        ghostCount = samples.count
+        return true
+    }
+
+    var hasGhost: Bool { ghostData != nil }
+
+    /// Let it through the hiss once.
+    func playGhost() {
+        guard ghostData != nil, ghostIsIdle else { return }
+        targets[Target.ghostTrigger.rawValue] += 1
     }
 
     /// Called on the main actor as the dial moves.
@@ -1122,6 +1785,7 @@ final class RadioStaticVoice: @unchecked Sendable {
         case voiceLow, voiceBand, syllablePhase, phrasePhase, crackle, crackleSign
         case movement, lastNudge, weatherPhase, time, bandHz, wobblePhase
         case hiss, darkness, sizzle, fading, reach, muffled, sizzleEnv, rumble, rumbleLow, lastFlash
+        case ghostActive, ghostPos, ghostTime, ghostLastTrigger, ghostLow, ghostLP1, ghostLP2
     }
 
     private func render(
@@ -1199,6 +1863,25 @@ final class RadioStaticVoice: @unchecked Sendable {
         // The leaf's own strike clock, so the crash lands on the flash.
         let startTime = Date().timeIntervalSinceReferenceDate
         let muffle = 1 - darkness * 0.93
+        // The ghost: the reader's own voice, carried a while and played back
+        // as if off old tape: wow and flutter, a narrow band, soft saturation.
+        let ghostTrigger = targets[Target.ghostTrigger.rawValue]
+        if ghostTrigger != state[S.ghostLastTrigger.rawValue] {
+            state[S.ghostLastTrigger.rawValue] = ghostTrigger
+            if ghostData != nil {
+                state[S.ghostActive.rawValue] = 1
+                state[S.ghostPos.rawValue] = 0
+                state[S.ghostTime.rawValue] = 0
+            }
+        }
+        var ghostActive = state[S.ghostActive.rawValue] > 0
+        var ghostPos = state[S.ghostPos.rawValue]
+        var ghostTime = state[S.ghostTime.rawValue]
+        var ghostLow = state[S.ghostLow.rawValue]
+        var ghostLP1 = state[S.ghostLP1.rawValue], ghostLP2 = state[S.ghostLP2.rawValue]
+        let ghostSeconds = Double(ghostCount) / sampleRate
+        let ghostHP = 1 - exp(-2 * Double.pi * 350 / sampleRate)
+        let ghostLP = 1 - exp(-2 * Double.pi * 2_800 / sampleRate)
         let fadeDepth = 0.28 + 0.45 * fading
         let fadeRate = 1 + 1.5 * fading
 
@@ -1291,6 +1974,24 @@ final class RadioStaticVoice: @unchecked Sendable {
             rumble *= rumbleDecay
 
             var body = pink * hissLevel + white * brightness * 0.12 + words + pop * 0.5 + sizzleEnv
+            if ghostActive, let ghostData {
+                let rate = 1 + 0.006 * sin(twoPi * 0.7 * ghostTime) + 0.002 * sin(twoPi * 9 * ghostTime)
+                ghostPos += rate
+                let index = Int(ghostPos)
+                if index + 1 >= ghostCount {
+                    ghostActive = false
+                } else {
+                    let frac = Float(ghostPos - Double(index))
+                    let raw = Double(ghostData[index] + (ghostData[index + 1] - ghostData[index]) * frac)
+                    ghostLow += (raw - ghostLow) * ghostHP
+                    ghostLP1 += ((raw - ghostLow) - ghostLP1) * ghostLP
+                    ghostLP2 += (ghostLP1 - ghostLP2) * ghostLP
+                    let taped = tanh(ghostLP2 * 2) / tanh(2)
+                    let envelope = min(ghostTime / 0.6, 1) * max(0, min((ghostSeconds - ghostTime) / 0.9, 1))
+                    body = body * (1 - 0.3 * envelope) + taped * envelope * 0.55
+                }
+                ghostTime += dt
+            }
             muffled += (body - muffled) * muffle
             body = muffled + crash
             let master = gain * 0.30
@@ -1319,6 +2020,12 @@ final class RadioStaticVoice: @unchecked Sendable {
         state[S.rumble.rawValue] = rumble
         state[S.rumbleLow.rawValue] = rumbleLow
         state[S.lastFlash.rawValue] = lastFlash
+        state[S.ghostActive.rawValue] = ghostActive ? 1 : 0
+        state[S.ghostPos.rawValue] = ghostPos
+        state[S.ghostTime.rawValue] = ghostTime
+        state[S.ghostLow.rawValue] = ghostLow
+        state[S.ghostLP1.rawValue] = ghostLP1
+        state[S.ghostLP2.rawValue] = ghostLP2
         isSilence.pointee = false
     }
 }
@@ -1337,6 +2044,20 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     @ObservationIgnored private var staticNode: AVAudioSourceNode?
     @ObservationIgnored private var staticWeather = RadioBandWeather.calm
     @ObservationIgnored private var staticWeatherReadAt: Date?
+    @ObservationIgnored private let skyVoice = RadioSkyVoice()
+    @ObservationIgnored private var skyNode: AVAudioSourceNode?
+    @ObservationIgnored private let skyRoom = AVAudioUnitReverb()
+    @ObservationIgnored private var skyRefreshTask: Task<Void, Never>?
+    @ObservationIgnored private var overheadSky: OverheadSky?
+    /// True while the Overhead station is the thing on air.
+    private(set) var isPlayingSky = false
+    @ObservationIgnored private var pastSelfEchoes: [RadioPastSelfEcho] = []
+    /// One static session (from leaving a station until catching one): what
+    /// the band may carry back this time, and whether it already has.
+    @ObservationIgnored private var staticEcho: RadioPastSelfEcho?
+    @ObservationIgnored private var staticEchoIsVoice = false
+    @ObservationIgnored private var staticEchoCaughtLine: String?
+    @ObservationIgnored private var staticSessionStartedAt: Date?
     private var didConfigureRemoteCommands = false
     private var systemNowPlayingStartedAt: Date?
     private var systemNowPlayingPausedElapsed: TimeInterval?
@@ -1529,6 +2250,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
+        if station.id == OverheadSky.stationID, playOverhead(station) { return }
+        silenceSky()
 
         if let track, let url = resolvedAudioURL(for: track) {
             do {
@@ -1879,6 +2602,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         if isPlaying, isPlayingTuningNoise, staticVoice.isOn, engine.isRunning {
             staticVoice.retune(dial: frequency, proximity: proximity ?? 0)
             refreshStaticWeather()
+            catchPastSelfIfDue(proximity: proximity ?? 0)
             statusLine = String(format: "%.1f FM: static between stations.", frequency)
             sourceLine = staticSourceLine(for: frequency)
             return
@@ -1928,6 +2652,8 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
         attachStaticIfNeeded()
         staticVoice.retune(dial: frequency, proximity: proximity)
         refreshStaticWeather(force: true)
+        silenceSky()
+        beginStaticSession()
         sourceLine = staticSourceLine(for: frequency)
         staticVoice.setOn(true)
         if !engine.isRunning {
@@ -1950,6 +2676,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
 
     func stop(persist: Bool = true) {
         silenceStatic()
+        silenceSky()
         player.stop()
         filePlayer?.stop()
         filePlayer = nil
@@ -2036,6 +2763,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             player.pause()
         }
         if isPlayingTuningNoise { silenceStatic() }
+        if isPlayingSky { skyVoice.setOn(false) }
         isPlaying = false
         isPausedByRemoteControl = true
         isPausedForMemoryPressure = false
@@ -2062,6 +2790,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
             player.pause()
         }
         if isPlayingTuningNoise { silenceStatic() }
+        if isPlayingSky { skyVoice.setOn(false) }
         isPlaying = false
         isPausedByRemoteControl = false
         isPausedForMemoryPressure = true
@@ -2356,9 +3085,215 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     private func silenceStatic() {
         guard staticNode != nil else { return }
         staticVoice.setOn(false)
-        if !player.isPlaying, engine.isRunning {
+        if !player.isPlaying, !isPlayingSky, engine.isRunning {
             engine.pause()
         }
+    }
+
+    // MARK: Overhead: the sky's own station
+
+    private func attachSkyIfNeeded() -> Bool {
+        if skyNode != nil { return true }
+        guard skyVoice.loadBankIfNeeded() else {
+            appLog.error("Overhead bank failed to load")
+            return false
+        }
+        let format = makeFormat()
+        let node = RadioSkyVoice.makeNode(for: skyVoice, format: format)
+        engine.attach(node)
+        engine.attach(skyRoom)
+        engine.connect(node, to: skyRoom, format: format)
+        engine.connect(skyRoom, to: engine.mainMixerNode, format: format)
+        skyNode = node
+        return true
+    }
+
+    /// Put the believed sky on the air. False only when the instruments are
+    /// missing, so the caller can fall back to the procedural station tone.
+    private func playOverhead(_ station: RadioStation) -> Bool {
+        guard attachSkyIfNeeded() else { return false }
+        silenceStatic()
+        isPlayingTuningNoise = false
+        activeBuffer = nil
+        activeTrack = nil
+        applyOverheadSky(force: true, station: station)
+        skyVoice.setOn(true)
+        isPlayingSky = true
+        if !engine.isRunning {
+            do {
+                try engine.start()
+            } catch {
+                skyVoice.setOn(false)
+                isPlayingSky = false
+                statusLine = "\(station.displayFrequency) \(station.title): the sky sparked but wouldn't hold."
+                appLog.error("Overhead engine failed: \(error.localizedDescription, privacy: .private)")
+                return true
+            }
+        }
+        sourceLine = station.signalLine
+        skyRefreshTask?.cancel()
+        skyRefreshTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, self.isPlayingSky else { return }
+                self.applyOverheadSky(force: false, station: station)
+            }
+        }
+        return true
+    }
+
+    /// Re-read the believed sky; change composer, room and title only when
+    /// what is playing actually changed.
+    private func applyOverheadSky(force: Bool, station: RadioStation, now: Date = Date()) {
+        let sky = PaperSkyOutlookStore.load()?.sky(at: now)
+        let next = OverheadSky.from(sky)
+        guard force || next != overheadSky else { return }
+        overheadSky = next
+        skyVoice.setSky(next, wind: sky?.wind ?? 0)
+        let room = RadioSkyVoice.room(for: next)
+        skyRoom.loadFactoryPreset(room.preset)
+        skyRoom.wetDryMix = room.wet
+        let playedBy = OverheadSky.playedBy(sky)
+        statusLine = "\(station.displayFrequency) \(station.title): \(playedBy)"
+        updateSystemNowPlayingOverhead(station: station, playedBy: playedBy)
+    }
+
+    private func silenceSky() {
+        skyRefreshTask?.cancel()
+        skyRefreshTask = nil
+        guard isPlayingSky || skyVoice.isOn else { return }
+        skyVoice.setOn(false)
+        isPlayingSky = false
+        if !player.isPlaying, !staticVoice.isOn, engine.isRunning {
+            engine.pause()
+        }
+    }
+
+    private func updateSystemNowPlayingOverhead(station: RadioStation, playedBy: String) {
+        #if canImport(MediaPlayer)
+        configureSystemNowPlayingIfNeeded()
+        systemNowPlayingStartedAt = Date()
+        systemNowPlayingPausedElapsed = nil
+        systemNowPlayingDuration = nil
+        var info: [String: Any] = [
+            MPMediaItemPropertyTitle: station.title,
+            MPMediaItemPropertyArtist: playedBy,
+            MPMediaItemPropertyAlbumTitle: "\(station.displayFrequency) FM",
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: 0,
+            MPNowPlayingInfoPropertyPlaybackRate: 1,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1,
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.audio.rawValue
+        ]
+        if let artwork = makeRadioArtwork(title: station.title) {
+            info[MPMediaItemPropertyArtwork] = artwork
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().playbackState = .playing
+        updateRemoteCommandAvailability()
+        #endif
+    }
+
+    // MARK: The past in the static
+
+    /// Fed from the archive by the view; small records only.
+    func updatePastSelf(_ echoes: [RadioPastSelfEcho]) {
+        pastSelfEchoes = echoes
+    }
+
+    /// Leaving a station starts a session. Now and then the band is given
+    /// something of the reader's to carry: their voice if a kept memo is old
+    /// enough, otherwise a few of their own words.
+    private func beginStaticSession(now: Date = Date()) {
+        staticSessionStartedAt = now
+        staticEcho = nil
+        staticEchoCaughtLine = nil
+        staticEchoIsVoice = false
+        guard !pastSelfEchoes.isEmpty, Double.random(in: 0..<1) < 0.34 else { return }
+        let seed = Int.random(in: 0..<10_000)
+        if let voiced = RadioPastSelf.pick(pastSelfEchoes, wantingVoice: true, seed: seed),
+           let path = voiced.voicePath {
+            staticEcho = voiced
+            staticEchoIsVoice = true
+            let pageID = voiced.pageID
+            Task.detached(priority: .utility) { [weak self] in
+                guard let samples = BookRadioManager.ghostSamples(path: path) else { return }
+                await self?.acceptGhost(samples, for: pageID)
+            }
+        } else {
+            staticEcho = RadioPastSelf.pick(pastSelfEchoes, wantingVoice: false, seed: seed)
+        }
+    }
+
+    private func acceptGhost(_ samples: [Float], for pageID: String) {
+        guard staticEcho?.pageID == pageID else { return }
+        if !staticVoice.loadGhost(samples) { staticEchoIsVoice = false }
+    }
+
+    /// The band gives it up only near a station, where the almost-words
+    /// already live, and only after a few seconds of listening.
+    private func catchPastSelfIfDue(proximity: Double, now: Date = Date()) {
+        guard let echo = staticEcho, staticEchoCaughtLine == nil, proximity >= 0.35,
+              let started = staticSessionStartedAt, now.timeIntervalSince(started) >= 3 else { return }
+        let seed = Int.random(in: 0..<10_000)
+        if staticEchoIsVoice, staticVoice.hasGhost {
+            staticVoice.playGhost()
+            staticEchoCaughtLine = echo.quote.map { RadioPastSelf.caughtLine($0, isVoice: true, seed: seed) }
+                ?? "That voice under the hiss is yours. It has been out there a while."
+        } else if let quote = echo.quote {
+            staticEchoCaughtLine = RadioPastSelf.caughtLine(quote, isVoice: false, seed: seed)
+        } else {
+            return
+        }
+        staticEcho = nil
+    }
+
+    /// The loudest few seconds of a kept memo, mono at the engine's rate.
+    nonisolated static func ghostSamples(path: String, seconds: Double = 5.5) -> [Float]? {
+        let url = URL(fileURLWithPath: path)
+        guard let file = try? AVAudioFile(forReading: url) else { return nil }
+        let source = file.processingFormat
+        let frames = AVAudioFrameCount(min(Double(file.length), source.sampleRate * 60))
+        guard frames > 0,
+              let input = AVAudioPCMBuffer(pcmFormat: source, frameCapacity: frames),
+              (try? file.read(into: input, frameCount: frames)) != nil,
+              let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 44_100, channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: source, to: target) else { return nil }
+        let capacity = AVAudioFrameCount(Double(input.frameLength) * 44_100 / source.sampleRate) + 1_024
+        guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: capacity) else { return nil }
+        // One buffer, fed once; the block runs synchronously inside convert.
+        nonisolated(unsafe) let feed = input
+        nonisolated(unsafe) var fed = false
+        var error: NSError?
+        converter.convert(to: output, error: &error) { _, status in
+            if fed { status.pointee = .endOfStream; return nil }
+            fed = true
+            status.pointee = .haveData
+            return feed
+        }
+        guard error == nil, let channel = output.floatChannelData?[0] else { return nil }
+        let count = Int(output.frameLength)
+        let window = min(count, Int(seconds * 44_100))
+        guard window > 22_050 else { return nil }
+        // Slide in half-second hops to the loudest stretch: speech, not the
+        // breath before it.
+        let hop = 22_050
+        var best = 0
+        var bestEnergy: Float = -1
+        var start = 0
+        while start + window <= count {
+            var energy: Float = 0
+            var index = start
+            while index < start + window { energy += channel[index] * channel[index]; index += 8 }
+            if energy > bestEnergy { bestEnergy = energy; best = start }
+            start += hop
+        }
+        var samples = Array(UnsafeBufferPointer(start: channel + best, count: window))
+        let peak = samples.reduce(Float(0)) { max($0, abs($1)) }
+        guard peak > 0.001 else { return nil }
+        let scale = 0.8 / peak
+        for index in samples.indices { samples[index] *= scale }
+        return samples
     }
 
     private func selectTrack(for station: RadioStation) -> RadioTrack? {
@@ -2548,6 +3483,7 @@ final class BookRadioManager: NSObject, AVAudioPlayerDelegate {
     }
 
     private func staticSourceLine(for frequency: Double) -> String {
+        if let caught = staticEchoCaughtLine { return caught }
         if let weatherLine = staticWeather.dialLine { return weatherLine }
         let lines = [
             "Static, page-rustle, and a voice ducking behind the wallpaper.",
@@ -2585,6 +3521,8 @@ final class BookRadioManager {
     private(set) var nowPlayingBanter: RadioBanter?
     private(set) var currentReadAlong: RadioReadAlong?
     var readAlongElapsed: TimeInterval { 0 }
+    private(set) var isPlayingSky = false
+    func updatePastSelf(_ echoes: [RadioPastSelfEcho]) {}
     private var isPausedForMemoryPressure = false
     private var liveExperienceProgram: BookExperienceProgram?
     private init() {}

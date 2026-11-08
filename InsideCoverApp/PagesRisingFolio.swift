@@ -457,6 +457,8 @@ struct PagesRisingFolio: View {
     @AppStorage("pagesRisingBookIsClosed") private var isBookClosed = false
     @State private var currentLeafID: String?
     @State private var readingPosition: FolioReadingPosition?
+    /// The ribbon's bookmark, drawn up out of the Book and laid over the Page.
+    @State private var isBookmarkOpen = false
     @State private var preferredDocumentIndex = 0
     @State private var coverTurn: CGFloat = 1
     @State private var isBookTransitioning = false
@@ -717,16 +719,16 @@ struct PagesRisingFolio: View {
                     // the reader meets the ribbon before they need it.
                     FolioSavedPageRibbon(
                         ribbons: savedRibbons,
-                        canTuckHere: ribbonCanTuckHere(in: leaves),
-                        markedHere: ribbonMarkingHere(in: leaves),
-                        isBookClosed: isBookClosed,
-                        onTuck: { strand in tuckRibbonHere(in: leaves, movingStrand: strand) },
-                        onOpen: { ribbon in openSavedRibbon(ribbon, in: leaves) },
-                        onLift: onLiftRibbon,
-                        onOpenBook: openBook
+                        isOpen: isBookmarkOpen,
+                        onTap: {
+                            BookFeedback.play(.openPage)
+                            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.46, dampingFraction: 0.82)) {
+                                isBookmarkOpen.toggle()
+                            }
+                        }
                     )
-                    // Slack cloth hangs shorter. Pulling a strand up into a
-                    // Page is the whole gesture, so tucking has to move it.
+                    // Slack cloth hangs shorter. A bookmark pulls the ribbon
+                    // up, so keeping a Page visibly moves it.
                     .offset(
                         x: rectoOrigin + leafWidth * 0.69,
                         y: savedRibbons.isEmpty
@@ -1004,6 +1006,55 @@ struct PagesRisingFolio: View {
                         .accessibilityLabel("Close the Book")
                         .zIndex(1.45)
                     }
+
+                    if isBookmarkOpen {
+                        // The rest of the Book dims while the bookmark is out;
+                        // a tap anywhere on it tucks the bookmark back.
+                        Color.black.opacity(0.34)
+                            .frame(width: blockWidth, height: pageHeight)
+                            .contentShape(Rectangle())
+                            .onTapGesture { closeBookmark() }
+                            .transition(.opacity)
+                            .accessibilityHidden(true)
+                            .zIndex(4)
+
+                        let cardWidth = min(leafWidth - 32, 300)
+                        let ribbonCentre = rectoOrigin + leafWidth * 0.69 + 27
+                        let cardX = min(max(rectoOrigin + 16, ribbonCentre - cardWidth / 2),
+                                        rectoOrigin + leafWidth - cardWidth - 16)
+                        let here = markableLeaf(in: leaves)
+                        RibbonBookmarkCard(
+                            ribbons: savedRibbons,
+                            hereTitle: here.map { leaf in
+                                leaf.surface.prompt.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                                    ?? leaf.surface.payload.headline
+                            },
+                            canTuckHere: ribbonCanTuckHere(in: leaves),
+                            markedHere: ribbonMarkingHere(in: leaves),
+                            isBookClosed: isBookClosed,
+                            maxHeight: pageHeight + Self.tuckedRibbonProtrusion - 24,
+                            onTuck: { strand in
+                                tuckRibbonHere(in: leaves, movingStrand: strand)
+                                closeBookmark()
+                            },
+                            onOpen: { ribbon in
+                                closeBookmark()
+                                openSavedRibbon(ribbon, in: leaves)
+                            },
+                            onLift: { documentID in
+                                onLiftRibbon(documentID)
+                            },
+                            onOpenBook: {
+                                closeBookmark()
+                                openBook()
+                            },
+                            onClose: closeBookmark
+                        )
+                        .frame(width: cardWidth)
+                        .offset(x: cardX, y: -Self.tuckedRibbonProtrusion + 4)
+                        .transition(.ribbonUnroll)
+                        .zIndex(4.1)
+                    }
                 }
                 // Everything above is positioned from the leaf's own top-left
                 // corner, so the whole Book — boards, fore-edge tabs, charms,
@@ -1208,8 +1259,8 @@ struct PagesRisingFolio: View {
     private var glowTab: PagesRisingSealTab {
         PagesRisingSealTab(
             id: "glow",
-            title: "Glow",
-            shortTitle: "Glow",
+            title: "Belief",
+            shortTitle: "Belief",
             wax: Color(red: 0.72, green: 0.49, blue: 0.16),
             seed: 47,
             isBusy: false,
@@ -1297,6 +1348,12 @@ struct PagesRisingFolio: View {
     /// The leaf the ribbon would mark if it were tucked right now, or nil when
     /// there is nothing here to hold: the Book is open to its own leaves, or
     /// has settled on a boundary or ending leaf, which carry no Page.
+    private func closeBookmark() {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.9)) {
+            isBookmarkOpen = false
+        }
+    }
+
     private func markableLeaf(in leaves: [FolioLeaf]) -> FolioLeaf? {
         guard isOnReadingLeaves, !isBookClosed else { return nil }
         let index = currentLeafID.flatMap { currentID in
@@ -3741,126 +3798,334 @@ private struct FolioSealBookmarkRail: View {
 /// drawn proud of the block in full colour and will carry the reader back to
 /// the exact words it was left in. It is the same piece of cloth in both
 /// states — not a control that appears once you have already found the control.
-/// The Book's ribbon: one tail at the head of the Pages, three strands in it
-/// (docs/the-knock-plan.md §4). A strand holding a Page stands up dyed; a free
-/// one hangs slack and pale. Tapping the ribbon opens a plain menu: tuck a
-/// strand here (or move one, when all three hold something), lift the strand
-/// from this Page, or riffle back to any of them. The Curse can't drink the ink
-/// of a Page under a ribbon.
+/// The Book's ribbon (docs/the-knock-plan.md §4): only its head shows above
+/// the Pages. Tapping it draws the bookmark it belongs to up out of the Book
+/// (`RibbonBookmarkCard`). Holding anything, it stands up in full colour with
+/// a knot for each Page it keeps; holding nothing, it hangs slack and pale.
 private struct FolioSavedPageRibbon: View {
     let ribbons: [SavedPageRibbon]
+    let isOpen: Bool
+    let onTap: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var isHolding: Bool { !ribbons.isEmpty }
+
+    var body: some View {
+        Button(action: onTap) {
+            Image("FolioSavedPageRibbon")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 54, height: 152)
+                .saturation(isHolding || isOpen ? 1 : 0.35)
+                .opacity(isHolding || isOpen ? 1 : 0.8)
+                .shadow(
+                    color: .black.opacity(isHolding ? 0.50 : 0.28),
+                    radius: isHolding ? 5 : 3,
+                    x: 1,
+                    y: isHolding ? 5 : 3
+                )
+                .overlay(alignment: .top) {
+                    // A knot in the cloth for each Page it keeps, up where the
+                    // ribbon shows above the leaves.
+                    if isHolding {
+                        HStack(spacing: 3) {
+                            ForEach(0..<ribbons.count, id: \.self) { _ in
+                                Circle()
+                                    .fill(Color.black.opacity(0.28))
+                                    .frame(width: 5, height: 5)
+                            }
+                        }
+                        .padding(.top, 22)
+                    }
+                }
+                .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.62), value: isHolding)
+                .contentShape(Rectangle())
+                .accessibilityHidden(true)
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
+        .sensoryFeedback(.selection, trigger: ribbons.map(\.documentID))
+        .accessibilityLabel(
+            ribbons.isEmpty
+                ? "Ribbon, no bookmarks"
+                : "Ribbon, keeping \(ribbons.count) \(ribbons.count == 1 ? "Page" : "Pages")"
+        )
+        .accessibilityHint(isOpen ? "Tucks the bookmark back in" : "Draws out the bookmark")
+    }
+}
+
+/// The bookmark the ribbon belongs to, drawn up out of the Book and laid over
+/// the Page: the same red velvet, gold-stitched, with the embroidered eye at
+/// its head and a swallowtail at its foot. The Pages it keeps are paper tags
+/// stitched onto it.
+private struct RibbonBookmarkCard: View {
+    let ribbons: [SavedPageRibbon]
+    let hereTitle: String?
     let canTuckHere: Bool
     let markedHere: SavedPageRibbon?
     let isBookClosed: Bool
+    let maxHeight: CGFloat
     let onTuck: (Int?) -> Void
     let onOpen: (SavedPageRibbon) -> Void
     let onLift: (String) -> Void
     let onOpenBook: () -> Void
+    let onClose: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    static let velvet = Color(red: 0.36, green: 0.05, blue: 0.08)
+    static let velvetDeep = Color(red: 0.22, green: 0.02, blue: 0.05)
+    static let thread = Color(red: 0.86, green: 0.66, blue: 0.34)
 
-    /// Natural dyes, one a strand: madder red, woad blue, weld gold.
-    static let strandNames = ["Madder", "Woad", "Weld"]
-    static let strandColors: [Color] = [
-        Color(red: 0.70, green: 0.16, blue: 0.14),
-        Color(red: 0.20, green: 0.32, blue: 0.62),
-        Color(red: 0.86, green: 0.66, blue: 0.18)
-    ]
-
-    private func ribbon(onStrand strand: Int) -> SavedPageRibbon? {
-        ribbons.first { ($0.strand ?? 0) == strand }
-    }
-
-    private func label(_ ribbon: SavedPageRibbon) -> String {
-        "\(Self.strandNames[min(ribbon.strand ?? 0, 2)]) · \(ribbon.title)"
-    }
-
-    private var hasAnything: Bool {
-        canTuckHere || markedHere != nil || !ribbons.isEmpty || isBookClosed
-    }
+    private var isFull: Bool { ribbons.count >= BookRibbons.strandCount }
+    private var kept: [SavedPageRibbon] { ribbons.sorted { $0.savedAt > $1.savedAt } }
 
     var body: some View {
-        Menu {
-            if canTuckHere {
-                if ribbons.count < BookRibbons.strandCount {
-                    Button {
-                        onTuck(nil)
-                    } label: {
-                        Label("Tuck a ribbon here", systemImage: "bookmark")
+        VStack(spacing: 12) {
+            crest
+            VStack(spacing: 3) {
+                Text("THE RIBBON")
+                    .font(.system(size: 11, weight: .black, design: .serif))
+                    .tracking(2)
+                    .foregroundStyle(Self.thread)
+                Text("It keeps your place, and the Curse can't drink a Page it's keeping.")
+                    .font(.system(.caption, design: .serif).italic())
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(BookPalette.page.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            knots
+            here
+            ScrollView {
+                VStack(spacing: 8) {
+                    if kept.isEmpty {
+                        Text("Nothing kept yet. Bookmark a Page you want to come back to.")
+                            .font(.system(.footnote, design: .serif))
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(BookPalette.page.opacity(0.7))
+                            .padding(.vertical, 8)
                     }
-                } else {
-                    Menu {
-                        ForEach(ribbons) { ribbon in
-                            Button(label(ribbon)) { onTuck(ribbon.strand ?? 0) }
-                        }
-                    } label: {
-                        Label("Move a ribbon here", systemImage: "arrow.uturn.down")
+                    ForEach(kept) { ribbon in
+                        tag(ribbon)
                     }
-                }
-            } else if let markedHere {
-                Button(role: .destructive) {
-                    onLift(markedHere.documentID)
-                } label: {
-                    Label("Lift the ribbon from this Page", systemImage: "bookmark.slash")
                 }
             }
-            if !ribbons.isEmpty {
-                Section("Your ribbons") {
-                    ForEach(ribbons) { ribbon in
-                        Button {
-                            onOpen(ribbon)
-                        } label: {
-                            Label(label(ribbon), systemImage: "bookmark.fill")
-                        }
-                    }
-                }
-            } else if isBookClosed, !canTuckHere {
-                Button(action: onOpenBook) {
-                    Label("Open the Book", systemImage: "book")
-                }
+            .scrollBounceBehavior(.basedOnSize)
+            if isBookClosed, kept.isEmpty {
+                threadButton("Open the Book", systemImage: "book", action: onOpenBook)
             }
-        } label: {
-            strands
+            Button(action: onClose) {
+                Text("Tuck it back")
+                    .font(.system(.caption, design: .serif).weight(.semibold))
+                    .foregroundStyle(Self.thread.opacity(0.9))
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 30)
         }
-        .menuOrder(.fixed)
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .disabled(!hasAnything)
-        .sensoryFeedback(.selection, trigger: ribbons.map(\.documentID))
-        .accessibilityLabel(
-            ribbons.isEmpty
-                ? "Ribbon, all three strands free"
-                : "Ribbon, holding \(ribbons.count) of 3: " + ribbons.map(label).joined(separator: "; ")
-        )
-        .accessibilityHint("Tuck a strand into this Page, or go back to one you've tucked")
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .frame(maxHeight: maxHeight, alignment: .top)
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            BookmarkCloth()
+                .fill(LinearGradient(colors: [Self.velvet, Self.velvetDeep, Self.velvet.opacity(0.94)],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay {
+                    // The nap of the velvet: the ribbon's own cloth, faint.
+                    Image("FolioSavedPageRibbon")
+                        .resizable()
+                        .scaledToFill()
+                        .opacity(0.32)
+                        .blendMode(.softLight)
+                        .clipShape(BookmarkCloth())
+                }
+                .overlay {
+                    BookmarkCloth()
+                        .inset(by: 7)
+                        .stroke(Self.thread.opacity(0.85), style: StrokeStyle(lineWidth: 1.2, dash: [5, 3.5]))
+                }
+                .shadow(color: .black.opacity(0.55), radius: 18, x: 0, y: 12)
+        }
+        .environment(\.colorScheme, .dark)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
-    /// The one ribbon, split into its three strands at the head of the Pages.
-    private var strands: some View {
-        ZStack(alignment: .top) {
-            ForEach(0..<BookRibbons.strandCount, id: \.self) { strand in
-                let held = ribbon(onStrand: strand) != nil
-                Image("FolioSavedPageRibbon")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: 30, height: 152)
-                    // The cloth's own colour drained, then dyed: a held strand
-                    // in full, a free one faint, so tucking reads as one strand
-                    // waking up rather than an icon swapping.
-                    .saturation(0)
-                    .colorMultiply(Self.strandColors[strand])
-                    .saturation(held ? 1.25 : 0.3)
-                    .opacity(held ? 1 : 0.5)
-                    .shadow(color: .black.opacity(held ? 0.45 : 0.2), radius: held ? 4 : 2, x: 1, y: held ? 4 : 2)
-                    .rotationEffect(.degrees(Double(strand - 1) * 5), anchor: .bottom)
-                    .offset(x: CGFloat(strand - 1) * 11, y: held ? 0 : 16)
-                    .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.62), value: held)
+    /// The embroidered eye from the ribbon's head, sewn on as a patch.
+    private var crest: some View {
+        // The ribbon art is 749×2048; at 92pt wide the eye sits at (46, 33).
+        // Centre it in a 72pt patch.
+        Image("FolioSavedPageRibbon")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: 92, height: 251)
+            .offset(x: -10, y: 3)
+            .frame(width: 72, height: 72, alignment: .topLeading)
+            .background(Self.velvet)
+            .clipShape(Circle())
+            .overlay {
+                Circle().stroke(Self.thread.opacity(0.8), style: StrokeStyle(lineWidth: 1.2, dash: [3, 2.5]))
+            }
+            .shadow(color: .black.opacity(0.4), radius: 4, y: 2)
+            .accessibilityHidden(true)
+    }
+
+    private var knots: some View {
+        HStack(spacing: 6) {
+            ForEach(0..<BookRibbons.strandCount, id: \.self) { index in
+                Circle()
+                    .fill(index < ribbons.count ? Self.thread : Color.clear)
+                    .overlay { Circle().stroke(Self.thread.opacity(0.7), lineWidth: 1) }
+                    .frame(width: 8, height: 8)
             }
         }
-        .frame(width: 60, height: 168, alignment: .top)
-        .contentShape(Rectangle())
-        .accessibilityHidden(true)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Keeping \(ribbons.count) of \(BookRibbons.strandCount)")
+    }
+
+    /// What can be done with the Page under your thumb.
+    @ViewBuilder
+    private var here: some View {
+        if let markedHere {
+            threadButton("Take the bookmark out of this Page", systemImage: "bookmark.slash") {
+                onLift(markedHere.documentID)
+            }
+        } else if canTuckHere {
+            if !isFull {
+                threadButton(hereTitle.map { "Bookmark “\($0)”" } ?? "Bookmark this Page",
+                             systemImage: "bookmark.fill", prominent: true) {
+                    onTuck(nil)
+                }
+            } else {
+                Text("It's keeping all it can. Tap a tag's thread to let that one go and keep this Page instead.")
+                    .font(.system(.caption2, design: .serif))
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(BookPalette.page.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// A Page the ribbon keeps: a paper tag stitched to the velvet.
+    private func tag(_ ribbon: SavedPageRibbon) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                onOpen(ribbon)
+            } label: {
+                HStack(spacing: 10) {
+                    Circle()
+                        .stroke(BookPalette.ink.opacity(0.45), lineWidth: 1)
+                        .frame(width: 7, height: 7)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ribbon.title)
+                            .font(.system(.subheadline, design: .serif).weight(.semibold))
+                            .foregroundStyle(BookPalette.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(ribbon.documentID == markedHere?.documentID
+                             ? "You're on it"
+                             : "Kept \(ribbon.savedAt.formatted(.relative(presentation: .named)))")
+                            .font(.system(.caption2, design: .serif).italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.62))
+                    }
+                    Spacer(minLength: 4)
+                }
+                .padding(.vertical, 9)
+                .padding(.leading, 10)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Go to \(ribbon.title)")
+
+            if canTuckHere, isFull {
+                Button {
+                    onTuck(ribbon.strand ?? 0)
+                } label: {
+                    Image(systemName: "arrow.uturn.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.7))
+                        .frame(width: 36, height: 36)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Let \(ribbon.title) go and keep this Page instead")
+            }
+        }
+        .padding(.trailing, 6)
+        .background(BookPalette.page, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .inset(by: 3)
+                .stroke(BookPalette.ink.opacity(0.18), style: StrokeStyle(lineWidth: 0.8, dash: [3, 2]))
+        }
+        .rotationEffect(.degrees(ribbon.documentID.stableHash % 2 == 0 ? -0.8 : 0.7))
+        .shadow(color: .black.opacity(0.35), radius: 3, y: 2)
+    }
+
+    private func threadButton(_ title: String, systemImage: String, prominent: Bool = false,
+                              action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: systemImage)
+                .font(.system(.subheadline, design: .serif).weight(.semibold))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(prominent ? Self.velvetDeep : Self.thread)
+                .padding(.vertical, 10)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .background {
+                    Capsule()
+                        .fill(prominent ? Self.thread : Color.clear)
+                    Capsule()
+                        .stroke(Self.thread.opacity(0.85), style: StrokeStyle(lineWidth: 1, dash: prominent ? [] : [4, 3]))
+                }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A bookmark's outline: square shoulders, a swallowtail cut at the foot.
+private struct BookmarkCloth: InsettableShape {
+    var insetAmount: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        let r = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let notch = min(26, r.width * 0.16)
+        var path = Path()
+        path.move(to: CGPoint(x: r.minX + 3, y: r.minY))
+        path.addLine(to: CGPoint(x: r.maxX - 3, y: r.minY))
+        path.addQuadCurve(to: CGPoint(x: r.maxX, y: r.minY + 3), control: CGPoint(x: r.maxX, y: r.minY))
+        path.addLine(to: CGPoint(x: r.maxX, y: r.maxY))
+        path.addLine(to: CGPoint(x: r.midX, y: r.maxY - notch))
+        path.addLine(to: CGPoint(x: r.minX, y: r.maxY))
+        path.addLine(to: CGPoint(x: r.minX, y: r.minY + 3))
+        path.addQuadCurve(to: CGPoint(x: r.minX + 3, y: r.minY), control: CGPoint(x: r.minX, y: r.minY))
+        path.closeSubpath()
+        return path
+    }
+
+    func inset(by amount: CGFloat) -> BookmarkCloth {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+}
+
+/// The bookmark unrolls downward from the ribbon's head, and rolls back up.
+private struct RibbonUnrollModifier: ViewModifier {
+    let progress: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(x: 0.2 + 0.8 * progress, y: max(0.02, progress), anchor: .top)
+            .opacity(Double(min(1, progress * 2)))
+    }
+}
+
+extension AnyTransition {
+    fileprivate static var ribbonUnroll: AnyTransition {
+        .modifier(active: RibbonUnrollModifier(progress: 0), identity: RibbonUnrollModifier(progress: 1))
     }
 }
 
@@ -5636,21 +5901,6 @@ private extension IlluminationAsset {
     /// Paper, tape, wear, and watermarks remain physical furniture. Everything
     /// with a mark of its own — including the Pixie, goblins, botanicals,
     /// stamps, scraps, portraits, and scribbles — may be brought closer.
-    var canInspectInFolio: Bool {
-        if leafTraits?.semanticRole == .texture
-            || leafTraits?.semanticRole == .fastener {
-            return false
-        }
-        switch markShelf {
-        case .fastenings, .flourishes, .paper, .wear:
-            return false
-        case .thisMonth, .theDrawer, .academyDesk, .handwriting, .bookNotes, .academyNotes, .oddNotes, .wickerSigils, .marginFolk, .inklings,
-             .pressedAndGrown, .skyAndNight, .shore, .wayfinding,
-             .creaturesAndCompany, .sealsAndLabels, .pastMonths:
-            return true
-        }
-    }
-
     var folioInspectionTitle: String {
         id
             .replacingOccurrences(of: "illumination_", with: "")
@@ -8937,7 +9187,7 @@ private struct FolioLeafPage: View {
             if !leaf.isInterstitial {
                 Button(action: onToggleRibbon) {
                     Label(
-                        isRibbonHere ? "Lift the ribbon" : "Tuck a ribbon here",
+                        isRibbonHere ? "Take the bookmark out" : "Bookmark this Page",
                         systemImage: isRibbonHere ? "bookmark.slash" : "bookmark"
                     )
                 }
@@ -11302,12 +11552,15 @@ private struct FolioLeafMarginaliaMarks: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
 
-                        if asset.canInspectInFolio {
-                            inspectionButton(
-                                artifact: .marginalia(asset, accent: accent),
-                                frame: placement.frame
-                            )
-                        }
+                        // Every mark on the paper opens full screen. A crumb
+                        // keeps a hit area close to its own size, and it is
+                        // drawn after the larger marks, so it takes only the
+                        // taps that land on it and the hero keeps the rest.
+                        inspectionButton(
+                            artifact: .marginalia(asset, accent: accent),
+                            frame: placement.frame,
+                            minimumSide: placement.id.hasPrefix("crumb-") ? 36 : 44
+                        )
                     case .handwriting(let note):
                         Text(note)
                             .font(FolioInkRole.handwritten.swiftUIFont(pointSize: 12.5, composition: leaf.composition))
@@ -11358,7 +11611,12 @@ private struct FolioLeafMarginaliaMarks: View {
         let opened = interactionStore.scrapIsOpen(discoveryID)
         return Button {
             BookFeedback.pressTick()
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) { interactionStore.openScrap(discoveryID) }
+            if opened {
+                // An uncovered scrap opens full screen like any other mark.
+                onInspectArtifact(.handwriting(line, accent: accent))
+            } else {
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) { interactionStore.openScrap(discoveryID) }
+            }
         } label: {
             ZStack {
                 FolioInterleafScrapShape()
@@ -11397,12 +11655,13 @@ private struct FolioLeafMarginaliaMarks: View {
         .buttonStyle(.plain)
         .position(x: frame.midX, y: frame.midY)
         .accessibilityLabel(opened ? line : (guardAsset == nil ? "A folded scrap" : "A scrap under a drawing"))
-        .accessibilityHint(opened ? "Opened" : "Tap to uncover the writing")
+        .accessibilityHint(opened ? "Opens the writing full screen" : "Tap to uncover the writing")
     }
 
     private func inspectionButton(
         artifact: FolioInspectableArtifact,
-        frame: CGRect
+        frame: CGRect,
+        minimumSide: CGFloat = 44
     ) -> some View {
         Button {
             BookFeedback.pressTick()
@@ -11412,7 +11671,7 @@ private struct FolioLeafMarginaliaMarks: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(width: max(44, frame.width), height: max(44, frame.height))
+        .frame(width: max(minimumSide, frame.width), height: max(minimumSide, frame.height))
         .position(x: frame.midX, y: frame.midY)
         .accessibilityLabel("Open \(artifact.label) full screen")
         .accessibilityHint("Shows this piece of marginalia at a larger size")
@@ -11496,10 +11755,11 @@ private struct FolioLeafMarginaliaMarks: View {
             for (index, asset) in recipe.companionAssets.enumerated() {
                 guard accepted.count < composition.decorationBudget else { break }
                 guard supportsCurrentDialect(asset) else { continue }
-                let scale = interleafMarginaliaScale(salt: 241 + index * 17)
+                let scale = midTierScale(salt: 241 + index * 17)
+                let base: CGFloat = leaf.isDecorationPlate ? 70 : 62
                 let markSize = desiredSize(
                     for: asset,
-                    fallback: CGSize(width: 62 * scale, height: 62 * scale)
+                    fallback: CGSize(width: base * scale, height: base * scale)
                 )
                 let railCandidates = zones.flatMap { zone in
                     candidateFrames(in: zone, desiredSize: markSize, minimumScale: 0.80, salt: 173 + index * 13)
@@ -11526,27 +11786,128 @@ private struct FolioLeafMarginaliaMarks: View {
             }
         }
 
+        /// Crumbs come last and spend no budget. They sit in whatever gaps
+        /// remain, may tuck against the edge of a larger mark the way a bee
+        /// lands on a stem, and never touch the text or one another.
+        func appendCrumbs(in zones: [CGRect]) {
+            guard composition.decorationBudget > 1, !recipe.crumbAssets.isEmpty else { return }
+            var crumbFootprints: [CGRect] = []
+            let anchors = accepted.filter {
+                if case .asset = $0.content { return $0.frame.width >= 56 || $0.frame.height >= 56 }
+                return false
+            }.map(\.frame)
+            for (index, asset) in recipe.crumbAssets.enumerated() {
+                guard supportsCurrentDialect(asset) else { continue }
+                let salt = 601 + index * 29
+                // Skewed small: most crumbs are fingernails, a few are thumbs.
+                let longSide = 24 + pow(unit(salt), 1.5) * 22
+                let aspect = CGFloat(min(2.6, max(0.38, asset.leafTraits?.aspectRatio ?? 1)))
+                let size = aspect >= 1
+                    ? CGSize(width: longSide, height: longSide / aspect)
+                    : CGSize(width: longSide * aspect, height: longSide)
+                let angle = (Double(unit(salt + 1)) - 0.5) * 44
+                let radians = CGFloat(angle * .pi / 180)
+                let footprintSize = CGSize(
+                    width: abs(size.width * cos(radians)) + abs(size.height * sin(radians)),
+                    height: abs(size.height * cos(radians)) + abs(size.width * sin(radians))
+                )
+
+                var centres: [CGPoint] = []
+                if !anchors.isEmpty, index < 3 || unit(salt + 2) < 0.35 {
+                    let anchor = anchors[Int(unit(salt + 3) * CGFloat(anchors.count)) % anchors.count]
+                    let perimeter: [CGPoint] = [
+                        CGPoint(x: anchor.maxX, y: anchor.minY + anchor.height * 0.2),
+                        CGPoint(x: anchor.minX, y: anchor.maxY - anchor.height * 0.15),
+                        CGPoint(x: anchor.midX + anchor.width * 0.3, y: anchor.maxY),
+                        CGPoint(x: anchor.minX + anchor.width * 0.2, y: anchor.minY),
+                        CGPoint(x: anchor.maxX, y: anchor.maxY - anchor.height * 0.3),
+                        CGPoint(x: anchor.minX, y: anchor.minY + anchor.height * 0.35)
+                    ]
+                    centres += rotateCandidates(perimeter, by: Int(unit(salt + 4) * 6))
+                }
+                let usable = zones.filter { $0.width > footprintSize.width + 6 && $0.height > footprintSize.height + 6 }
+                if !usable.isEmpty {
+                    for draw in 0..<14 {
+                        let zone = usable[Int(unit(salt + 10 + draw * 3) * CGFloat(usable.count)) % usable.count]
+                            .insetBy(dx: footprintSize.width / 2 + 3, dy: footprintSize.height / 2 + 3)
+                        centres.append(CGPoint(
+                            x: zone.minX + zone.width * unit(salt + 11 + draw * 3),
+                            y: zone.minY + zone.height * unit(salt + 12 + draw * 3)
+                        ))
+                    }
+                }
+
+                for centre in centres {
+                    let footprint = CGRect(
+                        x: centre.x - footprintSize.width / 2, y: centre.y - footprintSize.height / 2,
+                        width: footprintSize.width, height: footprintSize.height
+                    )
+                    guard plan.safeBounds.contains(footprint),
+                          !plan.inkRects.contains(where: { footprint.intersects($0.insetBy(dx: -4, dy: -4)) }),
+                          !crumbFootprints.contains(where: { $0.insetBy(dx: -3, dy: -3).intersects(footprint) })
+                    else { continue }
+                    let area = max(1, footprint.width * footprint.height)
+                    let tucked = occupied.allSatisfy { other in
+                        let overlap = other.intersection(footprint)
+                        return overlap.isNull || overlap.width * overlap.height <= area * 0.3
+                    }
+                    guard tucked else { continue }
+                    let frame = CGRect(
+                        x: centre.x - size.width / 2, y: centre.y - size.height / 2,
+                        width: size.width, height: size.height
+                    )
+                    accepted.append(Placement(
+                        id: "crumb-\(index)-\(asset.id)", content: .asset(asset),
+                        frame: frame, opacity: 1, rotation: angle
+                    ))
+                    crumbFootprints.append(footprint)
+                    break
+                }
+            }
+        }
+
         if leaf.isDecorationPlate {
             guard leaf.interstitialKind?.carriesMarginalia == true else { return accepted }
             let plateField = plan.safeBounds.insetBy(dx: 16, dy: 18)
             let crowded = recipe.density == .rich || recipe.density == .overdone
             let baseHeroWidth = min(238, plateField.width * (crowded ? 0.48 : 0.68))
             let baseHeroHeight = min(290, plateField.height * (crowded ? 0.36 : 0.52))
-            let heroScale = min(
-                interleafMarginaliaScale(salt: 223),
-                min(
-                    plateField.width * 0.86 / max(1, baseHeroWidth),
-                    plateField.height * 0.66 / max(1, baseHeroHeight)
-                )
-            )
-            let heroWidth = baseHeroWidth * heroScale
-            let heroHeight = baseHeroHeight * heroScale
+            let heroScale: CGFloat = 1
+            let heroWidth = baseHeroWidth
+            let heroHeight = baseHeroHeight
             let heroFrame = CGRect(
                 x: plateField.midX - heroWidth / 2,
                 y: plateField.minY + plateField.height * 0.10,
                 width: heroWidth,
                 height: heroHeight
             )
+            // A hero owns the plate: most of its width, sized to the drawing's
+            // own proportions, and placed where it lands rather than always
+            // centred at the top.
+            let ownedHeroFrames: [CGRect] = {
+                guard recipe.primaryTier == .hero, let primary = recipe.primaryAsset else { return [] }
+                let aspect = CGFloat(min(2.4, max(0.4, primary.leafTraits?.aspectRatio ?? 1)))
+                var width = plateField.width * (0.64 + unit(223) * 0.26)
+                var height = width / aspect
+                let maxHeight = plateField.height * (crowded ? 0.56 : 0.70)
+                if height > maxHeight {
+                    height = maxHeight
+                    width = height * aspect
+                }
+                let xs: [CGFloat] = [
+                    plateField.midX - width / 2,
+                    plateField.minX,
+                    plateField.maxX - width
+                ]
+                let ys: [CGFloat] = [
+                    plateField.minY + plateField.height * 0.04,
+                    plateField.midY - height / 2,
+                    plateField.maxY - height
+                ]
+                let frames = ys.flatMap { y in xs.map { x in CGRect(x: x, y: y, width: width, height: height) } }
+                let shrunk = frames.map { $0.insetBy(dx: $0.width * 0.14, dy: $0.height * 0.14) }
+                return rotateCandidates(frames, by: Int(unit(227) * 9)) + shrunk
+            }()
             let surprise: String?
             if case .marginalia? = leaf.interstitialKind {
                 surprise = InterleafCuration.discovery(seed: recipe.seed)
@@ -11569,7 +11930,7 @@ private struct FolioLeafMarginaliaMarks: View {
                         content: .asset(primary),
                         opacity: min(0.52, primary.defaultOpacity * 0.74),
                         rotation: rotation(salt: 3) * 0.46,
-                        frames: [heroFrame] + candidateFrames(
+                        frames: ownedHeroFrames + [heroFrame] + candidateFrames(
                             in: plan.lowerField,
                             desiredSize: CGSize(width: 96 * heroScale, height: 96 * heroScale),
                             minimumScale: 0.82,
@@ -11587,9 +11948,11 @@ private struct FolioLeafMarginaliaMarks: View {
                     rotation: 0, frames: [scrapFrame] + candidateFrames(in: plateField, desiredSize: scrapSize, minimumScale: 1, salt: 207))
             }
 
+            let placedHero = accepted.first { $0.id.hasPrefix("plate-primary-") || $0.id.hasPrefix("guarded-scrap-") }?.frame ?? heroFrame
             if let secondary = recipe.secondaryAsset {
+                let heroFrame = placedHero
                 let side = min(
-                    min(82, plateField.width * 0.25) * interleafMarginaliaScale(salt: 229),
+                    min(96, plateField.width * 0.29) * midTierScale(salt: 229),
                     plateField.width * 0.42
                 )
                 let secondaryFrame = CGRect(
@@ -11614,6 +11977,7 @@ private struct FolioLeafMarginaliaMarks: View {
             let plateHandwriting = recipe.handwrittenSnippet?.text.nonEmpty
                 ?? handwrittenNote?.nonEmpty
             if let plateHandwriting {
+                let heroFrame = placedHero
                 let noteWidth = min(142, plateField.width * 0.43)
                 let noteHeight = min(106, plateField.height * 0.22)
                 let noteFrame = CGRect(
@@ -11634,6 +11998,7 @@ private struct FolioLeafMarginaliaMarks: View {
                 )
             }
             appendCompanions(in: [plateField])
+            appendCrumbs(in: [plateField])
             return accepted
         }
 
@@ -11641,7 +12006,7 @@ private struct FolioLeafMarginaliaMarks: View {
         if remainingBudget > 0,
            let primary = recipe.primaryAsset,
            supportsCurrentDialect(primary) {
-            let width: CGFloat = primary.kind == .stamp ? 50 : 58
+            let width: CGFloat = primary.kind == .stamp ? 60 : 70
             let primarySize = desiredSize(
                 for: primary,
                 fallback: primary.directedOnly
@@ -11662,7 +12027,47 @@ private struct FolioLeafMarginaliaMarks: View {
                     salt: 113
                 )
                 : directedFrames
-            if recipe.primaryPlacement == .faintWatermark
+            // A hero on a reading leaf takes the open paper below the text
+            // when there is some, or lies large and faint beneath it.
+            if recipe.primaryTier == .hero {
+                let heroSide = min(250, max(140, plan.lowerField.width * 0.72))
+                appendFirstAvailable(
+                    id: "primary-\(primary.id)",
+                    content: .asset(primary),
+                    opacity: 1,
+                    rotation: rotation(salt: 3) * 0.5,
+                    frames: candidateFrames(
+                        in: plan.lowerField,
+                        desiredSize: desiredSize(for: primary, fallback: CGSize(width: heroSide, height: heroSide)),
+                        minimumScale: 0.58,
+                        salt: 117
+                    )
+                )
+                if !accepted.contains(where: { $0.id == "primary-\(primary.id)" }), plan.inkBounds.width > 80 {
+                    let side = min(290, plan.inkBounds.width * 0.86)
+                    let size = desiredSize(for: primary, fallback: CGSize(width: side, height: side))
+                    let fit = min(1, plan.inkBounds.width / max(1, size.width), max(1, plan.inkBounds.height) / max(1, size.height))
+                    let frame = CGRect(
+                        x: plan.inkBounds.midX - size.width * fit / 2,
+                        y: plan.inkBounds.minY + max(0, plan.inkBounds.height - size.height * fit) * (0.2 + unit(119) * 0.6),
+                        width: size.width * fit, height: size.height * fit
+                    )
+                    if fit >= 0.6 {
+                        appendFirstAvailable(
+                            id: "watermark-\(primary.id)",
+                            content: .asset(primary),
+                            opacity: min(0.11, primary.defaultOpacity * 0.18),
+                            rotation: rotation(salt: 5) * 0.4,
+                            frames: [frame],
+                            allowsContentOverlap: true
+                        )
+                    }
+                }
+            }
+            let heroPlaced = accepted.contains { $0.id == "primary-\(primary.id)" || $0.id == "watermark-\(primary.id)" }
+            if heroPlaced {
+                // Already on the paper as the hero.
+            } else if recipe.primaryPlacement == .faintWatermark
                 || primary.leafTraits?.allowsTextOverlap == true
                 || primary.leafTraits?.preferredAnchors?.contains(.watermark) == true {
                 appendFirstAvailable(
@@ -11793,7 +12198,7 @@ private struct FolioLeafMarginaliaMarks: View {
         if remainingBudget > 0,
            let secondary = recipe.secondaryAsset,
            supportsCurrentDialect(secondary) {
-            let width: CGFloat = secondary.kind == .stamp ? 42 : 48
+            let width: CGFloat = secondary.kind == .stamp ? 52 : 60
             let secondarySize = desiredSize(
                 for: secondary,
                 fallback: CGSize(width: width, height: width)
@@ -11828,19 +12233,18 @@ private struct FolioLeafMarginaliaMarks: View {
         }
 
         appendCompanions(in: [plan.preferredRail, plan.oppositeRail, plan.lowerField])
+        appendCrumbs(in: [plan.preferredRail, plan.oppositeRail, plan.lowerField])
 
         return accepted
     }
 
-    /// Keep the familiar proportions on one fifth of interleaves. Elsewhere,
-    /// each drawing gets its own smaller or larger scale, with no near-default
-    /// band. The recipe seed keeps return visits and curl hosts consistent.
-    private func interleafMarginaliaScale(salt: Int) -> CGFloat {
-        guard leaf.isDecorationPlate, unit(211) >= 0.20 else { return 1 }
+    /// The middle tier: marks that sit beside the text or around a hero.
+    /// Plates spread wider than reading leaves, whose rails are narrow. The
+    /// hero and the crumbs carry the contrast; this only keeps the middle
+    /// from looking stamped out of one cutter.
+    private func midTierScale(salt: Int) -> CGFloat {
         let draw = unit(salt)
-        return draw < 0.5
-            ? 0.55 + draw * 0.60
-            : 1.15 + (draw - 0.5) * 0.70
+        return leaf.isDecorationPlate ? 0.78 + draw * 0.88 : 0.96 + draw * 0.42
     }
 
     private func supportsCurrentDialect(_ asset: IlluminationAsset) -> Bool {
@@ -11969,7 +12373,7 @@ private struct FolioLeafMarginaliaMarks: View {
         }
     }
 
-    private func rotateCandidates(_ frames: [CGRect], by count: Int) -> [CGRect] {
+    private func rotateCandidates<Candidate>(_ frames: [Candidate], by count: Int) -> [Candidate] {
         guard !frames.isEmpty else { return frames }
         let split = count % frames.count
         return Array(frames[split...]) + Array(frames[..<split])

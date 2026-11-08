@@ -71,6 +71,9 @@ def make_source():
                  'InterleafWritingCraft', 'InterleafCuration', 'InterleafPhotoCuration']:
         add(illumination, 'enum ' + name)
     add(illumination, 'struct IlluminationAssetResolver {')
+    add(illumination, 'enum LeafMarkTier')
+    # Which size tiers a mark can hold: hero, mid, crumb.
+    add(illumination, 'extension IlluminationAsset {\n    /// Subjects that still read')
     for name in ['NoticingSource', 'Noticing']:
         add('Shared/NoticingCrossings.swift', ('enum ' if name.endswith('Source') else 'struct ') + name + ':')
     add(ref, 'struct LabyrinthIllustrationPlate:')
@@ -188,14 +191,14 @@ extension String {
     # The actual registry with only the external entitlement/content-pack adapters above.
     add(illumination, 'enum IlluminationPackRegistry {')
     folio = (ROOT / 'InsideCoverApp/PagesRisingFolio.swift').read_text()
-    scale = block('InsideCoverApp/PagesRisingFolio.swift', '    private func interleafMarginaliaScale(salt:', 4)
+    scale = block('InsideCoverApp/PagesRisingFolio.swift', '    private func midTierScale(salt:', 4)
     unit = block('InsideCoverApp/PagesRisingFolio.swift', '    private func unit(_ salt: Int)', 4, after='private struct FolioLeafMarginaliaMarks:')
-    kernel = scale.replace('private func interleafMarginaliaScale(salt: Int) -> CGFloat', 'func auditMarginaliaScale(seed: Int, salt: Int) -> Double')
+    kernel = scale.replace('private func midTierScale(salt: Int) -> CGFloat', 'func auditMarginaliaScale(seed: Int, salt: Int) -> Double')
     kernel = kernel.replace('leaf.isDecorationPlate', 'true').replace('unit(', 'auditUnit(seed, ')
     unit = unit.replace('private func unit(_ salt: Int) -> CGFloat', 'func auditUnit(_ seed: Int, _ salt: Int) -> Double')
     unit = unit.replace('leaf.decorationRecipe.seed', 'seed').replace('CGFloat(', 'Double(')
     pieces += [kernel, unit]
-    manifest.append(dict(path='InsideCoverApp/PagesRisingFolio.swift', declaration='interleafMarginaliaScale + unit', adaptation='explicit seed and Double for standalone interpreter'))
+    manifest.append(dict(path='InsideCoverApp/PagesRisingFolio.swift', declaration='midTierScale + unit', adaptation='explicit seed and Double for standalone interpreter'))
     return '\n\n'.join(pieces), manifest
 
 

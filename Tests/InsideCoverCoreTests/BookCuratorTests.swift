@@ -524,7 +524,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
     func testCoreRadioStationsAreAvailableWithoutPacks() throws {
         let stations = RadioStationRegistry.stations()
 
-        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave"])
+        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave", "overhead"])
         XCTAssertTrue(stations.allSatisfy(\.isCore))
         XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "fae-fi")).displayFrequency, "88.3")
         XCTAssertEqual(try XCTUnwrap(RadioStationRegistry.station(id: "thornwave")).displayFrequency, "103.7")
@@ -549,7 +549,7 @@ final class BookCuratorTests: StandingOrderGatedTestCase {
     func testRetiredRadioStationsStayOffDialWithOldPackOwnership() {
         let stations = RadioStationRegistry.stations(unlockedPackIDs: ["academy-night-band"])
 
-        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave"])
+        XCTAssertEqual(stations.map(\.id), ["fae-fi", "mothlight-beats", "thornwave", "overhead"])
         XCTAssertNil(RadioStationRegistry.station(id: "midnight-bindery", unlockedPackIDs: ["academy-night-band"]))
         XCTAssertNil(RadioStationRegistry.station(id: "goblin-market-jazz", unlockedPackIDs: ["academy-night-band"]))
     }

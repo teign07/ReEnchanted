@@ -64,7 +64,7 @@ enum ReEnchantedWidgetSnapshotWriter {
         let enchantments = enchantmentShortcuts()
         let question = questionPrompt(from: surfaces)
         let belief = ReEnchantedWidgetBelief(
-            title: "Glow",
+            title: "Belief",
             detail: beliefDetail(for: beliefScore),
             level: max(0, min(100, beliefScore))
         )
@@ -424,15 +424,6 @@ enum ReEnchantedWidgetSnapshotWriter {
     }
 
     private static func beliefDetail(for score: Int) -> String {
-        switch score {
-        case ..<12:
-            return "Low ember"
-        case 12..<35:
-            return "Steady"
-        case 35..<70:
-            return "Bright"
-        default:
-            return "Luminous"
-        }
+        BeliefLexicon.label(for: score)
     }
 }

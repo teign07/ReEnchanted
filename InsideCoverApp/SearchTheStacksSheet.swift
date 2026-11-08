@@ -28,7 +28,7 @@ struct SearchTheStacksSheet: View {
     @FocusState private var searchFocused: Bool
 
     private let exampleQueries = [
-        "Show me everything with Small Glow",
+        "Show me everything with strong belief",
         "What did I keep when I was tired?",
         "Find porch memories",
         "missions",

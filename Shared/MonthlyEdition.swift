@@ -6459,7 +6459,7 @@ enum PrintHygiene {
     }
 
     /// Directions to leaves of the app. On paper they point at nothing.
-    private static let appDirections = ["through capture", "in the glow menu", "tap the "]
+    private static let appDirections = ["through capture", "in the glow menu", "in the belief menu", "tap the "]
 
     private static func sentences(in paragraph: String) -> [String] {
         var out: [String] = []

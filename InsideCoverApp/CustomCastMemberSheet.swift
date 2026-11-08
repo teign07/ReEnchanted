@@ -125,7 +125,7 @@ struct CustomCastMemberSheet: View {
             Label("Invite something new into the Cast", systemImage: "sparkle.magnifyingglass")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(BookPalette.lampGold)
-            Text("I'll add it to the Cast and the World Register. If its Glow quiets later, it'll rest in my margins. It won't disappear.")
+            Text("I'll add it to the Cast and the World Register. If its Belief runs low later, it'll rest in my margins. It won't disappear.")
                 .font(.system(.callout, design: .serif))
                 .foregroundStyle(BookPalette.nightText.opacity(0.82))
                 .fixedSize(horizontal: false, vertical: true)

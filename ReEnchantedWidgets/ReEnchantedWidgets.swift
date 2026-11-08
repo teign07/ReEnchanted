@@ -606,7 +606,7 @@ private struct GlowWidgetView: View {
             ReWidgetBackground {
                 VStack(alignment: .leading, spacing: 10) {
                     GlowPill(text: glowTitle)
-                    Text("The current belief state is \(glowLine.lowercased()).")
+                    Text(glowLine)
                         .font(.system(.headline, design: .serif, weight: .bold))
                         .foregroundStyle(ReTheme.paperText)
                         .lineLimit(3)
@@ -622,15 +622,15 @@ private struct GlowWidgetView: View {
     }
 
     private var glowTitle: String {
-        entry.snapshot.belief?.detail ?? "Warming Glow"
+        entry.snapshot.belief?.detail ?? "Belief"
     }
 
     private var glowLine: String {
         switch entry.snapshot.belief?.level ?? 30 {
-        case ..<12: return "low ember"
-        case 12..<35: return "steady"
-        case 35..<70: return "bright"
-        default: return "luminous"
+        case ..<12: return "Hardly any left. Go and notice something."
+        case 12..<35: return "Enough to try something."
+        case 35..<70: return "Plenty to spend in the stories."
+        default: return "So much it wants spending."
         }
     }
 }
@@ -705,7 +705,7 @@ private struct OpenDesk: View {
                 HStack {
                     WidgetHeader(title: greeting, symbolName: "book.closed", accent: .gold)
                     Spacer()
-                    GlowPill(text: snapshot.belief?.detail ?? "Glow")
+                    GlowPill(text: snapshot.belief?.detail ?? "Belief")
                 }
                 if let interior = snapshot.bookInterior {
                     Label(interior.line, systemImage: interior.symbolName)
@@ -1413,8 +1413,8 @@ private struct ReEnchantedGlowWidget: Widget {
         StaticConfiguration(kind: kind, provider: ReEnchantedWidgetProvider()) { entry in
             GlowWidgetView(entry: entry)
         }
-        .configurationDisplayName("ReEnchanted Glow")
-        .description("A quick view of the current glow state and its doors.")
+        .configurationDisplayName("ReEnchanted Belief")
+        .description("Your Belief at a glance, and the way in.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }

@@ -951,22 +951,21 @@ struct TarotPageView: View {
 
 // MARK: - The Inkbones Page
 
-/// The Inkbones Page (docs/the-knock-plan.md §7.6): one Page where the dice
-/// game and the divination are the same thing. Throw five bones up to three
-/// times, tap the ones to keep, and the Curse throws back between throws.
-/// What's left is the reading; the reader answers it in one sentence.
+/// The Inkbones Page (docs/the-knock-plan.md §7.6): the app's one Inkbones,
+/// the 1–100 throw, played for a reading. Your Belief and the fight set the
+/// line; a stake raises it; one push brings the Curse in.
 struct InkbonesPageView: View {
     @Binding var reading: InkbonesReading?
     @Binding var sentence: String
-    let seed: String
     let stored: String?
     let isReadOnly: Bool
-    let edge: () -> Int
+    let edge: () -> InkbonesOdds.Edge
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("beliefScore") private var beliefScore = 30
     @FolioPageState("inkbonesQuestion") private var question = ""
-    @FolioPageState("inkbonesTumble") private var tumble = 0
-    @FolioPageState("inkbonesCurseNote") private var curseNote = ""
+    @FolioPageState("inkbonesThrown") private var thrown = false
+    @FolioPageState("inkbonesEdgeParts") private var edgeParts: [String] = []
 
     var body: some View {
         FolioControlStack(alignment: .leading, spacing: 16) {
@@ -975,21 +974,32 @@ struct InkbonesPageView: View {
                 .tracking(1.2)
                 .foregroundStyle(BookPalette.gold)
 
-            if let reading {
-                bonesRow(reading)
+            if !isReadOnly && !(reading?.finished ?? false) {
+                directions
+            }
+
+            if let reading, reading.hasThrown {
+                throwResult(reading)
                 if reading.finished {
                     readingLines(reading)
                 } else {
-                    throwControls(reading)
+                    pushControls(reading)
                 }
             } else {
-                unthrown
+                setUp
             }
         }
         .onAppear {
-            guard reading == nil, let stored, let data = stored.data(using: .utf8),
-                  let decoded = try? JSONDecoder().decode(InkbonesReading.self, from: data) else { return }
-            reading = decoded
+            if reading == nil, let stored, let data = stored.data(using: .utf8),
+               let decoded = try? JSONDecoder().decode(InkbonesReading.self, from: data) {
+                reading = decoded
+                thrown = true
+            }
+            if reading == nil, !isReadOnly {
+                let fight = edge()
+                edgeParts = fight.parts.filter { $0.value > 0 }.map { "\($0.label) +\($0.value)" }
+                reading = InkbonesReading.begin(question: question, belief: beliefScore, edge: fight.total)
+            }
         }
         .padding(18)
         .foregroundStyle(BookPalette.ink)
@@ -1000,27 +1010,57 @@ struct InkbonesPageView: View {
                 .stroke(BookPalette.ink.opacity(0.18), lineWidth: 1)
         }
         .environment(\.colorScheme, .light)
-        .sensoryFeedback(.impact(weight: .medium), trigger: tumble)
+        .sensoryFeedback(.impact(weight: .medium), trigger: reading?.rolls.count ?? 0)
         .accessibilityElement(children: .contain)
     }
 
-    private var unthrown: some View {
-        FolioControlStack(alignment: .leading, spacing: 12) {
-            Text("Bring me one thing: a question, or just the day.")
-                .font(.system(.title3, design: .serif).weight(.semibold))
+    // MARK: How to play
+
+    private var directions: some View {
+        FolioControlStack(alignment: .leading, spacing: 6) {
+            step(1, "Ask me one thing: a question, or just the day.")
+            step(2, "I'll show you your line. Throw under it.")
+            step(3, "Don't like the throw? Throw once more, but then the Curse throws too.")
+            Text("1 to 5 is a triumph. 96 to 100 asks a cost.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(BookPalette.paper.opacity(0.45), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func step(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(number)")
+                .font(.system(.caption, design: .serif).weight(.black))
+                .foregroundStyle(BookPalette.page)
+                .frame(width: 18, height: 18)
+                .background(BookPalette.teal, in: Circle())
+            Text(text)
+                .font(.system(.subheadline, design: .serif))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Before the throw
+
+    private var setUp: some View {
+        FolioControlStack(alignment: .leading, spacing: 14) {
             TextField("A question, or leave it for the day", text: $question, axis: .vertical)
                 .font(.system(.body, design: .serif))
                 .lineLimit(1...3)
                 .padding(12)
                 .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .disabled(isReadOnly)
+
+            if let reading {
+                lineCard(reading)
+                stakePicker(reading)
+            }
+
             Button {
-                BookFeedback.play(.braidStart)
-                withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.6)) {
-                    reading = InkbonesReading.begin(seed: seed, question: question, edge: edge())
-                    tumble += 1
-                }
+                throwFirst()
             } label: {
                 Label("Throw the bones", systemImage: "dice")
                     .font(.system(.headline, design: .serif))
@@ -1029,108 +1069,192 @@ struct InkbonesPageView: View {
             }
             .buttonStyle(.borderedProminent)
             .folioControlUnbroken()
-            .disabled(isReadOnly)
+            .disabled(isReadOnly || reading == nil)
         }
     }
 
-    private func bonesRow(_ reading: InkbonesReading) -> some View {
-        HStack(spacing: 8) {
-            ForEach(reading.bones) { bone in
-                Button {
-                    guard !isReadOnly, !reading.finished, !bone.greyed else { return }
-                    BookFeedback.play(.select)
-                    self.reading?.toggleKeep(bone.id)
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: bone.face.symbolName)
-                            .font(.title3.weight(.semibold))
-                        Text(bone.face.title)
-                            .font(.caption2.weight(.bold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 64)
-                    .foregroundStyle(bone.greyed ? BookPalette.ink.opacity(0.3)
-                                     : bone.kept ? BookPalette.page : BookPalette.ink)
-                    .background(
-                        bone.greyed ? Color.gray.opacity(0.25)
-                            : bone.kept ? BookPalette.teal : BookPalette.paper.opacity(0.7),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(bone.kept ? BookPalette.teal : BookPalette.ink.opacity(0.2), lineWidth: bone.kept ? 2 : 1)
-                    }
-                    .rotationEffect(.degrees(reduceMotion || bone.kept ? 0 : Double(((tumble + bone.id * 7) % 5) - 2) * 3))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(bone.greyed ? "\(bone.face.title), greyed by the Curse"
-                                    : "\(bone.face.title)\(bone.kept ? ", kept" : "")")
-                .accessibilityHint(reading.finished || bone.greyed ? "" : "Tap to keep or let go")
+    private func lineCard(_ reading: InkbonesReading) -> some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(spacing: 0) {
+                Text("\(reading.line)")
+                    .font(.system(size: 40, weight: .black, design: .serif))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text("YOUR LINE")
+                    .font(.caption2.weight(.black))
+                    .tracking(1)
+                    .foregroundStyle(BookPalette.ink.opacity(0.6))
             }
+            .frame(minWidth: 72)
+            FolioControlStack(alignment: .leading, spacing: 3) {
+                Text("Belief \(reading.belief) gives you \(InkbonesOdds.storyThreshold(edge: 0, belief: reading.belief))")
+                    .font(.caption.weight(.semibold))
+                ForEach(edgeParts, id: \.self) { part in
+                    Text(part).font(.caption)
+                }
+                if reading.stake > 0 {
+                    Text("Belief staked \(reading.stake) +\(reading.line - reading.baseLine)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(BookPalette.teal)
+                }
+            }
+            .foregroundStyle(BookPalette.ink.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .folioControlUnbroken()
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(BookPalette.ink.opacity(0.22), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 
-    private func throwControls(_ reading: InkbonesReading) -> some View {
-        FolioControlStack(alignment: .leading, spacing: 10) {
-            Text(reading.bones.contains(where: \.kept)
-                 ? "Throw the rest again, or read them as they lie."
-                 : "Tap the bones you want to keep. The others go back in the cup.")
-                .font(.subheadline)
-                .foregroundStyle(BookPalette.ink.opacity(0.74))
+    private func stakePicker(_ reading: InkbonesReading) -> some View {
+        FolioControlStack(alignment: .leading, spacing: 8) {
+            Text("Stake some Belief? It lifts your line twice as far. A good throw pays it back with more; a bad one keeps it.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
-            if !curseNote.isEmpty {
-                Text(curseNote)
-                    .font(.system(.subheadline, design: .serif).italic())
-                    .foregroundStyle(BookPalette.ink.opacity(0.8))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 10) {
-                Button {
-                    throwAgain()
-                } label: {
-                    Label("Throw again · \(reading.throwsLeft) left", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption.weight(.bold))
-                        .fixedSize(horizontal: true, vertical: false)
+            HStack(spacing: 8) {
+                ForEach(InkbonesReading.stakes, id: \.self) { stake in
+                    let affordable = stake <= reading.belief
+                    Button {
+                        BookFeedback.play(.select)
+                        withAnimation { self.reading?.setStake(stake) }
+                    } label: {
+                        Text(stake == 0 ? "No stake" : "Stake \(stake)")
+                            .font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .foregroundStyle(reading.stake == stake ? BookPalette.page : BookPalette.ink)
+                            .background(reading.stake == stake ? BookPalette.teal : BookPalette.paper.opacity(0.7),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isReadOnly || !affordable)
+                    .opacity(affordable ? 1 : 0.4)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(isReadOnly || reading.throwsLeft == 0)
-                Button {
-                    BookFeedback.play(.braidComplete)
-                    withAnimation { self.reading?.read() }
-                } label: {
-                    Label("Read them", systemImage: "text.book.closed")
-                        .font(.caption.weight(.bold))
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                .buttonStyle(.bordered)
-                .disabled(isReadOnly)
             }
             .folioControlUnbroken()
-            Text("The Curse needs \(reading.curseNeeds) to grey a bone you kept.")
-                .font(.caption2)
-                .foregroundStyle(BookPalette.ink.opacity(0.58))
         }
     }
 
-    private func throwAgain() {
-        guard var next = reading, next.throwsLeft > 0 else { return }
-        let greyedBefore = next.greyedBone?.id
-        next.throwAgain()
-        if let roll = next.curseRolls.last {
-            if next.greyedBone != nil, next.greyedBone?.id != greyedBefore, let greyed = next.greyedBone {
-                curseNote = "The Curse threw a \(roll) and greyed your \(greyed.face.title)."
-            } else {
-                curseNote = "The Curse threw a \(roll). Missed."
+    // MARK: The throw
+
+    private func throwResult(_ reading: InkbonesReading) -> some View {
+        FolioControlStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                ForEach(0..<5, id: \.self) { index in
+                    InkbonesPiece(index: index, thrown: thrown, reduceMotion: reduceMotion)
+                }
+            }
+            .frame(height: 56)
+            .frame(maxWidth: .infinity)
+            .accessibilityHidden(true)
+
+            if let roll = reading.roll, let band = reading.band {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("\(roll)")
+                        .font(.system(size: 48, weight: .black, design: .serif))
+                        .monospacedDigit()
+                        .foregroundStyle(bandColor(band))
+                        .contentTransition(.numericText())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(reading.bandTitle.uppercased())
+                            .font(.caption.weight(.black))
+                            .tracking(1)
+                            .foregroundStyle(bandColor(band))
+                        Text(roll <= reading.line ? "under your line of \(reading.line)" : "over your line of \(reading.line)")
+                            .font(.caption)
+                            .foregroundStyle(BookPalette.ink.opacity(0.7))
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("You threw \(roll). \(reading.bandTitle).")
             }
         }
-        BookFeedback.play(next.finished ? .braidComplete : .braidStart)
-        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.6)) {
-            reading = next
-            tumble += 1
+    }
+
+    private func pushControls(_ reading: InkbonesReading) -> some View {
+        FolioControlStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Button {
+                    finish { $0.keep() }
+                } label: {
+                    Label("Keep this throw", systemImage: "hand.raised.fill")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                Button {
+                    thrown = false
+                    finish { $0.throwAgain() }
+                    withAnimation { thrown = true }
+                } label: {
+                    Label("Throw again", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption.weight(.bold))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.bordered)
+            }
+            .folioControlUnbroken()
+            .disabled(isReadOnly)
+            Text("If you throw again, the second throw counts, and the Curse throws too. It needs \(reading.curseNeeds) to grey the reading\(reading.stake > 0 ? " and take your stake" : "").")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.66))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
+
+    private func throwFirst() {
+        guard var next = reading, !next.hasThrown else { return }
+        next.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        next.throwBones()
+        BookFeedback.play(.braidStart)
+        thrown = false
+        withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.6)) {
+            reading = next
+            thrown = true
+        }
+    }
+
+    /// Ends the throw and settles the Belief once, then logs it for the
+    /// margins, the Bleed and the month's edition.
+    private func finish(_ move: (inout InkbonesReading) -> Void) {
+        guard var next = reading, !isReadOnly else { return }
+        move(&next)
+        guard next.finished, !next.settled else {
+            reading = next
+            return
+        }
+        next.settled = true
+        beliefScore = min(100, max(0, beliefScore + next.beliefChange))
+        BookFeedback.play(next.curseTook ? .dismissPage : .braidComplete)
+        let now = Date()
+        let id = "inkbones-\(Int(now.timeIntervalSince1970))"
+        if let roll = next.roll, let band = next.band {
+            var records = [InkbonesThrowRecord(
+                id: id, at: now, thrower: .reader, roll: roll, target: next.line,
+                subject: next.question.isEmpty ? "The Inkbones" : next.question, outcome: band.rawValue
+            )]
+            if let curse = next.curseRoll {
+                records.append(InkbonesThrowRecord(
+                    id: id + "-curse", at: now, thrower: .curse, roll: curse, target: next.curseNeeds,
+                    subject: "The Inkbones", outcome: next.curseTook ? "greyed" : "missed"
+                ))
+            }
+            let vault = PlayerVault.shared
+            vault.mutate { data in
+                var log = data.inkbonesLog ?? []
+                for record in records { log = InkbonesThrowRecord.appending(record, to: log) }
+                data.inkbonesLog = log
+            }
+            vault.save()
+        }
+        withAnimation { reading = next }
+    }
+
+    // MARK: The reading
 
     private func readingLines(_ reading: InkbonesReading) -> some View {
         FolioControlStack(alignment: .leading, spacing: 10) {
@@ -1140,10 +1264,20 @@ struct InkbonesPageView: View {
                     .foregroundStyle(BookPalette.ink.opacity(0.72))
                     .fixedSize(horizontal: false, vertical: true)
             }
+            if let angle = reading.angle {
+                Label(angle.rawValue.capitalized, systemImage: angle.symbolName)
+                    .font(.caption.weight(.black))
+                    .foregroundStyle(reading.curseTook ? Color.gray : BookPalette.teal)
+            }
             ForEach(Array(reading.lines.enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .font(.system(.body, design: .serif))
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if let beliefLine = reading.beliefLine {
+                Text(beliefLine)
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(reading.beliefChange < 0 ? BookPalette.violet : BookPalette.teal)
             }
             Text(reading.ask)
                 .font(.caption.weight(.black))
@@ -1156,6 +1290,17 @@ struct InkbonesPageView: View {
                 .padding(12)
                 .background(BookPalette.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .disabled(isReadOnly)
+        }
+        .opacity(reading.curseTook ? 0.82 : 1)
+    }
+
+    private func bandColor(_ band: StoryInkbonesBand) -> Color {
+        switch band {
+        case .triumph: return BookPalette.gold
+        case .favor: return BookPalette.teal
+        case .hesitate: return BookPalette.ink.opacity(0.75)
+        case .cost: return BookPalette.violet
+        case .sideways: return Color(red: 0.24, green: 0.34, blue: 0.50)
         }
     }
 }
@@ -1221,16 +1366,16 @@ struct InkbonesCameTrueView: View {
                         .foregroundStyle(BookPalette.ink.opacity(0.72))
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                HStack(spacing: 6) {
-                    ForEach(reading.bones) { bone in
-                        Image(systemName: bone.face.symbolName)
-                            .font(.callout)
-                            .frame(maxWidth: .infinity, minHeight: 34)
-                            .foregroundStyle(bone.greyed ? BookPalette.ink.opacity(0.3) : BookPalette.ink)
-                            .background(bone.greyed ? Color.gray.opacity(0.2) : BookPalette.paper.opacity(0.6),
-                                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                            .accessibilityLabel(bone.greyed ? "\(bone.face.title), greyed" : bone.face.title)
+                if let roll = reading.roll, let angle = reading.angle {
+                    HStack(spacing: 10) {
+                        Text("\(roll)")
+                            .font(.system(size: 30, weight: .black, design: .serif))
+                            .monospacedDigit()
+                        Label("\(reading.bandTitle) · \(angle.rawValue)", systemImage: angle.symbolName)
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(BookPalette.ink.opacity(0.72))
                     }
+                    .accessibilityElement(children: .combine)
                 }
                 ForEach(Array(reading.lines.enumerated()), id: \.offset) { _, line in
                     Text(line)

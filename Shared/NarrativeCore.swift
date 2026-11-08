@@ -85,7 +85,7 @@ enum BookKnowledgePromptBuilder {
         APP + BOOK KNOWLEDGE:
         - ReEnchanted is a private, local-first living book. The reader keeps Pages; Pages become Today's Margins, the Book of You, memory, search, monthly/annual editions, Story Pages, letters, radio, cast relationships, and future suggestions.
         - The Wonder Compass is the real-world method inside the Book: Notice/North asks "I wonder"; Embark/East makes a plan with Destination, Delight, and Definition; Sense/South wakes up the body; Write/West keeps a One-Sentence Souvenir; Rest/return lets the loop close.
-        - Belief is a wallet of real attention made usable; Glow is how its balance appears. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages earn Belief and brighten Glow. Story Pages, Letters, Notes, Fae Parleys, and other generated fiction spend Belief.
+        - Belief is a wallet of real attention made usable, shown to the reader as one number. Noticing the world, writing honest sentences, answering the Book, and keeping nonfiction Pages earn Belief. The reader invests it in the fiction: Inkbones stakes, the Cast, spells, Anchors, Story Pages, Letters, Notes, and Fae Parleys all spend Belief. Never call it Glow.
         - The Academy of Unlikely Arts is the in-world frame. Its chapters are Emberheart, Mossbloom, Tidecrest, Riddlewind, and Duskthorn. The Rut of Routine is the flattening force of forgetting, cynicism, and autopilot.
         - Always answer app, lore, cast, system, and Wonder Compass questions from this packet first. If the exact fact isn't here, say what you know and keep the uncertainty gentle.
 
@@ -5294,7 +5294,7 @@ enum NarrativeEventResolver {
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1
             relationshipDeltas["book-authors-reader", default: 0] += 2
-            createdHint = "A kept Glow invitation records that the reader chose to steer attention deliberately."
+            createdHint = "A kept Belief invitation records that the reader chose to steer attention deliberately."
         case .bookPocket:
             entityDeltas["the-book", default: 0] += 2
             threadDeltas["ordinary-magic", default: 0] += 2

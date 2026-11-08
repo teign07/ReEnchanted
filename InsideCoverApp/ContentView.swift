@@ -1651,9 +1651,10 @@ struct ContentView: View {
         )
     }
 
-    /// Tucks one of the ribbon's three strands into this Page. With all three
-    /// in use, `movingStrand` says which to move; without it nothing moves and
-    /// the reader is told to choose (from the ribbon's menu).
+    /// Bookmarks this Page with the ribbon. When the ribbon already keeps as
+    /// many Pages as it can, `movingStrand` says which bookmark to let go;
+    /// without it nothing moves and the reader is told to choose (from the
+    /// ribbon's menu).
     func placePagesRisingRibbon(
         on surface: SurfacePage,
         documentID: String,
@@ -1674,7 +1675,7 @@ struct ContentView: View {
         let before = vault.data.ribbons
         guard let after = BookRibbons.tucking(ribbon, into: before, movingStrand: movingStrand) else {
             BookFeedback.play(.tap)
-            statusMessage = "All three ribbons are holding something. Tap the ribbon to choose which one moves."
+            statusMessage = "The ribbon's keeping as many Pages as it can. Tap it to choose one to let go."
             return
         }
         let moved = movingStrand.flatMap { strand in before.first { ($0.strand ?? 0) == strand } }
@@ -1700,8 +1701,8 @@ struct ContentView: View {
             statusMessage = "I let go of “\(moved.title)”. The weather can have it now. This one's held."
         } else {
             let free = BookRibbons.strandCount - after.count
-            statusMessage = "Ribbon tucked into “\(ribbon.title)”. The Curse can't drink ink under a ribbon. "
-                + (free == 0 ? "That's all three." : "\(free) left.")
+            statusMessage = "Bookmarked “\(ribbon.title)”. The Curse can't drink ink the ribbon's keeping. "
+                + (free == 0 ? "That's as many as it holds." : "It can keep \(free) more.")
         }
     }
 
@@ -1711,7 +1712,7 @@ struct ContentView: View {
         vault.mutate { $0.ribbons = BookRibbons.lifting(documentID: documentID, from: before) }
         vault.save()
         BookFeedback.play(.tap)
-        statusMessage = "Ribbon lifted from “\(lifted.title)”. It's loose in the weather again."
+        statusMessage = "Bookmark taken out of “\(lifted.title)”. It's loose in the weather again."
     }
 
     func pagesRisingDocumentID(for surface: SurfacePage) -> String {
@@ -7362,7 +7363,7 @@ struct ContentView: View {
     }
 
     var glowMenuLockedMessage: String {
-        "Your Glow is awake, but the menu opens after the Academy finishes showing you the first pages."
+        "Your Belief's awake, but the menu opens after the Academy finishes showing you the first pages."
     }
 
     /// First-touch margin notes: the exploratory tutorial that follows the
@@ -7729,7 +7730,7 @@ struct ContentView: View {
     func giveBelief(to entity: GlowEntityMenuItem) {
         let spend = min(3, beliefScore)
         guard spend > 0 else {
-            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer me to rekindle it."
+            statusMessage = "You haven't enough Belief to give right now. Notice something and keep it, or answer me, and you'll have more."
             return
         }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
@@ -7738,39 +7739,39 @@ struct ContentView: View {
         adjustEntityBelief(entity, delta: spend, kind: .beliefInvested, playerBeliefDelta: -spend)
         BookFeedback.beliefTransferred(amount: spend, recipientGlow: entity.glow + spend)
         statusMessage = spend == 3
-            ? "\(entity.name) takes on three brighter points of Glow, passed from your own."
-            : "\(entity.name) takes the last \(spend) point\(spend == 1 ? "" : "s") of Glow you could spare."
+            ? "You put 3 Belief into \(entity.name)."
+            : "You put your last \(spend) Belief into \(entity.name)."
     }
 
     func givePageBelief(to page: GlowPageMenuItem) {
         let spend = min(3, beliefScore)
         guard spend > 0 else {
-            statusMessage = "Your own Glow is too dim to give right now. Keep something real or answer me to rekindle it."
+            statusMessage = "You haven't enough Belief to give right now. Notice something and keep it, or answer me, and you'll have more."
             return
         }
         let applied = adjustPageBelief(page, delta: spend)
         guard applied > 0 else {
-            statusMessage = "\(page.title) already glows as bright as it can."
+            statusMessage = "\(page.title) already holds all the Belief it can."
             return
         }
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = max(0, beliefScore - applied)
         }
         BookFeedback.beliefTransferred(amount: applied, recipientGlow: page.glow + applied)
-        statusMessage = "\(page.title) takes on \(applied) brighter point\(applied == 1 ? "" : "s") of Glow, passed from your own."
+        statusMessage = "You put \(applied) Belief into \(page.title)."
     }
 
     func takePageBelief(from page: GlowPageMenuItem) {
         let applied = adjustPageBelief(page, delta: -3)
         guard applied < 0 else {
-            statusMessage = "\(page.title) has no Glow left to take."
+            statusMessage = "\(page.title) has no Belief left to take."
             return
         }
         let gained = -applied
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + gained)
         }
-        statusMessage = "You draw \(gained) point\(gained == 1 ? "" : "s") of Glow back from \(page.title). I'll still remember it can surface."
+        statusMessage = "You took \(gained) Belief back from \(page.title). I'll still remember it can turn up."
     }
 
     func takeBelief(from entity: GlowEntityMenuItem) {
@@ -7795,11 +7796,11 @@ struct ContentView: View {
             beliefScore = min(100, max(0, attack.attackerBeliefAfter))
         }
         if attack.backlash > 0 {
-            statusMessage = "\(entity.name)'s Glow snaps back. \(attack.summaryLine)"
+            statusMessage = "\(entity.name)'s Belief snaps back. \(attack.summaryLine)"
         } else if attack.dealt > 0 {
             statusMessage = "The attack lands. \(attack.summaryLine)"
         } else {
-            statusMessage = "\(entity.name)'s Glow holds. \(attack.summaryLine)"
+            statusMessage = "\(entity.name)'s Belief holds. \(attack.summaryLine)"
         }
     }
 
@@ -7933,8 +7934,8 @@ struct ContentView: View {
             sourcePageID: nil,
             createdAt: Date(),
             summary: delta > 0
-                ? "The reader gave \(entity.name) \(delta) Belief through the Glow menu."
-                : (delta < 0 ? "The reader took \(abs(delta)) Belief from \(entity.name) through the Glow menu." : "The reader tested \(entity.name)'s Belief through the Glow menu."),
+                ? "The reader gave \(entity.name) \(delta) Belief through the Belief menu."
+                : (delta < 0 ? "The reader took \(abs(delta)) Belief from \(entity.name) through the Belief menu." : "The reader tested \(entity.name)'s Belief through the Belief menu."),
             tags: ["glow", "belief", "entity:\(entity.id)"],
             effect: NarrativeEventEffect(
                 beliefDelta: playerBeliefDelta,
@@ -7945,7 +7946,7 @@ struct ContentView: View {
             try BookDatabase.upsertNarrativeEvent(event)
             narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
         } catch {
-            statusMessage = slipLine("The Glow moved. I lost my note about it, that's all.", logging: error)
+            statusMessage = slipLine("The Belief moved. I lost my note about it, that's all.", logging: error)
         }
     }
 
@@ -7980,8 +7981,8 @@ struct ContentView: View {
             sourcePageID: nil,
             createdAt: Date(),
             summary: delta >= 0
-                ? "The reader gave \(page.title) \(delta) Page Belief through the Glow menu."
-                : "The reader took \(abs(delta)) Page Belief from \(page.title) through the Glow menu.",
+                ? "The reader gave \(page.title) \(delta) Page Belief through the Belief menu."
+                : "The reader took \(abs(delta)) Page Belief from \(page.title) through the Belief menu.",
             tags: ["glow", "belief", "page:\(page.sourceID)", "page-type:\(page.type.rawValue)"],
             effect: NarrativeEventEffect(beliefDelta: playerBeliefDelta)
         )
@@ -7989,7 +7990,7 @@ struct ContentView: View {
             try BookDatabase.upsertNarrativeEvent(event)
             narrativeEvents = try BookDatabase.narrativeEvents(limit: 160)
         } catch {
-            statusMessage = slipLine("The Glow moved. I lost my note about it, that's all.", logging: error)
+            statusMessage = slipLine("The Belief moved. I lost my note about it, that's all.", logging: error)
         }
     }
 
@@ -8252,6 +8253,7 @@ struct ContentView: View {
                 checkingExistingOffer: false)
         }
         radioManager.updateExperienceProgram(vault.data.activeExperienceProgram)
+        radioManager.updatePastSelf(RadioPastSelf.echoes(days: days, now: now))
         radioManager.updateWorldState(
             grey: greyLevel * 33,
             festivalActive: festival,
@@ -13860,7 +13862,7 @@ struct ContentView: View {
                 requiredBelief = 0
             }
             guard beliefScore >= requiredBelief else {
-                statusMessage = "That door wants more Glow first. Keep something real, or answer me, then try again."
+                statusMessage = "That wants more Belief first. Notice something and keep it, or answer me, then try again."
                 BookFeedback.play(.error)
                 return
             }
@@ -18592,7 +18594,7 @@ struct ContentView: View {
     @MainActor
     func spendBeliefForGeneration(_ kind: BeliefGenerationKind) -> Bool {
         guard beliefScore >= kind.cost else {
-            statusMessage = "The \(kind.title) is waiting for my Glow to warm before its ink can wake."
+            statusMessage = "The \(kind.title) needs more Belief than you've got before its ink can wake."
             BookFeedback.play(.error)
             return false
         }
@@ -18611,7 +18613,7 @@ struct ContentView: View {
         withAnimation(.spring(response: 0.45, dampingFraction: 0.72)) {
             beliefScore = min(100, beliefScore + kind.cost)
         }
-        statusMessage = "The \(kind.title) didn't finish, so its Belief returned to your Glow."
+        statusMessage = "The \(kind.title) didn't finish, so you got its Belief back."
     }
 
     @MainActor
@@ -18772,9 +18774,9 @@ struct ContentView: View {
         var parts: [String] = []
 
         if result.readerDelta > 0 {
-            parts.append("your Glow caught \(result.readerDelta) point\(result.readerDelta == 1 ? "" : "s")")
+            parts.append("you gained \(result.readerDelta) Belief")
         } else if result.readerDelta < 0 {
-            parts.append("your Glow settled by \(abs(result.readerDelta))")
+            parts.append("you spent \(abs(result.readerDelta)) Belief")
         }
 
         let others = result.movements
@@ -22319,9 +22321,9 @@ struct ContentView: View {
         saveAnchorLedger()
         if beliefGiven > 0 {
             BookFeedback.beliefTransferred(amount: beliefGiven, recipientGlow: updatedAnchor.belief)
-            anchorMessage = "\(updatedAnchor.name) kept the visit and accepted a little Belief from your Glow."
+            anchorMessage = "You put \(beliefGiven) Belief into \(updatedAnchor.name), and it kept the visit."
         } else {
-            anchorMessage = "Your Glow is too dim to feed \(updatedAnchor.name) today, but the visit still counts."
+            anchorMessage = "You've no Belief to spare for \(updatedAnchor.name) today, but the visit still counts."
         }
         if nearbyAnchor?.anchor.id == anchorID {
             nearbyAnchor = nil

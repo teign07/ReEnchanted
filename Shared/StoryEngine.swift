@@ -119,7 +119,7 @@ struct BeliefCombatResult: Codable, Equatable {
             return "\(attackerName) pressed against \(targetName), but the pressure turned back on them."
         }
         if dealt > 0 {
-            return "\(attackerName) found a weak place in \(targetName), and its Glow receded."
+            return "\(attackerName) found a weak place in \(targetName), and its Belief drained away."
         }
         return "\(attackerName) tested \(targetName), but nothing gave way."
     }
@@ -371,19 +371,20 @@ enum InkbonesOdds {
     static func curseNeeds(edge: Int) -> Int { min(97, 80 + max(0, edge)) }
 }
 
-/// One Inkbones throw, by the reader or by the Curse, for the margins, the
-/// Bleed and the month's edition.
-/// The Inkbones Page (docs/the-knock-plan.md §7.6): a game that writes a
-/// reading. Bring one thing, throw five bones up to three times, keep some
-/// each time. Between throws the Curse throws back, and on a strong throw it
-/// greys one bone you kept. What you kept is the reading; the greyed bone is
-/// what the Curse is after. Every line is authored; the throws are seeded, so
-/// a kept reading replays exactly.
+/// The Inkbones Page (docs/the-knock-plan.md §7.6): the app's one Inkbones,
+/// the 1–100 throw, played for a reading. Bring one thing. Your Belief and
+/// the fight set your line; stake a little Belief to raise it; throw under it.
+/// Don't like it? Throw once more, but then the Curse throws too, and if it
+/// hits it greys the reading and takes the stake. The result is the answer;
+/// the tens digit picks what the bones point at.
 struct InkbonesReading: Codable, Equatable {
-    enum Face: String, Codable, CaseIterable, Equatable {
-        case salt, thread, key, moon, ink, coin
+    /// What the bones point at, by the tens digit of the throw that counts.
+    enum Angle: String, Codable, CaseIterable, Equatable {
+        case salt, thread, key, moon, ink, coin, ash, glass, feather, bell
 
-        var title: String { rawValue }
+        static func of(roll: Int) -> Angle {
+            allCases[min(9, max(0, (roll - 1) / 10))]
+        }
 
         var symbolName: String {
             switch self {
@@ -393,153 +394,179 @@ struct InkbonesReading: Codable, Equatable {
             case .moon: return "moon.fill"
             case .ink: return "drop.fill"
             case .coin: return "circle.circle.fill"
+            case .ash: return "flame"
+            case .glass: return "eyeglasses"
+            case .feather: return "leaf"
+            case .bell: return "bell.fill"
             }
         }
 
-        /// One bone, two, three or more.
-        func line(count: Int) -> String {
-            switch (self, min(count, 3)) {
-            case (.salt, 1): return "Salt. Something of yours wants keeping, and you already know which."
-            case (.salt, 2): return "Two salts. Keep it close. Closer than that."
-            case (.salt, _): return "Salt everywhere. Whatever this is, it's yours, and nothing gets to take it."
-            case (.thread, 1): return "A thread. Somebody's tied to this, even if they don't know it."
-            case (.thread, 2): return "Two threads, crossed. Two people are in this, and one of them's you."
-            case (.thread, _): return "Threads all tangled up. You're more tied in than you think, and that's the good news."
-            case (.key, 1): return "A key. You're allowed something you haven't let yourself have yet."
-            case (.key, 2): return "Two keys. Two ways in, and you only need one."
-            case (.key, _): return "Keys, keys, keys. Stop asking. You're allowed."
-            case (.moon, 1): return "The moon. Part of this is still asleep. Let it sleep one more night."
-            case (.moon, 2): return "Two moons. You'll dream the answer before you think it."
-            case (.moon, _): return "All moons. Don't decide this in daylight."
-            case (.ink, 1): return "Ink. It wants saying, or at least writing down."
-            case (.ink, 2): return "Two inks. Somebody's waiting for you to write first."
-            case (.ink, _): return "All ink. Write it today. One sentence is plenty."
-            case (.coin, 1): return "A coin. It'll cost a little. It's worth about that much."
-            case (.coin, 2): return "Two coins. A fair trade's coming. Take it."
-            case (.coin, _): return "All coins. Luck's leaning your way. Lean back."
+        var line: String {
+            switch self {
+            case .salt: return "They point at salt: something of yours wants keeping, and you already know which."
+            case .thread: return "They point at a thread: somebody's tied to this, even if they don't know it."
+            case .key: return "They point at a key: you're allowed something you haven't let yourself have yet."
+            case .moon: return "They point at the moon: part of this is still asleep. Let it sleep one more night."
+            case .ink: return "They point at ink: it wants saying, or at least writing down."
+            case .coin: return "They point at a coin: it'll cost a little, and it's worth about that much."
+            case .ash: return "They point at ash: something's already finished. You're allowed to stop carrying it."
+            case .glass: return "They point at glass: look again. The answer's in plain sight and pretending not to be."
+            case .feather: return "They point at a feather: go lighter. You're holding this too tight."
+            case .bell: return "They point at a bell: it's nearly time. Listen for it."
             }
         }
 
-        /// What the Curse is after when it greys this face.
+        /// What the Curse is after, when it greys the reading.
         var shadowLine: String {
             switch self {
-            case .salt: return "The Curse greyed the salt. It wants you to stop keeping things. Don't let it."
-            case .thread: return "The Curse greyed a thread. It wants you on your own with this."
-            case .key: return "The Curse greyed the key. It wants you waiting for permission."
-            case .moon: return "The Curse greyed the moon. It wants you too busy to dream about it."
-            case .ink: return "The Curse greyed the ink. It wants this left unsaid."
-            case .coin: return "The Curse greyed a coin. It wants you thinking it costs too much."
+            case .salt: return "It wants you to stop keeping things. Don't let it."
+            case .thread: return "It wants you on your own with this."
+            case .key: return "It wants you waiting for permission."
+            case .moon: return "It wants you too busy to dream about it."
+            case .ink: return "It wants this left unsaid."
+            case .coin: return "It wants you thinking it costs too much."
+            case .ash: return "It wants you carrying the finished thing forever."
+            case .glass: return "It wants you looking at your phone instead."
+            case .feather: return "It wants you clenched."
+            case .bell: return "It wants you to miss the moment."
             }
         }
     }
 
-    struct Bone: Codable, Equatable, Identifiable {
-        var id: Int
-        var face: Face
-        var kept: Bool = false
-        var greyed: Bool = false
+    static let stakes = [0, 3, 6]
+
+    var question: String
+    /// The reader's Belief when the bones were picked up.
+    var belief: Int
+    /// The fight's edge (§7.1).
+    var edge: Int
+    var stake: Int = 0
+    var rolls: [Int] = []
+    /// The Curse's throw, only when the reader threw twice.
+    var curseRoll: Int? = nil
+    var finished: Bool = false
+    /// True once the Belief has been paid or taken, so a replay never pays twice.
+    var settled: Bool = false
+
+    static func begin(question: String, belief: Int, edge: Int) -> InkbonesReading {
+        InkbonesReading(question: question.trimmingCharacters(in: .whitespacesAndNewlines), belief: belief, edge: edge)
     }
 
-    static let boneCount = 5
-    static let throwLimit = 3
-
-    var seed: String
-    var question: String
-    var edge: Int
-    var bones: [Bone]
-    var throwsUsed: Int
-    /// The Curse's throw after each of yours but the last.
-    var curseRolls: [Int] = []
-    var finished: Bool = false
-
-    var throwsLeft: Int { max(0, Self.throwLimit - throwsUsed) }
-    var greyedBone: Bone? { bones.first(where: \.greyed) }
-    var liveBones: [Bone] { bones.filter { !$0.greyed } }
-    /// The number the Curse has to reach to grey a bone: the fight (§7.1)
-    /// pushes it up.
+    /// Belief and the fight, before any stake.
+    var baseLine: Int { InkbonesOdds.storyThreshold(edge: edge, belief: belief) }
+    /// The number to throw under. A stake raises it by twice what's staked.
+    var line: Int { min(92, baseLine + stake * 2) }
     var curseNeeds: Int { InkbonesOdds.curseNeeds(edge: edge) }
 
-    static func roll(_ key: String, sides: Int) -> Int {
-        var hash: UInt64 = 14_695_981_039_346_656_037
-        for byte in key.utf8 { hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211 }
-        hash ^= hash >> 29
-        hash = hash &* 0xbf58_476d_1ce4_e5b9
-        hash ^= hash >> 32
-        return Int(hash % UInt64(sides)) + 1
+    var hasThrown: Bool { !rolls.isEmpty }
+    var mayThrowAgain: Bool { rolls.count == 1 && !finished }
+    var roll: Int? { rolls.last }
+    var band: StoryInkbonesBand? { roll.map { StoryInkbonesBand.resolve(roll: $0, threshold: line) } }
+    var angle: Angle? { roll.map(Angle.of(roll:)) }
+    var curseTook: Bool { curseRoll.map { $0 >= curseNeeds } ?? false }
+
+    mutating func setStake(_ value: Int) {
+        guard !hasThrown, Self.stakes.contains(value) else { return }
+        stake = min(value, max(0, belief))
     }
 
-    static func face(seed: String, throwIndex: Int, bone: Int) -> Face {
-        Face.allCases[roll("\(seed)|throw\(throwIndex)|bone\(bone)", sides: Face.allCases.count) - 1]
+    mutating func throwBones(roll: Int = Int.random(in: 1...100)) {
+        guard !hasThrown, !finished else { return }
+        rolls = [min(100, max(1, roll))]
     }
 
-    /// The first throw.
-    static func begin(seed: String, question: String, edge: Int) -> InkbonesReading {
-        InkbonesReading(
-            seed: seed,
-            question: question.trimmingCharacters(in: .whitespacesAndNewlines),
-            edge: edge,
-            bones: (0..<boneCount).map { Bone(id: $0, face: face(seed: seed, throwIndex: 1, bone: $0)) },
-            throwsUsed: 1
-        )
+    /// The second throw counts, and the Curse throws too.
+    mutating func throwAgain(roll: Int = Int.random(in: 1...100), curse: Int = Int.random(in: 1...100)) {
+        guard mayThrowAgain else { return }
+        rolls.append(min(100, max(1, roll)))
+        curseRoll = min(100, max(1, curse))
+        finished = true
     }
 
-    mutating func toggleKeep(_ id: Int) {
-        guard !finished, let index = bones.firstIndex(where: { $0.id == id }), !bones[index].greyed else { return }
-        bones[index].kept.toggle()
+    mutating func keep() {
+        guard hasThrown else { return }
+        finished = true
     }
 
-    /// The Curse throws, then every bone you didn't keep is thrown again.
-    /// Keeping all five reads them as they lie.
-    mutating func throwAgain() {
-        guard !finished, throwsLeft > 0 else { return }
-        let curse = Self.roll("\(seed)|curse\(throwsUsed)", sides: 100)
-        curseRolls.append(curse)
-        let kept = bones.filter { $0.kept && !$0.greyed }
-        if greyedBone == nil, curse >= curseNeeds, !kept.isEmpty {
-            let target = kept[Self.roll("\(seed)|grey\(throwsUsed)", sides: kept.count) - 1].id
-            if let index = bones.firstIndex(where: { $0.id == target }) {
-                bones[index].greyed = true
-                bones[index].kept = false
-            }
+    /// What the throw does to the reader's Belief.
+    var beliefChange: Int {
+        guard finished, let band else { return 0 }
+        if curseTook { return -stake }
+        switch band {
+        case .triumph: return stake + 2
+        case .favor: return stake / 3
+        case .hesitate: return 0
+        case .sideways: return -(stake / 2)
+        case .cost: return -stake
         }
-        throwsUsed += 1
-        for index in bones.indices where !bones[index].kept && !bones[index].greyed {
-            bones[index].face = Self.face(seed: seed, throwIndex: throwsUsed, bone: bones[index].id)
+    }
+
+    var bandTitle: String {
+        switch band {
+        case .triumph?: return "Triumph"
+        case .favor?: return "Favoured"
+        case .hesitate?: return "Hesitated"
+        case .sideways?: return "Sideways"
+        case .cost?: return "A cost"
+        case nil: return ""
         }
-        if throwsLeft == 0 { finished = true }
     }
 
-    mutating func read() { finished = true }
-
-    /// Three or more of one face among the bones the Curse didn't touch.
-    var isTriumph: Bool {
-        Dictionary(grouping: liveBones, by: \.face).values.contains { $0.count >= 3 }
+    /// The answer, from the result. A question gets an answer; the day gets
+    /// a forecast.
+    var answer: String? {
+        guard let band else { return nil }
+        let asked = !question.isEmpty
+        switch band {
+        case .triumph:
+            return asked ? "Yes! Yes so loud I nearly fell off the desk. Go on, then."
+                : "Today's going to surprise you, in the good way. Say yes to the odd thing."
+        case .favor:
+            return asked ? "Yes. Don't hang about." : "The day's on your side. Go slightly further than you meant to."
+        case .hesitate:
+            return asked ? "Not yet. Ask me again when it's lighter." : "The day's undecided. Make it decide by doing one small thing first."
+        case .sideways:
+            return asked ? "Not like that. There's another way round, and it's better."
+                : "The day won't go the way you planned. Let it go its way, and watch."
+        case .cost:
+            return asked ? "Yes, but it'll cost you something. Count it first."
+                : "Something today asks a price. Pay the small one and keep the big one."
+        }
     }
 
-    /// The reading, in the order the faces first fell.
     var lines: [String] {
-        var seen: [Face] = []
-        for bone in liveBones where !seen.contains(bone.face) { seen.append(bone.face) }
-        var lines = seen.map { face in face.line(count: liveBones.filter { $0.face == face }.count) }
-        if isTriumph { lines.insert("Three of a kind! That's a triumph. I'm writing this one big.", at: 0) }
-        if let greyed = greyedBone {
-            lines.append(greyed.face.shadowLine)
-        } else if let best = curseRolls.max() {
-            lines.append("The Curse threw \(curseRolls.count == 1 ? "a \(best)" : "\(curseRolls.map { String($0) }.joined(separator: " and "))") and touched nothing. Ha.")
+        guard finished, let roll, let angle, let answer else { return [] }
+        var lines: [String] = []
+        if rolls.count == 2 { lines.append("You threw \(rolls[0]), then \(roll). The second one counts.") }
+        lines.append(answer)
+        lines.append(angle.line)
+        if let curseRoll {
+            lines.append(curseTook
+                ? "The Curse threw a \(curseRoll) and greyed the reading. \(angle.shadowLine)"
+                : "The Curse threw a \(curseRoll) and missed. Ha.")
         }
         return lines
     }
 
     var ask: String { "One sentence: what lands, or what misses?" }
 
+    var beliefLine: String? {
+        guard finished else { return nil }
+        let change = beliefChange
+        if change > 0 { return "Belief +\(change)" }
+        if change < 0 { return "Belief \(change)" }
+        return stake > 0 ? "Belief kept" : nil
+    }
+
     var archiveText: String {
-        var sections = ["The Inkbones · \(question.isEmpty ? "The day" : question)"]
-        sections.append("Bones: " + bones.map { $0.greyed ? "\($0.face.title) (greyed)" : $0.face.title }.joined(separator: ", "))
-        sections.append(lines.joined(separator: "\n"))
-        return sections.joined(separator: "\n\n")
+        var head = "The Inkbones · \(question.isEmpty ? "The day" : question)"
+        if let roll { head += "\nThrew \(roll) against a line of \(line) · \(bandTitle)" + (stake > 0 ? " · staked \(stake)" : "") }
+        return ([head, lines.joined(separator: "\n")] + [beliefLine].compactMap { $0 }).joined(separator: "\n\n")
     }
 }
 
+/// One Inkbones throw, by the reader or by the Curse, for the margins, the
+/// Bleed and the month's edition.
 struct InkbonesThrowRecord: Codable, Equatable, Identifiable {
     enum Thrower: String, Codable { case reader, curse }
     var id: String
@@ -547,7 +574,8 @@ struct InkbonesThrowRecord: Codable, Equatable, Identifiable {
     var thrower: Thrower
     var roll: Int
     var target: Int
-    /// What it was for: a Story choice, or the Page the Curse threw at.
+    /// What it was for: a Story choice, the Inkbones Page's question, or the
+    /// Page the Curse threw at.
     var subject: String
     /// A Story band (`StoryInkbonesBand.rawValue`), or "took" / "missed" for the Curse.
     var outcome: String
@@ -3360,7 +3388,7 @@ enum StoryScenePacketBuilder {
             playableThreadTitle: playableThreadTitle,
             directorIntent: intent,
             playerBelief: belief,
-            bookGlow: BeliefLexicon.glowName(for: belief),
+            bookGlow: BeliefLexicon.label(for: belief),
             realSignals: realSignals,
             selectedEntities: selectedEntities,
             selectedThreads: selectedThreads,
@@ -5661,7 +5689,7 @@ enum GossipSimulationBuilder {
         case .investBelief:
             templates = [
                 "\"\(actor.name) is pouring Belief into \(thread.title) and won't say why. When \(actor.name) goes quiet about money, watch the money.\"",
-                "\"I saw the glow myself - \(actor.name) fed \(thread.title) like it owed the thread an apology.\"",
+                "\"I saw it myself - \(actor.name) fed \(thread.title) like it owed the thread an apology.\"",
                 "\"\(actor.name) swears it's nothing. \(actor.name) only ever says 'it's nothing' about the things that are something.\""
             ]
         case .attackBelief:
@@ -5874,15 +5902,15 @@ enum GossipSimulationBuilder {
         case .attackBelief:
             if let beliefCombat {
                 var lines = [
-                    "\(actor.name) pressed their Glow against \(thread.title).",
+                    "\(actor.name) pressed their Belief against \(thread.title).",
                     beliefCombat.summaryLine
                 ]
                 if beliefCombat.dealt > 0 {
                     lines.append("\(thread.title) dimmed.")
                 } else if beliefCombat.backlash > 0 {
-                    lines.append("\(actor.name)'s own Glow fell back.")
+                    lines.append("\(actor.name)'s own Belief fell back.")
                 } else {
-                    lines.append("\(thread.title) held its Glow.")
+                    lines.append("\(thread.title) held its Belief.")
                 }
                 return lines + talismanLines
             }
@@ -5926,59 +5954,66 @@ enum GossipSimulationBuilder {
     }
 }
 
+/// Belief is the one number. The reader earns it by noticing and keeping true
+/// things, and spends it in the fiction: throws, the Cast, spells, Anchors.
+/// It used to wear a ladder of light-names ("Small Glow", "Radiant Glow") that
+/// hid the number the Inkbones and stakes are measured against. Now every
+/// surface prints the number itself, and only search keeps three rough bands.
 enum BeliefLexicon {
-    static func glowName(for score: Int) -> String {
-        switch min(100, max(0, score)) {
-        case ..<10:
-            return "Glow Barely There"
-        case 10..<20:
-            return "Meager Glow"
-        case 20..<30:
-            return "Faint Glow"
-        case 30..<40:
-            return "Small Glow"
-        case 40..<50:
-            return "Warming Glow"
-        case 50..<60:
-            return "Steady Glow"
-        case 60..<70:
-            return "Clear Glow"
-        case 70..<80:
-            return "Bright Glow"
-        case 80..<90:
-            return "Radiant Glow"
-        default:
-            return "Glow Too Full"
+    static func clamped(_ score: Int) -> Int {
+        min(100, max(0, score))
+    }
+
+    /// "Belief 34": the reader's, a Cast member's, or a kind of Page's.
+    static func label(for score: Int) -> String {
+        "Belief \(clamped(score))"
+    }
+
+    enum Band: String, CaseIterable {
+        case little, middling, strong
+
+        static func of(_ score: Int) -> Band {
+            switch clamped(score) {
+            case ..<30: return .little
+            case 30..<60: return .middling
+            default: return .strong
+            }
+        }
+
+        /// What a reader might type into the Stacks to ask for this band.
+        var phrases: [String] {
+            switch self {
+            case .little: return ["little belief", "low belief", "least belief", "no belief"]
+            case .middling: return ["some belief", "middling belief"]
+            case .strong: return ["strong belief", "high belief", "most belief", "lots of belief", "a lot of belief"]
+            }
         }
     }
 
-    /// The Glow panel used to print one fixed sentence under whichever tier it
-    /// was showing, so "Glow Barely There" was described as steady and gently
-    /// luminous — and "steady" is the name of a different rung entirely. The
-    /// line lives beside the ladder now so the two cannot drift apart. Each
-    /// rung is described in its own terms and borrows no other rung's adjective.
-    static func glowState(for score: Int) -> String {
-        switch min(100, max(0, score)) {
+    /// One line under the number in the Belief menu. Each rung is said its
+    /// own way so two scores ten apart never read the same.
+    static func state(for score: Int) -> String {
+        switch clamped(score) {
         case ..<10:
-            return "There's barely enough of me lit to read by."
+            return "You've hardly any Belief left. Go and notice something."
         case 10..<20:
-            return "I'm lit, but only just."
+            return "There's a little Belief in you. Not much."
         case 20..<30:
-            return "Faint, and it still holds."
+            return "Enough Belief to try one thing."
         case 30..<40:
-            return "Small, and it keeps."
+            return "A fair bit of Belief, and it's holding."
         case 40..<50:
-            return "Warming. I can feel it coming up."
+            return "Your Belief's coming up. I can feel it."
         case 50..<60:
-            return "Steady now. It doesn't gutter."
+            return "Plenty of Belief. You could spend some."
         case 60..<70:
-            return "Clear enough to work by."
+            return "Lots of Belief. The stories can feel it too."
         case 70..<80:
-            return "Bright. I can see the far margins."
+            return "So much Belief I can see the far margins."
         case 80..<90:
-            return "Radiant, and I'm showing off a little."
+            return "You're stuffed with Belief, and I'm showing off a bit."
         default:
-            return "Too full. Some of this wants spending."
+            return "Too much Belief. Some of it wants spending."
         }
     }
 }
@@ -7857,7 +7892,7 @@ struct WonderCompassRunSeed: Equatable {
 
             \(restPrompt)
 
-            Rest is the center of the Compass. Keep this Page after the quiet minute, and the completed run warms my Glow.
+            Rest is the center of the Compass. Keep this Page after the quiet minute, and the run’s done.
             """
         }
     }

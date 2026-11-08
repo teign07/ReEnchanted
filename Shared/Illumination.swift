@@ -1875,7 +1875,6 @@ enum CoreMarginsPack {
         academyNoteAsset("academy_note_goblin_market_new_moon", "AcademyNoteGoblinMarketNewMoon", 257, 144, ["goblin", "market", "new-moon", "moon", "event"]),
         academyNoteAsset("academy_note_shake_the_book", "AcademyNoteShakeTheBook", 199, 156, ["book", "shake", "surprise", "interaction"]),
         academyNoteAsset("academy_note_double_tap_illustration", "AcademyNoteDoubleTapIllustration", 215, 153, ["illustration", "double-tap", "movement", "interaction"]),
-        academyNoteAsset("academy_note_glow_is_belief", "AcademyNoteGlowIsBelief", 162, 172, ["glow", "belief", "wonder"]),
         academyNoteAsset("academy_note_lost_page", "AcademyNoteLostPage", 210, 165, ["lost-page", "search", "memory", "looking"]),
         academyNoteAsset("academy_note_write_to_character", "AcademyNoteWriteToCharacter", 252, 147, ["character", "letter", "correspondence", "writing"]),
         academyNoteAsset("academy_note_margins_alive", "AcademyNoteMarginsAlive", 235, 156, ["margins", "alive", "magic", "look-closer"]),
@@ -2347,6 +2346,57 @@ enum LeafMarginaliaPlacement: String, Equatable {
     case faintWatermark
 }
 
+/// How large a mark is drawn, relative to its leaf. A collected page gets
+/// its depth from the spread: one thing that owns the paper, a few things
+/// around it, and a sprinkle of crumbs in the gaps. Marks of one size read as
+/// stickers on a grid, however many there are.
+enum LeafMarkTier: String, Codable, Hashable {
+    case hero, mid, crumb
+}
+
+extension IlluminationAsset {
+    /// Subjects that still read when drawn the size of a fingernail.
+    static let crumbSubjectTags: Set<String> = [
+        "punctuation", "comma", "semicolon", "question-mark", "exclamation-mark",
+        "quotation", "nose", "ear", "foot", "boot", "bee", "star", "moth",
+        "feather", "bottle", "wax-seal", "seal", "acorn", "seed", "paw",
+        "wing", "wings", "small", "round", "postage", "charm", "sigil",
+        "wicker-sigil", "bat", "key", "candle", "spider", "pumpkin", "ink"
+    ]
+
+    /// The tiers this drawing can hold. Derived from what the mark is, like
+    /// `LeafAssetTraits.derived`: handwriting must stay legible, a face needs
+    /// room for its expression, and a stamp blown up to a whole page is clip
+    /// art. Only stamps and doodles take part; paper, tape and wear keep their
+    /// own placements.
+    var leafTiers: Set<LeafMarkTier> {
+        guard kind == .stamp || kind == .doodle else { return [] }
+        let words = Set((tags + (leafTraits?.subjectTags ?? [])).map { $0.lowercased() })
+        if words.contains("handwritten") || words.contains("academy-tip") { return [.mid] }
+        var tiers: Set<LeafMarkTier> = [.mid]
+        let role = leafTraits?.semanticRole
+        let weight = leafTraits?.visualWeight ?? 1
+        let isFace = words.contains("expression")
+        if kind == .doodle, !isFace {
+            switch role {
+            case .portrait, .botanical, .watercolor, .map:
+                tiers.insert(.hero)
+            case .ornament, .fieldNote:
+                if weight >= 0.82 { tiers.insert(.hero) }
+            default:
+                break
+            }
+        }
+        switch role {
+        case .portrait, .botanical, .fieldNote, .map, .texture, .fastener:
+            break
+        default:
+            if !isFace, !words.isDisjoint(with: Self.crumbSubjectTags) { tiers.insert(.crumb) }
+        }
+        return tiers
+    }
+}
+
 /// The physical stock beneath a Page's tint, ink, and marginalia. These assets
 /// are deliberately neutral material maps: `PageVisualStyle` still owns the
 /// paper colour, so most leaves remain warm parchment while special Page types
@@ -2462,6 +2512,11 @@ struct LeafDecorationRecipe: Equatable {
     var hasWornCorner: Bool
     var density: LeafMarginaliaDensity = .ordinary
     var companionAssets: [IlluminationAsset] = []
+    /// Whether the primary mark owns the leaf or sits beside the text.
+    var primaryTier: LeafMarkTier = .mid
+    /// Tiny marks scattered into the gaps the larger ones leave. They do not
+    /// spend the leaf's mark budget: a riot is made of crumbs.
+    var crumbAssets: [IlluminationAsset] = []
 }
 
 /// Gives each leaf a stable material recipe and a deliberate density. Most
@@ -2513,7 +2568,7 @@ enum LeafDecorationLibrary {
         // Most expressive leaves should contain one discoverable physical
         // mark. The folio compositor still owns a strict per-leaf budget and
         // may omit this asset when no collision-free region exists.
-        let primary = directedPrimary ?? (bucket(seed, salt: 5) < (decorationPlate ? 100 : 82)
+        var primary = directedPrimary ?? (bucket(seed, salt: 5) < (decorationPlate ? 100 : 82)
             ? resolve(
                 resolver: resolver,
                 kind: primaryKind,
@@ -2624,6 +2679,56 @@ enum LeafDecorationLibrary {
             }
         }
 
+        // A leaf with room to collect wants one mark that owns it. If the
+        // first draw cannot hold a page, look again before settling for mid.
+        let wantsHero = directedPrimary == nil && (decorationPlate
+            ? bucket(seed, salt: 59) < 78
+            : (density == .rich || density == .overdone) && bucket(seed, salt: 59) < 45)
+        if wantsHero, primary?.leafTiers.contains(.hero) != true {
+            for attempt in 0..<4 {
+                guard let candidate = resolve(
+                    resolver: resolver, kind: .doodle, motifs: motifs,
+                    placementContext: placementContext, packs: preferredPacks, fallbackPacks: allPacks,
+                    seed: seed, salt: 307 + attempt * 31,
+                    excluding: excludingAssetNames.union(used), preferFreshCandidates: !excludingAssetNames.isEmpty
+                ), candidate.leafTiers.contains(.hero) else { continue }
+                used.remove(primary?.assetName ?? "")
+                used.insert(candidate.assetName)
+                companions.removeAll { $0.assetName == candidate.assetName }
+                primary = candidate
+                break
+            }
+        }
+        let primaryTier: LeafMarkTier = wantsHero && primary?.leafTiers.contains(.hero) == true ? .hero : .mid
+
+        var crumbs: [IlluminationAsset] = []
+        let crumbCount: Int = {
+            switch density {
+            case .quiet: return 0
+            case .ordinary: return decorationPlate ? bucket(seed, salt: 61) % 3 : (bucket(seed, salt: 61) < 30 ? 1 : 0)
+            case .rich: return 3 + bucket(seed, salt: 61) % 3
+            case .overdone: return 6 + bucket(seed, salt: 61) % 5
+            }
+        }()
+        if crumbCount > 0 {
+            let crumbMotifs = motifs + Array(IlluminationAsset.crumbSubjectTags)
+            for attempt in 0..<(crumbCount * 3) where crumbs.count < crumbCount {
+                let kind: IlluminationAssetKind = attempt.isMultiple(of: 2) ? .stamp : .doodle
+                // Crumbs may repeat a rested mark from elsewhere; they never
+                // repeat one already on this leaf.
+                guard let candidate = resolve(
+                    resolver: resolver, kind: kind, motifs: crumbMotifs,
+                    placementContext: placementContext, packs: preferredPacks, fallbackPacks: allPacks,
+                    seed: seed, salt: 401 + attempt * 23,
+                    excluding: used.union(excludingAssetNames), preferFreshCandidates: true
+                ), !candidate.directedOnly,
+                   candidate.leafTiers.contains(.crumb),
+                   !used.contains(candidate.assetName) else { continue }
+                used.insert(candidate.assetName)
+                crumbs.append(candidate)
+            }
+        }
+
         return LeafDecorationRecipe(
             seed: seed,
             motifs: motifs,
@@ -2642,7 +2747,9 @@ enum LeafDecorationLibrary {
             hasSoftCrease: bucket(seed, salt: 47) < 34,
             hasWornCorner: bucket(seed, salt: 53) < 28,
             density: density,
-            companionAssets: companions
+            companionAssets: companions,
+            primaryTier: primaryTier,
+            crumbAssets: crumbs
         )
     }
 
