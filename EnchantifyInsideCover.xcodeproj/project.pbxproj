@@ -1165,6 +1165,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "ReEnchanted uses Face ID to keep your private Book closed until you open it.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ReEnchanted never writes anything to Health. It only reads the signals you allow, for your private Body Pages.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
@@ -1214,6 +1215,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "ReEnchanted can take a photo for a Page, an Enchantment, or a Cast Member. Photos stay private on your phone.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "ReEnchanted uses Face ID to keep your private Book closed until you open it.";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "ReEnchanted reads a few HealthKit signals to gently translate your body state into private, local Body Pages.";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "ReEnchanted never writes anything to Health. It only reads the signals you allow, for your private Body Pages.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "ReEnchanted uses your location when you ask for weather, nearby Anchors, or a Compass Run shaped around where you are.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ReEnchanted uses the microphone only when you tap a voice input button, so you can speak notes, answers, and page text into the Book.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "ReEnchanted saves only the finished illuminated artifact to Photos when you ask it to.";
