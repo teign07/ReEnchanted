@@ -212,19 +212,33 @@ enum BookMovingCopy {
         )
         alert.addAction(UIAlertAction(title: "Keep this Book", style: .cancel))
         alert.addAction(UIAlertAction(title: "Replace it", style: .destructive) { _ in
+            let line: String
             do {
                 try stage(pickedURL)
-                report("I'm ready to move in. Close me completely, then open me again.")
+                line = "I'm ready to move in. Close me completely, then open me again."
             } catch {
-                report("I couldn't take that copy in: \(error.localizedDescription)")
+                line = "I couldn't take that copy in: \(error.localizedDescription)"
             }
+            report(line)
+            // The status line sits under the Colophon leaf, so say it here too.
+            let done = UIAlertController(title: nil, message: line, preferredStyle: .alert)
+            done.addAction(UIAlertAction(title: "OK", style: .default))
+            presentOnTop(done)
         })
+        // The file picker is still sliding away when it hands over the file; an
+        // alert presented on a closing controller is silently dropped.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { presentOnTop(alert) }
+    }
+
+    private static func presentOnTop(_ controller: UIViewController) {
         let root = UIApplication.shared.connectedScenes
             .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
             .first
         var presenter = root
-        while let presented = presenter?.presentedViewController { presenter = presented }
-        presenter?.present(alert, animated: true)
+        while let presented = presenter?.presentedViewController, !presented.isBeingDismissed {
+            presenter = presented
+        }
+        presenter?.present(controller, animated: true)
     }
 
     private static func stage(_ pickedURL: URL) throws {

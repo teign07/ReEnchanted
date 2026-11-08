@@ -3188,7 +3188,22 @@ struct ContentView: View {
         case .bookOfYou:
             return AnyView(archiveShelf)
         case .colophon:
-            return AnyView(sourceControlsShelf)
+            // The picker hangs off the leaf, not the root: the Colophon is
+            // already a sheet, and a root that is presenting it cannot also
+            // present a picker, so "Open a sealed copy" did nothing.
+            let callbacks = ClosureContext(self)
+            return AnyView(
+                sourceControlsShelf
+                    .fileImporter(
+                        isPresented: callbacks.view.$isSaveImporterPresented,
+                        allowedContentTypes: [.json, BookMovingCopy.contentType],
+                        allowsMultipleSelection: false
+                    ) { result in
+                        if case let .success(urls) = result, let url = urls.first {
+                            callbacks.view.importSaveFile(from: url)
+                        }
+                    }
+            )
         }
     }
 
@@ -3374,15 +3389,6 @@ struct ContentView: View {
                 }
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
-            }
-            .fileImporter(
-                isPresented: callbacks.view.$isSaveImporterPresented,
-                allowedContentTypes: [.json, BookMovingCopy.contentType],
-                allowsMultipleSelection: false
-            ) { result in
-                if case let .success(urls) = result, let url = urls.first {
-                    callbacks.view.importSaveFile(from: url)
-                }
             }
         )
     }
