@@ -3514,7 +3514,7 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
             detail: "Your Belief, your role, the fight, your ribbons and what you're carrying.",
             payload: BookPagePayload(
                 headline: "The Reader's Sheet",
-                body: sheet.readerFacingBody,
+                body: Self.glance(inputs: inputs, sheet: sheet) + "\n\n" + sheet.readerFacingBody,
                 metadata: metadata
             )
         )
@@ -3526,6 +3526,20 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
             page.createdAt >= cutoff
                 && (page.type == .frontMatter || page.tags.contains("front-matter"))
         }
+    }
+
+    /// The sheet at a glance, for the leaf on the desk before it's opened:
+    /// the numbers first, then where the rest is.
+    static func glance(inputs: BookSourceInputs, sheet: ReadersSheet, now: Date = Date()) -> String {
+        let score = inputs.attentionProbes.score(on: now)
+        var line = "Belief \(BeliefLexicon.clamped(inputs.readerBeliefScore))."
+        if let role = sheet.role {
+            line += " You're \(role.fullName)."
+        }
+        if score.reader + score.curse > 0 {
+            line += " Today it's you \(score.reader), the Curse \(score.curse)."
+        }
+        return line + " Open it for the fight, your ribbons, the Curse's file and everything you're carrying."
     }
 
     /// A stable digest of what the sheet would say. Two sheets that would read

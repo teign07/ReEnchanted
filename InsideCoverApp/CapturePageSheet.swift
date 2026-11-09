@@ -9659,7 +9659,7 @@ struct CapturePageSheet: View {
         let standing = readerSheetStanding
         return FolioControlStack(alignment: .leading, spacing: 14) {
             ceremonyHeader(
-                title: "The Reader's Sheet",
+                title: "Here's you, so far.",
                 subtitle: "Everything you are in here, on one Page. It changes as you do.",
                 symbol: "person.text.rectangle",
                 tint: LeafInk.gold
@@ -11157,12 +11157,19 @@ struct CapturePageSheet: View {
         )
     }
 
+    /// Every opening view that fades in waits on `didRevealCeremony`, so it is
+    /// set for every Page. Only the cue is kept for the ceremonial three. The
+    /// reveal used to be gated with the cue, which left the Reader's Sheet,
+    /// the Flyleaf, Favourites and Connections findings laid out at 1% opacity:
+    /// a tall blank leaf.
     private func playCeremonyOpenCueIfNeeded() {
+        if !didRevealCeremony {
+            didRevealCeremony = true
+        }
         guard !didPlayCeremonyOpen else { return }
         let isWeeklyIssue = surface.payload.metadata["weeklyIssue"] == "true"
         guard surface.type == .bookRemembered || surface.type == .bookNotices || isWeeklyIssue else { return }
         didPlayCeremonyOpen = true
-        didRevealCeremony = true
         BookFeedback.play(surface.type == .bookRemembered || isWeeklyIssue ? .braidComplete : .sourceRefresh)
     }
 
