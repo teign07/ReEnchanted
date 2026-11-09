@@ -537,4 +537,13 @@ final class BoundDayBookTests: XCTestCase {
         XCTAssertTrue(book.days.allSatisfy { $0.entries.allSatisfy { !$0.text.contains("Scraps bound here") } })
         XCTAssertTrue(book.days.flatMap(\.printedPageIDs).contains("b"), "A small print is still printed, so the archive won't repeat it.")
     }
+
+    /// October's margin card opened on "Turn 1": a kept leaf's turn marker,
+    /// printed as if it were the first line of the note.
+    func testKeptLeafPrintsWithoutItsTurnMarker() throws {
+        let kept = page("turn-leaf", .gossip, day: 22, text: "Turn 1\n\nThe air tasted of bruised lavender and old parchment.")
+        let keep = try XCTUnwrap(BoundDayBookBuilder.keep(from: kept, calendar: calendar))
+        XCTAssertFalse(keep.body.contains("Turn 1"))
+        XCTAssertTrue(keep.body.hasPrefix("The air tasted"))
+    }
 }

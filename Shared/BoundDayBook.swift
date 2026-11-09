@@ -662,6 +662,13 @@ enum BoundDayBookBuilder {
                 return nil
             }
         }
+        // Everything but a quotation is the app's own text, and may carry its
+        // labels ("Turn 1", "Subject:") onto paper. A quotation is somebody's
+        // words exactly as they were kept.
+        let keptBody = body
+        if kind != .quotation {
+            body = PrintHygiene.scrubbedProse(body)
+        }
         guard !body.isEmpty || kind == .plate else { return nil }
         // A quotation arrives already dressed ("“…” — Author", sometimes twice).
         // Keep the bare words and the attribution apart; the page sets the marks once.
@@ -687,7 +694,9 @@ enum BoundDayBookBuilder {
             room: first(["sessionRoom"]),
             professor: first(["sessionProfessor", "sessionTeacher", "professorName"]),
             mediaAssets: kind == .plate || kind == .enchantment ? visual : [],
-            readerReply: reply(on: page, besides: body)
+            // Compared with the body as it was kept, so a reply that was the
+            // whole Page isn't printed again because the scrub changed it.
+            readerReply: reply(on: page, besides: keptBody)
         )
     }
 

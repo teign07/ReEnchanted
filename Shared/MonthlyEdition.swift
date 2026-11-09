@@ -6440,6 +6440,9 @@ enum PrintHygiene {
         // from is left exactly as it was written.
         let lines = text.components(separatedBy: "\n").compactMap { line -> String? in
             guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { return line }
+            // A story leaf saves its turn marker ("Turn 1") as a line of its
+            // own. In the app it's a heading; on paper it's a stray label.
+            if isTurnMarker(line) { return nil }
             let all = sentences(in: line)
             let kept = all.filter { sentence in
                 let lowered = sentence.trimmingCharacters(in: .whitespaces).lowercased()
@@ -6456,6 +6459,12 @@ enum PrintHygiene {
         return lines.joined(separator: "\n")
             .replacingOccurrences(of: #"\n{3,}"#, with: "\n\n", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// "Turn 1" alone on its line, the way a kept story leaf saves it.
+    static func isTurnMarker(_ line: String) -> Bool {
+        let bare = line.trimmingCharacters(in: CharacterSet(charactersIn: "\"“”'‘’").union(.whitespaces))
+        return bare.range(of: #"^Turn \d{1,2}$"#, options: .regularExpression) != nil
     }
 
     /// Directions to leaves of the app. On paper they point at nothing.

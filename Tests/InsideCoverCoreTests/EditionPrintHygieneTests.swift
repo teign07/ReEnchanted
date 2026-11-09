@@ -74,6 +74,18 @@ final class EditionPrintHygieneTests: XCTestCase {
         XCTAssertEqual(PrintHygiene.scrubbedProse(haiku), haiku)
     }
 
+    func testStoryTurnMarkerNeverReachesPaper() {
+        let leaf = "Turn 1\n\nThe air tasted of bruised lavender and old parchment.\n\nChosen path: Supper with a Finished Man"
+        let set = PrintHygiene.scrubbedProse(leaf)
+        XCTAssertFalse(set.contains("Turn 1"))
+        XCTAssertTrue(set.hasPrefix("The air tasted"))
+        XCTAssertTrue(set.contains("Chosen path: Supper with a Finished Man"))
+        XCTAssertTrue(PrintHygiene.isTurnMarker("“Turn 12"))
+        // A sentence that only starts with the word stays.
+        XCTAssertFalse(PrintHygiene.isTurnMarker("Turn 1 corner and you're there."))
+        XCTAssertEqual(PrintHygiene.scrubbedProse("Turn left at the boot."), "Turn left at the boot.")
+    }
+
     func testStoryScaffoldIsRecognised() {
         XCTAssertTrue(PrintHygiene.isStoryScaffold("The corrected delivery moves Misdelivered Object one visible step."))
         XCTAssertFalse(PrintHygiene.isStoryScaffold("The door is left unopened tonight, and approves of the restraint."))
