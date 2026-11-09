@@ -4395,6 +4395,8 @@ extension ContentView {
             defer { publicationBindingMoment = nil }
             do {
                 let plates = await illuminatedPlates(for: edition)
+                // The same charts the printed book carries.
+                let charts = await editionMapPlates(for: edition)
                 let startKey = BookThemeEngine.monthKey(for: edition.startDate)
                 let endKey = BookThemeEngine.monthKey(for: edition.endDate)
                 let kind = edition.publicationKind?.rawValue ?? "edition"
@@ -4402,7 +4404,8 @@ extension ContentView {
                 let url = FileManager.default.temporaryDirectory
                     .appendingPathComponent("ReEnchanted-\(archiveKey).pdf")
                 try await EditionPress.run {
-                    try MonthlyEditionPDFWriter.write(edition, plates: plates, to: url)
+                    try MonthlyEditionPDFWriter.write(
+                        edition, plates: plates, endpaper: charts.endpaper, mapPlates: charts.plates, to: url)
                 }
                 let resolvedPeriodID = periodID ?? publicationPeriodID(for: edition)
                 let keptURL = try keepMonthlyEdition(
@@ -4882,8 +4885,13 @@ extension ContentView {
             let interiorURL = dir.appendingPathComponent("ReEnchanted-Print-Interior-\(stamp).pdf")
             let coverURL = dir.appendingPathComponent("ReEnchanted-Print-Cover-\(stamp).pdf")
 
+            // The printed book carries the plates and charts its reading copy does.
+            let plates = await illuminatedPlates(for: edition)
+            let charts = await editionMapPlates(for: edition)
             let pages = try await EditionPress.run {
-                let count = try MonthlyEditionPDFWriter.writePrintInterior(edition, spec: spec, to: interiorURL)
+                let count = try MonthlyEditionPDFWriter.writePrintInterior(
+                    edition, plates: plates, endpaper: charts.endpaper, mapPlates: charts.plates,
+                    spec: spec, to: interiorURL)
                 try MonthlyEditionPDFWriter.writeCoverWrap(edition, spec: spec, pageCount: count, coverPhoto: coverPhoto, to: coverURL)
                 return count
             }

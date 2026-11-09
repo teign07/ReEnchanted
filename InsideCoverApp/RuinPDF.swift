@@ -61,6 +61,7 @@ extension MonthlyEditionPDFWriter {
                 context.beginPage()
                 cursor.reset()
                 cursor.pageIndex += 1
+                markPressOnly(cursor.pageIndex)
                 drawSpacerPlate(style: style, bounds: cursor.bounds, seed: cursor.pageSeed)
                 drawFolioMark(number: cursor.pageIndex, seed: cursor.addressSeed ?? cursor.seed,
                               bounds: cursor.bounds, ink: style.palette.ink)

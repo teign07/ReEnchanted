@@ -394,11 +394,50 @@ enum MonthlyEditionPDFWriter {
     }
     #endif
 
+    /// The reading copy is the printed book. It is set by the press at 6×9,
+    /// fitted to the same page cap, with the same plates and charts, and then
+    /// given to a screen: pictures at screen resolution, the leaves that exist
+    /// only so paper folds right taken out, the bleed trimmed away. It used to
+    /// be a Letter-size design of its own that drifted from the book that
+    /// ships: October 2026 read 183 pages; its print file was capped at 160.
     static func write(
         _ edition: MonthlyEdition,
         plates: [IlluminatedPlate] = [],
         endpaper: RenderedMapPlate? = nil,
         mapPlates: [RenderedMapPlate] = [],
+        to url: URL
+    ) throws {
+        // The First-Door edition has no printed twin to match, and a weekly
+        // without its prepared matter has no press layout to be set in.
+        if edition.isInscriptionEdition || (edition.publicationKind == .weekly && edition.weeklyPublication == nil) {
+            try writeLetterInterior(edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, to: url)
+            return
+        }
+        if edition.publicationKind == .weekly, let matter = edition.weeklyPublication {
+            _ = try WeeklyIssuePDFWriter.writePrintInterior(
+                matter, dedication: edition.dedication, spec: .saddleStitchedWeekly6x9, medium: .screen, to: url)
+            return
+        }
+        settingForScreen = true
+        defer { settingForScreen = false }
+        // Every 6×9 binding sets the same interior; the softcover stands for all three.
+        let spec = PrintSpec.perfectBoundSoftcover6x9
+        do {
+            try writePrintInterior(edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, spec: spec, to: url)
+        } catch let error as NSError where error.domain == "Bindery" && error.code == 14 {
+            // Past its cap even at its leanest: it can't be printed, but it can
+            // still be read, whole, in the press's layout.
+            _ = try writeUncappedPrintInterior(edition, plates: plates, endpaper: endpaper, mapPlates: mapPlates, spec: spec, to: url)
+        }
+        try givingToScreen(url, spec: spec)
+    }
+
+    /// The First-Door edition's Letter-size setting. Nothing else is set this way.
+    private static func writeLetterInterior(
+        _ edition: MonthlyEdition,
+        plates: [IlluminatedPlate],
+        endpaper: RenderedMapPlate?,
+        mapPlates: [RenderedMapPlate],
         to url: URL
     ) throws {
         let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
@@ -431,6 +470,40 @@ enum MonthlyEditionPDFWriter {
     /// spread lands on the right side; a screen book is read a page at a time
     /// and has no use for the blank.
     static var settingForPrint = false
+
+    /// True while the press sets a book for a screen: the same pagination as
+    /// paper, pictures at screen resolution, and the press-only leaves noted
+    /// so the reading copy can leave them out.
+    static var settingForScreen = false
+
+    /// Pages (1-based) that exist only so paper folds right: a spacer before a
+    /// leaf that must open on a recto, the protected reverse of a marker leaf,
+    /// the second half of an endpaper spread. Recorded afresh by every render.
+    static var pressOnlyPages = Set<Int>()
+
+    static func markPressOnly(_ page: Int) {
+        pressOnlyPages.insert(page)
+    }
+
+    /// The press's file, given to a screen: press-only leaves out, bleed cropped.
+    static func givingToScreen(_ url: URL, spec: PrintSpec) throws {
+        guard let document = PDFDocument(url: url) else {
+            throw NSError(domain: "Bindery", code: 21, userInfo: [NSLocalizedDescriptionKey: "The reading copy would not open."])
+        }
+        for page in pressOnlyPages.sorted(by: >) where page >= 1 && page <= document.pageCount {
+            document.removePage(at: page - 1)
+        }
+        let bleed = spec.bleedInches * PrintSpec.pointsPerInch
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            let trim = page.bounds(for: .mediaBox).insetBy(dx: bleed, dy: bleed)
+            page.setBounds(trim, for: .cropBox)
+            page.setBounds(trim, for: .trimBox)
+        }
+        guard document.pageCount > 0, document.write(to: url) else {
+            throw NSError(domain: "Bindery", code: 22, userInfo: [NSLocalizedDescriptionKey: "The reading copy would not save."])
+        }
+    }
 
     enum ContentsFolios {
         static var recorded: [String: Int] = [:]
@@ -469,9 +542,9 @@ enum MonthlyEditionPDFWriter {
     }
 
     /// The shared body of every edition: cover, foreword, theme, star chart,
-    /// contents, sections, closing, colophon. The screen export renders it at US
-    /// Letter; the print export renders it at a full-bleed trim with print
-    /// margins. The flowing pages adapt to `pageBounds`/`margins` on their own;
+    /// contents, sections, closing, colophon. Print and reading copy both render
+    /// it at a full-bleed 6×9 trim with print margins (only the First-Door
+    /// edition is still set at US Letter). The flowing pages adapt to `pageBounds`/`margins` on their own;
     /// the two full-bleed art pages are drawn in a fixed 612×792 design space and
     /// scaled into whatever trim is asked for, so they survive any page size.
     private static func renderInterior(
@@ -489,6 +562,7 @@ enum MonthlyEditionPDFWriter {
         // last one prints. A deck carried over from the earlier tries starts the printed book halfway
         // through the month's drawings.
         MarginaliaDealer.reset()
+        pressOnlyPages = []
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "\(BookThemeEngine.monthKey(for: edition.startDate))-\(edition.theme?.name ?? "untitled")"
         cursor.addressSeed = addressSeed(for: edition)
@@ -879,15 +953,23 @@ enum MonthlyEditionPDFWriter {
     @discardableResult
     static func writePrintInterior(
         _ edition: MonthlyEdition,
+        plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         spec: PrintSpec = .hardcover6x9,
         to url: URL
     ) throws -> Int {
-        // Which pages were built to be handled, kept beside the file.
+        // Which pages were built to be handled, kept beside the file. A reading
+        // copy is never handled, so it has no map.
         PrintPageMap.reset()
         MarginaliaDealer.reset()
-        defer { PrintPageMap.writeSidecar(for: url) }
+        defer { if !settingForScreen { PrintPageMap.writeSidecar(for: url) } }
+        // Every trial binding carries the same plates and charts as the book that ships.
+        func render(_ candidate: MonthlyEdition) throws -> Int {
+            try writeUncappedPrintInterior(candidate, plates: plates, endpaper: endpaper, mapPlates: mapPlates, spec: spec, to: url)
+        }
         guard edition.publicationKind != .weekly else {
-            return try writeUncappedPrintInterior(edition, spec: spec, to: url)
+            return try render(edition)
         }
         let cap = PrintSpec.pageCap(for: edition.publicationKind ?? .monthly)
         // A thickness the reader chose is a smaller cap, never a larger one.
@@ -896,19 +978,24 @@ enum MonthlyEditionPDFWriter {
         // fill a book up to the generic ceiling, never past it. Only the
         // reader's own month makes a book thicker (and dearer) than that.
         var genericTarget = min(target, PrintSpec.genericPageCeiling(for: edition.publicationKind ?? .monthly))
-        let first = try writeUncappedPrintInterior(edition, spec: spec, to: url)
+        let first = try render(edition)
+        // The file on disk is whatever was rendered last. Measuring the book
+        // without its pack plates leaves that bare copy there, so a book
+        // returned whole must be set again.
+        var bareOnDisk = false
         // The month's plates are the month, not padding: whatever pages they take are added to the
         // ceiling, so they never push the Handbook out. Measured, not guessed: the same book once
         // more without them. Still never past the cap.
         if first > genericTarget, genericTarget < target {
             EditionPlates.suppressed = true
             defer { EditionPlates.suppressed = false }
-            let bare = try writeUncappedPrintInterior(edition, spec: spec, to: url)
+            let bare = try render(edition)
+            bareOnDisk = true
             genericTarget = min(target, genericTarget + max(0, first - bare))
         }
         let slimCandidate = edition.pageTier == nil && edition.publicationKind == .monthly
             && first > PhysicalBookPricing.slimMonthlyMaxPages && first <= PhysicalBookPricing.slimMonthlyMaxPages + 40
-        if first <= genericTarget && !slimCandidate { return first }
+        if first <= genericTarget && !slimCandidate { return bareOnDisk ? try render(edition) : first }
 
         // Trimming is cheap and rendering is not. Lay out the whole trim
         // sequence first, then bisect it for the least-trimmed edition that fits.
@@ -919,7 +1006,7 @@ enum MonthlyEditionPDFWriter {
             walker = smaller
         }
         guard !steps.isEmpty else {
-            if first <= cap { return first }
+            if first <= cap { return bareOnDisk ? try render(edition) : first }
             throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
                 "This edition needs \(first) pages even at its leanest; its cap is \(cap)."])
         }
@@ -936,43 +1023,43 @@ enum MonthlyEditionPDFWriter {
             var fitted: Int?
             while low <= high {
                 let mid = (low + high) / 2
-                let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+                let pages = try render(steps[mid])
                 if pages <= slim { fitted = mid; high = mid - 1 } else { low = mid + 1 }
             }
-            if let fitted { return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url) }
+            if let fitted { return try render(steps[fitted]) }
         }
         // Slim was out of reach and the book already fit: bind it whole.
-        if first <= genericTarget { return try writeUncappedPrintInterior(edition, spec: spec, to: url) }
+        if first <= genericTarget { return try render(edition) }
         if genericTarget < target, handbookOnly > 0 {
             var low = 0, high = handbookOnly - 1
             var fitted: Int?
             while low <= high {
                 let mid = (low + high) / 2
-                let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+                let pages = try render(steps[mid])
                 if pages <= genericTarget { fitted = mid; high = mid - 1 } else { low = mid + 1 }
             }
-            if let fitted { return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url) }
+            if let fitted { return try render(steps[fitted]) }
             // The Handbook is as thin as it goes and the book is still past the
             // ceiling: that length is the reader's own, and it may run to the cap.
-            let lean = try writeUncappedPrintInterior(steps[handbookOnly - 1], spec: spec, to: url)
+            let lean = try render(steps[handbookOnly - 1])
             if lean <= target { return lean }
         } else if first <= target {
-            return first
+            return bareOnDisk ? try render(edition) : first
         }
         var low = 0, high = steps.count - 1   // steps[high] is the leanest
         var fitted: Int?
         while low <= high {
             let mid = (low + high) / 2
-            let pages = try writeUncappedPrintInterior(steps[mid], spec: spec, to: url)
+            let pages = try render(steps[mid])
             if pages <= target { fitted = mid; high = mid - 1 } else { low = mid + 1 }
         }
         if let fitted {
             // The file on disk is from the last probe; render the winner again.
-            return try writeUncappedPrintInterior(steps[fitted], spec: spec, to: url)
+            return try render(steps[fitted])
         }
         // Even the leanest is over the target. Under the cap it is simply a
         // little thicker than asked; over it, it cannot be printed.
-        let leanest = try writeUncappedPrintInterior(steps[steps.count - 1], spec: spec, to: url)
+        let leanest = try render(steps[steps.count - 1])
         if leanest <= cap { return leanest }
         throw NSError(domain: "Bindery", code: 14, userInfo: [NSLocalizedDescriptionKey:
             "This edition needs \(leanest) pages even at its leanest; its cap is \(cap)."])
@@ -980,6 +1067,9 @@ enum MonthlyEditionPDFWriter {
 
     private static func writeUncappedPrintInterior(
         _ edition: MonthlyEdition,
+        plates: [IlluminatedPlate] = [],
+        endpaper: RenderedMapPlate? = nil,
+        mapPlates: [RenderedMapPlate] = [],
         spec: PrintSpec,
         to url: URL
     ) throws -> Int {
@@ -1013,6 +1103,9 @@ enum MonthlyEditionPDFWriter {
             data = UIGraphicsPDFRenderer(bounds: pageBounds).pdfData { context in
                 renderInterior(
                     edition,
+                    plates: plates,
+                    endpaper: endpaper,
+                    mapPlates: mapPlates,
                     into: context,
                     style: style,
                     pageBounds: pageBounds,
@@ -1037,7 +1130,8 @@ enum MonthlyEditionPDFWriter {
                 userInfo: [NSLocalizedDescriptionKey: message]
             )
         }
-        if target > rawCount {
+        // Paper is bound in whole sheets; a screen has none to fill.
+        if target > rawCount, !settingForScreen {
             for index in 0..<(target - rawCount) {
                 if let leaf = fieldPadLeaf(size: pageBounds.size, style: style, index: index,
                                            monthNumber: Calendar.current.component(.month, from: edition.startDate),
@@ -1534,6 +1628,8 @@ enum MonthlyEditionPDFWriter {
 
     // MARK: Annual (the whole year, bound as a book of chapters)
 
+    /// A season's or a year's reading copy is its printed volume, given to a
+    /// screen, exactly as a month's is (see `write`).
     static func writeAnnual(
         _ annual: AnnualEdition,
         plates: [IlluminatedPlate] = [],
@@ -1541,24 +1637,16 @@ enum MonthlyEditionPDFWriter {
         mapPlates: [RenderedMapPlate] = [],
         to url: URL
     ) throws {
-        let pageBounds = CGRect(x: 0, y: 0, width: 612, height: 792)
-        let margins = UIEdgeInsets(top: 60, left: 120, bottom: 64, right: 58)
-        let annualStyle = annualStyle(for: annual)
-        let renderer = UIGraphicsPDFRenderer(bounds: pageBounds)
-
-        try renderer.writePDF(to: url) { context in
-            renderAnnualInterior(
-                annual,
-                plates: plates,
-                endpaper: endpaper,
-                mapPlates: mapPlates,
-                into: context,
-                style: annualStyle,
-                pageBounds: pageBounds,
-                margins: margins,
-                designSize: pageBounds.size
-            )
+        settingForScreen = true
+        defer { settingForScreen = false }
+        let spec = PrintSpec.perfectBoundSoftcover6x9
+        do {
+            try writeVolumePrintInterior(annual, plates: plates, endpaper: endpaper, mapPlates: mapPlates, spec: spec, to: url)
+        } catch let error as NSError where error.domain == "Bindery" && error.code == 15 {
+            _ = try writeUncappedVolumePrintInterior(annual, plates: plates, endpaper: endpaper,
+                                                     mapPlates: mapPlates, spec: spec, to: url)
         }
+        try givingToScreen(url, spec: spec)
     }
 
     /// The Bound Year press path. Unlike the old adapter, this keeps the volume
@@ -1647,7 +1735,7 @@ enum MonthlyEditionPDFWriter {
                 userInfo: [NSLocalizedDescriptionKey: "This volume grew beyond the Bindery's \(spec.maximumPages)-page limit. It needs another spine."]
             )
         }
-        if target > rawCount {
+        if target > rawCount, !settingForScreen {
             for index in 0..<(target - rawCount) {
                 if let leaf = fieldPadLeaf(size: pageBounds.size, style: style, index: index,
                                            monthNumber: Calendar.current.component(.month, from: annual.startDate),
@@ -2234,6 +2322,7 @@ enum MonthlyEditionPDFWriter {
         designSize: CGSize
     ) {
         MarginaliaDealer.reset()
+        pressOnlyPages = []
         var cursor = PDFCursor(bounds: pageBounds, margins: margins)
         cursor.seed = "volume-\(annual.startDate.timeIntervalSinceReferenceDate)-\(annual.endDate.timeIntervalSinceReferenceDate)"
         let isYear = annual.publicationKind != .seasonal
@@ -4572,6 +4661,7 @@ enum MonthlyEditionPDFWriter {
                 context.beginPage()
                 cursor.reset()
                 cursor.pageIndex += 1
+                markPressOnly(cursor.pageIndex)
                 drawSpacerPlate(style: style, bounds: cursor.bounds, seed: cursor.pageSeed)
                 drawFolioMark(number: cursor.pageIndex, seed: cursor.addressSeed ?? cursor.seed,
                               bounds: cursor.bounds, ink: style.palette.ink)
@@ -4583,6 +4673,10 @@ enum MonthlyEditionPDFWriter {
                 context.beginPage()
                 cursor.reset()
                 cursor.pageIndex += 1
+                // A screen has no sheet for marker to ghost through.
+                if settingForPrint, leaf.definition.footprint.hasBlankReverse, part == 1 {
+                    markPressOnly(cursor.pageIndex)
+                }
                 drawEditionPlayLeafPage(
                     leaf,
                     part: part,
@@ -7972,11 +8066,20 @@ enum WeeklyIssuePDFWriter {
     /// A screen has no sheet for ink to ghost through, so the blank reverse behind a worksheet or
     /// a colouring leaf is simply not a page. Only pages with nothing on them at all go; a leaf
     /// with a folio, a ruled line or a picture stays.
-    private static func droppingBlankLeaves(at url: URL) throws -> Int {
+    private static func droppingBlankLeaves(at url: URL, bleedInches: Double) throws -> Int {
         guard let document = PDFDocument(url: url) else { return 0 }
         for index in stride(from: document.pageCount - 1, through: 0, by: -1) {
             let text = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if text.isEmpty { document.removePage(at: index) }
+        }
+        // The bleed is for the guillotine; a screen shows the trimmed page, as
+        // every other edition's reading copy does.
+        let bleed = bleedInches * PrintSpec.pointsPerInch
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            let trim = page.bounds(for: .mediaBox).insetBy(dx: bleed, dy: bleed)
+            page.setBounds(trim, for: .cropBox)
+            page.setBounds(trim, for: .trimBox)
         }
         guard document.pageCount > 0, document.write(to: url) else {
             throw NSError(domain: "Bindery", code: 8, userInfo: [NSLocalizedDescriptionKey: "The reading copy would not save."])
@@ -8015,7 +8118,7 @@ enum WeeklyIssuePDFWriter {
                 style: style(for: matter.issue), to: url
             )
             if count > 0 {
-                return medium == .screen ? try droppingBlankLeaves(at: url) : count
+                return medium == .screen ? try droppingBlankLeaves(at: url, bleedInches: spec.bleedInches) : count
             }
         }
 

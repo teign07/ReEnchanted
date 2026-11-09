@@ -4944,7 +4944,7 @@ extension MonthlyEditionPDFWriter {
         // The pattern is set once as a flat picture and placed whole: drawn
         // directly, every drawing in it went into the PDF at full size, and two
         // leaves of endpaper outweighed the rest of the book.
-        let pointsToPixels: CGFloat = settingForPrint ? 300.0 / 72.0 : 200.0 / 72.0
+        let pointsToPixels: CGFloat = settingForPrint && !settingForScreen ? 300.0 / 72.0 : 200.0 / 72.0
         let format = UIGraphicsImageRendererFormat()
         format.scale = pointsToPixels
         format.opaque = true
@@ -5045,7 +5045,10 @@ extension MonthlyEditionPDFWriter {
             context.beginPage()
             cursor.reset()
             cursor.pageIndex += 1
-            let half: EndpaperHalf = count == 1 ? .whole : (page == 0 ? .left : .right)
+            // A screen shows one page at a time: the spread's pattern whole on
+            // its first page, the second half left to paper.
+            let half: EndpaperHalf = count == 1 || settingForScreen ? .whole : (page == 0 ? .left : .right)
+            if settingForScreen, page > 0 { markPressOnly(cursor.pageIndex) }
             drawEndpaper(closing: closing, half: half, monthNumber: monthNumber, style: style, bounds: cursor.bounds)
         }
         cursor.y = cursor.bottom
