@@ -1,0 +1,14 @@
+// Per-target App Store signing for command-line archives. Package targets resolve to empty.
+RE_PROFILE_InsideCoverApp = app.reenchanted.book AppStore
+RE_PROFILE_ReEnchantedWidgetsExtension = app.reenchanted.book.widgets AppStore
+RE_PROFILE_ReEnchantedShareExtension = app.reenchanted.book.share AppStore
+RE_STYLE_InsideCoverApp = Manual
+RE_STYLE_ReEnchantedWidgetsExtension = Manual
+RE_STYLE_ReEnchantedShareExtension = Manual
+RE_IDENTITY_InsideCoverApp = Apple Distribution
+RE_IDENTITY_ReEnchantedWidgetsExtension = Apple Distribution
+RE_IDENTITY_ReEnchantedShareExtension = Apple Distribution
+PROVISIONING_PROFILE_SPECIFIER = $(RE_PROFILE_$(TARGET_NAME))
+CODE_SIGN_STYLE = $(RE_STYLE_$(TARGET_NAME):default=Automatic)
+CODE_SIGN_IDENTITY = $(RE_IDENTITY_$(TARGET_NAME):default=Apple Development)
+DEVELOPMENT_TEAM = 3YH7862K4Q
