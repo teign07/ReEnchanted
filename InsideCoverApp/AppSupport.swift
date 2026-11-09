@@ -4500,6 +4500,72 @@ enum HealthKitBodyReader {
     }
 }
 
+/// The Book asks, in its own words, before iOS asks for location on a keep.
+///
+/// A Keep notes where the page happened and what the sky was doing. The first
+/// time that needs the location door, iOS's prompt used to appear with no
+/// warning the moment a page was kept. Now the Book says why first; iOS asks
+/// only after the reader says yes. "Not now" rests three days, and nothing is
+/// asked again once iOS has an answer either way.
+enum KeepPlaceAsk {
+    static let declinedAtKey = "keepPlaceAskDeclinedAt"
+    static let rest: TimeInterval = 3 * 24 * 3600
+
+    static var needsToAsk: Bool {
+        #if canImport(CoreLocation)
+        CLLocationManager.locationServicesEnabled()
+            && CLLocationManager().authorizationStatus == .notDetermined
+        #else
+        false
+        #endif
+    }
+
+    static func isResting(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let declinedAt = defaults.double(forKey: declinedAtKey)
+        guard declinedAt > 0 else { return false }
+        return now.timeIntervalSince1970 - declinedAt < rest
+    }
+
+    static let title = "Can I write down where we are?"
+    static let message = "When you keep a page, I'd like to note where it happened and what the sky was doing: home, a place you've named, rain that afternoon. iOS will ask you next. You can say no and keep writing."
+
+    /// Shows the Book's question once the keep has settled, and reports the
+    /// reader's answer. True means: go on, let iOS ask.
+    @MainActor
+    static func offer() async -> Bool {
+        #if canImport(UIKit)
+        guard !isResting() else { return false }
+        // The kept leaf is still flying away; an alert presented on a
+        // controller that is mid-dismissal is silently dropped.
+        try? await Task.sleep(for: .seconds(1.2))
+        return await withCheckedContinuation { continuation in
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "Not now", style: .cancel) { _ in
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: declinedAtKey)
+                continuation.resume(returning: false)
+            })
+            alert.addAction(UIAlertAction(title: "Yes, you can", style: .default) { _ in
+                continuation.resume(returning: true)
+            })
+            let root = UIApplication.shared.connectedScenes
+                .compactMap { ($0 as? UIWindowScene)?.keyWindow?.rootViewController }
+                .first
+            var presenter = root
+            while let presented = presenter?.presentedViewController, !presented.isBeingDismissed {
+                presenter = presented
+            }
+            guard let presenter else {
+                continuation.resume(returning: false)
+                return
+            }
+            presenter.present(alert, animated: true)
+        }
+        #else
+        return false
+        #endif
+    }
+}
+
 enum WeatherLocationReader {
     enum ReaderError: LocalizedError {
         case unavailable

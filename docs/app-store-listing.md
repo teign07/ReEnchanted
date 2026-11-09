@@ -75,5 +75,14 @@ Primary: Books. Secondary: Lifestyle.
 ## Still yours to decide or supply
 
 - App Review contact: name, phone, email (private to Apple).
-- EU: trader status (or leave EU storefronts out at launch).
-- Screenshots: 6.9" iPhone and 13" iPad, from a real, lived-in Book.
+- EU: free in every storefront; trader questions wait until paper sells there.
+
+## Screenshots
+
+Uploaded 2026-11-08: 10 iPhone 6.9" (1320×2868) and 5 iPad 13" (2064×2752).
+Source, headlines and renderer: `marketing/app-store-screenshots/`
+(`panels.tsv`, `panels-pad.tsv`, `render.sh`). Edit a headline there, re-render,
+then replace the set.
+
+iPhone order: hero, page curl, the Curse, capture, Playful Mission (Penny's
+"Take Your Coat Out"), margins, the Academy map, the Bleed, Fae-Fi radio, private.

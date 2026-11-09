@@ -21841,7 +21841,19 @@ struct ContentView: View {
         // Coordinates remain transient and are never copied into page context.
         if !newlyKeptPageIDs.isEmpty {
             Task {
-                if requestsFreshKeepContext {
+                if requestsFreshKeepContext, KeepPlaceAsk.needsToAsk {
+                    // First time through the location door: the Book says why
+                    // before iOS asks, and the sensory folio doesn't wait on
+                    // the answer.
+                    Task {
+                        guard await KeepPlaceAsk.offer() else { return }
+                        await enrichKeptPagesWithFreshLocation(
+                            pageIDs: newlyKeptPageIDs,
+                            dayID: day.id,
+                            message: message
+                        )
+                    }
+                } else if requestsFreshKeepContext {
                     await enrichKeptPagesWithFreshLocation(
                         pageIDs: newlyKeptPageIDs,
                         dayID: day.id,

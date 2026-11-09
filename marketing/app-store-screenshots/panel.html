@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>App Store panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,650;1,9..144,500&display=block" rel="stylesheet">
+<style>
+  /* One App Store screenshot panel. Query parameters:
+     shot=<image path>  head=<headline>  sub=<small line>  device=phone|pad
+     The page is sized to Apple's exact pixel canvas and rendered headless. */
+  :root {
+    --ink: #070611;
+    --gold: #ffc874;
+    --gold-soft: #ffd89a;
+    --teal: #4cc0bd;
+    --text-dim: rgba(244, 236, 222, 0.72);
+  }
+  html, body { margin: 0; padding: 0; background: var(--ink); }
+  body { width: var(--w); height: var(--h); overflow: hidden; }
+  .panel {
+    position: relative; width: var(--w); height: var(--h); box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center;
+    padding: calc(var(--h) * 0.055) calc(var(--w) * 0.07) 0;
+    background:
+      radial-gradient(120% 60% at 20% -5%, rgba(138, 114, 196, 0.30), transparent 60%),
+      radial-gradient(90% 50% at 100% 0%, rgba(76, 192, 189, 0.20), transparent 55%),
+      radial-gradient(80% 40% at 50% 105%, rgba(255, 200, 116, 0.16), transparent 60%),
+      var(--ink);
+    font-family: "Fraunces", Georgia, serif;
+  }
+  .grain { position: absolute; inset: 0; opacity: 0.08; pointer-events: none;
+    background-image: radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px);
+    background-size: 5px 5px; }
+  h1 {
+    margin: 0; color: var(--gold); text-align: center; font-weight: 650;
+    font-size: var(--head); line-height: 1.08; letter-spacing: -0.01em;
+    text-wrap: balance; max-width: 92%;
+    text-shadow: 0 2px 30px rgba(255, 200, 116, 0.25);
+  }
+  p.sub {
+    margin: calc(var(--h) * 0.014) 0 0; color: var(--text-dim); text-align: center;
+    font-style: italic; font-weight: 500; font-size: var(--sub); line-height: 1.3;
+    max-width: 88%; text-wrap: balance;
+  }
+  .frame {
+    margin-top: calc(var(--h) * 0.035);
+    flex: 1 1 auto; min-height: 0; margin-bottom: calc(var(--h) * 0.045);
+    display: flex; align-items: flex-start; justify-content: center;
+  }
+  .frame .shot {
+    max-width: var(--shotw); max-height: 100%; aspect-ratio: var(--ratio);
+    border-radius: var(--radius); overflow: hidden; position: relative;
+    box-shadow: 0 0 0 calc(var(--w) * 0.012) #14121f, 0 0 0 calc(var(--w) * 0.0145) rgba(255, 200, 116, 0.35),
+                0 60px 140px rgba(0, 0, 0, 0.65), 0 0 120px rgba(76, 192, 189, 0.15);
+  }
+  .frame img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; }
+  .frame .shot { height: 100%; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="grain"></div>
+  <h1 id="head"></h1>
+  <p class="sub" id="sub"></p>
+  <div class="frame"><div class="shot"><img id="shot" alt=""></div></div>
+</div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const pad = q.get('device') === 'pad';
+  const root = document.documentElement.style;
+  const W = pad ? 2064 : 1320, H = pad ? 2752 : 2868;
+  root.setProperty('--w', W + 'px');
+  root.setProperty('--h', H + 'px');
+  root.setProperty('--head', (pad ? 118 : 104) + 'px');
+  root.setProperty('--sub', (pad ? 52 : 48) + 'px');
+  // The screen keeps its own proportions (crops are cut to the Book), and is
+  // as large as the space under the headline allows.
+  root.setProperty('--shotw', (pad ? 86 : 92) + '%');
+  root.setProperty('--radius', (pad ? 40 : 52) + 'px');
+  document.getElementById('head').textContent = q.get('head') || '';
+  document.getElementById('sub').textContent = q.get('sub') || '';
+  const sub = document.getElementById('sub'); if (!sub.textContent) sub.remove();
+  const img = document.getElementById('shot');
+  img.onload = () => root.setProperty('--ratio', img.naturalWidth + ' / ' + img.naturalHeight);
+  img.src = q.get('shot') || '';
+</script>
+</body>
+</html>

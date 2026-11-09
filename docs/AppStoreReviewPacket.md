@@ -49,7 +49,7 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 | Permission | Why | Control |
 | --- | --- | --- |
 | HealthKit (read) | Optional Body Pages from movement, sleep, heart, etc. No diagnosis or advice. | Reader taps the Body seal. Body data stays on device unless the reader turns on "Include Fuel & Inner Weather" and orders paper. |
-| Location When In Use | Weather, nearby Anchors, Compass Runs. | Reader taps Weather/Location. |
+| Location When In Use | Where a kept Page happened (place label + weather), weather, nearby Anchors, Compass Runs. | First keep: the Book asks in-app ("Can I write down where we are?") before iOS does; "Not now" rests 3 days. Otherwise the reader taps Weather/Location. |
 | Photos / Camera | Photos on Pages, Enchantments, Cast portraits. | Reader picks or takes photos. |
 | Microphone / Speech | Dictation and kept-voice recordings. | Reader taps the voice control. |
 | Calendar / Reminders | Calendar Doorway (off by default); reminders on explicit request. | Toggle / button. |
