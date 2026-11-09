@@ -1115,6 +1115,34 @@ struct GlowSpellMenuItem: Identifiable, Equatable {
     var attribution: String
 }
 
+/// One book on the Bindery shelf, named the way a Reader thinks of it
+/// ("October", not "Monthly Edition"). Tapping it reads it, binding it first
+/// when it hasn't been bound yet.
+struct GlowShelfBook: Identifiable, Equatable {
+    var kind: PublicationEditionKind
+    /// The finished period this row reads or binds. Nil while the first one
+    /// is still being written; the row then says when it will be ready.
+    var periodID: PublicationPeriodID?
+    var title: String
+    var detail: String
+    var isBound: Bool
+    /// Finished, and the Reader hasn't opened it yet.
+    var isNew = false
+
+    var id: String { kind.rawValue }
+    var isReady: Bool { periodID != nil }
+
+    var symbolName: String {
+        switch kind {
+        case .weekly: return "newspaper"
+        case .monthly: return "book.pages"
+        case .seasonal: return "leaf"
+        case .annual: return "books.vertical"
+        default: return "book"
+        }
+    }
+}
+
 enum GlowBeliefMode {
     case give
     case take
@@ -1149,6 +1177,7 @@ enum GlowMenuAction {
     case openSubscriptions
     case openPrintStudio
     case publishSeasonalVolume
+    case readShelfBook(GlowShelfBook)
     case openBookShop
     case openPactMap
     case openPeopleOfTheBook
@@ -1187,9 +1216,9 @@ private enum GlowMenuSection: String, CaseIterable, Identifiable {
         case .pages:
             return "Find open threads and Pages tucked deeper in the binding."
         case .bindery:
-            return "The daily paper, weekly issue, longer editions, and copies."
+            return "Today's paper, your week, your month, and your Book in print."
         case .book:
-            return "Read the Wonder Compass source."
+            return "Read the Wonder Compass source, or keep a copy of me."
         }
     }
 
@@ -1654,6 +1683,10 @@ struct GlowCommandMenu: View {
     var readerRole: ComposedRole?
     /// Set only while a story with a catch-up ladder is running.
     var storySoFarTitle: String? = nil
+    /// The Bindery shelf, built by the caller from the publication catalogue.
+    var shelf: [GlowShelfBook] = []
+    /// A Bound Year member is shown their order, never asked to join.
+    var holdsBoundYear = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedSection: GlowMenuSection?
@@ -2372,9 +2405,15 @@ struct GlowCommandMenu: View {
                     onSelectAction(.openBookSection(section.id))
                 }
             }
+            bookCopiesActions(compact: compact)
         }
     }
 
+    /// The Bindery as a shelf, by when rather than by product: the Bound Year
+    /// first (bj: nobody should miss it), the scrapbook, then today's paper, the week, the
+    /// month, and a season or year once one has finished. Each book is one
+    /// row and one tap: it opens, bound first if it needs to be. Sharing,
+    /// re-binding and ordering in print live inside the open book.
     private func binderySubmenu(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             // With the Standing Order retired, the Bound Year is the only order
@@ -2382,9 +2421,11 @@ struct GlowCommandMenu: View {
             let onlyBoundYear = !DigitalStandingOrder.isOffered && !PackEntitlements.hasStandingOrder
             menuButton(
                 title: onlyBoundYear ? "The Bound Year" : "Subscriptions",
-                detail: onlyBoundYear
-                    ? "Books by post each season. See what is standing, change it, or stop it."
-                    : "See what is standing, open either order, or stop one without hunting for the way out.",
+                detail: !onlyBoundYear
+                    ? "See what is standing, open either order, or stop one without hunting for the way out."
+                    : holdsBoundYear
+                        ? "Yours is standing. See your next book, change it, or stop it."
+                        : "Your Book, printed and posted to you every season. The month you join is in the first one.",
                 systemImage: "seal",
                 compact: compact
             ) {
@@ -2392,27 +2433,8 @@ struct GlowCommandMenu: View {
             }
 
             menuButton(
-                title: "Publish a Seasonal Volume",
-                detail: "Gather the latest finished three-month season and open it at the press.",
-                systemImage: "leaf.fill",
-                compact: compact
-            ) {
-                onSelectAction(.publishSeasonalVolume)
-            }
-
-            if let preparedPagewrightPDFURL {
-                shareMenuButton(
-                    title: "Share Last Scrapbook Page",
-                    detail: "The latest Pagewright PDF is ready for Apple's share sheet.",
-                    systemImage: "square.and.arrow.up",
-                    url: preparedPagewrightPDFURL,
-                    compact: compact
-                )
-            }
-
-            menuButton(
                 title: "Scrapbook a Page",
-                detail: "Choose kept pages and bind a Scrap, Pocket, Issue, or Letter PDF.",
+                detail: "Choose kept pages and make a Scrap, Pocket, Issue, or Letter.",
                 systemImage: "scissors",
                 compact: compact
             ) {
@@ -2420,7 +2442,7 @@ struct GlowCommandMenu: View {
             }
 
             menuButton(
-                title: "The Bleed · Daily Edition",
+                title: "Today's Bleed",
                 detail: bleedEditionLabel.map { "Read the \($0) paper." }
                     ?? "Penny's daily paper, in morning and evening editions.",
                 systemImage: "newspaper",
@@ -2429,145 +2451,65 @@ struct GlowCommandMenu: View {
                 onSelectAction(.openBleed)
             }
 
+            ForEach(shelf) { book in
+                menuButton(
+                    title: book.title,
+                    detail: book.detail,
+                    systemImage: book.symbolName,
+                    compact: compact,
+                    isDisabled: !book.isReady,
+                    badge: book.isNew ? "New" : nil
+                ) {
+                    onSelectAction(.readShelfBook(book))
+                }
+            }
+
             menuButton(
-                title: "Bind The Bleed as PDF",
-                detail: "Choose a morning or evening copy, including older papers you kept.",
-                systemImage: "doc.richtext",
+                title: "Older Books & PDFs",
+                detail: "Every past paper, issue, month and season. Bind or share any of them.",
+                systemImage: "books.vertical.fill",
                 compact: compact
             ) {
-                onSelectAction(.bindBleed)
+                onSelectAction(.openBindery)
             }
-
-            if let preparedBleedPDFURL {
-                shareMenuButton(
-                    title: "Share The Bleed PDF",
-                    detail: "The daily edition, just as it was printed.",
-                    systemImage: "square.and.arrow.up",
-                    url: preparedBleedPDFURL,
-                    compact: compact
-                )
-            }
-
-            weeklyIssueBinderyActions(compact: compact)
-
-            binderyExportButton(
-                preparedURL: preparedMonthlyEditionURL,
-                openTitle: "Open Monthly Edition",
-                shareTitle: "Share Monthly Edition",
-                bindTitle: "Bind Monthly Edition",
-                detail: "The current chapter of kept pages, bound as a PDF.",
-                systemImage: "book.pages",
-                compact: compact,
-                canBind: canBindMonthlyEdition,
-                bindAction: .bindMonthlyEdition
-            )
-
-            binderyExportButton(
-                preparedURL: preparedSeasonalEditionURL,
-                openTitle: "Open Seasonal Edition",
-                shareTitle: "Share Seasonal Edition",
-                bindTitle: "Bind Seasonal Edition",
-                detail: "Three finished months gathered into one digital volume.",
-                systemImage: "leaf",
-                compact: compact,
-                canBind: canBindSeasonalEdition,
-                bindAction: .bindSeasonalEdition
-            )
-
-            binderyExportButton(
-                preparedURL: preparedAnnualEditionURL,
-                openTitle: "Open Annual Volume",
-                shareTitle: "Share Annual Volume",
-                bindTitle: "Bind Annual Volume",
-                detail: "A year of chapters gathered into one book.",
-                systemImage: "books.vertical",
-                compact: compact,
-                canBind: true,
-                bindAction: .bindAnnualEdition
-            )
-
-            binderyExportButton(
-                preparedURL: preparedPlainInkURL,
-                shareTitle: "Share Plain Ink",
-                bindTitle: "Copy Out Plain Ink",
-                detail: "Every kept page as ordinary Markdown text.",
-                systemImage: "doc.plaintext",
-                compact: compact,
-                canBind: true,
-                bindAction: .exportPlainInk
-            )
-
-            binderyExportButton(
-                preparedURL: preparedSaveFileURL,
-                shareTitle: "Share Sealed Copy",
-                bindTitle: "Seal a Copy",
-                detail: "A full local backup of me: pages, photos, and continuity.",
-                systemImage: "book.closed",
-                compact: compact,
-                canBind: true,
-                bindAction: .exportSealedCopy
-            )
 
             menuButton(
-                title: "Print Studio",
-                detail: "Open the press directly for proof files and physical bindings.",
+                title: "Order a Book in Print",
+                detail: "Any week, month, season or year, printed and posted to you.",
                 systemImage: "printer",
                 compact: compact
             ) {
                 onSelectAction(.openPrintStudio)
             }
+
         }
     }
 
+    /// Copies of the whole Book, kept with the Book's own section rather than
+    /// among the books it binds.
     @ViewBuilder
-    private func weeklyIssueBinderyActions(compact: Bool) -> some View {
-        let hasBoundIssue = preparedWeeklyIssuePDFURL != nil || preparedWeeklyIssueCardURL != nil
-
-        menuButton(
-            title: hasBoundIssue ? "Read Weekly Issue" : "Bind Weekly Issue",
-            detail: canBindWeeklyIssue
-                ? (hasBoundIssue
-                    ? "Open the issue itself; sharing lives beside the reading copy."
-                    : "Wait for me to finish writing, then open the issue in-app.")
-                : "Not enough kept pages are ready for this binding yet.",
-            systemImage: hasBoundIssue ? "book" : "newspaper",
+    private func bookCopiesActions(compact: Bool) -> some View {
+        binderyExportButton(
+            preparedURL: preparedSaveFileURL,
+            shareTitle: "Share Sealed Copy",
+            bindTitle: "Seal a Copy",
+            detail: "A full backup of me: pages, photos, and continuity.",
+            systemImage: "book.closed",
             compact: compact,
-            isDisabled: !canBindWeeklyIssue
-        ) {
-            onSelectAction(.bindWeeklyIssue)
-        }
+            canBind: true,
+            bindAction: .exportSealedCopy
+        )
 
-        if hasBoundIssue {
-            menuButton(
-                title: "Re-bind Weekly Issue",
-                detail: "Write and bind the week again before replacing the reading copy.",
-                systemImage: "arrow.triangle.2.circlepath",
-                compact: compact,
-                isDisabled: !canBindWeeklyIssue
-            ) {
-                onSelectAction(.rebindWeeklyIssue)
-            }
-
-            if let preparedWeeklyIssuePDFURL {
-                shareMenuButton(
-                    title: "Share Weekly Issue PDF",
-                    detail: "Share the complete reading edition.",
-                    systemImage: "doc.richtext",
-                    url: preparedWeeklyIssuePDFURL,
-                    compact: compact
-                )
-            }
-
-            if let preparedWeeklyIssueCardURL {
-                shareMenuButton(
-                    title: "Share Weekly Social Card",
-                    detail: "Share the compact illustrated wrap.",
-                    systemImage: "photo",
-                    url: preparedWeeklyIssueCardURL,
-                    compact: compact
-                )
-            }
-        }
+        binderyExportButton(
+            preparedURL: preparedPlainInkURL,
+            shareTitle: "Share Plain Ink",
+            bindTitle: "Copy Out Plain Ink",
+            detail: "Every kept page as ordinary text.",
+            systemImage: "doc.plaintext",
+            compact: compact,
+            canBind: true,
+            bindAction: .exportPlainInk
+        )
     }
 
     private func pageBeliefSubmenu(compact: Bool) -> some View {
@@ -2792,6 +2734,7 @@ struct GlowCommandMenu: View {
         systemImage: String,
         compact: Bool,
         isDisabled: Bool = false,
+        badge: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button {
@@ -2804,9 +2747,21 @@ struct GlowCommandMenu: View {
                     .foregroundStyle(BookPalette.lampGold)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font((compact ? Font.caption : Font.subheadline).weight(.bold))
-                        .foregroundStyle(BookPalette.ink)
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(title)
+                            .font((compact ? Font.caption : Font.subheadline).weight(.bold))
+                            .foregroundStyle(BookPalette.ink)
+                        if let badge {
+                            Text(badge.uppercased())
+                                .font(.system(size: compact ? 8.5 : 9.5, weight: .heavy))
+                                .tracking(0.8)
+                                .foregroundStyle(BookPalette.ink)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(BookPalette.lampGold, in: Capsule())
+                                .accessibilityLabel("new")
+                        }
+                    }
                     Text(detail)
                         .font(compact ? .caption2 : .caption)
                         .foregroundStyle(BookPalette.ink.opacity(0.66))

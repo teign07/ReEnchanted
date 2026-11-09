@@ -2711,7 +2711,9 @@ struct ContentView: View {
                                 onClose: { callbacks.view.closeGlowMenu() },
                                 onSelectAction: { callbacks.view.handleGlowMenuAction($0) },
                                 readerRole: ReaderRoleRegistry.currentRole(from: callbacks.view.selfFacts),
-                                storySoFarTitle: StorySoFarPageSourceAdapter.menuTitle(now: Date())
+                                storySoFarTitle: StorySoFarPageSourceAdapter.menuTitle(now: Date()),
+                                shelf: publications.shelf,
+                                holdsBoundYear: callbacks.view.vault.data.boundYear?.isCurrent == true
                             )
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .ignoresSafeArea()
@@ -3730,13 +3732,6 @@ struct ContentView: View {
         }
         shop.onBindMonth = { periodID, dedication in
             exportMonthlyEdition(periodID: periodID, dedication: dedication)
-        }
-        shop.onBindMonthGemma = { periodID, dedication in
-            exportMonthlyEdition(
-                periodID: periodID,
-                useGemmaClosing: true,
-                dedication: dedication
-            )
         }
         shop.onOpenMonth = { periodID in
             isBookShopPresented = false
@@ -7556,6 +7551,10 @@ struct ContentView: View {
                 bookShopInitialDestination = .subscriptions
                 currentStall = buildGoblinStall()
                 isBookShopPresented = true
+            }
+        case .readShelfBook(let book):
+            dismissGlowMenuThenPresent {
+                readOrBindShelfBook(book)
             }
         case .openPrintStudio:
             dismissGlowMenuThenPresent {

@@ -2903,6 +2903,9 @@ extension ContentView {
         var monthlyURL: URL?
         var seasonalURL: URL?
         var annualURL: URL?
+        /// The Bindery shelf, newest span last: this week, the month, then the
+        /// season and year once one has finished.
+        var shelf: [GlowShelfBook] = []
     }
 
     /// One fresh projection per open menu or Contents rebuild. Reuse the
@@ -2913,20 +2916,28 @@ extension ContentView {
         let currentDay = today
         let now = Date()
         let weekCalendar = vault.data.publicationEpoch?.calendar() ?? .current
-        let weekly = PublicationPeriodCatalog.readerWeeks(
+        let weeks = PublicationPeriodCatalog.readerWeeks(
             days: days, today: currentDay,
             frozenAnchor: vault.data.publicationEpoch?.readerWeekAnchor(calendar: weekCalendar),
             boundRevisionCounts: revisions, now: now, calendar: weekCalendar
-        ).first(where: \.isBindable)?.id
-        let monthly = PublicationPeriodCatalog.calendarMonths(
+        )
+        let months = PublicationPeriodCatalog.calendarMonths(
             days: days, today: currentDay, boundRevisionCounts: revisions, now: now
-        ).first(where: \.isBindable)?.id
-        let seasonal = PublicationPeriodCatalog.calendarSeasons(
+        )
+        let seasons = PublicationPeriodCatalog.calendarSeasons(
             days: days, today: currentDay, boundRevisionCounts: revisions, now: now
-        ).first(where: \.isBindable)?.id
-        let annual = PublicationPeriodCatalog.calendarYears(
+        )
+        let years = PublicationPeriodCatalog.calendarYears(
             days: days, today: currentDay, boundRevisionCounts: revisions, now: now
-        ).first(where: \.isBindable)?.id
+        )
+        let weeklyCandidate = weeks.first(where: \.isBindable)
+        let monthlyCandidate = months.first(where: \.isBindable)
+        let seasonalCandidate = seasons.first(where: \.isBindable)
+        let annualCandidate = years.first(where: \.isBindable)
+        let weekly = weeklyCandidate?.id
+        let monthly = monthlyCandidate?.id
+        let seasonal = seasonalCandidate?.id
+        let annual = annualCandidate?.id
         let daily = bleedBinderyEditions.first
         var result = GlowPublicationMenuSnapshot(
             bleedLabel: daily?.label,
@@ -2953,7 +2964,119 @@ extension ContentView {
             result.annualURL = boundAnnualEditionPDFURL(for: annual)
                 ?? (preparedAnnualEditionPeriodID == annual ? preparedAnnualEditionURL : nil)
         }
+        var shelf = Self.binderyShelf(
+            week: (weeklyCandidate, result.weeklyPDFURL != nil, weeks.first(where: { !$0.isCompleted })),
+            month: (monthlyCandidate, result.monthlyURL != nil, months.first(where: { !$0.isCompleted })),
+            season: (seasonalCandidate, result.seasonalURL != nil),
+            year: (annualCandidate, result.annualURL != nil),
+            now: now
+        )
+        var ledger = Self.binderyReadLedger
+        if !ledger.isSeeded {
+            ledger.seed(alreadyBound: shelf.filter(\.isBound).compactMap(\.periodID))
+            Self.binderyReadLedger = ledger
+        }
+        for index in shelf.indices {
+            shelf[index].isNew = ledger.isNew(shelf[index].periodID)
+        }
+        result.shelf = shelf
         return result
+    }
+
+    private static let binderyReadLedgerKey = "binderyReadLedger.v1"
+
+    /// Kept on this device: it only decides which shelf rows say New.
+    static var binderyReadLedger: BinderyReadLedger {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: binderyReadLedgerKey),
+                  let ledger = try? JSONDecoder().decode(BinderyReadLedger.self, from: data) else {
+                return BinderyReadLedger()
+            }
+            return ledger
+        }
+        set {
+            if let data = try? JSONEncoder().encode(newValue) {
+                UserDefaults.standard.set(data, forKey: binderyReadLedgerKey)
+            }
+        }
+    }
+
+    /// A book the Reader opened, from anywhere, is no longer new.
+    static func markBinderyBookOpened(_ periodID: PublicationPeriodID?) {
+        guard let periodID else { return }
+        var ledger = binderyReadLedger
+        ledger.markOpened(periodID)
+        binderyReadLedger = ledger
+    }
+
+    /// The Bindery shelf as a Reader thinks of it: by when, not by product.
+    /// A week and a month always have a row (saying when the first is ready);
+    /// a season or a year only once one has finished.
+    static func binderyShelf(
+        week: (PublicationCandidate?, Bool, PublicationCandidate?),
+        month: (PublicationCandidate?, Bool, PublicationCandidate?),
+        season: (PublicationCandidate?, Bool),
+        year: (PublicationCandidate?, Bool),
+        now: Date,
+        calendar: Calendar = .current
+    ) -> [GlowShelfBook] {
+        func format(_ pattern: String, _ date: Date) -> String {
+            let formatter = DateFormatter()
+            formatter.setLocalizedDateFormatFromTemplate(pattern)
+            return formatter.string(from: date)
+        }
+        func span(_ period: PublicationPeriod) -> String {
+            let formatter = DateIntervalFormatter()
+            formatter.dateTemplate = "MMMd"
+            return formatter.string(from: period.startDate, to: period.endDate.addingTimeInterval(-1))
+        }
+        func readyLine(_ open: PublicationCandidate?) -> String {
+            guard let open else { return "Keep a page and it starts." }
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now),
+                                               to: calendar.startOfDay(for: open.period.endDate)).day ?? 0
+            let when = days <= 1 ? "tomorrow" : days < 7 ? "on \(format("EEEE", open.period.endDate))" : "on \(format("MMMMd", open.period.endDate))"
+            return "Ready \(when)."
+        }
+        func state(_ bound: Bool) -> String {
+            bound ? "Read it, share it, or order it in print." : "Finished. Tap and I'll bind it for you."
+        }
+        var shelf: [GlowShelfBook] = []
+
+        if let candidate = week.0 {
+            let issue = candidate.period.ordinal.map { "Issue No. \($0)" } ?? "Your week"
+            shelf.append(GlowShelfBook(kind: .weekly, periodID: candidate.id,
+                                       title: "\(issue) · \(span(candidate.period))",
+                                       detail: state(week.1), isBound: week.1))
+        } else {
+            shelf.append(GlowShelfBook(kind: .weekly, periodID: nil, title: "This week's issue",
+                                       detail: readyLine(week.2), isBound: false))
+        }
+
+        if let candidate = month.0 {
+            shelf.append(GlowShelfBook(kind: .monthly, periodID: candidate.id,
+                                       title: format("MMMMyyyy", candidate.period.startDate),
+                                       detail: state(month.1), isBound: month.1))
+        } else {
+            let open = month.2
+            shelf.append(GlowShelfBook(kind: .monthly, periodID: nil,
+                                       title: open.map { format("MMMMyyyy", $0.period.startDate) } ?? "This month",
+                                       detail: readyLine(open), isBound: false))
+        }
+
+        if let candidate = season.0 {
+            let start = format("MMM", candidate.period.startDate)
+            let end = format("MMMyyyy", candidate.period.endDate.addingTimeInterval(-1))
+            shelf.append(GlowShelfBook(kind: .seasonal, periodID: candidate.id,
+                                       title: "\(start) – \(end)",
+                                       detail: state(season.1), isBound: season.1))
+        }
+
+        if let candidate = year.0 {
+            shelf.append(GlowShelfBook(kind: .annual, periodID: candidate.id,
+                                       title: "The year \(format("yyyy", candidate.period.startDate))",
+                                       detail: state(year.1), isBound: year.1))
+        }
+        return shelf
     }
 
     /// Works out what the Book could bind while the reader is reading, so the
@@ -4623,6 +4746,8 @@ extension ContentView {
         _ reader: WeeklyIssueReader,
         periodID: PublicationPeriodID? = nil
     ) throws -> WeeklyIssueReader {
+        // Binding a book opens it.
+        Self.markBinderyBookOpened(periodID)
         let directory = try weeklyIssueArchiveDirectory()
         let cardURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number)-Card.png")
         let pdfURL = directory.appendingPathComponent("Weekly-Issue-\(reader.issue.number).pdf")
@@ -4696,6 +4821,7 @@ extension ContentView {
     @MainActor
     func openKeptWeeklyIssue(_ page: BookPage) {
         guard let artifact = page.weeklyIssueArtifact else { return }
+        Self.markBinderyBookOpened(artifact.periodID)
         if activeBookDivision != nil {
             activeBookDivision = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -5151,6 +5277,7 @@ extension ContentView {
         renderedPDF: URL,
         periodID: PublicationPeriodID? = nil
     ) throws -> URL {
+        Self.markBinderyBookOpened(periodID)
         let directory = try monthlyEditionArchiveDirectory()
         let pdfURL = directory.appendingPathComponent("Monthly-Edition-\(monthKey).pdf")
         try replaceArchiveFile(at: pdfURL, with: renderedPDF)
@@ -5201,6 +5328,7 @@ extension ContentView {
     @MainActor
     func openKeptMonthlyEdition(_ page: BookPage) {
         guard let artifact = page.monthlyEditionArtifact else { return }
+        Self.markBinderyBookOpened(artifact.periodID)
         if activeBookDivision != nil {
             activeBookDivision = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -5258,6 +5386,7 @@ extension ContentView {
         periodID: PublicationPeriodID,
         renderedPDF: URL
     ) throws -> URL {
+        Self.markBinderyBookOpened(periodID)
         let directory = try annualEditionArchiveDirectory()
         let stamp = "\(edition.year)-\(periodID.startDayID)"
             .replacingOccurrences(of: "[^A-Za-z0-9-]", with: "-", options: .regularExpression)
@@ -5308,6 +5437,7 @@ extension ContentView {
     @MainActor
     func openKeptAnnualEdition(_ page: BookPage) {
         guard let artifact = page.annualEditionArtifact else { return }
+        Self.markBinderyBookOpened(artifact.periodID)
         if activeBookDivision != nil {
             activeBookDivision = nil
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -5356,6 +5486,37 @@ extension ContentView {
             .appendingPathComponent("AnnualEditions", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
+    }
+
+    /// One tap on the Bindery shelf: a bound book opens; an unbound one is
+    /// bound and then opens. A book still being written has nothing to do yet.
+    @MainActor
+    func readOrBindShelfBook(_ book: GlowShelfBook) {
+        guard let periodID = book.periodID else {
+            statusMessage = book.detail
+            return
+        }
+        // Reading it now, or binding it and then reading it: either way it's seen.
+        Self.markBinderyBookOpened(periodID)
+        switch book.kind {
+        case .weekly:
+            if book.isBound { openBoundWeeklyIssue(periodID: periodID) } else { exportWeeklyIssuePDF(periodID: periodID) }
+        case .monthly:
+            if book.isBound { openBoundMonthlyEdition(periodID: periodID) } else { exportMonthlyEdition(periodID: periodID) }
+        case .seasonal:
+            if book.isBound {
+                openBoundMonthlyEdition(periodID: periodID)
+            } else if let edition = calendarSeasonalPrintEdition(periodID: periodID) {
+                exportComposedEditionPDF(edition, periodID: periodID)
+            } else {
+                statusMessage = "That season's leaves wouldn't come back to the binding table."
+                BookFeedback.play(.error)
+            }
+        case .annual:
+            if book.isBound { openBoundAnnualEdition(periodID: periodID) } else { exportAnnualEdition(periodID: periodID) }
+        case .special:
+            break
+        }
     }
 
     @MainActor

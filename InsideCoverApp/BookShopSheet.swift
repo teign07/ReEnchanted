@@ -111,7 +111,6 @@ struct BookShopSheet: View {
     /// the actual street address; it never enters the Book's memory.
     var onBoundYearAddressConfirmed: () -> Void = {}
     var onBindMonth: (PublicationPeriodID?, BoundDedication?) -> Void = { _, _ in }
-    var onBindMonthGemma: (PublicationPeriodID?, BoundDedication?) -> Void = { _, _ in }
     var onBindSeason: (PublicationPeriodID?, BoundDedication?) -> Void = { _, _ in }
     var onBindYear: (PublicationPeriodID?, BoundDedication?) -> Void = { _, _ in }
     var onOpenMonth: (PublicationPeriodID) -> Void = { _ in }
@@ -2274,34 +2273,16 @@ struct BookShopSheet: View {
                             }
                         )
                     } else if resolvedMonthPageCount > 0 {
-                        Menu {
-                            Button {
-                                BookFeedback.play(.openPage)
-                                onBindMonth(
-                                    selectedMonth?.id,
-                                    BoundDedication(text: monthlyDedicationText)
-                                )
-                            } label: {
-                                Label("Bind now (fast)", systemImage: "bolt")
-                            }
-                            Button {
-                                BookFeedback.play(.openPage)
-                                onBindMonthGemma(
-                                    selectedMonth?.id,
-                                    BoundDedication(text: monthlyDedicationText)
-                                )
-                            } label: {
-                                Label("Bind with Gemma's conclusion", systemImage: "sparkles")
-                            }
-                        } label: {
-                            Label("Bind", systemImage: "book.pages")
-                                .font(.caption2.weight(.bold))
-                        } primaryAction: {
+                        // One way to bind: both old choices ran the same binding.
+                        Button {
                             BookFeedback.play(.openPage)
                             onBindMonth(
                                 selectedMonth?.id,
                                 BoundDedication(text: monthlyDedicationText)
                             )
+                        } label: {
+                            Label("Bind", systemImage: "book.pages")
+                                .font(.caption2.weight(.bold))
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(BookPalette.lampGold)

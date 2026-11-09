@@ -990,3 +990,44 @@ extension PublicationPeriodCatalog {
             }
     }
 }
+
+// MARK: - Bindery read ledger
+
+/// Which finished books the Reader has opened, so the Bindery shelf can mark
+/// the ones still waiting for them. Binding a book opens it, so a bound book is
+/// usually read; the mark is for a week or month that has finished and not
+/// been looked at yet. Books bound before the ledger existed count as read, so
+/// an update never lights up the whole shelf.
+struct BinderyReadLedger: Codable, Equatable {
+    /// Period ids, oldest first, capped so the ledger never grows unbounded.
+    var opened: [String] = []
+    /// False until the shelf has recorded what was already bound.
+    var isSeeded = false
+
+    static let capacity = 400
+
+    func hasOpened(_ id: PublicationPeriodID) -> Bool {
+        opened.contains(id.rawValue)
+    }
+
+    /// A finished book the Reader hasn't opened yet.
+    func isNew(_ id: PublicationPeriodID?) -> Bool {
+        guard let id else { return false }
+        return !hasOpened(id)
+    }
+
+    mutating func markOpened(_ id: PublicationPeriodID) {
+        guard !hasOpened(id) else { return }
+        opened.append(id.rawValue)
+        if opened.count > Self.capacity {
+            opened.removeFirst(opened.count - Self.capacity)
+        }
+    }
+
+    /// The first time the shelf is shown: every book already bound is read.
+    mutating func seed(alreadyBound: [PublicationPeriodID]) {
+        guard !isSeeded else { return }
+        alreadyBound.forEach { markOpened($0) }
+        isSeeded = true
+    }
+}
