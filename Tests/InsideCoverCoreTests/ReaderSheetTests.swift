@@ -11,8 +11,10 @@ final class ReaderSheetTests: XCTestCase {
     }()
     private let now = Date(timeIntervalSince1970: 1_783_484_800)
 
-    private func context(at date: Date, place: String? = nil, weather: [String] = []) -> BookPageContextSnapshot {
-        BookPageContextSnapshot(at: date, calendar: calendar, weatherTags: weather, locationLabel: place)
+    private func context(at date: Date, place: String? = nil, weather: [String] = [],
+                         sleep: Double? = nil) -> BookPageContextSnapshot {
+        BookPageContextSnapshot(at: date, calendar: calendar, weatherTags: weather, locationLabel: place,
+                                sleepHours: sleep)
     }
 
     /// Ten days of two Knocks: mornings at the library come back "here", and
@@ -114,6 +116,33 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertNotNil(finding("last-words"))
         // The library is where it never wins: never named as one of its places.
         XCTAssertFalse(dossier.findings.contains { $0.value == "the library" })
+    }
+
+    /// The Curse joined to the rest of the reader's life: after short nights
+    /// it wins, after long ones it doesn't.
+    func testTheCursesFileConnectsToTheNightBefore() {
+        var ledger = AttentionProbeLedger.empty
+        let start = calendar.startOfDay(for: now.addingTimeInterval(-12 * 86_400))
+        for day in 0..<10 {
+            let at = start.addingTimeInterval(Double(day) * 86_400 + 11 * 3600)
+            let shortNight = day.isMultiple(of: 2)
+            let grey = shortNight && day != 0
+            ledger.record(id: "k\(day)", scheduledAt: at, answeredAt: at.addingTimeInterval(60),
+                          answer: grey ? .elsewhere : .here, cycle: 0,
+                          context: context(at: at, sleep: shortNight ? 5 : 8.5))
+        }
+        let dossier = CurseDossier.build(ledger, calendar: calendar)
+        XCTAssertEqual(dossier.findings.first { $0.id == "feeds-on" }?.value, "After a short night")
+    }
+
+    func testTheFileIsReadALittleEachDay() {
+        let dossier = CurseDossier.build(foggyAfternoons(), calendar: calendar)
+        let today = dossier.featured(on: now, count: 2, calendar: calendar)
+        let tomorrow = dossier.featured(on: now.addingTimeInterval(86_400), count: 2, calendar: calendar)
+        XCTAssertEqual(today.count, 2)
+        XCTAssertFalse(today.contains { $0.id == "take" }, "the column prints its own counts")
+        XCTAssertEqual(tomorrow.first, today.last, "the file turns one finding a day")
+        XCTAssertTrue(today[0].printed.hasPrefix(today[0].label + ": "))
     }
 
     func testABucketIsOnlyNamedWhenTheCurseBeatsItsOwnAverageThere() {

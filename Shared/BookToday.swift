@@ -104,6 +104,9 @@ struct BookTodayEdition: Equatable {
         var curse: Int
         var line: String
         var hourLine: String?
+        /// One finding from the Curse's file, turning daily. The rest is on
+        /// the Reader's Sheet.
+        var fileLine: String? = nil
     }
 }
 
@@ -238,9 +241,13 @@ enum BookTodayProjector {
                     )
                 }
                 guard let line = CurseFight.dayLine(reader: score.reader, curse: score.curse) else { return nil }
+                let filed = CurseDossier.build(inputs.attentionProbes, calendar: calendar)
+                    .featured(on: now, count: 1, calendar: calendar)
+                    .first
                 return BookTodayEdition.Fight(
                     reader: score.reader, curse: score.curse, line: line,
-                    hourLine: CurseFight.hourLine(inputs.attentionProbes, calendar: calendar)
+                    hourLine: CurseFight.hourLine(inputs.attentionProbes, calendar: calendar),
+                    fileLine: filed.map { "From the Curse's file: \($0.printed)" }
                 )
             }()
         )

@@ -2455,6 +2455,9 @@ struct CurseDossier: Equatable {
         var value: String
         var line: String
         var symbol: String
+
+        /// The finding as one printed line: "Where: the kitchen. 8 of 10…"
+        var printed: String { "\(label): \(value). \(line)" }
     }
 
     var answered: Int
@@ -2537,6 +2540,11 @@ struct CurseDossier: Equatable {
                value: { $0.capitalized },
                phrase: { "in \($0) weather" })
 
+        report("feeds-on", "What it feeds on", "leaf",
+               keys: { receipt in conditionKeys(receipt.context) },
+               value: { $0.prefix(1).uppercased() + String($0.dropFirst()) },
+               phrase: { $0 })
+
         report("holding", "How you held the phone", "iphone",
                keys: { receipt in holdingKeys(receipt.context?.holding) },
                value: { $0.prefix(1).uppercased() + String($0.dropFirst()) },
@@ -2572,6 +2580,46 @@ struct CurseDossier: Equatable {
         case 17...20: return "evening"
         default: return "night"
         }
+    }
+
+    /// The rest of the reader's life around a Knock, as the keep context
+    /// already records it: the night before, the day's steps and calendar,
+    /// and whether the sun was up. Each is a phrase that reads after "Knocks".
+    static func conditionKeys(_ context: BookPageContextSnapshot?) -> [String] {
+        guard let context else { return [] }
+        var keys: [String] = []
+        if let sleep = context.sleepHours {
+            if sleep < 6 { keys.append("after a short night") }
+            if sleep >= 8 { keys.append("after a long sleep") }
+        }
+        if let steps = context.steps {
+            if steps < 2_500 { keys.append("on a still day") }
+            if steps >= 9_000 { keys.append("on a day on your feet") }
+        }
+        if let events = context.calendarEventCount {
+            if events >= 4 { keys.append("on a crowded day") }
+            if events == 0 { keys.append("on an empty day") }
+        }
+        if let since = context.minutesSinceEventEnded, since <= 30 {
+            keys.append("right after something on your calendar")
+        }
+        if let until = context.minutesUntilNextEvent, until <= 30 {
+            keys.append("just before something on your calendar")
+        }
+        if let sun = context.sunAltitude, sun < -6 {
+            keys.append("after dark")
+        }
+        return keys
+    }
+
+    /// One or two findings for a paper or a doorstep, turning with the day so
+    /// the file is read a little at a time. Its overall take is left to the
+    /// column's own counts.
+    func featured(on date: Date, count: Int, calendar: Calendar = .current) -> [Finding] {
+        let pool = findings.filter { $0.id != "take" }
+        guard !pool.isEmpty, count > 0 else { return [] }
+        let day = calendar.ordinality(of: .day, in: .era, for: date) ?? 0
+        return (0..<min(count, pool.count)).map { pool[(day + $0) % pool.count] }
     }
 
     static func holdingKeys(_ holding: HoldingSnapshot?) -> [String] {

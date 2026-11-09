@@ -4566,8 +4566,10 @@ enum BleedDataDesk {
 
     /// The week's fight against the Curse (docs/the-knock-plan.md): the
     /// Knocks the reader answered, the Curse's share against everyone's usual
-    /// half, its favourite hour, and the Pages taken back from the grey.
-    /// Counts only. Never where the reader was or what they wrote.
+    /// half, its favourite hour, the Pages taken back from the grey, and two
+    /// findings from the Curse's file (`CurseDossier`), turning daily. The
+    /// whole app is private (bj, 2026-11-09: "we can go crazy with data and
+    /// connections"), so the file's places and the reader's own words print.
     static func curseReport(inputs: BookSourceInputs, now: Date, calendar: Calendar) -> BleedColumnBrief? {
         let ledger = inputs.attentionProbes
         let week = CurseFight.week(ledger, now: now)
@@ -4598,6 +4600,12 @@ enum BleedDataDesk {
         }.count
         if rescued > 0 {
             lines.append("Pages taken back from the grey this week · \(rescued)")
+        }
+        let filed = CurseDossier.build(ledger, calendar: calendar).featured(on: now, count: 2, calendar: calendar)
+        if !filed.isEmpty {
+            lines.append("")
+            lines.append("FROM THE CURSE'S FILE")
+            lines.append(contentsOf: filed.map(\.printed))
         }
         // The week's throws, both sides, as they were inked in the margins.
         let thrown = inputs.inkbonesLog.filter { $0.at <= now && now.timeIntervalSince($0.at) < 7 * 86_400 }

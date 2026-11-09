@@ -10397,6 +10397,12 @@ struct ContentView: View {
                                 .foregroundStyle(MaterialInk.text.opacity(0.72))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+                        if let fileLine = fight.fileLine {
+                            Text(fileLine)
+                                .font(.system(.footnote, design: .serif).italic())
+                                .foregroundStyle(MaterialInk.text.opacity(0.72))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 .padding(.vertical, 6)
