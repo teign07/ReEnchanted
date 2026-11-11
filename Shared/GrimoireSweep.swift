@@ -79,7 +79,187 @@ enum GrimoireInterest {
             * familiarity.unexpectedness(condition: condition, outcome: outcome)
             * specificity(stats, universeCount: universeCount)
             * novelty(row, now: now)
+            * reach(condition: condition, outcome: outcome)
         return Int((value * 100).rounded())
+    }
+
+    // MARK: Explained away
+
+    /// Things the Book can explain without the reader's life in it at all.
+    ///
+    /// bj, 2026-11-10: "the most boring shit is being surfaced." A sim Book's
+    /// only four spoken rules were *afternoon at home → you used the word
+    /// "afternoon"*, *afternoon at home → you were at home*, and the same
+    /// condition against a thread read off those very words. Every pair is born
+    /// on one Page, so a pair that Page explains by itself is bookkeeping
+    /// however perfect its counts look. These never speak, at any strength.
+    static func isExplainedAway(
+        shape: GrimoireShape,
+        condition: LoomFeatureRef,
+        outcome: LoomFeatureRef?,
+        ref: (String) -> LoomFeatureRef?
+    ) -> Bool {
+        guard let outcome else { return false }
+        // A blend cannot discover one of its own ingredients, nor anything
+        // from an ingredient's family: "afternoon at home → you were at home",
+        // or "→ you were at work", which is only the blend said backwards.
+        if condition.domain == "contextBlend" {
+            for member in blendMembers(condition.id) {
+                if member == outcome.id { return true }
+                if let ingredient = ref(member), ingredient.domain == outcome.domain { return true }
+            }
+        }
+        // An echo: the word names the circumstance it turned up in. Clear
+        // weather brings the word "clear"; afternoon brings "afternoon".
+        // Only words and threads can echo; skipping the rest keeps this cheap
+        // on the desk's read path, which ranks every row.
+        let wordy: Set<String> = ["word", "meaning"]
+        if wordy.contains(condition.domain) || wordy.contains(outcome.domain),
+           !echoTokens(condition, ref: ref).isDisjoint(with: echoTokens(outcome, ref: ref)) {
+            return true
+        }
+        // A Page *about* the circumstance. The Book writes a weather Page when
+        // the weather does something, so "clear days → weather Pages" is the
+        // Book reporting its own habit back as the reader's.
+        if !topicDomains(of: condition).isDisjoint(with: circumstanceDomains(of: outcome, ref: ref))
+            || !topicDomains(of: outcome).isDisjoint(with: circumstanceDomains(of: condition, ref: ref)) {
+            return true
+        }
+        // The Page explaining itself. Same-day shapes only: a pair found on one
+        // Page is about that Page. Across days (sequential) it is a real reach.
+        if shape == .conditional || shape == .sibling,
+           derivedTogether(condition.domain, outcome.domain) {
+            return true
+        }
+        return false
+    }
+
+    /// Families where one is read off the other on the very same Page.
+    ///
+    /// A Fuel Page asks what you ate, so "seltzer" arriving with Fuel Pages is
+    /// the prompt answered. A thread (`meaning`) is read from the words, so the
+    /// words predict it. "Days you wrote" use ink. A photo is captioned short.
+    static let derivedPairs: Set<String> = [
+        "pageKind|word", "pageKind|ink", "pageKind|meaning", "pageKind|media",
+        "pageKind|writing", "pageKind|modality",
+        "meaning|word", "writing|word", "writing|ink", "writing|meaning",
+        "media|ink", "media|word", "modality|ink", "modality|word",
+        // Going into a room of the Book is often how its Page got kept.
+        "wander|pageKind", "wander|modality",
+        // A rescue answers the mark; the Curse's throw and the reader's can be
+        // one exchange.
+        "greyPage|greyRescue", "curseThrow|inkbones"
+    ]
+
+    static func derivedTogether(_ left: String, _ right: String) -> Bool {
+        derivedPairs.contains("\(left)|\(right)") || derivedPairs.contains("\(right)|\(left)")
+    }
+
+    /// What a Page kind or a medium is *about*, as the families that would
+    /// cause it: a weather Page is about the weather.
+    static func topicDomains(of feature: LoomFeatureRef) -> Set<String> {
+        guard feature.domain == "pageKind" || feature.domain == "modality",
+              let colon = feature.id.firstIndex(of: ":") else { return [] }
+        switch feature.id[feature.id.index(after: colon)...] {
+        case "weather": return ["weather", "daylight", "season"]
+        case "place", "location": return ["place", "placeKind", "travel"]
+        case "rest": return ["sleep", "body", "readerState"]
+        case "body": return ["body", "sleep", "readerState"]
+        default: return []
+        }
+    }
+
+    /// The families a feature stands for, opening a blend into its ingredients.
+    static func circumstanceDomains(of feature: LoomFeatureRef, ref: (String) -> LoomFeatureRef?) -> Set<String> {
+        var out: Set<String> = [feature.domain]
+        for member in blendMembers(feature.id) {
+            if let ingredient = ref(member) { out.insert(ingredient.domain) }
+        }
+        return out
+    }
+
+    static func blendMembers(_ id: String) -> [String] {
+        guard id.hasPrefix("blend:") else { return [] }
+        return id.dropFirst("blend:".count).split(separator: "+").map(String.init)
+    }
+
+    /// The plain words a feature stands for, for spotting an echo. Prefixes
+    /// ("word:", "hour:") and the registry's own scaffolding never count.
+    static func echoTokens(_ feature: LoomFeatureRef, ref: (String) -> LoomFeatureRef?) -> Set<String> {
+        var sources = [feature.id, feature.label]
+        for member in blendMembers(feature.id) {
+            sources.append(member)
+            if let ingredient = ref(member) { sources.append(ingredient.label) }
+        }
+        var out = Set<String>()
+        for source in sources {
+            for raw in source.lowercased().split(whereSeparator: { !$0.isLetter }) {
+                let token = String(raw)
+                guard token.count >= 4, !echoScaffolding.contains(token) else { continue }
+                out.insert(token)
+                // "rainy" and "rain", "clearer" and "clear".
+                if token.count >= 6, token.hasSuffix("y") { out.insert(String(token.dropLast())) }
+            }
+        }
+        return out
+    }
+
+    static let echoScaffolding: Set<String> = [
+        "word", "blend", "kept", "page", "pages", "pattern", "meaning", "media",
+        "hour", "place", "weather", "days", "with", "that", "your", "this", "about",
+        "when", "they", "them", "were", "there", "some", "only", "drop", "lots",
+        "pocket", "belief", "lifecycle", "manner", "sensory", "absence", "duration"
+    ]
+
+    // MARK: Reach
+
+    /// How far apart the two halves live.
+    ///
+    /// The rich findings cross from one part of a life into another: the moon
+    /// into sleep, rain into which door you chose, a crowded calendar into
+    /// how much ink you spent. Words are the cheapest feature there is (five a
+    /// Page, thousands a year) and on sheer numbers they crowd every ledger,
+    /// so a word half has to be stronger to be heard.
+    static func reach(condition: LoomFeatureRef, outcome: LoomFeatureRef?) -> Double {
+        guard let outcome else { return 1.0 }
+        let left = realm(of: condition.domain)
+        let right = realm(of: outcome.domain)
+        var value = left == right ? 0.75 : 1.0
+        if condition.domain == "word" || outcome.domain == "word" { value *= 0.6 }
+        if condition.domain == "meaning" || outcome.domain == "meaning" { value *= 0.8 }
+        // A Page kind is which drawer the reader opened, not what they did, and
+        // a Page's topic is mostly which Page the Book put out that day.
+        if outcome.domain == "pageKind" || outcome.domain == "modality" { value *= 0.8 }
+        // Writing in words is what nearly every Page is. Saying so is not news.
+        if condition.id == "modality:words" || outcome.id == "modality:words" { value *= 0.6 }
+        // Neither half is the reader's writing and they come from different
+        // parts of a life: the shape bj means by "our connections can be so rich".
+        let writing: Set<String> = ["word", "meaning", "ink", "pageKind", "writing"]
+        if left != right, !writing.contains(condition.domain), !writing.contains(outcome.domain) {
+            value *= 1.2
+        }
+        return value
+    }
+
+    enum Realm { case world, body, life, page, story }
+
+    static func realm(of domain: String) -> Realm {
+        switch domain {
+        case "weather", "moon", "daylight", "season", "worldEvent", "worldEventPhase",
+             "almanac", "observance":
+            return .world
+        case "body", "sleep", "readerState", "attention":
+            return .body
+        case "place", "placeKind", "travel", "calendarLoad", "person", "hour", "weekPart",
+             "contextBlend", "placeMaking":
+            return .life
+        case "pageKind", "word", "ink", "media", "modality", "writing", "meaning":
+            return .page
+        default:
+            // Cast, choices, Fae, Workings, the Compass, errands, Pockets,
+            // jumps, asides: the reader acting inside the story.
+            return .story
+        }
     }
 }
 
@@ -199,6 +379,15 @@ extension GrimoireLedger {
         let id = GrimoireCorrespondence.key(shape: shape, condition: condition.id, outcome: outcome?.id)
         // A door the reader shut stays shut, whatever the evidence does next.
         if let existing = rows[id], existing.state == .forbidden { return }
+
+        // The Page explains it. Not a claim at all, so it never becomes a row;
+        // one already said stays on record but `ranked` will not say it again.
+        if GrimoireInterest.isExplainedAway(
+            shape: shape, condition: condition, outcome: outcome, ref: { self.ref($0) }
+        ) {
+            if let existing = rows[id], !existing.hasSpoken { rows.removeValue(forKey: id) }
+            return
+        }
 
         // Cheap first. Almost everything dies here, and everything that dies
         // here never pays for a calendar.
@@ -328,6 +517,9 @@ extension GrimoireLedger {
                   let outcomeID = row.outcomeID,
                   let outcome = ref(outcomeID) else { continue }
             guard let siblings = byDomain[condition.domain], siblings.count > 1 else { continue }
+            guard !GrimoireInterest.isExplainedAway(
+                shape: .sibling, condition: condition, outcome: outcome, ref: { self.ref($0) }
+            ) else { continue }
             let conditionDays = days(of: row.conditionID)
             let outcomeDays = days(of: outcomeID)
             let winner = contrast(conditionDays: conditionDays, outcomeDays: outcomeDays)
@@ -943,6 +1135,10 @@ extension GrimoireLedger {
         for row in rows.values where row.isAlive {
             guard let condition = ref(row.conditionID) else { continue }
             let outcome = row.outcomeID.flatMap { ref($0) }
+            // Rows minted before the Book could tell are still in the ledger.
+            if GrimoireInterest.isExplainedAway(
+                shape: row.shape, condition: condition, outcome: outcome, ref: { self.ref($0) }
+            ) { continue }
             if !allowingSensitive {
                 if condition.sensitivity != .ordinary { continue }
                 if let outcome,

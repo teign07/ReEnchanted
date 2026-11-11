@@ -289,9 +289,9 @@ final class ConstellationTests: XCTestCase {
         var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
         inputs.constellations = [
             Constellation(
-                id: "constellation-pattern-harbor",
-                signalID: "pattern-harbor",
-                kind: .pattern,
+                id: "constellation-belief-harbor",
+                signalID: "belief-lifecycle-harbor",
+                kind: .beliefLifecycle,
                 subjectID: "harbor",
                 subjectName: "Harbor",
                 name: "The Harbor Thread",
@@ -346,11 +346,11 @@ final class ConstellationTests: XCTestCase {
         XCTAssertTrue(pages.contains { $0.payload.metadata["wagerMoment"] == "opened" && $0.payload.headline.contains("Right") })
     }
 
-    private func watchedConstellation(id: String = "constellation-pattern-harbor") -> Constellation {
+    private func watchedConstellation(id: String = "constellation-belief-harbor") -> Constellation {
         Constellation(
             id: id,
-            signalID: "pattern-harbor",
-            kind: .pattern,
+            signalID: "belief-lifecycle-harbor",
+            kind: .beliefLifecycle,
             subjectID: "harbor",
             subjectName: "Harbor",
             name: nil,
@@ -380,8 +380,8 @@ final class ConstellationTests: XCTestCase {
         )
         let tease = pages.first { $0.payload.headline.contains("I Am Watching") }
         XCTAssertNotNil(tease)
-        XCTAssertEqual(tease?.payload.metadata["constellationID"], "constellation-pattern-harbor")
-        XCTAssertTrue(tease?.payload.metadata["tags"]?.contains("watched:constellation-pattern-harbor") == true)
+        XCTAssertEqual(tease?.payload.metadata["constellationID"], "constellation-belief-harbor")
+        XCTAssertTrue(tease?.payload.metadata["tags"]?.contains("watched:constellation-belief-harbor") == true)
 
         // Once the tease has been kept, that thread is never teased again.
         let keptTease = BookPage(
@@ -390,7 +390,7 @@ final class ConstellationTests: XCTestCase {
             createdAt: date(2026, 6, 9),
             promptText: "The Book is watching a thread.",
             userInput: "",
-            tags: ["constellation", "watched:constellation-pattern-harbor"]
+            tags: ["constellation", "watched:constellation-belief-harbor"]
         )
         inputs.days.append(BookDay(id: "2026-06-09", date: date(2026, 6, 9, hour: 0), pages: [keptTease]))
         let again = BookNoticesPageSourceAdapter().candidates(
@@ -423,7 +423,7 @@ final class ConstellationTests: XCTestCase {
         // A tease shown yesterday but not kept rests instead of nagging.
         var resting = BookSourceInputs.empty.withMatureLibrary(now: now)
         resting.constellations = [watchedConstellation()]
-        resting.surfaceHistory["constellation:constellation-pattern-harbor"] =
+        resting.surfaceHistory["constellation:constellation-belief-harbor"] =
             SurfaceHistoryRecord(lastShownAt: date(2026, 6, 9), recentShowCount: 1)
         let restingPages = BookNoticesPageSourceAdapter().candidates(
             for: day,
@@ -434,7 +434,7 @@ final class ConstellationTests: XCTestCase {
         XCTAssertFalse(restingPages.contains { $0.payload.headline.contains("I Am Watching") })
 
         // After the rest window passes, the offer may return.
-        resting.surfaceHistory["constellation:constellation-pattern-harbor"] =
+        resting.surfaceHistory["constellation:constellation-belief-harbor"] =
             SurfaceHistoryRecord(lastShownAt: date(2026, 6, 1), recentShowCount: 1)
         let returned = BookNoticesPageSourceAdapter().candidates(
             for: day,
@@ -443,6 +443,35 @@ final class ConstellationTests: XCTestCase {
             now: now
         )
         XCTAssertTrue(returned.contains { $0.payload.headline.contains("I Am Watching") })
+    }
+
+    /// Counting a word was retired from the desk as "boring or confusing"
+    /// (2026-10-25). It must not walk back on as a thread the Book is
+    /// "watching" or has named: "Clear has turned up on 4 separate days".
+    func testWordCountThreadsNeverReachTheDesk() {
+        let now = date(2026, 6, 10)
+        let day = BookDay(id: "2026-06-10", date: date(2026, 6, 10, hour: 0), pages: [])
+        var watchedWord = watchedConstellation(id: "constellation-pattern-clear")
+        watchedWord.signalID = "pattern-clear"
+        watchedWord.kind = .pattern
+        watchedWord.subjectName = "Clear"
+        var namedWord = watchedConstellation(id: "constellation-absence-fog")
+        namedWord.signalID = "absence-fog"
+        namedWord.kind = .absence
+        namedWord.phase = .named
+        namedWord.name = "The Fog Vigil"
+        namedWord.namedAt = now
+        var inputs = BookSourceInputs.empty.withMatureLibrary(now: now)
+        inputs.constellations = [watchedWord, namedWord]
+
+        let pages = BookNoticesPageSourceAdapter().candidates(
+            for: day,
+            context: CuratorContext.make(for: day),
+            inputs: inputs,
+            now: now
+        )
+        XCTAssertFalse(pages.contains { $0.payload.headline.contains("I Am Watching") })
+        XCTAssertFalse(pages.contains { $0.payload.headline.contains("I Name It") })
     }
 
     // MARK: Letters

@@ -5236,6 +5236,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
 
     private func namingSurfaces(for day: BookDay, inputs: BookSourceInputs, now: Date) -> [SurfacePage] {
         let newlyNamed = ConstellationKeeper.newlyNamed(inputs.constellations, on: now)
+            .filter { !$0.isWordCount }
         guard let constellation = newlyNamed.first, let name = constellation.name else { return [] }
         guard !day.pages.contains(where: { $0.tags.contains("named:\(constellation.id)") }) else {
             return []
@@ -5291,6 +5292,7 @@ struct BookNoticesPageSourceAdapter: BookPageSourceAdapter {
         })
         guard let constellation = inputs.constellations.first(where: { candidate in
             guard candidate.phase == .watched, candidate.name == nil else { return false }
+            guard !candidate.isWordCount else { return false }
             guard !teased.contains(candidate.id) else { return false }
             if let record = inputs.surfaceHistory["constellation:\(candidate.id)"],
                now.timeIntervalSince(record.lastShownAt) < 4 * 86_400 { return false }

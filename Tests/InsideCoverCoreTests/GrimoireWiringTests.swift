@@ -108,7 +108,7 @@ final class GrimoireWiringTests: XCTestCase {
             status: .returned, effects: [], returnedAt: date
         )
         let signal = LiteraryContinuitySignal(
-            id: "harbour", kind: .pattern, subjectID: "harbour", subjectName: "the harbour",
+            id: "harbour", kind: .beliefLifecycle, subjectID: "harbour", subjectName: "the harbour",
             line: "The harbour keeps coming back.", evidencePageIDs: ["written"],
             relatedEntityIDs: [], tags: [], firstSeenAt: date, lastSeenAt: date, strength: 80
         )
@@ -150,6 +150,34 @@ final class GrimoireWiringTests: XCTestCase {
         )
         tradition.lastObservedAt = date
 
+        // The reader's acts read off other ledgers: a Knock, the radio, a room
+        // gone into by hand, the Inkbones, a Grey Page, an elective, a place.
+        let knock = AttentionProbeReceipt(
+            id: "knock", scheduledAt: date, answeredAt: date, answer: .elsewhere, cycle: 0,
+            sentence: "Scrolling.", context: BookPageContextSnapshot(at: date, calendar: calendar, weatherTags: ["rain"])
+        )
+        var wear = ReaderWearLedger()
+        wear.opened(.kitchen, at: date, calendar: calendar)
+        let inkbonesThrows = [
+            InkbonesThrowRecord(id: "t1", at: date, thrower: .reader, roll: 9, target: 7, subject: "s", outcome: "clean"),
+            InkbonesThrowRecord(id: "t2", at: date, thrower: .curse, roll: 3, target: 7, subject: "s", outcome: "missed")
+        ]
+        let grey = GreyPageThreat(
+            id: "g", pageID: "written", pageTitle: "t", pageExcerpt: "e",
+            markedAt: date, deadline: nil, status: .rescued, resolvedAt: date, rescueLine: nil
+        )
+        let elective = UnwrittenElective(
+            id: "el", characterID: "wicker", characterName: "Wicker",
+            title: "t", ask: "a", whyItMatters: "w", practiceShape: "p",
+            createdAt: date.addingTimeInterval(-86_400), completedAt: date, proof: "Done."
+        )
+        let anchor = AnchorRecord(
+            id: "user-anchor-the-quiet-end-1a2b3c4d", name: "the quiet end", latitude: 0, longitude: 0,
+            radiusMeters: 50, kind: .notice, belief: 1, created: dayID, weather: "", moon: "", season: "",
+            playerWords: "", academyEcho: "", outerStacksRoom: "", fae: "", miniStory: "", localRule: "",
+            visitCount: 1, lastVisited: dayID
+        )
+
         return GrimoireSlice(
             days: [day],
             daybookRows: [entry],
@@ -183,6 +211,13 @@ final class GrimoireWiringTests: XCTestCase {
                     )
                 )
             ],
+            knocks: [knock],
+            radioDays: [RadioListeningDays(stationID: "thornwave", title: "Thornwave", dayIDs: [dayID])],
+            wear: wear,
+            inkbones: inkbonesThrows,
+            greyPages: [grey],
+            electives: [elective],
+            namedPlaces: [anchor],
             continuity: LiteraryContinuityDigest(signals: [signal], beliefLifecycles: []),
             calendar: calendar
         )
@@ -228,6 +263,7 @@ final class GrimoireWiringTests: XCTestCase {
             }
             for entry in slice.daybookRows { mine += projector.features(forDaybook: entry, in: slice) }
             for pulse in slice.readerStatePulses { mine += projector.features(forPulse: pulse, in: slice) }
+            for knock in slice.knocks { mine += projector.features(forKnock: knock, in: slice) }
             let produced = Set(mine.map(\.domain))
             let missing = projector.domains.filter { !produced.contains($0) }
             XCTAssertTrue(

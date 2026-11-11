@@ -4692,6 +4692,19 @@ struct ContentView: View {
         let traditions = vault.data.bookInterior?.privateTraditions ?? []
         let liveWorldEvents = sourceInputs.activeWorldEvents
         let continuity = cachedContinuityDigest
+        let knocks = (vault.data.attentionProbes ?? .empty).receipts
+        let ownedPacks = Set(vault.data.ownedPacks ?? [])
+        let radioDays = (vault.data.radio?.listening ?? [:]).compactMap { stationID, heard -> RadioListeningDays? in
+            guard let title = RadioStationRegistry.station(id: stationID, unlockedPackIDs: ownedPacks)?.title,
+                  !heard.dayKeys.isEmpty else { return nil }
+            return RadioListeningDays(stationID: stationID, title: title, dayIDs: Set(heard.dayKeys))
+        }
+        let wear = vault.data.readerWear ?? ReaderWearLedger()
+        let inkbones = vault.data.inkbonesLog ?? []
+        let greyPages = (vault.data.greyPageThreats ?? GreyPageThreatLedger()).threats
+        let electives = vault.data.electives
+        // Only places the reader named; the Labyrinth's own seeded rooms aren't theirs.
+        let namedPlaces = vault.data.anchors.filter { $0.id.hasPrefix("user-anchor-") }
         let tending = await Task.detached(priority: .background) {
             // The ordinary Daybook state keeps only the recent baseline window
             // in memory. The grimoire is the one reader that needs the whole
@@ -4711,6 +4724,13 @@ struct ContentView: View {
                 returnedJumps: returnedJumps,
                 traditions: traditions,
                 worldEvents: liveWorldEvents,
+                knocks: knocks,
+                radioDays: radioDays,
+                wear: wear,
+                inkbones: inkbones,
+                greyPages: greyPages,
+                electives: electives,
+                namedPlaces: namedPlaces,
                 continuity: continuity,
                 calendar: .current
             )

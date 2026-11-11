@@ -54,6 +54,14 @@ struct Constellation: Identifiable, Codable, Equatable {
         (name ?? subjectName).replacingOccurrences(of: "The The ", with: "The ")
     }
     var isAlive: Bool { phase != .faded }
+    /// Founded by counting a word ("Clear kept returning"), its absence, or a
+    /// word's hour. Those engines were retired from the desk on 2026-10-25 as
+    /// "boring or confusing", and they kept walking back on through the
+    /// watched tease and the naming. The ledger still keeps them for letters
+    /// and editions; the desk does not announce them.
+    var isWordCount: Bool {
+        kind == .pattern || kind == .absence || signalID.hasPrefix("manner-hour-")
+    }
     var isNamed: Bool { name != nil && (phase == .named || phase == .woven) }
 
     var promptLine: String {
@@ -686,7 +694,8 @@ enum BookBets {
     /// the reader reported, and the bare fact of writing.
     private static let curseSkips: Set<String> = [
         "writing", "ink", "readerState", "working", "workingInitiator", "workingEpisode",
-        "workingOutcome", "talisman", "errandOutcome", "asideReply", "jumpBook", "jumpOutcome"
+        "workingOutcome", "talisman", "errandOutcome", "asideReply", "jumpBook", "jumpOutcome",
+        "attention", "greyRescue", "elective"
     ]
 
     // MARK: Making a bet

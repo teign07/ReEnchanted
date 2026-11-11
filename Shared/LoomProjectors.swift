@@ -34,6 +34,21 @@ struct GrimoireSlice {
     var traditions: [BookPrivateTradition] = []
     /// World events running on a given day, with the phase they were in.
     var worldEvents: [ResolvedWorldEvent] = []
+    /// Where-were-you Knocks the reader answered, each carrying its own moment.
+    var knocks: [AttentionProbeReceipt] = []
+    /// Radio stations by the days the reader listened. Names are resolved where
+    /// the station catalogue lives, so the projector stays a pure read.
+    var radioDays: [RadioListeningDays] = []
+    /// The rooms of the Book the reader went into by hand, by day.
+    var wear: ReaderWearLedger = ReaderWearLedger()
+    /// Inkbones throws, the reader's and the Curse's.
+    var inkbones: [InkbonesThrowRecord] = []
+    /// Pages the Curse put in the grey, and how each one ended.
+    var greyPages: [GreyPageThreat] = []
+    /// Electives the Cast set, finished or not.
+    var electives: [UnwrittenElective] = []
+    /// The places the reader has named on the map.
+    var namedPlaces: [AnchorRecord] = []
     /// Semantic threads already worked out elsewhere. Used only to mark which
     /// of the reader's own Pages carried a subject; nothing here is re-derived.
     var continuity: LiteraryContinuityDigest = .empty
@@ -72,6 +87,8 @@ protocol LoomProjector {
     static func features(forDaybook entry: DaybookEntry, in slice: GrimoireSlice) -> [LoomFeatureRef]
     /// Read one explicit reader-state answer. Most sources do not have one.
     static func features(forPulse pulse: ReaderStatePulseRecord, in slice: GrimoireSlice) -> [LoomFeatureRef]
+    /// Read one answered Knock. Only the Knock projector has one.
+    static func features(forKnock receipt: AttentionProbeReceipt, in slice: GrimoireSlice) -> [LoomFeatureRef]
 }
 
 extension LoomProjector {
@@ -81,6 +98,7 @@ extension LoomProjector {
     static func bookAsked(forDay day: BookDay, in slice: GrimoireSlice) -> Bool { false }
     static func features(forDaybook entry: DaybookEntry, in slice: GrimoireSlice) -> [LoomFeatureRef] { [] }
     static func features(forPulse pulse: ReaderStatePulseRecord, in slice: GrimoireSlice) -> [LoomFeatureRef] { [] }
+    static func features(forKnock receipt: AttentionProbeReceipt, in slice: GrimoireSlice) -> [LoomFeatureRef] { [] }
 }
 
 // MARK: - Running them
@@ -110,7 +128,14 @@ enum GrimoireProjection {
         BookJumpProjector.self,
         ObservanceProjector.self,
         AlmanacProjector.self,
-        WorldEventProjector.self
+        WorldEventProjector.self,
+        KnockProjector.self,
+        RadioProjector.self,
+        WanderProjector.self,
+        InkbonesProjector.self,
+        GreyPageProjector.self,
+        ElectiveProjector.self,
+        PlaceMakingProjector.self
     ]
 
     /// Circumstances that arrived together, as one condition.
@@ -246,6 +271,21 @@ enum GrimoireProjection {
                 id: "pulse:\(pulse.id)", day: dayIndex, occurredAt: pulse.answeredAt,
                 features: features, evidencePageID: pulse.target?.pageID,
                 evidenceLine: pulse.answerLine
+            ))
+        }
+
+        // A Knock is its own moment, like a pulse: the weather, place and hour
+        // it caught the reader in travel with the answer and nowhere else.
+        for receipt in slice.knocks.sorted(by: { $0.answeredAt < $1.answeredAt }) {
+            let answer = projectors.flatMap { $0.features(forKnock: receipt, in: slice) }
+            guard !answer.isEmpty else { continue }
+            let dayIndex = GrimoireDay.index(for: receipt.answeredAt, calendar: slice.calendar)
+            let temporal = DayShapeProjector.temporalFeatures(at: receipt.answeredAt, in: slice)
+            let context = receipt.context.map { WorldConditionsProjector.features(for: $0) } ?? []
+            out.append(LoomObservation(
+                id: "knock:\(receipt.id)", day: dayIndex, occurredAt: receipt.answeredAt,
+                features: unique([temporal, context, answer]), evidencePageID: nil,
+                evidenceLine: receipt.sentence ?? ""
             ))
         }
         return out
@@ -539,7 +579,9 @@ enum WorldConditionsProjector: LoomProjector {
             ))
         }
         let placeLabel = context.locationLabel?.nonEmpty ?? context.nearbyAnchorID?.nonEmpty
-        if let place = placeLabel {
+        // "Current place" is what a row says when it does not know where you
+        // were. It is not somewhere you went.
+        if let place = placeLabel, place.lowercased() != "current place" {
             let name = context.locationLabel?.nonEmpty.map(humanised) ?? anchorName(place)
             out.append(LoomFeatureRef(
                 id: "place:\(place.lowercased())", domain: "place", label: name,
@@ -695,7 +737,9 @@ enum ReaderWordsProjector: LoomProjector {
     static let ignored: Set<String> = [
         "the", "and", "for", "that", "this", "with", "from", "into", "was",
         "were", "are", "had", "has", "have", "not", "but", "you", "your",
-        "our", "out", "one",
+        "our", "out", "one", "all", "off", "its", "got", "get", "did", "can",
+        "now", "how", "who", "why", "too", "any", "own", "she", "her", "him",
+        "his", "way", "yet", "may", "say", "lot", "bit",
         "about", "after", "again", "there", "their", "these", "those", "which",
         "would", "could", "should", "where", "while", "being", "doing", "going",
         "thing", "things", "really", "little", "still", "today", "tomorrow",
@@ -712,6 +756,10 @@ enum ReaderWordsProjector: LoomProjector {
             guard out.count < perPage else { break }
             let word = String(raw)
             guard word.count >= 3, !ignored.contains(word), !seen.contains(word) else { continue }
+            // The same curated lists the threads use. Without them a sim Book
+            // held 2,920 word rules, led by "over", "down", "all" and "kept".
+            guard !LiteraryContinuityProjector.stopWords.contains(word),
+                  !LiteraryContinuityProjector.weakLiterarySubjects.contains(word) else { continue }
             seen.insert(word)
             out.append(LoomFeatureRef(
                 id: "word:\(word)", domain: "word", label: "the word “\(word)”",
@@ -1291,6 +1339,11 @@ enum MeaningProjector: LoomProjector {
         guard page.readerAuthoredTextForAnalysis != nil else { return [] }
         return slice.continuity.strongestSignals.prefix(perPage).compactMap { signal in
             guard signal.evidencePageIDs.contains(page.id) else { return nil }
+            // A thread founded by counting one word is that word wearing a
+            // coat: "Against" arrived beside the word "against" as a finding.
+            // The words projector already has the word itself.
+            guard signal.kind != .pattern, signal.kind != .absence,
+                  !signal.id.hasPrefix("manner-hour-") else { return nil }
             let token = signal.id.lowercased().replacingOccurrences(of: " ", with: "-")
             guard !token.isEmpty else { return nil }
             return LoomFeatureRef(
@@ -1641,5 +1694,235 @@ enum WorldEventProjector: LoomProjector {
             }
         }
         return out
+    }
+}
+
+
+// MARK: - What the reader did, read off the other ledgers
+
+/// A radio station and the days it was heard, named where the catalogue is.
+struct RadioListeningDays: Equatable {
+    var stationID: String
+    var title: String
+    var dayIDs: Set<String>
+}
+
+/// Where the reader's attention actually was when a Knock came.
+///
+/// Experience sampling: the Knock arrives at a time the reader did not choose,
+/// so the answer is a measurement rather than a performance. The Book chose
+/// only *when*, and at random, which is why this is not marked as asked: the
+/// asking cannot bend where the reader's mind already was. A Knock answered
+/// with a sentence alone says nothing about where, so it adds nothing here.
+enum KnockProjector: LoomProjector {
+    static let id = "knocks"
+    static let domains = ["attention"]
+
+    static func features(forKnock receipt: AttentionProbeReceipt, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        let answer: (id: String, label: String, clause: String)
+        switch receipt.answer {
+        case .here:
+            answer = ("knock:here", "Knocks that found you right there", "you were right there when I knocked")
+        case .elsewhere:
+            answer = ("knock:grey", "grey Knocks", "you were somewhere grey when I knocked")
+        case .somewhereGood:
+            answer = ("knock:somewhere-good", "Knocks that found you somewhere good",
+                      "you were somewhere good when I knocked")
+        case .noted:
+            return []
+        }
+        return [LoomFeatureRef(
+            id: answer.id, domain: "attention", label: answer.label,
+            conditionClause: answer.clause, outcomeClause: answer.clause,
+            symbolName: "hand.raised", role: .outcomeOnly,
+            sensitivity: .readerReported, provenance: .readerAuthored, rank: 83
+        )]
+    }
+}
+
+/// Which station the reader put on. Nobody plays the radio for them.
+enum RadioProjector: LoomProjector {
+    static let id = "radio"
+    static let domains = ["radio"]
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        slice.radioDays
+            .filter { $0.dayIDs.contains(day.id) && !$0.title.isEmpty }
+            .sorted { $0.stationID < $1.stationID }
+            .map { station in
+                LoomFeatureRef(
+                    id: "radio:\(station.stationID)", domain: "radio", label: station.title,
+                    conditionClause: "you were listening to \(station.title)",
+                    outcomeClause: "you put \(station.title) on",
+                    symbolName: "radio", role: .either,
+                    provenance: .readerAuthored, rank: 64
+                )
+            }
+    }
+}
+
+/// The rooms of the Book the reader went into on their own.
+///
+/// Only arrivals by hand are worn into the paper; a room the Book sent the
+/// reader to leaves no mark, so this is never something the Book arranged.
+/// The receiver has its own projector, and the shop, the index, the colophon
+/// and the returned shelf say nothing about a day.
+enum WanderProjector: LoomProjector {
+    static let id = "wander"
+    static let domains = ["wander"]
+
+    static let skipped: Set<BookRoom> = [.bookshop, .pagesIndex, .colophon, .returned, .bookOfYou, .radio]
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        guard !slice.wear.rooms.isEmpty else { return [] }
+        let index = GrimoireDay.index(for: day.date, calendar: slice.calendar)
+        return BookRoom.allCases.compactMap { room -> LoomFeatureRef? in
+            guard !skipped.contains(room), slice.wear[room].days.contains(index) else { return nil }
+            let place = room == .bookToday ? "the page with my mood on it" : room.plainName
+            return LoomFeatureRef(
+                id: "wander:\(room.rawValue)", domain: "wander", label: "trips into \(place)",
+                conditionClause: "you went into \(place)",
+                outcomeClause: "you went into \(place) by yourself",
+                symbolName: "door.left.hand.open", role: .either,
+                provenance: .readerAuthored, rank: 66
+            )
+        }
+    }
+}
+
+/// The Inkbones: the reader throwing them, and the Curse throwing at the reader.
+///
+/// How a throw lands is chance, and chance cannot correlate with anything real,
+/// so neither roll is a feature. Only the throwing is.
+enum InkbonesProjector: LoomProjector {
+    static let id = "inkbones"
+    static let domains = ["inkbones", "curseThrow"]
+    static let dayScope: LoomProjectorDayScope = .event
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        guard !slice.inkbones.isEmpty else { return [] }
+        let index = GrimoireDay.index(for: day.date, calendar: slice.calendar)
+        let today = slice.inkbones.filter { GrimoireDay.index(for: $0.at, calendar: slice.calendar) == index }
+        var out: [LoomFeatureRef] = []
+        if today.contains(where: { $0.thrower == .reader }) {
+            out.append(LoomFeatureRef(
+                id: "inkbones:thrown", domain: "inkbones", label: "throwing the Inkbones",
+                conditionClause: "you took up the Inkbones", outcomeClause: "you took up the Inkbones",
+                symbolName: "dice", role: .either, provenance: .readerAuthored, rank: 70
+            ))
+        }
+        if today.contains(where: { $0.thrower == .curse }) {
+            out.append(LoomFeatureRef(
+                id: "curse-throw:any", domain: "curseThrow", label: "days the Curse threw",
+                conditionClause: "the Curse took a throw at you", outcomeClause: "the Curse took a throw at you",
+                symbolName: "dice.fill", role: .conditionOnly, provenance: .systemEvent, rank: 30
+            ))
+        }
+        return out
+    }
+}
+
+/// The Curse greying a Page, and the reader taking it back.
+///
+/// The rescue answers the Curse's mark, so the day of a rescue is marked as
+/// asked: taking a Page back proves the reader was paying attention, not that
+/// any rule the Book holds about them was right.
+enum GreyPageProjector: LoomProjector {
+    static let id = "grey-pages"
+    static let domains = ["greyPage", "greyRescue"]
+    static let dayScope: LoomProjectorDayScope = .event
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        guard !slice.greyPages.isEmpty else { return [] }
+        let index = GrimoireDay.index(for: day.date, calendar: slice.calendar)
+        var out: [LoomFeatureRef] = []
+        if slice.greyPages.contains(where: { GrimoireDay.index(for: $0.markedAt, calendar: slice.calendar) == index }) {
+            out.append(LoomFeatureRef(
+                id: "grey-page:marked", domain: "greyPage", label: "Grey Pages",
+                conditionClause: "the Curse put one of your Pages in the grey",
+                outcomeClause: "the Curse put one of your Pages in the grey",
+                symbolName: "cloud.fog", role: .conditionOnly, provenance: .systemEvent, rank: 30
+            ))
+        }
+        if rescued(on: index, in: slice) {
+            out.append(LoomFeatureRef(
+                id: "grey-rescue:taken-back", domain: "greyRescue", label: "Pages you took back from the grey",
+                conditionClause: "you took a Page back from the grey",
+                outcomeClause: "you took a Page back from the grey",
+                symbolName: "hand.raised.fill", role: .outcomeOnly, provenance: .readerAuthored, rank: 74
+            ))
+        }
+        return out
+    }
+
+    static func bookAsked(forDay day: BookDay, in slice: GrimoireSlice) -> Bool {
+        rescued(on: GrimoireDay.index(for: day.date, calendar: slice.calendar), in: slice)
+    }
+
+    private static func rescued(on index: Int, in slice: GrimoireSlice) -> Bool {
+        slice.greyPages.contains { threat in
+            guard threat.status == .rescued, let at = threat.resolvedAt else { return false }
+            return GrimoireDay.index(for: at, calendar: slice.calendar) == index
+        }
+    }
+}
+
+/// Electives the reader finished. A Cast member set each one, so these days are
+/// marked as asked, the same as an errand paid.
+enum ElectiveProjector: LoomProjector {
+    static let id = "electives"
+    static let domains = ["elective"]
+    static let dayScope: LoomProjectorDayScope = .event
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        let done = finished(on: day, in: slice)
+        guard !done.isEmpty else { return [] }
+        var out = [LoomFeatureRef(
+            id: "elective:any", domain: "elective", label: "electives",
+            conditionClause: "you did one of your electives", outcomeClause: "you did one of your electives",
+            symbolName: "graduationcap", role: .outcomeOnly, provenance: .readerAuthored, rank: 73
+        )]
+        var seen = Set<String>()
+        for elective in done.sorted(by: { $0.characterID < $1.characterID })
+        where seen.insert(elective.characterID).inserted && !elective.characterName.isEmpty {
+            out.append(LoomFeatureRef(
+                id: "elective:\(elective.characterID.lowercased())", domain: "elective",
+                label: "electives for \(elective.characterName)",
+                conditionClause: "you did an elective for \(elective.characterName)",
+                outcomeClause: "you did an elective for \(elective.characterName)",
+                symbolName: "graduationcap", role: .outcomeOnly, provenance: .readerAuthored, rank: 73
+            ))
+        }
+        return out
+    }
+
+    static func bookAsked(forDay day: BookDay, in slice: GrimoireSlice) -> Bool {
+        !finished(on: day, in: slice).isEmpty
+    }
+
+    private static func finished(on day: BookDay, in slice: GrimoireSlice) -> [UnwrittenElective] {
+        let index = GrimoireDay.index(for: day.date, calendar: slice.calendar)
+        return slice.electives.filter { elective in
+            guard let at = elective.completedAt, elective.releasedAt == nil else { return false }
+            return GrimoireDay.index(for: at, calendar: slice.calendar) == index
+        }
+    }
+}
+
+/// The days the reader put a new place on the map.
+enum PlaceMakingProjector: LoomProjector {
+    static let id = "place-making"
+    static let domains = ["placeMaking"]
+    static let dayScope: LoomProjectorDayScope = .event
+
+    static func features(forDay day: BookDay, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        // Anchors carry their founding as a plain "yyyy-MM-dd", the same id a
+        // BookDay has, so no date parsing is needed at all.
+        guard slice.namedPlaces.contains(where: { $0.created == day.id }) else { return [] }
+        return [LoomFeatureRef(
+            id: "place-made:new", domain: "placeMaking", label: "new places on the map",
+            conditionClause: "you put a new place on the map", outcomeClause: "you put a new place on the map",
+            symbolName: "mappin.and.ellipse", role: .outcomeOnly, provenance: .readerAuthored, rank: 72
+        )]
     }
 }
