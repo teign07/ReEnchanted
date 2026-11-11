@@ -2302,6 +2302,7 @@ struct ContentView: View {
                     withAnimation(BookMotion.retreat(callbacks.view.reduceMotion)) {
                         callbacks.view.isStoryOnboardingPaused = true
                     }
+                    callbacks.view.refreshMonthlyIssueDelivery()
                 },
                 localBrain: OnboardingLocalBrainStatus(
                     canInstall: callbacks.view.modelReport.state != .unavailable,
@@ -2313,7 +2314,8 @@ struct ContentView: View {
                 ),
                 onFetchBrain: { allowsCellular in
                     Task { await callbacks.view.installModel(allowsCellular: allowsCellular) }
-                }
+                },
+                onPastArrival: { callbacks.view.refreshMonthlyIssueDelivery() }
             ) { result in
                 callbacks.view.isStoryOnboardingPaused = false
                 callbacks.view.completeOnboarding(result)
@@ -3022,7 +3024,10 @@ struct ContentView: View {
         return AnyView(
             BookRootLayer { callbacks.view.chromeLifecycleRoot }
             // New pages downloading: a small card says so, in the Book's voice.
-            .overlay(alignment: .top) { ShelfFetchOverlay() }
+            // Never over onboarding: the shelf fetches quietly behind it.
+            .overlay(alignment: .top) {
+                ShelfFetchOverlay(isSuppressed: callbacks.view.isOnboardingOnScreen)
+            }
             .onReceive(NotificationCenter.default.publisher(for: .reEnchantedWidgetDeepLinkReceived)) { _ in
                 callbacks.view.handlePendingWidgetDeepLink()
                 callbacks.view.handlePendingSiriCommand()
@@ -17023,8 +17028,17 @@ struct ContentView: View {
         }
     }
 
+    /// The onboarding pages are showing (not finished, not set aside).
+    var isOnboardingOnScreen: Bool {
+        !didCompleteStoryOnboarding && !isStoryOnboardingPaused
+    }
+
     func refreshMonthlyIssueDelivery(now: Date = Date()) {
         reloadMonthlyRuntimeCatalog()
+        // The shelf download, its card and its main-thread reloads used to
+        // land on the opening page. It waits until the reader has passed
+        // Zara's arrival; `onPastArrival` and `completeOnboarding` call again.
+        if isOnboardingOnScreen && !OnboardingFlowView.isPastArrival { return }
         let hasAccess = PackEntitlements.hasMonthlyContentPackAccess(in: Set(vault.data.ownedPacks ?? []))
         Task {
             let result = await MonthlyIssueDeliveryCoordinator.shared.refresh(

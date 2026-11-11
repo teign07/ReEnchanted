@@ -10615,7 +10615,20 @@ struct OnboardingFlowView: View {
     let localBrain: OnboardingLocalBrainStatus
     /// True allows cellular; false waits for Wi-Fi.
     let onFetchBrain: (Bool) -> Void
+    /// The reader has turned past the opening and Zara's arrival (where the
+    /// brain is asked for). The month's shelf may fetch now, quietly, so it's
+    /// in before the first desk without fighting the first page.
+    let onPastArrival: () -> Void
     let onFinished: (Result) -> Void
+
+    /// The first onboarding step the monthly shelf may download behind.
+    /// Step 0 is the opening page, step 1 is Zara's arrival and the brain ask.
+    static let shelfFetchStep = 2
+
+    /// Read outside the view, so the shelf gate agrees with a resumed flow.
+    static var isPastArrival: Bool {
+        UserDefaults.standard.integer(forKey: "onboardingStep") >= shelfFetchStep
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -10925,6 +10938,7 @@ struct OnboardingFlowView: View {
         onPaused: @escaping () -> Void = {},
         localBrain: OnboardingLocalBrainStatus = OnboardingLocalBrainStatus(canInstall: false),
         onFetchBrain: @escaping (Bool) -> Void = { _ in },
+        onPastArrival: @escaping () -> Void = {},
         onFinished: @escaping (Result) -> Void
     ) {
         self.onGlowUnlocked = onGlowUnlocked
@@ -10932,6 +10946,7 @@ struct OnboardingFlowView: View {
         self.onPaused = onPaused
         self.localBrain = localBrain
         self.onFetchBrain = onFetchBrain
+        self.onPastArrival = onPastArrival
         self.onFinished = onFinished
     }
 
@@ -11352,9 +11367,10 @@ struct OnboardingFlowView: View {
                 .frame(maxWidth: .infinity)
             }
             .defaultScrollAnchor(.top)
-            .onChange(of: step) { _, _ in
+            .onChange(of: step) { oldStep, newStep in
                 turnOnboardingPage(to: "onboarding-page-top", with: scrollProxy)
                 notifyGlowUnlockedIfNeeded()
+                if oldStep < Self.shelfFetchStep, newStep >= Self.shelfFetchStep { onPastArrival() }
             }
             .onChange(of: openingMiniStep) { _, _ in
                 guard step == 0 else { return }

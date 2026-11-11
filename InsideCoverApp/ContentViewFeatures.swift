@@ -1334,6 +1334,9 @@ extension ContentView {
         Task { @MainActor in
             await publishPostOnboardingDesk()
         }
+        // The shelf usually came in behind the later onboarding pages; this
+        // only checks it. A reader who skipped from the opening starts it here.
+        refreshMonthlyIssueDelivery()
 
         statusMessage = name.isEmpty
             ? "The Academy doors are open."

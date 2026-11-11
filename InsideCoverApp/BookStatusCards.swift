@@ -5192,12 +5192,14 @@ struct PactErrandReportForm: View {
 /// pages download, and says in the Book's voice what it's fetching. It never
 /// takes touches, and it appears only for downloads that really happen.
 struct ShelfFetchOverlay: View {
+    /// True while onboarding is on screen: the fetch carries on unseen.
+    var isSuppressed = false
     @ObservedObject private var model = MonthlyShelfFetchModel.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack {
-            if model.phase != .idle, let progress = model.progress {
+            if !isSuppressed, model.phase != .idle, let progress = model.progress {
                 ShelfFetchCard(phase: model.phase, progress: progress, line: model.line)
                     .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
