@@ -2767,6 +2767,7 @@ enum CurseEvidence {
         trajectory: RutTrajectory,
         rote: BookFamiliarityRutEngine.Assessment,
         handwriting: InferredReaderSignals,
+        ink: CurseDossier.Finding? = nil,
         photos: CurseDossier.Finding? = nil,
         distressActive: Bool
     ) -> [CurseDossier.Finding] {
@@ -2775,7 +2776,8 @@ enum CurseEvidence {
         if let nightOne = nightOne(selfFacts) { findings.append(nightOne) }
         findings.append(loudness(rut))
         if let trend = trend(trajectory) { findings.append(trend) }
-        if let ink = handwritingFinding(handwriting) { findings.append(ink) }
+        if let measured = handwritingFinding(handwriting) { findings.append(measured) }
+        if let ink { findings.append(ink) }
         if let photos { findings.append(photos) }
         if let rote = roteFinding(rote) { findings.append(rote) }
         return findings

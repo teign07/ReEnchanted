@@ -79,6 +79,7 @@ extension ContentView {
             case .wondering: line = await wonder(want)
             case .retellConnection: line = await retell(want)
             case .editionLeaves: line = await writeEditionLeaves(want)
+            case .readInk: line = await readInk(want)
             }
             if let line {
                 finished += 1
@@ -246,6 +247,30 @@ extension ContentView {
         ), let text = BookDreams.accept(response, material: material) else { return nil }
         holdOwnThought(want, kind: .dream, surface: BookDreams.surface(text, material: material))
         return "Had a dream made of the reader's pages. I'll tell them in the morning."
+    }
+
+    /// The reader's last fortnight of sentences, marked alive or autopilot.
+    /// The reading is saved for the Curse's file and told the next day.
+    @MainActor
+    private func readInk(_ want: WritingWant) async -> String? {
+        let now = Date()
+        let material = CurseInkReader.material(days: days, now: now)
+        guard material.count >= CurseInkReader.needsPages else {
+            saveDesk { desk in desk.wants.removeAll { $0.id == want.id } }
+            return nil
+        }
+        let ask = CurseInkReader.prompt(material)
+        guard let response = await LocalBrainProse.write(
+            prompt: ask.prompt, instructions: ask.instructions, maxTokens: 140,
+            sourceID: "curse-ink-reading", tags: ["writing-session", "curse-ink-reading"],
+            temperature: 0.2, topP: 0.9
+        ), let reading = CurseInkReader.parse(response, material: material, now: now) else { return nil }
+        let previous = (vault.data.writingDesk?.inkReadings ?? []).max { $0.readAt < $1.readAt }
+        saveDesk { desk in
+            desk.inkReadings = Array(((desk.inkReadings ?? []) + [reading]).suffix(12))
+        }
+        holdOwnThought(want, kind: .readInk, surface: CurseInkReader.surface(reading, previous: previous))
+        return "Reread some of the reader's pages. I'll tell them what I found."
     }
 
     @MainActor

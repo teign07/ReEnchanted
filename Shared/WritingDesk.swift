@@ -31,6 +31,9 @@ struct WritingWant: Codable, Equatable, Identifiable {
         case wondering
         /// A loom connection judged and retold in plain words.
         case retellConnection
+        /// The reader's last fortnight of sentences, marked alive or
+        /// autopilot, for the Curse's file (`CurseInkReader`).
+        case readInk
 
         /// Short judgments first (a verdict is a few words); then the second
         /// look at held writing; then what the Book wants to make; and the
@@ -42,6 +45,7 @@ struct WritingWant: Codable, Equatable, Identifiable {
             case .retellConnection: return 2
             case .joinNoticings: return 2
             case .wondering: return 3
+            case .readInk: return 3
             case .dream: return 4
             case .castThought: return 5
             case .editionLeaves: return 6
@@ -108,6 +112,9 @@ struct WritingDesk: Codable, Equatable {
     var finishedSubjects: [String]? = nil
     /// What the Book wrote down about its sessions.
     var journal: [BookJournalEntry]? = nil
+    /// Every reading of the reader's ink, newest last (`CurseInkReader`).
+    /// Optional so older desks still decode.
+    var inkReadings: [InkReading]? = nil
 
     var heldCount: Int { drawer.filter { $0.disposition == .held }.count }
 }
@@ -291,6 +298,23 @@ enum WritingDeskPlanner {
         }
         want(.dream, prefix: BookDreams.wantPrefix, rest: BookDreams.restDays, needs: BookDreams.needsPages)
         want(.wondering, prefix: BookWonderings.wantPrefix, rest: BookWonderings.restDays, needs: BookWonderings.needsPages)
+        return withInkReadingWant(desk, days: days, now: now)
+    }
+
+    /// Once a week, with enough of the reader's own sentences from the last
+    /// fortnight, the Book wants to reread them for the Curse.
+    static func withInkReadingWant(_ desk: WritingDesk, days: [BookDay], now: Date) -> WritingDesk {
+        var desk = desk
+        guard !desk.wants.contains(where: { $0.kind == .readInk }) else { return desk }
+        let lastRead = (desk.inkReadings ?? []).map(\.readAt).max()
+        if let lastRead, now.timeIntervalSince(lastRead) < CurseInkReader.restDays * 86_400 { return desk }
+        let material = CurseInkReader.material(days: days, now: now)
+        guard material.count >= CurseInkReader.needsPages else { return desk }
+        desk.wants.append(WritingWant(
+            id: CurseInkReader.wantPrefix + BookDay.id(for: now), kind: .readInk,
+            sourcePageIDs: material.map(\.pageID), speakerID: "",
+            createdAt: now, expiresAt: now.addingTimeInterval(3 * 86_400)
+        ))
         return desk
     }
 

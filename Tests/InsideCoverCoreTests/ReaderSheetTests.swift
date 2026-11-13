@@ -328,4 +328,49 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertTrue(finding.line.hasPrefix("4 of your last 5 photos"), finding.line)
         XCTAssertTrue(finding.line.contains("desk"), finding.line)
     }
+
+    // MARK: Reading the reader's ink
+
+    private func material(_ count: Int) -> [ThinkingMaterial] {
+        (0..<count).map { ThinkingMaterial(pageID: "p\($0)", excerpt: "sentence number \($0) about the day", date: now) }
+    }
+
+    func testTheInkReaderParsesOnlyARealVerdict() throws {
+        let six = material(6)
+        let reading = try XCTUnwrap(CurseInkReader.parse(
+            "1: ALIVE\n2: autopilot\n3. Alive\n4 - AUTOPILOT\n5: ALIVE\nthat's all", material: six, now: now
+        ))
+        XCTAssertEqual(reading.total, 5)
+        XCTAssertEqual(reading.alive, 3)
+        XCTAssertEqual(reading.aliveExcerpt, six[0].excerpt)
+        XCTAssertEqual(reading.flatExcerpt, six[1].excerpt)
+        XCTAssertNil(CurseInkReader.parse("They all read fine to me.", material: six, now: now))
+        XCTAssertNil(CurseInkReader.parse("1: ALIVE\n2: ALIVE", material: six, now: now), "too few marked")
+        XCTAssertNil(CurseInkReader.parse("9: ALIVE\n10: ALIVE\n11: ALIVE\n12: ALIVE", material: six, now: now),
+                     "numbers that aren't there don't count")
+    }
+
+    func testTheInkReadingIsToldAndFiledWithItsTrend() throws {
+        let earlier = InkReading(readAt: now.addingTimeInterval(-8 * 86_400), total: 5, alive: 1,
+                                 aliveExcerpt: nil, flatExcerpt: "long day")
+        let latest = InkReading(readAt: now, total: 5, alive: 3,
+                                aliveExcerpt: "the radiator ticked like a clock with opinions", flatExcerpt: "same old")
+        let page = CurseInkReader.surface(latest, previous: earlier)
+        XCTAssertTrue(page.payload.body.contains("3 of 5 were yours"))
+        XCTAssertTrue(page.payload.body.contains("Last time it was 1 of 5."))
+        XCTAssertFalse(page.payload.body.lowercased().contains("the book"))
+        let finding = try XCTUnwrap(CurseInkReader.finding([earlier, latest]))
+        XCTAssertEqual(finding.value, "3 of 5 alive")
+        XCTAssertTrue(finding.line.contains("More alive than last time."))
+    }
+
+    func testTheBookOnlyWantsToReadInkWhenThereIsInkAndAWeekHasPassed() {
+        XCTAssertFalse(WritingDeskPlanner.withInkReadingWant(WritingDesk(), days: [], now: now)
+            .wants.contains { $0.kind == .readInk })
+        var read = WritingDesk()
+        read.inkReadings = [InkReading(readAt: now.addingTimeInterval(-86_400), total: 6, alive: 3,
+                                       aliveExcerpt: nil, flatExcerpt: nil)]
+        XCTAssertFalse(WritingDeskPlanner.withInkReadingWant(read, days: [], now: now)
+            .wants.contains { $0.kind == .readInk })
+    }
 }

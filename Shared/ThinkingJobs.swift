@@ -457,6 +457,147 @@ enum ThinkingMaterials {
     }
 }
 
+/// One reading of the reader's ink: how many of their recent sentences were
+/// alive (particular, sensory, theirs) and how many were autopilot (could
+/// have been written on any day by anyone). Kept on the writing desk so the
+/// Curse's file can show the trend.
+struct InkReading: Codable, Equatable {
+    var readAt: Date
+    var total: Int
+    var alive: Int
+    var aliveExcerpt: String?
+    var flatExcerpt: String?
+
+    var aliveShare: Double { total == 0 ? 0 : Double(alive) / Double(total) }
+}
+
+/// bj, 2026-11-13: "can the 'I want to write' page sometimes take in their
+/// latest writings and score them?" Word counts can't tell "the radiator
+/// ticked like a clock with opinions" from "long day, same old"; the local
+/// brain can. Once a week, inside a writing session (foreground, secret), the
+/// Book rereads the last fortnight of the reader's own sentences and marks
+/// each one alive or autopilot. The verdict is held and told the next day,
+/// and it joins the Curse's file.
+enum CurseInkReader {
+    static let wantPrefix = "ink-reading:"
+    static let restDays = 7.0
+    static let needsPages = 6
+    static let window: TimeInterval = 14 * 86_400
+    static let limit = 12
+
+    static func material(days: [BookDay], now: Date) -> [ThinkingMaterial] {
+        ThinkingMaterials.recent(days: days, now: now, within: window, limit: limit)
+    }
+
+    static func prompt(_ material: [ThinkingMaterial]) -> (prompt: String, instructions: String) {
+        let lines = material.enumerated().map { "\($0.offset + 1). \($0.element.excerpt)" }.joined(separator: "\n")
+        let prompt = """
+        Here are things one person wrote in their journal over the last two weeks, one per line:
+        \(lines)
+
+        Mark each line ALIVE or AUTOPILOT.
+        ALIVE: it holds something particular to that day: a name, a sense, a small odd detail, a thought only they would have.
+        AUTOPILOT: it could have been written on any day by anyone: general, a stock phrase, a summary, a list of chores.
+        Answer with one line per item, exactly like "1: ALIVE" or "2: AUTOPILOT". Nothing else.
+        """
+        let instructions = "You are a strict, plain-spoken editor. You only answer in the requested format."
+        return (prompt, instructions)
+    }
+
+    /// "1: ALIVE", "2. autopilot", "3 - Alive". At least half the lines must
+    /// be marked, or there's no reading at all.
+    static func parse(_ response: String, material: [ThinkingMaterial], now: Date) -> InkReading? {
+        // An empty range would trap below (1...0), and nothing to read is no reading.
+        guard !material.isEmpty else { return nil }
+        var marks: [Int: Bool] = [:]
+        for raw in response.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            let digits = line.prefix { $0.isNumber }
+            guard let number = Int(digits), (1...material.count).contains(number), marks[number] == nil else { continue }
+            let rest = line.dropFirst(digits.count).uppercased()
+            if rest.contains("AUTOPILOT") {
+                marks[number] = false
+            } else if rest.contains("ALIVE") {
+                marks[number] = true
+            }
+        }
+        guard marks.count >= max(4, (material.count + 1) / 2) else { return nil }
+        let ordered = marks.keys.sorted()
+        let alive = ordered.filter { marks[$0] == true }
+        let flat = ordered.filter { marks[$0] == false }
+        return InkReading(
+            readAt: now,
+            total: marks.count,
+            alive: alive.count,
+            aliveExcerpt: alive.first.map { material[$0 - 1].excerpt },
+            flatExcerpt: flat.first.map { material[$0 - 1].excerpt }
+        )
+    }
+
+    static func surface(_ reading: InkReading, previous: InkReading?) -> SurfacePage {
+        let source = BookPageSourceRegistry.source(for: .bookNotices)
+        var paragraphs = [
+            "I went back through what you've written lately and read it the way the Curse would.",
+            "\(reading.alive) of \(reading.total) were yours all the way through: particular, alive, nobody else's. "
+                + (reading.total - reading.alive == 0
+                    ? "Not one of them could've been written by anyone else. It got nothing."
+                    : "\(reading.total - reading.alive) could've been written on any day by anyone. That's the Curse's handwriting.")
+        ]
+        if let excerpt = reading.aliveExcerpt {
+            paragraphs.append("The most alive: \u{201C}\(excerpt)\u{201D}")
+        }
+        if let excerpt = reading.flatExcerpt {
+            paragraphs.append("The one it nearly had: \u{201C}\(excerpt)\u{201D}")
+        }
+        if let previous {
+            paragraphs.append("Last time it was \(previous.alive) of \(previous.total).")
+        }
+        let body = paragraphs.joined(separator: "\n\n")
+        return SurfacePage(
+            id: "\(source.id)-ink-reading-\(Int(reading.readAt.timeIntervalSince1970))",
+            type: .bookNotices,
+            sourceID: source.id,
+            intent: .reflect,
+            renderStyle: .loreLetter,
+            score: 74,
+            reason: "I reread your last two weeks, looking for the Curse.",
+            prompt: "I read your ink.",
+            detail: "\(reading.alive) of \(reading.total) alive.",
+            payload: BookPagePayload(
+                headline: "I Read Your Last Two Weeks",
+                body: body,
+                metadata: [
+                    "source": source.id,
+                    "curseInkReading": "true",
+                    "tags": "book-notices,curse-ink-reading,rut-of-routine"
+                ]
+            )
+        )
+    }
+
+    /// The Curse's file: the latest reading, and which way it's moving.
+    static func finding(_ readings: [InkReading]) -> CurseDossier.Finding? {
+        guard let latest = readings.max(by: { $0.readAt < $1.readAt }) else { return nil }
+        var line = "When I reread your last two weeks, \(latest.alive) of \(latest.total) sentences were alive."
+        if let excerpt = latest.aliveExcerpt {
+            line += " The best: \u{201C}\(excerpt)\u{201D}"
+        }
+        let earlier = readings.filter { $0.readAt < latest.readAt }.max(by: { $0.readAt < $1.readAt })
+        if let earlier {
+            let delta = latest.aliveShare - earlier.aliveShare
+            if delta >= 0.15 {
+                line += " More alive than last time."
+            } else if delta <= -0.15 {
+                line += " Flatter than last time. It's been at your ink."
+            }
+        }
+        return CurseDossier.Finding(
+            id: "ink-reading", label: "I read your ink", value: "\(latest.alive) of \(latest.total) alive",
+            line: line, symbol: "eyeglasses"
+        )
+    }
+}
+
 enum BookDreams {
     static let wantPrefix = "dream:"
     static let restDays = 2.0
