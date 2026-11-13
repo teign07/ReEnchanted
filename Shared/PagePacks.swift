@@ -2244,6 +2244,21 @@ enum CurseFight {
         return ranked.max { ($0.share, $0.answered, -$0.hour) < ($1.share, $1.answered, -$1.hour) }
     }
 
+    /// Belief for beating the Curse at its own hour: a counter-knock answered
+    /// here or somewhere good. Noticing is worth most where the Curse is
+    /// strongest. It only ever rewards; a grey answer costs nothing.
+    static let hourWinBelief = 2
+
+    /// Whether it's the Curse's hour now, or the hour either side of it.
+    static func isNearItsHour(_ ledger: AttentionProbeLedger, now: Date, calendar: Calendar = .current) -> Bool {
+        guard let strongest = strongestHour(ledger, calendar: calendar), strongest.share >= 0.5 else { return false }
+        return abs(calendar.component(.hour, from: now) - strongest.hour) <= 1
+    }
+
+    static func beliefForAnswer(knockID: String, answer: AttentionProbeAnswer) -> Int {
+        knockID.hasSuffix("-watch") && answer.countsForReader ? hourWinBelief : 0
+    }
+
     /// "three in the afternoon": how a child says an hour.
     static func hourPhrase(_ hour: Int) -> String {
         let names = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
@@ -2649,6 +2664,17 @@ struct CurseDossier: Equatable {
         return keys
     }
 
+    /// What the Book and the Cast know about the reader's Curse when they
+    /// talk: three turning findings and today's forecast.
+    static func talkLines(_ ledger: AttentionProbeLedger, now: Date, calendar: Calendar = .current) -> [String] {
+        let dossier = build(ledger, calendar: calendar)
+        var lines = dossier.isReady ? dossier.featured(on: now, count: 3, calendar: calendar).map(\.printed) : []
+        if let forecast = CurseForecast.line(ledger: ledger, weatherTags: [], sleepHours: nil, now: now, calendar: calendar) {
+            lines.append(forecast)
+        }
+        return lines
+    }
+
     /// One or two findings for a paper or a doorstep, turning with the day so
     /// the file is read a little at a time. Its overall take is left to the
     /// column's own counts.
@@ -2703,27 +2729,44 @@ struct CurseDossier: Equatable {
         }
     }
 
-    /// Words the reader keeps writing from inside the grey, when they've
-    /// written from there at least twice and a word comes back.
-    static func greyWords(_ receipts: [AttentionProbeReceipt]) -> Finding? {
+    /// The Curse's words: what the reader keeps writing from inside the grey,
+    /// once they've written from there at least twice and a word comes back.
+    static func eatenWords(_ receipts: [AttentionProbeReceipt], limit: Int = 4) -> [String] {
         let sentences = receipts
             .filter { $0.answer == .elsewhere }
             .compactMap { $0.sentence?.nonEmpty }
-        guard sentences.count >= 2 else { return nil }
+        guard sentences.count >= 2 else { return [] }
         var counts: [String: Int] = [:]
         for sentence in sentences {
-            let words = Set(
-                sentence.lowercased()
-                    .components(separatedBy: CharacterSet.letters.inverted)
-                    .filter { $0.count >= 4 && !InferredSignalReader.stopWords.contains($0) }
-            )
-            for word in words { counts[word, default: 0] += 1 }
+            for word in Set(contentWords(sentence)) { counts[word, default: 0] += 1 }
         }
-        let top = counts
+        return counts
             .filter { $0.value >= 2 }
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
-            .prefix(4)
+            .prefix(limit)
             .map { $0.key }
+    }
+
+    static func contentWords(_ text: String) -> [String] {
+        text.lowercased()
+            .components(separatedBy: CharacterSet.letters.inverted)
+            .filter { $0.count >= 4 && !InferredSignalReader.stopWords.contains($0) }
+    }
+
+    /// A kept Page that uses one of the Curse's words inside a real sentence
+    /// (eight words or more) takes that word back from it.
+    static func freedWord(in text: String, ledger: AttentionProbeLedger) -> String? {
+        let eaten = Set(eatenWords(ledger.receipts, limit: 8))
+        guard !eaten.isEmpty else { return nil }
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+        for sentence in sentences where sentence.split(whereSeparator: \.isWhitespace).count >= 8 {
+            if let word = contentWords(sentence).first(where: { eaten.contains($0) }) { return word }
+        }
+        return nil
+    }
+
+    static func greyWords(_ receipts: [AttentionProbeReceipt]) -> Finding? {
+        let top = eatenWords(receipts)
         guard !top.isEmpty else { return nil }
         return Finding(
             id: "words",

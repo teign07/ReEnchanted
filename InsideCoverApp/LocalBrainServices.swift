@@ -1992,7 +1992,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
         onPartial: (@Sendable (String) -> Void)?,
         onStage: (@Sendable (LetsChatStage) -> Void)? = nil,
         onMyMind: LetsChatOnMyMind? = nil,
-        castRecalls: [LetsChatCastMemory.Recall] = []
+        castRecalls: [LetsChatCastMemory.Recall] = [],
+        curseLines: [String] = []
     ) async throws -> String {
         // The prompt grew with the knowledge packet, six turns of history and
         // everything the archive search returned, then asked for a KV cache to
@@ -2021,7 +2022,8 @@ struct MLXAskTheBookAnswerer: AskTheBookAnswering {
             recentPages: recentPages,
             knowledgeNotes: BookKnowledgePromptBuilder.relevantNotes(for: prompt, limit: route.knowledgeLimit),
             onMyMind: onMyMind,
-            castRecalls: castRecalls
+            castRecalls: castRecalls,
+            curseLines: curseLines
         )
         let composed = LetsChatPrompt.compose(inputs, maxCharacters: inputBudgetTokens * 3)
         var finalPrompt = composed.prompt

@@ -397,4 +397,80 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertEqual(NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now).pressure, 1,
                        "never below the ordinary-life floor")
     }
+
+    // MARK: The Curse as the villain
+
+    func testStoryPagesWearTheReadersRealCurse() throws {
+        let signal = try XCTUnwrap(NothingTide.storySignal(forGreyLevel: 2, curse: foggyAfternoons(), calendar: calendar))
+        XCTAssertTrue(signal.contains("three in the afternoon"), signal)
+        XCTAssertTrue(signal.contains("without naming the reader's real places"))
+        XCTAssertNil(NothingTide.storySignal(forGreyLevel: 1, curse: foggyAfternoons(), calendar: calendar))
+        XCTAssertEqual(NothingTide.storySignal(forGreyLevel: 2, curse: .empty, calendar: calendar),
+                       NothingTide.storySignal(forGreyLevel: 2))
+    }
+
+    func testTheCurseGoesAfterThePageItNearlyHad() {
+        let pages = (0..<10).map { index in
+            BookPage(id: "page-\(index)", type: .souvenir, createdAt: now.addingTimeInterval(-Double(20 - index) * 86_400),
+                     promptText: "Page \(index)", userInput: "Something kept on day \(index)")
+        }
+        var ledger = GreyPageThreatLedger.empty
+        GreyPageThreatEngine.reconcile(ledger: &ledger, pages: pages, mayThreaten: true, distressActive: false,
+                                       curseRoll: 91, preferredPageID: "page-6", now: now)
+        XCTAssertEqual(ledger.activeThreat?.pageID, "page-6")
+
+        let reading = InkReading(readAt: now.addingTimeInterval(-86_400), total: 6, alive: 2,
+                                 aliveExcerpt: nil, flatExcerpt: "same old", flatPageID: "page-6")
+        XCTAssertEqual(CurseInkReader.nearlyHad([reading], now: now), "page-6")
+    }
+
+    func testTheCurseIsStrongerWhenTheRutIsLoud() {
+        XCTAssertEqual(InkbonesOdds.curseNeeds(edge: 0), 80)
+        XCTAssertEqual(InkbonesOdds.curseNeeds(edge: 0, grey: 2), 72)
+        XCTAssertEqual(InkbonesOdds.curseNeeds(edge: 5, grey: 3), 73)
+    }
+
+    func testBeatingItAtItsHourEarnsBelief() {
+        XCTAssertEqual(CurseFight.beliefForAnswer(knockID: "attention-0-day-15-watch", answer: .here), 2)
+        XCTAssertEqual(CurseFight.beliefForAnswer(knockID: "attention-0-day-15-watch", answer: .somewhereGood), 2)
+        XCTAssertEqual(CurseFight.beliefForAnswer(knockID: "attention-0-day-15-watch", answer: .elsewhere), 0)
+        XCTAssertEqual(CurseFight.beliefForAnswer(knockID: "attention-0-day-15", answer: .here), 0)
+    }
+
+    func testAKeptSentenceTakesTheCursesWordsBack() throws {
+        let ledger = foggyAfternoons()
+        let word = try XCTUnwrap(CurseDossier.freedWord(
+            in: "I stopped scrolling and watched the starlings swirl over the car park for ten whole minutes.",
+            ledger: ledger
+        ))
+        XCTAssertEqual(word, "scrolling")
+        XCTAssertNil(CurseDossier.freedWord(in: "Scrolling again.", ledger: ledger), "a real sentence, not a shrug")
+        XCTAssertTrue(KeepConsequenceReceipt.lines(beliefDelta: 1, firstReadingAwakened: false, freedWord: word)
+            .contains("You took \u{201C}scrolling\u{201D} back from the Curse."))
+        XCTAssertFalse(CurseDossier.talkLines(ledger, now: now, calendar: calendar).isEmpty)
+    }
+
+    func testTheMonthBindsTheCursesAlmanac() {
+        let section = MonthlyEditionBuilder.curseSection(
+            attention: foggyAfternoons(), inkbonesLog: [], greyPageThreats: .empty,
+            inkReadings: [InkReading(readAt: now.addingTimeInterval(-5 * 86_400), total: 8, alive: 5,
+                                     aliveExcerpt: "the kettle argued", flatExcerpt: nil)],
+            start: now.addingTimeInterval(-30 * 86_400), end: now, calendar: calendar
+        )
+        let almanac = section.items.first { $0.id == "against-the-curse-almanac" }
+        XCTAssertNotNil(almanac)
+        XCTAssertTrue(almanac?.body.contains("the kitchen") ?? false)
+        XCTAssertTrue(almanac?.body.contains("5 of 8 alive") ?? false)
+    }
+
+    func testTheGreyGetsIntoTheAcademyButNeverTheDorm() {
+        let rooms = [AcademyGeography.dormID, "room-a", "room-b", "room-c", "room-d"]
+        XCTAssertTrue(CurseInAcademy.greyedRooms(rooms, grey: 1, now: now, calendar: calendar).isEmpty)
+        let two = CurseInAcademy.greyedRooms(rooms, grey: 2, now: now, calendar: calendar)
+        XCTAssertEqual(two.count, 1)
+        let three = CurseInAcademy.greyedRooms(rooms, grey: 3, now: now, calendar: calendar)
+        XCTAssertEqual(three.count, 2)
+        XCTAssertFalse(three.contains(AcademyGeography.dormID))
+        XCTAssertEqual(three, CurseInAcademy.greyedRooms(rooms, grey: 3, now: now, calendar: calendar), "steady all week")
+    }
 }

@@ -2731,7 +2731,8 @@ enum MonthlyEditionBuilder {
         editionName: String? = nil,
         attention: AttentionProbeLedger = .empty,
         inkbonesLog: [InkbonesThrowRecord] = [],
-        greyPageThreats: GreyPageThreatLedger = .empty
+        greyPageThreats: GreyPageThreatLedger = .empty,
+        inkReadings: [InkReading] = []
     ) -> MonthlyEdition {
         let monthDays = BookArchiveExport(days: days, calendar: calendar).days.filter { day in
             day.date >= calendar.startOfDay(for: startDate) && day.date <= calendar.startOfDay(for: endDate)
@@ -2904,6 +2905,7 @@ enum MonthlyEditionBuilder {
                 attention: attention,
                 inkbonesLog: inkbonesLog,
                 greyPageThreats: greyPageThreats,
+                inkReadings: inkReadings,
                 start: startDate,
                 end: endDate,
                 calendar: calendar
@@ -3777,6 +3779,7 @@ enum MonthlyEditionBuilder {
         attention: AttentionProbeLedger,
         inkbonesLog: [InkbonesThrowRecord],
         greyPageThreats: GreyPageThreatLedger,
+        inkReadings: [InkReading] = [],
         start: Date,
         end: Date,
         calendar: Calendar
@@ -3841,6 +3844,23 @@ enum MonthlyEditionBuilder {
                 id: "against-the-curse-throws", kind: .continuity, title: "The Bones",
                 body: dice.joined(separator: "\n"), date: thrown.first?.at,
                 pageType: nil, sourceID: nil, mediaAssets: [], tags: ["monthly-edition", "curse-fight", "inkbones"]
+            ))
+        }
+        // The Curse's Almanac: the month's file on the enemy, bound in print.
+        // When it came, where, in what weather, what it fed on, which
+        // counter-spells held, and what the Book found when it read your ink.
+        var monthLedger = attention
+        monthLedger.receipts = knocks
+        let file = CurseDossier.build(monthLedger, calendar: calendar)
+        var almanac = file.isReady ? file.findings.filter { $0.id != "take" }.map(\.printed) : []
+        if let ink = CurseInkReader.finding(inkReadings.filter { inMonth($0.readAt) }) {
+            almanac.append(ink.printed)
+        }
+        if !almanac.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "against-the-curse-almanac", kind: .continuity, title: "The Curse's Almanac",
+                body: almanac.joined(separator: "\n"), date: knocks.map(\.answeredAt).max(),
+                pageType: nil, sourceID: nil, mediaAssets: [], tags: ["monthly-edition", "curse-fight", "curse-almanac"]
             ))
         }
         return MonthlyEditionSection(

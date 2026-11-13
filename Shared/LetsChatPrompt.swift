@@ -67,6 +67,9 @@ enum LetsChatPrompt {
         /// What the Cast members this message names remember from the
         /// month's story. Small and authored, so it's never budgeted away.
         var castRecalls: [LetsChatCastMemory.Recall] = []
+        /// The reader's own Curse, from its file: what the Book and the Cast
+        /// know about the enemy they're fighting together.
+        var curseLines: [String] = []
     }
 
     struct Budget: Equatable {
@@ -164,6 +167,13 @@ enum LetsChatPrompt {
 
         let castMemory = LetsChatCastMemory.promptSection(inputs.castRecalls)
         if !castMemory.isEmpty { sections.append(castMemory) }
+
+        if !inputs.curseLines.isEmpty {
+            sections.append("""
+            THE CURSE YOU'RE FIGHTING TOGETHER (theirs, from what they've told you; bring it up only if it fits, never as a lecture):
+            \(inputs.curseLines.prefix(4).map { "- \($0)" }.joined(separator: "\n"))
+            """)
+        }
 
         if !memory.searchedWholeBook, budget.recentPages > 0, !inputs.recentPages.isEmpty {
             sections.append("""

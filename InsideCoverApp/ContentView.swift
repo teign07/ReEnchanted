@@ -2665,6 +2665,12 @@ struct ContentView: View {
                             )
                         }
 
+                        // The Curse, drinking the colour from the edges in.
+                        if !callbacks.view.isStoryOnboardingActive,
+                           !callbacks.view.isOpeningMovieVisible {
+                            CurseGreyOnTheLeaf(grey: callbacks.view.leafCurseGrey, bookRect: bookRect)
+                        }
+
                         if !callbacks.view.isStoryOnboardingActive,
                            !callbacks.view.isOpeningMovieVisible,
                            !callbacks.view.isGlowMenuPresented {
@@ -8432,9 +8438,29 @@ struct ContentView: View {
 
     /// Answered in the app, a Knock keeps the whole moment, the way a keep
     /// does: a fresh place, the body, the calendar, the nearby Anchor.
+    /// The grey the reader can be told about, cheaply: the Rut as their own
+    /// reports, Knocks and ink put it, and only once it may be named. Under
+    /// distress it is always 0. Drives `CurseGreyOnTheLeaf`.
+    var leafCurseGrey: Int {
+        let distressActive = DistressSignals.evaluate(day: today).isActive
+        let rut = NothingTide.rutAssessment(
+            selfFacts: selfFacts,
+            inferredSignals: vault.data.inferredSignals ?? .unwritten,
+            attentionProbes: vault.data.attentionProbes ?? .empty,
+            inkReadings: vault.data.writingDesk?.inkReadings ?? [],
+            distressActive: distressActive
+        )
+        return NothingTide.greyLevel(
+            readerRutPressure: rut.mayNameRut ? rut.pressure : 0,
+            narrativeHeat: 0,
+            distressActive: distressActive
+        )
+    }
+
     func answerKnock(_ request: KnockOpenRequest, answer: AttentionProbeAnswer, sentence: String?) {
         let now = Date()
         var ledger = vault.data.attentionProbes ?? .empty
+        let isNewAnswer = !ledger.receipts.contains { $0.id == request.id }
         ledger.record(
             id: request.id,
             scheduledAt: request.scheduledAt,
@@ -8449,7 +8475,13 @@ struct ContentView: View {
         pendingKnock = nil
         BookFeedback.play(.select)
         let score = ledger.score(on: now)
-        statusMessage = answer.countsForReader
+        let hourWin = isNewAnswer ? CurseFight.beliefForAnswer(knockID: request.id, answer: answer) : 0
+        if hourWin > 0 {
+            beliefScore = min(100, beliefScore + hourWin)
+        }
+        statusMessage = hourWin > 0
+            ? "You beat it at its own hour. +\(hourWin) Belief. You \(score.reader), the Curse \(score.curse) today."
+            : answer.countsForReader
             ? "That one's yours. You \(score.reader), the Curse \(score.curse) today."
             : "The Curse had that one. Saying so is how you get the next. You \(score.reader), the Curse \(score.curse) today."
         refreshBookWhispers()
@@ -12792,7 +12824,8 @@ struct ContentView: View {
             worldEvents: events,
             now: now,
             cast: cast,
-            readerChapterID: boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.id }
+            readerChapterID: boundTalismanID.flatMap { AcademyChapterRegistry.chapter(forTalismanID: $0)?.id },
+            curseGrey: leafCurseGrey
         ))
         // One statement per handler: each closure captures this whole view.
         map.onOpenPage = { openKeptPage($0) }
@@ -14385,7 +14418,8 @@ struct ContentView: View {
         if var note = keepNote {
             note.consequenceLines = KeepConsequenceReceipt.lines(
                 beliefDelta: beliefDelta,
-                firstReadingAwakened: firstReadingAwakened
+                firstReadingAwakened: firstReadingAwakened,
+                freedWord: CurseDossier.freedWord(in: input, ledger: vault.data.attentionProbes ?? .empty)
             )
             keepNote = note
 
@@ -16648,7 +16682,17 @@ struct ContentView: View {
         let edge = InkbonesOdds.edge(knocks: inputs.attentionProbes, threats: ledger,
                                      ribbonCount: vault.data.ribbons.count, now: now)
         let curseRoll = InkbonesOdds.curseRoll(dayID: today.id)
-        let curseNeeds = InkbonesOdds.curseNeeds(edge: edge.total)
+        // The grey the reader can be told about: their reported Rut, as the
+        // story and the curator see it. Distress silences it.
+        let rutTonight = NothingTide.rutAssessment(inputs: inputs, distressActive: distressActive, now: now)
+        let curseNeeds = InkbonesOdds.curseNeeds(
+            edge: edge.total,
+            grey: NothingTide.greyLevel(
+                readerRutPressure: rutTonight.mayNameRut ? rutTonight.pressure : 0,
+                narrativeHeat: 0,
+                distressActive: distressActive
+            )
+        )
         let curseTakes = curseThrowsTonight && curseRoll >= curseNeeds
         let changes = GreyPageThreatEngine.reconcile(
             ledger: &ledger,
@@ -16657,6 +16701,7 @@ struct ContentView: View {
             distressActive: distressActive,
             protectedPageIDs: protectedPageIDs,
             curseRoll: !familiarity.mayThreaten && curseTakes ? curseRoll : nil,
+            preferredPageID: CurseInkReader.nearlyHad(vault.data.writingDesk?.inkReadings ?? [], now: now),
             now: now
         )
         let markedByCurse = changes.compactMap { change -> GreyPageThreat? in
@@ -22337,8 +22382,14 @@ struct ContentView: View {
             bookInterior: inputs.bookInterior,
             bookWorking: inputs.bookWorkings.current,
             curseFight: {
-                let score = inputs.attentionProbes.score(on: Date())
-                return ReEnchantedWidgetCurseFight(reader: score.reader, curse: score.curse)
+                let now = Date()
+                let score = inputs.attentionProbes.score(on: now)
+                let hour = CounterSpell.watchedHour(on: now, ledger: inputs.attentionProbes)
+                return ReEnchantedWidgetCurseFight(
+                    reader: score.reader, curse: score.curse,
+                    counterSpell: hour.map { _ in CounterSpell.spell(for: now).instruction },
+                    spellHour: hour
+                )
             }()
         )
     }

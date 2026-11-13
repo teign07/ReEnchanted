@@ -9724,8 +9724,12 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
             sourceID: source.id,
             intent: .capture,
             renderStyle: .loreLetter,
-            score: 69,
-            reason: dare.place.map { "Wicker has a dare that fits \($0.name)." }
+            // Wicker fights the Curse on its own ground: at its hour, his
+            // dare steps forward.
+            score: 69 + (CurseFight.isNearItsHour(inputs.attentionProbes, now: now) ? 8 : 0),
+            reason: CurseFight.isNearItsHour(inputs.attentionProbes, now: now)
+                ? "It's the Curse's hour. Wicker has a dare for exactly now."
+                : dare.place.map { "Wicker has a dare that fits \($0.name)." }
                 ?? "Wicker has a small dare for you.",
             prompt: "I Dare You: \(dare.title)",
             detail: dare.challenge,

@@ -625,6 +625,8 @@ struct AcademyChart: Equatable {
     /// The Reader's real Anchors open beyond the Outer Stacks. Kept apart
     /// from the Cast's route graph: a drawn door isn't a fictional visit.
     var anchorRooms: [AcademyAnchorRoom] = []
+    /// Rooms the Curse's grey has got into this week.
+    var greyedRoomIDs: Set<String> = []
 
     /// The Book's line under the whole map.
     var footer: String {
@@ -799,6 +801,9 @@ struct AcademyChartInputs {
     /// visitors remain temporary guests rather than entering this roster.
     var cast: [NarrativeWorldEntity] = NarrativePackRegistry.entities.filter { $0.kind == .character }
     var readerChapterID: String? = nil
+    /// The reader's Curse, as loud as it may be named (0–3). At 2 and 3 the
+    /// grey gets into the Academy's rooms (`CurseInAcademy`).
+    var curseGrey: Int = 0
 
     /// The same inputs, at another moment.
     func at(_ date: Date) -> AcademyChartInputs {
@@ -865,14 +870,25 @@ enum AcademyCartographer {
         let drawn = Set(rooms.filter(\.isDrawn).map(\.id))
         let allPassages = AcademyGeography.homePassages(chapterID: inputs.readerChapterID) + staging.borrowedPassages
         let passages = allPassages.filter { drawn.contains($0.from) || drawn.contains($0.to) }
+        let greyed = CurseInAcademy.greyedRooms(
+            rooms.filter { $0.isDrawn && !$0.room.isBorrowed && !staging.closedRoomIDs.contains($0.id) }.map(\.id),
+            grey: inputs.curseGrey, now: inputs.now, calendar: inputs.calendar
+        )
+        let markedRooms = rooms.map { room -> AcademyChartRoom in
+            guard greyed.contains(room.id) else { return room }
+            var greyedRoom = room
+            greyedRoom.lines.append(CurseInAcademy.roomLine)
+            return greyedRoom
+        }
         return AcademyChart(
-            rooms: rooms,
+            rooms: markedRooms,
             passages: passages,
             unseen: everyone.filter { !drawn.contains($0.roomID) },
             closedRoomIDs: staging.closedRoomIDs,
             allPassages: allPassages,
             arrivals: journeys(for: everyone, inputs: inputs, staging: staging, passages: allPassages),
-            anchorRooms: AcademyAnchorRoom.project(anchors: inputs.anchors, days: inputs.days, now: inputs.now, calendar: inputs.calendar)
+            anchorRooms: AcademyAnchorRoom.project(anchors: inputs.anchors, days: inputs.days, now: inputs.now, calendar: inputs.calendar),
+            greyedRoomIDs: greyed
         )
     }
 
@@ -1984,5 +2000,26 @@ enum AcademyIllustratedAtlas {
             index += 1
         }
         return segments
+    }
+}
+
+// MARK: - The Curse in the Academy
+
+/// The Rut of Routine isn't only the reader's: when it's loud enough to be
+/// named, its grey gets into the Academy itself. One room goes grey at grey
+/// 2 and two at grey 3, chosen afresh each week among the rooms already on
+/// the reader's map. The reader's own dormitory is never taken: home holds.
+/// A greyed room says so, and says what pushes the grey back.
+enum CurseInAcademy {
+    static let roomLine = "The grey's got in here. Somebody noticed one particular thing out in your world and it's already backing off. Keep noticing."
+
+    static func greyedRooms(_ candidates: [String], grey: Int, now: Date, calendar: Calendar = .current) -> Set<String> {
+        let count = max(0, min(3, grey) - 1)
+        let pool = candidates.filter { $0 != AcademyGeography.dormID }.sorted()
+        guard count > 0, !pool.isEmpty else { return [] }
+        let week = calendar.component(.weekOfYear, from: now) + 53 * calendar.component(.yearForWeekOfYear, from: now)
+        let start = (week * 7) % pool.count
+        return Set((0..<min(count, pool.count)).map { pool[(start + $0 * 5) % pool.count] }
+            .reduce(into: [String]()) { picked, id in if !picked.contains(id) { picked.append(id) } })
     }
 }

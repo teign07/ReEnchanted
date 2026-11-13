@@ -52,6 +52,46 @@ struct SkyOnTheLeafMount: View {
     }
 }
 
+/// The Curse on the paper. When the Rut is in the margins (grey 2) or at the
+/// desk (grey 3), a pale grey creeps in from the leaf's edges, as if the
+/// colour were being drunk from the outside in. Keeping a Page while the grey
+/// is up is what pushes it back (`NothingTide.returnLine`), and the next
+/// reading of the grey shows it.
+///
+/// Still, not animated: the layer costs one gradient draw when the grey
+/// changes and nothing at all at grey 0 or 1, where it isn't mounted.
+struct CurseGreyOnTheLeaf: View {
+    let grey: Int
+    let bookRect: CGRect
+
+    private var strength: Double {
+        switch grey {
+        case ..<2: return 0
+        case 2: return 0.20
+        default: return 0.34
+        }
+    }
+
+    var body: some View {
+        if strength > 0, bookRect.width > 0 {
+            RadialGradient(
+                colors: [
+                    Color(white: 0.55).opacity(0),
+                    Color(white: 0.55).opacity(strength * 0.4),
+                    Color(white: 0.5).opacity(strength)
+                ],
+                center: .center,
+                startRadius: min(bookRect.width, bookRect.height) * 0.30,
+                endRadius: max(bookRect.width, bookRect.height) * 0.62
+            )
+            .frame(width: bookRect.width, height: bookRect.height)
+            .position(x: bookRect.midX, y: bookRect.midY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
 struct SkyOnTheLeafLayer: View {
     /// The settled reading — already faded for staleness by the caller.
     let sky: PaperSky

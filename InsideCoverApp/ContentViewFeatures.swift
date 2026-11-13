@@ -4426,7 +4426,8 @@ extension ContentView {
                 // The month's fight against the Curse, bound as it happened.
                 attention: vault.data.attentionProbes ?? .empty,
                 inkbonesLog: vault.data.inkbonesLog ?? [],
-                greyPageThreats: vault.data.greyPageThreats ?? .empty
+                greyPageThreats: vault.data.greyPageThreats ?? .empty,
+                inkReadings: vault.data.writingDesk?.inkReadings ?? []
             )
         }
         let bindable = monthlyPublicationCandidates.filter(\.isBindable)

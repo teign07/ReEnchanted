@@ -7019,6 +7019,7 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         let vault = PlayerVault.shared
         var ledger = vault.data.attentionProbes ?? .empty
         let now = Date()
+        let isNewAnswer = !ledger.receipts.contains { $0.id == id }
         ledger.record(
             id: id,
             scheduledAt: scheduledAt,
@@ -7030,6 +7031,14 @@ final class BookWhisperPresenter: NSObject, UNUserNotificationCenterDelegate {
         )
         vault.data.attentionProbes = ledger
         vault.save()
+        // Beating the Curse at its own hour earns Belief, even from the lock
+        // screen. Belief lives in standard defaults (`@AppStorage("beliefScore")`).
+        let hourWin = isNewAnswer ? CurseFight.beliefForAnswer(knockID: id, answer: answer) : 0
+        if hourWin > 0 {
+            let defaults = UserDefaults.standard
+            let belief = defaults.object(forKey: "beliefScore") as? Int ?? 30
+            defaults.set(min(100, belief + hourWin), forKey: "beliefScore")
+        }
         return ledger.pausedUntil != nil
     }
 

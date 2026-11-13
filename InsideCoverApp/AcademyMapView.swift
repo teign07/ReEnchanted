@@ -1196,6 +1196,15 @@ struct AcademyMapDrawing: View {
     private func drawLivingInk(in context: inout GraphicsContext, plan: Plan) {
         let borrowed = chart.rooms.filter { $0.room.isBorrowed }
         drawRooms(in: &context, plan: plan, rooms: borrowed)
+        // The Curse's grey, washed over the rooms it's got into this week.
+        for room in chart.rooms where chart.greyedRoomIDs.contains(room.id) {
+            let box = plan.box(of: room).insetBy(dx: -6, dy: -6)
+            context.fill(Path(roundedRect: box, cornerRadius: 14), with: .color(Color(white: 0.48).opacity(0.30)))
+            context.draw(
+                Text("GREY").font(.custom("Baskerville-Italic", size: 9)).foregroundStyle(Color(white: 0.35)),
+                at: CGPoint(x: box.midX, y: box.maxY + 7)
+            )
+        }
         for room in chart.rooms where chart.closedRoomIDs.contains(room.id) || room.id == selectedID {
             let box = plan.box(of: room).insetBy(dx: -4, dy: -4)
             if room.id == selectedID {

@@ -17791,7 +17791,8 @@ struct CapturePageSheet: View {
                     onPartial: streamTo,
                     onStage: reportStage,
                     onMyMind: onMyMind,
-                    castRecalls: castRecalls
+                    castRecalls: castRecalls,
+                    curseLines: CurseDossier.talkLines(PlayerVault.shared.data.attentionProbes ?? .empty, now: Date())
                 )
                 appLog.info("Let’s Chat Gemma reply returned; reply characters: \(generated.count, privacy: .public)")
                 #else

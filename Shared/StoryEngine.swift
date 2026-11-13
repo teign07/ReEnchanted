@@ -367,8 +367,12 @@ enum InkbonesOdds {
     }
 
     /// What the Curse has to throw to take a Page: on a night with no fight in
-    /// it, one throw in five; the reader's edge pushes it higher.
-    static func curseNeeds(edge: Int) -> Int { min(97, 80 + max(0, edge)) }
+    /// it, one throw in five; the reader's edge pushes it higher. When the
+    /// Rut is loud the Curse is stronger: each step of grey lowers its line by
+    /// four, so the stakes track how the fight is actually going.
+    static func curseNeeds(edge: Int, grey: Int = 0) -> Int {
+        min(97, 80 + max(0, edge) - 4 * max(0, min(3, grey)))
+    }
 }
 
 /// The Inkbones Page (docs/the-knock-plan.md §7.6): the app's one Inkbones,
@@ -3272,7 +3276,7 @@ enum StoryScenePacketBuilder {
             celebrationGreyShift: (inputs.faeState.activeGifts.contains { $0.effect == .quieting } ? -1 : 0)
                 + inputs.nothingGreyOffset
         )
-        if let greySignal = NothingTide.storySignal(forGreyLevel: greyLevel) {
+        if let greySignal = NothingTide.storySignal(forGreyLevel: greyLevel, curse: inputs.attentionProbes) {
             realSignals.append(greySignal)
         }
         if let chapterFact = inputs.selfFacts.first(where: { $0.questionID == "chapter-binding" }),

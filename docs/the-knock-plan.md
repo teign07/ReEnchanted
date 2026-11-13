@@ -287,3 +287,20 @@ bj: "I love all of these."
 - **Counter-spells:** `CounterSpell` gives one small move on each counter-knock day (even era-days once the hour is known). The forecast names it, the knock at the hour tests it, and the file says which spells held. It's stateless: the spell is a function of the day, and `-watch` marks the knock.
 - **The camera:** `PhotoSameness` compares this fortnight's kept-photo `attentionLabels` with the last fortnight's. Repeats are evidence, and new things are wins.
 - **The ink:** `CurseInkReader` is a weekly `.readInk` writing-session job. Gemma marks up to 12 of the reader's own sentences from the last fortnight as ALIVE or AUTOPILOT, at temperature 0.2 with a strict line format. The parse needs half of them marked. The reading is saved in `WritingDesk.inkReadings` and held for 14h as "I Read Your Last Two Weeks" (with the most alive line and the one it nearly had, plus the trend). It also joins the Curse's file. The session stays secret: the journal line only says the Book reread some pages.
+
+## The Curse as the main villain (2026-11-13)
+
+bj: "It's about time we treated the Curse as the main villain it is. It's supposed to have effects in the Academy too."
+- **The ink leans the Rut.** The latest `InkReading` votes in the inferred lane (`InferredRutApplication.inkLean`): under 40% alive leans up a step, over 70% leans down. Together with the measured signals it moves the pressure one step at most, and it can never name the Rut.
+- **Stories wear the reader's Curse.** `NothingTide.storySignal(forGreyLevel:curse:)` adds up to three of its real habits (hour, kind of place, weather, posture, what it feeds on, its words) for the scene's grey to borrow, disguised as Academy life.
+- **It goes after the Page it nearly had.** `InkReading.flatPageID` and `CurseInkReader.nearlyHad` feed `GreyPageThreatEngine.reconcile(preferredPageID:)`.
+- **It's stronger when the Rut is loud.** `InkbonesOdds.curseNeeds(edge:grey:)` takes 4 off its line per step of grey, for the nightly throw only.
+- **Beating it at its hour earns Belief.** `CurseFight.beliefForAnswer` gives +2 for a `-watch` Knock answered Here or Somewhere good, in the app and from the lock screen.
+- **The paper greys.** `CurseGreyOnTheLeaf` is a still wash from the leaf's edges at grey 2–3 (`ContentView.leafCurseGrey`).
+- **The Cast fights it.**
+  - Wicker's dares get +8 and their own line within an hour of its hour (`CurseFight.isNearItsHour`).
+  - Let's Chat gets a "THE CURSE YOU'RE FIGHTING TOGETHER" section (`CurseDossier.talkLines`).
+- **Eaten words.** `CurseDossier.eatenWords` are the words that keep turning up in grey sentences. A kept Page that uses one inside a real sentence of 8+ words gets "You took "x" back from the Curse."
+- **The widget.** `ReEnchantedWidgetCurseFight.counterSpell`/`spellHour` show the day's spell in the two hours before its hour.
+- **In print.** The monthly edition's Against the Curse section binds "The Curse's Almanac": the month's file plus the month's ink reading.
+- **The Academy.** `CurseInAcademy` greys one room at grey 2 and two at grey 3, among the rooms already drawn on the Labyrinth map, chosen per week. The dormitory is never taken. Greyed rooms get a wash, a GREY label and a note saying what pushes it back.

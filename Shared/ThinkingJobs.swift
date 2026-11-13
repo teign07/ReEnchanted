@@ -467,6 +467,9 @@ struct InkReading: Codable, Equatable {
     var alive: Int
     var aliveExcerpt: String?
     var flatExcerpt: String?
+    /// The Page the flattest sentence came from: the one the Curse nearly
+    /// had, and the one it goes after next (`GreyPageThreatEngine`).
+    var flatPageID: String? = nil
 
     var aliveShare: Double { total == 0 ? 0 : Double(alive) / Double(total) }
 }
@@ -530,7 +533,8 @@ enum CurseInkReader {
             total: marks.count,
             alive: alive.count,
             aliveExcerpt: alive.first.map { material[$0 - 1].excerpt },
-            flatExcerpt: flat.first.map { material[$0 - 1].excerpt }
+            flatExcerpt: flat.first.map { material[$0 - 1].excerpt },
+            flatPageID: flat.first.map { material[$0 - 1].pageID }
         )
     }
 
@@ -573,6 +577,14 @@ enum CurseInkReader {
                 ]
             )
         )
+    }
+
+    /// The Page the Curse wants next: the flattest sentence of a reading in
+    /// the last fortnight. Rescuing it is exactly what it needs, a new true
+    /// detail.
+    static func nearlyHad(_ readings: [InkReading], now: Date) -> String? {
+        readings.filter { $0.readAt <= now && now.timeIntervalSince($0.readAt) < window }
+            .max(by: { $0.readAt < $1.readAt })?.flatPageID
     }
 
     /// The Curse's file: the latest reading, and which way it's moving.

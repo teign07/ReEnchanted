@@ -5948,6 +5948,32 @@ enum NothingTide {
         return quiet
     }
 
+    /// The story-page directive when the grey is up, wearing the reader's own
+    /// Curse: the scene's grey borrows one of its real habits (its hour, a
+    /// kind of place, a weather, a gesture), disguised as Academy life and
+    /// never naming the reader's actual place.
+    static func storySignal(forGreyLevel level: Int, curse: AttentionProbeLedger, calendar: Calendar = .current) -> String? {
+        guard let base = storySignal(forGreyLevel: level) else { return nil }
+        let dossier = CurseDossier.build(curse, calendar: calendar)
+        guard dossier.isReady else { return base }
+        var habits: [String] = []
+        if let hour = CurseFight.strongestHour(curse, calendar: calendar), hour.share >= 0.5 {
+            habits.append("it comes hardest around \(CurseFight.hourPhrase(hour.hour))")
+        }
+        for finding in dossier.findings {
+            switch finding.id {
+            case "place": habits.append("it haunts a place like \(finding.value.lowercased())")
+            case "weather": habits.append("it thrives in \(finding.value.lowercased()) weather")
+            case "holding": habits.append("it catches people \(finding.value.lowercased())")
+            case "feeds-on": habits.append("it feeds \(finding.value.lowercased())")
+            case "words": habits.append("its words are \(finding.value)")
+            default: break
+            }
+        }
+        guard !habits.isEmpty else { return base }
+        return base + " The reader's own Curse has habits: \(habits.prefix(3).joined(separator: "; ")). Let this scene's grey borrow one of them, disguised as Academy life, without naming the reader's real places."
+    }
+
     /// The story-page directive when the grey is up.
     static func storySignal(forGreyLevel level: Int) -> String? {
         switch level {

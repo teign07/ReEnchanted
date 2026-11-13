@@ -168,6 +168,10 @@ struct ReEnchantedWidgetBookInterior: Codable, Equatable {
 struct ReEnchantedWidgetCurseFight: Codable, Equatable {
     var reader: Int
     var curse: Int
+    /// Today's counter-spell, on a day the Book knocks into the Curse's hour,
+    /// and that hour. The lock screen shows it in the run-up.
+    var counterSpell: String? = nil
+    var spellHour: Int? = nil
 }
 
 struct ReEnchantedWidgetQuestion: Codable, Equatable {

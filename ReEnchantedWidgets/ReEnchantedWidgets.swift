@@ -80,6 +80,15 @@ private struct CurseFightWidgetView: View {
         fight.curse > fight.reader ? "cloud.fog.fill" : "shield.lefthalf.filled"
     }
 
+    /// In the two hours before the Curse's hour on a counter-spell day, and
+    /// during it, the widget gives the spell instead of the score.
+    private var spellNow: String? {
+        guard let spell = fight.counterSpell, let hour = fight.spellHour else { return nil }
+        let now = Calendar.current.component(.hour, from: entry.date)
+        guard (hour - 2)...hour ~= now else { return nil }
+        return "At \(hour % 12 == 0 ? 12 : hour % 12): \(spell)."
+    }
+
     @ViewBuilder
     var body: some View {
         switch family {
@@ -103,11 +112,17 @@ private struct CurseFightWidgetView: View {
                 Label("Against the Curse", systemImage: symbol)
                     .font(.caption.weight(.bold))
                     .lineLimit(1)
-                Text(fight.reader + fight.curse == 0
-                     ? "No knocks answered yet today."
-                     : "You \(fight.reader) · the Curse \(fight.curse)")
-                    .font(.caption2)
-                    .lineLimit(2)
+                if let spell = spellNow {
+                    Text(spell)
+                        .font(.caption2)
+                        .lineLimit(3)
+                } else {
+                    Text(fight.reader + fight.curse == 0
+                         ? "No knocks answered yet today."
+                         : "You \(fight.reader) · the Curse \(fight.curse)")
+                        .font(.caption2)
+                        .lineLimit(2)
+                }
             }
             .widgetURL(deepLinkURL("today"))
         }

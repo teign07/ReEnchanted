@@ -58,6 +58,7 @@ enum GreyPageThreatEngine {
         distressActive: Bool,
         protectedPageIDs: Set<String> = [],
         curseRoll: Int? = nil,
+        preferredPageID: String? = nil,
         now: Date = Date()
     ) -> [String] {
         guard !distressActive else { return [] }
@@ -96,7 +97,8 @@ enum GreyPageThreatEngine {
                 if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
                 return $0.id < $1.id
             }
-        guard let page = eligible.first else { return changes }
+        // The Curse goes after the Page it nearly had, when that one's fair game.
+        guard let page = eligible.first(where: { $0.id == preferredPageID }) ?? eligible.first else { return changes }
 
         let title = page.promptText.trimmingCharacters(in: .whitespacesAndNewlines)
             .nonEmpty ?? page.type.title
@@ -14200,12 +14202,17 @@ enum LivedMissionReturnMarginalia {
 enum KeepConsequenceReceipt {
     static func lines(
         beliefDelta: Int,
-        firstReadingAwakened: Bool
+        firstReadingAwakened: Bool,
+        freedWord: String? = nil
     ) -> [String] {
         var lines = ["This Page is safely inside your Book now."]
 
         if firstReadingAwakened {
             lines.append("I've got enough of your own pages to begin my First Reading.")
+        }
+
+        if let freedWord {
+            lines.append("You took \u{201C}\(freedWord)\u{201D} back from the Curse.")
         }
 
         if beliefDelta > 0 {
@@ -14214,7 +14221,7 @@ enum KeepConsequenceReceipt {
             lines.append("\(abs(beliefDelta)) Belief crossed the threshold with this Page.")
         }
 
-        return Array(lines.prefix(3))
+        return Array(lines.prefix(4))
     }
 }
 
