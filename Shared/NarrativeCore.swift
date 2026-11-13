@@ -5799,6 +5799,7 @@ enum NothingTide {
             selfFacts: inputs.selfFacts,
             inferredSignals: inputs.inferredSignals,
             attentionProbes: inputs.attentionProbes,
+            inkReadings: inputs.writingDesk.inkReadings ?? [],
             distressActive: distressActive,
             now: now,
             calendar: calendar
@@ -5831,6 +5832,7 @@ enum NothingTide {
         selfFacts: [SelfFact],
         inferredSignals: InferredReaderSignals,
         attentionProbes: AttentionProbeLedger = .empty,
+        inkReadings: [InkReading] = [],
         distressActive: Bool,
         now: Date = Date(),
         calendar: Calendar = .current
@@ -5880,9 +5882,14 @@ enum NothingTide {
         // reader's own report is preserved separately above.
         let working = InferredRutApplication.adjustedPressure(
             base: reported,
-            signals: inferredSignals
+            signals: inferredSignals,
+            ink: inkReadings,
+            now: now
         )
         evidence.append(contentsOf: inferredSignals.evidenceTags)
+        if InferredRutApplication.inkLean(inkReadings, now: now) != 0 {
+            evidence.append("inferred:ink-reading")
+        }
 
         return RutAssessment(
             pressure: working,

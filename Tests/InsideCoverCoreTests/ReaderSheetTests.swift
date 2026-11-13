@@ -373,4 +373,28 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertFalse(WritingDeskPlanner.withInkReadingWant(read, days: [], now: now)
             .wants.contains { $0.kind == .readInk })
     }
+
+    func testTheInkLeansTheRutOneStepAndNeverNamesIt() {
+        let flat = InkReading(readAt: now.addingTimeInterval(-86_400), total: 10, alive: 2,
+                              aliveExcerpt: nil, flatExcerpt: nil)
+        let alive = InkReading(readAt: now.addingTimeInterval(-86_400), total: 10, alive: 9,
+                               aliveExcerpt: nil, flatExcerpt: nil)
+        let stale = InkReading(readAt: now.addingTimeInterval(-30 * 86_400), total: 10, alive: 1,
+                               aliveExcerpt: nil, flatExcerpt: nil)
+        XCTAssertEqual(InferredRutApplication.inkLean([flat], now: now), 1)
+        XCTAssertEqual(InferredRutApplication.inkLean([alive], now: now), -1)
+        XCTAssertEqual(InferredRutApplication.inkLean([stale], now: now), 0, "an old reading says nothing")
+
+        var inputs = BookSourceInputs.empty
+        inputs.writingDesk.inkReadings = [flat]
+        let leaned = NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now)
+        XCTAssertEqual(leaned.pressure, 2)
+        XCTAssertEqual(leaned.reportedPressure, 1, "the reader's own record stays the reader's")
+        XCTAssertFalse(leaned.mayNameRut, "the Book's judgment of the ink can never name it")
+        XCTAssertTrue(leaned.evidence.contains("inferred:ink-reading"))
+
+        inputs.writingDesk.inkReadings = [alive]
+        XCTAssertEqual(NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now).pressure, 1,
+                       "never below the ordinary-life floor")
+    }
 }

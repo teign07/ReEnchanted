@@ -162,14 +162,34 @@ enum InferredRutApplication {
     /// change it, and passing it through would invite a future caller to try.
     static func adjustedPressure(
         base: Int,
-        signals: InferredReaderSignals
+        signals: InferredReaderSignals,
+        ink: [InkReading] = [],
+        now: Date = Date()
     ) -> Int {
-        let adjusted = base + signals.rutPressureAdjustment
+        // The measured writing and the Book's own reading of the ink each get
+        // a vote, but together they still move the pressure one step at most.
+        let lean = max(-1, min(1, signals.rutPressureAdjustment + inkLean(ink, now: now)))
+        let adjusted = base + lean
         // Never below the ordinary-life floor, and never into the top band on
         // inferred evidence alone, though a reader who has reported their way
         // there keeps their own level.
         let ceiling = max(base, InferredSignalGate.inferredPressureCeiling)
         return min(ceiling, max(1, adjusted))
+    }
+
+    /// The latest reading of the reader's ink (`CurseInkReader`), if it's
+    /// recent and big enough to mean something: mostly autopilot leans the
+    /// Rut up a step, mostly alive leans it down. It's the Book's judgment,
+    /// not the reader's report, so it lives in this lane and can never name.
+    static let inkFreshFor: TimeInterval = 14 * 86_400
+
+    static func inkLean(_ readings: [InkReading], now: Date) -> Int {
+        guard let latest = readings.filter({ $0.readAt <= now }).max(by: { $0.readAt < $1.readAt }),
+              now.timeIntervalSince(latest.readAt) < inkFreshFor,
+              latest.total >= 5 else { return 0 }
+        if latest.aliveShare < 0.4 { return 1 }
+        if latest.aliveShare > 0.7 { return -1 }
+        return 0
     }
 }
 

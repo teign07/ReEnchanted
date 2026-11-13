@@ -14031,6 +14031,7 @@ struct ContentView: View {
             selfFacts: selfFacts,
             inferredSignals: vault.data.inferredSignals ?? .unwritten,
             attentionProbes: vault.data.attentionProbes ?? .empty,
+            inkReadings: vault.data.writingDesk?.inkReadings ?? [],
             distressActive: false,
             now: keptAt
         )
