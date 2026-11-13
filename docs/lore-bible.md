@@ -51,9 +51,10 @@ it in the fiction. This is the load-bearing
 economy: fiction is paid for with real attention, which is why the app cannot
 simply hand out infinite story.
 
-**The Rut of Routine** is the antagonist: the flattening force of forgetting,
-cynicism, and autopilot. It is not a villain who shows up; it is the condition
-the Book exists to fight. See §7.
+**The Rut of Routine**, called **the Curse** in the fight and **the grey** where
+it touches paper, is the main villain: the flattening force of forgetting,
+cynicism and autopilot. It has no face and no voice, but it acts, it has habits,
+and it wants things. Everything the Book does is aimed at it. See §7.
 
 ---
 
@@ -500,10 +501,61 @@ sheet**, then cut and tag the sprites by lifecycle and phase.
 
 ## 7. The antagonist
 
-### The Rut of Routine
+### The Rut of Routine, the Curse, the grey
 
-The flattening force of forgetting, cynicism, and autopilot. Not a monster — a
-condition. Everything the Book does is aimed at it.
+**The main villain.** One enemy with three names:
+- **the Rut of Routine** in the Academy's lore and the Book's own thinking;
+- **the Curse** in the fight, on the Knocks, in the Bleed and on the Reader's Sheet;
+- **the grey** wherever it touches something: a Page, a margin, a room.
+
+It is the flattening force of forgetting, cynicism and autopilot, the thing that
+takes about half of everyone's waking hours (Killingsworth & Gilbert's 47%).
+Everything the Book does is aimed at it.
+
+**It stays faceless.** No body, no voice, no dialogue, no lair. It is never
+"defeated", only driven back; it always returns, and attention is never called a
+cure. Its villainy is entirely in what it *does*. The reader meets it through:
+
+- **Its habits.** The Curse's file on the Reader's Sheet records:
+  - its hour, its weekday and its places;
+  - its weather and what it feeds on (short nights, crowded calendars, low-recovery days, after dark);
+  - how it catches people holding the phone;
+  - the words the reader writes from inside it.
+
+  It is specific to each reader. Nobody's Curse is generic.
+- **Its moves.**
+  - It throws its own Inkbones at night. When it wins, it takes a Page: the Page fades from the Book's living memory, never from the archive. It goes after the Page it nearly had already, the reader's flattest recent sentence.
+  - It is stronger when the Rut is loud.
+  - It gets into the Book's own pages when their life together goes rote.
+- **Its reach.**
+  - The paper greys from the edges.
+  - Story scenes go grey in exactly the ways the reader's own Curse does, disguised as Academy life.
+  - In the Academy itself, the grey gets into one or two rooms on the Labyrinth map each week. It never takes the reader's dormitory: home holds.
+- **The fight against it.**
+  - The Knocks are the battlefield.
+  - Counter-spells, tried at its hour, are the weapons.
+  - Belief is the reward for beating it there.
+  - The Cast fights alongside: Wicker dares at its hour, and the Book talks about it when it fits.
+  - Every particular sentence takes a word back from it.
+  - The month binds its Almanac.
+
+**What it may never do.** These rules are what keep it a villain and not a
+punishment:
+
+1. **Under distress it does not exist.** The Book is kind before it is
+   interesting. Distress silences every measure, every grey and every throw.
+2. **It never guilts and never punishes.** It makes story, not shame. Beating
+   it earns Belief; losing to it costs nothing but a Page's place in living
+   memory, and that Page can always be taken back.
+3. **App silence is never evidence.** Days without opening the Book, dismissals,
+   streaks and notification taps never feed it. It rises from the reader's own
+   reports (the intake lines below, the check-in, grey answers to Knocks) and
+   from their life (how they write, what they photograph, where they go).
+4. **The Book names it only on the reader's word.** Measured signs (flattening
+   handwriting, an autopilot ink reading, a samey camera) may move how hard the
+   Book pushes back, and they are shown on the reader's private sheet with the
+   reader's wins beside them. The Book only says "the Rut has you" aloud when the
+   reader has reported it, by their own lines or by their Knocks.
 
 At intake the reader defines their **own** numbness, and this is the mechanism
 that makes the whole year-arc fair:
@@ -518,7 +570,14 @@ that makes the whole year-arc fair:
 - **`rut-season`** — *"What should we call this season?"*
 
 Every one of those lines is an **observable behaviour in the reader's real
-life**. The bite is fair because the standard is theirs, in their words.
+life**. The bite is fair because the standard is theirs, in their words. Night
+one also takes the Curse's first measurement, the bumper-sticker test of the
+reader's last ordinary trip, and the Curse's file opens with it.
+
+**The other antagonists are not the Curse.** Duskthorn feeds on stories the
+Curse has already numbed, and Seraphina Thorne would keep the reader comfortable
+in the grey and call it mercy. Both are faces in the fiction; the Curse never
+gets one.
 
 ### Duskthorn
 
