@@ -107,6 +107,8 @@ struct BookTodayEdition: Equatable {
         /// One finding from the Curse's file, turning daily. The rest is on
         /// the Reader's Sheet.
         var fileLine: String? = nil
+        /// What the Curse is likely to do today, from its own file.
+        var forecastLine: String? = nil
     }
 }
 
@@ -247,7 +249,14 @@ enum BookTodayProjector {
                 return BookTodayEdition.Fight(
                     reader: score.reader, curse: score.curse, line: line,
                     hourLine: CurseFight.hourLine(inputs.attentionProbes, calendar: calendar),
-                    fileLine: filed.map { "From the Curse's file: \($0.printed)" }
+                    fileLine: filed.map { "From the Curse's file: \($0.printed)" },
+                    forecastLine: CurseForecast.line(
+                        ledger: inputs.attentionProbes,
+                        weatherTags: RadioPageContext.weatherTags(weather: inputs.weather, enchanted: inputs.enchantedWeather),
+                        sleepHours: inputs.body?.metricValue(.sleep),
+                        now: now,
+                        calendar: calendar
+                    )
                 )
             }()
         )

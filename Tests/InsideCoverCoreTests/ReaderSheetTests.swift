@@ -264,4 +264,68 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertEqual(CurseEvidence.decoded(CurseEvidence.encoded(findings)), findings)
         XCTAssertTrue(CurseEvidence.decoded(nil).isEmpty)
     }
+
+    // MARK: The body, the forecast, counter-spells, the camera
+
+    func testLowRecoveryDaysAreMeasuredAgainstTheReadersOwnBody() {
+        var ledger = AttentionProbeLedger.empty
+        let start = calendar.startOfDay(for: now.addingTimeInterval(-12 * 86_400))
+        for day in 0..<10 {
+            let at = start.addingTimeInterval(Double(day) * 86_400 + 11 * 3600)
+            let low = day < 5
+            let grey = low && day != 0
+            var snapshot = context(at: at)
+            snapshot.heartRateVariability = low ? 30 : 60
+            ledger.record(id: "b\(day)", scheduledAt: at, answeredAt: at.addingTimeInterval(60),
+                          answer: grey ? .elsewhere : .here, cycle: 0, context: snapshot)
+        }
+        let dossier = CurseDossier.build(ledger, calendar: calendar)
+        XCTAssertEqual(dossier.findings.first { $0.id == "feeds-on" }?.value, "On a low-recovery day")
+    }
+
+    func testTheForecastSaysWhatFeedsItToday() throws {
+        let line = try XCTUnwrap(CurseForecast.line(
+            ledger: foggyAfternoons(), weatherTags: ["rain"], sleepHours: nil, now: now, calendar: calendar
+        ))
+        XCTAssertTrue(line.hasPrefix("The Curse's forecast:"))
+        XCTAssertTrue(line.contains("Rain feeds it."), line)
+        XCTAssertTrue(line.contains("three in the afternoon"), line)
+        XCTAssertNil(CurseForecast.line(ledger: .empty, weatherTags: ["rain"], sleepHours: nil, now: now, calendar: calendar))
+    }
+
+    func testCounterSpellsTurnWithTheDaysAndAreTested() {
+        let today = calendar.startOfDay(for: now)
+        let era = calendar.ordinality(of: .day, in: .era, for: today) ?? 0
+        let watchDay = today.addingTimeInterval(era % 2 == 0 ? 0 : 86_400)
+        let next = watchDay.addingTimeInterval(2 * 86_400)
+        XCTAssertNotEqual(CounterSpell.spell(for: watchDay, calendar: calendar),
+                          CounterSpell.spell(for: next, calendar: calendar))
+
+        var ledger = AttentionProbeLedger.empty
+        for index in 0..<3 {
+            let at = watchDay.addingTimeInterval(Double(index) * 2 * 86_400 + 15 * 3600)
+            ledger.record(id: "attention-0-day\(index)-15-watch", scheduledAt: at, answeredAt: at.addingTimeInterval(60),
+                          answer: index == 0 ? .elsewhere : .here, cycle: 0)
+        }
+        let finding = CounterSpell.finding(ledger, calendar: calendar)
+        XCTAssertEqual(finding?.value, "2 of 3 held")
+    }
+
+    func testTheCameraCatchingTheSameThingsIsEvidence() throws {
+        func page(_ daysAgo: Double, _ labels: String) -> BookPage {
+            BookPage(
+                type: .illuminatedPhoto,
+                createdAt: now.addingTimeInterval(-daysAgo * 86_400),
+                promptText: "A photograph",
+                mediaAssets: [BookPageMediaAsset(kind: .renderedImageFile, reference: "/tmp/p.png",
+                                                 metadata: ["attentionLabels": labels])]
+            )
+        }
+        let before = [20, 19, 18, 17, 16].map { page(Double($0), ["tree,sky", "dog,park", "bread,table", "river,bridge", "cat,window"][$0 - 16]) }
+        let lately = [5, 4, 3, 2, 1].map { page(Double($0), "screen,desk,keyboard") }
+        let finding = try XCTUnwrap(PhotoSameness.finding(pages: before + lately, now: now))
+        XCTAssertEqual(finding.value, "Seeing the same things")
+        XCTAssertTrue(finding.line.hasPrefix("4 of your last 5 photos"), finding.line)
+        XCTAssertTrue(finding.line.contains("desk"), finding.line)
+    }
 }

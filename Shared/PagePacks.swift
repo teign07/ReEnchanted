@@ -2496,6 +2496,8 @@ struct CurseDossier: Equatable {
             symbol: "chart.pie"
         ))
 
+        let body = BodyBaseline(receipts)
+
         func report(_ id: String, _ label: String, _ symbol: String,
                     keys: (AttentionProbeReceipt) -> [String],
                     value: (String) -> String,
@@ -2541,7 +2543,7 @@ struct CurseDossier: Equatable {
                phrase: { "in \($0) weather" })
 
         report("feeds-on", "What it feeds on", "leaf",
-               keys: { receipt in conditionKeys(receipt.context) },
+               keys: { receipt in conditionKeys(receipt.context, body: body) },
                value: { $0.prefix(1).uppercased() + String($0.dropFirst()) },
                phrase: { $0 })
 
@@ -2555,6 +2557,9 @@ struct CurseDossier: Equatable {
         }
         if let speed = answerSpeed(receipts) {
             dossier.findings.append(speed)
+        }
+        if let spells = CounterSpell.finding(ledger, calendar: calendar) {
+            dossier.findings.append(spells)
         }
         if let last = receipts.last(where: { $0.answer == .elsewhere && $0.sentence?.nonEmpty != nil }),
            let sentence = last.sentence?.nonEmpty {
@@ -2585,9 +2590,41 @@ struct CurseDossier: Equatable {
     /// The rest of the reader's life around a Knock, as the keep context
     /// already records it: the night before, the day's steps and calendar,
     /// and whether the sun was up. Each is a phrase that reads after "Knocks".
-    static func conditionKeys(_ context: BookPageContextSnapshot?) -> [String] {
+    /// The reader's own body, as their Knocks have caught it: the middle of
+    /// their heart-rate variability and resting heart rate. A day is "low
+    /// recovery" against this reader, never against a population.
+    struct BodyBaseline: Equatable {
+        var hrvMedian: Double?
+        var restingMedian: Double?
+
+        init(hrvMedian: Double? = nil, restingMedian: Double? = nil) {
+            self.hrvMedian = hrvMedian
+            self.restingMedian = restingMedian
+        }
+
+        init(_ receipts: [AttentionProbeReceipt]) {
+            self.init(
+                hrvMedian: Self.median(receipts.compactMap { $0.context?.heartRateVariability }),
+                restingMedian: Self.median(receipts.compactMap { $0.context?.restingHeartRate.map(Double.init) })
+            )
+        }
+
+        static func median(_ values: [Double]) -> Double? {
+            guard values.count >= 5 else { return nil }
+            let sorted = values.sorted()
+            return sorted[sorted.count / 2]
+        }
+    }
+
+    static func conditionKeys(_ context: BookPageContextSnapshot?, body: BodyBaseline = BodyBaseline()) -> [String] {
         guard let context else { return [] }
         var keys: [String] = []
+        if let hrv = context.heartRateVariability, let median = body.hrvMedian, hrv < median * 0.85 {
+            keys.append("on a low-recovery day")
+        }
+        if let resting = context.restingHeartRate, let median = body.restingMedian, Double(resting) > median + 5 {
+            keys.append("on a day your heart ran fast")
+        }
         if let sleep = context.sleepHours {
             if sleep < 6 { keys.append("after a short night") }
             if sleep >= 8 { keys.append("after a long sleep") }
@@ -2730,6 +2767,7 @@ enum CurseEvidence {
         trajectory: RutTrajectory,
         rote: BookFamiliarityRutEngine.Assessment,
         handwriting: InferredReaderSignals,
+        photos: CurseDossier.Finding? = nil,
         distressActive: Bool
     ) -> [CurseDossier.Finding] {
         guard !distressActive else { return [] }
@@ -2738,6 +2776,7 @@ enum CurseEvidence {
         findings.append(loudness(rut))
         if let trend = trend(trajectory) { findings.append(trend) }
         if let ink = handwritingFinding(handwriting) { findings.append(ink) }
+        if let photos { findings.append(photos) }
         if let rote = roteFinding(rote) { findings.append(rote) }
         return findings
     }
@@ -2925,6 +2964,250 @@ enum CurseEvidence {
         guard let data = text?.data(using: .utf8),
               let findings = try? JSONDecoder().decode([CurseDossier.Finding].self, from: data) else { return [] }
         return findings
+    }
+}
+
+/// The Curse's forecast for today, read off its own file: is this its day of
+/// the week, does today's weather feed it, did last night's sleep, and what
+/// hour will it come. Only what the Knocks have actually shown is said, and
+/// only when it differs from the Curse's usual share.
+enum CurseForecast {
+    static func line(
+        ledger: AttentionProbeLedger,
+        weatherTags: Set<String>,
+        sleepHours: Double?,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> String? {
+        let receipts = ledger.receipts
+        let grey = receipts.filter { $0.answer == .elsewhere }.count
+        guard grey >= CurseDossier.minimumGrey, receipts.count >= 8 else { return nil }
+        let overall = Double(grey) / Double(receipts.count)
+        var parts: [String] = []
+
+        let weekdayIndex = calendar.component(.weekday, from: now) - 1
+        let names = calendar.weekdaySymbols
+        if names.indices.contains(weekdayIndex),
+           let day = share(receipts, where: { calendar.component(.weekday, from: $0.scheduledAt) - 1 == weekdayIndex }) {
+            if day > overall + 0.1 {
+                parts.append("It's \(names[weekdayIndex]), one of its favourite days.")
+            } else if day < overall - 0.1 {
+                parts.append("\(names[weekdayIndex])s it mostly leaves you alone.")
+            }
+        }
+
+        for tag in weatherTags.sorted() {
+            guard let sky = share(receipts, where: { ($0.context?.weatherTags ?? []).contains(tag) }) else { continue }
+            let weather = skyName(tag)
+            if sky > overall + 0.1 {
+                parts.append("\(weather) feeds it.")
+                break
+            } else if sky < overall - 0.1 {
+                parts.append("\(weather) seems to keep it off you.")
+                break
+            }
+        }
+
+        if let sleepHours, sleepHours < 6,
+           let short = share(receipts, where: { ($0.context?.sleepHours ?? 24) < 6 }),
+           short > overall + 0.1 {
+            parts.append("Short night, too. It likes those.")
+        }
+
+        if let spell = CounterSpell.todayLine(ledger: ledger, now: now, calendar: calendar) {
+            parts.append(spell)
+        } else if let strongest = CurseFight.strongestHour(ledger, calendar: calendar), strongest.share >= 0.5,
+           strongest.hour > calendar.component(.hour, from: now) {
+            parts.append("It'll come for you around \(CurseFight.hourPhrase(strongest.hour)). I'll be knocking.")
+        }
+
+        guard !parts.isEmpty else { return nil }
+        return "The Curse's forecast: " + parts.joined(separator: " ")
+    }
+
+    static func skyName(_ tag: String) -> String {
+        [
+            "storm": "A storm", "rain": "Rain", "snow": "Snow", "fog": "Fog", "wind": "Wind",
+            "cloud": "Cloud cover", "bright": "A bright sky", "frost": "Frost", "hot": "Heat", "cold": "Cold"
+        ][tag] ?? (tag.prefix(1).uppercased() + String(tag.dropFirst()))
+    }
+
+    /// The grey share among answers matching `filter`, once there are three.
+    static func share(_ receipts: [AttentionProbeReceipt], where filter: (AttentionProbeReceipt) -> Bool) -> Double? {
+        let matched = receipts.filter(filter)
+        guard matched.count >= 3 else { return nil }
+        return Double(matched.filter { $0.answer == .elsewhere }.count) / Double(matched.count)
+    }
+}
+
+/// Counter-spells: small moves tried at the Curse's own hour, then tested.
+///
+/// On every day the Book sends a counter-knock into the Curse's hour (even
+/// era-days, once the hour is known, as in `AttentionProbeSchedule`), the day
+/// carries one counter-spell. The forecast says it in the morning; the knock
+/// at that hour finds out whether it held. Over weeks the Curse's file can say
+/// which of them actually work against this reader's Curse. Nothing is
+/// stored: the spell is a function of the day, and the knock's id says it was
+/// a counter-knock.
+enum CounterSpell {
+    struct Spell: Equatable {
+        var id: String
+        var title: String
+        var instruction: String
+    }
+
+    static let all: [Spell] = [
+        Spell(id: "three-sounds", title: "Three sounds", instruction: "name three sounds you can hear, one after the other"),
+        Spell(id: "other-hand", title: "The other hand", instruction: "do the next small thing with your other hand"),
+        Spell(id: "window", title: "The window", instruction: "go to the nearest window and find one thing that's changed since yesterday"),
+        Spell(id: "name-colour-number", title: "Name, colour, number", instruction: "think one sentence with a name, a colour and a number in it"),
+        Spell(id: "face-down", title: "Face down", instruction: "put the phone face down for ten breaths and watch something that isn't it"),
+        Spell(id: "the-air", title: "The air", instruction: "step outside, or open a door, and stand in the air for a minute"),
+        Spell(id: "oddest-texture", title: "The oddest texture", instruction: "find the oddest texture you can reach and tell yourself what it's like"),
+        Spell(id: "slow-sip", title: "The slow sip", instruction: "drink something slowly enough to feel it change temperature"),
+        Spell(id: "secret-name", title: "A secret name", instruction: "give the room you're in a secret name")
+    ]
+
+    static func spell(for date: Date, calendar: Calendar = .current) -> Spell {
+        let eraDay = calendar.ordinality(of: .day, in: .era, for: date) ?? 0
+        return all[(eraDay / 2) % all.count]
+    }
+
+    /// Whether today the Book knocks into the Curse's hour, and when.
+    static func watchedHour(on date: Date, ledger: AttentionProbeLedger, calendar: Calendar = .current) -> Int? {
+        guard let strongest = CurseFight.strongestHour(ledger, calendar: calendar), strongest.share >= 0.5,
+              let eraDay = calendar.ordinality(of: .day, in: .era, for: date), eraDay % 2 == 0,
+              AttentionProbeSchedule.windows.contains(where: { $0.contains(strongest.hour) }) else { return nil }
+        return strongest.hour
+    }
+
+    /// The morning's instruction, on a counter-knock day.
+    static func todayLine(ledger: AttentionProbeLedger, now: Date, calendar: Calendar = .current) -> String? {
+        guard let hour = watchedHour(on: now, ledger: ledger, calendar: calendar),
+              hour > calendar.component(.hour, from: now) else { return nil }
+        let spell = spell(for: now, calendar: calendar)
+        return "Today's counter-spell: at \(CurseFight.hourPhrase(hour)), \(spell.instruction). I'll knock then and see if it held."
+    }
+
+    /// Which counter-spells have held at the Curse's hour, for the file.
+    static func finding(_ ledger: AttentionProbeLedger, calendar: Calendar = .current) -> CurseDossier.Finding? {
+        let tried = ledger.receipts.filter { $0.id.hasSuffix("-watch") }
+        guard tried.count >= 3 else { return nil }
+        var tally: [String: (held: Int, total: Int)] = [:]
+        for receipt in tried {
+            let spell = spell(for: receipt.scheduledAt, calendar: calendar)
+            var entry = tally[spell.id] ?? (held: 0, total: 0)
+            entry.total += 1
+            if receipt.answer.countsForReader { entry.held += 1 }
+            tally[spell.id] = entry
+        }
+        let held = tried.filter { $0.answer.countsForReader }.count
+        let ranked = tally
+            .filter { $0.value.total >= 2 }
+            .sorted { lhs, rhs in
+                let left = Double(lhs.value.held) / Double(lhs.value.total)
+                let right = Double(rhs.value.held) / Double(rhs.value.total)
+                if left != right { return left > right }
+                if lhs.value.total != rhs.value.total { return lhs.value.total > rhs.value.total }
+                return lhs.key < rhs.key
+            }
+        guard let best = ranked.first,
+              let spell = all.first(where: { $0.id == best.key }) else {
+            return CurseDossier.Finding(
+                id: "counter-spells", label: "Counter-spells", value: "\(held) of \(tried.count) held",
+                line: "That's every knock I've sent right into its hour. Each spell needs two tries before I'll say which works.",
+                symbol: "wand.and.stars"
+            )
+        }
+        var line = "\u{201C}\(spell.title)\u{201D} held \(best.value.held) of \(best.value.total) at its hour."
+        if let worst = ranked.last, worst.key != best.key,
+           let weak = all.first(where: { $0.id == worst.key }) {
+            line += " \u{201C}\(weak.title)\u{201D} held \(worst.value.held) of \(worst.value.total)."
+        }
+        line += " Overall, \(held) of \(tried.count) counter-knocks found you here."
+        return CurseDossier.Finding(
+            id: "counter-spells", label: "What works against it", value: spell.title,
+            line: line, symbol: "wand.and.stars"
+        )
+    }
+}
+
+/// What the reader's camera has been catching, as Curse evidence. Every kept
+/// photo carries what the vision pass saw (`attentionLabels`). A fortnight of
+/// photographs that keep showing the same things is sameness the Book can
+/// see; things the camera has never shown it before are the reader winning.
+enum PhotoSameness {
+    struct Photo: Equatable {
+        var at: Date
+        var labels: Set<String>
+    }
+
+    static let windowDays = 14
+    static let minimumPerWindow = 4
+
+    static func photos(in pages: [BookPage]) -> [Photo] {
+        pages.flatMap { page in
+            page.mediaAssets.compactMap { asset -> Photo? in
+                guard asset.kind != .audioFile,
+                      let raw = asset.metadata["attentionLabels"]?.nonEmpty else { return nil }
+                let labels = Set(raw.split(separator: ",").compactMap {
+                    String($0).trimmingCharacters(in: .whitespacesAndNewlines).lowercased().nonEmpty
+                })
+                return labels.isEmpty ? nil : Photo(at: page.createdAt, labels: labels)
+            }
+        }
+        .sorted { $0.at < $1.at }
+    }
+
+    /// The share of photos in a window that look like one taken earlier in
+    /// the same window: half their labels or more in common.
+    static func repeatShare(_ photos: [Photo]) -> (repeats: Int, total: Int) {
+        var repeats = 0
+        for (index, photo) in photos.enumerated() where index > 0 {
+            let alike = photos[..<index].contains { earlier in
+                let union = photo.labels.union(earlier.labels).count
+                return union > 0 && Double(photo.labels.intersection(earlier.labels).count) / Double(union) >= 0.5
+            }
+            if alike { repeats += 1 }
+        }
+        return (repeats, photos.count)
+    }
+
+    static func finding(pages: [BookPage], now: Date) -> CurseDossier.Finding? {
+        let window = TimeInterval(windowDays) * 86_400
+        let all = photos(in: pages).filter { $0.at <= now }
+        let recent = all.filter { now.timeIntervalSince($0.at) < window }
+        let prior = all.filter { now.timeIntervalSince($0.at) >= window && now.timeIntervalSince($0.at) < 2 * window }
+        guard recent.count >= minimumPerWindow, prior.count >= minimumPerWindow else { return nil }
+        let latest = repeatShare(recent)
+        let before = repeatShare(prior)
+        let latestShare = Double(latest.repeats) / Double(latest.total)
+        let beforeShare = Double(before.repeats) / Double(before.total)
+
+        if latestShare >= 0.4, latestShare >= beforeShare + 0.2 {
+            var counts: [String: Int] = [:]
+            for photo in recent { for label in photo.labels { counts[label, default: 0] += 1 } }
+            let usual = counts.sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }
+                .prefix(3).map { $0.key }
+            return CurseDossier.Finding(
+                id: "photos", label: "Your camera", value: "Seeing the same things",
+                line: "\(latest.repeats) of your last \(latest.total) photos look like one you'd already taken this fortnight, mostly \(CurseEvidence.joined(usual)). The fortnight before, it was \(before.repeats) of \(before.total).",
+                symbol: "camera"
+            )
+        }
+        let seenBefore = all.filter { now.timeIntervalSince($0.at) >= window }
+            .reduce(into: Set<String>()) { $0.formUnion($1.labels) }
+        let fresh = recent.reduce(into: Set<String>()) { $0.formUnion($1.labels) }.subtracting(seenBefore)
+        if fresh.count >= 5 || (beforeShare - latestShare >= 0.2) {
+            return CurseDossier.Finding(
+                id: "photos", label: "Your camera", value: "Finding new things",
+                line: fresh.isEmpty
+                    ? "Your photos look less alike than they did a fortnight ago."
+                    : "It's caught things it never showed me before: \(CurseEvidence.joined(Array(fresh.sorted().prefix(4))))).",
+                symbol: "camera"
+            )
+        }
+        return nil
     }
 }
 

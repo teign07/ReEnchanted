@@ -4601,6 +4601,16 @@ enum BleedDataDesk {
         if rescued > 0 {
             lines.append("Pages taken back from the grey this week · \(rescued)")
         }
+        if let forecast = CurseForecast.line(
+            ledger: ledger,
+            weatherTags: RadioPageContext.weatherTags(weather: inputs.weather, enchanted: inputs.enchantedWeather),
+            sleepHours: inputs.body?.metricValue(.sleep),
+            now: now,
+            calendar: calendar
+        ) {
+            lines.append("")
+            lines.append(forecast)
+        }
         let filed = CurseDossier.build(ledger, calendar: calendar).featured(on: now, count: 2, calendar: calendar)
         if !filed.isEmpty {
             lines.append("")

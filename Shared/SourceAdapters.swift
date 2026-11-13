@@ -3500,6 +3500,7 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
                 now: now
             ),
             handwriting: inputs.inferredSignals,
+            photos: PhotoSameness.finding(pages: allPages, now: now),
             distressActive: distress
         )
     }
