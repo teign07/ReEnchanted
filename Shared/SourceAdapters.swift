@@ -3475,14 +3475,36 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
         guard sheet.isWorthSpeakingTo || inputs.attentionProbes.receipts.count >= 3 else { return [] }
         guard inputs.hasReflectiveMaterial(includingToday: day) else { return [] }
         guard !Self.shownRecently(days: inputs.days + [day], now: now) else { return [] }
-        return [surface(inputs: inputs, now: now, manual: false)]
+        return [surface(day: day, context: context, inputs: inputs, now: now, manual: false)]
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
-        surface(inputs: inputs, now: now, manual: true)
+        surface(day: day, context: context, inputs: inputs, now: now, manual: true)
     }
 
-    private func surface(inputs: BookSourceInputs, now: Date, manual: Bool) -> SurfacePage {
+    /// Everything about the Curse that isn't a Knock, gathered while the
+    /// whole Book is to hand: night one, how loud the Rut is, its month, the
+    /// reader's handwriting, and whether it's got into the Book's own pages.
+    static func curseEvidence(day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> [CurseDossier.Finding] {
+        let distress = context.distress.isActive
+        let allPages = (inputs.days.filter { $0.id != day.id } + [day]).flatMap(\.pages)
+        return CurseEvidence.findings(
+            selfFacts: inputs.selfFacts,
+            rut: NothingTide.rutAssessment(inputs: inputs, distressActive: distress, now: now),
+            trajectory: inputs.standingLedger.rut,
+            rote: BookFamiliarityRutEngine.assess(
+                pages: allPages,
+                readerLearning: inputs.readerLearning,
+                attentionProbes: inputs.attentionProbes,
+                selfFacts: inputs.selfFacts,
+                now: now
+            ),
+            handwriting: inputs.inferredSignals,
+            distressActive: distress
+        )
+    }
+
+    private func surface(day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date, manual: Bool) -> SurfacePage {
         let sheet = inputs.readersSheet
         let fingerprint = Self.fingerprint(of: sheet, inputs: inputs)
         var metadata = [
@@ -3499,6 +3521,11 @@ struct FrontMatterPageSourceAdapter: BookPageSourceAdapter {
         }
         for section in sheet.readerFacingSections {
             metadata["frontMatterSection.\(section.id)"] = section.text
+        }
+        if let evidence = CurseEvidence.encoded(
+            Self.curseEvidence(day: day, context: context, inputs: inputs, now: now)
+        ) {
+            metadata[CurseEvidence.metadataKey] = evidence
         }
         return SurfacePage(
             id: manual ? "\(source.id)-opened-\(Int(now.timeIntervalSince1970))" : "\(source.id)-\(fingerprint)",

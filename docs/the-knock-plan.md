@@ -264,3 +264,17 @@ bj: "No character sheet in one place." The `.frontMatter` Page is now **The Read
 - **Then the Inventory's shelves** (`inventoryShelves`, shared with the Inventory Page), **then what I know about you**, which can still be corrected.
 
 **First-contact directions:** `FirstContactHowTo` puts one line of "how this works" on the Knock sheet, the ribbon card and the Grey Page. It shows the first three times each is met, then steps aside.
+
+## The Rut hears the Knocks, and the file reads the rest (2026-11-13)
+
+bj: "We should be using all the evidence we can."
+- **The curator's Rut pressure hears the Knocks.** A Grey answer is the reader reporting the Rut, which is the evidence NothingTide rule 3 asks for. Over the last 14 days, with at least 6 answers, a grey share of half or more gives pressure 2 and seven in ten gives 3. Either one may name the Rut (`knockReportedPressure`). A good fortnight never pulls a reader's own report down, and under distress the pressure is still 0. The Daybook stores `reportedPressure`, so the Rut's month trend now carries the Knocks too.
+- **`CurseEvidence` opens the Curse's file** with everything that isn't a Knock. It's gathered when the Sheet is dealt and carried as `curseEvidence` metadata:
+  - **The day we met:** the night-one bumper-sticker result and "where it's strongest", both saved Self Facts.
+  - **How loud it is:** with what it's hearing.
+  - **This month:** the `RutTrajectory` direction.
+  - **Your handwriting:** `InferredReaderSignals` (specificity, self-similarity, range, sentence length, variety, questions, novelty), with the Curse's fingerprints and the reader's wins shown side by side.
+  - **In my own pages:** `BookFamiliarityRutEngine`'s rote signs, which are what let the Curse take Pages.
+
+  Distress hides all of it.
+- **Doctrine change.** Inferred evidence still never makes the Book *say* "you're in a rut" in its own Pages. It is shown on the private Sheet as measured receipts, wins included.

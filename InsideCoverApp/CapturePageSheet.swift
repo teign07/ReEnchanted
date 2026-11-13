@@ -9729,11 +9729,17 @@ struct CapturePageSheet: View {
     /// Everything the Knocks have taught the Book about the Curse: when,
     /// where, in what weather, how the phone was held, and the reader's own
     /// words from inside the grey. Drawn in the sheet's ruled rows.
+    ///
+    /// The Knock findings are read live; the rest of the evidence (night one,
+    /// loudness, the month, handwriting, the Book going rote) was gathered
+    /// when the Page was dealt, while the whole archive was to hand.
     @ViewBuilder
     private var readerSheetCurseFile: some View {
         let dossier = CurseDossier.build(PlayerVault.shared.data.attentionProbes ?? .empty)
-        if dossier.isReady {
-            readerSheetStandingView(ReaderSheetStanding(rows: dossier.findings.map { finding in
+        let evidence = CurseEvidence.decoded(surface.payload.metadata[CurseEvidence.metadataKey])
+        let findings = evidence + (dossier.isReady ? dossier.findings : [])
+        if !findings.isEmpty {
+            readerSheetStandingView(ReaderSheetStanding(rows: findings.map { finding in
                 ReaderSheetStanding.Row(
                     id: "curse-\(finding.id)",
                     label: finding.label,
@@ -9742,9 +9748,10 @@ struct CapturePageSheet: View {
                     symbol: finding.symbol
                 )
             }))
-        } else {
+        }
+        if !dossier.isReady {
             ceremonyFindingCard(
-                title: "Not enough yet",
+                title: "The Knocks have more to tell",
                 text: dossier.waitingLine,
                 symbol: "cloud.fog",
                 tint: LeafInk.gold

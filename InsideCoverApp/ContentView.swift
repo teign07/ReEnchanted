@@ -14024,6 +14024,7 @@ struct ContentView: View {
         let rutBeforeKeeping = NothingTide.rutAssessment(
             selfFacts: selfFacts,
             inferredSignals: vault.data.inferredSignals ?? .unwritten,
+            attentionProbes: vault.data.attentionProbes ?? .empty,
             distressActive: false,
             now: keptAt
         )

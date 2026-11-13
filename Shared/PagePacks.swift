@@ -2449,7 +2449,7 @@ struct ReaderSheetStanding: Equatable {
 /// finding is reported when the Curse's share there beats its share overall,
 /// with the counts beside it so the reader can judge it themselves.
 struct CurseDossier: Equatable {
-    struct Finding: Equatable, Identifiable {
+    struct Finding: Codable, Equatable, Identifiable {
         var id: String
         var label: String
         var value: String
@@ -2712,6 +2712,219 @@ struct CurseDossier: Equatable {
             line: "When it has you, you answer my Knock about \(greyMinutes) minutes late. Otherwise it's about \(otherMinutes).",
             symbol: "hourglass"
         )
+    }
+}
+
+/// The rest of the Curse's file: evidence that isn't a Knock. What the reader
+/// told the Book the day they met, how loud the Rut is now and which way it's
+/// heading, what their own handwriting has been doing, and whether the Curse
+/// has started getting into the Book's own pages.
+///
+/// Under distress the Rut doesn't exist (NothingTide rule 1), so none of it
+/// is shown. Everything else is the reader's own, private, and shown with its
+/// evidence, so the Book can sound telepathic without ever accusing.
+enum CurseEvidence {
+    static func findings(
+        selfFacts: [SelfFact],
+        rut: NothingTide.RutAssessment,
+        trajectory: RutTrajectory,
+        rote: BookFamiliarityRutEngine.Assessment,
+        handwriting: InferredReaderSignals,
+        distressActive: Bool
+    ) -> [CurseDossier.Finding] {
+        guard !distressActive else { return [] }
+        var findings: [CurseDossier.Finding] = []
+        if let nightOne = nightOne(selfFacts) { findings.append(nightOne) }
+        findings.append(loudness(rut))
+        if let trend = trend(trajectory) { findings.append(trend) }
+        if let ink = handwritingFinding(handwriting) { findings.append(ink) }
+        if let rote = roteFinding(rote) { findings.append(rote) }
+        return findings
+    }
+
+    /// The day we met: the bumper-sticker test and where the reader said the
+    /// Rut is strongest. Both are saved at onboarding as Self Facts.
+    static func nightOne(_ facts: [SelfFact]) -> CurseDossier.Finding? {
+        let usable = facts.filter { $0.usePermission != .doNotUse }
+        let recall = usable.first { $0.questionID == "onboarding-routine-memory-proof" }
+        let strongest = usable.first { $0.questionID == "onboarding-rut-strongest" }?.answer.nonEmpty
+        let remembered: Int? = recall.flatMap { fact in
+            let tag = fact.tags.first { $0.hasPrefix("routine-memory:") }
+            switch tag.map({ String($0.dropFirst("routine-memory:".count)) }) {
+            case "blank"?: return 0
+            case "result"?: return 1
+            case "islands"?: return 2
+            case "full"?: return 3
+            default: return nil
+            }
+        }
+        guard remembered != nil || strongest != nil else { return nil }
+        let value: String
+        if let remembered {
+            let lost = 3 - remembered
+            value = lost == 0 ? "It took nothing" : (lost == 3 ? "It had taken all 3" : "It had taken \(lost) of 3")
+        } else {
+            value = "You named it"
+        }
+        var line = remembered.map { r -> String in
+            r == 3
+                ? "You remembered all three small things from your last ordinary trip. You made it awkward for me."
+                : "Three small things from your last ordinary trip, and \(3 - r == 1 ? "one" : "\(3 - r)") had already gone grey before you'd ever met me."
+        } ?? ""
+        if let strongest {
+            line += (line.isEmpty ? "" : " ") + "You told me where it's strongest: \u{201C}\(strongest)\u{201D}"
+        }
+        return CurseDossier.Finding(
+            id: "night-one",
+            label: "The day we met",
+            value: value,
+            line: line,
+            symbol: "moon.stars"
+        )
+    }
+
+    /// How loud the Rut is now, by everything the reader has reported:
+    /// the check-in question, a Rut signal they recognised, and the Knocks.
+    static func loudness(_ rut: NothingTide.RutAssessment) -> CurseDossier.Finding {
+        let value: String
+        switch rut.pressure {
+        case ...0: value = "Quiet"
+        case 1: value = "At the edges"
+        case 2: value = "In the margins"
+        default: value = "At the desk"
+        }
+        var heard: [String] = []
+        if rut.evidence.contains("knock-reported-grey") { heard.append("your Knocks") }
+        if rut.evidence.contains("current-reader-rut-report") { heard.append("what you told me") }
+        if rut.evidence.contains("reader-recognized-rut-signal") { heard.append("the line you said was you") }
+        if rut.evidence.contains(where: { $0.hasPrefix("inferred:") }) { heard.append("how you've been writing") }
+        let line = heard.isEmpty
+            ? "It's always somewhere. Everyone has it a little. That's where it starts."
+            : "I can hear it in \(Self.joined(heard)). This is how hard I'm pushing back with the Pages I pick."
+        return CurseDossier.Finding(id: "loudness", label: "How loud it is", value: value, line: line, symbol: "speaker.wave.2")
+    }
+
+    static func trend(_ trajectory: RutTrajectory) -> CurseDossier.Finding? {
+        let value: String
+        let line: String
+        switch trajectory.direction {
+        case .notEnoughEvidence:
+            return nil
+        case .deepening:
+            value = "Deepening"
+            line = "It's been louder than it was a month ago. That's a stretch of weather, not a verdict. Let's go and be particular somewhere."
+        case .easing:
+            value = "Easing"
+            line = "It's quieter than it was a month ago. Something you've been doing is working."
+        case .standing:
+            value = "Holding"
+            line = trajectory.daysAtCurrentLevel > 0
+                ? "About the same for \(trajectory.daysAtCurrentLevel) day\(trajectory.daysAtCurrentLevel == 1 ? "" : "s") now."
+                : "About the same as a month ago."
+        }
+        return CurseDossier.Finding(id: "trend", label: "This month", value: value, line: line, symbol: "chart.line.uptrend.xyaxis")
+    }
+
+    /// The reader's own handwriting, read the way the Rut is defined: as
+    /// flattening, never as heaviness. Wins are shown as plainly as losses.
+    static func handwritingFinding(_ signals: InferredReaderSignals) -> CurseDossier.Finding? {
+        guard signals.isReady else { return nil }
+        let flat = signals.signals.filter { $0.lean == .rutward }.compactMap { flatPhrase($0.measure) }
+        let alive = signals.signals.filter { $0.lean == .aliveward }.compactMap { alivePhrase($0.measure) }
+        guard !flat.isEmpty || !alive.isEmpty else { return nil }
+        let value: String
+        switch signals.alivenessLean {
+        case .rutward: value = "Flattening"
+        case .aliveward: value = "Alive"
+        case .neutral: value = "Mixed"
+        }
+        var parts: [String] = []
+        if !flat.isEmpty { parts.append("The Curse's fingerprints: \(Self.joined(flat)).") }
+        if !alive.isEmpty { parts.append("Yours: \(Self.joined(alive)).") }
+        parts.append("That's your last two weeks against the two before.")
+        return CurseDossier.Finding(id: "handwriting", label: "Your handwriting", value: value, line: parts.joined(separator: " "), symbol: "pencil.and.scribble")
+    }
+
+    static func flatPhrase(_ measure: InferredMeasure) -> String? {
+        switch measure {
+        case .specificity: return "fewer names, places and numbers"
+        case .selfSimilarity: return "days reading more alike"
+        case .lexicalRange: return "a narrower set of words"
+        case .sentenceLength: return "shorter sentences"
+        case .variety: return "fewer kinds of Page and place"
+        case .questionAsking, .novelty: return nil
+        }
+    }
+
+    static func alivePhrase(_ measure: InferredMeasure) -> String? {
+        switch measure {
+        case .specificity: return "more names, places and numbers"
+        case .variety: return "more kinds of Page and place"
+        case .questionAsking: return "more questions"
+        case .novelty: return "new places and new kinds of Page"
+        case .selfSimilarity, .lexicalRange, .sentenceLength: return nil
+        }
+    }
+
+    /// The Book going rote itself: the Curse in the Book's own pages. Rote is
+    /// what lets it start taking Pages, so the reader is shown why.
+    static func roteFinding(_ rote: BookFamiliarityRutEngine.Assessment) -> CurseDossier.Finding? {
+        let signs = rote.evidence.compactMap(rotePhrase)
+        switch rote.phase {
+        case .clear:
+            return nil
+        case .familiar where signs.isEmpty:
+            return nil
+        case .familiar:
+            return CurseDossier.Finding(
+                id: "rote", label: "In my own pages", value: "Sniffing around",
+                line: "I can feel it at my edges: \(Self.joined(signs)). Not enough for it to take a Page yet.",
+                symbol: "book.closed"
+            )
+        case .rote:
+            let said = Self.joined(signs)
+            let opening = said.isEmpty
+                ? "It's in how we've been going on together"
+                : said.prefix(1).uppercased() + String(said.dropFirst())
+            return CurseDossier.Finding(
+                id: "rote", label: "In my own pages", value: "It's got into me",
+                line: "\(opening). That's why it can take Pages now. Surprise me and it loses its grip.",
+                symbol: "book.closed"
+            )
+        }
+    }
+
+    static func rotePhrase(_ evidence: String) -> String? {
+        switch evidence {
+        case "reader-language-flattened": return "your souvenirs have gone shorter and plainer"
+        case "session-hours-became-uniform": return "you open me at the same hours every day"
+        case "knock-latency-became-reflexive": return "you answer my Knocks without looking"
+        case "previous-correction-went-quiet": return "you've stopped correcting me"
+        case "formerly-used-plain-page-went-untouched": return "the plain Page you used to write on has gone untouched"
+        case "memory-of-the-book-went-grey": return "you couldn't remember what I'd written you"
+        default: return nil
+        }
+    }
+
+    /// "a, b and c"
+    static func joined(_ items: [String]) -> String {
+        guard items.count > 1 else { return items.first ?? "" }
+        return items.dropLast().joined(separator: ", ") + " and " + (items.last ?? "")
+    }
+
+    // MARK: Carried on the Page
+
+    static let metadataKey = "curseEvidence"
+
+    static func encoded(_ findings: [CurseDossier.Finding]) -> String? {
+        guard !findings.isEmpty, let data = try? JSONEncoder().encode(findings) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func decoded(_ text: String?) -> [CurseDossier.Finding] {
+        guard let data = text?.data(using: .utf8),
+              let findings = try? JSONDecoder().decode([CurseDossier.Finding].self, from: data) else { return [] }
+        return findings
     }
 }
 

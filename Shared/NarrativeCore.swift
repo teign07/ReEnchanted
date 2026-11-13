@@ -5798,10 +5798,29 @@ enum NothingTide {
         rutAssessment(
             selfFacts: inputs.selfFacts,
             inferredSignals: inputs.inferredSignals,
+            attentionProbes: inputs.attentionProbes,
             distressActive: distressActive,
             now: now,
             calendar: calendar
         )
+    }
+
+    /// A Grey answer to a Knock is the reader reporting the Rut in the moment,
+    /// which is exactly the evidence rule 3 asks for. Over the last fortnight,
+    /// with enough answers to mean something, half or more grey is the Rut in
+    /// the margins and seven in ten is the Rut at the desk. Nil when the
+    /// Knocks don't say enough, so they never pull a reader's own report down.
+    static let knockWindowDays = 14
+    static let knockMinimumAnswers = 6
+
+    static func knockReportedPressure(_ ledger: AttentionProbeLedger, now: Date) -> Int? {
+        let window = TimeInterval(knockWindowDays) * 86_400
+        let recent = ledger.receipts.filter { $0.answeredAt <= now && now.timeIntervalSince($0.answeredAt) < window }
+        guard recent.count >= knockMinimumAnswers else { return nil }
+        let share = Double(recent.filter { $0.answer == .elsewhere }.count) / Double(recent.count)
+        if share >= 0.7 { return 3 }
+        if share >= 0.5 { return 2 }
+        return nil
     }
 
     /// The Rut reads only explicit Self Facts plus the narrow inferred-signals
@@ -5811,6 +5830,7 @@ enum NothingTide {
     static func rutAssessment(
         selfFacts: [SelfFact],
         inferredSignals: InferredReaderSignals,
+        attentionProbes: AttentionProbeLedger = .empty,
         distressActive: Bool,
         now: Date = Date(),
         calendar: Calendar = .current
@@ -5845,11 +5865,14 @@ enum NothingTide {
             $0.questionID == "rut-signal" || $0.questionID == "rut-season"
         }
 
+        let knockPressure = knockReportedPressure(attentionProbes, now: now)
+
         var evidence = ["ordinary-life-prior"]
         if depth != nil { evidence.append("current-reader-rut-report") }
         if recognizedRut { evidence.append("reader-recognized-rut-signal") }
+        if knockPressure != nil { evidence.append("knock-reported-grey") }
 
-        let reported = max(1, max(reportedPressure, recognizedRut ? 2 : 0))
+        let reported = max(1, max(reportedPressure, recognizedRut ? 2 : 0, knockPressure ?? 0))
 
         // Behaviour may lean the working pressure by a single capped step:
         // never below the ordinary-life floor, never into the top band, and
@@ -5864,7 +5887,7 @@ enum NothingTide {
         return RutAssessment(
             pressure: working,
             reportedPressure: reported,
-            mayNameRut: reportedPressure >= 2 || recognizedRut,
+            mayNameRut: reportedPressure >= 2 || recognizedRut || (knockPressure ?? 0) >= 2,
             evidence: evidence
         )
     }

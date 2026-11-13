@@ -160,4 +160,108 @@ final class ReaderSheetTests: XCTestCase {
         XCTAssertNil(dossier.findings.first { $0.id == "place" })
         XCTAssertNil(dossier.findings.first { $0.id == "day-part" })
     }
+
+    // MARK: The Rut hears the Knocks
+
+    private func knocks(grey: Int, of total: Int) -> AttentionProbeLedger {
+        var ledger = AttentionProbeLedger.empty
+        for index in 0..<total {
+            let at = now.addingTimeInterval(-Double(index + 1) * 20 * 3600)
+            ledger.record(id: "r\(index)", scheduledAt: at, answeredAt: at.addingTimeInterval(60),
+                          answer: index < grey ? .elsewhere : .here, cycle: 0)
+        }
+        return ledger
+    }
+
+    func testAGreyFortnightRaisesTheRutAndLetsItBeNamed() {
+        var inputs = BookSourceInputs.empty
+        inputs.attentionProbes = knocks(grey: 6, of: 10)
+        let margins = NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now)
+        XCTAssertEqual(margins.pressure, 2)
+        XCTAssertEqual(margins.reportedPressure, 2)
+        XCTAssertTrue(margins.mayNameRut)
+        XCTAssertTrue(margins.evidence.contains("knock-reported-grey"))
+
+        inputs.attentionProbes = knocks(grey: 8, of: 10)
+        XCTAssertEqual(NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now).reportedPressure, 3)
+
+        inputs.attentionProbes = knocks(grey: 2, of: 10)
+        let light = NothingTide.rutAssessment(inputs: inputs, distressActive: false, now: now)
+        XCTAssertEqual(light.reportedPressure, 1, "a good fortnight never pulls a reader's own report down, nor adds")
+        XCTAssertFalse(light.mayNameRut)
+
+        inputs.attentionProbes = knocks(grey: 4, of: 4)
+        XCTAssertNil(NothingTide.knockReportedPressure(inputs.attentionProbes, now: now), "too few answers to say")
+
+        inputs.attentionProbes = knocks(grey: 10, of: 10)
+        XCTAssertEqual(NothingTide.rutAssessment(inputs: inputs, distressActive: true, now: now).pressure, 0,
+                       "under distress the Rut does not exist")
+    }
+
+    // MARK: The rest of the Curse's file
+
+    private func fact(_ questionID: String, answer: String, tags: [String]) -> SelfFact {
+        SelfFact(id: questionID, questionID: questionID, question: "Q", answer: answer, bookTranslation: answer,
+                 sensitivity: .delight, usePermission: .privateContext, tags: tags, createdAt: now, updatedAt: now)
+    }
+
+    private func evidence(facts: [SelfFact] = [], rote: BookFamiliarityRutEngine.Assessment? = nil,
+                          signals: InferredReaderSignals = .unwritten, distress: Bool = false) -> [CurseDossier.Finding] {
+        CurseEvidence.findings(
+            selfFacts: facts,
+            rut: NothingTide.RutAssessment(pressure: 2, reportedPressure: 2, mayNameRut: true,
+                                           evidence: ["ordinary-life-prior", "knock-reported-grey"]),
+            trajectory: .unwritten,
+            rote: rote ?? BookFamiliarityRutEngine.Assessment(phase: .clear, flatteningScore: 0, evidence: []),
+            handwriting: signals,
+            distressActive: distress
+        )
+    }
+
+    func testNightOneOpensTheFile() throws {
+        let findings = evidence(facts: [
+            fact("onboarding-routine-memory-proof", answer: "I mostly remember arriving",
+                 tags: ["rut-proof", "routine-memory:result"]),
+            fact("onboarding-rut-strongest", answer: "My phone eats the edges", tags: ["rut-of-routine"])
+        ])
+        let night = try XCTUnwrap(findings.first)
+        XCTAssertEqual(night.id, "night-one")
+        XCTAssertEqual(night.value, "It had taken 2 of 3")
+        XCTAssertTrue(night.line.contains("My phone eats the edges"))
+        XCTAssertEqual(findings.first { $0.id == "loudness" }?.value, "In the margins")
+        XCTAssertTrue(findings.first { $0.id == "loudness" }?.line.contains("your Knocks") ?? false)
+    }
+
+    func testHandwritingShowsTheCursesFingerprintsAndYourWins() throws {
+        let signals = InferredReaderSignals(
+            signals: [
+                InferredSignal(measure: .specificity, lean: .rutward, strength: 2, recentSampleCount: 9, priorSampleCount: 9),
+                InferredSignal(measure: .sentenceLength, lean: .rutward, strength: 1, recentSampleCount: 9, priorSampleCount: 9),
+                InferredSignal(measure: .questionAsking, lean: .aliveward, strength: 1, recentSampleCount: 9, priorSampleCount: 9)
+            ],
+            computedAt: now,
+            isReady: true
+        )
+        let ink = try XCTUnwrap(evidence(signals: signals).first { $0.id == "handwriting" })
+        XCTAssertEqual(ink.value, "Mixed")
+        XCTAssertTrue(ink.line.contains("fewer names, places and numbers"))
+        XCTAssertTrue(ink.line.contains("more questions"))
+    }
+
+    func testTheBookGoingRoteIsShownWithItsSigns() throws {
+        let rote = BookFamiliarityRutEngine.Assessment(
+            phase: .rote, flatteningScore: 4,
+            evidence: ["reader-language-flattened", "knock-latency-became-reflexive"]
+        )
+        let finding = try XCTUnwrap(evidence(rote: rote).first { $0.id == "rote" })
+        XCTAssertEqual(finding.value, "It's got into me")
+        XCTAssertTrue(finding.line.hasPrefix("Your souvenirs have gone shorter"))
+    }
+
+    func testDistressSilencesTheWholeFileAndEvidenceSurvivesThePage() {
+        XCTAssertTrue(evidence(distress: true).isEmpty)
+        let findings = evidence()
+        XCTAssertEqual(CurseEvidence.decoded(CurseEvidence.encoded(findings)), findings)
+        XCTAssertTrue(CurseEvidence.decoded(nil).isEmpty)
+    }
 }
