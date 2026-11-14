@@ -118,17 +118,25 @@ with each talisman lost.
 
 ## Act III — The Mercy of Thorne (the nadir)
 
-Headmistress Seraphina Thorne, unseelie, *"would keep you safe by keeping you
+Headmistress Seraphina Thorne: Unseelie, and secretly Duskthorn (lore bible
+§7). Everyone in the Academy believes she *"would keep you safe by keeping you
 in the dark and call it mercy."* She has been waiting for this the whole time.
 
-She seals the Book for the reader's protection. The app becomes precisely the
+She seals the Book "for the reader's protection." The app becomes precisely the
 thing the reader feared it was: pleasant, smooth, generated, safe. Content with
 no world behind it. The Bleed prints one dull page. The radio plays one loop.
 The desk offers three inoffensive pages that could have come from anywhere.
 
-**Duskthorn is barred too.** The reader loses even their enemy. That is the
-deepest cut available and it is the true bottom: not pain, but the total
-absence of friction. The punishment for going numb is that the app goes numb.
+**Duskthorn falls silent too.** The reader seems to lose even their enemy. That
+is the deepest cut available and it is the true bottom: not pain, but the total
+absence of friction, the Curse's ideal world delivered whole. The punishment for
+going numb is that the app goes numb.
+
+**What the seal really is** (never confirmed in the fiction): Thorne's
+Duskthorn move. She hands the reader the grey in full so they can feel what it
+costs, and she silences Duskthorn's open voice because from here the conflict
+has to be the reader's own. The mercy is the mask; the cost is the point. A
+careful reader may guess; nothing in the app may say it.
 
 Two rules for this act:
 
@@ -157,7 +165,9 @@ onboarding cost, and it works for a reader who has never heard of any of this:
 The reader has been paying dues to five beliefs for months without knowing it.
 
 **At the bottom, the five Chapters audit their own ledgers and find the reader
-in credit.** They break Thorne's seal. And it costs:
+in credit.** They break Thorne's seal. It gives way first at the Dusk Thorn
+ledger, the heavy days the reader kept anyway, because it was built to. Thorne
+isn't surprised, and says nothing. And it costs:
 
 - The Cast who move are specifically the ones the reader was kind to, named
   with the dates.

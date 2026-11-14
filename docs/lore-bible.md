@@ -266,11 +266,12 @@ fondly, with a full stop they will come to regret.
 ### The Faculty
 
 **Headmistress Seraphina Thorne** — Runs the Academy, or closer: keeps it from
-noticing how alive it is. *"Elegant the way a locked door is elegant: you admire
+ever getting comfortable. *"Elegant the way a locked door is elegant: you admire
 the workmanship, then wonder what it is for."* Old-court frost under the grace.
-**Canon: she is secretly Unseelie.** The Unseelie keep their bargains in the
-architecture. **Fault, and the hinge of the whole year-arc:** *she will hide a
-peril to spare you and call the hiding mercy.* Star-dark key that fits no known
+**Canon: she is secretly Unseelie, and secretly Duskthorn.** The Unseelie keep
+their bargains in the architecture. **Fault, and the turn of the whole year-arc:**
+*she will hand you a peril to save you from the grey, and call it mercy so you
+never learn she chose it.* Star-dark key that fits no known
 lock; hairpin worn like a small crown.
 
 **Professor Permancer** — Book Jumping. Asks a door where it leads before he
@@ -610,10 +611,8 @@ architecture and Duskthorn's long game: stakes, so the Academy's stories, and
 the reader's, never go numb. Never state the Duskthorn secret outright; let a
 careful reader catch it.
 
-*Open:* Act III in §8.4 ("The Mercy of Thorne") and her Cast entry's fault
-("she will hide a peril to spare you and call the hiding mercy") were written
-for the older Thorne, whose weapon was comfort. They need re-reading in this
-light.
+Her move in the year-arc is Act III's seal (§8.4): she hands the reader the
+grey in full and calls it mercy, so the conflict becomes theirs.
 
 ---
 
@@ -880,12 +879,21 @@ Alongside: the world moves on without them, Cast members go quiet (withdrawn,
 not rested), and the Book's own voice degrades — shorter, flatter, more generic
 with each talisman lost.
 
-**Act III — The Mercy of Thorne.** The Headmistress seals the Book *for the
-reader's protection*, and the app becomes precisely the thing the reader feared
-it was: pleasant, smooth, generated, safe. **Duskthorn is barred too — the
-reader loses even their enemy.** The punishment for going numb is that the app
-goes numb. Two rules: **days, not minutes**, and **no visible path out** — any
-exit puzzle turns a defeat into a mechanic.
+**Act III — The Mercy of Thorne.** The Headmistress seals the Book *"for the
+reader's protection,"* and the app becomes precisely the thing the reader feared
+it was: pleasant, smooth, generated, safe. The whole Academy reads it as mercy.
+**Duskthorn falls silent too, and the reader seems to lose even their enemy.**
+The bottom isn't pain; it's the total absence of friction, the Curse's ideal
+world delivered whole. The punishment for going numb is that the app goes numb.
+
+*What only a careful reader may guess:* the seal is Thorne's Duskthorn move, not
+her mercy. She hands the reader the grey in full so they can feel exactly what
+it costs, and she silences Duskthorn's open voice because from here the
+conflict has to be the reader's own. The mercy is the mask; the cost is the
+point. The fiction never confirms it.
+
+Two rules: **days, not minutes**, and **no visible path out**. Any exit puzzle
+turns a defeat into a mechanic.
 
 **Act IV — The Turning.** The mechanism is **banked mercy**. The entire archive
 is read retroactively and every kept page scored as attention deposited into one
@@ -895,7 +903,8 @@ reader's own plain sentences → Ember Seal; pages kept on days they marked heav
 → Dusk Thorn. **The reader has been paying dues for months without knowing it.**
 
 The five Chapters audit their ledgers, find the reader in credit, and break
-Thorne's seal. And it costs: **at least one Cast member is lost permanently
+Thorne's seal. It gives way first at the Dusk Thorn ledger, the heavy days the
+reader kept anyway; it was built to. Thorne isn't surprised, and says nothing. And it costs: **at least one Cast member is lost permanently
 doing it**, kept as a plate in the Pocket, never speaking again. *Without a
 casualty the turn is a pamper, and the reader will know.* Talismans return only
 where the deposits cover them. Duskthorn returns last, owing nothing:
