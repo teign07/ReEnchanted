@@ -67,7 +67,8 @@ convert to RGB, then `upload_screenshots.py`. Accepted sizes: iPhone 6.9"
 - Builds 1–8 are VALID on TestFlight for "The Bindery" (internal). Build 7 =
   `4f6e395a`; build 8 = `45744c9d` (NEW PAGE flag beside the title, "this iPad"
   on iPad, the Book asks before iOS's location and calendar prompts).
-- **Build 8 is attached to version 1.0** (PREPARE_FOR_SUBMISSION).
+- **Version 1.0 (build 8) was submitted for App Review on 2026-11-14 by bj.**
+  Release is MANUAL: approval does not publish it; bj presses Release.
 - External TestFlight group "Early Readers" (public link on, capped at 1,000;
   the link is in App Store Connect, kept out of this public repo). Build 8 was
   submitted to Beta App Review on 2026-11-14 with the same contact and notes;
