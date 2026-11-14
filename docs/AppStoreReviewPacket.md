@@ -86,7 +86,7 @@ Privacy answers live in `docs/AppPrivacyInventory.md`; payment go-live lives in
 ## Suggested App Review notes
 
 Paste into App Store Connect → App Review Information → Notes (and TestFlight →
-Test Information → Beta App Review notes). Updated 2026-11-08.
+Test Information → Beta App Review notes). Updated 2026-11-14.
 
 > ReEnchanted is a free, local-first journal that answers back as a living book.
 > Everything the reader writes stays on the device. There is no account, no
@@ -95,7 +95,7 @@ Test Information → Beta App Review notes). Updated 2026-11-08.
 > **Printed books.** Readers can order printed books of their own pages. These
 > are physical goods printed and mailed by Lulu and paid with Stripe (Guideline
 > 3.1.3(e)); nothing digital is sold. In this build paper ordering is closed:
-> the Bookshop (Glow menu → Bookshop) says "Paper opens soon", and no payment
+> the Bookshop (Contents → The Bookshop) says "Paper opens soon", and no payment
 > can be started. Making a PDF of your own pages is free and works.
 >
 > **The on-device model.** An optional ~3.5 GB download (Gemma, from Hugging
@@ -104,15 +104,17 @@ Test Information → Beta App Review notes). Updated 2026-11-08.
 > can tap "Not yet" and keep writing.
 >
 > **Let's Chat** is a conversation with that on-device model. Nothing typed
-> there leaves the phone. Every conversation says the replies come from an AI
+> there leaves the device. Every conversation says the replies come from an AI
 > model and can be wrong; holding a reply offers "Erase this reply" and
 > "Report it" (a pre-filled email to hello@reenchanted.app that the reader
 > chooses to send).
 >
 > **Permissions** are each requested from a visible action, with the reason
 > said first: HealthKit (optional Body Pages, read only, no diagnosis or
-> advice), Location (weather), Photos and Camera (pictures on pages), Microphone
-> and Speech (dictation), Calendar and Reminders (optional), Notifications
+> advice), Location (where a kept page happened, and its weather; the Book asks
+> in its own words before iOS does), Photos and Camera (pictures on pages),
+> Microphone and Speech (dictation), Calendar (the Book asks before iOS does)
+> and Reminders (optional), Notifications
 > (off by default), Face ID (optional lock). Everything works with every
 > permission denied.
 >

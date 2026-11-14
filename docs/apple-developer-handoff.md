@@ -62,15 +62,16 @@ convert to RGB, then `upload_screenshots.py`. Accepted sizes: iPhone 6.9"
 - Upload validation fails without `NSHealthUpdateUsageDescription` (present now).
 - `ITSAppUsesNonExemptEncryption = NO` is a build setting; don't add it to Info.plist.
 
-## State on 2026-11-09
+## State on 2026-11-14
 
-- Builds 1–5 are VALID on TestFlight for "The Bindery" (internal). Build 4 =
-  `0b730d4f`. Build 5 was uploaded 2026-11-09 by another session: ask bj (or
-  check the Wire) which commit it came from before using it.
-- Version 1.0 is PREPARE_FOR_SUBMISSION with **no build attached**. The build sent
-  to review must include `eed985a2` (the Book asks "Can I write down where we
-  are?" before iOS's location prompt on the first keep). App Review would flag the
-  old behavior.
+- Builds 1–8 are VALID on TestFlight for "The Bindery" (internal). Build 7 =
+  `4f6e395a`; build 8 = `45744c9d` (NEW PAGE flag beside the title, "this iPad"
+  on iPad, the Book asks before iOS's location and calendar prompts).
+- **Build 8 is attached to version 1.0** (PREPARE_FOR_SUBMISSION).
+- Review notes are NOT set: the API refuses `notes` unless the contact name,
+  phone and email come in the same request, and those are bj's to enter.
+  Paste-ready text: `marketing/app-review-notes.txt` (from
+  `docs/AppStoreReviewPacket.md`).
 - Listing text, keywords, category and age rating are in; source of truth is
   `docs/app-store-listing.md`. Screenshots: 10 iPhone + 5 iPad, all COMPLETE.
 - Availability: free in all 175 territories, EU included. Paper (printed books)
@@ -86,19 +87,18 @@ bj's to click (legal attestations and personal contact details; agents don't do 
 
 1. Publish App Privacy in App Store Connect.
 2. EU DSA declaration: "not a trader" (redo it before paper ever ships to the EU).
-3. App Review contact (name, phone, email), then paste the notes from
-   `docs/AppStoreReviewPacket.md` (the Location row changed on 2026-11-09).
+3. App Review contact (name, phone with +country code, email), then paste
+   `marketing/app-review-notes.txt` into Notes. Sign-in required: no.
 4. Content rights declaration (not set yet), and a final look at the age rating.
-5. Pick the build, then Submit for Review. External TestFlight also needs Beta App
+5. Submit for Review (build 8 is already picked). External TestFlight also needs Beta App
    Review contact info.
 6. Before paper goes live: lawyer check on Washington's health-data law; Codex's
    live Stripe/Lulu cutover (Wire thread "Codex: take print checkout live").
 
 Agent-sized, ask bj first:
 
-- Upload a build from current main if build 5 predates `eed985a2`.
-- Builds 1–7 exist; build 7 = `4f6e395a`. Fixed after it (2026-11-14): the "NEW PAGE" flag no longer covers
-  leaf titles, the Book says "this iPad" on iPad, and the Bleed asks before iOS's location prompt.
+- A new build only if something changes before review; attach it to 1.0 with
+  `PATCH /v1/appStoreVersions/<id>/relationships/build`.
 
 ## House rules that bite here
 
