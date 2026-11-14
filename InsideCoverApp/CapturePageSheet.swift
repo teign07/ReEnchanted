@@ -6715,7 +6715,7 @@ struct CapturePageSheet: View {
 
             // Said plainly once per conversation: these replies are written by
             // an AI model on this phone, and they can miss.
-            Label("My replies come from an AI model that lives on this phone. I can be wrong, or strange. Hold a reply to erase it or report it.",
+            Label("My replies come from an AI model that lives on this \(BookDevice.noun). I can be wrong, or strange. Hold a reply to erase it or report it.",
                   systemImage: "sparkles")
                 .font(.caption2)
                 .foregroundStyle(openPageSecondaryText)

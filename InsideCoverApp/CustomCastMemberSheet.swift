@@ -201,7 +201,7 @@ struct CustomCastMemberSheet: View {
             BookCameraCaptureView { data in
                 withAnimation(BookMotion.result(reduceMotion)) {
                     imageData = data
-                    imageMessage = "Photo taken. I'll keep a private copy on this phone."
+                    imageMessage = "Photo taken. I'll keep a private copy on this \(BookDevice.noun)."
                     photoRevision += 1
                 }
             }
@@ -302,7 +302,7 @@ struct CustomCastMemberSheet: View {
         }
         withAnimation(BookMotion.result(reduceMotion)) {
             imageData = data
-            imageMessage = "Photo chosen. I'll keep a private copy on this phone."
+            imageMessage = "Photo chosen. I'll keep a private copy on this \(BookDevice.noun)."
             photoRevision += 1
         }
     }

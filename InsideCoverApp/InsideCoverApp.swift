@@ -62,6 +62,12 @@ struct InsideCoverApp: App {
         #if DEBUG
         LaunchFrameProbe.startIfRequested()
         #endif
+        // What the Book calls the device it lives on ("lives on this iPad").
+        if ProcessInfo.processInfo.isiOSAppOnMac {
+            BookDevice.noun = "Mac"
+        } else if UIDevice.current.userInterfaceIdiom == .pad {
+            BookDevice.noun = "iPad"
+        }
         // Before anything reads the disk: a confirmed moving copy takes its place.
         BookMovingCopy.finishPendingRestore()
         guard !BookMovingCopy.recoveryIsRequired else { return }

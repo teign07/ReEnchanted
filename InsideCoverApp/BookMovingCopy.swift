@@ -206,7 +206,7 @@ enum BookMovingCopy {
     @MainActor
     static func offerRestore(from pickedURL: URL, report: @escaping (String) -> Void) {
         let alert = UIAlertController(
-            title: "Replace the Book on this phone?",
+            title: "Replace the Book on this \(BookDevice.noun)?",
             message: "Everything written here gives way to the Book in this copy. It can't be undone.",
             preferredStyle: .alert
         )
@@ -325,7 +325,7 @@ enum BookMovingCopy {
         try? await Task.sleep(nanoseconds: 1_500_000_000)
         let alert = UIAlertController(
             title: "I couldn't move in.",
-            message: "The Book on this phone is as it was. \(reason)",
+            message: "The Book on this \(BookDevice.noun) is as it was. \(reason)",
             preferredStyle: .alert
         )
         alert.addAction(UIAlertAction(title: "OK", style: .default))

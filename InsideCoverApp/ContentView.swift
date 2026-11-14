@@ -22876,7 +22876,7 @@ struct ContentView: View {
             // Asking again on every return would only say the same thing.
             LocalBrainInstallIntent.clear()
             installMessage = String(
-                format: "My brain won't fit. It needs %.1f GB of room and this phone has %.1f GB spare. Clear some space and press the button, and we'll go again.",
+                format: "My brain won't fit. It needs %.1f GB of room and this \(BookDevice.noun) has %.1f GB spare. Clear some space and press the button, and we'll go again.",
                 Double(neededBytes) / 1_000_000_000,
                 Double(availableBytes) / 1_000_000_000
             )

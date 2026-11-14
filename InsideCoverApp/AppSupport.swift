@@ -4520,8 +4520,8 @@ enum KeepPlaceAsk {
         #endif
     }
 
-    static func isResting(now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
-        let declinedAt = defaults.double(forKey: declinedAtKey)
+    static func isResting(key: String = declinedAtKey, now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
+        let declinedAt = defaults.double(forKey: key)
         guard declinedAt > 0 else { return false }
         return now.timeIntervalSince1970 - declinedAt < rest
     }
@@ -4531,17 +4531,34 @@ enum KeepPlaceAsk {
 
     /// Shows the Book's question once the keep has settled, and reports the
     /// reader's answer. True means: go on, let iOS ask.
+    /// The Bleed's weather box asks the same question its own way, when the
+    /// reader opens the paper and the sky isn't known yet.
+    static let paperTitle = "Can I put your sky in the paper?"
+    static let paperMessage = "The paper has a weather box. To fill it with your real sky I need to know roughly where you are. iOS will ask you next. Say no and the box stays empty."
+
+    /// The Bleed's timetable asks for the calendar the same way, once.
+    static let calendarTitle = "Can your appointments go in the paper?"
+    static var calendarMessage: String {
+        "Penny prints a little timetable of your day. To fill it I'd read your calendar. Nothing leaves this \(BookDevice.noun). iOS will ask you next. Say no and the timetable stays blank."
+    }
+    static let calendarDeclinedAtKey = "bleedCalendarAskDeclinedAt"
+
     @MainActor
-    static func offer() async -> Bool {
+    static func offer(
+        title: String = KeepPlaceAsk.title,
+        message: String = KeepPlaceAsk.message,
+        after delay: Duration = .seconds(1.2),
+        restKey: String = KeepPlaceAsk.declinedAtKey
+    ) async -> Bool {
         #if canImport(UIKit)
-        guard !isResting() else { return false }
+        guard !isResting(key: restKey) else { return false }
         // The kept leaf is still flying away; an alert presented on a
         // controller that is mid-dismissal is silently dropped.
-        try? await Task.sleep(for: .seconds(1.2))
+        try? await Task.sleep(for: delay)
         return await withCheckedContinuation { continuation in
             let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "Not now", style: .cancel) { _ in
-                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: declinedAtKey)
+                UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: restKey)
                 continuation.resume(returning: false)
             })
             alert.addAction(UIAlertAction(title: "Yes, you can", style: .default) { _ in

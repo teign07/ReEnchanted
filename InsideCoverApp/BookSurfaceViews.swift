@@ -15091,7 +15091,7 @@ struct OnboardingFlowView: View {
                     symbol: "brain.head.profile",
                     title: "Can I fetch my brain?",
                     body: """
-                    Smaller ink, in the corner of your Page: "\(readerName). I can't think very hard yet. My brain's asleep. It's \(localBrain.downloadLabel), and it lives on this phone, right next to your words. Can I fetch it while Zara talks? You don't have to wait for it.\(isOnExpensiveNetwork ? " You're on cellular. Most plans don't mind. Shall I go ahead?" : "")"
+                    Smaller ink, in the corner of your Page: "\(readerName). I can't think very hard yet. My brain's asleep. It's \(localBrain.downloadLabel), and it lives on this \(BookDevice.noun), right next to your words. Can I fetch it while Zara talks? You don't have to wait for it.\(isOnExpensiveNetwork ? " You're on cellular. Most plans don't mind. Shall I go ahead?" : "")"
                     """
                 )
                 Button {
@@ -16970,7 +16970,7 @@ struct OnboardingFlowView: View {
             onboardingPagewrightError = ""
             return url
         } catch {
-            onboardingPagewrightError = "The Pagewright couldn't press the image this time. Your words and pictures are still on this phone."
+            onboardingPagewrightError = "The Pagewright couldn't press the image this time. Your words and pictures are still on this \(BookDevice.noun)."
             BookFeedback.play(.error)
             return nil
         }

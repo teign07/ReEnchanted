@@ -1,5 +1,14 @@
 import Foundation
 
+/// What the Book calls the device it lives on, when it says where your Pages
+/// and its brain stay ("lives on this phone"). The app sets it once at launch
+/// from the interface idiom; the core package, which can't see UIKit, keeps
+/// the default. Advice about the reader's own phone ("put your phone face
+/// down") is about their phone wherever they read, and doesn't use this.
+enum BookDevice {
+    static var noun = "phone"
+}
+
 struct BookSourceInputs: Equatable {
     var days: [BookDay] = []
     var publicationEpoch: BookPublicationEpoch? = nil
@@ -7869,7 +7878,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             brainPassage = """
             One problem. I can't think very hard yet. My brain's asleep. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
 
-            Tap Wake My Brain, below, and Gemma comes to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+            Tap Wake My Brain, below, and Gemma comes to live inside this \(BookDevice.noun), right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
 
             It's big: \(downloadLabel). Wi-Fi's best. Keep me open while it comes. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
 
@@ -7880,7 +7889,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             brainPassage = """
             One problem. I can't think very hard yet. My brain's still coming in. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
 
-            It's coming to live inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+            It's coming to live inside this \(BookDevice.noun), right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
 
             It's big: \(downloadLabel), so it takes a while. When it lands, I'll test it. I'll make it read something and write something. If it passes, I'll tell you. If it doesn't, I'll tell you that too, and we'll try again.
 
@@ -7891,7 +7900,7 @@ struct LabyrinthWelcomePageSourceAdapter: BookPageSourceAdapter {
             brainPassage = """
             And I can think now. My brain came in while you were busy with my questions. Its name is Gemma. I didn't pick that. I'd have picked Thunder.
 
-            It lives inside this phone, right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
+            It lives inside this \(BookDevice.noun), right next to your words. It does all its thinking here. Your Pages don't get sent anywhere.
             """
         }
         return SurfacePage(
@@ -8325,7 +8334,7 @@ private enum InscriptionApprenticeshipCatalog {
                 body: """
                 There's a brain curled up in the Colophon.
 
-                It lives on this phone and nowhere else. Once it's awake, I can write you letters and stories, chat with you properly, and read what you've kept much more closely. Your private Pages never leave the phone.
+                It lives on this \(BookDevice.noun) and nowhere else. Once it's awake, I can write you letters and stories, chat with you properly, and read what you've kept much more closely. Your private Pages never leave the \(BookDevice.noun).
 
                 Open the Colophon and see if it's ready. Wake it up nicely. Brains get cranky if you just poke them.
                 """,
@@ -12316,7 +12325,7 @@ struct LocalBrainAwakePageSourceAdapter: BookPageSourceAdapter {
 
                 Here's what's different. Before, I could only keep your Pages. Now I can read them. If you keep mentioning the same song, or the same street, or the same person, I'll notice. And my stories get a lot stranger.
 
-                It all happens on this phone. Gemma doesn't send your Pages anywhere. It sits next to them, reading, and keeps its mouth shut.
+                It all happens on this \(BookDevice.noun). Gemma doesn't send your Pages anywhere. It sits next to them, reading, and keeps its mouth shut.
 
                 I'll still get things wrong sometimes. When I do, your words win. They're the real record.
 
@@ -12762,7 +12771,7 @@ enum FirstRunPageSequence {
 
             I just can't read you very well like this. I'm skimming. With my brain awake, I'd notice what keeps turning up in your Pages, and my stories would get much better.
 
-            It's \(downloadLabel), and it lives on this phone and nowhere else. Tap Wake my brain, below. Wi-Fi or not, most plans don't mind. I'll test it when it lands and tell you how it went.
+            It's \(downloadLabel), and it lives on this \(BookDevice.noun) and nowhere else. Tap Wake my brain, below. Wi-Fi or not, most plans don't mind. I'll test it when it lands and tell you how it went.
 
             No rush. I'm patient. I'm also very nosy.
             """),
@@ -12776,7 +12785,7 @@ enum FirstRunPageSequence {
             BrainAsk(headline: "I Skimmed You Again", body: """
             I read your last Pages the way you read the back of a cereal box. I saw the words. I didn't get what they meant to you.
 
-            With my brain awake I'd read you properly. It's \(downloadLabel), and it stays on this phone, next to your words.
+            With my brain awake I'd read you properly. It's \(downloadLabel), and it stays on this \(BookDevice.noun), next to your words.
             """),
             BrainAsk(headline: "Here's a Bargain", body: """
             Here's a deal, \(name). You tap Wake my brain, below. I fetch it, \(downloadLabel). The next story I write you has your actual life in it instead of my guesses.
@@ -17240,7 +17249,7 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
             score: score,
             reason: "The Book is asking, plainly, to look at the reader's Calendar so it can see the day coming.",
             prompt: "Can I See Your Calendar?",
-            detail: "Your plans stay on this phone. Tap this and your phone asks you first.",
+            detail: "Your plans stay on this \(BookDevice.noun). Tap this and your \(BookDevice.noun) asks you first.",
             payload: BookPagePayload(
                 headline: "Can I See Your Calendar?",
                 body: """
@@ -17248,7 +17257,7 @@ struct CalendarPageSourceAdapter: BookPageSourceAdapter {
 
                 I want to see what's coming. A meeting, before it pounces. A trip, and the day you get back. Then I can bring you Pages that fit the day you're about to have, not the one you already had.
 
-                Tap this Page and your phone will ask you. Your plans stay on this phone.
+                Tap this Page and your \(BookDevice.noun) will ask you. Your plans stay on this \(BookDevice.noun).
 
                 Say no if you like. I'll find out about your day the slow way, when you tell me. I'll be just as nosy about that.
                 """,

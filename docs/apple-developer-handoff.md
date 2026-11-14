@@ -97,9 +97,8 @@ bj's to click (legal attestations and personal contact details; agents don't do 
 Agent-sized, ask bj first:
 
 - Upload a build from current main if build 5 predates `eed985a2`.
-- Small bugs: Compass Run's "NEW PAGE" badge overlaps the "WONDER B…" header; the
-  iPad welcome text says "this phone"; opening the Bleed with no weather yet can
-  still raise iOS's location prompt (it has a "Penny is checking the weather…" line).
+- Builds 1–7 exist; build 7 = `4f6e395a`. Fixed after it (2026-11-14): the "NEW PAGE" flag no longer covers
+  leaf titles, the Book says "this iPad" on iPad, and the Bleed asks before iOS's location prompt.
 
 ## House rules that bite here
 

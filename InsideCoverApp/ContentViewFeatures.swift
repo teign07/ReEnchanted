@@ -2519,11 +2519,21 @@ extension ContentView {
             didHandleBleedCalendarDoorway = true
             switch CalendarDoorway.accessState {
             case .notDetermined:
-                statusMessage = "Penny is asking whether your appointments may go in the paper..."
-                let events = await CalendarDoorway.upcomingEvents(now: pressTime)
-                if CalendarDoorway.accessState == .authorized {
-                    bookCalendarEnabled = true
-                    calendarEvents = events
+                // The Book says why before iOS asks. "Not now" leaves the
+                // timetable blank, and the paper doesn't ask again.
+                let mayAsk = await KeepPlaceAsk.offer(
+                    title: KeepPlaceAsk.calendarTitle,
+                    message: KeepPlaceAsk.calendarMessage,
+                    after: .seconds(0.3),
+                    restKey: KeepPlaceAsk.calendarDeclinedAtKey
+                )
+                if mayAsk {
+                    statusMessage = "Penny is asking whether your appointments may go in the paper..."
+                    let events = await CalendarDoorway.upcomingEvents(now: pressTime)
+                    if CalendarDoorway.accessState == .authorized {
+                        bookCalendarEnabled = true
+                        calendarEvents = events
+                    }
                 }
             case .authorized:
                 bookCalendarEnabled = true
@@ -2551,8 +2561,20 @@ extension ContentView {
         }
 
         if sourceInputs.weather?.isAvailable != true {
-            statusMessage = "Penny is checking the weather..."
-            _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
+            // The first time the sky needs location, the Book says why before
+            // iOS asks. "Not now" leaves the weather box empty.
+            var mayReadSky = true
+            if KeepPlaceAsk.needsToAsk {
+                mayReadSky = await KeepPlaceAsk.offer(
+                    title: KeepPlaceAsk.paperTitle,
+                    message: KeepPlaceAsk.paperMessage,
+                    after: .seconds(0.3)
+                )
+            }
+            if mayReadSky {
+                statusMessage = "Penny is checking the weather..."
+                _ = await refreshWeatherSignal(isUserInitiated: false, shouldEnchant: false)
+            }
         }
 
         // Pick again at press time, after permissions and any new Academy
@@ -10913,7 +10935,7 @@ struct PagewrightSheet: View {
                 }
                 Button("Not now", role: .cancel) {}
             } message: {
-                Text("I'd like one of your own photographs on this spread. If you let me into your library, I'll pick one and pin it here. It stays on this phone, and you can swap it or take it off.")
+                Text("I'd like one of your own photographs on this spread. If you let me into your library, I'll pick one and pin it here. It stays on this \(BookDevice.noun), and you can swap it or take it off.")
             }
             .onAppear {
                 ensureSelectedMarginaliaPackIsUnlocked()

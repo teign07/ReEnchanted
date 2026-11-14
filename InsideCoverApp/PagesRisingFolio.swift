@@ -9257,7 +9257,12 @@ private struct FolioLeafPage: View {
     }
 
     private var leafHeader: some View {
-        ZStack(alignment: .trailing) {
+        // The flags take their own room beside the header instead of being
+        // drawn over it. Overlaid at either edge, "NEW PAGE" landed across some
+        // title device's label (a long centred one like the Wonder Compass's,
+        // or `specimenLabel` / `letterhead` starting at the leading edge). Laid
+        // out alongside, the header just narrows while a flag is showing.
+        HStack(spacing: 0) {
             FolioComposedLeafHeader(
                 label: surfaceLabel,
                 symbolName: symbolName,
@@ -9265,17 +9270,11 @@ private struct FolioLeafPage: View {
                 accent: visualStyle.accent,
                 leafNumber: leaf.documentLeafIndex + 1
             )
+            .frame(maxWidth: .infinity)
+            .layoutPriority(0)
 
-            // The flags ride at the trailing edge beside the illumination. They
-            // used to sit at the leading edge, where they were drawn on top of
-            // the composed header's own label — `specimenLabel` and `letterhead`
-            // both start their title there, so "NEW PAGE" landed across it.
-            // Only the trailing side is reserved across every title device.
             HStack(spacing: 5) {
-                Spacer(minLength: 0)
-
-                if leaf.isFirstDocumentLeaf,
-                   animatesArrival || leaf.globalLeafIndex > 0 {
+                if showsNewFlag {
                     Text(animatesArrival ? "NEW" : "NEW PAGE")
                         .font(.system(size: 7.5, weight: .black))
                         .tracking(0.7)
@@ -9292,11 +9291,17 @@ private struct FolioLeafPage: View {
                         .foregroundStyle(BookPalette.violet)
                         .accessibilityLabel("Shadow Wonder variant")
                 }
-
             }
+            .fixedSize()
+            .padding(.leading, showsNewFlag || isShadowWonderVariant ? 6 : 0)
+            .layoutPriority(1)
         }
         .frame(height: leaf.composition.headerHeight)
         .padding(.bottom, 7)
+    }
+
+    private var showsNewFlag: Bool {
+        leaf.isFirstDocumentLeaf && (animatesArrival || leaf.globalLeafIndex > 0)
     }
 
     @ViewBuilder

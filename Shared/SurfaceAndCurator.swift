@@ -3621,7 +3621,7 @@ extension SurfacePage {
     /// The line a skimmed Page says beside the waking button.
     var brainWakingInvitation: String {
         talksAboutTheLocalBrain
-            ? "It stays on this phone."
+            ? "It stays on this \(BookDevice.noun)."
             : "I skimmed this one. With my brain awake I'd read you properly."
     }
 
