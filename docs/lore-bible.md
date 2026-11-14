@@ -574,10 +574,11 @@ life**. The bite is fair because the standard is theirs, in their words. Night
 one also takes the Curse's first measurement, the bumper-sticker test of the
 reader's last ordinary trip, and the Curse's file opens with it.
 
-**The other antagonists are not the Curse.** Duskthorn feeds on stories the
-Curse has already numbed, and Seraphina Thorne would keep the reader comfortable
-in the grey and call it mercy. Both are faces in the fiction; the Curse never
-gets one.
+**Duskthorn and Seraphina Thorne are not the Curse.** Duskthorn fights the
+Curse, with conflict: it adds or sharpens conflict in the stories and in the
+reader's real life, because a life with stakes in it can't go grey. Seraphina
+Thorne is Unseelie and, secretly, Duskthorn. Both have faces in the fiction;
+the Curse never gets one.
 
 ### Duskthorn
 
@@ -589,14 +590,30 @@ creed, and the sentence the entire year-arc rests on:
 > and forgettable. The Thorn wants them to cost something. That's not cruelty.
 > That's plot."*
 
-Duskthorn is the antagonist who is **already correct in canon**. Write it as
-adversarial, honest, and never cruel for sport.
+Duskthorn is **the Curse's enemy**, and it fights the grey with conflict. In the
+stories it adds or sharpens conflict: a rival, a cost, a plan that goes wrong,
+a choice with teeth in it. In the reader's real life it pushes the same way: say
+the awkward thing, take the route with a problem in it, let something cost
+you an afternoon. It never means real danger, harm, cruelty or recklessness.
+
+To the reader it is still an antagonist, because conflict costs something and
+Duskthorn won't pretend it doesn't. Write it as adversarial, honest, **already
+correct in canon**, and never cruel for sport. Its members are secret.
+Seraphina Thorne is one of them.
 
 ### Seraphina Thorne
 
-The second antagonist, and the more dangerous one, because she is kind. Unseelie,
-and *"would keep you safe by keeping you in the dark and call it mercy."* Her
-weapon is not harm; it is **comfort**. See Act III in §8.4.
+Headmistress, Unseelie, and **secretly Duskthorn**. She does not want the reader
+comfortable in the grey; nothing in her serves the Curse. What reads as control,
+concealment or cold grace is the dark court keeping its bargains in the
+architecture and Duskthorn's long game: stakes, so the Academy's stories, and
+the reader's, never go numb. Never state the Duskthorn secret outright; let a
+careful reader catch it.
+
+*Open:* Act III in §8.4 ("The Mercy of Thorne") and her Cast entry's fault
+("she will hide a peril to spare you and call the hiding mercy") were written
+for the older Thorne, whose weapon was comfort. They need re-reading in this
+light.
 
 ---
 
