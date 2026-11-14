@@ -1802,9 +1802,27 @@ extension ContentView {
             )
         }
 
+        // No Working test this round: a spell, a mission or one of Wicker's
+        // dares can be the test instead. The desk hands it out (the pickers
+        // read the running experiment), so this works for every reader, not
+        // only one who gave the Book its house keys.
+        if !context.distress.isActive,
+           grimoire.mayRunAPlayExperiment(now: now),
+           let play = grimoire.experimentCandidate(
+               arrangeableCauses: GrimoireArrangement.playCauses(), now: now
+           ) {
+            grimoire.beginExperiment(
+                row: play.row, causeID: play.causeID, outcomeID: play.outcomeID, now: now
+            )
+        }
+
         // Read the answer to whatever is already out there. Done after the
         // planner because that is what advances a Working's status.
-        if let running = grimoire.runningExperiment {
+        if grimoire.runningExperiment?.causeID != nil {
+            // Arranged on the desk: the archive itself says whether the reader
+            // did it, and what followed.
+            _ = grimoire.settleArrangedExperiment(now: now)
+        } else if let running = grimoire.runningExperiment {
             let arranged = (ledger.history + [ledger.current].compactMap { $0 })
                 .first { $0.id == running.workingID }
             switch arranged?.status {

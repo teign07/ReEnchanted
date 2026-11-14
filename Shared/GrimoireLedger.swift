@@ -495,6 +495,12 @@ struct GrimoireLedger: Codable, Equatable {
         return featureRefs[index]
     }
 
+    /// Mark a day the Book arranged itself, so it can find things but never
+    /// judge a promise. Experiments call this; projectors use `bookAsked`.
+    mutating func markBookAsked(day: Int) {
+        bookAskedDays.insert(day)
+    }
+
     func days(of featureID: String) -> DayBitset {
         guard let index = featureIndex[featureID] else { return DayBitset() }
         return featureDays[index]
@@ -623,13 +629,22 @@ struct GrimoireLedger: Codable, Equatable {
         let rememberedSweep = lastSweptAt
         let rememberedPrune = lastPrunedAt
         let rememberedWager = lastWagerAt
+        // Not derived from the archive, so a rebuild must not touch them. Before
+        // these were carried over, every six-hourly rebuild threw away the test
+        // the Book was running and any result it still owed the reader.
+        let rememberedExperiments = experiments
+        let rememberedTending = lastTending
 
         self = GrimoireLedger()
         rows = rememberedRows
         lastSweptAt = rememberedSweep
         lastPrunedAt = rememberedPrune
         lastWagerAt = rememberedWager
+        experiments = rememberedExperiments
+        lastTending = rememberedTending
         ingest(observations, now: now)
+        // A day the Book arranged on purpose stays arranged after a rebuild.
+        for day in experiments.compactMap(\.openedOn) { bookAskedDays.insert(day) }
 
         // A previous row may no longer co-occur in the rebuilt archive. Keep
         // its pair alive long enough for the sweep to withdraw or cross it out.

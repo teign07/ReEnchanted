@@ -8537,6 +8537,8 @@ enum WickerDareRegistry {
     ]
 
     static func dare(for day: BookDay, inputs: BookSourceInputs, now: Date) -> WickerDare {
+        // A test the Book is running asks Wicker for this one.
+        if let arranged = GrimoireArrangement.arrangedDare(inputs) { return arranged }
         let slot = SurfaceCadence.slotID(for: now, hours: 12)
         let eligiblePlaces = inputs.nearbyPlaces.filter(isSuitablePublicPlace)
         let shouldUsePlace = !eligiblePlaces.isEmpty
@@ -8917,6 +8919,10 @@ enum PlayfulMissionRegistry {
     ]
 
     static func mission(for day: BookDay, inputs: BookSourceInputs, now: Date = Date(), shadowVariant: Bool = false) -> PlayfulMission {
+        // A test the Book is running asks for this mission, or this kind.
+        if !shadowVariant, let arranged = GrimoireArrangement.arrangedMission(inputs, dayID: day.id) {
+            return arranged
+        }
         let slot = SurfaceCadence.slotID(for: now, hours: 2)
         let seed = abs("\(day.id)-\(slot)-playful-mission".stableHash)
         if !shadowVariant {

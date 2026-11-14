@@ -640,6 +640,21 @@ enum GrimoireVoice {
             + "so I don't know if it's a rule or if it's just you. This one's mine. Go on."
     }
 
+    /// The errand itself, when the Book arranged a spell, mission or dare.
+    /// Imperative and short: the summons above has already said why.
+    static func experimentErrand(_ experiment: GrimoireExperiment, ledger: GrimoireLedger) -> String? {
+        let cause = experiment.cause
+        guard GrimoireArrangement.isPlayCause(cause) else { return nil }
+        let label = ledger.ref(cause)?.label
+        if cause == "dare:any" { return "Take one of Wicker's dares. He's left one on the desk." }
+        if cause.hasPrefix("dare:"), let label { return "Do Wicker's dare, \(label). He's left it on the desk." }
+        if cause.hasPrefix("spell-kind:"), let label { return "Cast one of the \(label). I've put one on the desk." }
+        if cause.hasPrefix("spell:"), let label { return "Cast \(label). It's on the desk." }
+        if cause.hasPrefix("mission-mode:"), let label { return "Do one of the \(label). There's one on the desk." }
+        if cause.hasPrefix("mission:"), let label { return "Do \(label). It's on the desk." }
+        return "It's on the desk."
+    }
+
     /// What it says afterwards. It says it either way.
     static func experimentResult(
         _ experiment: GrimoireExperiment,

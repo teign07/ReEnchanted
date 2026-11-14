@@ -135,7 +135,8 @@ enum GrimoireProjection {
         InkbonesProjector.self,
         GreyPageProjector.self,
         ElectiveProjector.self,
-        PlaceMakingProjector.self
+        PlaceMakingProjector.self,
+        PlayProjector.self
     ]
 
     /// Circumstances that arrived together, as one condition.
@@ -1924,5 +1925,103 @@ enum PlaceMakingProjector: LoomProjector {
             conditionClause: "you put a new place on the map", outcomeClause: "you put a new place on the map",
             symbolName: "mappin.and.ellipse", role: .outcomeOnly, provenance: .readerAuthored, rank: 72
         )]
+    }
+}
+
+
+// MARK: - Spells, missions and dares
+
+/// Which spell the reader cast, which playful mission or Wicker dare they did,
+/// and what kind each was.
+///
+/// The Book offers these, but a desk is full of offers and the reader picks:
+/// doing one is the reader's act, the same as keeping a Fae bargain. Only one
+/// the Book arranged as a test is marked as asked, and the experiment does that
+/// itself. A mission or dare counts only with its receipt (the reader brought
+/// something back); a spell counts when the reader wrote back to it.
+///
+/// The specific one rarely recurs often enough to make a rule on its own, so
+/// each also has a kind: a spell's mechanic, a mission's mode, any dare at all.
+/// Kinds are what the Book can usually find, and what it can arrange.
+enum PlayProjector: LoomProjector {
+    static let id = "play"
+    static let domains = ["spell", "spellKind", "mission", "missionMode", "dare"]
+
+    static func features(forPage page: BookPage, in slice: GrimoireSlice) -> [LoomFeatureRef] {
+        var out: [LoomFeatureRef] = []
+        if page.hasReaderContribution,
+           let spellID = page.tags.first(where: { $0.hasPrefix("spell:") }).map({ String($0.dropFirst(6)) })?.nonEmpty,
+           let spell = SpellRegistry.spell(id: spellID) {
+            out.append(LoomFeatureRef(
+                id: "spell:\(spell.id)", domain: "spell", label: spell.title,
+                conditionClause: "you cast \(spell.title)", outcomeClause: "you cast \(spell.title)",
+                symbolName: spell.symbolName, role: .either, provenance: .readerAuthored, rank: 70
+            ))
+            let kind = spellKind(spell.mechanic)
+            out.append(LoomFeatureRef(
+                id: "spell-kind:\(spell.mechanic.rawValue)", domain: "spellKind", label: kind.label,
+                conditionClause: kind.clause, outcomeClause: kind.clause,
+                symbolName: "wand.and.stars", role: .either, provenance: .readerAuthored, rank: 70
+            ))
+        }
+        guard let receipt = page.attributableLivedQuestReceipt else { return out }
+        switch receipt.kind {
+        case .playfulMission:
+            if let title = receipt.title.nonEmpty {
+                out.append(LoomFeatureRef(
+                    id: "mission:\(receipt.questID)", domain: "mission", label: title,
+                    conditionClause: "you did \(title)", outcomeClause: "you did \(title)",
+                    symbolName: "scope", role: .either, provenance: .readerAuthored, rank: 70
+                ))
+            }
+            let modeTag = (page.tags + receipt.sourceTags).first { $0.hasPrefix("play-mode:") }
+            if let token = modeTag.map({ String($0.dropFirst("play-mode:".count)) }),
+               let mode = PlayfulMissionMode(rawValue: token) {
+                let words = missionMode(mode)
+                out.append(LoomFeatureRef(
+                    id: "mission-mode:\(mode.rawValue)", domain: "missionMode", label: words.label,
+                    conditionClause: words.clause, outcomeClause: words.clause,
+                    symbolName: "scope", role: .either, provenance: .readerAuthored, rank: 70
+                ))
+            }
+        case .wickerDare:
+            out.append(LoomFeatureRef(
+                id: "dare:any", domain: "dare", label: "Wicker's dares",
+                conditionClause: "you did one of Wicker's dares", outcomeClause: "you did one of Wicker's dares",
+                symbolName: "flame", role: .either, provenance: .readerAuthored, rank: 70
+            ))
+            if let title = receipt.title.nonEmpty {
+                out.append(LoomFeatureRef(
+                    id: "dare:\(receipt.questID)", domain: "dare", label: title,
+                    conditionClause: "you did \(title) for Wicker", outcomeClause: "you did \(title) for Wicker",
+                    symbolName: "flame", role: .either, provenance: .readerAuthored, rank: 70
+                ))
+            }
+        default:
+            break
+        }
+        return out
+    }
+
+    static func spellKind(_ mechanic: CelebrationMechanic) -> (label: String, clause: String) {
+        switch mechanic {
+        case .findOneLine: return ("line-finding spells", "you cast a spell that sent you looking for a line")
+        case .nameSomething: return ("naming spells", "you cast a spell that made you name something")
+        case .throwTheBones: return ("spells with a throw in them", "you cast a spell with a throw in it")
+        case .pressAKeepsake: return ("keepsake spells", "you cast a spell that left a keepsake")
+        case .countersign: return ("countersigned spells", "you cast a spell you had to sign for")
+        }
+    }
+
+    static func missionMode(_ mode: PlayfulMissionMode) -> (label: String, clause: String) {
+        switch mode {
+        case .witness: return ("watching missions", "you did a mission that was all watching")
+        case .perform: return ("show-off missions", "you did a mission where you had to perform")
+        case .make: return ("making missions", "you did a mission where you made something")
+        case .roam: return ("roaming missions", "you did a mission that sent you roaming")
+        case .share: return ("sharing missions", "you did a mission where you shared something")
+        case .listen: return ("listening missions", "you did a mission that was all listening")
+        case .photograph: return ("photo missions", "you did a mission with a photo in it")
+        }
     }
 }

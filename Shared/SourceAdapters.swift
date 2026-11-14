@@ -9623,7 +9623,12 @@ struct WickerDarePageSourceAdapter: BookPageSourceAdapter {
         let dares = inputs.deckRound > 0
             ? WickerDareRegistry.dares(for: day, inputs: inputs, now: now)
             : [WickerDareRegistry.dare(for: day, inputs: inputs, now: now)]
-        return dares.map { surface(for: day, inputs: inputs, now: now, selectedDare: $0) }
+        return dares.map { dare in
+            GrimoireArrangement.marking(
+                surface(for: day, inputs: inputs, now: now, selectedDare: dare),
+                causeIDs: ["dare:\(dare.id)", "dare:any"], inputs: inputs
+            )
+        }
     }
 
     func manualSurface(for day: BookDay, context: CuratorContext, inputs: BookSourceInputs, now: Date) -> SurfacePage {
@@ -9860,7 +9865,11 @@ struct WonderCompassPageSourceAdapter: BookPageSourceAdapter {
         var pages: [SurfacePage] = [
             runSurface(seed: seed, progress: progress, context: context, inputs: inputs, now: now),
             stepSurface(step: progress.nextStep, seed: seed, progress: progress, context: context, inputs: inputs, now: now),
-            playfulMissionSurface(playfulMission, seed: seed, context: context, inputs: inputs, now: now),
+            GrimoireArrangement.marking(
+                playfulMissionSurface(playfulMission, seed: seed, context: context, inputs: inputs, now: now),
+                causeIDs: ["mission:\(playfulMission.id)", "mission-mode:\(playfulMission.playMode.rawValue)"],
+                inputs: inputs
+            ),
             SurfacePage(
                 id: "\(source.id)-\(snippet.id)",
                 type: .wonderCompass,
@@ -13803,6 +13812,8 @@ struct SpellPageSourceAdapter: BookPageSourceAdapter {
     }
 
     func spell(for day: BookDay, inputs: BookSourceInputs, now: Date) -> SpellDef? {
+        // A test the Book is running asks for this spell, or this kind.
+        if let arranged = GrimoireArrangement.arrangedSpell(inputs, dayID: day.id) { return arranged }
         // No spell here triggers on a world event, so there is no reason to
         // pay for resolving them.
         let triggerContext = PageTriggerContext(day: day, inputs: inputs, now: now, resolveMissingWorldEvents: false)
@@ -13823,6 +13834,12 @@ struct SpellPageSourceAdapter: BookPageSourceAdapter {
     }
 
     private func surface(for spell: SpellDef, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
+        GrimoireArrangement.marking(offeredSurface(for: spell, day: day, inputs: inputs, now: now),
+                                    causeIDs: ["spell:\(spell.id)", "spell-kind:\(spell.mechanic.rawValue)"],
+                                    inputs: inputs)
+    }
+
+    private func offeredSurface(for spell: SpellDef, day: BookDay, inputs: BookSourceInputs, now: Date) -> SurfacePage {
         SpellOffering.surface(
             for: spell,
             dayID: day.id,

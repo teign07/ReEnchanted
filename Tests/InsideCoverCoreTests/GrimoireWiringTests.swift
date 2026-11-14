@@ -76,7 +76,32 @@ final class GrimoireWiringTests: XCTestCase {
             ],
             vectors: []
         )
-        let day = BookDay(id: dayID, date: calendar.startOfDay(for: date), pages: [written, run, kept])
+        // A spell cast, a mission and a dare done, so the play lane is exercised.
+        let spellID = SpellRegistry.all.first { $0.trigger == nil }?.id ?? "missing"
+        let cast = BookPage(
+            id: "cast", type: .spell, createdAt: date, promptText: "p",
+            userInput: "Done, and the kettle agreed.", tags: ["spell:\(spellID)"], origin: .userAuthored
+        )
+        var mission = BookPage(
+            id: "mission", type: .wonderCompass, createdAt: date, promptText: "p",
+            userInput: "The floor said nothing.", tags: ["playful-mission", "play-mode:perform"],
+            origin: .userAuthored
+        )
+        mission.livedQuestReceipt = LivedQuestReceipt(
+            kind: .playfulMission, questID: "interview-the-floor", title: "Interview The Floor",
+            invitation: "i", proofPrompt: "p", facets: [], sourceTags: [], hasWrittenProof: true,
+            hasVisualProof: false, completedAt: date, wasPromptedByBook: true
+        )
+        var dare = BookPage(
+            id: "dare", type: .wickerDare, createdAt: date, promptText: "p",
+            userInput: "The pigeon won.", origin: .userAuthored
+        )
+        dare.livedQuestReceipt = LivedQuestReceipt(
+            kind: .wickerDare, questID: "pigeon", title: "The Staring Contest",
+            invitation: "i", proofPrompt: "p", facets: [], sourceTags: [], hasWrittenProof: true,
+            hasVisualProof: false, completedAt: date, wasPromptedByBook: true
+        )
+        let day = BookDay(id: dayID, date: calendar.startOfDay(for: date), pages: [written, run, kept, cast, mission, dare])
 
         var entry = DaybookEntry(dayID: dayID, date: date, fidelity: .live)
         entry.weatherTags = ["fog"]

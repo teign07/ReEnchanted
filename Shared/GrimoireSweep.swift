@@ -131,6 +131,14 @@ enum GrimoireInterest {
            derivedTogether(condition.domain, outcome.domain) {
             return true
         }
+        // A spell, mission or dare is one thing with its kind, and it sets what
+        // gets written on its own Page, who hosts it and which drawer it sits in.
+        if shape == .conditional || shape == .sibling,
+           (promptedActs.contains(condition.domain) && promptedLeaf.contains(outcome.domain))
+            || (promptedActs.contains(outcome.domain) && promptedLeaf.contains(condition.domain))
+            || (promptedActs.contains(condition.domain) && promptedActs.contains(outcome.domain)) {
+            return true
+        }
         return false
     }
 
@@ -149,6 +157,14 @@ enum GrimoireInterest {
         // A rescue answers the mark; the Curse's throw and the reader's can be
         // one exchange.
         "greyPage|greyRescue", "curseThrow|inkbones"
+    ]
+
+    /// Things the Book hands over with an ask attached.
+    static let promptedActs: Set<String> = ["spell", "spellKind", "mission", "missionMode", "dare"]
+    /// What such an ask decides on its own Page.
+    static let promptedLeaf: Set<String> = [
+        "pageKind", "word", "ink", "meaning", "media", "modality", "writing",
+        "compass", "compassPlace", "cast", "subject"
     ]
 
     static func derivedTogether(_ left: String, _ right: String) -> Bool {

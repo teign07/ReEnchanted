@@ -218,7 +218,9 @@ struct GrimoirePageSourceAdapter: BookPageSourceAdapter {
     ) -> SurfacePage {
         let running = experiment.isRunning
         let body = running
-            ? "\(GrimoireVoice.experimentSummons(row: row, ledger: ledger)) \(experiment.prediction)"
+            ? [GrimoireVoice.experimentSummons(row: row, ledger: ledger),
+               GrimoireVoice.experimentErrand(experiment, ledger: ledger),
+               experiment.prediction].compactMap { $0 }.joined(separator: " ")
             : "\(experiment.prediction) \(GrimoireVoice.experimentResult(experiment, row: row, ledger: ledger))"
         var metadata: [String: String] = [
             "source": source.id,

@@ -1648,6 +1648,186 @@ struct JournalFieldDrawing: View {
     }
 }
 
+/// A few burned letters shake free of the Belief card as it is drawn into
+/// place, rise off its top and sides like sparks off a fire, and go dark.
+/// Kin to the website's sheet embers (`LandingPage/book.css`,
+/// `sheet-letter-burn`): same edges, same timings, same three-step burn.
+///
+/// One Canvas on one animation timeline. The burst's timeline pauses when the
+/// last letter has burned out, so it costs nothing once it is over.
+///
+/// `.stream` is the contact form's ember drift (`contact-letter-rise`): a
+/// slow, endless rise from behind the card's top edge for as long as the
+/// card is open. It ticks at 30 fps, the ambient budget the desk lamp keeps.
+private struct BeliefCardEmbers: View {
+    enum Mode { case burst, stream }
+
+    /// The letters that may escape, already uppercased A–Z.
+    let alphabet: [Character]
+    let count: Int
+    var mode: Mode = .burst
+
+    @State private var startDate = Date()
+    @State private var seed = Int.random(in: 0..<10_000)
+    @State private var isSpent = false
+
+    private struct Ember {
+        let glyph: String
+        /// Unit position on the card the letter leaves from.
+        let origin: CGPoint
+        let size: CGFloat
+        let drift: CGFloat
+        let rise: CGFloat
+        let turn: Double
+        let delay: Double
+        let duration: Double
+    }
+
+    private var embers: [Ember] {
+        mode == .stream ? streamEmbers : burstEmbers
+    }
+
+    /// Already mid-flight when the card arrives (a negative delay, as on the
+    /// website), so the stream never starts as a visible wave.
+    private var streamEmbers: [Ember] {
+        (0..<count).map { i in
+            let s = seed
+            let duration = Double(8 + (s + i * 3) % 7) + Double((s + i * 41) % 100) / 100
+            return Ember(
+                glyph: String(alphabet[(s + i * 5) % alphabet.count]),
+                // Behind the paper, just below its top edge: each letter
+                // surfaces over the cut and climbs into the dark.
+                origin: CGPoint(x: CGFloat(6 + (s + i * 37) % 88) / 100, y: CGFloat((s + i * 13) % 4) / 100),
+                size: CGFloat(15 + (s + i * 7) % 12),
+                drift: CGFloat(-60 + (s + i * 17) % 120),
+                rise: -CGFloat(170 + (s + i * 11) % 130),
+                turn: Double(-45 + (s + i * 13) % 90),
+                delay: -Double((s + i * 173) % 1400) / 100,
+                duration: duration
+            )
+        }
+    }
+
+    private var burstEmbers: [Ember] {
+        (0..<count).map { i in
+            let edge = i % 3 // Top, left, right: the letters leave away from the rows.
+            let s = seed
+            // Each letter leaves from the card's dark border, not the cream
+            // leaf, so its fire has darkness to show against as it rises.
+            let x: CGFloat = edge == 0 ? CGFloat(10 + (s + i * 23) % 80) / 100 : (edge == 1 ? -0.015 : 1.015)
+            let y: CGFloat = edge == 0 ? -0.01 : CGFloat(10 + (s + i * 19) % 70) / 100
+            let sideDrift = CGFloat(22 + (s + i * 5) % 26)
+            return Ember(
+                glyph: String(alphabet[(s + i * 7) % alphabet.count]),
+                origin: CGPoint(x: x, y: y),
+                size: CGFloat(19 + (s + i * 3) % 10),
+                drift: edge == 0 ? CGFloat(-22 + (s + i * 11) % 45) : (edge == 1 ? -sideDrift : sideDrift),
+                rise: -CGFloat(95 + (s + i * 13) % 70),
+                turn: Double(-55 + (s + i * 17) % 110),
+                delay: Double(150 + (s + i * 37) % 330) / 1000,
+                duration: Double(2000 + (s + i * 97) % 650) / 1000
+            )
+        }
+    }
+
+    /// Room beyond the card for the letters to fly into.
+    private var flightRoom: CGFloat { mode == .stream ? 280 : 180 }
+
+    private static let palette: [(at: Double, r: Double, g: Double, b: Double)] = [
+        (0.00, 1.00, 0.94, 0.71), // #fff0b4, white-hot
+        (0.18, 1.00, 0.80, 0.51), // #ffcc82
+        (0.45, 1.00, 0.64, 0.32), // #ffa452
+        (0.75, 0.65, 0.31, 0.20), // #a55032
+        (1.00, 0.53, 0.21, 0.13)  // #873521
+    ]
+    private static let opacityStops: [(at: Double, value: Double)] = [
+        (0.00, 0), (0.10, 1), (0.42, 0.9), (0.74, 0.4), (1.00, 0)
+    ]
+    private static let streamOpacityStops: [(at: Double, value: Double)] = [
+        (0.00, 0), (0.18, 0.95), (0.45, 0.78), (0.75, 0.3), (1.00, 0)
+    ]
+
+    private static func interpolate(_ t: Double, _ stops: [(at: Double, value: Double)]) -> Double {
+        guard let upper = stops.firstIndex(where: { $0.at >= t }), upper > 0 else { return stops.first?.value ?? 0 }
+        let a = stops[upper - 1], b = stops[upper]
+        let f = (t - a.at) / max(0.0001, b.at - a.at)
+        return a.value + (b.value - a.value) * f
+    }
+
+    private static let redStops = palette.map { (at: $0.at, value: $0.r) }
+    private static let greenStops = palette.map { (at: $0.at, value: $0.g) }
+    private static let blueStops = palette.map { (at: $0.at, value: $0.b) }
+
+    private static func color(_ t: Double) -> Color {
+        Color(
+            red: interpolate(t, redStops),
+            green: interpolate(t, greenStops),
+            blue: interpolate(t, blueStops)
+        )
+    }
+
+    var body: some View {
+        let embers = self.embers
+        let lifetime = mode == .stream ? .infinity : (embers.map { $0.delay + $0.duration }.max() ?? 0)
+        let room = flightRoom
+        let isStream = mode == .stream
+        TimelineView(.animation(minimumInterval: isStream ? 1.0 / 30 : nil, paused: isSpent)) { timeline in
+            Canvas { context, size in
+                let card = CGSize(width: size.width - room * 2, height: size.height - room * 2)
+                let elapsed = timeline.date.timeIntervalSince(startDate)
+                for ember in embers {
+                    let t: Double
+                    if isStream {
+                        let phase = (elapsed - ember.delay).truncatingRemainder(dividingBy: ember.duration)
+                        t = phase / ember.duration
+                    } else {
+                        t = (elapsed - ember.delay) / ember.duration
+                    }
+                    guard t > 0, t < 1 else { continue }
+                    // The burst eases out like a spark thrown; the stream
+                    // climbs at a steady, linear drift like the website's.
+                    let eased = isStream ? t : 1 - pow(1 - t, 2.2)
+                    let opacity = Self.interpolate(t, isStream ? Self.streamOpacityStops : Self.opacityStops)
+                    let scale = isStream ? 0.65 + (0.45 - 0.65) * eased : 0.95 + (0.45 - 0.95) * eased
+                    let rotation = -12 + (ember.turn + 12) * eased
+                    let heat = max(0, 1 - t * (isStream ? 0.9 : 1.25))
+                    let letter = Text(ember.glyph).font(.custom("Baskerville-Italic", size: ember.size))
+
+                    var ink = context
+                    ink.opacity = opacity
+                    ink.translateBy(
+                        x: room + ember.origin.x * card.width + ember.drift * eased,
+                        y: room + ember.origin.y * card.height + (isStream ? 14 * (1 - eased) : 0) + ember.rise * eased
+                    )
+                    ink.rotate(by: .degrees(rotation))
+                    ink.scaleBy(x: scale, y: scale)
+
+                    // Fire adds light: the halo and glow brighten what is
+                    // behind them instead of painting orange over it, and
+                    // they cool to coal as the letter climbs.
+                    var halo = ink
+                    halo.blendMode = .plusLighter
+                    halo.addFilter(.blur(radius: 11))
+                    halo.draw(halo.resolve(letter.foregroundColor(Color(red: 0.87, green: 0.26, blue: 0.04).opacity(0.35 + 0.65 * heat))), at: .zero)
+                    var glow = ink
+                    glow.blendMode = .plusLighter
+                    glow.addFilter(.blur(radius: 4))
+                    glow.draw(glow.resolve(letter.foregroundColor(Color(red: 1.0, green: 0.64, blue: 0.17).opacity(heat))), at: .zero)
+                    ink.draw(ink.resolve(letter.foregroundColor(Self.color(t))), at: .zero)
+                }
+            }
+            .padding(-room)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task {
+            guard lifetime.isFinite else { return }
+            try? await Task.sleep(for: .seconds(lifetime + 0.1))
+            isSpent = true
+        }
+    }
+}
+
 struct GlowCommandMenu: View {
     let score: Int
     let surfaceCount: Int
@@ -1728,6 +1908,12 @@ struct GlowCommandMenu: View {
     }
 
     private var menuPaperSeed: Int { "glow-command-menu".stableHash }
+
+    /// The letters that may burn free of the card: the menu's own words.
+    private var emberAlphabet: [Character] {
+        let letters = ("BELIEF " + tierName).uppercased().filter { $0.isASCII && $0.isLetter }
+        return letters.isEmpty ? Array("BELIEF") : Array(letters)
+    }
 
     var body: some View {
         #if DEBUG
@@ -1815,6 +2001,26 @@ struct GlowCommandMenu: View {
                         .accessibilityHidden(true)
 
                     mainPanel(width: panelWidth, height: panelHeight)
+                        .background {
+                            // Letters keep drifting up from behind the card
+                            // for as long as it is open.
+                            if paperArrivalStage == 2, !reduceMotion {
+                                BeliefCardEmbers(
+                                    alphabet: emberAlphabet,
+                                    count: isCompact ? 18 : 24,
+                                    mode: .stream
+                                )
+                            }
+                        }
+                        .overlay {
+                            // Shed once, as the card is drawn into its seat.
+                            if paperArrivalStage == 2, !reduceMotion {
+                                BeliefCardEmbers(
+                                    alphabet: emberAlphabet,
+                                    count: isCompact ? 10 : 12
+                                )
+                            }
+                        }
                 }
                 .frame(width: panelWidth, height: panelStackHeight, alignment: .top)
                 .padding(.top, panelTop)
