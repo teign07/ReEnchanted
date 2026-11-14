@@ -19,9 +19,11 @@ source "$ENV_FILE"
 OUT="${SHIP_DIR:-$HOME/Library/Developer/ReEnchantedShip}/build-$BUILD"
 mkdir -p "$OUT"
 
+# A first Release archive needs ~6 GB; an incremental one (Release intermediates
+# still in DerivedData) needs far less, so MIN_FREE_GB can lower the bar.
 free_gb=$(df -g / | awk 'NR==2 {print $4}')
-if [ "$free_gb" -lt 6 ]; then
-  echo "Only ${free_gb} GB free; an archive needs about 6 GB. Clear space first (see docs/apple-developer-handoff.md)." >&2
+if [ "$free_gb" -lt "${MIN_FREE_GB:-6}" ]; then
+  echo "Only ${free_gb} GB free; an archive needs about ${MIN_FREE_GB:-6} GB. Clear space first (see docs/apple-developer-handoff.md)." >&2
   exit 1
 fi
 
