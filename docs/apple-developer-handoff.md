@@ -68,6 +68,10 @@ convert to RGB, then `upload_screenshots.py`. Accepted sizes: iPhone 6.9"
   `4f6e395a`; build 8 = `45744c9d` (NEW PAGE flag beside the title, "this iPad"
   on iPad, the Book asks before iOS's location and calendar prompts).
 - **Build 8 is attached to version 1.0** (PREPARE_FOR_SUBMISSION).
+- External TestFlight group "Early Readers" (public link on, capped at 1,000;
+  the link is in App Store Connect, kept out of this public repo). Build 8 was
+  submitted to Beta App Review on 2026-11-14 with the same contact and notes;
+  beta description, feedback email and What to Test are filled in.
 - Review notes are NOT set: the API refuses `notes` unless the contact name,
   phone and email come in the same request, and those are bj's to enter.
   Paste-ready text: `marketing/app-review-notes.txt` (from
@@ -90,8 +94,7 @@ bj's to click (legal attestations and personal contact details; agents don't do 
 3. App Review contact (name, phone with +country code, email), then paste
    `marketing/app-review-notes.txt` into Notes. Sign-in required: no.
 4. Content rights declaration (not set yet), and a final look at the age rating.
-5. Submit for Review (build 8 is already picked). External TestFlight also needs Beta App
-   Review contact info.
+5. Submit for Review (build 8 is already picked).
 6. Before paper goes live: lawyer check on Washington's health-data law; Codex's
    live Stripe/Lulu cutover (Wire thread "Codex: take print checkout live").
 
