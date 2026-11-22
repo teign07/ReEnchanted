@@ -910,7 +910,7 @@ enum SelfKnowledgePackRegistry {
         case .identity:
             return "I may call you \(trimmed) when the page needs to remember who is holding it."
         case .comfort:
-            return "I'll treat this as a signal for comfort, shelter, and the shape of gentleness."
+            return "I'll remember this is what comfort looks like for you."
         case .delight:
             if question.tags.contains("interest") {
                 return "I'll keep this interest near the desk, ready to tint scenes, quips, and invitations."
@@ -963,7 +963,7 @@ enum SelfKnowledgePackRegistry {
         ,question("alone-shape", "What kind of being alone feels good?", "Solitude and isolation wear similar coats. I should learn the difference.", "Making something. Wandering. Reading near other people. Complete quiet...", .comfort, .storyOnly, ["solitude", "comfort", "rest"], 59)
         ,question("weekend-texture", "What should a good free afternoon feel like?", "Not what it should accomplish. What texture tells you it belonged to you?", "Spacious. Playful. Unplanned. Productive in a satisfying way...", .delight, .privateContext, ["rhythm", "weekend", "delight"], 58)
         ,question("transition-hard", "Which bit of an ordinary day is the greyest?", "I'll ask for less around then.", "Waking up. Getting home. Starting dinner. Sunday evening...", .comfort, .privateContext, ["rhythm", "transition", "constraint", "curation"], 57)
-        ,question("leaving-home", "How do you feel about me sending you out of the house?", "Going out isn't always the answer. Tell me how often it is.", "Send me out. Ask first. Only when I choose. Keep the magic indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
+        ,question("leaving-home", "How do you feel about me sending you out of the house?", "Going out isn't always the answer. Tell me how often it is.", "Send me out. Only when I choose. Keep the magic indoors...", .comfort, .privateContext, ["boundary", "constraint", "home", "curation"], 56)
         ,question("movement-access", "Is there anything I should know before I send you somewhere?", "I'll take it as plain fact, not poetry.", "Short distances. Somewhere to sit. No stairs. Anything goes. Ask each time...", .comfort, .privateContext, ["boundary", "constraint", "access", "curation"], 55)
         ,question("time-budget", "How much time can a tiny adventure usually borrow?", "I'd rather fit inside ten honest minutes than invent an imaginary afternoon.", "One minute. Ten minutes. Half an hour. It depends on the day...", .comfort, .privateContext, ["boundary", "constraint", "time", "curation"], 54)
         ,question("money-boundary", "Should my errands ever cost money?", "Magic shouldn't need a shop. Tell me where your line is.", "Free, always. A few coins is fine. Ask first. Spending is fine...", .comfort, .privateContext, ["boundary", "constraint", "budget", "curation"], 53)
@@ -1017,7 +1017,7 @@ enum SelfKnowledgePackRegistry {
         "best-time": ["Early morning", "The middle of the day", "Dusk", "Late night", "It changes"],
         "energy-window": ["Before work", "At lunch", "After dinner", "Weekends", "It changes too much to name"],
         "social-energy": ["Usually alone", "With one person", "With a small group", "Whoever is already there", "Ask me that day"],
-        "leaving-home": ["Usually welcome", "Ask gently", "Only when I choose it", "Keep wonder indoors", "It depends on the day"],
+        "leaving-home": ["Usually welcome", "Only when I choose it", "Keep wonder indoors", "It depends on the day"],
         "movement-access": ["Short distances", "Seated options", "No stairs", "Movement is welcome", "Ask me each time"],
         "time-budget": ["One minute", "Ten minutes", "Half an hour", "A whole afternoon", "Ask me that day"],
         "money-boundary": ["Free by default", "A few dollars is fine", "Ask first", "Spending is welcome", "It depends"],

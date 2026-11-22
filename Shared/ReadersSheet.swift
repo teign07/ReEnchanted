@@ -41,6 +41,8 @@ struct ReadersSheet: Equatable {
     // MARK: Vows and debts: the things that bind
 
     var openBargainCount: Int
+    /// Deals the reader made with a spell that the Book still comes back for.
+    var standingDealCount: Int = 0
     var outstandingWagers: [BookWager]
     /// Laws left standing by tales that finished. These cannot be undone by the
     /// reader, which is the point of them.
@@ -53,6 +55,10 @@ struct ReadersSheet: Equatable {
     var closestBonds: [Bond]
     /// People the reader has written into the story, by name.
     var namedPeople: [String]
+    /// The Neighbours still living here, by name.
+    var neighbourNames: [String] = []
+    /// Titles earned by deeds, each tied to the deed and the day.
+    var titles: [ReaderTitle] = []
 
     // MARK: Marks
 
@@ -130,6 +136,7 @@ enum ReadersSheetBuilder {
             tenureDays: ledger.tenureDays,
             beliefScore: inputs.readerBeliefScore,
             openBargainCount: inputs.faeState.bargains.filter { $0.status == .owed }.count,
+            standingDealCount: PlayfulMissionRegistry.standingDeals(days: inputs.days).count,
             outstandingWagers: inputs.wagers.filter(\.isSealed),
             activeScars: inputs.taleScars.scars.filter { $0.isActive(at: now) },
             quill: inputs.chosenQuill,
@@ -142,6 +149,11 @@ enum ReadersSheetBuilder {
                     .map(\.name)
                     .prefix(maximumNamedPeople)
             ),
+            neighbourNames: Array(Neighbours.register(days: inputs.days)
+                .filter(\.isLiving)
+                .map(\.name)
+                .prefix(maximumNamedPeople)),
+            titles: DeedChronicle.titles(deeds: DeedChronicle.deeds(days: inputs.days)),
             pocketKeepsakeCount: inputs.pocket.keepsakes.count,
             constellationCount: inputs.constellations.count,
             currentState: inputs.readerStatePulses.currentState(now: now),
@@ -248,6 +260,9 @@ extension ReadersSheet {
         if let quill {
             you.append("Your quill is \(quill.displayName). It has opinions.")
         }
+        for title in titles.suffix(3) {
+            you.append("\(title.title). \(title.because)")
+        }
         if !you.isEmpty {
             sections.append(FrontMatterSection(
                 id: "you",
@@ -264,6 +279,11 @@ extension ReadersSheet {
         if openBargainCount > 0 {
             standing.append("\(openBargainCount) bargain\(openBargainCount == 1 ? " is" : "s are") still open. You still owe the noticing.")
         }
+        if standingDealCount > 0 {
+            standing.append(standingDealCount == 1
+                ? "You've got a deal standing. I come back for it."
+                : "You've got \(standingDealCount) deals standing. I come back for every one.")
+        }
         if !outstandingWagers.isEmpty {
             standing.append("I have \(outstandingWagers.count) sealed wager\(outstandingWagers.count == 1 ? "" : "s"). I still owe you the answer\(outstandingWagers.count == 1 ? "" : "s").")
         }
@@ -278,6 +298,9 @@ extension ReadersSheet {
         var company: [String] = []
         if !namedPeople.isEmpty {
             company.append("People you brought into the Book: \(namedPeople.joined(separator: ", ")).")
+        }
+        if !neighbourNames.isEmpty {
+            company.append("Your Neighbours: \(Self.naturalList(neighbourNames)).")
         }
         if !closestBonds.isEmpty {
             company.append("The Labyrinth keeps pulling you toward: \(closestBonds.map { Self.bondName($0.entityID) }.joined(separator: "; ")).")
@@ -332,6 +355,15 @@ extension ReadersSheet {
 }
 
 extension ReadersSheet {
+    static func naturalList(_ items: [String]) -> String {
+        switch items.count {
+        case 0: return ""
+        case 1: return items[0]
+        case 2: return "\(items[0]) and \(items[1])"
+        default: return items.dropLast().joined(separator: ", ") + " and " + items.last!
+        }
+    }
+
     /// A bond is stored as "penny-blackletter|wicker-eddies"; the sheet says
     /// "Penny Blackletter and Wicker Eddies". A reader's own Cast member is
     /// named as they named it, never by its id.

@@ -3669,7 +3669,7 @@ struct BookTelling: Equatable {
 enum BookCharacterStanceEditor {
     static let characterTypes: Set<BookPageType> = [
         .welcome, .helpTips, .bookOfYou, .askTheBook, .bookAside,
-        .bookNotices, .bookRemembered, .bookConnections, .theBleed,
+        .bookNotices, .neighbours, .bookRemembered, .bookConnections, .theBleed,
         .bookPocket, .frontMatter, .bindery, .glowInvitation,
         .marginsAtlas, .bookJump, .calendar
     ]

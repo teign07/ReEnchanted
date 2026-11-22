@@ -3213,7 +3213,7 @@ struct SurfaceCard: View {
             || surface.type == .marginsAtlas
             || surface.type == .bookConnections
             || surface.type == .bookRemembered
-            || surface.type == .bookNotices
+            || surface.type.isNoticeLeaf
             || surface.type == .theBleed
             || surface.type == .radio
             || surface.type == .facultyResearch
@@ -3289,7 +3289,7 @@ struct SurfaceCard: View {
         if surface.payload.metadata["illustrationKind"] == "cast" { return 2 }
         switch surface.type {
         case .wonderCompass, .narrativeOS, .marginsAtlas, .bookConnections,
-             .bookRemembered, .bookNotices, .theBleed, .radio, .gossip,
+             .bookRemembered, .bookNotices, .neighbours, .theBleed, .radio, .gossip,
              .facultyResearch, .supportGuild:
             return 2
         default:
@@ -3878,7 +3878,9 @@ struct LaunchFrontMatterView: View {
 
     private var readerLine: String {
         let name = cover.readerName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty
+        // "friend" is the stand-in for a reader who never gave a name. It works
+        // as a greeting; "Prepared for friend" on a title page does not.
+        return name.isEmpty || name == "friend"
             ? "A private field book"
             : "Prepared for \(name)"
     }
@@ -8406,7 +8408,7 @@ struct PageVisualStyle {
                 watermarkOpacity: 0.15,
                 scrapWidth: 86
             )
-        case .lore, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .theBleed, .bookPocket:
+        case .lore, .narrativeOS, .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .neighbours, .theBleed, .bookPocket:
             return PageVisualStyle(
                 accent: BookPalette.violet,
                 symbolColor: BookPalette.violet,
@@ -16016,7 +16018,7 @@ struct OnboardingFlowView: View {
 
     private var comfortBookReaction: String {
         switch comfortBoundary {
-        case "gentle": return "“Asking nicely. Fine. I can whisper through keyholes.”"
+        case "gentle": return "“Fine. I'll ask once. I won't ask twice.”"
         case "strange": return "“Oh, good. I was trying very hard not to bite the furniture.”"
         default: return "“A nudge. Good. I've got one finger and excellent aim.”"
         }
@@ -16024,7 +16026,7 @@ struct OnboardingFlowView: View {
 
     private var comfortPreviewLine: String {
         switch comfortBoundary {
-        case "gentle": return "Found one small thing near you yet? Write it down if you want to keep it."
+        case "gentle": return "Something near you has been waiting for you to look at it. Find out which thing, and give me a sentence about it."
         case "strange": return "Find something you walk past every single day. Look at it properly. Bring me one thing about it you've never noticed. I'll wait. I'm very good at waiting."
         default: return "Look around. Find one thing you nearly missed today, and give me a sentence about it."
         }

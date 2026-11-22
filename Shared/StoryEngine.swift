@@ -5390,9 +5390,9 @@ enum GossipSimulationBuilder {
         if let pageBeliefMove {
             switch pageBeliefMove.kind {
             case .invest:
-                consequences.append("\(pageBeliefMove.actorName) warmed \(pageBeliefMove.sourceTitle) Pages; that kind of Page brightened.")
+                consequences.append("\(pageBeliefMove.actorName) warmed \(BookPageSource.kindName(from: pageBeliefMove.sourceTitle)) Pages; that kind of Page brightened.")
             case .attack:
-                consequences.append("\(pageBeliefMove.actorName) pushed against \(pageBeliefMove.sourceTitle) Pages; that kind of Page cooled.")
+                consequences.append("\(pageBeliefMove.actorName) pushed against \(BookPageSource.kindName(from: pageBeliefMove.sourceTitle)) Pages; that kind of Page cooled.")
             }
         }
         var turnTagSet = Set(tags)
@@ -6171,7 +6171,7 @@ enum SupportGuildSynthesisGenerator {
             score: context.distress.isActive ? 94 : 78,
             reason: "The Support Guild has enough notes now to line up your patterns side by side.",
             prompt: "The Support Guild opened a page together.",
-            detail: "Vellum and Inkrest put their heads together over your fuel, inner weather, and body signals, gently and with a lot of care.",
+            detail: "Vellum and Inkrest put their heads together over your fuel, inner weather, and body signals. They've got something to show you.",
             payload: BookPagePayload(
                 headline: "Support Guild Page",
                 body: body,
@@ -6292,7 +6292,7 @@ enum SupportGuildSynthesisGenerator {
             return "After the next quick-fuel window, add a one-hour aftermath note: energy, hunger, mood, or nothing dramatic."
         }
         if steps < 1_500 && !fuelEntries.isEmpty {
-            return "After the next fuel note, try five gentle minutes of movement and log whether the inner weather changes by one word."
+            return "After the next fuel note, try five slow minutes of moving about and log whether the inner weather changes by one word."
         }
         if weatherEntries.isEmpty {
             return "Pair the next Fuel Log with one Inner Weather word so Vellum and Inkrest can compare timing."
@@ -7948,6 +7948,7 @@ enum PlayfulMissionAuthoring {
     - Give simple, clear steps in two or three short sentences, at most 45 words. Use everyday verbs: pick up, open, touch, listen, say, put, look, count. Each sentence should be easy to picture and do.
     - Every mission stands alone. Name the thing and say what to do with it. The reader must understand it on the first reading, without the title, host, another Page, or an earlier conversation.
     - Anything can be a character. Ask a sticking drawer to open. Tell a coat where you're taking it. Let the reader make up a reply. No explanation of what the character represents or why the act is magical.
+    - Point at magic that's already there: something in the reader's own room, street, body or day that they've stopped seeing. The mission is quick, a minute or two, and fun or at least odd.
     - Use childlike honesty: plain, curious, sometimes biting, uncomfortable, weird, or surprising. Never childish. No idioms, stock metaphors, forced jokes, moral, therapy language, or instructions to find a deeper meaning.
     - Ask for something small and physical that needs no purchase or special equipment. Keep any make-believe rule short and easy to follow. Do not make the reader invent a complicated game.
     - Ask one clear return question about what the reader did, saw, heard, named, or said. An imagined reply is allowed when you ask for one. An actual sound or event must not be invented. Nothing happening is an answer too.
@@ -8257,266 +8258,266 @@ enum WickerDareRegistry {
         WickerDare(
             id: "tongue-out",
             title: "Shout a Word Out the Window",
-            challenge: "Pick your favourite word. Open a window or a door and shout it at the whole outside like it owes you money. Then shut it, fast.",
+            challenge: "The outside's gone too quiet. It's started to think nobody lives in here. Pick your favourite word. Open a window or a door and shout it at the whole outside like it owes you money. Then shut it, fast.",
             proofPrompt: "Bring me the word you shouted, in one sentence.",
             tags: ["wicker-dare", "immediate", "voice", "mischief", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "wrong-way-round",
             title: "Wear One Thing Wrong",
-            challenge: "Put one thing on wrong and go out like that: hat backward, jumper inside out, one sock on over your trousers. If anyone asks, say ‘It's a choice.’",
+            challenge: "Clothes get bored going on the same way round every day. Put one thing on wrong and go out like that: hat backward, jumper inside out, one sock on over your trousers. If anyone asks, say ‘It's a choice.’",
             proofPrompt: "Bring me one sentence: what you wore wrong, and who asked.",
             tags: ["wicker-dare", "style", "mischief", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "object-compliment",
             title: "Call a Stranger's Umbrella Magnificent",
-            challenge: "Tell one stranger their coat, hat, bag or enormous umbrella is magnificent. Use the word ‘magnificent.’ Then walk on like you do this every day.",
+            challenge: "Umbrellas get rained on all day and nobody ever says a nice word to them. Tell one stranger their coat, hat, bag or enormous umbrella is magnificent. Use the word ‘magnificent.’ Then walk on like you do this every day.",
             proofPrompt: "Bring me one sentence: what was magnificent, and how it took it.",
             tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "unnecessary-flourish",
             title: "Make an Entrance",
-            challenge: "Next time you walk into a room, make it an entrance. Throw the door open. Stop. Look around like you own the place and it's mildly disappointing. Don't explain.",
+            challenge: "Rooms are always waiting for somebody to arrive in them properly. Next time you walk into a room, make it an entrance. Throw the door open. Stop. Look around like you own the place and it's mildly disappointing. Don't explain.",
             proofPrompt: "Bring me one sentence: the room, and who looked up.",
             tags: ["wicker-dare", "performance", "public", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "stranger-color",
             title: "Wear Your Loudest Colour Out",
-            challenge: "Wear the colour you always say is too loud. Take it on one real trip outside: the shop, the bus, a walk. Strut like it's the quiet one.",
+            challenge: "That colour's been sulking in the drawer for a year. Wear the colour you always say is too loud. Take it on one real trip outside: the shop, the bus, a walk. Strut like it's the quiet one.",
             proofPrompt: "Bring me one sentence: the colour, and who noticed.",
             tags: ["wicker-dare", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-manifesto",
             title: "Pin Up a Tiny Manifesto",
-            challenge: "Write one fierce sentence about something silly you believe. GOOD SOCKS ARE A HUMAN RIGHT. Stick it up where another person will see it: your fridge, your desk, a window, a board that welcomes notes.",
+            challenge: "A sentence pinned to a wall keeps arguing after you've gone. Write one fierce sentence about something silly you believe. GOOD SOCKS ARE A HUMAN RIGHT. Stick it up where another person will see it: your fridge, your desk, a window, a board that welcomes notes.",
             proofPrompt: "Bring me the sentence, and where it's hanging.",
             tags: ["wicker-dare", "creative", "voice", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "ten-second-dance",
             title: "Dance Where You Might Get Caught",
-            challenge: "Dance for twenty seconds somewhere you might get caught: by a window, in a parked car, down a corridor. Sitting down counts. Commit at least one elbow.",
+            challenge: "Corridors have never seen anybody dance in them. They'd like to. Dance for twenty seconds somewhere you might get caught: by a window, in a parked car, down a corridor. Sitting down counts. Commit at least one elbow.",
             proofPrompt: "Bring me one sentence: where you danced, and which part gave up first.",
             tags: ["wicker-dare", "immediate", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "read-to-the-air",
             title: "Read Four Lines Like It's Breaking News",
-            challenge: "Take four lines you love outside and read them out loud like a newsreader with a huge story. A porch counts. So does a bench.",
+            challenge: "The air's heard nothing but traffic for weeks. Take four lines you love outside and read them out loud like a newsreader with a huge story. A porch counts. So does a bench.",
             proofPrompt: "Bring me the one line that sounded best out loud.",
             tags: ["wicker-dare", "voice", "creative", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-gift",
             title: "Make Someone a Present in Five Minutes",
-            challenge: "Set a timer for five minutes and make something small: a doodle, a paper frog, six good words. Give it to somebody and say, ‘I made you this.’ Don't apologise for it. They're allowed to say no thanks.",
+            challenge: "Five minutes is long enough to make a thing that didn't exist this morning. Set a timer for five minutes and make something small: a doodle, a paper frog, six good words. Give it to somebody and say, ‘I made you this.’ Don't apologise for it. They're allowed to say no thanks.",
             proofPrompt: "Bring me one sentence: what you made, and who got it.",
             tags: ["wicker-dare", "creative", "social", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "odd-question",
             title: "Ask a Bookshop Stranger",
-            challenge: "Next time you're in a bookshop, ask another browser, ‘What book do you wish everyone would read?’ Pick someone who looks free. If nobody does, ask the bookseller.",
+            challenge: "Everybody in a bookshop is carrying one book they're bursting to tell somebody about. Next time you're in a bookshop, ask another browser, ‘What book do you wish everyone would read?’ Pick someone who looks free. If nobody does, ask the bookseller.",
             proofPrompt: "Bring me the book they named, in one sentence.",
             tags: ["wicker-dare", "social", "conversation", "outward", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "formal-portrait",
             title: "Pose Like the Building Is Yours",
-            challenge: "Ask someone to take one full-length photo of you somewhere boring: a car park, a hallway, a bus stop. Pose like they just unveiled a statue of you.",
+            challenge: "Boring places are desperate to be in a photo for once. Ask someone to take one full-length photo of you somewhere boring: a car park, a hallway, a bus stop. Pose like they just unveiled a statue of you.",
             proofPrompt: "Bring me the photo, and one sentence about who sat for it.",
             tags: ["wicker-dare", "photo", "social", "public", "self-expression", "comfort-edge"]
         ),
         WickerDare(
             id: "visible-mending",
             title: "Mend It in Neon",
-            challenge: "Patch, tape or stitch something you wear, in a colour that shows. The louder the better. Then wear it outside once. The repair gets top billing.",
+            challenge: "A mend wants to be seen. It did the hard bit. Patch, tape or stitch something you wear, in a colour that shows. The louder the better. Then wear it outside once. The repair gets top billing.",
             proofPrompt: "Bring me one sentence about the repair.",
             tags: ["wicker-dare", "making", "style", "outward", "comfort-edge"]
         ),
         WickerDare(
             id: "strange-accessory",
             title: "Wear the Thing You Take Off at the Door",
-            challenge: "Put on the hat, pin, scarf or too-many-rings you usually take off before anyone sees. Keep it on for one whole errand.",
+            challenge: "The thing you take off at the door has wanted to go out for ages. Put on the hat, pin, scarf or too-many-rings you usually take off before anyone sees. Keep it on for one whole errand.",
             proofPrompt: "Bring me one sentence: what you wore, and who clocked it.",
             tags: ["wicker-dare", "style", "outward", "public", "comfort-edge", "self-expression"]
         ),
         WickerDare(
             id: "first-sentence-sky",
             title: "Say One True Thing at Full Volume",
-            challenge: "Go outside or open a window and say one true sentence at full speaking volume. It can be tender, furious, vain, or about lunch. No whispering.",
+            challenge: "The sky hears plenty of grumbling and hardly anything true. Go outside or open a window and say one true sentence at full speaking volume. It can be tender, furious, vain, or about lunch. No whispering.",
             proofPrompt: "Bring me the one sentence.",
             tags: ["wicker-dare", "voice", "truth", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "micro-adventure-invite",
             title: "Invite Someone Before You Think Too Hard",
-            challenge: "Ask someone to come on a twenty-minute adventure in the next two days. A walk with no destination. One pastry, split in half. A hunt for the best bench. Ask plainly. They're allowed to say no.",
+            challenge: "Somebody you know is waiting for an excuse. Ask someone to come on a twenty-minute adventure in the next two days. A walk with no destination. One pastry, split in half. A hunt for the best bench. Ask plainly. They're allowed to say no.",
             proofPrompt: "Bring me one sentence: what you suggested, and what they said.",
             tags: ["wicker-dare", "social", "outward", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "route-mutiny",
             title: "Go Inside the Place You Always Walk Past",
-            challenge: "Go into one safe public place you've walked past a hundred times: a shop, a gallery, a lobby, a garden, a library. Stay five minutes. You don't have to buy anything.",
+            challenge: "That place has noticed you walking past it. It's offended. Go into one safe public place you've walked past a hundred times: a shop, a gallery, a lobby, a garden, a library. Stay five minutes. You don't have to buy anything.",
             proofPrompt: "Bring me one sentence: where you went, and one thing you saw.",
             tags: ["wicker-dare", "outward", "movement", "accessible", "comfort-edge"]
         ),
         WickerDare(
             id: "kind-note",
             title: "Send the Embarrassingly Specific Compliment",
-            challenge: "Pick someone and send them one exact thing you admire about them, like ‘the way you remember everyone's coffee order.’ Send it now, before you can make it sound cooler.",
+            challenge: "Nice things you don't say go stale in your mouth. Pick someone and send them one exact thing you admire about them, like ‘the way you remember everyone's coffee order.’ Send it now, before you can make it sound cooler.",
             proofPrompt: "Bring me what you sent, in one sentence.",
             tags: ["wicker-dare", "social", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "one-minute-character",
             title: "Give Yourself a Title for the Day",
-            challenge: "Pick a title for today. Keeper of Bad Ideas. Duchess of Going Anyway. Tell one person, ‘Today you can call me…’ and keep a straight face.",
+            challenge: "A day goes better when it knows who it's dealing with. Pick a title for today. Keeper of Bad Ideas. Duchess of Going Anyway. Tell one person, ‘Today you can call me…’ and keep a straight face.",
             proofPrompt: "Bring me one sentence: your title, and whether it stuck.",
             tags: ["wicker-dare", "voice", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "beautifully-overdressed-task",
             title: "Overdress for Toothpaste",
-            challenge: "Dress too fancy for something boring. The good coat. The shoes you save. Go and buy toothpaste like somebody's filming it.",
+            challenge: "Toothpaste has never once been bought by somebody in their best coat. Dress too fancy for something boring. The good coat. The shoes you save. Go and buy toothpaste like somebody's filming it.",
             proofPrompt: "Bring me one sentence: the outfit, and the errand.",
             tags: ["wicker-dare", "ritual", "style", "outward", "public", "comfort-edge"]
         ),
         WickerDare(
             id: "honest-opinion",
             title: "Say What You Actually Want",
-            challenge: "Next time someone asks where to eat, what to watch or what to play, skip ‘whatever.’ Say the thing you actually want, out loud, before you can be polite about it.",
+            challenge: "‘Whatever’ is a word that eats evenings. Next time someone asks where to eat, what to watch or what to play, skip ‘whatever.’ Say the thing you actually want, out loud, before you can be polite about it.",
             proofPrompt: "Bring me what you picked, in one sentence.",
             tags: ["wicker-dare", "truth", "voice", "comfort-edge"]
         ),
         WickerDare(
             id: "villainous-chore",
             title: "Be Bad at It in Public",
-            challenge: "Do the thing you keep putting off because you'd be bad at it. Five minutes, where someone could see. Sketch in a café. Try three words of French on the baker. One slow lap on a skateboard. Look like a beginner.",
+            challenge: "Beginners are the only people things still surprise. Do the thing you keep putting off because you'd be bad at it. Five minutes, where someone could see. Sketch in a café. Try three words of French on the baker. One slow lap on a skateboard. Look like a beginner.",
             proofPrompt: "Bring me one sentence about what you were bad at.",
             tags: ["wicker-dare", "making", "public", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "pocket-museum",
             title: "Carry a Mystery",
-            challenge: "Put one odd thing in your pocket today: a key to nothing, a tiny toy, a stone. When you sit down with someone, put it on the table and say nothing. If they ask, tell them the truth.",
+            challenge: "Odd things in pockets want to be asked about. Put one odd thing in your pocket today: a key to nothing, a tiny toy, a stone. When you sit down with someone, put it on the table and say nothing. If they ask, tell them the truth.",
             proofPrompt: "Bring me one sentence: the object, and who asked.",
             tags: ["wicker-dare", "object", "social", "mischief", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "municipal-drama",
             title: "Take a Photo From the Floor",
-            challenge: "Take one photo from somewhere ridiculous: knees on the ground, arm stretched high, peeking through a chair. Make something boring look like a film poster. Don't block anyone.",
+            challenge: "Boring things look heroic from the floor. They've been waiting for somebody to get down there. Take one photo from somewhere ridiculous: knees on the ground, arm stretched high, peeking through a chair. Make something boring look like a film poster. Don't block anyone.",
             proofPrompt: "Bring me the photo, and one sentence of the drama.",
             tags: ["wicker-dare", "public", "photo", "performance", "comfort-edge"]
         ),
         WickerDare(
             id: "weather-broadcast",
             title: "Report the Weather Like It's a Disaster",
-            challenge: "Send someone a ten-second voice note about the weather where you are, in your most dramatic news voice. Add one true detail. Don't explain afterward.",
+            challenge: "The weather does all that work and nobody ever reports it properly. Send someone a ten-second voice note about the weather where you are, in your most dramatic news voice. Add one true detail. Don't explain afterward.",
             proofPrompt: "Bring me one sentence of the broadcast.",
             tags: ["wicker-dare", "voice", "social", "performance", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "temporary-crown",
             title: "Wear a Paper Crown Outside",
-            challenge: "Make a crown out of scrap paper and wear it out the door for one errand. If anyone asks, say ‘It's official,’ and nothing else.",
+            challenge: "Paper wants to be a crown more than it wants to be anything else. Make a crown out of scrap paper and wear it out the door for one errand. If anyone asks, say ‘It's official,’ and nothing else.",
             proofPrompt: "Bring me one sentence: who believed you?",
             tags: ["wicker-dare", "making", "style", "outward", "public", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "machine-salute",
             title: "Ask What Everyone Overlooks",
-            challenge: "Ask someone who works in a shop, café, library or market, ‘What's the best thing here that nobody notices?’ Wait until they're not busy. Then go and look at it.",
+            challenge: "Every shop has one thing in it that's been waiting years for somebody to notice. Ask someone who works in a shop, café, library or market, ‘What's the best thing here that nobody notices?’ Wait until they're not busy. Then go and look at it.",
             proofPrompt: "Bring me one sentence: what did it say back?",
             tags: ["wicker-dare", "social", "conversation", "public", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "room-renaming",
             title: "Rename a Room Out Loud",
-            challenge: "Give the room you're in a better name, then use it in a real sentence: ‘Meet me in the Hall of Aggressive Lighting.’ Don't explain unless somebody asks.",
+            challenge: "Rooms are stuck with whatever name somebody gave them in a hurry. Give the room you're in a better name, then use it in a real sentence: ‘Meet me in the Hall of Aggressive Lighting.’ Don't explain unless somebody asks.",
             proofPrompt: "Bring me one sentence: the new name, and who heard it.",
             tags: ["wicker-dare", "words", "social", "imagination", "comfort-edge"]
         ),
         WickerDare(
             id: "tiny-boundary",
             title: "Say a Small No Out Loud",
-            challenge: "Next time you want to say no to something small, say it plainly. ‘Not tonight.’ ‘I want the other one.’ ‘Give me five minutes.’ Don't apologise and don't explain.",
+            challenge: "Small nos you don't say pile up in the corners. Next time you want to say no to something small, say it plainly. ‘Not tonight.’ ‘I want the other one.’ ‘Give me five minutes.’ Don't apologise and don't explain.",
             proofPrompt: "Bring me the no you said, in one sentence.",
             tags: ["wicker-dare", "truth", "voice", "consent", "comfort-edge"]
         ),
         WickerDare(
             id: "friend-dares-back",
             title: "Let a Friend Dare You",
-            challenge: "Ask a friend to dare you to do one small thing today. Nothing dangerous and nothing mean. Then do it.",
+            challenge: "Your friends have had a dare saved up for you for years. Ask a friend to dare you to do one small thing today. Nothing dangerous and nothing mean. Then do it.",
             proofPrompt: "Bring me one sentence: their dare, and whether you did it.",
             tags: ["wicker-dare", "social", "consent", "choice", "comfort-edge"]
         ),
         WickerDare(
             id: "chapter-the-commute",
             title: "Miss One Turn on Purpose",
-            challenge: "On a safe walk, skip your usual turn and take the next one instead. If you're on wheels, pick a different path in a park or building. Never do this while driving.",
+            challenge: "The next street along has been wondering about you. On a safe walk, skip your usual turn and take the next one instead. If you're on wheels, pick a different path in a park or building. Never do this while driving.",
             proofPrompt: "Bring me one sentence about what was down the wrong street.",
             tags: ["wicker-dare", "outward", "route", "movement", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "one-song-entrance",
             title: "Walk In on Your Own Soundtrack",
-            challenge: "Pick entrance music for one boring place. Start the song before you go in. Headphones or humming, either works. Cross the doorway on the best part.",
+            challenge: "Boring places never get any music when you walk in. Pick entrance music for one boring place. Start the song before you go in. Headphones or humming, either works. Cross the doorway on the best part.",
             proofPrompt: "Bring me one sentence: the song, and the doorway.",
             tags: ["wicker-dare", "style", "performance", "outward", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "absurdly-specific-toast",
             title: "Toast a Tiny Win",
-            challenge: "Raise a cup, a fork or an empty hand and give a real toast to one tiny victory. ‘To the parking space that waited.’ If anyone's nearby, make them hear it.",
+            challenge: "Tiny wins wander off if nobody raises a cup to them. Raise a cup, a fork or an empty hand and give a real toast to one tiny victory. ‘To the parking space that waited.’ If anyone's nearby, make them hear it.",
             proofPrompt: "Bring me the toast. One sentence, raised.",
             tags: ["wicker-dare", "social", "joy", "consent", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "local-honor",
             title: "Give a Prize to Something Overlooked",
-            challenge: "Pick one overlooked thing near you and give it an award: best window, bravest weed, most patient wall. Announce the winner out loud to one person.",
+            challenge: "Overlooked things have been waiting their whole lives for a prize. Pick one overlooked thing near you and give it an award: best window, bravest weed, most patient wall. Announce the winner out loud to one person.",
             proofPrompt: "Bring me one sentence: the winner, and who heard the verdict.",
             tags: ["wicker-dare", "outward", "place", "social", "mischief", "comfort-edge"]
         ),
         WickerDare(
             id: "ceremonial-snack",
             title: "Dessert Before the Chore",
-            challenge: "Before one chore you keep making yourself earn, take ten minutes for something you actually want: a song, a patch of sun, a chapter, a ridiculous snack. Then do the chore, or find out it can wait.",
+            challenge: "Chores are bullies. They only push you about because you let them go first. Before one chore you keep making yourself earn, take ten minutes for something you actually want: a song, a patch of sun, a chapter, a ridiculous snack. Then do the chore, or find out it can wait.",
             proofPrompt: "Bring me one sentence about what you did first.",
             tags: ["wicker-dare", "choice", "joy", "truth", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "spy-block",
             title: "Walk One Block Like a Spy",
-            challenge: "Walk one block like you're being followed. Stop to ‘tie your shoe’ and check behind you. Use a shop window as a mirror. End by slipping through a door like you've shaken them.",
+            challenge: "Somebody's following you. Probably. Better act like it. Walk one block like you're being followed. Stop to ‘tie your shoe’ and check behind you. Use a shop window as a mirror. End by slipping through a door like you've shaken them.",
             proofPrompt: "Bring me one sentence: where did you lose them?",
             tags: ["wicker-dare", "outward", "movement", "performance", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "nature-documentary",
             title: "Narrate Yourself Like a Nature Documentary",
-            challenge: "For two minutes, narrate what you're doing in a hushed nature-documentary voice. ‘Here, the human approaches the kettle. It doesn't suspect a thing.’ Somewhere only you can hear is fine.",
+            challenge: "You're the most interesting animal in the house and nobody's filming. For two minutes, narrate what you're doing in a hushed nature-documentary voice. ‘Here, the human approaches the kettle. It doesn't suspect a thing.’ Somewhere only you can hear is fine.",
             proofPrompt: "Bring me your best line. Just the one.",
             tags: ["wicker-dare", "immediate", "voice", "performance", "comfort-edge", "anywhere"]
         ),
         WickerDare(
             id: "pigeon-stare",
             title: "Lose a Staring Contest to a Pigeon",
-            challenge: "Find a pigeon, a gull or a squirrel and have a proper staring contest. Don't blink first. You'll lose. Lose with honour.",
+            challenge: "Pigeons keep score. Find a pigeon, a gull or a squirrel and have a proper staring contest. Don't blink first. You'll lose. Lose with honour.",
             proofPrompt: "Bring me one sentence: who won, and the look on its face.",
             tags: ["wicker-dare", "outward", "imagination", "mischief", "comfort-edge", "accessible"]
         ),
         WickerDare(
             id: "invent-a-holiday",
             title: "Invent a Holiday and Tell Someone",
-            challenge: "Invent a holiday for today. Give it a name and one rule, and tell one person. ‘Happy Left-Sock Day. You have to hop once.’",
+            challenge: "Today hasn't got a holiday yet and it's sulking about it. Invent a holiday for today. Give it a name and one rule, and tell one person. ‘Happy Left-Sock Day. You have to hop once.’",
             proofPrompt: "Bring me one sentence: the holiday, and who celebrated.",
             tags: ["wicker-dare", "social", "voice", "imagination", "comfort-edge", "anywhere"]
         ),
@@ -8530,7 +8531,7 @@ enum WickerDareRegistry {
         WickerDare(
             id: "wrong-chair",
             title: "Eat in the Wrong Place",
-            challenge: "Have your next meal somewhere you never eat: the stairs, the floor, a windowsill, the garden wall. Finish the whole thing there like it's the finest table in town.",
+            challenge: "The stairs and the windowsill never get invited to dinner. Have your next meal somewhere you never eat: the stairs, the floor, a windowsill, the garden wall. Finish the whole thing there like it's the finest table in town.",
             proofPrompt: "Bring me one sentence: where you ate, and what the view was.",
             tags: ["wicker-dare", "immediate", "mischief", "comfort-edge", "anywhere", "accessible"]
         )
@@ -8770,7 +8771,7 @@ enum PlayfulMissionRegistry {
         let text = text.lowercased()
         if containsAny(text, ["harbor", "river", "lake", "pond", "creek", "stream", "water", "waterfront", "shore", "beach", "bay", "marina", "bridge"]) {
             return [
-                mission("water-flow-low-point", "Water Chooses Down", "Find the highest or lowest spot near you. If you poured water there, which way would it run?", "The spot, and which way the water would go.", ["natural-phenomenon", "water", "place", "outside", "movement"]),
+                mission("water-flow-low-point", "Water Chooses Down", "Find the lowest spot near you. Water already knows where it is. If you poured some out, where would it run off to?", "Where the water would run off to.", ["natural-phenomenon", "water", "place", "outside", "movement"]),
                 mission("water-true-color", "Water's True Color", "Find some water: a puddle, a pond, a glass, a river. Name the colour it's holding right now. It's never just 'blue'.", "The water was really...", ["natural-phenomenon", "water", "place", "outside", "visual"]),
                 mission("water-edge-sound", "Water at the Edge", "Find the nearest water you can hear. Listen past the obvious sound for the smallest one hiding underneath.", "The quiet sound under the water-sound.", ["natural-phenomenon", "water", "place", "outside", "sound"]),
                 mission("water-carried-clue", "What Water Carried", "Find one thing water's moved, marked or left behind: a leaf, a tide line, grit in a crack, a dark stain on a kerb. It's evidence.", "What the water carried, or changed.", ["natural-phenomenon", "water", "place", "outside", "noticing"])
@@ -8884,6 +8885,164 @@ enum PlayfulMissionRegistry {
         return returns
     }
 
+    // MARK: - Deals the Book comes back for
+
+    /// What a spell left the reader owing, and how the Book asks after it.
+    ///
+    /// A spell's `rule` often sets a deal that outlasts the day ("From now on
+    /// you say hello when you pass it"). The spell page said "Don't forget
+    /// your side of it" and then nothing ever asked again. A deal nobody
+    /// collects on is not a deal, and a deed nobody mentions again never
+    /// becomes a story.
+    struct PromiseTerms {
+        var title: String
+        /// What the reader did, in the past tense, after "you".
+        var deed: String
+        var deal: String
+        var ask: String
+        var proof: String
+        /// A standing deal is asked after again at a month, three months and
+        /// every year. A deed that was over the day it was done is visited once.
+        var standing = true
+        /// The deed and the ask again, for when the spell Page founded a
+        /// Neighbour with a name. `{name}` is replaced with it.
+        var namedDeed: String? = nil
+        var namedAsk: String? = nil
+    }
+
+    static let promiseTerms: [String: PromiseTerms] = [
+        "name-a-tree": PromiseTerms(
+            title: "The Tree's Waiting", deed: "told a tree its name",
+            deal: "The deal was you say hello every time you pass it.",
+            ask: "Have you? Go past it if you can, and say hello.",
+            proof: "One sentence about whether you've kept the deal with the tree.",
+            namedDeed: "told a tree it was called {name}",
+            namedAsk: "Have you? Go past {name} and say hello."),
+        "secret-name": PromiseTerms(
+            title: "Still a Secret?", deed: "gave yourself a secret name",
+            deal: "The deal was you never tell anyone. I still don't know it.",
+            ask: "Have you kept it? Say it once, where nobody can hear.",
+            proof: "One sentence about whether the name's still a secret. Don't write the name."),
+        "warn-the-good-people": PromiseTerms(
+            title: "Every Time", deed: "warned them before you poured",
+            deal: "The deal was every time. They remember if you're rude once.",
+            ask: "Have you warned them every time since? Next time you pour something out, say it first.",
+            proof: "One sentence about whether you've warned them every time."),
+        "first-star": PromiseTerms(
+            title: "About That Wish", deed: "wished on the first star",
+            deal: "The deal was you tell nobody the wish. Not even me.",
+            ask: "Has it come true yet? Go and find the first star again tonight if you can.",
+            proof: "One sentence about whether the wish has come true. Keep the wish to yourself."),
+        "give-the-water": PromiseTerms(
+            title: "What the Water Knows", deed: "gave the water something and made a wish",
+            deal: "The deal was you never say the wish out loud. Water keeps secrets.",
+            ask: "Have you kept it too? Go back to that water if you can.",
+            proof: "One sentence about whether you've kept the wish quiet. Don't write the wish."),
+        "find-something-moving": PromiseTerms(
+            title: "Did You Look It Up?", deed: "decided what the moving thing in the sky was",
+            deal: "The deal was you never look it up. What you decided it was is what it was.",
+            ask: "Have you looked it up? Look up tonight and find another one.",
+            proof: "One sentence about whether you ever looked it up."),
+        "wrong-stone": PromiseTerms(
+            title: "Where's the Stone?", deed: "took one stone home",
+            deal: "The deal was only one. The beach kept the rest.",
+            ask: "Have you still got it? Go and find it, and hold it for a bit.",
+            proof: "One sentence about where the stone is now."),
+        "carry-a-stone": PromiseTerms(
+            title: "The Stone You Gave Away", deed: "carried a stone all day and gave it away",
+            deal: "The deal was you didn't get to keep it.",
+            ask: "Go past where you left it if you can. Is it still there?",
+            proof: "One sentence about what was at the spot this time.",
+            standing: false),
+        "leave-a-gift": PromiseTerms(
+            title: "Is It Gone?", deed: "left a gift for whoever found it",
+            deal: "The deal was you walked away and didn't see who found it.",
+            ask: "Go past the spot if you can. Is it gone?",
+            proof: "One sentence about what was at the spot this time.",
+            standing: false)
+    ]
+
+    /// How long each call-in stays open once it comes due.
+    static let promiseWindowDays = 3
+
+    /// Which call-in a deed of this age has reached, if one is open today.
+    static func promiseCallIn(ageInDays age: Int, standing: Bool) -> (stage: String, ago: String)? {
+        let early: [(days: Int, ago: String)] = standing
+            ? [(7, "A week ago"), (30, "A month ago"), (90, "Three months ago")]
+            : [(7, "A week ago")]
+        for step in early where (step.days..<(step.days + promiseWindowDays)).contains(age) {
+            return ("d\(step.days)", step.ago)
+        }
+        guard standing, age >= 365, age % 365 < promiseWindowDays else { return nil }
+        let years = age / 365
+        let words = ["A year", "Two years", "Three years", "Four years", "Five years",
+                     "Six years", "Seven years", "Eight years", "Nine years", "Ten years"]
+        return ("y\(years)", (years <= words.count ? words[years - 1] : "\(years) years") + " ago")
+    }
+
+    /// The deals that have come due and have not been answered. Built only
+    /// from kept spell Pages, so there is no ledger to drift out of step with
+    /// the archive, and a Page the reader throws away takes its deal with it.
+    static func promiseMissions(
+        for day: BookDay, inputs: BookSourceInputs, now: Date, calendar: Calendar = .current
+    ) -> [PlayfulMission] {
+        var seen: Set<String> = []
+        let pages = (inputs.days + [day]).flatMap(\.pages).filter { seen.insert($0.id).inserted }
+        let answered = Set(pages.compactMap(\.attributableLivedQuestReceipt)
+            .flatMap(\.sourceTags)
+            .filter { $0.hasPrefix("mission:promise-call:") }
+            .map { String($0.dropFirst("mission:promise-call:".count)) })
+        var due: [PlayfulMission] = []
+        for page in pages.sorted(by: { $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt })
+        where page.type == .spell {
+            guard let spellID = page.tags.first(where: { $0.hasPrefix("spell:") }).map({ String($0.dropFirst(6)) }),
+                  let terms = promiseTerms[spellID],
+                  let age = calendar.dateComponents(
+                    [.day], from: calendar.startOfDay(for: page.createdAt), to: calendar.startOfDay(for: now)
+                  ).day,
+                  let callIn = promiseCallIn(ageInDays: age, standing: terms.standing),
+                  !answered.contains("\(page.id):\(callIn.stage)") else { continue }
+            // A deal whose spell founded a Neighbour is a deal with that
+            // Neighbour. One the reader has let rest, or lost, isn't asked
+            // after.
+            let neighbour = Neighbours.neighbour(foundedBy: page.id, days: inputs.days + [day])
+            if let neighbour, !neighbour.isLiving { continue }
+            let named = neighbour.flatMap { $0.isEpithet ? nil : $0.name }
+            let deed = named.flatMap { name in terms.namedDeed?.replacingOccurrences(of: "{name}", with: name) } ?? terms.deed
+            let ask = named.flatMap { name in terms.namedAsk?.replacingOccurrences(of: "{name}", with: name) } ?? terms.ask
+            // The reader's own short sentence comes back with it. A long page
+            // or an empty one still has its deal: the Book says what was done
+            // and when, and leaves the quote out sooner than clip it.
+            let words = page.readerAuthoredTextForAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let quote = words.isEmpty || words.count > 220 ? "" : " You wrote: “\(words)”"
+            due.append(PlayfulMission(
+                id: "promise-\(page.id)-\(callIn.stage)",
+                title: terms.title,
+                prompt: "\(callIn.ago) you \(deed).\(quote)\n\n\(terms.deal) \(ask)",
+                proofPrompt: terms.proof,
+                tags: ["promise", "anywhere", "low-energy", PlayfulMissionPractice.returnVisit.tag,
+                       "promise-source:\(page.id)", "promise-call:\(page.id):\(callIn.stage)"],
+                allowsPhoto: false
+            ))
+        }
+        return due
+    }
+
+    /// The deals still standing: kept spell Pages whose deal is asked after
+    /// for years, less any whose Neighbour the reader has let rest or lost.
+    static func standingDeals(days: [BookDay]) -> [BookPage] {
+        var seen: Set<String> = []
+        return days.flatMap(\.pages).filter { page in
+            guard seen.insert(page.id).inserted, page.type == .spell,
+                  let spellID = page.tags.first(where: { $0.hasPrefix("spell:") }).map({ String($0.dropFirst(6)) }),
+                  promiseTerms[spellID]?.standing == true else { return false }
+            if let neighbour = Neighbours.neighbour(foundedBy: page.id, days: days), !neighbour.isLiving {
+                return false
+            }
+            return true
+        }
+    }
+
     private struct ReturnInvitation {
         var title: String
         var subject: String
@@ -8945,6 +9104,19 @@ enum PlayfulMissionRegistry {
             let phenomena = naturalPhenomenonMissions(inputs: inputs, now: now)
             if !phenomena.isEmpty {
                 return phenomena[rotatingIndex(for: now, count: phenomena.count)]
+            }
+
+            // A deal the reader made themselves has come due. It takes every
+            // other turn while its few days are open, so a reader who lets
+            // it lie still has an ordinary errand to pick up instead.
+            // The return visits ride the same tier: they used to sit in the
+            // ranked pool beside every other errand and almost never came up.
+            let promises = promiseMissions(for: day, inputs: inputs, now: now)
+                + Neighbours.visitMissions(days: inputs.days + [day], selfFacts: inputs.selfFacts, now: now)
+                + Neighbours.supersedingVisits(returnMissions(for: day, inputs: inputs, now: now),
+                                               days: inputs.days + [day])
+            if !promises.isEmpty, seed % 2 == 0 {
+                return promises[rotatingIndex(for: now, count: promises.count)]
             }
 
             // Business a character left open with the reader outranks a prompt
@@ -9120,7 +9292,6 @@ enum PlayfulMissionRegistry {
         let missionPool = shadowVariant
             ? missions
             : missions.filter { !$0.tags.map { $0.lowercased() }.contains("shadow-wonder") }
-                + returnMissions(for: day, inputs: inputs, now: now)
         let text = [
             inputs.weather?.phrase,
             inputs.body?.status,
@@ -9326,7 +9497,7 @@ enum PlayfulMissionRegistry {
             "surprise-three-clue-theory",
             "Three Clues, One Theory",
             "Pick a corner nobody looks at. Find three clues about what happens there when nobody's watching. Then make the smallest theory the clues can prove.",
-            "Your three clues and your theory.",
+            "Your theory about the corner, in one sentence.",
             ["hosted-surprise", "evidence", "visual", "low-stakes", "inside", "public"]
         ),
         mission(
@@ -9347,7 +9518,7 @@ enum PlayfulMissionRegistry {
             "surprise-accidental-collection",
             "The Accidental Collection",
             "Find three things that don't belong together but share one exact thing: the same shade of green, the same little dent, the same shape. Nobody meant to make this collection. You found it.",
-            "The three things, and what they share.",
+            "The one thing all three share.",
             ["hosted-surprise", "evidence", "object", "visual", "low-stakes"]
         ),
 
@@ -9378,7 +9549,7 @@ enum PlayfulMissionRegistry {
             "surprise-color-relay",
             "The Color Relay",
             "Pick one colour near you. As you go, follow it from thing to thing, like a relay race, until it runs out.",
-            "The colour, and the last three places it ran.",
+            "The colour, and where it finally ran out.",
             ["hosted-surprise", "movement", "outside", "route", "color", "public"]
         ),
 
@@ -9395,7 +9566,7 @@ enum PlayfulMissionRegistry {
             "surprise-borrowed-ordinary-favorite",
             "Borrow Their Ordinary Favorite",
             "Ask someone which ordinary thing's been good to them today: a pen, a spoon, a bus seat. Later, find your own and see if it's as good.",
-            "Their favourite, yours, and your verdict.",
+            "Their favourite thing, and whether yours beat it.",
             ["hosted-surprise", "people", "connection", "shared-wonder", "low-stakes"],
             allowsPhoto: false
         ),
@@ -9421,7 +9592,7 @@ enum PlayfulMissionRegistry {
             "surprise-ingredient-three-jobs",
             "An Ingredient With Three Jobs",
             "Pick something you're about to eat or drink. Catch it doing three jobs at once: taste, colour, warmth, crunch, comfort, noise. Professor Boggle says every ingredient is overworked.",
-            "The ingredient and its three jobs.",
+            "The ingredient, and the job it's most tired of.",
             ["hosted-surprise", "food", "taste", "inside", "low-energy"],
             allowsPhoto: false
         ),
@@ -9503,7 +9674,7 @@ enum PlayfulMissionRegistry {
         mission("shared-no-reply-glint", "No-Reply Glint", "Send someone a photo, a song or one line that made you think of them. Just that. It doesn't need a reason, and they don't have to answer.", "What you sent, and who it was for.", ["shared-wonder", "connection", "kindness", "low-stakes"]),
         mission("shared-specific-thanks", "Specific Thanks", "Thank someone for one exact thing they did: held a door, gave good directions, asked a good question. Say exactly what it was. Exact is the magic part.", "What you thanked them for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
         mission("shared-point-it-out", "Pass The Glint", "When you're with someone, point out one small wonderful thing they'd have missed: a funny cloud, a dog with a job, a perfect colour.", "The thing you pointed out.", ["shared-wonder", "connection", "visual", "public"]),
-        mission("shared-better-exit", "Leave It Kinder", "When you leave a place other people use, do one small thing to make it nicer for the next person. Push a chair in. Put a basket back.", "What you left nicer.", ["shared-wonder", "kindness", "public", "errand"]),
+        mission("shared-better-exit", "Leave It Kinder", "When you leave a place other people use, do one small thing to make it nicer for the next person. Push a chair in. Put a basket back. Don't get caught.", "What you left nicer, and whether anybody saw.", ["shared-wonder", "kindness", "public", "errand"]),
         mission("shared-good-news", "Good News Courier", "Tell someone one small piece of good news that isn't about work or money. A bird, a soup, a tiny win. It counts.", "The good news you carried.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
         mission("shared-maker-credit", "Credit The Maker", "If something made your day better, tell the person who made it: the cook, the librarian, the neighbour. Keep it short and true.", "What you gave them credit for.", ["shared-wonder", "kindness", "public", "low-stakes"], allowsPhoto: false),
         mission("shared-ordinary-toast", "An Ordinary Toast", "Raise a cup with someone, a real one or a pretend one, to one ordinary thing that went right today. The bus came. The washing dried. The key fitted.", "What got the toast.", ["shared-wonder", "connection", "joy", "low-stakes"], allowsPhoto: false),
@@ -9526,20 +9697,20 @@ enum PlayfulMissionRegistry {
         mission("smell-map", "Smell Map", "Walk through three spots nearby and smell each one. Find the exact border where one smell turns into another.", "Where the smell changed, and into what.", ["scent", "movement", "inside"]),
         mission("tiny-kindness", "The Lost Property Office", "Find something lost near you: one glove, a button, a lid with no pot. Give it a sign, or just a name, so it knows someone's noticed it's waiting.", "What was lost, and what you called it.", ["visual", "public", "errand"], practice: .courtesy),
         mission("weirdest-label", "The Weirdest Label", "Find the strangest label, warning, sticker or sign near you. Read the whole thing out loud, like it was written for you.", "The line that was meant for you.", ["visual", "public", "errand"]),
-        mission("sound-layer", "Sound Layer", "Listen for three kinds of sound: one a machine is making, one a body is making, and one the world outside is making.", "The three sounds, and which one felt most alive.", ["sound", "inside", "public"]),
+        mission("sound-layer", "Sound Layer", "Listen for three kinds of sound: one a machine is making, one a body is making, and one the world outside is making. One of them is more alive than the other two.", "The sound that was most alive.", ["sound", "inside", "public"]),
         mission("weight-guess", "Weight Oracle", "Pick up something small. Guess exactly how heavy it is. Then decide whether your hand agrees with your guess.", "Heavier or lighter than it looked?", ["touch", "weight", "inside"]),
         mission("one-inch-kingdom", "One-Inch Kingdom", "Look very closely at one tiny square of something: a jumper, bark, carpet, a table, a pavement. It's a whole kingdom.", "Who lives in the tiny kingdom?", ["visual", "touch", "photo", "low-energy"], practice: .mystery),
         mission("borrowed-color", "Borrowed Color", "Find something wearing a colour that isn't its own: light through coloured glass, a screen's glow on a wall, the sunset on a window.", "Who lent it the colour?", ["visual", "color", "photo"]),
         mission("old-date", "Date Hunter", "Find the oldest date you can see: on a coin, a receipt, a book, a sign, a building.", "The date, and what it's been waiting through.", ["visual", "public", "history"]),
         mission("chair-held", "The Chair's Opinion", "Sit in a chair and decide what it thinks of you. Pleased? Offended? Bored? Chairs have opinions. They just keep them to themselves.", "What the chair thinks of you.", ["touch", "rest", "low-energy", "inside"], allowsPhoto: false, practice: .otherWill),
-        mission("brightest-small", "Small Bright Thing", "Find the brightest small thing near you. Not the biggest bright thing. The small one.", "Why it caught the light.", ["visual", "low-energy", "inside", "public"])
+        mission("brightest-small", "Small Bright Thing", "Find the brightest small thing near you. Not the biggest bright thing. The small one. It's showing off.", "What it's showing off about.", ["visual", "low-energy", "inside", "public"])
     ]
 
     /// Immediate nonsense with a sensory job to do. Every mission begins now,
     /// works in public or private, needs no special object or able-bodied
     /// movement, and accepts either a sentence or a photo as its souvenir.
     static let ridiculousMissions: [PlayfulMission] = [
-        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Call an emergency meeting of three body parts: toes, fingers, eyebrows, anything. Each one gets one vote. Which one's clearly trying to take over?", "The three delegates, and the one trying to rule.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
+        mission("ridiculous-body-meeting", "Emergency Body Meeting", "Call an emergency meeting of three body parts: toes, fingers, eyebrows, anything. Each one gets one vote. Which one's clearly trying to take over?", "The body part that's trying to take over.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "imagination"], allowsPhoto: false),
         mission("ridiculous-ambient-conductor", "Conduct The Situation", "For twenty seconds, conduct every sound around you with one finger. Bring in the hum. Shush the clunk. Give the smallest sound a big solo.", "Which sound got the solo?", ["ridiculous", "anywhere", "present-moment", "sound", "movement", "imagination"], allowsPhoto: false),
         mission("ridiculous-countdown", "Completely Unnecessary Countdown", "Pick one tiny thing you're about to do: a sip, standing up, turning a page. Give it a five-second launch countdown. Then blast off.", "What got launched.", ["ridiculous", "anywhere", "present-moment", "body", "time", "noticing"], allowsPhoto: false),
         mission("ridiculous-dramatic-zoom", "Dramatic Zoom", "Pick the most boring thing you can see. Lean in slowly, like a camera in a film revealing the villain. Stop when one detail looks suspicious.", "The suspicious detail.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "low-energy"], allowsPhoto: false),
@@ -9553,11 +9724,11 @@ enum PlayfulMissionRegistry {
         mission("ridiculous-blink-photo", "Blink Photograph", "Look at what's in front of you. Close your eyes for three seconds, like a camera shutter. Open them and catch the first thing that develops.", "The first thing in the blink photograph.", ["ridiculous", "anywhere", "present-moment", "visual", "body", "low-energy"], allowsPhoto: false),
         mission("ridiculous-museum-plaque", "Museum Of This Exact Second", "Pick the nearest completely ordinary thing and write it a seven-word museum label. The curators are waiting.", "The seven-word label.", ["ridiculous", "anywhere", "present-moment", "visual", "object", "words"], allowsPhoto: false),
         mission("ridiculous-sound-audition", "Audition The Soundtrack", "Three sounds you can hear are auditioning for the part of Sound Of This Exact Moment. Listen to each one all the way through. Pick the winner.", "The winning sound, and why it got the part.", ["ridiculous", "anywhere", "present-moment", "sound", "attention", "imagination"], allowsPhoto: false),
-        mission("ridiculous-micro-ceremony", "Historic Tiny Achievement", "Do one tiny job you've been putting off: a cup to the sink, one reply, one sock. Hold a very small, very serious ceremony for it. Then notice what changed in your body afterwards.", "The achievement, and what changed after it.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "noticing"], allowsPhoto: false),
+        mission("ridiculous-micro-ceremony", "Historic Tiny Achievement", "Do one tiny job you've been putting off: a cup to the sink, one reply, one sock. Hold a very small, very serious ceremony for it. Say a few words.", "The achievement, and what you said at the ceremony.", ["ridiculous", "anywhere", "present-moment", "body", "movement", "noticing"], allowsPhoto: false),
         mission("ridiculous-opposite-hand", "Cameo By The Other Hand", "Give your other hand one tiny job right now: tap, point, turn a page, hold a cup. Watch how much fuss it makes about it.", "The job, and how the other hand coped.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
         mission("ridiculous-constellation", "Emergency Constellation", "Pick three spots above or in front of you: marks, lights, corners, clouds. Join them into a constellation. Name it, and make up the legend it's from.", "The constellation and its legend, in one line.", ["ridiculous", "anywhere", "present-moment", "visual", "place", "imagination"], allowsPhoto: false),
         mission("ridiculous-official-nod", "Secret Agent", "For the next minute you're a secret agent. Nobody can know. Find one thing in the room an agent would notice and a normal person never would.", "What the agent noticed.", ["ridiculous", "anywhere", "present-moment", "visual", "imagination", "attention"], allowsPhoto: false),
-        mission("ridiculous-red-carpet", "Three-Step Red Carpet", "Take three steps toward whatever you're doing next as if it's a red carpet and the ground has waited all day for you. Two fingers walking across a table count.", "One thing you felt on each step.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
+        mission("ridiculous-red-carpet", "Three-Step Red Carpet", "Take three steps toward whatever you're doing next as if it's a red carpet and the ground has waited all day for you. Two fingers walking across a table count.", "Where the red carpet took you.", ["ridiculous", "anywhere", "present-moment", "body", "touch", "movement"], allowsPhoto: false),
         mission("ridiculous-reality-caption", "Caption Reality Badly", "Give this exact moment the most dramatic six-word title you can. It has to include one real thing you can see or hear.", "The six-word title.", ["ridiculous", "anywhere", "present-moment", "visual", "words", "imagination"], allowsPhoto: false)
     ].map { draft in
         var mission = draft
@@ -9569,19 +9740,19 @@ enum PlayfulMissionRegistry {
         // Small assignments moved from the quip shelf. Each now has an
         // ordinary mission invitation, a concrete return, and mission rest.
         mission("margin-leaf-underside", "The Back of a Leaf", "Go and look at the underside of a leaf. Nobody checks the back of anything.", "What was on the underside of the leaf?", ["nature", "noticing", "outside"], allowsPhoto: true),
-        mission("margin-coolest-thing", "The Cold One", "Find something cool to the touch in the room. Rest your hand on it while you count to five.", "What did you touch, and did it stay cool?", ["body", "touch", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-coolest-thing", "The Cold One", "Find the coolest thing in the room and rest your hand on it while you count to five. It's taking your warmth. Let it have some.", "What took your warmth, and did it give any back?", ["body", "touch", "inside", "low-energy"], allowsPhoto: false),
         mission("margin-oldest-paper", "Old Paper Speaks", "Find the oldest piece of paper within reach and read one line of it out loud.", "What was the paper, and what did the line say?", ["paper", "words", "inside", "low-energy"], allowsPhoto: false),
         mission("margin-look-up", "Higher Than That", "Look up. Higher than that. Most rooms keep their best part above eye level.", "What did you find above eye level?", ["place", "noticing", "inside", "low-energy"], allowsPhoto: true),
         mission("margin-smell-the-book", "The Back of the Book", "Smell the back of a book. Go on. Nobody is watching you.", "Which book, and what did it smell of?", ["book", "scent", "inside", "low-energy"], allowsPhoto: false),
-        mission("margin-count-doors", "Doors to Outside", "Count the doors between you and outside.", "How many doors are there?", ["threshold", "place", "inside", "low-energy"], allowsPhoto: false),
+        mission("margin-count-doors", "Doors to Outside", "Count the doors between you and outside. Every one of them has to let you through.", "How many doors, and which one would say no?", ["threshold", "place", "inside", "low-energy"], allowsPhoto: false),
         mission("margin-not-yours", "Somebody Put It There", "Look at the nearest thing that belongs to someone else. Work out who put it there.", "What was the thing, and who do you think put it there?", ["object", "people", "inside", "low-energy"], allowsPhoto: false),
-        mission("margin-photograph-nothing", "Nobody Photographs This", "Take one photograph of something nobody would photograph.", "What did you photograph?", ["photo", "noticing", "anywhere"], allowsPhoto: true),
+        mission("margin-photograph-nothing", "Nobody Photographs This", "Take one photograph of something nobody would photograph. It's waited its whole life for this.", "What you photographed, and whether it was ready.", ["photo", "noticing", "anywhere"], allowsPhoto: true),
         mission("margin-fridge-breath", "The House Breathing", "Stand still near the fridge for one minute. Listen for it to start.", "What did you hear? Silence counts too.", ["home", "sound", "inside", "low-energy"], allowsPhoto: false),
         mission("margin-doormat", "The Last Look", "Stand on the doormat and look back out. That's the last thing the house sees of you every morning.", "What can the house see from there?", ["home", "threshold", "inside", "low-energy"], allowsPhoto: true),
         mission("margin-button", "The Button Holding On", "Find the button doing the most work on you right now. Nobody has ever thanked it and nobody is going to start.", "Which button, and what was it holding together?", ["object", "clothing", "anywhere", "low-energy"], allowsPhoto: false),
         mission("margin-worn-path", "The Path That Won", "Follow a worn path across the grass beside the paving. Somebody voted with their feet and won.", "Where did the worn path take you?", ["place", "walk", "outside", "noticing"], allowsPhoto: true),
         mission("margin-pocket-sound", "Who Called Your Pocket", "Listen for a sound that makes you reach for your pocket. Find out what made it.", "What was the sound, and what made it?", ["sound", "technology", "anywhere", "low-energy"], allowsPhoto: false),
-        mission("margin-walked-past-twice", "The Third Look", "Find something you walked past twice today. Look at it for ten seconds.", "What was it, and what did you see this time?", ["noticing", "route", "anywhere"], allowsPhoto: true),
+        mission("margin-walked-past-twice", "The Third Look", "Find something you walked past twice today. It noticed. Look at it for ten seconds.", "What was it, and what did you see this time?", ["noticing", "route", "anywhere"], allowsPhoto: true),
         mission("margin-whose-handwriting", "Somebody Wrote This", "Find the nearest bit of handwriting. Read one line.", "What did the line say, and whose handwriting was it?", ["people", "writing", "inside", "low-energy"], allowsPhoto: false),
         mission("margin-hundred-years", "Still Here", "Choose something in this room that might still be here in a hundred years. Imagine where it will be.", "What did you choose, and where did you imagine it?", ["home", "time", "object", "inside", "low-energy"], allowsPhoto: true),
         mission("margin-nameless-maker", "An Unknown Pair of Hands", "Find something made by a person whose name you don't know. Invent a name for its maker.", "What was the thing, and what name did you invent?", ["object", "people", "anywhere", "low-energy"], allowsPhoto: true),
@@ -9645,8 +9816,8 @@ enum PlayfulMissionRegistry {
         mission("motion-long-way", "The Long Way", "Take the long way to wherever you're going next. What was the shortcut hiding from you?", "What the shortcut was hiding.", ["movement", "public", "errand"]),
         mission("motion-half-speed", "Half Speed", "Walk at half your normal speed for one whole minute. What catches up with you?", "What caught up.", ["movement", "body", "low-energy"]),
         mission("motion-ankle-height", "Ankle-Height Treasure", "Take twenty steps looking only at ankle height. Find one thing down there worth keeping.", "The ankle-height treasure.", ["movement", "visual", "outside", "public"]),
-        mission("motion-three-circles", "Circle Collection", "On your next walk, collect three circles. Any size at all.", "Your three circles.", ["movement", "visual", "shape", "outside", "public"]),
-        mission("motion-five-color", "Five Of One Color", "Pick a colour. Find five things that colour before your next meal. Photos and witness statements both accepted.", "The colour, and your five witnesses.", ["movement", "visual", "color", "public"]),
+        mission("motion-three-circles", "Circle Collection", "On your next walk, collect three circles. Any size at all. One of them is in charge of the other two.", "The circle that's in charge.", ["movement", "visual", "shape", "outside", "public"]),
+        mission("motion-five-color", "Five Of One Color", "Pick a colour. Find five things that colour before your next meal. Photos and witness statements both accepted.", "The colour, and the thing wearing it best.", ["movement", "visual", "color", "public"]),
         mission("motion-unwatched-moving", "Watch It For Them", "Next time you're waiting in a queue or riding somewhere, find the one moving thing nobody else is watching. Watch it for them.", "The thing you watched for everyone.", ["movement", "public", "visual"]),
         mission("work-building-voice", "Workplace Voice", "Find the one sound your workplace makes that no other building in the world makes. That's its voice.", "The building's voice.", ["work", "sound", "public"], allowsPhoto: false),
         mission("work-ignored-object-title", "Gallery Title", "Find the most ignored thing where you work and give it a title, like a painting in a gallery.", "The thing, and its gallery title.", ["work", "object", "visual", "public"]),
@@ -9654,17 +9825,17 @@ enum PlayfulMissionRegistry {
         mission("work-boring-minute-moving", "Boring Minute Motion", "In the most boring minute of your day, find one thing that's moving. Something always is.", "The thing that was moving.", ["work", "movement", "visual", "public"]),
         mission("work-route-new-thing", "Route River", "On your way somewhere you go often, find one thing that wasn't there last week. You never walk the same street twice.", "What's new on the route.", ["work", "commute", "public", "visual"]),
         mission("fuel-first-sip", "First Sip Report", "Hold the first sip of your next drink in your mouth for five whole seconds. What's actually in there?", "Everything that was in the sip.", ["taste", "fuel", "body", "low-energy"], allowsPhoto: false),
-        mission("fuel-closed-eyes-bite", "Three Things In It", "Eat one bite with your eyes closed and find three different things in it. Not one. Three.", "The three things.", ["taste", "fuel", "body"], allowsPhoto: false),
+        mission("fuel-closed-eyes-bite", "Three Things In It", "Eat one bite with your eyes closed and find three different things in it. Not one. Three. One of them was hiding.", "The one that was hiding.", ["taste", "fuel", "body"], allowsPhoto: false),
         mission("fuel-oldest-ingredient", "Oldest Ingredient", "Find the oldest ingredient in your next meal: the one that took longest to grow, age or travel. Give it the credit.", "The ingredient, and what it went through.", ["taste", "fuel", "history"], allowsPhoto: false),
         mission("fuel-smell-prediction", "Prediction Before Taste", "Smell something before you taste it and make a prediction. Then taste it and mark your prediction out of ten.", "The prediction, and its mark.", ["taste", "scent", "fuel"], allowsPhoto: false),
-        mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count everything that's still awake.", "How many, and one of them.", ["night", "sound", "visual", "outside"]),
+        mission("night-still-awake", "Still Awake", "Step outside after dark for thirty seconds. Count everything that's still awake.", "How many were still awake, and the one you didn't expect.", ["night", "sound", "visual", "outside"]),
         mission("night-guard-light", "Last Light Guard", "Find the last light on in your home tonight. What is it guarding?", "What the light is guarding.", ["night", "light", "inside", "low-energy"], practice: .courtesy),
         mission("night-second-voice", "Second Voice", "Find one sound your home only makes at night. Houses have a second voice they save for after dark.", "The house's night voice.", ["night", "sound", "inside"], allowsPhoto: false, practice: .mystery),
         mission("night-farthest-light", "Farthest Light", "Look out of a dark window and find the farthest light you can see. Someone or something's over there. Wish them well.", "The farthest light.", ["night", "light", "visual", "inside"]),
         mission("strange-street-new-old", "Street Introduction", "Find the newest thing on your street and the oldest. Introduce them to each other. What do they say?", "Their first conversation.", ["visual", "history", "outside", "imagination"], practice: .courtesy),
         mission("strange-outlive-you", "Outliving Object", "Touch something that'll still be here long after you've gone. Be polite about it.", "The thing, and how you were polite.", ["touch", "object", "history", "inside"], allowsPhoto: false),
         mission("strange-new-thing", "New Thing", "Find something you can see that didn't exist a year ago. It's a baby next to everything else in the room. How's it fitting in?", "The new thing, and how it's fitting in.", ["visual", "history", "inside", "public"]),
-        mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then find out if you can.", "Your guess, and the truth, or the mystery.", ["visual", "history", "object"]),
+        mission("strange-age-gap", "Age Gap", "Guess how old something near you is. Then look for where it keeps its age: a date, a scratch, a worn corner.", "Your guess, and where it was keeping its age.", ["visual", "history", "object"]),
         mission("strange-stranger-decision", "A Stranger Chose That", "Pick up the nearest made thing and find one decision a stranger made about it: a curve, a colour, a button. Do you agree with them?", "The decision, and your verdict.", ["object", "touch", "design", "inside"], allowsPhoto: false),
         mission("strange-technical-miracle", "Furniture Miracle", "Find one thing within reach that's actually a miracle and gets treated like furniture: a light switch, a zip, a tap with clean water. Give it its proper title for one minute.", "The miracle, and its proper title.", ["object", "wonder", "inside", "low-energy"])
     ]

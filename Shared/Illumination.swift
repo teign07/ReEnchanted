@@ -2440,7 +2440,7 @@ enum LeafPaperStock: String, CaseIterable, Hashable {
         switch pageType {
         case .academyClass, .facultyResearch, .inkrestOfficeHours,
              .calendar, .inventory, .bindery, .frontMatter, .taleBound,
-             .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices,
+             .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .neighbours,
              .bookPocket, .helpTips:
             candidates = [.archiveFlecked, .archiveFlecked, .laidCotton, .ragHandmade]
 

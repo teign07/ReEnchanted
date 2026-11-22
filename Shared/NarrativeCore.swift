@@ -5290,6 +5290,11 @@ enum NarrativeEventResolver {
             threadDeltas["ordinary-magic", default: 0] += 2
             relationshipDeltas["book-authors-reader", default: 0] += 2
             createdHint = "A noticed pattern can become a future letter, return, or constellation."
+        case .neighbours:
+            entityDeltas["the-book", default: 0] += 1
+            threadDeltas["ordinary-magic", default: 0] += 3
+            relationshipDeltas["book-authors-reader", default: 0] += 1
+            createdHint = "A Neighbour keeps turning up in the Pages that come after."
         case .glowInvitation:
             entityDeltas["the-book", default: 0] += 1
             threadDeltas["ordinary-magic", default: 0] += 1

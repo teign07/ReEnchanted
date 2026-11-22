@@ -6017,7 +6017,7 @@ enum ElectiveOfferFallback {
         }
         return ElectiveOfferDraft(
             title: "A Field Note for \(sender)",
-            ask: "\(sender) wants you to find one small thing in your town today that has to do with \(interest).",
+            ask: "\(sender) wants you to find one small thing in your town today that has to do with \(focus.trimmingCharacters(in: .whitespaces)).",
             whyItMatters: "\(sender)'s been secretly studying it. This is for that.",
             practiceShape: "One sentence about what you found and where. Put a real detail in it."
         )
@@ -6029,33 +6029,33 @@ enum ElectiveOfferFallback {
         func has(_ terms: [String]) -> Bool { terms.contains { focus.contains($0) } }
         if has(["flavour", "flavor", "breakfast", "comfort", "fuel", "homes", "recipe"]) {
             return (["bakery", "diner", "coffee", "market", "restaurant", "pizza"],
-                    "Find one smell you can catch from outside. What does it make you think of?")
+                    "Kitchens talk through their windows. Find one smell you can catch from outside and work out what it's saying.")
         }
         if has(["sound", "song", "karaoke"]) {
             return (["coffee", "diner", "park", "music"],
-                    "Stand still for a minute and listen. Pick out one sound that keeps coming back, and describe it without saying what makes it.")
+                    "Every place hums its own tune when it thinks nobody's listening. Stand still for a minute. Pick out the sound that keeps coming back, and describe it without saying what makes it.")
         }
         if has(["moss", "plant"]) {
             return (["park", "trail", "garden", "farm"],
-                    "Look for one plant growing somewhere nobody invited it. Show me where it found room.")
+                    "Some plants move in without asking and stay out of spite. Find one growing somewhere nobody invited it. Show me where it found room.")
         }
         if has(["architecture", "threshold", "spare key", "enchantment"]) {
             return (["library", "hardware", "antiques", "bookstore"],
-                    "Look at the way in. Find one worn edge, a mend or an odd little bit, and tell me what people have done to it.")
+                    "Buildings remember every hand that pushed them. Look at the way in. Find one worn edge, a mend or an odd little bit, and tell me what people have done to it.")
         }
         if has(["zine", "spelling", "typo", "last word", "reread"]) {
             return (["bookstore", "library", "thrift", "hardware"],
-                    "Find a sign or a label somebody made by hand. Bring me its exact words and one thing about the lettering.")
+                    "A sign somebody made by hand is still talking in their voice. Find one. Bring me its exact words and one thing about the lettering.")
         }
         if has(["map", "street", "cold water", "cryptid"]) {
             return (["park", "trail", "waterfront", "harbor", "marina"],
-                    "From a path, find a little track people or animals have made for themselves. Where does it go? You don't have to follow it.")
+                    "Feet make their own roads when the real ones are wrong. From a path, find a little track people or animals have made for themselves. Where does it go? You don't have to follow it.")
         }
         if has(["doing nothing", "cozy", "shadow"]) {
             return (["park", "library", "coffee"],
-                    "Find somewhere to sit for two minutes. Watch one ordinary thing and tell me the smallest change you saw.")
+                    "Ordinary things only move when they think you've stopped looking. Sit somewhere for two minutes. Watch one of them and tell me the smallest change you caught.")
         }
-        return ([], "Find one ordinary thing that makes you curious about \(focus). Tell me the thing first, then the question it gave you.")
+        return ([], "Something near you knows a secret about \(focus) and is keeping quiet. Find it. Tell me the thing first, then the question it gave you.")
     }
 }
 
@@ -6380,7 +6380,7 @@ struct VellumFuelPatternDigest: Equatable {
         case "low-protein-window":
             return "Vellum may test whether steadier fuel changes the next bell."
         default:
-            return "The useful next step is one gentle after-meal note."
+            return "The useful next step is one note after you eat."
         }
     }
 }
@@ -10913,7 +10913,7 @@ enum WorldFeastAlmanac {
                  academyTitle: "The Consultation of the Rodent",
                  blurb: "Today a committee of grown men in top hats formally consult a groundhog about the weather, on television, and the answer goes out nationally. Its accuracy is indistinguishable from guessing. They have done it every year since 1887. And underneath all that nonsense is something I recognise, because it's exactly the middle of winter and somebody always has to be asked how much longer.",
                  invitationTitle: "The Consultation of the Rodent",
-                 invitation: "Make a forecast. Anything, about anything, for the next six weeks. I'll hold you to it, gently.",
+                 invitation: "Make a forecast. Anything, about anything, for the next six weeks. I'll hold you to it.",
                  beliefBonus: 2, symbolName: "cloud.sun.fill", accent: "slate",
                  mechanic: .throwTheBones),
         FeastDef(id: "world-sinterklaas", tradition: .folk,
@@ -12420,7 +12420,7 @@ enum BeliefEconomyPolicy {
              .location, .rest, .plainPage, .aboutYou, .wonderCompass,
              .pactErrand, .illuminatedPhoto, .quotes, .quip, .calendar,
              .askTheBook, .inkrestOfficeHours, .facultyResearch, .supportGuild,
-             .bookConnections, .bookRemembered, .bookNotices, .marginsAtlas,
+             .bookConnections, .bookRemembered, .bookNotices, .neighbours, .marginsAtlas,
              .bookPocket:
             return 1
         default:
@@ -14090,6 +14090,10 @@ enum LivedMissionReturnMarginalia {
         readerInput: String,
         priorDays: [BookDay]
     ) -> KeepMarginalia.Note? {
+        // A deal called in, or a Neighbour visited: the Book answers itself.
+        if let deal = DealReplyMarginalia.note(for: surface, readerInput: readerInput, priorDays: priorDays) {
+            return deal
+        }
         let metadata = surface.payload.metadata
         let isWicker = metadata["wickerDareID"]?.nonEmpty != nil
         let isMission = metadata["playfulMissionID"]?.nonEmpty != nil

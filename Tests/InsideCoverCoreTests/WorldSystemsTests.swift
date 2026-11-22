@@ -3927,20 +3927,37 @@ final class WorldSystemsTests: StandingOrderGatedTestCase {
             ).first?.payload.body
         }
 
-        XCTAssertTrue(welcomeBody()?.contains("Tap Wake My Brain") == true)
+        XCTAssertTrue(welcomeBody()?.contains("tap Wake my brain") == true)
 
         // Said yes in onboarding: the download is under way.
         inputs.localBrainIsFetching = true
         let coming = try? XCTUnwrap(welcomeBody())
         XCTAssertTrue(coming?.contains("still coming in") == true)
         XCTAssertTrue(coming?.contains("I'll test it") == true)
-        XCTAssertFalse(coming?.contains("Tap Wake My Brain") == true)
+        XCTAssertFalse(coming?.contains("tap Wake my brain") == true)
         XCTAssertFalse(coming?.contains("asleep") == true)
 
         inputs.localBrainIsReady = true
         let awake = try? XCTUnwrap(welcomeBody())
         XCTAssertTrue(awake?.contains("I can think now") == true)
-        XCTAssertFalse(awake?.contains("Tap Wake My Brain") == true)
+        XCTAssertFalse(awake?.contains("tap Wake my brain") == true)
+
+        // Left by the free-Book exit: no congratulations for questions unanswered.
+        XCTAssertTrue(awake?.contains("got through all my questions") == true)
+        inputs.readerSkippedFirstQuestions = true
+        let skipped = try? XCTUnwrap(welcomeBody())
+        XCTAssertFalse(skipped?.contains("got through all my questions") == true)
+        XCTAssertTrue(skipped?.contains("You skipped my questions") == true)
+
+        // The desk built underneath onboarding is corrected in place.
+        inputs.readerSkippedFirstQuestions = false
+        guard let early = LabyrinthWelcomePageSourceAdapter().candidates(
+            for: day, context: CuratorContext.make(for: day), inputs: inputs, now: Date()).first else {
+            return XCTFail("the Welcome should still be offered")
+        }
+        let corrected = LabyrinthWelcomePageSourceAdapter.acknowledgingSkippedQuestions(early)
+        XCTAssertFalse(corrected.payload.body.contains("got through all my questions"))
+        XCTAssertEqual(corrected.id, early.id)
     }
 
     func testBrainRiderWaitsWhileTheBrainIsComing() {

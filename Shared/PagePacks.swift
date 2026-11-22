@@ -1768,6 +1768,8 @@ enum MarginTutorCatalog {
             return "two-readings"
         case .bookNotices:
             return "book-notices"
+        case .neighbours:
+            return "neighbours"
         case .festival:
             return "festival-page"
         case .bookJump:

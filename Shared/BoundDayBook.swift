@@ -52,7 +52,7 @@ struct BoundDayKeep: Codable, Equatable, Identifiable {
         static func of(_ page: BookPage) -> Kind? {
             switch page.type {
             case .letter: return .letter
-            case .gossip, .castBond, .bookAside, .bookNotices, .facultyResearch, .inkrestOfficeHours,
+            case .gossip, .castBond, .bookAside, .bookNotices, .neighbours, .facultyResearch, .inkrestOfficeHours,
                  .wickerDare, .pactDispatch, .pactVerdict, .pactErrand, .faeBargain, .bookFae:
                 return .castNote
             case .enchantment, .spell: return .enchantment

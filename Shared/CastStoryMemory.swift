@@ -408,6 +408,7 @@ enum CastStoryAside {
         now: Date,
         speakers: Set<String>,
         preferring entityIDs: [String] = [],
+        readerSince: Date? = nil,
         calendar: Calendar = .current
     ) -> CastStoryMemory? {
         guard let ledger, !ledger.memories.isEmpty else { return nil }
@@ -418,6 +419,9 @@ enum CastStoryAside {
         return ledger.memories
             .filter { memory in
                 guard memory.aside != nil, memory.spokenAt == nil, speakers.contains(memory.entityID) else { return false }
+                // News from before this reader's first Page isn't news to them:
+                // they weren't here, and have no way to place it.
+                if let readerSince, memory.witness != .withReader, memory.happenedAt < readerSince { return false }
                 let age = now.timeIntervalSince(memory.happenedAt)
                 return age >= settleHours * 3_600 && age <= freshDays * 86_400
             }

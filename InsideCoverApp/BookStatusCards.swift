@@ -1181,6 +1181,7 @@ enum GlowMenuAction {
     case openBookShop
     case openPactMap
     case openPeopleOfTheBook
+    case openNeighbours
 }
 
 private enum GlowMenuSection: String, CaseIterable, Identifiable {
@@ -2810,6 +2811,15 @@ struct GlowCommandMenu: View {
                 compact: compact
             ) {
                 onSelectAction(.openPeopleOfTheBook)
+            }
+
+            menuButton(
+                title: "The Neighbours",
+                detail: "The things and creatures and spots in your days that turned into somebody.",
+                systemImage: "house.and.flag",
+                compact: compact
+            ) {
+                onSelectAction(.openNeighbours)
             }
 
             Picker("Belief action", selection: $beliefMode) {
@@ -5781,5 +5791,303 @@ struct KnockAnswerSheet: View {
                 }
             }
         }
+    }
+}
+
+/// The Neighbours: every thing, creature and spot in the reader's life that
+/// has become somebody. Read from the archive's records, so every action here
+/// writes one more record and the list is rebuilt from it.
+struct NeighboursSheet: View {
+    var neighbours: [Neighbour] = []
+    var days: [BookDay] = []
+    var now: Date = Date()
+    var onRename: (String, String) -> Void = { _, _ in }   // slug, new name
+    var onRest: (String) -> Void = { _ in }                // slug
+    var onWake: (String) -> Void = { _ in }                // slug
+    var onGone: (String) -> Void = { _ in }                // slug
+    /// What the Book wants to ask about. The desk shows a proposal only when
+    /// it wins a seat, so the register always shows the ones still waiting.
+    var proposals: [NeighbourProposal] = []
+    var onAccept: (String, String?) -> Void = { _, _ in }  // proposal key, corrected name
+    var onDecline: (String) -> Void = { _ in }             // proposal key
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var proposalNames: [String: String] = [:]
+    @State private var openSlug: String?
+    @State private var renamingSlug: String?
+    @State private var newName = ""
+    @State private var confirmingGone: Neighbour?
+
+    private var living: [Neighbour] { neighbours.filter { $0.status == .living } }
+    private var resting: [Neighbour] { neighbours.filter { $0.status == .resting } }
+    private var gone: [Neighbour] { neighbours.filter { $0.status == .gone } }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("These are the things and creatures and spots in your days that turned into somebody. I keep every Page each one turns up on.")
+                        .font(.system(.callout, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.72))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if !proposals.isEmpty {
+                        sectionTitle("Waiting to Be Asked")
+                        ForEach(proposals, id: \.key) { proposalCard($0) }
+                    }
+                    if !living.isEmpty {
+                        sectionTitle("Living Here")
+                        ForEach(living) { row($0) }
+                    }
+                    if !resting.isEmpty {
+                        sectionTitle("Resting")
+                        ForEach(resting) { row($0) }
+                    }
+                    if !gone.isEmpty {
+                        sectionTitle("Gone")
+                        ForEach(gone) { row($0) }
+                    }
+                    if neighbours.isEmpty && proposals.isEmpty {
+                        Text("Nobody yet. Tell a tree its name, or keep writing about the same kettle, and I'll ask.")
+                            .font(.footnote.italic())
+                            .foregroundStyle(BookPalette.ink.opacity(0.55))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
+                    }
+                }
+                .padding(20)
+            }
+            .background(BookPalette.page.ignoresSafeArea())
+            .navigationTitle("The Neighbours")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+            }
+            .confirmationDialog(
+                confirmingGone.map { "Is \($0.isEpithet ? Neighbours.capitalized($0.name) : $0.name) gone?" } ?? "",
+                isPresented: Binding(get: { confirmingGone != nil }, set: { if !$0 { confirmingGone = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("It's gone", role: .destructive) {
+                    if let neighbour = confirmingGone { onGone(neighbour.slug) }
+                    confirmingGone = nil
+                }
+                Button("Cancel", role: .cancel) { confirmingGone = nil }
+            } message: {
+                Text("I'll write down that it's gone, and when. It stays in here with its dates.")
+            }
+        }
+    }
+
+    private func spoken(_ neighbour: Neighbour) -> String {
+        neighbour.isEpithet ? Neighbours.capitalized(neighbour.name) : neighbour.name
+    }
+
+    /// One proposal: the Book's guess at a name, which the reader can correct
+    /// before saying yes. An epithet ("the tree") starts the box empty.
+    private func proposalCard(_ proposal: NeighbourProposal) -> some View {
+        let name = Binding(
+            get: { proposalNames[proposal.key] ?? (proposal.isEpithet ? "" : proposal.name) },
+            set: { proposalNames[proposal.key] = $0 }
+        )
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Shall I give \(proposal.name) a page?")
+                .font(.headline)
+                .foregroundStyle(BookPalette.ink)
+            if let quote = proposal.quote {
+                Text("\u{201C}\(quote)\u{201D}")
+                    .font(.system(.subheadline, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.78))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(proposal.deed)
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+            TextField(proposal.isEpithet ? "Its name, if it has one" : "Its name", text: name)
+                .font(.system(.body, design: .serif))
+                .foregroundStyle(BookPalette.ink)
+                .tint(BookPalette.teal)
+                .textInputAutocapitalization(.words)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            HStack(spacing: 10) {
+                Button {
+                    BookFeedback.play(.select)
+                    let typed = name.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    onAccept(proposal.key, typed.isEmpty || typed == proposal.name ? nil : typed)
+                } label: {
+                    Label("Give it a page", systemImage: "house.and.flag")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(BookPalette.teal)
+                Button {
+                    BookFeedback.play(.select)
+                    onDecline(proposal.key)
+                } label: {
+                    Text("It's nobody").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(BookPalette.ink.opacity(0.6))
+            }
+        }
+        .padding(14)
+        .background(BookPalette.paper.opacity(0.4), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func symbol(_ neighbour: Neighbour) -> String {
+        switch neighbour.status {
+        case .gone: return "leaf"
+        case .resting: return "moon.zzz.fill"
+        case .living:
+            switch neighbour.kind {
+            case .thing: return "cup.and.saucer.fill"
+            case .creature: return "hare.fill"
+            case .place: return "tree.fill"
+            }
+        }
+    }
+
+    /// The reader's own short sentences from the Pages it's on, newest first.
+    private func sentences(_ neighbour: Neighbour) -> [String] {
+        let byID = Dictionary(days.flatMap(\.pages).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return neighbour.pageIDs.reversed().compactMap { id in
+            byID[id].flatMap { Neighbours.quotable(Neighbours.readerText($0)) }
+        }
+        .prefix(3)
+        .map { $0 }
+    }
+
+    private func row(_ neighbour: Neighbour) -> some View {
+        let isOpen = openSlug == neighbour.slug
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                BookFeedback.play(.select)
+                openSlug = isOpen ? nil : neighbour.slug
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: symbol(neighbour))
+                        .font(.subheadline)
+                        .foregroundStyle(neighbour.status == .living ? BookPalette.teal : BookPalette.ink.opacity(0.4))
+                    Text(spoken(neighbour))
+                        .font(.headline)
+                        .foregroundStyle(BookPalette.ink.opacity(neighbour.status == .living ? 1 : 0.7))
+                    Spacer()
+                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(BookPalette.ink.opacity(0.4))
+                }
+            }
+            .buttonStyle(.bookPress())
+
+            Text(Neighbours.line(for: neighbour, days: days, now: now))
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.6))
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isOpen {
+                file(neighbour)
+            }
+        }
+        .padding(14)
+        .background(BookPalette.paper.opacity(neighbour.status == .living ? 0.4 : 0.25),
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func file(_ neighbour: Neighbour) -> some View {
+        if let sentence = neighbour.foundingSentence {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("WHERE IT STARTED")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.45))
+                Text("\u{201C}\(sentence)\u{201D}")
+                    .font(.system(.subheadline, design: .serif))
+                    .foregroundStyle(BookPalette.ink.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        let later = sentences(neighbour).filter { $0 != neighbour.foundingSentence }
+        if !later.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("IN YOUR PAGES SINCE")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(BookPalette.ink.opacity(0.45))
+                ForEach(later, id: \.self) { line in
+                    Text("\u{201C}\(line)\u{201D}")
+                        .font(.system(.footnote, design: .serif))
+                        .foregroundStyle(BookPalette.ink.opacity(0.75))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        if !neighbour.formerNames.isEmpty {
+            Text("Called \(neighbour.formerNames.map { Neighbours.capitalized($0) }.joined(separator: ", then ")) before.")
+                .font(.caption)
+                .foregroundStyle(BookPalette.ink.opacity(0.55))
+        }
+
+        if renamingSlug == neighbour.slug {
+            HStack(spacing: 8) {
+                TextField("Its name", text: $newName)
+                    .font(.system(.body, design: .serif))
+                    .foregroundStyle(BookPalette.ink)
+                    .tint(BookPalette.teal)
+                    .textInputAutocapitalization(.words)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(BookPalette.page.opacity(0.85), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .submitLabel(.done)
+                    .onSubmit { commitRename(neighbour) }
+                Button("Keep") { commitRename(neighbour) }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(BookPalette.teal)
+                    .disabled(newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        } else if neighbour.status != .gone {
+            HStack(spacing: 14) {
+                action("Rename", "pencil") {
+                    newName = neighbour.isEpithet ? "" : neighbour.name
+                    renamingSlug = neighbour.slug
+                }
+                if neighbour.status == .living {
+                    action("Let it rest", "moon.zzz") { onRest(neighbour.slug) }
+                } else {
+                    action("Wake it", "sun.max") { onWake(neighbour.slug) }
+                }
+                action("It's gone", "leaf") { confirmingGone = neighbour }
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func commitRename(_ neighbour: Neighbour) {
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        onRename(neighbour.slug, name)
+        renamingSlug = nil
+        newName = ""
+    }
+
+    private func action(_ title: String, _ symbol: String, perform: @escaping () -> Void) -> some View {
+        Button {
+            BookFeedback.play(.select)
+            perform()
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.caption2.weight(.bold))
+                Text(title).font(.caption.weight(.semibold))
+            }
+            .foregroundStyle(BookPalette.teal)
+        }
+        .buttonStyle(.bookPress())
+    }
+
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.caption.weight(.bold))
+            .foregroundStyle(BookPalette.ink.opacity(0.5))
+            .padding(.top, 4)
     }
 }

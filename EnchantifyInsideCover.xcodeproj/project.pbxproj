@@ -144,6 +144,9 @@
 		02000000000000000000032A /* GazetteerGaps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032B /* GazetteerGaps.swift */; };
 		02000000000000000000032C /* GazetteerGapSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032D /* GazetteerGapSurfacing.swift */; };
 		02000000000000000000032E /* SkyOnTheLeaf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000032F /* SkyOnTheLeaf.swift */; };
+		0200000000000000000008A0 /* Neighbours.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000008A1 /* Neighbours.swift */; };
+		0200000000000000000008A2 /* NeighbourSurfacing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000008A3 /* NeighbourSurfacing.swift */; };
+		0200000000000000000008A4 /* Deeds.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0200000000000000000008A5 /* Deeds.swift */; };
 		020000000000000000000320 /* BestiaryNoticing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 020000000000000000000321 /* BestiaryNoticing.swift */; };
 		02000000000000000000041A /* GrimoireExperiments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02000000000000000000041B /* GrimoireExperiments.swift */; };
 		030000000000000000000200 /* StacksSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 030000000000000000000100 /* StacksSearch.swift */; };
@@ -367,6 +370,9 @@
 		02000000000000000000032B /* GazetteerGaps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazetteerGaps.swift; sourceTree = "<group>"; };
 		02000000000000000000032D /* GazetteerGapSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GazetteerGapSurfacing.swift; sourceTree = "<group>"; };
 		02000000000000000000032F /* SkyOnTheLeaf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkyOnTheLeaf.swift; sourceTree = "<group>"; };
+		0200000000000000000008A1 /* Neighbours.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Neighbours.swift; sourceTree = "<group>"; };
+		0200000000000000000008A3 /* NeighbourSurfacing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeighbourSurfacing.swift; sourceTree = "<group>"; };
+		0200000000000000000008A5 /* Deeds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Deeds.swift; sourceTree = "<group>"; };
 		020000000000000000000321 /* BestiaryNoticing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestiaryNoticing.swift; sourceTree = "<group>"; };
 		02000000000000000000041B /* GrimoireExperiments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrimoireExperiments.swift; sourceTree = "<group>"; };
 		030000000000000000000100 /* StacksSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StacksSearch.swift; sourceTree = "<group>"; };
@@ -591,6 +597,9 @@
 				02000000000000000000032B /* GazetteerGaps.swift */,
 				02000000000000000000032D /* GazetteerGapSurfacing.swift */,
 				02000000000000000000032F /* SkyOnTheLeaf.swift */,
+				0200000000000000000008A1 /* Neighbours.swift */,
+				0200000000000000000008A3 /* NeighbourSurfacing.swift */,
+				0200000000000000000008A5 /* Deeds.swift */,
 				020000000000000000000321 /* BestiaryNoticing.swift */,
 				02000000000000000000041B /* GrimoireExperiments.swift */,
 				020000000000000000000311 /* DayBitset.swift */,
@@ -957,6 +966,9 @@
 				02000000000000000000032A /* GazetteerGaps.swift in Sources */,
 				02000000000000000000032C /* GazetteerGapSurfacing.swift in Sources */,
 				02000000000000000000032E /* SkyOnTheLeaf.swift in Sources */,
+				0200000000000000000008A0 /* Neighbours.swift in Sources */,
+				0200000000000000000008A2 /* NeighbourSurfacing.swift in Sources */,
+				0200000000000000000008A4 /* Deeds.swift in Sources */,
 				020000000000000000000320 /* BestiaryNoticing.swift in Sources */,
 				02000000000000000000041A /* GrimoireExperiments.swift in Sources */,
 				020000000000000000000310 /* DayBitset.swift in Sources */,

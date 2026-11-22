@@ -228,6 +228,7 @@ extension ContentView {
             || annualEditionReader != nil
             || isBookWorkingAuthorityPresented
             || isPeopleOfTheBookPresented
+            || isNeighboursPresented
     }
 
     /// What the Book knows about the sky — now and for the next few hours —
@@ -410,7 +411,11 @@ extension ContentView {
         Task { @MainActor in
             var waitedForKeepNote = false
             repeat {
-                while isKeepMarginNotePresentationActive {
+                // One card at a time: the Cast note, and any lesson that
+                // queued behind it, finish before the Goblin arrives.
+                while isKeepMarginNotePresentationActive
+                        || activeTutorNote != nil
+                        || KeepReplyStage.pendingTutorNoteID != nil {
                     waitedForKeepNote = true
                     try? await Task.sleep(for: .milliseconds(150))
                     guard !Task.isCancelled,
@@ -427,7 +432,7 @@ extension ContentView {
                 }
                 // A quick second keep may begin during the breathing room. If it
                 // does, hear that whole note and give its exit a fresh gap too.
-            } while isKeepMarginNotePresentationActive
+            } while isKeepMarginNotePresentationActive || activeTutorNote != nil
 
             marginaliaAchievementUnlockTitle = announcementTitle
             withAnimation(.spring(response: 0.48, dampingFraction: 0.8)) {
@@ -966,6 +971,8 @@ extension ContentView {
         let firstSouvenir = result.firstSouvenir.trimmingCharacters(in: .whitespacesAndNewlines)
         let drawnChapterID = result.drawnChapterID.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        UserDefaults.standard.set(result.skipped, forKey: "readerSkippedFirstQuestions")
+        if result.skipped { correctWelcomeForSkippedQuestions() }
         withAnimation(.easeInOut(duration: 0.4)) {
             didCompleteStoryOnboarding = true
             isStoryOnboardingPaused = false

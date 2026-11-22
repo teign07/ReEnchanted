@@ -1298,6 +1298,11 @@ enum BookNoticeAdaptiveAction: String, Identifiable {
     case restPersonThread
     case confirmPersonContext
     case openPeopleOfTheBook
+    // The Neighbours: confirm a proposed Neighbour, turn the proposal away
+    // for good, or stop asking after one that has gone quiet.
+    case giveNeighbourAPage
+    case notANeighbour
+    case restNeighbour
 
     var id: String { rawValue }
 
@@ -1312,6 +1317,9 @@ enum BookNoticeAdaptiveAction: String, Identifiable {
         case .restPersonThread: return "Let this thread rest"
         case .confirmPersonContext: return "Yes: remember this"
         case .openPeopleOfTheBook: return "Fix what I remember"
+        case .giveNeighbourAPage: return "Give it a page"
+        case .notANeighbour: return "It's nobody"
+        case .restNeighbour: return "Stop asking after it"
         }
     }
 
@@ -1326,6 +1334,9 @@ enum BookNoticeAdaptiveAction: String, Identifiable {
         case .restPersonThread: return "moon.zzz"
         case .confirmPersonContext: return "checkmark.seal"
         case .openPeopleOfTheBook: return "person.2"
+        case .giveNeighbourAPage: return "house.and.flag"
+        case .notANeighbour: return "xmark"
+        case .restNeighbour: return "moon.zzz"
         }
     }
 
@@ -1333,7 +1344,8 @@ enum BookNoticeAdaptiveAction: String, Identifiable {
         switch self {
         case .scrapbookPage, .bindWeeklyIssue:
             return true
-        case .letPatternRest, .openPersonThread, .writePersonIntoStory, .letPersonRest, .restPersonThread, .confirmPersonContext, .openPeopleOfTheBook:
+        case .letPatternRest, .openPersonThread, .writePersonIntoStory, .letPersonRest, .restPersonThread, .confirmPersonContext, .openPeopleOfTheBook,
+             .giveNeighbourAPage, .notANeighbour, .restNeighbour:
             return false
         }
     }
@@ -2225,7 +2237,7 @@ struct CapturePageSheet: View {
             surface.type == .note ||
             surface.type == .bookRemembered ||
             surface.type == .bookPocket ||
-            surface.type == .bookNotices ||
+            surface.type.isNoticeLeaf ||
             surface.type == .taleBound ||
             surface.type == .theBleed ||
             surface.type == .letter ||
@@ -2503,7 +2515,7 @@ struct CapturePageSheet: View {
             !isBookJumpPage &&
             surface.type != .note &&
             surface.type != .bookRemembered &&
-            surface.type != .bookNotices &&
+            !surface.type.isNoticeLeaf &&
             surface.type != .bookPocket &&
             surface.type != .wordNegotiation &&
             surface.type != .taleBound &&
@@ -2524,7 +2536,7 @@ struct CapturePageSheet: View {
     private var acceptsReaderKeepsakes: Bool {
         guard !isKeptReadbackPage, !isWritingAskPage else { return false }
         return surface.type == .bookRemembered ||
-            surface.type == .bookNotices ||
+            surface.type.isNoticeLeaf ||
             surface.type == .bookPocket
     }
 
@@ -2619,7 +2631,7 @@ struct CapturePageSheet: View {
             }
             return selectedWordRuling == nil ? "Choose a ruling" : "Make this ruling"
         }
-        if surface.type == .bookNotices {
+        if surface.type.isNoticeLeaf {
             let metadata = surface.payload.metadata
             if metadata["constellationName"]?.nonEmpty != nil {
                 return "Keep this name"
@@ -7546,7 +7558,7 @@ struct CapturePageSheet: View {
                 return "remembered things"
             case .quip, .quotes, .affirmations:
                 return "borrowed sparks"
-            case .lore, .bookConnections, .bookNotices:
+            case .lore, .bookConnections, .bookNotices, .neighbours:
                 return "noticing leaves"
             case .wonderCompass, .wickerDare, .pactErrand:
                 return "small errands"
@@ -9200,7 +9212,7 @@ struct CapturePageSheet: View {
                 bookConnectionsOpeningView
             } else if surface.type == .bookRemembered {
                 bookRememberedOpeningView
-            } else if surface.type == .bookNotices {
+            } else if surface.type.isNoticeLeaf {
                 if isBookWorkingInvitationPage {
                     bookWorkingInvitationView
                 } else if isWritingAskPage {
@@ -9245,7 +9257,7 @@ struct CapturePageSheet: View {
                 )
             }
 
-            if !isEndLeaf && showsLeafReading && !surface.isStoryPlayablePage && !isPrintedRecipePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && surface.type != .bookNotices && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
+            if !isEndLeaf && showsLeafReading && !surface.isStoryPlayablePage && !isPrintedRecipePage && surface.type != .theBleed && surface.type != .radio && surface.type != .inventory && !isElectiveFlyleafPage && surface.type != .frontMatter && !isBookConnectionsFindingPage && surface.type != .bookRemembered && !surface.type.isNoticeLeaf && surface.type != .bookPocket && !isQuillChoosingPage && surface.payload.metadata["weeklyIssue"] != "true" && !isCompassPracticePage && !isPennySentenceMasteryPage && surface.type != .supportGuild && surface.type != .note && !isPendingLetterPage {
                 if isWelcomeIntroductionPage {
                     welcomeIntroductionBody
                 } else if surface.payload.metadata[MonthlyIssuePageMetadata.authoredStoryScene] == "true" {
@@ -10892,7 +10904,7 @@ struct CapturePageSheet: View {
         if evidenceCount > 0 {
             return (
                 "What led me here",
-                "These \(evidenceCount) kept Page\(evidenceCount == 1 ? "" : "s") led me here.",
+                evidenceCount == 1 ? "One kept Page led me here." : "These \(evidenceCount) kept Pages led me here.",
                 "books.vertical",
                 BookPalette.teal
             )
@@ -11175,7 +11187,7 @@ struct CapturePageSheet: View {
         }
         guard !didPlayCeremonyOpen else { return }
         let isWeeklyIssue = surface.payload.metadata["weeklyIssue"] == "true"
-        guard surface.type == .bookRemembered || surface.type == .bookNotices || isWeeklyIssue else { return }
+        guard surface.type == .bookRemembered || surface.type.isNoticeLeaf || isWeeklyIssue else { return }
         didPlayCeremonyOpen = true
         BookFeedback.play(surface.type == .bookRemembered || isWeeklyIssue ? .braidComplete : .sourceRefresh)
     }

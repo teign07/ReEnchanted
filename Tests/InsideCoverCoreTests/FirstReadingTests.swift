@@ -59,11 +59,14 @@ final class FirstReadingTests: XCTestCase {
         XCTAssertTrue(candidates(inputs, now: date(1, hour: 20)).isEmpty)
     }
 
-    func testDoesNotSurfaceFromOneLargeSitting() {
-        let pages = (0..<8).map {
+    func testSleepsOnTheFirstSittingBeforeReading() {
+        let pages = (0..<3).map {
             souvenir("A substantial kept sentence number \($0) from the same evening.", on: 1, hour: 8 + $0)
         }
-        XCTAssertTrue(candidates(inputs(with: pages), now: date(3, hour: 20)).isEmpty)
+        XCTAssertTrue(candidates(inputs(with: pages), now: date(1, hour: 20)).isEmpty,
+                      "not a reflex to one sitting")
+        XCTAssertEqual(candidates(inputs(with: pages), now: date(2, hour: 9)).first?.payload.metadata["firstReading"], "true",
+                       "three Pages, the next day: the reading the Book promised")
     }
 
     func testReflectableBookOverloadDoesNotDuplicateToday() {
@@ -82,6 +85,21 @@ final class FirstReadingTests: XCTestCase {
     func testDoesNotSurfaceOnceLibraryIsDeep() {
         let pages = (1...12).map { souvenir("A real kept line number \($0), with substance.", on: (($0 - 1) / 4) + 1, hour: ($0 % 4) + 8) }
         XCTAssertTrue(candidates(inputs(with: pages), now: date(3, hour: 20)).isEmpty)
+    }
+
+    func testCountsOnlyTheReadersOwnPages() {
+        var pages = (0..<3).map { souvenir("A substantial kept sentence number \($0).", on: 1, hour: 8 + $0) }
+        pages.append(BookPage(type: .welcome, createdAt: date(1, hour: 12), promptText: "Oh. There You Are.",
+                              userInput: "Look at me, Reader. Properly, I mean."))
+        let surfaced = candidates(inputs(with: pages), now: date(2, hour: 9))
+        XCTAssertEqual(surfaced.first?.payload.metadata["reflectedPageCount"], "3",
+                       "the kept Welcome is the Book's writing, not the reader's")
+    }
+
+    func testBelongsToAYoungBook() {
+        let pages = (0..<3).map { souvenir("A substantial kept sentence number \($0).", on: 1, hour: 8 + $0) }
+        XCTAssertTrue(candidates(inputs(with: pages), now: date(20)).isEmpty,
+                      "a Book three weeks old is read back by the ordinary echoes")
     }
 
     // MARK: - Once-only

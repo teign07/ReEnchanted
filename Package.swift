@@ -130,7 +130,10 @@ let package = Package(
                 "GazetteerGaps.swift",
                 "GazetteerGapSurfacing.swift",
                 "CreatureLore.swift",
-                "SkyOnTheLeaf.swift"
+                "SkyOnTheLeaf.swift",
+                "Neighbours.swift",
+                "NeighbourSurfacing.swift",
+                "Deeds.swift"
             ]
         ),
         .testTarget(

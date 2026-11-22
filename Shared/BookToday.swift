@@ -155,6 +155,7 @@ enum BookTodayProjector {
 
         let marginLines = marginBeats(
             inputs: inputs,
+            today: day,
             event: event,
             dayID: day.id,
             now: now,
@@ -479,11 +480,20 @@ enum BookTodayProjector {
     /// to the Book lets a different live voice reach the top of the pile.
     private static func marginBeats(
         inputs: BookSourceInputs,
+        today: BookDay? = nil,
         event: ResolvedWorldEvent?,
         dayID: String,
         now: Date,
         selectionSeed: Int
     ) -> [BookTodayEdition.Beat] {
+        // Week one belongs to the reader. The Academy's own business waits until
+        // enough of their Pages are kept, then arrives all at once, as news.
+        let today = today ?? inputs.days.first { $0.id == dayID }
+        guard FirstWeek.academyIsOpen(inputs: inputs, today: today, now: now) else { return [] }
+        let opening: [BookTodayEdition.Beat] = FirstWeek.academyJustOpened(inputs: inputs, today: today, now: now)
+            ? [.init(kind: .inTheMargins, line: FirstWeek.academyOpeningLine, symbolName: "door.left.hand.open")]
+            : []
+
         var candidates: [(line: String, symbolName: String)] = []
         var seenLines: Set<String> = []
         let cutoff = now.addingTimeInterval(-14 * 86_400)
@@ -653,7 +663,7 @@ enum BookTodayProjector {
                 symbolName: "ear", alreadyShort: true)
         }
 
-        guard !candidates.isEmpty else { return [] }
+        guard !candidates.isEmpty else { return opening }
         // The first line keeps its old seat, so one opening is still one reading; the rest of
         // the margin follows in this opening's own order, so a second look turns up other voices.
         let key = "\(dayID)|\(selectionSeed)|book-today-margin-source"
@@ -664,7 +674,7 @@ enum BookTodayProjector {
             let b = "\(key)|\(right.offset)".stableHash
             return a == b ? left.offset < right.offset : a < b
         }.map(\.element)
-        return ([first] + rest).map {
+        return opening + ([first] + rest).map {
             BookTodayEdition.Beat(kind: .inTheMargins, line: $0.line, symbolName: $0.symbolName)
         }
     }
@@ -759,11 +769,17 @@ enum BookTodayCensusProjector {
             calendar: calendar,
             selectionSeed: selectionSeed
         )
+        // Until the Academy has noticed the reader, the census counts the
+        // reader's own life, not the Cast's.
+        let academyOpen = FirstWeek.academyIsOpen(inputs: inputs, today: day, now: now)
+        let visible = academyOpen ? candidates : candidates.filter {
+            !Self.academyCensusFamilies.contains($0.family) && !Self.academyCensusFactIDs.contains($0.id)
+        }
         return BookTodayEdition.Census(
             title: title,
             begunAt: begunAt,
             pageCount: pages.count,
-            facts: selectedFacts(from: candidates, selectionSeed: selectionSeed, limit: drawerCount),
+            facts: selectedFacts(from: visible, selectionSeed: selectionSeed, limit: drawerCount),
             closingLine: closingLine(
                 inputs: inputs,
                 relationship: relationship,
@@ -771,11 +787,25 @@ enum BookTodayCensusProjector {
                 selectionSeed: selectionSeed
             ),
             whileAway: whileAway(pages: pages, inputs: inputs, now: now, calendar: calendar)
+                .filter { academyOpen || !Self.academyAwayFactIDs.contains($0.id) }
         )
     }
 
     /// The last day in the Book, counted: proof it carried on while the Reader was out.
     /// Only things that really happened, each with its receipt in a ledger.
+    /// Census facts that count the Cast's lives, not the reader's.
+    static let academyCensusFamilies: Set<String> = ["academy", "relationships"]
+    static let academyCensusFactIDs: Set<String> = [
+        "characters-in-motion", "cast-acts", "book-disputes",
+        "unfinished-business", "arguing-questions", "recent-cast-movements",
+        "unwitnessed-cast-movements", "remembering-rooms"
+    ]
+
+    /// Overnight news that is the Academy's, not the reader's.
+    static let academyAwayFactIDs: Set<String> = [
+        "away-cookery", "away-letters", "away-acts", "away-unseen", "away-gossip", "away-belief"
+    ]
+
     static func whileAway(pages: [BookPage], inputs: BookSourceInputs, now: Date, calendar: Calendar) -> [BookTodayEdition.Census.Fact] {
         let since = now.addingTimeInterval(-24 * 3600)
         func recent(_ date: Date) -> Bool { date > since && date <= now }

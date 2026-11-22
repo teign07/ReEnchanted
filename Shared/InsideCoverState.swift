@@ -459,9 +459,9 @@ struct GossipPageBeliefMove: Codable, Equatable {
     var promptLine: String {
         switch kind {
         case .invest:
-            return "\(actorName) gives Belief to \(sourceTitle) Pages, trying to make that kind of page more real."
+            return "\(actorName) gives Belief to \(BookPageSource.kindName(from: sourceTitle)) Pages, trying to make that kind of page more real."
         case .attack:
-            return "\(actorName) tries to take Belief from \(sourceTitle) Pages, cooling what the Book will notice."
+            return "\(actorName) tries to take Belief from \(BookPageSource.kindName(from: sourceTitle)) Pages, cooling what the Book will notice."
         }
     }
 }
@@ -1398,7 +1398,7 @@ struct BleedTranslation: Equatable {
     static let shelter = BleedTranslation(
         dayShape: "shelter",
         pageBias: [.rest, .mood, .souvenir],
-        atmosphereLine: "I've lowered the lamps; the day asked for gentleness.",
+        atmosphereLine: "Hard day. I'm staying right here, and I've got something odd to show you.",
         forbiddenOffers: ["long_embark", "high_energy_challenge", "step_back_offer"]
     )
 }

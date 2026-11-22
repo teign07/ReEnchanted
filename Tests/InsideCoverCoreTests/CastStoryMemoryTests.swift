@@ -175,6 +175,20 @@ final class CastStoryMemoryTests: XCTestCase {
                        "fresh")
     }
 
+    func testNewsFromBeforeTheReaderArrivedIsNotSaidToThem() throws {
+        let now = date(10, 10)
+        let arrived = now.addingTimeInterval(-20 * 3_600)
+        let before = now.addingTimeInterval(-30 * 3_600)
+        let speakers: Set = ["wicker-eddies", "serenity-brown"]
+        let news = CastStoryMemoryLedger(memories: [memory("news", entity: "wicker-eddies", at: before, witness: .lived)])
+        XCTAssertEqual(CastStoryAside.pick(ledger: news, now: now, speakers: speakers, calendar: calendar)?.id, "news")
+        XCTAssertNil(CastStoryAside.pick(ledger: news, now: now, speakers: speakers, readerSince: arrived, calendar: calendar),
+                     "a reader who began after it happened has no way to place it")
+        let shared = CastStoryMemoryLedger(memories: [memory("shared", entity: "serenity-brown", at: before)])
+        XCTAssertEqual(CastStoryAside.pick(ledger: shared, now: now, speakers: speakers, readerSince: arrived, calendar: calendar)?.id,
+                       "shared", "what the reader was there for is always theirs")
+    }
+
     func testTheCastOnTheKeptPageAndTheReadersOwnMomentsGoFirst() throws {
         let now = date(10, 20)
         let ledger = CastStoryMemoryLedger(memories: [

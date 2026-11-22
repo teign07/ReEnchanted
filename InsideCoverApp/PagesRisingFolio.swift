@@ -5315,7 +5315,7 @@ private enum FolioLeafCompositor {
         case .mood, .weather, .todaysSky:
             return .weatherCabinet
         case .aboutYou, .creatorNote, .bookOfYou, .bookRemembered,
-             .bookConnections, .bookNotices, .inventory, .bindery,
+             .bookConnections, .bookNotices, .neighbours, .inventory, .bindery,
              .bookPocket, .packPage, .calendar, .helpTips, .radio,
              .frontMatter:
             return .archive
@@ -8648,9 +8648,13 @@ private enum PagesRisingFolioPaginator {
             || surface.payload.metadata["keptPage"] == "true"
         guard !isKeptReadback else { return false }
         switch surface.type {
-        case .mood, .diary, .souvenir, .body, .fuel, .location,
-             .plainPage:
+        case .mood, .diary, .souvenir, .body, .fuel, .location:
             return true
+        case .plainPage:
+            // A plain Page is usually an empty box to write in. The Pagewright's
+            // introduction is a plain Page that is a letter; hiding its body
+            // left "Somebody With Scissors" over nothing at all.
+            return surface.renderStyle != .loreLetter
         case .weather:
             // The blank Weather preview is an invitation, so its response
             // furniture owns the instruction. Once the sky and Gemma have

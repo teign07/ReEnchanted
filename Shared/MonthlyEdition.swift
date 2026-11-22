@@ -2866,6 +2866,9 @@ enum MonthlyEditionBuilder {
                 limit: 62
             ),
 
+            // III(a). What the reader did: the month told as their deeds.
+            deedsSection(days: days, start: startDate, end: endDate, calendar: calendar),
+
             // III. What the reader kept in their own words.
             pageSection(
                 id: "souvenirs",
@@ -2879,7 +2882,7 @@ enum MonthlyEditionBuilder {
                 id: "letters",
                 title: "Letters And Voices",
                 note: "Correspondence, gossip, story pages, and faculty notes that spoke back.",
-                pages: boundPages.filter { [.letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices].contains($0.type) },
+                pages: boundPages.filter { [.letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .neighbours].contains($0.type) },
                 limit: 36
             ),
             imageSection(from: boundPages),
@@ -2954,7 +2957,7 @@ enum MonthlyEditionBuilder {
                     pages: boundPages.filter { page in
                         !EditionCurator.isScrapbookPage(page)
                             // How to read the Book is for the app; on paper it's an instruction manual.
-                            && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .illuminatedPhoto, .illustration, .enchantment, .helpTips].contains(page.type)
+                            && ![.bookOfYou, .souvenir, .letter, .narrativeOS, .bookConnections, .gossip, .facultyResearch, .supportGuild, .bookNotices, .neighbours, .illuminatedPhoto, .illustration, .enchantment, .helpTips].contains(page.type)
                     },
                     limit: nil,
                     placement: .backMatter
@@ -3133,6 +3136,53 @@ enum MonthlyEditionBuilder {
     /// and — in the months where it happens — crossing it out again. A rule
     /// quietly corrected in a later edition would be a rule the reader could
     /// never catch being wrong.
+    /// The month told as deeds, with the reader as the one who did them,
+    /// and any title a deed earned in it. Built only from `DeedChronicle`,
+    /// so every sentence points at a Page. Empty in a month with no deeds.
+    static func deedsSection(days: [BookDay], start: Date, end: Date, calendar: Calendar) -> MonthlyEditionSection {
+        let deeds = DeedChronicle.deeds(days: days)
+        let oneMonth = calendar.isDate(start, equalTo: end, toGranularity: .month)
+        let month = oneMonth
+            ? Neighbours.month(start, calendar: calendar)
+            : "the months from \(Neighbours.month(start, calendar: calendar)) to \(Neighbours.month(end, calendar: calendar))"
+        let paragraphs = DeedChronicle.told(deeds: deeds, days: days, from: start, to: end, periodName: month)
+        guard !paragraphs.isEmpty else {
+            return MonthlyEditionSection(id: "deeds", title: "What You Did", note: "", items: [])
+        }
+        var items = [MonthlyEditionItem(
+            id: "deeds-\(Int(start.timeIntervalSince1970))",
+            kind: .continuity,
+            title: oneMonth ? "\(month), Told as Deeds" : "The Season, Told as Deeds",
+            body: paragraphs.joined(separator: "\n\n"),
+            date: start,
+            pageType: nil,
+            sourceID: Neighbours.sourceID,
+            mediaAssets: [],
+            tags: ["monthly-edition", "deeds"]
+        )]
+        let earned = DeedChronicle.titles(deeds: deeds, calendar: calendar)
+            .filter { $0.earnedAt >= start && $0.earnedAt <= end }
+        if !earned.isEmpty {
+            items.append(MonthlyEditionItem(
+                id: "deeds-titles-\(Int(start.timeIntervalSince1970))",
+                kind: .continuity,
+                title: earned.count == 1 ? "A Title" : "Titles",
+                body: earned.map { "\($0.title). \($0.because)" }.joined(separator: "\n\n"),
+                date: earned.first?.earnedAt,
+                pageType: nil,
+                sourceID: Neighbours.sourceID,
+                mediaAssets: [],
+                tags: ["monthly-edition", "deeds", "reader-titles"]
+            ))
+        }
+        return MonthlyEditionSection(
+            id: "deeds",
+            title: "What You Did",
+            note: "Only what you did and wrote down. I didn't add anything.",
+            items: items
+        )
+    }
+
     private static func grimoireSection(
         from grimoire: GrimoireLedger,
         generatedAt: Date,

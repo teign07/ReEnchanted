@@ -1012,6 +1012,7 @@ struct ContentView: View {
     @State var currentStall: GoblinStall?
     @State var isPactMapPresented = false
     @State var isPeopleOfTheBookPresented = false
+    @State var isNeighboursPresented = false
     @State var isPlainPagePresented = false
     @State var plainPageAutoRecord = false
     @State var busySealID: String?
@@ -1412,6 +1413,7 @@ struct ContentView: View {
         inputs.localBrainIsFetching = modelReport.state != .ready
             && (isInstallingModel || LocalBrainInstallIntent.isWanted)
         inputs.localBrainDownloadLabel = LocalModelManager.preferredModel.approximateDownloadLabel
+        inputs.readerSkippedFirstQuestions = UserDefaults.standard.bool(forKey: "readerSkippedFirstQuestions")
         inputs.localBrainAsksStopped = LocalBrainAsks.isStopped
         inputs.localBrainOnWiFi = LocalBrainAsks.lastSeenOnWiFi
         inputs.selfFacts = selfFacts
@@ -1796,8 +1798,11 @@ struct ContentView: View {
         // One generation per Page already pulled, not per nine: a pull that
         // came back short must not reuse the next pull's ids.
         let generation = pagesRisingDeeperSurfaces.count + 1
+        let bench = firstWeekDoorsShownToday().map {
+            FirstWeek.oneDoor(curatedSurfaceBench, doorsShownToday: $0.union(Set(alreadyShown.filter(FirstWeek.isDoor).map(\.sourceID))))
+        } ?? curatedSurfaceBench
         let next = BookCurator.deeperPull(
-            bench: curatedSurfaceBench,
+            bench: bench,
             alreadyShown: alreadyShown,
             history: served,
             now: Date(),
@@ -3544,6 +3549,11 @@ struct ContentView: View {
                     callbacks.view.peopleOfTheBookSheet
                 }
             }
+            .sheet(isPresented: callbacks.view.$isNeighboursPresented) {
+                BookPresentationGate(title: "The Neighbours") {
+                    callbacks.view.neighboursSheet
+                }
+            }
             .sheet(isPresented: callbacks.view.stacksSheetPresentation) {
                 BookPresentationGate(title: "Search the Stacks") {
                     SearchTheStacksSheet(
@@ -3868,6 +3878,43 @@ struct ContentView: View {
         )
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+    }
+
+    /// Handlers are assigned one statement at a time: ContentView is large,
+    /// and closures in an argument list each hold a copy of it on the stack.
+    private var neighboursSheet: some View {
+        let allDays = days + [today]
+        var sheet = NeighboursSheet(neighbours: Neighbours.register(days: allDays), days: allDays, now: Date())
+        sheet.onRename = { slug, name in
+            statusMessage = applyNeighbourRecord(slug: slug, message: "It's called \(name) now.") {
+                Neighbours.renameRecord($0, to: name, now: Date())
+            }
+        }
+        sheet.onRest = { slug in
+            statusMessage = applyNeighbourRecord(slug: slug, message: "It's resting. I won't ask after it.") {
+                Neighbours.restRecord($0, now: Date())
+            }
+        }
+        sheet.onWake = { slug in
+            statusMessage = applyNeighbourRecord(slug: slug, message: "It's awake again.") {
+                Neighbours.wakeRecord($0, now: Date())
+            }
+        }
+        sheet.onGone = { slug in
+            statusMessage = applyNeighbourRecord(slug: slug, message: "It's gone. I've written down when.") {
+                Neighbours.goneRecord($0, now: Date())
+            }
+        }
+        sheet.proposals = neighbourProposals(days: allDays)
+        sheet.onAccept = { key, name in
+            statusMessage = acceptNeighbourProposal(key: key, name: name)
+        }
+        sheet.onDecline = { key in
+            statusMessage = declineNeighbourProposal(key: key)
+        }
+        return sheet
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
     }
 
     private func presentStacks(arrival: WearArrival = .byHand) {
@@ -4208,9 +4255,7 @@ struct ContentView: View {
         // has gone, not while both are still moving.
         BookLeafInkClock.hold(until: Date().addingTimeInterval(reduceMotion ? 0 : 0.4))
         withAnimation(.easeOut(duration: 0.32)) {
-            surfacedPages = BookCurator.readingArc(
-                Array(stage.result.surfaces.prefix(BookDeskRound.reserveCapacity))
-            )
+            surfacedPages = arrangedDesk(stage.result.surfaces)
             deskRound.begin(with: surfacedPages)
             isLaunchDeskCurating = false
         }
@@ -5351,9 +5396,7 @@ struct ContentView: View {
             applySurfaceBuildMetadata(result)
             curatedSurfaceBench = result.surfaces
             let previousTopID = surfacedPages.first?.id
-            let rebuiltDesk = BookCurator.readingArc(
-                Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
-            )
+            let rebuiltDesk = arrangedDesk(result.surfaces)
             let pendingCeremony = rebuiltDesk.count == 1
                 && rebuiltDesk.first.map(FirstRunPageSequence.isCeremonySurface) == true
             #if DEBUG && targetEnvironment(simulator)
@@ -5500,7 +5543,10 @@ struct ContentView: View {
 
         applySurfaceBuildMetadata(result)
         curatedSurfaceBench = result.surfaces
-        let postOnboardingDesk = Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
+        let postOnboardingDesk = firstWeekDoorsShownToday().map { doors in
+            FirstWeek.ordered(Array(FirstWeek.oneDoor(result.surfaces, doorsShownToday: doors)
+                .prefix(BookDeskRound.reserveCapacity)), doorsShownToday: doors)
+        } ?? Array(result.surfaces.prefix(BookDeskRound.reserveCapacity))
         withAnimation(reduceMotion ? nil : .easeOut(duration: 0.28)) {
             surfacedPages = postOnboardingDesk
             deskRound.begin(with: postOnboardingDesk)
@@ -7623,6 +7669,10 @@ struct ContentView: View {
         case .openPeopleOfTheBook:
             dismissGlowMenuThenPresent {
                 isPeopleOfTheBookPresented = true
+            }
+        case .openNeighbours:
+            dismissGlowMenuThenPresent {
+                isNeighboursPresented = true
             }
         case let .openBookSection(sectionID):
             dismissGlowMenuThenPresent {
@@ -9858,7 +9908,94 @@ struct ContentView: View {
             vault.data.people = ledger
             vault.save()
             return "The thread's resting. I'll keep its pages and shut up about it."
+        case .giveNeighbourAPage:
+            guard let proposal = Neighbours.proposal(fromMetadata: surface.payload.metadata) else {
+                return "I reached for it, but the page had let it go."
+            }
+            guard let record = Neighbours.foundingRecord(for: proposal, days: days + [today], now: Date()) else {
+                return "\(Neighbours.capitalized(proposal.name))'s already got a page."
+            }
+            recordReaderLearning(surface: surface, action: .loved, evidence: "Reader gave a Neighbour a page.")
+            let spoken = proposal.isEpithet ? Neighbours.capitalized(proposal.name) : proposal.name
+            var day = today
+            day.pages.append(record)
+            persist(day: day, message: "\(spoken)'s got a page now.")
+            surfaceRefreshDate = Date()
+            return "\(spoken)'s got a page now. It's one of the Neighbours."
+        case .notANeighbour:
+            _ = recordBookNoticeFeedback(surface: surface, choice: .doNotReadThisWay)
+            return "Nobody, then. I won't ask about it again."
+        case .restNeighbour:
+            let slug = surface.payload.metadata["neighbourSlug"] ?? ""
+            return applyNeighbourRecord(slug: slug, message: "I'll stop asking after it.") {
+                Neighbours.restRecord($0, now: Date())
+            }
         }
+    }
+
+    // MARK: - The Neighbours: records written from the register and notices
+
+    /// The proposals still waiting, read with the same exclusions the desk
+    /// uses. Built from vault state directly: the whole `sourceInputs` is far
+    /// more than three name lists need.
+    func neighbourProposals(days allDays: [BookDay]) -> [NeighbourProposal] {
+        var exclusions = BookSourceInputs.empty
+        exclusions.selfFacts = selfFacts
+        exclusions.customCastMembers = customCastMembers
+        exclusions.people = vault.data.people ?? PeopleLedger()
+        return Neighbours.proposals(
+            days: allDays,
+            excludedNames: Neighbours.excludedNames(inputs: exclusions),
+            excludedSlugs: Neighbours.excludedSlugs(inputs: exclusions),
+            declinedKeys: Set((vault.data.bookReadingBoundaries ?? []).map(\.id))
+        )
+    }
+
+    /// "Give it a page" from the register, with the reader's own name for it
+    /// when they corrected the Book's guess.
+    func acceptNeighbourProposal(key: String, name: String?) -> String {
+        let allDays = days + [today]
+        guard let proposal = neighbourProposals(days: allDays).first(where: { $0.key == key }) else {
+            return "I reached for it, but the page had let it go."
+        }
+        guard let record = Neighbours.foundingRecord(for: proposal, name: name, days: allDays, now: Date()) else {
+            return "\(Neighbours.capitalized(proposal.name))'s already got a page."
+        }
+        let spoken = name ?? (proposal.isEpithet ? Neighbours.capitalized(proposal.name) : proposal.name)
+        var day = today
+        day.pages.append(record)
+        persist(day: day, message: "\(spoken)'s got a page now.")
+        surfaceRefreshDate = Date()
+        return "\(spoken)'s got a page now. It's one of the Neighbours."
+    }
+
+    /// "It's nobody" from the register: the same permanent no the desk's
+    /// proposal records.
+    func declineNeighbourProposal(key: String) -> String {
+        guard let proposal = neighbourProposals(days: days + [today]).first(where: { $0.key == key }) else {
+            return "Nobody, then. I won't ask about it again."
+        }
+        let adapter = NeighboursPageSourceAdapter()
+        let surface = NeighboursPageSourceAdapter.surface(for: proposal, source: adapter.source, day: today)
+        _ = recordBookNoticeFeedback(surface: surface, choice: .doNotReadThisWay)
+        surfaceRefreshDate = Date()
+        return "Nobody, then. I won't ask about it again."
+    }
+
+    /// Writes one Neighbour record (rename, rest, wake, gone) into today's
+    /// Pages. The register is read back from those records, so this is the
+    /// whole of the change.
+    @discardableResult
+    func applyNeighbourRecord(slug: String, message: String, make: (Neighbour) -> BookPage?) -> String {
+        guard let neighbour = Neighbours.neighbour(slug: slug, days: days + [today]),
+              let record = make(neighbour) else {
+            return "That one had already slipped out of my keeping."
+        }
+        var day = today
+        day.pages.append(record)
+        persist(day: day, message: message)
+        surfaceRefreshDate = Date()
+        return message
     }
 
     private enum PersonThreadConfirmation {
@@ -11131,6 +11268,8 @@ struct ContentView: View {
         }
         entries.append(destination("people-of-the-book", "The People of the Book", "The real people your days have brought me.", "person.2.wave.2",
                                    section: "The Cast", action: .openPeopleOfTheBook))
+        entries.append(destination("the-neighbours", "The Neighbours", "The things in your days that turned into somebody.", "house.and.flag",
+                                   section: "The Cast", action: .openNeighbours))
         entries.append(PagesRisingContentsEntry(
             id: "invite-cast", title: "Invite a new Cast Member", detail: "Tell me what it is. Or show me a photograph.",
             systemImage: "plus.circle", action: {
@@ -14617,6 +14756,83 @@ struct ContentView: View {
             )
         )
         savePage(surface: surface, input: trimmed, tags: tags, extraMedia: media)
+        retireFirstMissionAfterCapture()
+    }
+
+    /// Waits (at most 25 seconds) for a Keep's own replies to leave the page:
+    /// the Cast note, the Book's line and any lesson that queued behind them.
+    /// A permission ask lands after them, never on top of them.
+    func waitForKeepRepliesToFinish() async {
+        try? await Task.sleep(for: .seconds(1.2))
+        // Replies hand over to each other with short gaps (the Cast note, then
+        // the Book's line, then a lesson, then the Goblin), so the page has
+        // to stay clear for a few seconds running before it counts as quiet.
+        let deadline = Date().addingTimeInterval(40)
+        var quietSince: Date?
+        while Date() < deadline {
+            let busy = isKeepMarginNotePresentationActive
+                || activeTutorNote != nil
+                || marginaliaAchievementUnlockNote != nil
+                || KeepReplyStage.pendingTutorNoteID != nil
+                || KeepReplyStage.pendingBookLine != nil
+            if busy {
+                quietSince = nil
+            } else if let since = quietSince, Date().timeIntervalSince(since) >= 3 {
+                break
+            } else if quietSince == nil {
+                quietSince = Date()
+            }
+            try? await Task.sleep(for: .seconds(0.4))
+            if Task.isCancelled { return }
+        }
+        await KeepReplyStage.waitForQuiet()
+    }
+
+    /// The reading arc, with week one's rule on top: the first leaf is a move,
+    /// never a door. Applied last, so no re-sort can put a door back in front.
+    func arrangedDesk(_ candidates: [SurfacePage], limit: Int = BookDeskRound.reserveCapacity) -> [SurfacePage] {
+        guard let doorsToday = firstWeekDoorsShownToday() else {
+            return BookCurator.readingArc(Array(candidates.prefix(limit)))
+        }
+        // Doors that must wait are taken out of the whole bench first, so the
+        // desk still fills to capacity from the Pages behind them.
+        let allowed = FirstWeek.oneDoor(candidates, doorsShownToday: doorsToday)
+        let arc = BookCurator.readingArc(Array(allowed.prefix(limit)))
+        return FirstWeek.ordered(arc, doorsShownToday: doorsToday)
+    }
+
+    /// Nil outside the reader's first week; otherwise the doors already shown today.
+    private func firstWeekDoorsShownToday() -> Set<String>? {
+        var inputs = BookSourceInputs.empty
+        inputs.selfFacts = selfFacts
+        inputs.days = days
+        inputs.surfaceHistory = vault.data.surfaceHistory ?? [:]
+        guard FirstWeek.isActive(inputs: inputs, now: Date()) else { return nil }
+        return FirstWeek.doorsShownToday(inputs: inputs, now: Date())
+    }
+
+    /// The desk under onboarding was written before the reader chose the
+    /// free-Book exit; its Welcome must not thank them for answering.
+    func correctWelcomeForSkippedQuestions() {
+        surfacedPages = surfacedPages.map { LabyrinthWelcomePageSourceAdapter.acknowledgingSkippedQuestions($0) }
+        curatedSurfaceBench = curatedSurfaceBench.map { LabyrinthWelcomePageSourceAdapter.acknowledgingSkippedQuestions($0) }
+    }
+
+    /// The First Mission asks for exactly one caught thing. Once the reader
+    /// has brought one, the leaf must not go on asking for it.
+    private func retireFirstMissionAfterCapture() {
+        let missionID = FirstRunPageSequence.firstMissionSourceID
+        guard surfacedPages.contains(where: { $0.sourceID == missionID }) else { return }
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            // Swap the leaf for the next Page on the bench, so the desk stays full.
+            let onDesk = Set(surfacedPages.map(\.id))
+            let replacement = curatedSurfaceBench.first { !onDesk.contains($0.id) && $0.sourceID != missionID }
+            surfacedPages = surfacedPages.compactMap { page in
+                page.sourceID == missionID ? replacement : page
+            }
+        }
     }
 
     /// A drop is a Share sheet without the sheet: the same receipt, the same
@@ -16092,7 +16308,8 @@ struct ContentView: View {
             ledger: ledger,
             now: moment,
             speakers: Set(cast.map(\.id)),
-            preferring: RelationshipFieldEngine.entityIDs(fromTags: page.tags)
+            preferring: RelationshipFieldEngine.entityIDs(fromTags: page.tags),
+            readerSince: days.flatMap(\.pages).map(\.createdAt).min()
         ), let line = remembered.aside,
               !DistressSignals.evaluate(day: today).isActive else { return nil }
         let voice = KeepMarginalia.voices.first { $0.slug == remembered.entityID }
@@ -17835,7 +18052,7 @@ struct ContentView: View {
                     name: source.title,
                     delta: offered,
                     sourcePageType: sourcePageType,
-                    note: "\(actorName) gave \(offered) Belief to \(source.title) Pages.",
+                    note: "\(actorName) gave \(offered) Belief to \(source.kindName) Pages.",
                     actorID: actorID
                 )
                 if applied > 0 {
@@ -17844,10 +18061,10 @@ struct ContentView: View {
                         name: actorName,
                         delta: -applied,
                         sourcePageType: sourcePageType,
-                        note: "\(actorName) spent \(applied) Belief making \(source.title) Pages more real."
+                        note: "\(actorName) spent \(applied) Belief making \(source.kindName) Pages more real."
                     )
                     if let slotID {
-                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: applied, line: "\(actorName) has been talking up \(source.title) Pages to anybody who will listen.", createdAt: now))
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: applied, line: "\(actorName) has been talking up \(source.kindName) Pages to anybody who will listen.", createdAt: now))
                     }
                     appliedCount += 1
                 }
@@ -17857,7 +18074,7 @@ struct ContentView: View {
                     name: source.title,
                     delta: -amount,
                     sourcePageType: sourcePageType,
-                    note: "\(actorName) tried to take \(amount) Belief from \(source.title) Pages.",
+                    note: "\(actorName) tried to take \(amount) Belief from \(source.kindName) Pages.",
                     actorID: actorID
                 )
                 let taken = -applied
@@ -17867,10 +18084,10 @@ struct ContentView: View {
                         name: actorName,
                         delta: taken,
                         sourcePageType: sourcePageType,
-                        note: "\(actorName) took \(taken) Belief from \(source.title) Pages."
+                        note: "\(actorName) took \(taken) Belief from \(source.kindName) Pages."
                     )
                     if let slotID {
-                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: taken, line: "\(actorName) said something unkind about \(source.title) Pages and didn't take it back.", createdAt: now))
+                        movements.append(CastAgencyMovement(slotID: slotID, kind: .pageSource, actorID: actorID, actorName: actorName, targetID: source.id, targetName: source.title, amount: taken, line: "\(actorName) said something unkind about \(source.kindName) Pages and didn't take it back.", createdAt: now))
                     }
                     appliedCount += 1
                 }
@@ -21938,6 +22155,9 @@ struct ContentView: View {
                     // before iOS asks, and the sensory folio doesn't wait on
                     // the answer.
                     Task {
+                        // One voice per Keep: the Cast's answer and any lesson
+                        // queued behind it finish before the Book asks.
+                        await waitForKeepRepliesToFinish()
                         guard await KeepPlaceAsk.offer() else { return }
                         await enrichKeptPagesWithFreshLocation(
                             pageIDs: newlyKeptPageIDs,

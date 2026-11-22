@@ -146,7 +146,7 @@ enum NoticingCrossings {
     static func keepUnits(days: [BookDay], calendar: Calendar) -> [Sample] {
         days.flatMap { day in
             day.pages
-                .filter { $0.carriesReaderAttention && $0.origin != .simulated && $0.type != .bookNotices }
+                .filter { $0.carriesReaderAttention && $0.origin != .simulated && $0.type != .bookNotices && $0.type != .neighbours }
                 .map { keepUnit($0, dayID: day.id, calendar: calendar) }
         }
         .sorted { $0.date < $1.date }

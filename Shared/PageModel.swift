@@ -57,6 +57,11 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case bookConnections
     case bookRemembered
     case bookNotices
+    /// The Neighbours: proposals, name-days, gone-quiet and came-back
+    /// letters about the things in the reader's world that have become
+    /// somebody. Its own type so it takes its own desk seat instead of
+    /// queuing behind the Book's other noticings. See `Neighbours.swift`.
+    case neighbours
     case glowInvitation
     case theBleed
     case inventory
@@ -81,6 +86,10 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
     case plainPage
 
     var id: String { rawValue }
+
+    /// The Book's noticing leaves, which open, read and answer the same way.
+    /// `.neighbours` only differs on the desk, where it has its own seat.
+    var isNoticeLeaf: Bool { self == .bookNotices || self == .neighbours }
 
     static func legacyCompatible(rawValue: String) -> BookPageType? {
         rawValue == "castMember" ? .illustration : Self(rawValue: rawValue)
@@ -217,6 +226,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "I Remembered"
         case .bookNotices:
             return "I Notice"
+        case .neighbours:
+            return "The Neighbours"
         case .glowInvitation:
             return "Spend Belief"
         case .theBleed:
@@ -350,6 +361,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "Remembered"
         case .bookNotices:
             return "Notices"
+        case .neighbours:
+            return "Neighbours"
         case .glowInvitation:
             return "Belief"
         case .theBleed:
@@ -483,6 +496,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return "clock.arrow.circlepath"
         case .bookNotices:
             return "sparkle.magnifyingglass"
+        case .neighbours:
+            return "house.and.flag"
         case .glowInvitation:
             return "sparkle"
         case .theBleed:
@@ -629,6 +644,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("Reading it now", "One sentence about this page, read today.")
         case .bookNotices:
             return ("Your answer", "One sentence: did I get this right?")
+        case .neighbours:
+            return ("Your answer", "One sentence: how's it doing?")
         case .glowInvitation:
             return ("Your choice", "One sentence: more of what, or less of what?")
         case .theBleed:
@@ -777,6 +794,8 @@ enum BookPageType: String, Codable, CaseIterable, Identifiable {
             return ("I brought an old page back.", "See what you think of it now.")
         case .bookNotices:
             return ("Nothing's jumped out at me yet.", "When something keeps coming back in your Pages, I'll show you here.")
+        case .neighbours:
+            return ("Nobody's moved in yet.", "When something in your days starts acting like somebody, I'll ask if it gets a page.")
         case .glowInvitation:
             return ("Your Belief wants somewhere to go.", "Give it to what you want more of. Take it from what's gone too loud. Taking never deletes a thing, it just lets it rest.")
         case .theBleed:
@@ -859,6 +878,17 @@ struct BookPageSource: Codable, Identifiable, Equatable {
     var isActive: Bool
     var cadence: String
     var note: String
+
+    /// The title without its own trailing "Page", for sentences that say
+    /// "Pages" themselves: "Letter Page" must not become "Letter Page Pages".
+    var kindName: String { Self.kindName(from: title) }
+
+    static func kindName(from title: String) -> String {
+        for suffix in [" Pages", " Page"] where title.hasSuffix(suffix) {
+            return String(title.dropLast(suffix.count))
+        }
+        return title
+    }
 
     /// A few adapters share a broad Page type but open a very different door.
     /// Their open-leaf copy belongs to the source, not the type catalogue.
@@ -995,7 +1025,7 @@ enum BookPageSourceRegistry {
             privacy: .privateLocal,
             isActive: true,
             cadence: "as needed",
-            note: "Low and gentle."
+            note: "A quiet middle to sit in."
         ),
         BookPageSource(
             id: "book-of-you",
@@ -1148,6 +1178,18 @@ enum BookPageSourceRegistry {
             isActive: true,
             cadence: "when a fold parts, a spine takes a shape, a worn part of me goes quiet, or I want you somewhere you've never been",
             note: "The marks your own reading leaves on me: which gatherings you have cut open, which ones you keep going back to, and which are still folded shut."
+        ),
+        BookPageSource(
+            id: Neighbours.sourceID,
+            type: .neighbours,
+            title: "The Neighbours",
+            shortTitle: "Neighbours",
+            symbolName: "house.and.flag",
+            origin: .generated,
+            privacy: .privateLocal,
+            isActive: true,
+            cadence: "when something in your days turns into somebody, has a name-day, goes quiet or comes back",
+            note: "The trees, stones, birds and doorways you've made into somebody, and what's happened to them since."
         ),
         // Still after "the-book-notices". This one looks at the map rather than
         // the paper, and it is the only source in the Book that can check its
@@ -1865,7 +1907,7 @@ enum BookPageSourceRegistry {
             return 32
         case .narrativeOS, .bookFae, .wonderCompass, .anchor, .welcome:
             return 30
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .neighbours, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
             return 22
         case .diary, .souvenir, .askTheBook, .enchantment, .faeBargain:
             return 28
@@ -1916,7 +1958,7 @@ enum BookPageSourceRegistry {
         switch source.type {
         case .narrativeOS, .bookFae:
             return 34
-        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
+        case .marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .neighbours, .glowInvitation, .inventory, .bindery, .bookPocket, .taleBound, .frontMatter:
             return 18
         case .mood, .fuel:
             return 30

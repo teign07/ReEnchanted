@@ -578,7 +578,7 @@ struct SurfacePage: Identifiable, Equatable, Codable {
             return .reflect
         case .castBond:
             return .importReference
-        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .note, .letter, .academyClass, .bookConnections, .bookNotices, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:
+        case .body, .fuel, .facultyResearch, .supportGuild, .weather, .note, .letter, .academyClass, .bookConnections, .bookNotices, .neighbours, .glowInvitation, .theBleed, .todaysSky, .bookJump, .radio, .inventory, .gamePage:
             return .reflect
         case .elective:
             return .capture
@@ -926,7 +926,9 @@ struct PageCapabilityContract: Codable, Equatable {
         if reach != .insideBook {
             switch profile.leavingHome {
             case "keep wonder indoors": multiplier *= 0.22
-            case "only when i choose it", "ask gently": multiplier *= 0.62
+            // "Ask gently" is still asking. Only a Reader who said they choose
+            // their own outings, or keep wonder indoors, has turned errands down.
+            case "only when i choose it": multiplier *= 0.62
             default: break
             }
         }
@@ -3257,7 +3259,7 @@ extension SurfacePage {
         // Its reactions ("you're wrong", "keep this") wait on the last leaf,
         // the same as a letter's reply; a teaser would hide the noticing.
         case .letter, .note, .theBleed, .bookOfYou, .welcome, .helpTips,
-             .bookNotices, .bookRemembered, .bookConnections:
+             .bookNotices, .neighbours, .bookRemembered, .bookConnections:
             return .readingWithActivity
         case .weather, .quip, .quotes, .lore, .illustration, .gossip,
              .bookAside, .facultyResearch, .pactDispatch, .todaysSky,
@@ -3546,6 +3548,8 @@ extension SurfacePage {
             return ("Explore the connections", "point.3.connected.trianglepath.dotted")
         case .bookNotices:
             return ("Talk back", "quote.bubble")
+        case .neighbours:
+            return ("Answer it", "house.and.flag")
         case .bookOfYou:
             return ("Say what you thought", "text.bubble")
         case .taleBound:
@@ -9619,7 +9623,7 @@ extension BookPageType {
     /// returning an answer.
     var reflectsTheReader: Bool {
         switch self {
-        case .bookNotices, .bookRemembered, .bookConnections, .marginsAtlas, .bookPocket:
+        case .bookNotices, .neighbours, .bookRemembered, .bookConnections, .marginsAtlas, .bookPocket:
             return true
         default:
             return false
@@ -9683,7 +9687,7 @@ extension BookPageType {
         case .mood, .fuel, .body, .diary, .plainPage, .aboutYou, .askTheBook, .weather:
             return .instrument
         // Reprise: the Book gives the reader's own material back to them.
-        case .narrativeOS, .bookNotices, .bookRemembered, .bookConnections,
+        case .narrativeOS, .bookNotices, .neighbours, .bookRemembered, .bookConnections,
              .marginsAtlas, .twoReadings, .taleBound, .bookOfYou, .bookPocket,
              .illuminatedPhoto, .bindery:
             return .reprise
@@ -9703,7 +9707,7 @@ extension BookPageType {
         // Outward: the reader attends to the actual world / their own day.
         case .wonderCompass, .diary, .mood, .souvenir, .body, .fuel,
              .weather, .todaysSky, .location, .anchor, .pactErrand, .spell,
-             .rest, .enchantment, .plainPage:
+             .rest, .enchantment, .plainPage, .neighbours:
             return .outward
         // Fiction: the Academy world performs, corresponds, or contends.
         case .narrativeOS, .letter, .gossip, .bookAside, .facultyResearch, .supportGuild,
@@ -10270,8 +10274,8 @@ enum InscriptionCurationAffinity {
 
     private static func comfortBoost(for type: BookPageType, comfort: String?) -> Int {
         switch comfort?.lowercased() {
-        case "gentle":
-            return [.rest, .mood, .souvenir].contains(type) ? 2 : 0
+        // Asking for a softer tongue is not asking for a smaller Book: the
+        // quiet answer changes how hard I push, never what I bring.
         case "strange":
             return [.narrativeOS, .lore, .wonderCompass, .bookFae].contains(type) ? 2 : 0
         default:
@@ -10464,7 +10468,7 @@ enum CuratorSelfKnowledgeAffinity {
             if indoorTypes.contains(page.type) { delta += 8 }
             if outwardTypes.contains(page.type) { delta -= 12 }
             if tags.contains("outward") || tags.contains("walking") || tags.contains("outing") { delta -= 18 }
-        } else if profile.leavingHome == "only when i choose it" || profile.leavingHome == "ask gently" {
+        } else if profile.leavingHome == "only when i choose it" {
             if indoorTypes.contains(page.type) { delta += 2 }
             if outwardTypes.contains(page.type) { delta -= 3 }
             if tags.contains("outward") || tags.contains("walking") || tags.contains("outing") { delta -= 6 }
@@ -11101,7 +11105,7 @@ struct CuratorMood {
     }
 
     private func quietReflectionPenalty(for page: SurfacePage, now: Date) -> Int {
-        let quietTypes: Set<BookPageType> = [.marginsAtlas, .bookConnections, .bookRemembered, .bookNotices]
+        let quietTypes: Set<BookPageType> = [.marginsAtlas, .bookConnections, .bookRemembered, .bookNotices, .neighbours]
         guard quietTypes.contains(page.type) else { return 0 }
 
         var penalty = 4
