@@ -235,6 +235,9 @@ extension Neighbours {
             hasher.combine(page.userInput.count)
             hasher.combine(page.playerReply.count)
             hasher.combine(page.creatureSightings?.count ?? -1)
+            // Where it was written decides where a Neighbour sits on the map.
+            hasher.combine(page.context?.latitude)
+            hasher.combine(page.context?.longitude)
         }
         return hasher.finalize()
     }
@@ -1291,5 +1294,124 @@ enum NeighbourThinking {
         if word.contains("DIFFERENT") { return false }
         if word.contains("SAME") { return true }
         return nil
+    }
+}
+
+// MARK: - On the map
+
+/// Every Neighbour that knows where it lives, at the spot its founding Page
+/// was written. A Neighbour whose founding Page had no coordinates (most
+/// things indoors) isn't drawn rather than guessed at.
+enum NeighboursAtlasLayer: AtlasLayerSource {
+    static let layer = AtlasLayerID("neighbours")
+    static let title = "The Neighbours"
+    static let note = "Everything out there that turned into somebody, where you first found it."
+    static let glyph = "house.and.flag"
+    static let isOnByDefault = true
+
+    static func glyph(for neighbour: Neighbour) -> String {
+        switch neighbour.status {
+        case .gone: return "circle.dotted"
+        case .resting: return "moon.zzz.fill"
+        case .living: break
+        }
+        switch neighbour.kind {
+        case .place: return "signpost.right.fill"
+        case .creature: return "pawprint.fill"
+        case .thing: return "sparkle"
+        }
+    }
+
+    static func marks(from sources: AtlasSources) -> [AtlasMark] {
+        Neighbours.register(days: sources.days).compactMap { neighbour in
+            guard let latitude = neighbour.latitude, let longitude = neighbour.longitude else { return nil }
+            var detail = [Neighbours.line(for: neighbour, days: sources.days, now: sources.now, calendar: sources.calendar)]
+            if let sentence = neighbour.foundingSentence {
+                detail.append("\u{201C}\(sentence)\u{201D}")
+            }
+            let weight: Int
+            switch neighbour.status {
+            case .living: weight = 60 + min(neighbour.pageIDs.count, 30)
+            case .resting: weight = 40
+            case .gone: weight = 20
+            }
+            return AtlasMark(
+                id: "neighbours:\(neighbour.slug)",
+                layer: layer,
+                latitude: latitude,
+                longitude: longitude,
+                title: Neighbours.capitalized(neighbour.name),
+                subtitle: neighbour.status == .gone ? "Gone" : (neighbour.status == .resting ? "Resting" : nil),
+                glyph: glyph(for: neighbour),
+                detail: detail,
+                weight: weight
+            )
+        }
+    }
+}
+
+// MARK: - Who lives here (the printed roll)
+
+/// One line of the roll: a Neighbour as it stood at the end of a printed
+/// period. Facts only, each from a Page.
+struct NeighbourRollEntry: Codable, Equatable {
+    var slug: String
+    var name: String
+    var lines: [String]
+    var status: NeighbourStatus
+    var foundedAt: Date
+}
+
+extension Neighbours {
+    /// Everyone who lived here by `end`: the living, the resting, and the
+    /// ones who went in the period. Neighbours gone before `start` were
+    /// already said goodbye to in an earlier book.
+    static func roll(days: [BookDay], start: Date, end: Date, calendar: Calendar = .current) -> [NeighbourRollEntry] {
+        let pages = allPages(in: days)
+        let dates = Dictionary(pages.map { ($0.id, $0.createdAt) }, uniquingKeysWith: { first, _ in first })
+        var standing: [Neighbour] = []
+        for neighbour in register(days: days) where neighbour.foundedAt <= end {
+            // A book bound late still tells the period as it was: a change
+            // after `end` hadn't happened yet.
+            var asItWas = neighbour
+            if let changed = neighbour.statusChangedAt, changed > end {
+                asItWas.status = .living
+                asItWas.statusChangedAt = nil
+            }
+            if asItWas.status == .gone, let gone = asItWas.statusChangedAt, gone < start { continue }
+            standing.append(asItWas)
+        }
+        standing.sort { $0.foundedAt == $1.foundedAt ? $0.slug < $1.slug : $0.foundedAt < $1.foundedAt }
+        return standing
+            .map { (neighbour: Neighbour) -> NeighbourRollEntry in
+                var lines: [String] = []
+                let came = "Came in \(monthYear(neighbour.foundedAt, calendar: calendar))."
+                if let working = neighbour.working, let deed = namingWorkings[working]?.deed {
+                    lines.append("\(came) \(deed)")
+                } else {
+                    lines.append(came)
+                }
+                let onPages = neighbour.pageIDs.filter { (dates[$0] ?? .distantFuture) <= end }
+                if onPages.count > 1 {
+                    let last = onPages.compactMap { dates[$0] }.max() ?? neighbour.lastSeen
+                    lines.append("On \(onPages.count <= 20 ? DeedChronicle.number(onPages.count) : String(onPages.count)) of your Pages. The last was in \(month(last, calendar: calendar)).")
+                }
+                if !neighbour.formerNames.isEmpty {
+                    lines.append("Called \(neighbour.formerNames.joined(separator: ", then ")) before.")
+                }
+                switch neighbour.status {
+                case .gone:
+                    lines.append("Gone in \(monthYear(neighbour.statusChangedAt ?? end, calendar: calendar)).")
+                case .resting:
+                    lines.append("Resting since \(monthYear(neighbour.statusChangedAt ?? end, calendar: calendar)).")
+                case .living:
+                    break
+                }
+                if let sentence = neighbour.foundingSentence {
+                    lines.append("You wrote: \u{201C}\(sentence)\u{201D}")
+                }
+                return NeighbourRollEntry(slug: neighbour.slug, name: capitalized(neighbour.name),
+                                          lines: lines, status: neighbour.status, foundedAt: neighbour.foundedAt)
+            }
     }
 }

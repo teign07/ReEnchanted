@@ -7749,7 +7749,7 @@ struct ContentView: View {
         case "penny-blackletter":
             return "Sharp student editor"
         case "dr-inkrest":
-            return "Gentle narrative therapist"
+            return "Office hours for the hard pages"
         case "dr-vellum":
             return "Precise longevity physician"
         case "headmistress-thorne":
@@ -24173,7 +24173,9 @@ private struct AtlasMapView: View {
                     .frame(height: 280)
             }
         }
-        .task(id: "\(anchors.count)-\(days.count)") {
+        // Pages, not days: a Neighbour made today adds a Page to a day the
+        // chart already counted.
+        .task(id: "\(anchors.count)-\(days.count)-\(days.reduce(0) { $0 + $1.pages.count })") {
             layers = AtlasProjection.layers(from: AtlasSources(anchors: anchors, days: days, now: Date()))
         }
         .fullScreenCover(isPresented: $isUnfolded) {
@@ -24196,7 +24198,7 @@ private struct AtlasMapView: View {
                         latitudeSpan: opening.latitudeSpan * 1.6,
                         longitudeSpan: opening.longitudeSpan * 1.6,
                         marks: marks.map {
-                            MapPlateMark(latitude: $0.latitude, longitude: $0.longitude, glyph: $0.glyph, isPrimary: $0.layer == .places)
+                            MapPlateMark(latitude: $0.latitude, longitude: $0.longitude, glyph: $0.glyph, isPrimary: $0.layer == .places || $0.layer == NeighboursAtlasLayer.layer)
                         },
                         showsLabels: true,
                         isLoosened: false
@@ -24238,10 +24240,20 @@ private struct AtlasMapView: View {
         case 1: named = "One place you've named"
         default: named = "\(GrimoireVoice.spelledCount(places)) places you've named"
         }
-        let kept = pages == 0 ? "" : pages == 1
-            ? ", and one Page that remembers where you kept it"
-            : ", and \(pages) Pages that remember where you kept them"
-        return "\(named)\(kept). Touch the chart and I'll unfold it."
+        let neighbours = layers.first { $0.id == NeighboursAtlasLayer.layer }?.marks.count ?? 0
+        var extras: [String] = []
+        if neighbours > 0 {
+            extras.append(neighbours == 1 ? "one Neighbour where you found it"
+                          : "\(GrimoireVoice.spelledCount(neighbours)) Neighbours where you found them")
+        }
+        if pages > 0 {
+            extras.append(pages == 1 ? "one Page that remembers where you kept it"
+                          : "\(pages) Pages that remember where you kept them")
+        }
+        let tail = extras.isEmpty ? "" : ", " + extras.enumerated().map { index, part in
+            index == extras.count - 1 ? "and \(part)" : part
+        }.joined(separator: ", ")
+        return "\(named)\(tail). Touch the chart and I'll unfold it."
     }
 }
 
@@ -24374,7 +24386,11 @@ private struct AtlasGlass: View {
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .parchmentSurface(accent: BookPalette.gold.opacity(0.7), isActive: true)
+            // Solid paper: over a dark map a translucent surface left the
+            // ink unreadable.
+            .background(Color(red: 0.96, green: 0.92, blue: 0.82), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(BookPalette.gold.opacity(0.7), lineWidth: 1))
             .padding(.horizontal, 16)
             .padding(.bottom, 8)
             .transition(.move(edge: .bottom).combined(with: .opacity))

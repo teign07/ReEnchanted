@@ -2478,7 +2478,10 @@ enum MonthlyEditionPDFWriter {
                 )
             }
 
-            for section in chapter.sections where section.id != "the-months-theme" {
+            // The roll of Neighbours prints once at the back of a volume, not
+            // once a month.
+            for section in chapter.sections where section.id != "the-months-theme"
+                && section.id != MonthlyEditionBuilder.whoLivesHereID {
                 if section.id == "what-the-cast-did" {
                     drawCastDivider(chapter.castLead, style: chapterStyle, context: context, cursor: &cursor)
                 }
@@ -2539,6 +2542,19 @@ enum MonthlyEditionPDFWriter {
         if let connections = annual.connections, !connections.isEmpty {
             drawConnections(connections, span: isYear ? "the whole year" : "the whole term", style: annualStyle,
                             context: context, cursor: &cursor)
+        }
+        if let roll = annual.neighbourRoll, !roll.isEmpty {
+            var rollIndex = 0
+            drawSection(
+                MonthlyEditionBuilder.whoLivesHereSection(roll: roll, start: annual.startDate),
+                style: annualStyle,
+                marginalia: [],
+                marginaliaIndex: &rollIndex,
+                specimenMonth: Calendar.current.component(.month, from: annual.endDate),
+                specimenYear: annual.year,
+                context: context,
+                cursor: &cursor
+            )
         }
         if isSeason, let memorySpine = annual.memorySpine, !memorySpine.isEmpty {
             drawSeasonKeptComingBack(memorySpine, annual: annual, style: annualStyle, context: context, cursor: &cursor)

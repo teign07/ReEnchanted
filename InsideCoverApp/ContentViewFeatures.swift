@@ -4144,12 +4144,15 @@ extension ContentView {
         edition.marginalia = seasonal.chapters
             .flatMap { $0.marginalia ?? [] }
         edition.sections = seasonal.chapters.flatMap { chapter in
-            chapter.sections.map { section in
+            chapter.sections.filter { $0.id != MonthlyEditionBuilder.whoLivesHereID }.map { section in
                 var seasonalSection = section
                 seasonalSection.id = "season-\(BookThemeEngine.monthKey(for: chapter.startDate))-\(section.id)"
                 seasonalSection.title = "\(chapter.monthName) · \(section.title)"
                 return seasonalSection
             }
+        }
+        if let roll = seasonal.neighbourRoll, !roll.isEmpty {
+            edition.sections.append(MonthlyEditionBuilder.whoLivesHereSection(roll: roll, start: seasonal.startDate))
         }
         edition.publicationKind = seasonal.publicationKind
         edition.publicationRecipeID = recipeID
@@ -4406,12 +4409,15 @@ extension ContentView {
         edition.passageCompass = annual.chapters.flatMap { $0.passageCompass ?? [] }
         edition.marginalia = annual.chapters.flatMap { $0.marginalia ?? [] }
         edition.sections = annual.chapters.flatMap { chapter in
-            chapter.sections.map { section in
+            chapter.sections.filter { $0.id != MonthlyEditionBuilder.whoLivesHereID }.map { section in
                 var annualSection = section
                 annualSection.id = "annual-\(BookThemeEngine.monthKey(for: chapter.startDate))-\(section.id)"
                 annualSection.title = "\(chapter.monthName) · \(section.title)"
                 return annualSection
             }
+        }
+        if let roll = annual.neighbourRoll, !roll.isEmpty {
+            edition.sections.append(MonthlyEditionBuilder.whoLivesHereSection(roll: roll, start: annual.startDate))
         }
         edition.publicationKind = .annual
         edition.publicationRecipeID = PublicationPeriodRecipe.calendarYear.rawValue
@@ -7951,7 +7957,7 @@ extension ContentView {
             renderStyle: base.renderStyle,
             score: base.score,
             reason: base.reason,
-            prompt: "\(offer.title): \(base.payload.metadata["senderName"] ?? "a character")",
+            prompt: ElectiveOfferDraft.prompt(title: offer.title, sender: base.payload.metadata["senderName"]),
             detail: base.detail,
             payload: BookPagePayload(headline: "A Quest", body: body, metadata: metadata)
         )

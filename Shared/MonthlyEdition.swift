@@ -825,6 +825,9 @@ struct AnnualEdition: Codable, Equatable {
     /// The Pages the reader ribboned, which open the volume. Optional so older
     /// volumes decode.
     var ribboned: [MonthlyEditionItem]? = nil
+    /// The Neighbours as they stood at the end of the volume, printed once at
+    /// the back instead of once a month. Optional so older volumes decode.
+    var neighbourRoll: [NeighbourRollEntry]? = nil
 
     /// The reader's own name for covers, jackets, and spines. The Book-given
     /// role only stands in when an older archive has no usable human name.
@@ -2413,6 +2416,8 @@ enum MonthlyEditionBuilder {
                                             seasonStart: yearStart, period: "year", calendar: calendar)
         let connections = EditionConnections.make(days: yearDays, now: now, calendar: calendar, limit: 8)
         assembled.connections = connections.isEmpty ? nil : connections
+        let roll = Neighbours.roll(days: yearDays, start: yearStart, end: yearEnd, calendar: calendar)
+        assembled.neighbourRoll = roll.isEmpty ? nil : roll
         return assembled
     }
 
@@ -2594,6 +2599,8 @@ enum MonthlyEditionBuilder {
         assembled.connections = connections.isEmpty ? nil : connections
         let ribboned = Self.ribbonedItems(days: seasonDays, ribbonedPageIDs: ribbonedPageIDs)
         assembled.ribboned = ribboned.isEmpty ? nil : ribboned
+        let roll = Neighbours.roll(days: seasonDays, start: seasonStart, end: seasonEnd, calendar: calendar)
+        assembled.neighbourRoll = roll.isEmpty ? nil : roll
         return assembled
     }
 
@@ -2868,6 +2875,9 @@ enum MonthlyEditionBuilder {
 
             // III(a). What the reader did: the month told as their deeds.
             deedsSection(days: days, start: startDate, end: endDate, calendar: calendar),
+
+            // III(b). Who lives here: the reader's dramatis personae.
+            whoLivesHereSection(days: days, start: startDate, end: endDate, calendar: calendar),
 
             // III. What the reader kept in their own words.
             pageSection(
@@ -3182,6 +3192,43 @@ enum MonthlyEditionBuilder {
             items: items
         )
     }
+
+    /// The Neighbours as they stood at the end of the month: everything in
+    /// the reader's world that turned into somebody. Empty until there is one.
+    static func whoLivesHereSection(days: [BookDay], start: Date, end: Date, calendar: Calendar) -> MonthlyEditionSection {
+        whoLivesHereSection(roll: Neighbours.roll(days: days, start: start, end: end, calendar: calendar), start: start)
+    }
+
+    /// Shared with the volumes, which print the roll once at the back rather
+    /// than once a month.
+    static func whoLivesHereSection(roll: [NeighbourRollEntry], start: Date) -> MonthlyEditionSection {
+        guard !roll.isEmpty else {
+            return MonthlyEditionSection(id: whoLivesHereID, title: "Who Lives Here", note: "", items: [])
+        }
+        let items = roll.map { entry in
+            MonthlyEditionItem(
+                id: "who-lives-here-\(entry.slug)-\(Int(start.timeIntervalSince1970))",
+                kind: .continuity,
+                title: entry.name,
+                body: entry.lines.joined(separator: "\n"),
+                date: entry.foundedAt,
+                pageType: nil,
+                sourceID: Neighbours.sourceID,
+                mediaAssets: [],
+                tags: ["monthly-edition", "neighbours", "who-lives-here"]
+            )
+        }
+        return MonthlyEditionSection(
+            id: whoLivesHereID,
+            title: "Who Lives Here",
+            note: roll.count == 1
+                ? "The one thing out there that turned into somebody."
+                : "Everything out there that turned into somebody, in the order they came.",
+            items: items
+        )
+    }
+
+    static let whoLivesHereID = "who-lives-here"
 
     private static func grimoireSection(
         from grimoire: GrimoireLedger,

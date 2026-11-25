@@ -483,3 +483,23 @@ after Phase 2, because 1 December is close.
   Give it a page / It's nobody, and Give it a page saved a `neighbours`
   founding record. Also fixed "These 1 kept Page led me here." Simulator data
   restored afterwards.
+- **2026-11-25 — Phase 5 (map and print) built.** `NeighboursAtlasLayer` puts
+  every Neighbour whose founding Page knew where it was on the Atlas, at that
+  spot (signpost / pawprint / sparkle by kind; a dotted mark when gone, moon
+  when resting), on by default, with the Book's line and the Reader's own
+  sentence on its card. `Neighbours.roll` + `whoLivesHereSection` print
+  "Who Lives Here" in each monthly edition, and once at the back of seasonal and
+  yearly volumes (`AnnualEdition.neighbourRoll`), told as each period was
+  (a Neighbour gone later is still living in an earlier book). **Seen in the
+  simulator:** Gerald made from the Neighbours sheet appears on the chart and
+  the unfolded map with his card. **Fixed on the way:** the Atlas only
+  recomputed when the day count changed (a Neighbour made today never showed);
+  its caption now counts Neighbours; mark cards were see-through over the dark
+  map; elective titles doubled the sender's name ("A Field Note for Lysander
+  Mosswood: Lysander Mosswood"); the Book's own Cast tide said "The Book caught
+  a point"; Inkrest's descriptor dropped "Gentle narrative therapist" for her
+  canon line. The register memo now keys on coordinates too. Not built from
+  Phase 5: the printed Neighbours *map* endpaper (needs the print plate's
+  privacy loosening) and Gazetteer gaps. `WeeklyTaleReadingTests
+  .testModelWritesBookJoins…` fails on the committed code as well (fixed dates;
+  likely the system NaturalLanguage tagger); not touched.

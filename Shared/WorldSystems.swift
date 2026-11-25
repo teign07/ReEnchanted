@@ -5977,6 +5977,13 @@ struct LocalPlaceSignal: Codable, Equatable, Identifiable {
 
 
 struct ElectiveOfferDraft: Equatable {
+    /// The leaf's prompt line: the title, then who sent it, unless the
+    /// title already says ("A Field Note for Lysander Mosswood").
+    static func prompt(title: String, sender: String?) -> String {
+        let name = sender?.trimmingCharacters(in: .whitespaces).nonEmpty ?? "a character"
+        return title.localizedCaseInsensitiveContains(name) ? title : "\(title): \(name)"
+    }
+
     var title: String
     var ask: String
     var whyItMatters: String
@@ -12504,7 +12511,7 @@ enum BeliefEconomyEngine {
 
         for entity in tideCandidates {
             entityDeltas[entity.id, default: 0] += 1
-            movements.append(movement(.entity, id: entity.id, name: entity.name, delta: 1, reason: .dailyTide, now: context.now, note: "\(entity.name) caught a point of yesterday's attention."))
+            movements.append(movement(.entity, id: entity.id, name: entity.name, delta: 1, reason: .dailyTide, now: context.now, note: entity.id == "the-book" ? "I caught a point of yesterday's attention." : "\(entity.name) caught a point of yesterday's attention."))
         }
 
         // Time away from the app never cools a character, a relationship, or a

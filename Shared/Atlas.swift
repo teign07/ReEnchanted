@@ -85,6 +85,7 @@ enum AtlasProjection {
     /// The layers that exist. Add to this list, not to the map.
     static let registered: [any AtlasLayerSource.Type] = [
         PlacesAtlasLayer.self,
+        NeighboursAtlasLayer.self,
         KeptPagesAtlasLayer.self
     ]
 

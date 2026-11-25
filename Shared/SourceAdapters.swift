@@ -7418,7 +7418,7 @@ struct ElectivePageSourceAdapter: BookPageSourceAdapter {
         return authorCapabilities(on: SurfacePage(
             id: page.id, type: page.type, sourceID: page.sourceID, intent: page.intent,
             renderStyle: page.renderStyle, score: page.score, reason: page.reason,
-            prompt: "\(offer.title): \(metadata["senderName"] ?? "a character")", detail: offer.ask,
+            prompt: ElectiveOfferDraft.prompt(title: offer.title, sender: metadata["senderName"]), detail: offer.ask,
             payload: BookPagePayload(headline: offer.title, body: body, metadata: metadata)
         ))
     }

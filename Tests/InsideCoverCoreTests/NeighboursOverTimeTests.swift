@@ -269,4 +269,96 @@ final class NeighboursOverTimeTests: XCTestCase {
         XCTAssertEqual(Neighbours.line(for: huffer, days: days(pages), now: date(2026, 6, 20), calendar: calendar),
                        "Huffer hasn't been in your Pages since May. It's Huffer's first June in here.")
     }
+
+    // MARK: On the map
+
+    private func placedTreeSpell() -> BookPage {
+        var page = treeSpell()
+        page.context = BookPageContextSnapshot(latitude: 51.5, longitude: -0.12)
+        return page
+    }
+
+    func testANeighbourWithCoordinatesIsOnTheMapByName() throws {
+        let pages = try founding([placedTreeSpell()])
+        let layers = AtlasProjection.layers(from: AtlasSources(days: days(pages), now: date(2026, 5, 20), calendar: calendar))
+        let layer = try XCTUnwrap(layers.first(where: { $0.id == NeighboursAtlasLayer.layer }))
+        XCTAssertTrue(layer.isOnByDefault)
+        let mark = try XCTUnwrap(layer.marks.first)
+        XCTAssertEqual(mark.title, "Gerald")
+        XCTAssertEqual(mark.latitude, 51.5)
+        XCTAssertEqual(mark.glyph, "signpost.right.fill")
+        XCTAssertTrue(mark.detail.contains("\u{201C}The tree is called Gerald.\u{201D}"))
+    }
+
+    func testANeighbourWithoutCoordinatesIsNotGuessedOntoTheMap() throws {
+        let pages = try founding([treeSpell()])
+        let layers = AtlasProjection.layers(from: AtlasSources(days: days(pages), now: date(2026, 5, 20), calendar: calendar))
+        XCTAssertNil(layers.first(where: { $0.id == NeighboursAtlasLayer.layer }))
+    }
+
+    func testAGoneNeighbourKeepsItsSpotWithADifferentMark() throws {
+        var pages = try founding([placedTreeSpell()])
+        let gerald = try XCTUnwrap(Neighbours.register(days: days(pages)).first)
+        pages.append(try XCTUnwrap(Neighbours.goneRecord(gerald, now: date(2026, 8, 1), calendar: calendar)))
+        let layers = AtlasProjection.layers(from: AtlasSources(days: days(pages), now: date(2026, 9, 1), calendar: calendar))
+        let mark = try XCTUnwrap(layers.first(where: { $0.id == NeighboursAtlasLayer.layer })?.marks.first)
+        XCTAssertEqual(mark.glyph, "circle.dotted")
+        XCTAssertEqual(mark.subtitle, "Gone")
+    }
+
+    // MARK: Who lives here
+
+    func testTheRollSaysWhenItCameWhatYouDidAndQuotesYouWhole() throws {
+        let pages = try founding([treeSpell()]) + [
+            diary("Gerald dropped a branch on the car.", at: date(2026, 6, 2), id: "d1"),
+            diary("Sat under Gerald with a sandwich.", at: date(2026, 6, 9), id: "d2")
+        ]
+        let roll = Neighbours.roll(days: days(pages), start: date(2026, 6, 1), end: date(2026, 6, 30), calendar: calendar)
+        let gerald = try XCTUnwrap(roll.first)
+        XCTAssertEqual(gerald.name, "Gerald")
+        XCTAssertEqual(gerald.lines.first, "Came in May 2026. You told a tree its name.")
+        XCTAssertTrue(gerald.lines.contains("On three of your Pages. The last was in June."), "\(gerald.lines)")
+        XCTAssertEqual(gerald.lines.last, "You wrote: \u{201C}The tree is called Gerald.\u{201D}")
+    }
+
+    func testTheRollHoldsNobodyFromAfterTheBookAndNobodyAlreadySaidGoodbyeTo() throws {
+        var pages = try founding([treeSpell()])
+        XCTAssertTrue(Neighbours.roll(days: days(pages), start: date(2026, 4, 1), end: date(2026, 4, 30), calendar: calendar).isEmpty)
+        let gerald = try XCTUnwrap(Neighbours.register(days: days(pages)).first)
+        pages.append(try XCTUnwrap(Neighbours.goneRecord(gerald, now: date(2026, 7, 10), calendar: calendar)))
+        let july = Neighbours.roll(days: days(pages), start: date(2026, 7, 1), end: date(2026, 7, 31), calendar: calendar)
+        XCTAssertEqual(july.first?.lines.contains("Gone in July 2026."), true)
+        XCTAssertTrue(Neighbours.roll(days: days(pages), start: date(2026, 8, 1), end: date(2026, 8, 31), calendar: calendar).isEmpty)
+    }
+
+    func testABookBoundLateTellsThePeriodAsItWas() throws {
+        var pages = try founding([treeSpell()])
+        let gerald = try XCTUnwrap(Neighbours.register(days: days(pages)).first)
+        pages.append(try XCTUnwrap(Neighbours.goneRecord(gerald, now: date(2026, 7, 10), calendar: calendar)))
+        let june = try XCTUnwrap(Neighbours.roll(days: days(pages), start: date(2026, 6, 1), end: date(2026, 6, 30), calendar: calendar).first)
+        XCTAssertEqual(june.status, .living)
+        XCTAssertFalse(june.lines.contains { $0.hasPrefix("Gone") })
+    }
+
+    func testTheMonthlyPrintsWhoLivesHereOnlyWhenSomebodyDoes() throws {
+        let empty = MonthlyEditionBuilder.whoLivesHereSection(days: days([treeSpell()]), start: date(2026, 5, 1),
+                                                             end: date(2026, 5, 31), calendar: calendar)
+        XCTAssertTrue(empty.items.isEmpty)
+        let pages = try founding([treeSpell()])
+        let section = MonthlyEditionBuilder.whoLivesHereSection(days: days(pages), start: date(2026, 5, 1),
+                                                               end: date(2026, 5, 31), calendar: calendar)
+        XCTAssertEqual(section.id, MonthlyEditionBuilder.whoLivesHereID)
+        XCTAssertEqual(section.title, "Who Lives Here")
+        XCTAssertEqual(section.items.map(\.title), ["Gerald"])
+    }
+
+    // MARK: Elective titles (found on screen 11-25)
+
+    func testAnElectiveTitleThatNamesItsSenderDoesNotSayTheNameTwice() {
+        XCTAssertEqual(ElectiveOfferDraft.prompt(title: "A Field Note for Lysander Mosswood", sender: "Lysander Mosswood"),
+                       "A Field Note for Lysander Mosswood")
+        XCTAssertEqual(ElectiveOfferDraft.prompt(title: "A Visit to the Weir", sender: "Lysander Mosswood"),
+                       "A Visit to the Weir: Lysander Mosswood")
+        XCTAssertEqual(ElectiveOfferDraft.prompt(title: "A Quest", sender: nil), "A Quest: a character")
+    }
 }
